@@ -352,6 +352,7 @@ class CrossAttention(Attention):
         d_memory: int,
         p_dropout: float,
         make_prior_window_strict: bool = False,
+        d_head: Optional[int] = None,
     ):
         """
         Implements CrossAttention. See parent class for forward implementation. Must be non-causal.
@@ -362,15 +363,15 @@ class CrossAttention(Attention):
             d_memory (int): Dimension of the conditioning / cross-attention input.
             p_dropout (float): Dropout probability.
             make_prior_window_strict (bool): Make attention scores lowest where prior is zero.
+            d_head (int): Head dimension. if None, defaults to d_model // n_heads in parent class.
         """
         super().__init__(
             n_heads=n_heads,
             d_model=d_model,
             p_dropout=p_dropout,
             is_causal=False,
+            d_head=d_head,
         )
-        if d_memory is None:
-            raise ValueError("d_memory must be provided for cross-attention")
         self.q_net = torch.nn.Linear(d_model, n_heads * self.d_head, bias=False)
         self.kv_net = torch.nn.Linear(d_memory, 2 * n_heads * self.d_head, bias=False)
         self.make_prior_window_strict = make_prior_window_strict
@@ -416,6 +417,7 @@ class TransformerLayer(torch.nn.Module):
         has_xattn: bool,
         xa_d_memory: Optional[int] = None,
         xa_n_heads: Optional[int] = None,
+        xa_d_head: Optional[int] = None,
         is_causal: bool = True,
         apply_norm_to_cond: bool = True,
         max_length_causal_mask: int = 4096,
@@ -433,6 +435,7 @@ class TransformerLayer(torch.nn.Module):
             has_xattn <bool>: Whether to use cross attention
             xa_d_memory <int>: Hidden dimension for cross attention
             xa_n_heads <int>: Number of attention heads used in cross attention
+            xa_d_head <int>: Head dimension for cross attention. if None, defaults to d_model // xa_n_heads in Attention class.
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
             max_length_causal_mask <int>: Maximum length of causal mask
@@ -459,6 +462,7 @@ class TransformerLayer(torch.nn.Module):
                 d_memory=xa_d_memory,
                 p_dropout=p_dropout,
                 make_prior_window_strict=make_prior_window_strict,
+                d_head=xa_d_head,
             )
 
             self.norm_xattn_memory = torch.nn.Identity()
@@ -559,6 +563,7 @@ class Transformer(torch.nn.Module):
         has_xattn: bool = False,
         xa_d_memory: Optional[int] = None,
         xa_n_heads: Optional[int] = None,
+        xa_d_head: Optional[int] = None,
         is_causal: bool = True,
         apply_norm_to_cond: bool = True,
         apply_norm_out: bool = False,
@@ -581,6 +586,7 @@ class Transformer(torch.nn.Module):
             has_xattn <bool>: Whether to use cross attention
             xa_d_memory <int>: Hidden dimension for cross attention; required if has_xattn is True
             xa_n_heads <int>: Number of attention heads used in cross attention; required if has_xattn is True
+            xa_d_head <int>: Head dimension for cross attention. if None, defaults to d_model // xa_n_heads in Attention class.
             is_causal <bool>: Whether to make attention and the convolution feedforward networks causal.
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor; conditioning tensor being
                 the input to the memory part of cross-attention.
@@ -618,6 +624,7 @@ class Transformer(torch.nn.Module):
                     has_xattn=has_xattn,
                     xa_d_memory=xa_d_memory,
                     xa_n_heads=xa_n_heads,
+                    xa_d_head=xa_d_head,
                     is_causal=is_causal,
                     apply_norm_to_cond=apply_norm_to_cond,
                     max_length_causal_mask=max_length_causal_mask,
