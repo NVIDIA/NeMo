@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 import random
+import re
 import time
 from typing import List
 import soundfile as sf
@@ -83,6 +84,10 @@ class MagpieTTSModel(ModelPT):
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
+
+        # For consumed samples tracking with static/dynamic batch sizes
+        self.total_consumed_samples_at_resume = 0.0
+        self._current_run_accumulated_samples_global = 0.0
 
         # load codec
         codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
@@ -267,6 +272,30 @@ class MagpieTTSModel(ModelPT):
         self.aligner_encoder_train_steps = self.cfg.get('aligner_encoder_train_steps', float('inf'))
         self.dec_random_input_max = self.cfg.get('dec_random_input_max', self.num_all_tokens_per_codebook)
 
+    def _extract_consumed_samples_from_ckpt(self, ckpt_path: str) -> int:
+        try:
+            init_consumed_samples = int(re.search(r"consumed_samples\=(\d+)", ckpt_path).group(1))
+        except (ValueError, TypeError, AttributeError):
+            logging.warning("Cannot parse the checkpoint file to get the consumed samples. assume it is zero.")
+            init_consumed_samples = 0
+        return init_consumed_samples
+
+    def on_train_start(self):
+        super().on_train_start()
+
+        if self.trainer.ckpt_path:
+            self.total_consumed_samples_at_resume = float(
+                self._extract_consumed_samples_from_ckpt(self.trainer.ckpt_path)
+            )
+            logging.info(
+                f"Resuming training. Initial total consumed_samples from ckpt: {self.total_consumed_samples_at_resume}"
+            )
+        else:
+            self.total_consumed_samples_at_resume = 0.0
+            logging.info("Starting new training or no ckpt_path. Initial total consumed_samples set to 0.")
+
+        # Reset accumulator for samples processed in the current run/fit call
+        self._current_run_accumulated_samples_global = 0.0
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         """
@@ -1265,7 +1294,7 @@ class MagpieTTSModel(ModelPT):
         batch_info_dict = {
             "train/batch_size": batch_size,
             "train/text_token_max_len": text_token_max_len,
-            "train/text_token_total_num_in_batch": text_token_total_num,
+            "train/text_token_total_num_in_batch": text_token_total_num.item(),
             "train/text_token_pad_ratio_percent_in_batch": 100 * (1 - text_token_total_num / (batch_size * text_token_max_len)),
         }
 
@@ -1274,7 +1303,7 @@ class MagpieTTSModel(ModelPT):
             audio_codes_total_num = batch["audio_codes_lens"].sum()
             batch_info_dict.update({
                 "train/audio_codes_max_len": audio_codes_max_len,
-                "train/audio_codes_total_num_in_batch": audio_codes_total_num,
+                "train/audio_codes_total_num_in_batch": audio_codes_total_num.item(),
                 "train/audio_codes_pad_ratio_percent_in_batch": 100 * (1 - audio_codes_total_num / (batch_size * audio_codes_max_len)),
             })
         else:
@@ -1286,9 +1315,30 @@ class MagpieTTSModel(ModelPT):
                 "train/audio_samples_pad_ratio_percent_in_batch": 100 * (1 - audio_samples_total_num / (batch_size * audio_samples_max_len)),
             })
 
+        # only log rank 0's batch info.
         self.log_dict(batch_info_dict, on_step=True)
 
+        self.log("_samples_this_micro_batch_global_sum", float(batch_size), sync_dist=True, reduce_fx="sum", on_step=True, on_epoch=False, logger=False, prog_bar=False)
+
         return loss
+
+    def on_train_batch_end(self, outputs, batch, batch_idx):
+        super().on_train_batch_end(outputs, batch, batch_idx)  # Call super if it exists
+
+        # Retrieve the globally summed samples for the micro-batch that just ended
+        global_samples_processed_this_micro_batch = self.trainer.callback_metrics.get("_samples_this_micro_batch_global_sum", torch.tensor(0.0, device=self.device)).item()
+
+        if self.trainer.is_global_zero:
+            self._current_run_accumulated_samples_global += global_samples_processed_this_micro_batch
+            overall_total_consumed_samples = (
+                self.total_consumed_samples_at_resume + self._current_run_accumulated_samples_global
+            )
+
+            # Log for UI display (e.g., WandB train/ panel)
+            self.log('train/consumed_samples', overall_total_consumed_samples, prog_bar=True, logger=True, rank_zero_only=True, on_step=True, on_epoch=False)
+
+            # Log with the simple key 'consumed_samples' for checkpointing
+            self.log('consumed_samples', overall_total_consumed_samples, prog_bar=False, logger=False, rank_zero_only=True, on_step=True, on_epoch=False)
 
     def validation_step(self, batch, batch_idx):
         batch_output = self.process_batch(batch, mode="val")
@@ -1311,7 +1361,7 @@ class MagpieTTSModel(ModelPT):
         if aligner_encoder_loss is None:
             aligner_encoder_loss = torch.tensor(0.0, device=loss.device)
 
-        if batch_idx == 0 and self.global_rank == 0:
+        if batch_idx == 0 and self.trainer.is_global_zero:
             # Prepare dictionary for aggregated wandb logging
             wandb_log_dict = {}
 
