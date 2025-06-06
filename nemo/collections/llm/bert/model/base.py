@@ -24,6 +24,7 @@ from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
 from megatron.core.models.bert.pooler import Pooler
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.tokenizers import MegatronTokenizerBase
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -49,9 +50,6 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_TE = False
     MCoreBert = TransformerLayer  # Place holder for import checking. BERT requires TE installed.
-
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 def bert_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
@@ -205,7 +203,12 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     """
 
     def __init__(
-        self, bert_type='megatron', add_pooler=True, tokenizer: Optional["TokenizerSpec"] = None, *args, **kwargs
+        self,
+        bert_type='megatron',
+        add_pooler=True,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
+        *args,
+        **kwargs,
     ):
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
         self.add_pooler = add_pooler
@@ -569,7 +572,7 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         config: BertConfig,
         # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         # Megatron-LM's BERT implementation has high dependency on TE, and it is not possible
