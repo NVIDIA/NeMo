@@ -14,6 +14,7 @@
 
 import copy
 import os
+import math
 from typing import Optional
 
 import numpy as np
@@ -29,6 +30,7 @@ from nemo.collections.asr.parts.preprocessing.segment import get_samples
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
+from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models_tgt_lang import GLOBAL_LANG_MAP
 
 # Minimum number of tokens required to assign a LCS merge step, otherwise ignore and
 # select all i-1 and ith buffer tokens to merge.
@@ -999,6 +1001,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         batch_size=32,
         max_steps_per_timestep: int = 5,
         stateful_decoding: bool = False,
+        target_lang_id=None,
     ):
         '''
         Args:
@@ -1008,12 +1011,14 @@ class BatchedFrameASRRNNT(FrameBatchASR):
             batch_size: Number of independent audio samples to process at each step.
             max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
             stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
+            target_lang_id: Optional target language ID for multilingual AST models.
         '''
         super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
 
         # OVERRIDES OF THE BASE CLASS
         self.max_steps_per_timestep = max_steps_per_timestep
         self.stateful_decoding = stateful_decoding
+        self.target_lang_id = target_lang_id
 
         self.all_alignments = [[] for _ in range(self.batch_size)]
         self.all_preds = [[] for _ in range(self.batch_size)]
@@ -1029,7 +1034,8 @@ class BatchedFrameASRRNNT(FrameBatchASR):
             self.eos_id = -1
 
         print("Performing Stateful decoding :", self.stateful_decoding)
-
+        if self.target_lang_id is not None:
+            print("Using target language ID")
         # OVERRIDES
         self.frame_bufferer = BatchedFeatureFrameBufferer(
             asr_model=asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
@@ -1119,13 +1125,18 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 continue
 
             batch = next(data_iters[idx])
-            feat_signal, feat_signal_len = batch
-            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+            if len(batch) == 2:
+                feat_signal, feat_signal_len = batch
+                feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+            # Handle case where batch also includes target_lang_id
+            elif len(batch) == 3:
+                feat_signal, feat_signal_len, _ = batch
+                feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
 
             feat_signals.append(feat_signal)
             feat_signal_lens.append(feat_signal_len)
 
-            # preserve batch indeices
+            # preserve batch indices
             new_batch_keys.append(idx)
 
         if len(feat_signals) == 0:
@@ -1136,7 +1147,41 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         del feat_signals, feat_signal_lens
 
-        encoded, encoded_len = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
+        # Handle target language ID if needed
+        target_lang_tensor = None
+        if self.target_lang_id is not None and hasattr(self.asr_model, 'num_langs'):
+            lang_id_index = 0  # Default value
+            
+            if isinstance(self.target_lang_id, str):
+                lang_id_index = GLOBAL_LANG_MAP.get(self.target_lang_id, 0)
+                if lang_id_index == 0 and self.target_lang_id not in GLOBAL_LANG_MAP:
+                    print(f"Warning: Language ID '{self.target_lang_id}' not found in GLOBAL_LANG_MAP")
+            else:
+                print(f"Warning: Unsupported language ID type: {type(self.target_lang_id)}")
+
+            # Create target language tensor
+            time_length = feat_signal.shape[2]
+            hidden_length = math.ceil(time_length / 8)
+
+            num_langs = self.asr_model.num_langs  # Create language ID tensor with calculated time dimension
+            target_lang_tensor = torch.zeros(
+                [feat_signal.size(0), hidden_length, num_langs], dtype=feat_signal.dtype, device=device
+            )
+
+            # Set the target language
+            for i in range(target_lang_tensor.size(0)):
+                target_lang_tensor[i, :, lang_id_index] = 1
+
+        if target_lang_tensor is not None:
+            encoded, encoded_len = self.asr_model.forward(
+                processed_signal=feat_signal,
+                processed_signal_length=feat_signal_len,
+                target_lang_id=target_lang_tensor,
+            )
+        else:
+            encoded, encoded_len = self.asr_model.forward(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
 
         # filter out partial hypotheses from older batch subset
         if self.stateful_decoding and self.previous_hypotheses is not None:
@@ -1223,7 +1268,6 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 alignment = alignment[
                     len(alignment) - offset - delay : len(alignment) - offset - delay + tokens_per_chunk
                 ]
-
                 ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
 
                 if len(ids) > 0 and a_idx < signal_end_idx:
@@ -1262,109 +1306,6 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         decoded_prediction = [p for p in preds]
         hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
         return hypothesis
-
-
-class BatchedFrameASRTDT(BatchedFrameASRRNNT):
-    """
-    Batched implementation of FrameBatchASR for TDT models, where the batch dimension is independent audio samples.
-    It's mostly similar to BatchedFrameASRRNNT with special handling of boundary cases due to the frame-skipping
-    resulted by TDT models.
-    """
-
-    def __init__(
-        self,
-        asr_model,
-        frame_len=1.6,
-        total_buffer=4.0,
-        batch_size=32,
-        max_steps_per_timestep: int = 5,
-        stateful_decoding: bool = False,
-        tdt_search_boundary: int = 4,
-    ):
-        '''
-        Args:
-            asr_model: An RNNT model.
-            frame_len: frame's duration, seconds.
-            total_buffer: duration of total audio chunk size, in seconds.
-            batch_size: Number of independent audio samples to process at each step.
-            max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
-            stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
-            tdt_search_boundary: The max number of frames that we search between chunks to match the token at boundary.
-        '''
-        super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
-        self.tdt_search_boundary = tdt_search_boundary
-
-    def transcribe(
-        self,
-        tokens_per_chunk: int,
-        delay: int,
-    ):
-        """
-        Performs "middle token" alignment prediction using the buffered audio chunk.
-        """
-        self.infer_logits()
-
-        self.unmerged = [[] for _ in range(self.batch_size)]
-        for idx, alignments in enumerate(self.all_alignments):
-
-            signal_end_idx = self.frame_bufferer.signal_end_index[idx]
-            if signal_end_idx is None:
-                raise ValueError("Signal did not end")
-
-            for a_idx, alignment in enumerate(alignments):
-                if delay == len(alignment):  # chunk size = buffer size
-                    offset = 0
-                else:  # all other cases
-                    offset = 1
-
-                longer_alignment = alignment[
-                    len(alignment)
-                    - offset
-                    - delay
-                    - self.tdt_search_boundary : len(alignment)
-                    - offset
-                    - delay
-                    + tokens_per_chunk
-                ]
-
-                alignment = alignment[
-                    len(alignment) - offset - delay : len(alignment) - offset - delay + tokens_per_chunk
-                ]
-
-                longer_ids, longer_toks = self._alignment_decoder(
-                    longer_alignment, self.asr_model.tokenizer, self.blank_id
-                )
-                ids, _ = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
-
-                if len(longer_ids) > 0 and a_idx < signal_end_idx:
-                    if a_idx == 0 or len(self.unmerged[idx]) == 0:
-                        self.unmerged[idx] = inplace_buffer_merge(
-                            self.unmerged[idx],
-                            ids,
-                            delay,
-                            model=self.asr_model,
-                        )
-                    elif len(self.unmerged[idx]) > 0 and len(longer_toks) > 1:
-                        id_to_match = self.unmerged[idx][-1]
-                        start = min(len(longer_ids) - len(ids), len(longer_ids) - 1)
-                        end = -1
-                        for i in range(start, end, -1):
-                            if longer_ids[i] == id_to_match:
-                                ids = longer_ids[i + 1 :]
-                                break
-
-                        self.unmerged[idx] = inplace_buffer_merge(
-                            self.unmerged[idx],
-                            ids,
-                            delay,
-                            model=self.asr_model,
-                        )
-
-        output = []
-        for idx in range(self.batch_size):
-            output.append(self.greedy_merge(self.unmerged[idx]))
-        return output
-
 
 class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
     """
