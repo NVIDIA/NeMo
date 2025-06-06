@@ -204,6 +204,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         ckpt_path = self.language_model_from_pretrained
 
         if dist_checkpointing.check_is_distributed_checkpoint(ckpt_path):
+            # TODO: why is this early return here
             return ckpt_path
 
         if not torch.distributed.is_initialized():
@@ -218,11 +219,13 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             llm_model_cls(self.language_model_config), f"{self.language_model_hub}{ckpt_path}", on_import_ckpt=False
         )
 
-        sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
+        load_path = ckpt_to_weights_subdir(ckpt_path, is_saving=False)
+        sharded_sd_metadata = dist_checkpointing.load_content_metadata(load_path)
+        sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module.", metadata=sharded_sd_metadata))
 
         loaded_state_dict = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
-            checkpoint_dir=ckpt_to_weights_subdir(ckpt_path, is_saving=False),
+            checkpoint_dir=load_path,
             validate_access_integrity=False,
         )
         loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
