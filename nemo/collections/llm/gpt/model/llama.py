@@ -79,6 +79,7 @@ class LlamaConfig(GPTConfig):
     persist_layer_norm: bool = True
     bias_dropout_fusion: bool = True
     apply_rope_fusion: bool = True
+    use_transformer_engine_op_fuser: Optional[bool] = None
 
 
 @dataclass
@@ -169,7 +170,7 @@ class Llama31Config(Llama3Config):
     old_context_len: int = 8192
     init_method_std: float = 0.02
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+    def configure_model(self, tokenizer, pre_process=None, post_process=None, vp_stage=None) -> "MCoreGPTModel":
         """Configure and instantiate a Megatron Core Llama 3.1 model.
 
         Extends the base configuration with Llama 3.1 specific RoPE scaling.
@@ -182,7 +183,7 @@ class Llama31Config(Llama3Config):
         Returns:
             MCoreGPTModel: Configured Megatron Core GPT model instance
         """
-        model = super().configure_model(tokenizer, pre_process, post_process)
+        model = super().configure_model(tokenizer, pre_process, post_process, vp_stage)
         # Apply rope scaling for Llama3.1 model
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
             model.rotary_pos_emb.inv_freq,
@@ -1160,7 +1161,7 @@ class HFLlamaPEFTExporter(HFLlamaExporter):
         """
         from nemo.collections.llm.peft import CanonicalLoRA, DoRA, LoRA
 
-        self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(str(self)).model.model_transform
+        self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(str(self), subpath="model.model_transform")
 
         source, _ = self.nemo_load(str(self))
         target = self.init(torch_dtype_from_mcore_config(source.config))
