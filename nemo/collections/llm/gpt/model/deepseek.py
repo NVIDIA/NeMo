@@ -115,7 +115,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     bias_activation_fusion: bool = True
     bias_dropout_fusion: bool = True
     masked_softmax_fusion: bool = True
-    gradient_accumulation_fusion: bool = True
+    gradient_accumulation_fusion: bool = False
 
     def __post_init__(self):
         super().__post_init__()
