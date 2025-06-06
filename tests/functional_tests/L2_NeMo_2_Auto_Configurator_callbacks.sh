@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,12 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+mkdir examples/llm/auto_configurator/auto_conf_logs_callback
 
-name: Copyright check
-
-on:
-  pull_request:
-
-jobs:
-  copyright-check:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_copyright_check.yml@v0.2.0
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/llm/auto_configurator/auto_config.py \
+    --model_type=llama \
+    --log_dir=/workspace/examples/llm/auto_configurator/auto_conf_logs_callback \
+    --run_number=1 \
+    --extra_metrics

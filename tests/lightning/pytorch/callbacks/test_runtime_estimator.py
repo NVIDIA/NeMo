@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,11 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Copyright check
+from nemo.lightning.pytorch.callbacks import RuntimeEstimator
 
-on:
-  pull_request:
 
-jobs:
-  copyright-check:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_copyright_check.yml@v0.2.0
+def test_runtime_estimator():
+    monitor = RuntimeEstimator(time_unit='seconds')
+    assert monitor.divider == 1
+
+    monitor = RuntimeEstimator(time_unit='minutes')
+    assert monitor.divider == 60
+
+    monitor = RuntimeEstimator(time_unit='hours')
+    assert monitor.divider == 60 * 60
+
+    monitor = RuntimeEstimator(time_unit='days')
+    assert monitor.divider == 60 * 60 * 24
