@@ -289,7 +289,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         use_tp_pp_dp_mapping: bool = False,
         num_distributed_optimizer_instances: int = 1,
         nccl_communicator_config_path: Optional[str] = None,
-        high_priority_stream_groups: Optional[List[str]] = [],
+        high_priority_stream_groups: Optional[List[str]] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -406,6 +406,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         # Assigning high priority to communication streams ensures that communication kernels are scheduled
         # with higher priority, minimizing the exposed communication when it is overlapped with other computation kernels.
         if fsdp and get_device_arch_version() >= 10:
+            if self.high_priority_stream_groups is None:
+                self.high_priority_stream_groups = []
             if 'dp_cp' not in self.high_priority_stream_groups:
                 self.high_priority_stream_groups.append('dp_cp')
             if self.expert_model_parallel_size > 1 and 'ep_dp' not in self.high_priority_stream_groups:
