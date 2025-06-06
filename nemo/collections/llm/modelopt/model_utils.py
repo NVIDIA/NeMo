@@ -14,23 +14,23 @@
 """Utility functions for loading models with modelopt layer spec."""
 
 from functools import partial
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 import lightning.pytorch as L
 import torch
 from megatron.core.dist_checkpointing.validation import StrictHandling
+from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
-from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.spec_utils import ModuleSpec
-from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 
 if TYPE_CHECKING:
     from nemo.collections import vlm
