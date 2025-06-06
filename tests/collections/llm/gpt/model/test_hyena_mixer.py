@@ -20,14 +20,15 @@ import os
 import pytest
 import torch
 import torch.distributed as dist
+import torch.nn as nn
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+
 from nemo.collections.llm.gpt.model.hyena import HyenaNVTestConfig, HyenaTestConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec_no_te
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import HyenaMixer
-import torch.nn as nn
 
 
 @contextlib.contextmanager
@@ -70,6 +71,7 @@ def init_distributed_parallel_state(
         parallel_state.destroy_model_parallel()
         if dist.is_initialized():
             dist.destroy_process_group()
+
 
 @pytest.fixture(params=[pytest.param(torch.bfloat16, id="bf16"), pytest.param(torch.float32, id="fp32")])
 def dtype(request):
@@ -129,7 +131,9 @@ def hyena_mixer(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operato
         yield mixer
 
 
-def test_mixer_initialization(hyena_mixer: HyenaMixer, test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type: str):
+def test_mixer_initialization(
+    hyena_mixer: HyenaMixer, test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type: str
+):
     """Test proper initialization of HyenaMixer with different configurations."""
     with init_distributed_parallel_state(world_size=1):
         # Verify basic attributes
@@ -178,8 +182,7 @@ def test_mixer_forward_pass(hyena_mixer: HyenaMixer):
 
             # Verify output shape
             expected_shape = (seq_len, batch_size, hyena_mixer.hidden_size)
-            assert y.shape == expected_shape, \
-                f"Expected shape {expected_shape}, got {y.shape}"
+            assert y.shape == expected_shape, f"Expected shape {expected_shape}, got {y.shape}"
 
             # Verify output is not NaN
             assert not torch.isnan(y).any(), "Output contains NaN values"
@@ -203,10 +206,8 @@ def test_mixer_dtypes(hyena_mixer: HyenaMixer, dtype: torch.dtype):
         y, bias = hyena_mixer(input_features, _hyena_use_cp=False)
 
         # Verify output dtype matches input dtype
-        assert y.dtype == dtype, \
-            f"Expected output dtype {dtype}, got {y.dtype}"
-        assert bias.dtype == dtype, \
-            f"Expected bias dtype {dtype}, got {bias.dtype}"
+        assert y.dtype == dtype, f"Expected output dtype {dtype}, got {y.dtype}"
+        assert bias.dtype == dtype, f"Expected bias dtype {dtype}, got {bias.dtype}"
 
 
 def test_mixer_gradient_flow(hyena_mixer: HyenaMixer):
@@ -234,10 +235,8 @@ def test_mixer_gradient_flow(hyena_mixer: HyenaMixer):
         for name, param in hyena_mixer.named_parameters():
             if param.requires_grad:
                 assert param.grad is not None, f"No gradient for parameter {name}"
-                assert not torch.isnan(param.grad).any(), \
-                    f"NaN gradient for parameter {name}"
-                assert not torch.isinf(param.grad).any(), \
-                    f"Inf gradient for parameter {name}"
+                assert not torch.isnan(param.grad).any(), f"NaN gradient for parameter {name}"
+                assert not torch.isinf(param.grad).any(), f"Inf gradient for parameter {name}"
 
 
 def test_mixer_state_dict(hyena_mixer: HyenaMixer, operator_type: str):
@@ -261,9 +260,5 @@ def test_mixer_state_dict(hyena_mixer: HyenaMixer, operator_type: str):
         new_mixer.load_state_dict(state_dict)
 
         # Verify parameters match
-        for (name1, param1), (name2, param2) in zip(
-            hyena_mixer.named_parameters(),
-            new_mixer.named_parameters()
-        ):
-            assert torch.allclose(param1, param2), \
-                f"Parameter mismatch after loading state dict: {name1}"
+        for (name1, param1), (name2, param2) in zip(hyena_mixer.named_parameters(), new_mixer.named_parameters()):
+            assert torch.allclose(param1, param2), f"Parameter mismatch after loading state dict: {name1}"

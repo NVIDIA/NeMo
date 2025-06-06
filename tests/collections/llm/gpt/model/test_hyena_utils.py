@@ -44,6 +44,7 @@ class MockProjConv(torch.nn.Module):
     Args:
         kernel_size (int): Size of the convolution kernel
     """
+
     def __init__(self, kernel_size):
         super().__init__()
         self.kernel_size = kernel_size
@@ -60,6 +61,7 @@ class MockMixer(torch.nn.Module):
         kernel_size (int): Size of the convolution kernel
         use_conv_bias (bool, optional): Whether to use bias in convolutions. Defaults to False.
     """
+
     def __init__(self, kernel_size, use_conv_bias=False):
         super().__init__()
         self.kernel_size = kernel_size
@@ -229,24 +231,29 @@ def test_zigzag_get_overlapping_patches():
     # The function splits data into two chunks along seq_dim, then extracts the last overlap_size elements from each chunk
     # For data = [[0,1,2,3],[4,5,6,7]], reshaped to [2,2,2]: chunk 0: [0,1],[4,5]; chunk 1: [2,3],[6,7]
     # overlap_a = chunk 0 last 2: [[0,1],[4,5]]; overlap_b = chunk 1 last 2: [[2,3],[6,7]]
-    assert torch.equal(overlap_a, torch.tensor([[0,1],[4,5]]))
-    assert torch.equal(overlap_b, torch.tensor([[2,3],[6,7]]))
+    assert torch.equal(overlap_a, torch.tensor([[0, 1], [4, 5]]))
+    assert torch.equal(overlap_b, torch.tensor([[2, 3], [6, 7]]))
 
 
 def test_exchange_overlapping_regions_causal_forward(monkeypatch):
     # Patch the correct location for get_process_group_ranks, irecv, and isend
     import nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils as hyena_utils
+
     class DummyReq:
         def wait(self):
             pass
+
     class DummyDist:
         def get_process_group_ranks(self, group):
             return [0, 1]
+
         def irecv(self, tensor, src):
             tensor.fill_(42)
             return DummyReq()
+
         def isend(self, tensor, dst):
             return DummyReq()
+
     dummy_dist = DummyDist()
     monkeypatch.setattr(hyena_utils.dist, "irecv", dummy_dist.irecv)
     monkeypatch.setattr(hyena_utils.dist, "isend", dummy_dist.isend)
@@ -304,6 +311,7 @@ def setup_cuda_rng():
 def test_initialize_affine_weight_gpu():
     """Test weight initialization for model parallel."""
     weight = torch.nn.Parameter(torch.empty(10, 10))
+
     def init_method(x):
         torch.nn.init.ones_(x)
 
