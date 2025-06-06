@@ -74,6 +74,7 @@ from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
+    get_device_arch_version,
     init_model_parallel,
     setup_data_sampler,
     setup_parallel_ranks,
@@ -135,6 +136,7 @@ class ParallelismConfig:
     num_distributed_optimizer_instances: int = 1
     nccl_communicator_config_path: str = None
     use_sharp: bool = False
+    high_priority_stream_groups: Optional[List[str]] = None
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -223,6 +225,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             the data-parallel domain.
         nccl_communicator_config_path (Optional[str]): Path to the yaml file of NCCL communicator configurations.
             `min_ctas`, `max_ctas`, and `cga_cluster_size` can be set for each communicator.
+        high_priority_stream_groups (Optional[List[str]]): Specify which communicator groups should use
+            high priority streams during creation. Assigning high priority to communication streams ensures
+            that communication kernels are scheduled with higher priority, minimizing the exposed communication
+            when it is overlapped with other computation kernels.
         use_sharp (bool): Whether to use SHARP. Defaults to False.
         **kwargs: Additional keyword arguments.
 
@@ -283,6 +289,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         use_tp_pp_dp_mapping: bool = False,
         num_distributed_optimizer_instances: int = 1,
         nccl_communicator_config_path: Optional[str] = None,
+        high_priority_stream_groups: Optional[List[str]] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -340,6 +347,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
         self.nccl_communicator_config_path = nccl_communicator_config_path
+        self.high_priority_stream_groups = high_priority_stream_groups
         self.restore_config = restore_config
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
 
@@ -390,6 +398,17 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if isinstance(self.ddp_config, DistributedDataParallelConfig):
             self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
+
+        # Setting FSDP communication groups for high priority streams for Blackwell and later architectures
+        # Assigning high priority to communication streams ensures that communication kernels are scheduled
+        # with higher priority, minimizing the exposed communication when it is overlapped with other kernels.
+        if fsdp and get_device_arch_version() >= 10:
+            if self.high_priority_stream_groups is None:
+                self.high_priority_stream_groups = []
+            if 'dp_cp' not in self.high_priority_stream_groups:
+                self.high_priority_stream_groups.append('dp_cp')
+            if self.expert_model_parallel_size > 1 and 'ep_dp' not in self.high_priority_stream_groups:
+                self.high_priority_stream_groups.append('ep_dp')
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
@@ -1157,6 +1176,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             num_distributed_optimizer_instances=self.num_distributed_optimizer_instances,
             nccl_communicator_config_path=self.nccl_communicator_config_path,
             use_sharp=self.use_sharp,
+            high_priority_stream_groups=self.high_priority_stream_groups,
         )
 
     @contextmanager

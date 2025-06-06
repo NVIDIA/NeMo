@@ -81,6 +81,7 @@ def override_recipe_configs(
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
+        high_priority_stream_groups=args.high_priority_stream_groups,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
