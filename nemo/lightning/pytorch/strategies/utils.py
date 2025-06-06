@@ -679,6 +679,7 @@ def get_train_context(enable_loss_parallel: bool, enable_compiled_autograd: bool
 
     return context
 
+
 def get_device_arch_version():
     """Returns GPU arch version (8: Ampere, 9: Hopper, 10: Blackwell, ...)"""
     return torch.cuda.get_device_properties(torch.device("cuda:0")).major
