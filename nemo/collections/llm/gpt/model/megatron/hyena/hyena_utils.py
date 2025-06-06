@@ -1243,6 +1243,10 @@ class B2BCausalConv1dModule(nn.Module):
 
         # Support context parallelism similar to how it's done in ParallelCausalDepthwiseConv1d
         if _use_cp and get_context_parallel_world_size() > 1:
+            # Validate sequence length for CP mode
+            cp_size = get_context_parallel_world_size()
+            if x.size(-1) % cp_size != 0:
+                raise ValueError("Sequence length must be divisible by context parallel size")
 
             cp_group = get_context_parallel_group()
             cp_rank = get_context_parallel_rank()
