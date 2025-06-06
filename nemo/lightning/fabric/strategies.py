@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, nullcontext
 from datetime import timedelta
 from typing import (
     TYPE_CHECKING,
@@ -53,9 +53,15 @@ from typing_extensions import override
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.fabric.conversion import to_fabric
-from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.lightning.io.pl import MegatronCheckpointIO, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.strategies import MegatronStrategy
+
+
+from nemo.utils.import_utils import safe_import
+from nemo.utils.model_utils import unwrap_model
+
+mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -361,7 +367,20 @@ class FabricMegatronStrategy(DDPStrategy):
         """
         if isinstance(state, Optimizer):
             raise NotImplementedError("Optimizer loading is not supported, pass it as a dict including the model")
+        unwrapped_model = unwrap_model(state["state_dict"])
+        from nemo.collections.vlm.llama4.model.base import Llama4OmniBaseModel
+        from modelopt.torch.utils import print_rank_0
 
+        if HAVE_MODELOPT and isinstance(unwrapped_model, Llama4OmniBaseModel):
+            # If present, first restore and modify the model according to the ModelOpt state.
+            # Avoid quantizers being added to teacher model if model is a distillation model.
+            core_model = unwrapped_model.language_model
+            with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
+                mto.plugins.restore_sharded_modelopt_state(
+                    [core_model], ckpt_to_weights_subdir(path, is_saving=False), prefix="module.language_model."
+                )
+            if mto.ModeloptStateManager.is_converted(core_model):
+                print("Restored Model-Optimizer state from checkpoint.")
         torch.cuda.empty_cache()
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors

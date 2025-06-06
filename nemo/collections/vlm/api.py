@@ -89,7 +89,9 @@ def ptq(
     trainer = None
     if is_automodel:
         assert export_config.export_format != "nemo", "Automodel PTQ does not support export format nemo"
-        model = HFAutoModelForImageTextToText(model_name=model_path, trust_remote_code=trust_remote_code, device_map="auto")
+        model = HFAutoModelForImageTextToText(
+            model_name=model_path, trust_remote_code=trust_remote_code, device_map="auto"
+        )
         model.configure_model()
     else:
         assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"
