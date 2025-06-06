@@ -22,15 +22,13 @@ import nemo_run as run
 from rich.console import Console
 from typing_extensions import Annotated
 
-
-from nemo.collections.vlm import HFAutoModelForImageTextToText
 from nemo.collections.llm.modelopt import (
     ExportConfig,
     QuantizationConfig,
     Quantizer,
     setup_trainer_and_restore_model_with_modelopt_spec,
 )
-
+from nemo.collections.vlm import HFAutoModelForImageTextToText
 from nemo.utils.get_rank import is_global_rank_zero
 
 

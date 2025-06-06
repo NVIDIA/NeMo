@@ -56,8 +56,6 @@ from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.io.pl import MegatronCheckpointIO, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.strategies import MegatronStrategy
-
-
 from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
 
@@ -368,8 +366,9 @@ class FabricMegatronStrategy(DDPStrategy):
         if isinstance(state, Optimizer):
             raise NotImplementedError("Optimizer loading is not supported, pass it as a dict including the model")
         unwrapped_model = unwrap_model(state["state_dict"])
-        from nemo.collections.vlm.llama4.model.base import Llama4OmniBaseModel
         from modelopt.torch.utils import print_rank_0
+
+        from nemo.collections.vlm.llama4.model.base import Llama4OmniBaseModel
 
         if HAVE_MODELOPT and isinstance(unwrapped_model, Llama4OmniBaseModel):
             # If present, first restore and modify the model according to the ModelOpt state.

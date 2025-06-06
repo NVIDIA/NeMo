@@ -13,16 +13,17 @@
 # limitations under the License.
 
 import argparse
+
+import requests
 import torch
 from megatron.core import parallel_state
 from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-from transformers import AutoProcessor
-import requests
 from PIL import Image
+from transformers import AutoProcessor
 
-from nemo.collections.vlm.api import ptq
 from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig
 from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
+from nemo.collections.vlm.api import ptq
 
 
 def load_image(url):
@@ -187,7 +188,7 @@ class SingleBatchIterator:
 
 def llama4_forward_step(data_iterator, model, **kwargs) -> torch.Tensor:
     batch = next(data_iterator)
-    
+
     forward_args = {
         "images": batch["media"],
         "input_ids": batch["tokens"],
@@ -210,7 +211,7 @@ def main():
         # Initialize processor and tokenizer
         model_id = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
         processor = AutoProcessor.from_pretrained(model_id)
-        
+
         for img_url in quantization_images_url:
             raw_image = load_image(img_url)
             if raw_image is None:
@@ -240,7 +241,7 @@ def main():
             input_ids = inputs["input_ids"].cuda()
             images = inputs["pixel_values"].cuda()
             position_ids = torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0)
-            
+
             batch_iterator = SingleBatchIterator(images, input_ids, position_ids)
             fwd_bwd_function = get_forward_backward_func()
             with torch.no_grad():
@@ -274,7 +275,7 @@ def main():
         dtype=args.dtype,
         generate_sample=args.generate_sample,
     )
-    
+
     ptq(
         model_path=args.nemo_checkpoint,
         export_config=export_config,

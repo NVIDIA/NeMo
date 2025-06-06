@@ -22,9 +22,13 @@ import torch
 import torch.nn as nn
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from megatron.core.dist_checkpointing.validation import StrictHandling
+from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
+from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -33,9 +37,6 @@ from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
 
 mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.spec_utils import ModuleSpec
-from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 
 _, HAVE_TE = safe_import("transformer_engine")
 if HAVE_TE:
