@@ -33,6 +33,9 @@ from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
 
 mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
+from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.transformer.spec_utils import ModuleSpec
+from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 
 _, HAVE_TE = safe_import("transformer_engine")
 if HAVE_TE:
@@ -55,30 +58,24 @@ if TYPE_CHECKING:
 __all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
 
 
-def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
-    """Set model.config.transformer_layer_spec to modelopt spec."""
-    logging.info("Setting model.config.transformer_layer_spec to gpt_modelopt_spec")
-    assert isinstance(model_cfg, llm.GPTConfig), "model_cfg must be a GPTConfig"
-    try:
-        from functools import partial
-
-        from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
-
-        modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm)
-    except ImportError:
-        # Older spec: Will be deprecated, doesnt support DeepSeek
-        from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
-
-        modelopt_spec = get_gpt_layer_modelopt_spec(
-            num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm
-        )
-    model_cfg.transformer_layer_spec = modelopt_spec
-    return model_cfg
+def _get_llama4_modelopt_spec(
+    config: TransformerConfig,
+    local_core_attention: bool = False,
+    remap_te_layernorm: bool = False,
+    real_quant_cfg: str = "None",
+    qk_l2_norm: bool = False,
+) -> ModuleSpec:
+    """Set model.config.transformer_layer_spec to llama4_modelopt_spec."""
+    llama4_layer_spec = get_gpt_modelopt_spec(
+        config, local_core_attention, remap_te_layernorm, real_quant_cfg, qk_l2_norm
+    )
+    llama4_layer_spec = get_llama4_layer_spec(config, llama4_layer_spec)
+    return llama4_layer_spec
 
 
 def _set_gpt_mamba_modelopt_spec(
-    model_cfg: Union[llm.GPTConfig, llm.SSMConfig]
-) -> Union[llm.GPTConfig, llm.SSMConfig]:
+    model_cfg: Union[llm.GPTConfig, llm.SSMConfig, "vlm.Llama4OmniConfig"]
+) -> Union[llm.GPTConfig, llm.SSMConfig, "vlm.Llama4OmniConfig"]:
     """
     Set the model layer spec to a modelopt spec variant. This function updates the model
     config with the appropriate modelopt layer specification based on the model type.
@@ -90,11 +87,16 @@ def _set_gpt_mamba_modelopt_spec(
         Union[llm.GPTConfig, llm.SSMConfig]: The model config updated for the modelopt layer specification.
     """
     logging.info("Setting model layer specification to the modelopt layer spec")
+    from nemo.collections import vlm
 
     if isinstance(model_cfg, llm.GPTConfig):
         model_cfg.transformer_layer_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
     elif isinstance(model_cfg, llm.SSMConfig):
         model_cfg.mamba_stack_spec = partial(get_mamba_stack_modelopt_spec, remap_te_layernorm=True)
+    elif isinstance(model_cfg, vlm.Llama4OmniConfig):
+        model_cfg.language_transformer_config.transformer_layer_spec = partial(
+            _get_llama4_modelopt_spec, remap_te_layernorm=True
+        )
     else:
         raise ValueError(f"No modelopt layer spec supported for config type {type(model_cfg)}")
     return model_cfg
@@ -107,7 +109,9 @@ def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> 
     if not modelopt_state_path.exists() or hasattr(model, "module"):
         return
 
-    if isinstance(model, (llm.GPTModel, llm.MambaModel)):
+    from nemo.collections import vlm
+
+    if isinstance(model, (llm.GPTModel, llm.MambaModel, vlm.Llama4OmniModel)):
         _set_gpt_mamba_modelopt_spec(model.config)
 
         # Disable gradient accumulation fusion for QAT
@@ -199,24 +203,17 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
 
     model = nl.io.load_context(path=ckpt_to_context_subdir(model_path), subpath="model")
 
-    if hasattr(model.config, 'language_transformer_config'):
-        # VLM model - work on language_transformer_config
-        target_config = model.config.language_transformer_config
-    else:
-        # LLM model - work on config directly
-        target_config = model.config
-
-    _set_gpt_modelopt_spec(target_config)
+    _set_gpt_mamba_modelopt_spec(model.config)
     for k, v in model_config_overrides.items():
         logging.info(f"Overriding model config {k} to {v}")
-        setattr(target_config, k, v)
+        setattr(model.config, k, v)
 
     if inference_only:
         del model.optim
     if num_layers_in_first_pipeline_stage:
-        target_config.num_layers_in_first_pipeline_stage = num_layers_in_first_pipeline_stage
+        model.config.num_layers_in_first_pipeline_stage = num_layers_in_first_pipeline_stage
     if num_layers_in_last_pipeline_stage:
-        target_config.num_layers_in_last_pipeline_stage = num_layers_in_last_pipeline_stage
+        model.config.num_layers_in_last_pipeline_stage = num_layers_in_last_pipeline_stage
 
     tokenizer = None
     if tokenizer_path:
