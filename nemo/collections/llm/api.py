@@ -1323,12 +1323,12 @@ def _validate_config(
                 trainer.strategy.pipeline_dtype = None
 
         # CP validation
-        # if trainer.strategy.context_parallel_size > 1:
-        #     if hasattr(model, "config"):
-        #         if model.config.seq_length is not None:
-        #             assert (
-        #                 model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
-        #             ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+        if trainer.strategy.context_parallel_size > 1:
+            if hasattr(model, "config"):
+                if model.config.seq_length is not None:
+                    assert (
+                        model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
+                    ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:

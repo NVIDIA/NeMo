@@ -1236,7 +1236,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             micro_batch_size=self.micro_batch_size,
             forward_only=self.forward_only,
             decoder_seq_length=self.decoder_seq_length,
-            # adjust_tensor_shapes_fn=self.adjust_tensor_shapes_fn,
+            adjust_tensor_shapes_fn=self.adjust_tensor_shapes_fn,
         )
 
     def to_data_iterator_list(
