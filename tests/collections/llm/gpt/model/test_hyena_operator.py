@@ -235,4 +235,3 @@ class TestParallelCausalDepthwiseConv1d:
         assert output.shape[0] == batch_size
         assert output.shape[1] == d_model
         assert output.shape[2] == seq_len
-
