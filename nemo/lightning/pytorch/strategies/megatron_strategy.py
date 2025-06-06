@@ -74,6 +74,7 @@ from nemo.lightning.pytorch.strategies.utils import (
     ckpt_to_dir,
     create_checkpoint_io,
     fix_progress_bar,
+    get_device_arch_version,
     init_model_parallel,
     setup_data_sampler,
     setup_parallel_ranks,
@@ -398,6 +399,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if isinstance(self.ddp_config, DistributedDataParallelConfig):
             self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
 
+        print(f"\n[DEV][YOUNGEUNK] BEFORE UPDATE self.fsdp: {self._fsdp}, self.high_priority_stream_groups: {self.high_priority_stream_groups}\n")
+        # Setting FSDP communication groups for high priority streams for Blackwell and later architectures
+        # Assigning high priority to communication streams ensures that communication kernels are scheduled
+        # with higher priority, minimizing the exposed communication when it is overlapped with other computation kernels.
+        if self._fsdp and get_device_arch_version() >= 10:
+            if 'dp_cp' not in self.high_priority_stream_groups:
+                self.high_priority_stream_groups.append('dp_cp')
+            if self.expert_model_parallel_size  > 1 and 'ep_dp' not in self.high_priority_stream_groups:
+                self.high_priority_stream_groups.append('ep_dp')
+
+        print(f"\n[DEV][YOUNGEUNK] AFTER UPDATE self.fsdp: {self._fsdp}, self.high_priority_stream_groups: {self.high_priority_stream_groups}\n")
+        
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
 
