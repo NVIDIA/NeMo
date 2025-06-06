@@ -548,7 +548,7 @@ and therefore affects only the logic behind sharded_state_dict creation.
 The recommended versioning practice for those frameworks is to use content metadata only for ``sharded_state_dict`` behavior control,
 e.g. avoid storing metadata which affects framework logic in other way.
 The content metadata should be minimalistic (to avoid a bloated metadata with multiple possible configurations),
-ideally flat (or with a single nesting level) and with semantically meaningful flag names (e.g. ``dist_opt_sharding_type`` or ``non_homogeneous_layers``).
+ideally flat (or with a single nesting level) and with semantically meaningful flag names (e.g. ``distrib_optim_sharding_type`` or ``non_homogeneous_layers``).
 In particular, a simple integer (or SemVer) versioning flag (e.g. ``metadata['version'] = 3.4``) is discouraged,
 because the metadata serves for all models and optimizers and it's practically impossible to enforce a linearly increasing versioning for this whole space.
 

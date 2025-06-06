@@ -489,11 +489,11 @@ def optimizer_sharded_state_dict(
     }
 
     if sharding_type is not None:
-        logging.warning("sharding_type is deprecated, please use `metadata['optim_sharding_type']` instead")
+        logging.warning("sharding_type is deprecated, please use `metadata['distrib_optim_sharding_type']` instead")
         if metadata is None:
             metadata = {}
-        if 'optim_sharding_type' not in metadata:
-            metadata["optim_sharding_type"] = sharding_type
+        if 'distrib_optim_sharding_type' not in metadata:
+            metadata["distrib_optim_sharding_type"] = sharding_type
 
     if hasattr(optimizer, "sharded_state_dict"):
         # TODO: can we assume MCore >= v0.13 here
