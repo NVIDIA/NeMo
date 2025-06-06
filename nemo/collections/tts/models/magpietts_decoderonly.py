@@ -774,7 +774,16 @@ class MagpieTTSDecoderModel(ModelPT):
         context_tensors = self.prepare_context_tensors(batch)
         context_embedding = context_tensors['full_context_embedding']  # (B, T_total, E)
         context_lens = context_tensors['full_context_lens']  # (B,)
-        
+
+        if mode == 'train' and self.cfg_unconditional_prob > 0.0:
+            dummy_context_embedding = torch.zeros_like(context_embedding)  # (B, T_total, E) to be used in case of no context
+            use_dummy_context = torch.rand(context_embedding.size(0), device=context_embedding.device) < self.cfg_unconditional_prob # (B,)
+            context_embedding = torch.where(
+                use_dummy_context.unsqueeze(1).unsqueeze(2),
+                dummy_context_embedding,
+                context_embedding,
+            )# (B, T_total, E)
+
         if 'audio_codes' not in batch:
             audio_codes, audio_codes_lens = self.audio_to_codes(batch['audio'], batch['audio_lens'])
         else:
@@ -1049,7 +1058,7 @@ class MagpieTTSDecoderModel(ModelPT):
     def setup_test_data(self, cfg):
         self._test_dl = self._setup_test_dataloader(cfg)
 
-    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_local_transformer_for_inference=False, maskgit_n_steps=3):
+    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_local_transformer_for_inference=False, maskgit_n_steps=3, use_cfg=False, cfg_scale=1.0):
         with torch.inference_mode():
             start_time = time.time()
             context_tensors = self.prepare_context_tensors(batch)
@@ -1063,13 +1072,25 @@ class MagpieTTSDecoderModel(ModelPT):
             audio_codes_input = audio_codes_bos
 
             audio_codes_input_embedded = self.embed_audio_tokens(audio_codes_input)  # (B, T, E)
+            
             context_plus_audio_embedded, context_plus_audio_lens = self.join_embeddings_temporally(
                 embeddings=[context_embedding, audio_codes_input_embedded],
                 lengths=[context_lens, audio_codes_lens],
             )
-
             min_context_len = context_plus_audio_lens.min().item()
-            first_inference_input = context_plus_audio_embedded[:, :min_context_len, :]  # (B, T_min, E)
+
+            if use_cfg:
+                dummy_context_embedding = torch.zeros_like(context_plus_audio_embedded)  # (B, T_total, E) to be used in case of no context
+                dummy_context_plus_audio_embedded, _ = self.join_embeddings_temporally(
+                    embeddings=[dummy_context_embedding, audio_codes_input_embedded],
+                    lengths=[context_lens, audio_codes_lens],
+                )
+                first_inference_input = torch.cat(
+                    [context_plus_audio_embedded, dummy_context_plus_audio_embedded],
+                    dim=0
+                )[:,:min_context_len, :]  # (2B, T_min, E)
+            else:
+                first_inference_input = context_plus_audio_embedded[:, :min_context_len, :]  # (B, T_min, E)
             # First forward pass to get the initial hidden state and past key values
             transformer_out = self.forward(
                 inputs_embeds=first_inference_input,
