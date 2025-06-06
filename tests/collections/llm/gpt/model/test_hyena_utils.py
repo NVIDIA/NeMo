@@ -16,6 +16,7 @@
 import types
 from unittest.mock import MagicMock
 
+import nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils as hyena_utils
 import pytest
 import torch
 from megatron.core.tensor_parallel.random import get_cuda_rng_tracker
@@ -236,8 +237,6 @@ def test_zigzag_get_overlapping_patches():
 
 
 def test_exchange_overlapping_regions_causal_forward(monkeypatch):
-    # Patch the correct location for get_process_group_ranks, irecv, and isend
-    import nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils as hyena_utils
 
     class DummyReq:
         def wait(self):

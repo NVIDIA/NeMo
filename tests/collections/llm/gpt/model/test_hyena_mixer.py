@@ -14,14 +14,11 @@
 # limitations under the License.
 
 import contextlib
-import importlib.util
 import os
 
 import pytest
 import torch
 import torch.distributed as dist
-import torch.nn as nn
-from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 
