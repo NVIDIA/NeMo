@@ -779,9 +779,11 @@ class GreedyBatchedTDTLabelLoopingComputer(
             time_jumps=self.state.time_indices - self.state.encoder_output_length,
         )
 
+        # NB: return an independent copy of hyps/alignments/state
+        # to avoid any manipulations with allocated memory outside the decoder
         return (
-            self.state.batched_hyps,
-            self.state.alignments,
+            self.state.batched_hyps.clone(),
+            self.state.alignments.clone() if self.preserve_alignments else None,
             decoding_state,
         )
 

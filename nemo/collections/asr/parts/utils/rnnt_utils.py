@@ -290,6 +290,9 @@ class BatchedHyps:
         if batch_size <= 0:
             raise ValueError(f"batch_size must be > 0, got {batch_size}")
         self._max_length = init_length
+        self.batch_size = batch_size
+        self.device = device
+        self.float_dtype = float_dtype
 
         # batch of current lengths of hypotheses and correspoinding timestamps
         self.current_lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
@@ -482,6 +485,49 @@ class BatchedHyps:
             self.current_lengths > 0, self.transcript[self._batch_indices, self.current_lengths - 1], pad_id
         )
 
+    def clone(self) -> "BatchedHyps":
+        """Return a copy of self"""
+        batched_hyps = BatchedHyps(
+            batch_size=self.batch_size,
+            init_length=self._max_length,
+            device=self.device,
+            float_dtype=self.float_dtype,
+        )
+        batched_hyps.current_lengths.copy_(self.current_lengths)
+        batched_hyps.transcript.copy_(self.transcript)
+        batched_hyps.timestamps.copy_(self.timestamps)
+        batched_hyps.token_durations.copy_(self.token_durations)
+        batched_hyps.scores.copy_(self.scores)
+        batched_hyps.last_timestamp.copy_(self.last_timestamp)
+        batched_hyps.last_timestamp_lasts.copy_(self.last_timestamp_lasts)
+        return batched_hyps
+
+    def merge_(self, other: "BatchedHyps") -> "BatchedHyps":
+        """
+        Merge two batched hypotheses structures.
+        NB: this will reallocate memory
+
+        Args:
+            other: BatchedHyps
+        """
+        self.transcript = torch.cat((self.transcript, torch.zeros_like(other.transcript)), dim=-1)
+        self.timestamps = torch.cat((self.timestamps, torch.zeros_like(other.timestamps)), dim=-1)
+        self.token_durations = torch.cat((self.token_durations, torch.zeros_like(other.token_durations)), dim=-1)
+        self._max_length += other._max_length
+
+        indices = torch.arange(other.transcript.shape[1], device=self.current_lengths.device)
+        shifted_indices = self.current_lengths[:, None] + indices[None, :]
+        self.transcript.scatter_(dim=1, index=shifted_indices, src=other.transcript)
+        self.timestamps.scatter_(dim=1, index=shifted_indices, src=other.timestamps)
+        self.token_durations.scatter_(dim=1, index=shifted_indices, src=other.token_durations)
+
+        self.current_lengths += other.current_lengths
+        self.scores += other.scores
+        self.last_timestamp.copy_(other.last_timestamp)
+        self.last_timestamp_lasts.copy_(other.last_timestamp_lasts)
+
+        return self
+
 
 class BatchedAlignments:
     """
@@ -515,6 +561,10 @@ class BatchedAlignments:
             raise ValueError(f"init_length must be > 0, got {init_length}")
         if batch_size <= 0:
             raise ValueError(f"batch_size must be > 0, got {batch_size}")
+        self.batch_size = batch_size
+        self.logits_dim = logits_dim
+        self.device = device
+        self.float_dtype = float_dtype
         self.with_frame_confidence = store_frame_confidence
         self.with_duration_confidence = with_duration_confidence
         self.with_alignments = store_alignments
@@ -662,6 +712,25 @@ class BatchedAlignments:
             self.frame_confidence[self._batch_indices, self.current_lengths] = confidence
         # increase lengths
         self.current_lengths += active_mask
+
+    def clone(self) -> "BatchedAlignments":
+        """Return a copy of self"""
+        batched_alignments = BatchedAlignments(
+            batch_size=self.batch_size,
+            logits_dim=self.logits_dim,
+            init_length=self._max_length,
+            device=self.device,
+            float_dtype=self.float_dtype,
+            store_alignments=self.with_alignments,
+            store_frame_confidence=self.with_frame_confidence,
+            with_duration_confidence=self.with_duration_confidence,
+        )
+        batched_alignments.current_lengths.copy_(self.current_lengths)
+        batched_alignments.timestamps.copy_(self.timestamps)
+        batched_alignments.logits.copy_(self.logits)
+        batched_alignments.labels.copy_(self.labels)
+        batched_alignments.frame_confidence.copy_(self.frame_confidence)
+        return batched_alignments
 
 
 def batched_hyps_to_hypotheses(

@@ -66,7 +66,7 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
 )
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.utils.rnnt_utils import batched_hyps_to_hypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import BatchedHyps, batched_hyps_to_hypotheses
 from nemo.collections.asr.parts.utils.streaming_utils import ContextSize, StreamingBatchedAudioBuffer
 from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, setup_model, write_transcription
 from nemo.core.config import hydra_runner
@@ -306,7 +306,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
             # decode audio by chunks
 
-            current_hyps = None
+            current_batched_hyps: BatchedHyps | None = None
             state = None
             left_sample = 0
             # right_sample = initial latency in audio samples
@@ -325,6 +325,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 # add samples to buffer
                 chunk_length = min(right_sample, audio_batch.shape[1]) - left_sample
                 is_last_chunk_batch = chunk_length >= rest_audio_lengths
+                is_last_chunk = right_sample >= audio_batch.shape[1]
                 chunk_lengths_batch = torch.where(
                     is_last_chunk_batch,
                     rest_audio_lengths,
@@ -333,7 +334,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 buffer.add_audio_batch_(
                     audio_batch[:, left_sample:right_sample],
                     audio_lengths=chunk_lengths_batch,
-                    is_last_chunk=(right_sample >= audio_batch.shape[1]),
+                    is_last_chunk=is_last_chunk,
                     is_last_chunk_batch=is_last_chunk_batch,
                 )
 
@@ -350,25 +351,23 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_output = encoder_output[:, encoder_context.left :]
 
                 # decode only chunk frames
-                batched_hyps, _, state = decoding_computer(
+                chunk_batched_hyps, _, state = decoding_computer(
                     x=encoder_output,
                     out_len=encoder_context_batch.chunk,
                     prev_batched_state=state,
                 )
-                hyps_continuations = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
                 # merge hyps with previous hyps
-                if current_hyps is not None:
-                    for hyp, hyp_continuation in zip(current_hyps, hyps_continuations):
-                        hyp.merge(hyp_continuation)
+                if current_batched_hyps is None:
+                    current_batched_hyps = chunk_batched_hyps
                 else:
-                    current_hyps = hyps_continuations
+                    current_batched_hyps.merge_(chunk_batched_hyps)
 
                 # move to next sample
                 rest_audio_lengths -= chunk_lengths_batch
                 left_sample = right_sample
                 right_sample = min(right_sample + context_samples.chunk, audio_batch.shape[1])  # add next chunk
 
-            all_hyps.extend(current_hyps)
+            all_hyps.extend(batched_hyps_to_hypotheses(current_batched_hyps, None, batch_size=batch_size))
 
     # convert text
     for hyp in all_hyps:
