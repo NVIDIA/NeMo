@@ -16,10 +16,11 @@
 import types
 from unittest.mock import MagicMock
 
-import nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils as hyena_utils
 import pytest
 import torch
 from megatron.core.tensor_parallel.random import get_cuda_rng_tracker
+
+import nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils as hyena_utils
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     B2BCausalConv1dModule,
     ExchangeOverlappingRegionsCausal,
