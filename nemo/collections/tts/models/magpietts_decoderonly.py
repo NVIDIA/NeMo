@@ -1115,7 +1115,7 @@ class MagpieTTSDecoderModel(ModelPT):
                     all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01) # (B, num_codebooks)
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
-                    if item_idx not in end_indices:
+                    if item_idx not in end_indices and idx + min_context_len > context_plus_audio_lens[item_idx]:
                         pred_token = all_codes_next_argmax[item_idx][0].item()
                         pred_token_multinomial = audio_codes_next[item_idx][0].item()
                         if (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id):

@@ -295,7 +295,7 @@ def run_inference(
                     predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                     predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
                     audio_path = os.path.join(pred_audio_dir, f"predicted_audio_{item_idx}.wav")
-                    sf.write(audio_path, predicted_audio_np, model.cfg.sample_rate)
+                    sf.write(audio_path, predicted_audio_np, model.sample_rate)
                     codes_path = os.path.join(pred_audio_dir, f"predicted_codes_{item_idx}.pt")
                     torch.save(predicted_codes[idx][:predicted_codes_lens[idx]], codes_path)
                     codec_file_paths.append(codes_path)
