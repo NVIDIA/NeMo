@@ -23,7 +23,7 @@ from lhotse.dataset import SamplingConstraint, TokenConstraint
 from lhotse.dataset.sampling.dynamic_bucketing import FixedBucketBatchSizeConstraint
 from lhotse.utils import ifnone
 
-from nemo.collections.common.data.lhotse.text_adapters import Formattable
+from nemo.collections.common.data.lhotse.text_adapters import Formattable, NeMoMultimodalConversation
 
 
 @dataclass
@@ -259,6 +259,11 @@ class DurationFilter:
     def __call__(self, example) -> bool:
         if isinstance(example, Cut):
             return self.d_min <= example.duration <= self.d_max
+        elif isinstance(example, NeMoMultimodalConversation):
+            if example.is_text_only:
+                return True  # does not apply to text
+            tot_dur = sum(c.duration for c in example.list_cuts())
+            return self.d_min <= tot_dur <= self.d_max
         else:
             return True  # does not apply to text etc.
 

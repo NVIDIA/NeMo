@@ -58,6 +58,7 @@ def bpe_tokenizer(tmp_path_factory):
         remove_extra_whitespaces=True,
         bos=True,
         eos=True,
+        user_defined_symbols=['\n', '<|im_start|>', '<|im_end|>'],
     )
     return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 
