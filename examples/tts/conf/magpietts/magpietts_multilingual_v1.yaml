@@ -181,6 +181,7 @@ model:
     has_xattn: true
     xa_d_memory: 768
     xa_n_heads: 12
+    xa_d_head: null  # use caution when specifying `xa_d_head` as it will override the default value of d_model // xa_n_heads in Attention class.
     is_causal: true
     apply_norm_to_cond: true
     apply_norm_out: true
