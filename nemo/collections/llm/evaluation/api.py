@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,11 +52,11 @@ class ConfigParams(BaseModel):
 
     top_p: float = Field(
         description="Limits to the top tokens within a certain probability",
-        default=0.9999999,
+        default=0,
     )
     temperature: float = Field(
         description="Temp of 0 indicates greedy decoding, where the token with highest prob is chosen",
-        default=0.0000001,
+        default=0,
     )
     limit_samples: Optional[Union[int, float]] = Field(
         description="Limit evaluation to `limit` samples. Default: use all samples", default=None

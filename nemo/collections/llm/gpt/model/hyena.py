@@ -232,17 +232,22 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
         super().__post_init__()
         self.hyena_no_weight_decay_cond_fn = hyena_no_weight_decay_cond if self.hyena_filter_no_wd else None
 
-    def configure_model(self, tokenizer) -> "MCoreHyenaModel":
+    def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreHyenaModel":
         """
         Configures and returns a Hyena model instance based on the config settings.
 
         Args:
             tokenizer: Tokenizer to use for the model
+            vp_stage: Virtual pipeline stage
 
         Returns:
             MCoreHyenaModel: Configured Hyena model instance
         """
         self.bias_activation_fusion = False if self.remove_activation_post_first_layer else self.bias_activation_fusion
+
+        assert (
+            getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
+        ), "Virtual pipeline model parallelism is temporarily unsupported in Hyena."
 
         model = MCoreHyenaModel(
             self,

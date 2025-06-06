@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -261,6 +261,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         a2a_experimental: bool = False,
         is_expert: bool = False,
         disable_sequence_parallel_comm: bool = True,
+        dropout_recompute: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -319,7 +320,12 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         )
 
         if dropout > 0.0:
-            self.dropout = nn.Dropout(dropout)
+            if dropout_recompute:
+                import thunder
+
+                self.dropout = thunder.jit(nn.Dropout(dropout))
+            else:
+                self.dropout = nn.Dropout(dropout)
         else:
             self.dropout = None
 

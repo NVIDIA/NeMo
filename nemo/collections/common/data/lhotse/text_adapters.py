@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,8 +69,8 @@ class Formattable:
         ans = apply_prompt_format_fn(self, prompt)
         self.input_ids = ans["input_ids"]
         self.context_ids = ans["context_ids"]
-        self.answer_ids = ans["answer_ids"]
-        self.mask = ans["mask"]
+        self.answer_ids = ans.get("answer_ids")
+        self.mask = ans.get("mask")
         return self
 
 

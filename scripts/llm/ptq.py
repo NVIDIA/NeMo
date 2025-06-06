@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import argparse
+import os
 
 from nemo.collections import llm
 from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig
 from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
+from nemo.collections.llm.modelopt.quantization.quantizer import KV_QUANT_CFG_CHOICES
 
 
 def get_args():
@@ -71,7 +73,6 @@ def get_args():
         "--algorithm",
         type=str,
         default="fp8",
-        choices=QUANT_CFG_CHOICES_LIST,
         help="TensorRT-Model-Optimizer quantization algorithm",
     )
     parser.add_argument(
@@ -81,6 +82,13 @@ def get_args():
     parser.add_argument("--enable_kv_cache", help="Enables KV-cache quantization", action="store_true")
     parser.add_argument("--disable_kv_cache", dest="enable_kv_cache", action="store_false")
     parser.set_defaults(enable_kv_cache=None)
+    parser.add_argument(
+        "--kv_cache_qformat",
+        type=str,
+        default="fp8",
+        choices=KV_QUANT_CFG_CHOICES,
+        help="KV-cache quantization format",
+    )
     parser.add_argument(
         "-dt", "--dtype", default="bf16", choices=["16", "bf16"], help="Default precision for non-quantized layers"
     )
@@ -103,11 +111,13 @@ def get_args():
         "--trust_remote_code", help="Trust remote code when loading HuggingFace models", action="store_true"
     )
     parser.add_argument("--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true")
-    parser.add_argument(
-        "--kv_cache_qformat", type=str, default="fp8", choices=["fp8", "nvfp4"], help="KV-cache quantization format"
-    )
-
     args = parser.parse_args()
+
+    if args.algorithm not in QUANT_CFG_CHOICES_LIST and not os.path.isfile(args.algorithm):
+        raise ValueError(
+            f"Quantization algorithm {args.algorithm} is not supported: choose one of {QUANT_CFG_CHOICES_LIST} "
+            "or provide a path to a JSON file with a quantization configuration."
+        )
 
     if args.export_path is None:
         if args.export_format == "trtllm":

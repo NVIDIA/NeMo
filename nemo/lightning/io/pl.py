@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -117,7 +117,7 @@ def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving) -> Path:
     and then return the weights subdirectory, if it exists."""
     filepath = ckpt_to_dir(filepath=filepath)
     base_dir = filepath
-    assert isinstance(base_dir, Path)
+    assert not isinstance(base_dir, str)
     if base_dir.parts[-1] != WEIGHTS_PATH:
         maybe_base_dir = base_dir / WEIGHTS_PATH
         if maybe_base_dir.is_dir() or is_saving:
@@ -129,7 +129,7 @@ def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving) -> Path:
             base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
     if is_saving:
         assert base_dir.parts[-1] == WEIGHTS_PATH
-        assert base_dir.parent == Path(filepath)
+        assert base_dir.parent == filepath
     return base_dir
 
 

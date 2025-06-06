@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -357,6 +357,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             raise ValueError(f"Invalid DDP type: {ddp}")
 
         self._fsdp = None
+
+        if fsdp is None and self.ddp_config and self.ddp_config.use_custom_fsdp:
+            logging.warning(
+                "FSDP option is not set but ddp_config.use_custom_fsdp is set to true. "
+                "Setting FSDP option to megatron"
+            )
+            fsdp = 'megatron'
+
         if fsdp == "pytorch":
             raise NotImplementedError("PyTorch FSDP2 is not supported with MegatronParallel.")
         elif fsdp == "megatron":
@@ -956,14 +964,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if mto.ModeloptStateManager.is_converted(core_model):
                 logging.info("Restored Model-Optimizer state from checkpoint.")
 
+        restore_optimizers = self.should_restore_optimizer_states(selective_restore=selective_restore)
+
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
         sharded_state_dict = {}
-        sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
+        with ExitStack() as stack:
+            if HAVE_MODELOPT and hasattr(core_model, "hide_loss_modules"):
+                if not restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
+                    # Assume no optimizer means it's first time loading checkpoint into ModelOpt distillation model.
+                    # We hide any extra parameters (i.e. hidden projection layers) the loss modules might have added.
+                    stack.enter_context(core_model.hide_loss_modules())
+            sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        if (
-            self.should_restore_optimizer_states(selective_restore=selective_restore)
-            and self.trainer.state.fn == TrainerFn.FITTING
-        ):
+        if restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
@@ -1050,9 +1063,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         """loads model state dict"""
-        if self._fsdp is not None:
-            return
-
         assert self.megatron_parallel is not None
 
         strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -212,7 +212,9 @@ class SSMConfig(TransformerConfig, io.IOMixin):
         default_factory=lambda: default_mamba_stack_spec
     )
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
+    def configure_model(
+        self, tokenizer, pre_process=None, post_process=None, vp_stage: Optional[int] = None
+    ) -> "MCoreMambaModel":
         """
         Configures the model for training or inference.
         """
@@ -220,6 +222,10 @@ class SSMConfig(TransformerConfig, io.IOMixin):
         if not isinstance(mamba_stack_spec, ModuleSpec):
             mamba_stack_spec = mamba_stack_spec()
 
+        assert getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None, (
+            "Virtual pipeline model parallelism is temporarily unsupported in SSM/Mamaba "
+            "models due to upstream MCore MambaModel API dependency"
+        )
         return MCoreMambaModel(
             self,
             mamba_stack_spec=mamba_stack_spec,
