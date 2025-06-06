@@ -88,8 +88,8 @@ class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
                 if not os.path.exists(audio_dir):
                     os.makedirs(audio_dir)
                 audio_path = os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}.wav')
-                audio_durations.append(len(predicted_audio_np) / self.cfg.sample_rate)
-                sf.write(audio_path, predicted_audio_np, self.cfg.sample_rate)
+                audio_durations.append(len(predicted_audio_np) / self.sample_rate)
+                sf.write(audio_path, predicted_audio_np, self.sample_rate)
 
                 predicted_codes_torch = predicted_codes[idx].cpu().type(torch.int16)
                 predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]]
@@ -511,8 +511,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             audio_dir = os.path.join(log_dir, 'audios')
             os.makedirs(audio_dir, exist_ok=True)
             audio_path = os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}.wav')
-            audio_durations.append(len(predicted_audio_np) / self.cfg.sample_rate)
-            sf.write(audio_path, predicted_audio_np, self.cfg.sample_rate)
+            audio_durations.append(len(predicted_audio_np) / self.sample_rate)
+            sf.write(audio_path, predicted_audio_np, self.sample_rate)
 
             predicted_codes_torch = predicted_codes[idx].cpu().type(torch.int16)
             predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]] # C, T
