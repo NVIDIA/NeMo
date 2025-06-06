@@ -58,5 +58,7 @@ def is_multistorageclient_url(path: Union[str, Path]):
 def import_multistorageclient():
     """Import multistorageclient if it is installed."""
     if not HAVE_MSC:
-        raise ValueError('Multi-Storage Client is not installed. Please install it with "pip install multi-storage-client".')
+        raise ValueError(
+            'Multi-Storage Client is not installed. Please install it with "pip install multi-storage-client".'
+        )
     return msc
