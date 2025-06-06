@@ -84,6 +84,12 @@ def override_recipe_configs(
     #     )
     #     recipe.model.tokenizer = recipe.data.tokenizer
 
+    # set it to use token drop config
+    from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+    recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+
+
+
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
@@ -93,6 +99,9 @@ def override_recipe_configs(
     recipe.model.config.cross_entropy_loss_fusion = True
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
+    recipe.model.config.bias_dropout_fusion = True
+    recipe.model.config.bias_activation_fusion = True
+
 
     # reset a few args in the recipe
     recipe.model.config.recompute_granularity = None
@@ -103,7 +112,8 @@ def override_recipe_configs(
     recipe.trainer.max_steps = 10
     recipe.trainer.val_check_interval = 10
     recipe.trainer.limit_val_batches = 0.0
-    # recipe.model.config.num_layers = 2
+    if args.use_localrun:
+        recipe.model.config.num_layers = 2
 
 
 
@@ -118,6 +128,9 @@ if __name__ == "__main__":
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, _, _, _ = kwargs[
         0:13
     ]
+
+    if args.use_localrun:
+        num_nodes, gbs, ep_size, tp_size, pp_size, cp_size, vp_size, etp_size = 1, 32, 8, 1, 1, 1, 1, 1
 
     recipe = override_recipe_configs(
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs
@@ -134,22 +147,25 @@ if __name__ == "__main__":
     # else:
     #     custom_env_vars = {}
 
-    executor = slurm_executor(
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
+    if args.use_localrun:
+        executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
+    else:
+        executor = slurm_executor(
+            args.account,
+            args.partition,
+            args.log_dir,
+            num_nodes,
+            args.gpus_per_node,
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars=custom_env_vars,
+        custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
         network='sharp' if args.use_sharp else None,
     )
-    # executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
+
 
     plugins = [
         PerfEnvPlugin(
@@ -159,13 +175,13 @@ if __name__ == "__main__":
         ),
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
+        plugins.append(NsysPlugin(start_step=5, end_step=6, gen_shape=True))
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-    
-    # run.run(recipe, executor=executor, plugins=plugins, name="qwen3_30b_a3b_local_test")
-    # exit()
+    if args.use_localrun:
+        run.run(recipe, executor=executor, plugins=plugins, name="qwen3_30b_a3b_local_test")
+        exit()
 
     with run.Experiment(exp_name) as exp:
         exp.add(

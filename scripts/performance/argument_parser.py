@@ -368,5 +368,11 @@ def parse_cli_args():
         action="store_true",
         required=False,
     )
+    parser.add_argument(
+        "--use_localrun",
+        help="Use localrun. Disabled by default.",
+        action="store_true",
+        required=False,
+    )
 
     return parser
