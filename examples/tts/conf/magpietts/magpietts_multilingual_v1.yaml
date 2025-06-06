@@ -137,7 +137,6 @@ model:
     dataset:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
       dataset_meta: ${val_ds_meta}
-      sample_rate: ${sample_rate}
       min_duration: 0.2
       max_duration: 20.0
 
