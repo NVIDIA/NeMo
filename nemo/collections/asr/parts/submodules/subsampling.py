@@ -770,4 +770,4 @@ class MaskedConvSequential(nn.Sequential):
 
         time_mask = torch.arange(time, device=tensor.device).expand(batch_size, time) < lengths.unsqueeze(1)
 
-        return time_mask.unsqueeze(-1).expand(batch_size, time, features).float()
+        return time_mask.unsqueeze(-1).expand(batch_size, time, features).to(tensor.dtype)
