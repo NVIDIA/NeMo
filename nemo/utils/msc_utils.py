@@ -21,6 +21,7 @@ try:
     import multistorageclient as msc
 
     HAVE_MSC = True
+
 except (ImportError, ModuleNotFoundError):
     msc = None
 
@@ -40,7 +41,7 @@ def is_multistorageclient_url(path: Union[str, Path]):
     if isinstance(path, Path):
         return False
 
-    has_msc_prefix = path and str(path).startswith(msc.types.MSC_PROTOCOL)
+    has_msc_prefix = path and path.startswith("msc://")
 
     if HAVE_MSC:
         return has_msc_prefix
@@ -58,6 +59,6 @@ def import_multistorageclient():
     """Import multistorageclient if it is installed."""
     if not HAVE_MSC:
         raise ValueError(
-            "Multi-Storage Client is not installed. Please install it with " '"pip install multi-storage-client".'
+            'Multi-Storage Client is not installed. Please install it with "pip install multi-storage-client".'
         )
     return msc
