@@ -40,6 +40,7 @@ from lightning.pytorch.trainer.connectors.checkpoint_connector import _Checkpoin
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
+from nemo.collections.common.callbacks.ipl_epoch_stopper import IPLEpochStopper
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
@@ -112,6 +113,15 @@ class EarlyStoppingParams:
     divergence_threshold: Optional[float] = None
     check_on_train_epoch_end: Optional[bool] = None
     log_rank_zero_only: bool = False
+
+
+@dataclass
+class IPLEpochStopperParams:
+    """IPLEpochStopperParams POD"""
+
+    # Flag that allows stopping
+    enable_stop: bool = True
+    stop_every_n_epochs: int = 1
 
 
 @dataclass
@@ -235,8 +245,12 @@ class ExpManagerConfig:
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = field(default_factory=lambda: CallbackParams())
     create_early_stopping_callback: Optional[bool] = False
+    create_ipl_epoch_stopper_callback: Optional[bool] = False
     early_stopping_callback_params: Optional[EarlyStoppingParams] = field(
         default_factory=lambda: EarlyStoppingParams()
+    )
+    ipl_epoch_stopper_callback_params: Optional[IPLEpochStopperParams] = field(
+        default_factory=lambda: IPLEpochStopperParams()
     )
     create_preemption_callback: Optional[bool] = True
     # Additional exp_manager arguments
@@ -699,6 +713,10 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     if cfg.create_early_stopping_callback:
         early_stop_callback = EarlyStopping(**cfg.early_stopping_callback_params)
         trainer.callbacks.append(early_stop_callback)
+
+    if cfg.create_ipl_epoch_stopper_callback:
+        ipl_epoch_stopper_callback = IPLEpochStopper(**cfg.ipl_epoch_stopper_callback_params)
+        trainer.callbacks.append(ipl_epoch_stopper_callback)
 
     if cfg.create_checkpoint_callback:
         configure_checkpointing(
