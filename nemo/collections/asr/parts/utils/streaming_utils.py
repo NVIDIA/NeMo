@@ -1506,6 +1506,8 @@ class CacheAwareStreamingAudioBuffer:
         else:
             self.sampling_frames = None
 
+        # import pdb; pdb.set_trace()
+
     def __iter__(self):
         while True:
             if self.buffer_idx >= self.buffer.size(-1):
@@ -1706,6 +1708,172 @@ class CacheAwareStreamingAudioBuffer:
                 normalize_type=self.model_normalize_type,
             )
         return processed_signal, self.streams_length
+
+
+class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
+    """
+    A buffer to be used for standard offline models in chunked streaming mode. It can load a single or multiple audio
+    files/processed signals, split them in chunks and return one on one. It can be used to
+    simulate streaming audio or audios.
+    """
+
+    def __init__(self, model, window_size=0, rigtht_context=0, pad_and_drop_preencoded=False):
+        '''
+        Args:
+            model: An ASR model.
+            online_normalization (bool): whether to perform online normalization per chunk or
+            normalize the whole audio before chunking
+            pad_and_drop_preencoded (bool): if true pad first audio chunk and always drop preencoded
+        '''
+        self.model = model
+        self.buffer = None
+        self.buffer_idx = 0
+        self.buffer_raw_audio_idx = 0
+        self.streams_length = None
+        self.step = 0
+        self.pad_and_drop_preencoded = pad_and_drop_preencoded
+        self.window_size = window_size
+        self.right_context = rigtht_context
+        self.online_normalization = False
+
+        self.input_features = model.encoder._feat_in
+
+        self.preprocessor = self.extract_preprocessor()
+
+        if hasattr(model.encoder, "pre_encode") and hasattr(model.encoder.pre_encode, "get_sampling_frames"):
+            self.sampling_frames = model.encoder.pre_encode.get_sampling_frames()
+        else:
+            self.sampling_frames = None
+
+    def reset_buffer(self):
+        self.buffer = None
+        self.buffer_idx = 0
+        self.streams_length = None
+        self.buffer_raw_audio = None
+        self.buffer_raw_audio_idx = 0
+        self.streams_length_raw_audio = None
+        self.step = 0
+
+    def __iter__(self):
+        while True:
+            if self.buffer_idx >= self.buffer.size(-1):
+                return
+
+            # precomputed features
+            chunk_size = (self.window_size + self.right_context) * self.sampling_frames[-1]
+            shift_size = self.window_size * self.sampling_frames[-1]
+            audio_chunk = self.buffer[:, :, : self.buffer_idx + chunk_size]
+
+            # raw audio
+            raw_audio_chunk_size = (self.window_size + self.right_context) * self.sampling_frames[-1] * 160
+            raw_audio_shift_size = self.window_size * self.sampling_frames[-1] * 160
+            raw_audio_chunk = self.buffer_raw_audio[:, : self.buffer_raw_audio_idx + raw_audio_chunk_size]
+
+            # import pdb; pdb.set_trace()
+
+            if self.sampling_frames is not None:
+                # checking to make sure the audio chunk has enough frames to produce at least one output after
+                # downsampling
+                if self.buffer_idx == 0 and isinstance(self.sampling_frames, list):
+                    cur_sampling_frames = self.sampling_frames[0]
+                else:
+                    cur_sampling_frames = (
+                        self.sampling_frames[1] if isinstance(self.sampling_frames, list) else self.sampling_frames
+                    )
+                if audio_chunk.size(-1) < cur_sampling_frames:
+                    return
+
+            # import pdb; pdb.set_trace()
+
+            chunk_lengths = torch.clamp(self.streams_length, min=0, max=audio_chunk.size(-1))
+            raw_audio_chunk_lengths = torch.clamp(self.streams_length_raw_audio, min=0, max=raw_audio_chunk.size(-1))
+
+            self.buffer_idx += shift_size
+            self.buffer_raw_audio_idx += raw_audio_shift_size
+            self.step += 1
+            yield audio_chunk, chunk_lengths, raw_audio_chunk, raw_audio_chunk_lengths
+
+    def append_audio_file(self, audio_filepath, stream_id=-1):
+        audio = get_samples(audio_filepath)
+        processed_signal, processed_signal_length, stream_id = self.append_audio(audio, stream_id)
+        return processed_signal, processed_signal_length, stream_id
+
+    def append_audio(self, audio, stream_id=-1):
+        audio_signal, audio_signal_len, processed_signal, processed_signal_length = self.preprocess_audio(audio)
+        processed_signal, processed_signal_length, stream_id = self.append_raw_and_processed_signal(
+            audio_signal, audio_signal_len, processed_signal, stream_id
+        )
+        return processed_signal, processed_signal_length, stream_id
+
+    def append_raw_and_processed_signal(self, audio_signal, audio_signal_len, processed_signal, stream_id=-1):
+        processed_signal_length = torch.tensor(processed_signal.size(-1), device=processed_signal.device)
+        audio_signal_length = torch.tensor(audio_signal.size(-1), device=audio_signal_len.device)
+        if stream_id >= 0 and (self.streams_length is not None and stream_id >= len(self.streams_length)):
+            raise ValueError("Not valid stream_id!")
+        if self.buffer is None:
+            if stream_id >= 0:
+                raise ValueError("stream_id can not be specified when there is no stream.")
+            self.buffer = processed_signal
+            self.streams_length = torch.tensor([processed_signal_length], device=processed_signal.device)
+
+            self.buffer_raw_audio = audio_signal
+            self.streams_length_raw_audio = torch.tensor([audio_signal_length], device=audio_signal.device)
+
+        else:
+            if self.buffer.size(1) != processed_signal.size(1):
+                raise ValueError("Buffer and the processed signal have different dimensions!")
+
+            # import pdb; pdb.set_trace()
+
+            if stream_id < 0:
+                self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
+                self.streams_length = torch.cat(
+                    (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
+                )
+
+                self.buffer_raw_audio = torch.nn.functional.pad(self.buffer_raw_audio, pad=(0, 0, 0, 1))
+                self.streams_length_raw_audio = torch.cat(
+                    (self.streams_length_raw_audio, torch.tensor([0], device=self.streams_length_raw_audio.device)),
+                    dim=-1,
+                )
+
+                stream_id = len(self.streams_length) - 1
+            needed_len = self.streams_length[stream_id] + processed_signal_length
+            if needed_len > self.buffer.size(-1):
+                self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, needed_len - self.buffer.size(-1)))
+
+            self.buffer[
+                stream_id, :, self.streams_length[stream_id] : self.streams_length[stream_id] + processed_signal_length
+            ] = processed_signal
+            self.streams_length[stream_id] = self.streams_length[stream_id] + processed_signal.size(-1)
+
+            needed_len_raw_audio = self.streams_length_raw_audio[stream_id] + audio_signal_len
+            if needed_len_raw_audio > self.buffer_raw_audio.size(-1):
+                self.buffer_raw_audio = torch.nn.functional.pad(
+                    self.buffer_raw_audio, pad=(0, needed_len_raw_audio - self.buffer_raw_audio.size(-1))
+                )
+
+            self.buffer_raw_audio[
+                stream_id,
+                self.streams_length_raw_audio[stream_id] : self.streams_length_raw_audio[stream_id]
+                + audio_signal_length,
+            ] = audio_signal
+            self.streams_length_raw_audio[stream_id] = self.streams_length_raw_audio[stream_id] + audio_signal.size(-1)
+
+        return processed_signal, processed_signal_length, stream_id
+
+    def get_model_device(self):
+        return self.model.device
+
+    def preprocess_audio(self, audio, device=None):
+        if device is None:
+            device = self.get_model_device()
+        audio_signal = torch.from_numpy(audio).unsqueeze_(0).to(device)
+        audio_signal_len = torch.Tensor([audio.shape[0]]).to(device)
+        processed_signal, processed_signal_length = self.preprocessor(
+            input_signal=audio_signal, length=audio_signal_len
+        )
+        return audio_signal, audio_signal_len, processed_signal, processed_signal_length
 
 
 class FrameBatchMultiTaskAED(FrameBatchASR):
