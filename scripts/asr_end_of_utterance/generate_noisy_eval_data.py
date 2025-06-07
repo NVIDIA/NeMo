@@ -162,6 +162,13 @@ def process_manifest(data_cfg, output_dir):
         output_audio_dir = output_dir
         flatten_audio_path = False
 
+    if data_cfg.random_padding.pad_distribution == "constant":
+        is_constant_padding = True
+        pad_dur = data_cfg.random_padding.min_pad_duration
+    else:
+        is_constant_padding = False
+        pad_dur = None
+
     # Load the dataset
     tokenizer = parsers.make_parser(labels)  # dummy tokenizer
     dataset = LhotseSpeechToTextBpeEOUDataset(cfg=data_cfg, tokenizer=tokenizer, return_cuts=True)
@@ -207,6 +214,15 @@ def process_manifest(data_cfg, output_dir):
             manifest_item["offset"] = 0
             manifest_item["duration"] = audio.shape[0] / dataset.sample_rate
 
+            if is_constant_padding:
+                # Adjust the sou_time and eou_time for constant padding, if they exist
+                if 'sou_time' in manifest_item and 'eou_time' in manifest_item:
+                    if not isinstance(manifest_item['sou_time'], list):
+                        manifest_item['sou_time'] = manifest_item['sou_time'] + pad_dur
+                        manifest_item['eou_time'] = manifest_item['eou_time'] + pad_dur
+                    else:
+                        manifest_item['sou_time'] = [x + pad_dur for x in manifest_item['sou_time']]
+                        manifest_item['eou_time'] = [x + pad_dur for x in manifest_item['eou_time']]
             manifest.append(manifest_item)
 
     # Write the output manifest
