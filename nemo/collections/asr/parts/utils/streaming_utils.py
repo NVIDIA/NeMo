@@ -14,6 +14,7 @@
 
 import copy
 import os
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -2008,3 +2009,169 @@ class FrameBatchChunkedCTC(FrameBatchASR):
 
         print("keep_logits=True is not supported for FrameBatchChunkedCTC. Returning empty logits.")
         return hypothesis, []
+
+
+@dataclass
+class ContextSize:
+    left: int
+    chunk: int
+    right: int
+
+    def total(self) -> int:
+        """Total context size"""
+        return self.left + self.chunk + self.right
+
+    def subsample(self, factor: int) -> "ContextSize":
+        """
+        Subsample context size by factor
+
+        Args:
+            factor: subsampling factor
+        """
+        return ContextSize(
+            left=self.left // factor,
+            chunk=self.chunk // factor,
+            right=self.right // factor,
+        )
+
+    def add_frames_get_removed_(self, num_frames: int, is_last_chunk: bool, expected_context: "ContextSize") -> int:
+        """
+        Add frames to context size
+        Args:
+            num_frames: number of frames to add
+            is_last_chunk: if last chunk
+
+        Returns:
+            number of frames removed from the left side
+        """
+        if num_frames > expected_context.chunk + expected_context.right:
+            raise ValueError(
+                f"Added chunk length {num_frames} is larger "
+                f"than expected chunk with right context {expected_context}"
+            )
+        # consider first everything is moved to right/left context, then move to chunk
+        self.left += self.chunk
+        self.chunk = 0
+        self.right += num_frames
+        if is_last_chunk:
+            # move all samples to chunk, empty right part
+            self.chunk = self.right
+            self.right = 0
+        else:
+            self.chunk = expected_context.chunk
+            self.right -= expected_context.chunk
+        extra_samples = max(self.total() - expected_context.total(), 0)
+        self.left -= extra_samples
+        if not is_last_chunk:
+            assert self.right == expected_context.right
+        return extra_samples
+
+    def __str__(self):
+        return f"Left {self.left} - Chunk {self.chunk} - Right {self.right}"
+
+
+@dataclass
+class ContextSizeBatch:
+    """Batched context size"""
+
+    left: torch.Tensor
+    chunk: torch.Tensor
+    right: torch.Tensor
+
+    def total(self) -> torch.Tensor:
+        """Total context size"""
+        return self.left + self.chunk + self.right
+
+    def subsample(self, factor: int) -> "ContextSizeBatch":
+        """
+        Subsample context size by factor
+
+        Args:
+            factor: subsampling factor
+        """
+        return ContextSizeBatch(
+            left=torch.div(self.left, factor, rounding_mode="floor"),
+            chunk=torch.div(self.chunk, factor, rounding_mode="floor"),
+            right=torch.div(self.right, factor, rounding_mode="floor"),
+        )
+
+    def add_frames_(
+        self, num_frames_batch: torch.Tensor, is_last_chunk_batch: torch.Tensor, expected_context: "ContextSize"
+    ):
+        """
+        Add frames to context size
+        Args:
+            num_frames_batch: number of frames to add
+            is_last_chunk_batch: if last chunk
+
+        Returns:
+            number of frames removed from the left side
+        """
+        self.left += self.chunk
+        self.chunk.fill_(0)
+        self.right += num_frames_batch
+
+        self.chunk = torch.where(is_last_chunk_batch, self.right, expected_context.chunk)
+        self.right = torch.where(is_last_chunk_batch, 0, self.right - expected_context.chunk)
+
+        # fix left context
+        self.left = torch.where(self.chunk > 0, self.left, 0)
+
+        extra_samples = torch.maximum(self.total() - expected_context.total(), torch.zeros_like(self.left))
+        self.left -= extra_samples
+        self.left = torch.where(self.left < 0, torch.zeros_like(self.left), self.left)
+
+
+class StreamingBatchedAudioBuffer:
+    """Batched audio buffer with strict context management for streaming inference without left padding."""
+
+    def __init__(self, batch_size: int, context_samples: ContextSize, dtype: torch.dtype, device: torch.device | str):
+        """
+        Init batched audio buffer for streaming inference
+        Args:
+            batch_size: batch size
+            context_samples: context size
+            dtype: buffer dtype
+            device: device for buffer
+        """
+        self.batch_size = batch_size
+        self.expected_context = context_samples
+        self.samples = torch.zeros([batch_size, 0], dtype=dtype, device=device)
+        self.context_size = ContextSize(left=0, chunk=0, right=0)
+        self.context_size_batch = ContextSizeBatch(
+            left=torch.zeros([batch_size], dtype=torch.long, device=device),
+            chunk=torch.zeros([batch_size], dtype=torch.long, device=device),
+            right=torch.zeros([batch_size], dtype=torch.long, device=device),
+        )
+
+    def add_audio_batch_(
+        self,
+        audio_batch: torch.Tensor,
+        audio_lengths: torch.Tensor,
+        is_last_chunk: bool,
+        is_last_chunk_batch: torch.Tensor,
+    ):
+        """
+        Add audio batch to buffer
+
+        Args:
+            audio_batch: chunk with audio
+            audio_lengths: length of audio
+            is_last_chunk: if last chunk
+            is_last_chunk_batch: if last chunk for each audio utterance
+        """
+        added_chunk_length = audio_batch.shape[1]
+
+        # concat new chunk with buffer, remove extra samples
+        self.samples = torch.cat((self.samples, audio_batch), dim=1)
+        extra_samples_in_buffer = self.context_size.add_frames_get_removed_(
+            added_chunk_length, is_last_chunk=is_last_chunk, expected_context=self.expected_context
+        )
+        self.context_size_batch.add_frames_(
+            num_frames_batch=audio_lengths,
+            is_last_chunk_batch=is_last_chunk_batch,
+            expected_context=self.expected_context,
+        )
+        # leave only full_ctx_audio_samples in buffer
+        if extra_samples_in_buffer > 0:
+            self.samples = self.samples[:, extra_samples_in_buffer:].clone()

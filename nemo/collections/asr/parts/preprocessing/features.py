@@ -417,7 +417,9 @@ class FilterbankFeatures(nn.Module):
         return self.fb
 
     def forward(self, x, seq_len, linear_spec=False):
-        seq_len = self.get_seq_len(seq_len)
+        seq_len_unfixed = self.get_seq_len(seq_len)
+        # fix for seq_len = 0 for streaming; if size was 0, it is always padded to 1, and normalizer fails
+        seq_len = torch.where(seq_len == 0, torch.zeros_like(seq_len_unfixed), seq_len_unfixed)
 
         if self.stft_pad_amount is not None:
             x = torch.nn.functional.pad(
