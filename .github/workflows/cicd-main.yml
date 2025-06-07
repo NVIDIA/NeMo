@@ -296,25 +296,25 @@ jobs:
       test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-automodel:
-  #   needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-  #   uses: ./.github/workflows/cicd-main-automodel.yml
-  #   if: |
-  #     (
-  #       needs.pre-flight.outputs.test_to_run != '[]'
-  #       && (
-  #         contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel')
-  #       )
-  #     )
-  #     && (
-  #       success()
-  #       || (
-  #         needs.cicd-wait-in-queue.result == 'skipped'
-  #         && needs.pre-flight.outputs.is_ci_workload == 'true'
-  #       )
-  #     )
-  #     && !cancelled()
-  #   with:
-  #     test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
+    needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
+    uses: ./.github/workflows/cicd-main-automodel.yml
+    if: |
+      (
+        needs.pre-flight.outputs.test_to_run != '[]'
+        && (
+          contains(fromJson(needs.pre-flight.outputs.components_to_run), 'automodel')
+        )
+      )
+      && (
+        success()
+        || (
+          needs.cicd-wait-in-queue.result == 'skipped'
+          && needs.pre-flight.outputs.is_ci_workload == 'true'
+        )
+      )
+      && !cancelled()
+    with:
+      test_to_run: ${{ needs.pre-flight.outputs.test_to_run }}
 
   cicd-main-nemo2:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
