@@ -50,7 +50,7 @@ class SpeculativeTransform:
 
         assert algorithm in self.ALGORITHMS, f"Invalid algorithm: {algorithm}. Choices: {self.ALGORITHMS}"
         if config is None:
-            config = mtsp.MedusaConfig() if algorithm == "medusa" else mtsp.EagleConfig()
+            config = mtsp.MedusaConfig() if algorithm == "medusa" else mtsp.EAGLE3_DEFAULT_CFG["config"]
 
         self.algorithm = algorithm
         self.config = config
@@ -66,10 +66,6 @@ class SpeculativeTransform:
             The transformed model.
         """
         unwrapped_model = unwrap_model(model)
-        # Check if the model has already been transformed with speculative decoding
-        if mto.ModeloptStateManager.has_state_for_mode_type("speculative", model=unwrapped_model):
-            logging.info("Model has already been transformed with speculative decoding. Skipping transformation.")
-            return model
 
         # Verify model is compatible with speculative decoding
         assert hasattr(unwrapped_model, "config"), "Model must have a config attached."
@@ -77,6 +73,11 @@ class SpeculativeTransform:
             raise ValueError("SpeculativeTransform is incompatible with virtual pipeline parallelism.")
         if unwrapped_model.config.gradient_accumulation_fusion is True:
             raise ValueError("SpeculativeTransform is incompatible with gradient accumulation fusion.")
+
+        # Check if the model has already been transformed with speculative decoding
+        if mto.ModeloptStateManager.has_state_for_mode_type("speculative", model=unwrapped_model):
+            logging.info("Model has already been transformed with speculative decoding. Skipping transformation.")
+            return model
 
         logging.info(
             f"Converting to Speculative Decoding model with algorithm: {self.algorithm} and config:\n{self.config}"

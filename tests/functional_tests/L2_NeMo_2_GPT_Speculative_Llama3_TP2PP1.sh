@@ -20,9 +20,11 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo script
     --devices 2 \
     --legacy_ckpt
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/modelopt/test_speculative_training.py \
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_train.py \
     --name 'test_speculative_training' \
     --model_path /tmp/speculative_ckpt \
+    --specdec_algo eagle \
+    --use_mock_data \
     --tp_size 2 \
     --pp_size 1 \
     --devices 2 \
@@ -31,7 +33,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/
     --max_steps 5 \
     --gbs 4 \
     --mbs 1 \
-    --seq_length 8192 \
+    --seq_length 4096 \
     --val_check_interval 5 \
     --log_interval 5 \
     --limit_val_batches 2 \
