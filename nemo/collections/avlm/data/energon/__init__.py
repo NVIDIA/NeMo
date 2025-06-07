@@ -16,11 +16,11 @@ from nemo.collections.avlm.data.energon.avlm_data_module import AVLMDataModule
 from nemo.collections.avlm.data.energon.avlm_sample_config import (
     AVLMEnergonInterleavedSample,
     AVLMEnergonQASample,
-    AVLMSample,
     AVLMRawBatch,
-    MediaDict as AVLMMediaDict,
+    AVLMSample,
     AVLMSampleConfig,
 )
+from nemo.collections.avlm.data.energon.avlm_sample_config import MediaDict as AVLMMediaDict
 from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMTaskEncoder
 
 __all__ = [
