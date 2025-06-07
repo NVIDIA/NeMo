@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import glob
 import os
 import signal
@@ -41,6 +42,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
@@ -440,6 +442,26 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
+def configure_onelogger(trainer: 'lightning.pytorch.Trainer', cfg: Union[DictConfig, Dict]) -> None:
+    """Configure OneLogger callback using MetaInfoManager.
+
+    Args:
+        trainer: The lightning trainer
+        cfg: Configuration object containing metadata
+    """
+    try:
+        from nemo.lightning import OneLoggerNeMoCallback
+        from nemo.utils.callback_group import init_global_callback_group
+        from nemo.utils.meta_info_manager import MetaInfoManager
+
+        one_logger_cb = OneLoggerNeMoCallback(callback_config=MetaInfoManager(cfg).get_metadata())
+        init_global_callback_group(callbacks=[one_logger_cb])
+        trainer.callbacks.append(one_logger_cb)
+        logging.info("OneLogger callback has been set up")
+    except ImportError:
+        logging.warning("OneLogger dependencies not found. Skipping OneLogger setup.")
+
+
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch
@@ -558,6 +580,12 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     if trainer.fast_dev_run:
         logging.info("Trainer was called with fast_dev_run. exp_manager will return without any functionality.")
         return
+
+    # Call on_app_start at the beginning of exp_manager
+    CallbackGroup.get_instance().on_app_start()
+
+    # Register on_app_end with atexit
+    atexit.register(CallbackGroup.get_instance().on_app_end)
 
     # Ensure passed cfg is compliant with ExpManagerConfig
     schema = OmegaConf.structured(ExpManagerConfig)
@@ -678,6 +706,9 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
             cfg.create_neptune_logger,
             cfg.neptune_logger_kwargs,
         )
+
+    # Configure OneLogger callback
+    configure_onelogger(trainer, cfg)
 
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:
