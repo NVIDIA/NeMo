@@ -29,7 +29,6 @@ model:
   codecmodel_path: ???
   max_epochs: ${max_epochs}
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
-  sample_rate: ${sample_rate}
   cfg_unconditional_prob: 0.1
 
   # Alignment encoder parameters, to binarize the prior
