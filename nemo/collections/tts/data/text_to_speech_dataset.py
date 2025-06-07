@@ -420,7 +420,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
         self.context_duration_max = context_duration_max
 
     @staticmethod
-    def squeeze_mono_audio(audio: torch.tensor):
+    def squeeze_mono_audio(audio: torch.Tensor):
         if audio.dim() > 1:  # Sometimes mono audio gets stored as [T, 1]
             audio = audio.squeeze(-1)
         return audio
