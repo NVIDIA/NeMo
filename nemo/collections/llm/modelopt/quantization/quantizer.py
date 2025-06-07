@@ -160,6 +160,9 @@ class Quantizer:
 
         unwrapped_model = model
         while not isinstance(unwrapped_model, (llm.GPTModel, llm.HFAutoModelForCausalLM)):
+            # Check for Llama4OmniModel before unwrapping further
+            if hasattr(unwrapped_model, '__class__') and unwrapped_model.__class__.__name__ == 'Llama4OmniModel':
+                return "llama"
             unwrapped_model = unwrapped_model.module
 
         if decoder_type := get_modelopt_decoder_type(unwrapped_model):
@@ -281,6 +284,9 @@ class Quantizer:
         if decoder_type == "gemma" and "int8_sq" in algorithm:
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": 0.5}
 
+        quant_cfg["quant_cfg"]["vision_projection.*"] = {
+            "enable": False
+        }  # disable vision projection quantization for Llama4
         return quant_cfg
 
     def quantize(self, model: "MegatronParallel", forward_loop=None):
