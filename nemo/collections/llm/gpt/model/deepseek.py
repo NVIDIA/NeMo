@@ -457,6 +457,11 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
                 config_cls = DeepSeekV2LiteConfig
         else:
             raise ValueError(f"Unknown model type: {source.model_type}")
+
+        # Latest DeepSeek V3 does not have aux_loss_alpha
+        optional_kwargs = {}
+        if hasattr(source, "aux_loss_alpha"):
+            optional_kwargs["moe_aux_loss_coeff"] = source.aux_loss_alpha
         return config_cls(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
@@ -472,7 +477,6 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             moe_router_num_groups=source.n_group,
             moe_router_group_topk=source.topk_group,
             moe_router_topk_scaling_factor=source.routed_scaling_factor,
-            moe_aux_loss_coeff=source.aux_loss_alpha,
             kv_lora_rank=source.kv_lora_rank,
             qk_head_dim=source.qk_nope_head_dim,
             qk_pos_emb_head_dim=source.qk_rope_head_dim,
@@ -484,6 +488,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             generation_config=generation_config,
             vocab_size=source.vocab_size,
             **v3_kwargs,
+            **optional_kwargs,
         )
 
 
