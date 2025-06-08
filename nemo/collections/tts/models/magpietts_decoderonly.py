@@ -794,6 +794,8 @@ class MagpieTTSDecoderModel(ModelPT):
                 # Get embedding of a special UNCONDITIONAL_TOKEN
                 cfg_token_id = self.cfg_unk_token_id # int
                 cfg_token_embedding = self.decoder.get_input_embeddings()(torch.full((context_embedding.size(0), 1), cfg_token_id, device=context_embedding.device))  # (B, 1, E)
+                # Keeping the dummy context same size as the context embedding makes 
+                # inference easier especially with KV caching and using a duplicated batch.
                 context_embedding = cfg_token_embedding.expand(-1, context_embedding.size(1), -1)  # (B, T_total, E)
 
         if 'audio_codes' not in batch:
