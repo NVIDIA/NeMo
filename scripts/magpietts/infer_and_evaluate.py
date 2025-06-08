@@ -262,7 +262,9 @@ def run_inference(
                         temperature=temperature,
                         topk=topk,
                         use_local_transformer_for_inference=use_local_transformer,
-                        maskgit_n_steps=maskgit_n_steps
+                        maskgit_n_steps=maskgit_n_steps,
+                        use_cfg=use_cfg,
+                        cfg_scale=cfg_scale,
                     )
                     cross_attention_maps = None
                 else:

@@ -81,6 +81,7 @@ class MagpieTTSDecoderModel(ModelPT):
         self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook',num_audio_tokens + len(SpecialAudioToken))
         self.mask_token_id = cfg.get('forced_mask_token_id', num_audio_tokens + SpecialAudioToken.MASK_TOKEN.value)
         self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
+        self.cfg_unconditional_prob = cfg.get('cfg_unconditional_prob', 0.0)
         
         self.tokenizer, _ = setup_tokenizers(
             all_tokenizers_config=cfg.text_tokenizers,
@@ -1079,6 +1080,7 @@ class MagpieTTSDecoderModel(ModelPT):
             )
             min_context_len = context_plus_audio_lens.min().item()
 
+            actual_batch_size = context_embedding.size(0)
             if use_cfg:
                 dummy_context_embedding = torch.zeros_like(context_plus_audio_embedded)  # (B, T_total, E) to be used in case of no context
                 dummy_context_plus_audio_embedded, _ = self.join_embeddings_temporally(
@@ -1111,6 +1113,11 @@ class MagpieTTSDecoderModel(ModelPT):
                     print(f"Decoding timestep {idx}")
 
                 all_code_logits_t = self.final_proj(last_hidden[:, -1, :])  # (B, num_codebooks * num_tokens_per_codebook)
+                if use_cfg:
+                    conditional_logits = all_code_logits_t[:actual_batch_size]
+                    unconditional_logits = all_code_logits_t[actual_batch_size:]
+                    all_code_logits_t = cfg_scale * conditional_logits +  (1.0 - cfg_scale) * unconditional_logits
+
                 if use_local_transformer_for_inference:
                     if self.local_transformer_type == LocalTransformerType.AR :
                         # Autoregressive sampling with local transformer
@@ -1118,6 +1125,8 @@ class MagpieTTSDecoderModel(ModelPT):
                             dec_output=last_hidden[:, -1, :],
                             temperature=temperature,
                             topk=topk,
+                            use_cfg=use_cfg,
+                            cfg_scale=cfg_scale,
                         )
                     elif self.local_transformer_type == LocalTransformerType.MASKGIT:
                         audio_codes_next = self.local_transformer_sample_maskgit(
@@ -1125,6 +1134,8 @@ class MagpieTTSDecoderModel(ModelPT):
                             temperature=temperature,
                             topk=topk,
                             n_steps=maskgit_n_steps,
+                            use_cfg=use_cfg,
+                            cfg_scale=cfg_scale,
                         )
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
@@ -1154,10 +1165,15 @@ class MagpieTTSDecoderModel(ModelPT):
                     context_incomplete_mask = context_incomplete_mask.unsqueeze(1).unsqueeze(2).float()  # (B, 1, 1)
                     context_embedding = context_plus_audio_embedded[:,min_context_len+idx:min_context_len+idx+1,:] # (B, 1, E)
                     next_input = context_incomplete_mask * context_embedding + (1 - context_incomplete_mask) * new_emb
+                    if use_cfg:
+                        dummy_context_embedding = torch.zeros_like(context_embedding)  # (B, 1, E) to be used in case of no context
+                        next_input_unconditional = context_incomplete_mask * dummy_context_embedding + (1 - context_incomplete_mask) * new_emb
+                        next_input = torch.cat([next_input, next_input_unconditional], dim=0)  # (2B, 1, E)
                 else:
                     next_input = new_emb
-
-                # import ipdb; ipdb.set_trace()
+                    if use_cfg:
+                        # Duplicate the input for CFG
+                        next_input = torch.cat([next_input, next_input], dim=0)  # (2B, 1, E)
 
                 transformer_out = self.forward(
                     inputs_embeds=next_input,

@@ -33,6 +33,8 @@ model:
   local_transformer_n_heads: 1
   local_transformer_hidden_dim: 256
 
+  cfg_unconditional_prob: 0.1
+
   text_tokenizers: # Add more languages for multi-lingual TTS
     english_phoneme:
       _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
