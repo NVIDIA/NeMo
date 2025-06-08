@@ -17,7 +17,8 @@ import torch
 from lightning.pytorch import Trainer
 from omegaconf import OmegaConf
 
-from nemo.collections.speechlm2 import DataModule, DuplexS2SDataset, DuplexS2SSpeechDecoderModel
+# from nemo.collections.speechlm2.data import DuplexT2TDataset
+from nemo.collections.speechlm2 import DataModule, DuplexT2TDataset, DuplexT2TModel
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
@@ -25,7 +26,7 @@ from nemo.utils.trainer_utils import resolve_trainer_cfg
 torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
 
 
-@hydra_runner(config_path="conf", config_name="s2s_duplex_speech_decoder")
+@hydra_runner(config_path="conf", config_name="s2s_duplex_frozen_asr")
 def train(cfg):
     OmegaConf.resolve(cfg)
     torch.distributed.init_process_group(backend="nccl")
@@ -36,15 +37,14 @@ def train(cfg):
     OmegaConf.save(cfg, log_dir / "exp_config.yaml")
 
     with trainer.init_module():
-        model = DuplexS2SSpeechDecoderModel(OmegaConf.to_container(cfg.model, resolve=True))
+        model = DuplexT2TModel(OmegaConf.to_container(cfg.model, resolve=True))
 
-    dataset = DuplexS2SDataset(
+    dataset = DuplexT2TDataset(
         tokenizer=model.tokenizer,
         frame_length=cfg.data.frame_length,
-        source_sample_rate=cfg.data.source_sample_rate,
-        target_sample_rate=cfg.data.target_sample_rate,
         input_roles=cfg.data.input_roles,
         output_roles=cfg.data.output_roles,
+        collate_source_interleaved=cfg.data.collate_source_interleaved,
     )
     datamodule = DataModule(cfg.data, tokenizer=model.tokenizer, dataset=dataset)
 
