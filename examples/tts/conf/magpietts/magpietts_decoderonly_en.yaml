@@ -34,6 +34,7 @@ model:
   local_transformer_hidden_dim: 256
 
   cfg_unconditional_prob: 0.1
+  cfg_token: "<|fim_prefix|>" # Any special token from the model's tokenizer, to be used as UNK token for unconditional CFG.
 
   text_tokenizers: # Add more languages for multi-lingual TTS
     english_phoneme:

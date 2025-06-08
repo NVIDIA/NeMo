@@ -84,12 +84,14 @@ class MagpieTTSDecoderModel(ModelPT):
         self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
         self.cfg_unconditional_prob = cfg.get('cfg_unconditional_prob', 0.0)
         
+        
         self.tokenizer, _ = setup_tokenizers(
             all_tokenizers_config=cfg.text_tokenizers,
             use_text_conditioning_tokenizer=False,
             mode='train',
         )
         self.eos_id = self.tokenizer.first_tokenizer.eos_token_id
+        self.cfg_unk_token_id = self.tokenizer.first_tokenizer.convert_tokens_to_ids("<|fim_prefix|>")
 
         self.pad_context_text_to_max_duration = False
 
@@ -109,7 +111,9 @@ class MagpieTTSDecoderModel(ModelPT):
             trust_remote_code=True,
         )
 
-        self.decoder = AutoModelForCausalLM.from_config(self.transformer_backend_config)
+        hf_transformer = AutoModelForCausalLM.from_config(self.transformer_backend_config)
+        self.decoder = hf_transformer.model
+        self.lm_text_head = hf_transformer.lm_head
 
         if self.use_bpe_char_tokenizer:
             # BPE char tokenizer
@@ -399,7 +403,6 @@ class MagpieTTSDecoderModel(ModelPT):
             attention_mask=attention_mask,
             use_cache=use_cache,
             past_key_values=past_key_values,
-            output_hidden_states=True,
         )
         # hidden_states = backend_out.last_hidden_state  # (B, T_total, H)
         return backend_out
@@ -780,7 +783,10 @@ class MagpieTTSDecoderModel(ModelPT):
 
         if mode == 'train' and self.cfg_unconditional_prob > 0.0:
             if torch.rand(1).item() < self.cfg_unconditional_prob:
-                context_embedding = torch.zeros_like(context_embedding)  # (B, T_total, E) to be used in case of no context
+                # Get embedding of a special UNCONDITIONAL_TOKEN
+                cfg_token_id = self.cfg_unk_token_id # int
+                cfg_token_embedding = self.decoder.get_input_embeddings()(torch.full((context_embedding.size(0), 1), cfg_token_id, device=context_embedding.device))  # (B, 1, E)
+                context_embedding = cfg_token_embedding.expand(-1, context_embedding.size(1), -1)  # (B, T_total, E)
 
         if 'audio_codes' not in batch:
             audio_codes, audio_codes_lens = self.audio_to_codes(batch['audio'], batch['audio_lens'])
@@ -802,7 +808,7 @@ class MagpieTTSDecoderModel(ModelPT):
             inputs_embeds=context_plus_audio_embedded,
             attention_mask=get_mask_from_lengths(context_plus_audio_lens),
         )
-        transformer_hidden_states = transformer_out.hidden_states[-1]  # (B, T_total, E)
+        transformer_hidden_states = transformer_out.last_hidden_state  # (B, T_total, E)
         
         pred_embeddings = self.slice_pred_embeddings(
             transformer_hidden_states,
@@ -1079,7 +1085,11 @@ class MagpieTTSDecoderModel(ModelPT):
 
             actual_batch_size = context_embedding.size(0)
             if use_cfg:
-                dummy_context_embedding = torch.zeros_like(context_plus_audio_embedded)  # (B, T_total, E) to be used in case of no context
+                dummy_context_embedding = self.decoder.get_input_embeddings()(
+                    torch.full((actual_batch_size, 1), self.cfg_unk_token_id, device=context_embedding.device)
+                ) # (B, 1, E)
+                dummy_context_embedding = dummy_context_embedding.expand(-1, context_embedding.size(1), -1)  # (B, T_total, E)
+                
                 dummy_context_plus_audio_embedded, _ = self.join_embeddings_temporally(
                     embeddings=[dummy_context_embedding, audio_codes_input_embedded],
                     lengths=[context_lens, audio_codes_lens],
@@ -1099,7 +1109,7 @@ class MagpieTTSDecoderModel(ModelPT):
             )
 
             time_to_first_prediction = time.time() - start_time
-            last_hidden = transformer_out.hidden_states[-1]  # (B, T_total, E)
+            last_hidden = transformer_out.last_hidden_state  # (B, T_total, E)
             past_kv = transformer_out.past_key_values
 
             all_predictions = []
@@ -1178,7 +1188,7 @@ class MagpieTTSDecoderModel(ModelPT):
                     use_cache=True,
                     past_key_values=past_kv,
                 )
-                last_hidden = transformer_out.hidden_states[-1]
+                last_hidden = transformer_out.last_hidden_state
                 past_kv = transformer_out.past_key_values
                 if len(end_indices) == audio_codes_next.size(0):
                     print("All items finished at timestep {}".format(idx))
