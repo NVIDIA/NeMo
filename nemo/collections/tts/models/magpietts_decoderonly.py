@@ -777,13 +777,8 @@ class MagpieTTSDecoderModel(ModelPT):
         context_lens = context_tensors['full_context_lens']  # (B,)
 
         if mode == 'train' and self.cfg_unconditional_prob > 0.0:
-            dummy_context_embedding = torch.zeros_like(context_embedding)  # (B, T_total, E) to be used in case of no context
-            use_dummy_context = torch.rand(context_embedding.size(0), device=context_embedding.device) < self.cfg_unconditional_prob # (B,)
-            context_embedding = torch.where(
-                use_dummy_context.unsqueeze(1).unsqueeze(2),
-                dummy_context_embedding,
-                context_embedding,
-            )# (B, T_total, E)
+            if torch.rand(1).item() < self.cfg_unconditional_prob:
+                context_embedding = torch.zeros_like(context_embedding)  # (B, T_total, E) to be used in case of no context
 
         if 'audio_codes' not in batch:
             audio_codes, audio_codes_lens = self.audio_to_codes(batch['audio'], batch['audio_lens'])
