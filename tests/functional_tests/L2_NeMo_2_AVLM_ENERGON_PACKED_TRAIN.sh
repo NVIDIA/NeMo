@@ -19,8 +19,8 @@ TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/avlm/hf_home coverage run -a --dat
     --log_dir=/tmp/nemo2_avlm_energon_packed_results/$RUN_ID \
     --data_type=energon \
     --data_path=/home/TestData/avlm/train/data/sample_data/wds \
-    --seq_length=16384 \
-    --cp_size=2 \
+    --seq_length=8192 \
+    --cp_size=1 \
     --gbs=1 \
     --mbs=1 \
     --lr=0.001 \
