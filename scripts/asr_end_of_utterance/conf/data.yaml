@@ -21,13 +21,13 @@ data:
   shuffle_buffer_size: 10000
 
   random_padding:
-    prob: 1.0
-    min_pad_duration: 1.0  # minimum duration of pre/post padding in seconds
-    max_pad_duration: 10.0  # maximum duration of pre/post padding in seconds
-    max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
-    pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
-    normal_mean: 0.5  # mean of normal distribution for padding duration
-    normal_std: 2.0  # standard deviation of normal distribution for padding duration
+      prob: 1.0
+      min_pad_duration: 0.0  # minimum duration of pre/post padding in seconds
+      max_pad_duration: 3.0  # maximum duration of pre/post padding in seconds
+      max_total_duration: 40.0  # maximum total duration of the padded audio in seconds
+      pad_distribution: 'constant'  # distribution of padding duration, 'uniform' or 'normal' or 'constant'
+      pre_pad_duration: 0.2
+      post_pad_duration: 3.0
 
   augmentor:
     white_noise:

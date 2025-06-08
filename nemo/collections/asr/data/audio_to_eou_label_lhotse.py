@@ -414,18 +414,23 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         else:
             min_padding_duration = 2 * self.padding_cfg.min_pad_duration
 
+        pre_padding_duration = None
+        post_padding_duration = None
+
         if self.padding_cfg.pad_distribution == 'uniform':
             total_padding_duration = np.random.uniform(min_padding_duration, max_padding_duration)
         elif self.padding_cfg.pad_distribution == 'normal':
             total_padding_duration = np.random.normal(self.padding_cfg.normal_mean, self.padding_cfg.normal_std)
             total_padding_duration = max(min_padding_duration, min(max_padding_duration, total_padding_duration))
         elif self.padding_cfg.pad_distribution == 'constant':
-            total_padding_duration = 2 * self.padding_cfg.min_pad_duration
-            min_padding_duration = 0
+            pass
         else:
             raise ValueError(f"Unknown padding distribution: {self.padding_cfg.pad_distribution}")
 
-        if min_padding_duration == 0:
+        if self.padding_cfg.pad_distribution == 'constant':
+            pre_padding_duration = self.padding_cfg.pre_pad_duration
+            post_padding_duration = self.padding_cfg.post_pad_duration
+        elif min_padding_duration == 0:
             pre_padding_duration = total_padding_duration / 2
             post_padding_duration = total_padding_duration / 2
         else:

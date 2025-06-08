@@ -90,6 +90,8 @@ model:
       max_pad_duration: 1.0  # maximum duration of pre/post padding in seconds
       max_total_duration: 40.0  # maximum total duration of the padded audio in seconds
       pad_distribution: 'constant'  # distribution of padding duration, 'uniform' or 'normal' or 'constant'
+      pre_pad_duration: 0.2
+      post_pad_duration: 3.0
 
   test_ds:
     manifest_filepath: null
@@ -108,6 +110,16 @@ model:
     num_cuts_for_bins_estimate: 10000
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
+
+    random_padding:
+      prob: 1.0
+      min_pad_duration: 0.0  # minimum duration of pre/post padding in seconds
+      max_pad_duration: 3.0  # maximum duration of pre/post padding in seconds
+      max_total_duration: 40.0  # maximum total duration of the padded audio in seconds
+      pad_distribution: 'constant'  # distribution of padding duration, 'uniform' or 'normal' or 'constant'
+      pre_pad_duration: 0.2
+      post_pad_duration: 3.0
+
 
   # You may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   # We recommend to use vocab size of 1024 with SPE Unigram for most languages

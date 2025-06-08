@@ -48,7 +48,7 @@ import soundfile as sf
 import torch
 import yaml
 from lhotse.cut import MixedCut
-from omegaconf import OmegaConf, open_dict
+from omegaconf import ListConfig, OmegaConf, open_dict
 from tqdm import tqdm
 
 from nemo.collections.asr.data.audio_to_eou_label_lhotse import LhotseSpeechToTextBpeEOUDataset
@@ -132,14 +132,17 @@ def main(cfg):
         yaml.dump(config, f)
     logging.info(f'Config dumped to {output_dir / "config.yaml"}')
 
-    input_manifest_file = Path(cfg.data.manifest_filepath)
-    if input_manifest_file.is_dir():
-        pattern = cfg.data.get('pattern', '*.json')
-        manifest_list = list(input_manifest_file.glob(pattern))
-        if not manifest_list:
-            raise ValueError(f"No files found in {input_manifest_file} matching pattern `{pattern}`")
+    if isinstance(cfg.data.manifest_filepath, (list, ListConfig)):
+        manifest_list = [Path(x) for x in cfg.data.manifest_filepath]
     else:
-        manifest_list = [Path(x) for x in str(input_manifest_file).split(",")]
+        input_manifest_file = Path(cfg.data.manifest_filepath)
+        if input_manifest_file.is_dir():
+            pattern = cfg.data.get('pattern', '*.json')
+            manifest_list = list(input_manifest_file.glob(pattern))
+            if not manifest_list:
+                raise ValueError(f"No files found in {input_manifest_file} matching pattern `{pattern}`")
+        else:
+            manifest_list = [Path(x) for x in str(input_manifest_file).split(",")]
 
     logging.info(f'Found {len(manifest_list)} manifest files to process...')
 
@@ -164,10 +167,10 @@ def process_manifest(data_cfg, output_dir):
 
     if data_cfg.random_padding.pad_distribution == "constant":
         is_constant_padding = True
-        pad_dur = data_cfg.random_padding.min_pad_duration
+        pre_pad_dur = data_cfg.random_padding.pre_pad_duration
     else:
         is_constant_padding = False
-        pad_dur = None
+        pre_pad_dur = None
 
     # Load the dataset
     tokenizer = parsers.make_parser(labels)  # dummy tokenizer
@@ -198,7 +201,6 @@ def process_manifest(data_cfg, output_dir):
                 if k == "dataloading_info":
                     continue
                 manifest_item[k] = v
-
             audio = audio_batch[j][: audio_len_batch[j]]
             audio_file = cut.recording.sources[0].source
 
@@ -218,11 +220,11 @@ def process_manifest(data_cfg, output_dir):
                 # Adjust the sou_time and eou_time for constant padding, if they exist
                 if 'sou_time' in manifest_item and 'eou_time' in manifest_item:
                     if not isinstance(manifest_item['sou_time'], list):
-                        manifest_item['sou_time'] = manifest_item['sou_time'] + pad_dur
-                        manifest_item['eou_time'] = manifest_item['eou_time'] + pad_dur
+                        manifest_item['sou_time'] = manifest_item['sou_time'] + pre_pad_dur
+                        manifest_item['eou_time'] = manifest_item['eou_time'] + pre_pad_dur
                     else:
-                        manifest_item['sou_time'] = [x + pad_dur for x in manifest_item['sou_time']]
-                        manifest_item['eou_time'] = [x + pad_dur for x in manifest_item['eou_time']]
+                        manifest_item['sou_time'] = [x + pre_pad_dur for x in manifest_item['sou_time']]
+                        manifest_item['eou_time'] = [x + pre_pad_dur for x in manifest_item['eou_time']]
             manifest.append(manifest_item)
 
     # Write the output manifest
