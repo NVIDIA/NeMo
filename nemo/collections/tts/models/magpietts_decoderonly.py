@@ -36,6 +36,7 @@ from nemo.utils import logging
 from transformers import (
     AutoConfig,
     AutoModel,
+    AutoModelForCausalLM
 )
 import time
 
@@ -108,7 +109,7 @@ class MagpieTTSDecoderModel(ModelPT):
             trust_remote_code=True,
         )
 
-        self.decoder = AutoModel.from_config(self.transformer_backend_config)
+        self.decoder = AutoModelForCausalLM.from_config(self.transformer_backend_config)
 
         if self.use_bpe_char_tokenizer:
             # BPE char tokenizer
@@ -398,6 +399,7 @@ class MagpieTTSDecoderModel(ModelPT):
             attention_mask=attention_mask,
             use_cache=use_cache,
             past_key_values=past_key_values,
+            output_hidden_states=True,
         )
         # hidden_states = backend_out.last_hidden_state  # (B, T_total, H)
         return backend_out
@@ -800,7 +802,7 @@ class MagpieTTSDecoderModel(ModelPT):
             inputs_embeds=context_plus_audio_embedded,
             attention_mask=get_mask_from_lengths(context_plus_audio_lens),
         )
-        transformer_hidden_states = transformer_out.last_hidden_state  # (B, T_total, E)
+        transformer_hidden_states = transformer_out.hidden_states[-1]  # (B, T_total, E)
         
         pred_embeddings = self.slice_pred_embeddings(
             transformer_hidden_states,
@@ -1097,7 +1099,7 @@ class MagpieTTSDecoderModel(ModelPT):
             )
 
             time_to_first_prediction = time.time() - start_time
-            last_hidden = transformer_out.last_hidden_state  # (B, T_total, E)
+            last_hidden = transformer_out.hidden_states[-1]  # (B, T_total, E)
             past_kv = transformer_out.past_key_values
 
             all_predictions = []
@@ -1176,7 +1178,7 @@ class MagpieTTSDecoderModel(ModelPT):
                     use_cache=True,
                     past_key_values=past_kv,
                 )
-                last_hidden = transformer_out.last_hidden_state
+                last_hidden = transformer_out.hidden_states[-1]
                 past_kv = transformer_out.past_key_values
                 if len(end_indices) == audio_codes_next.size(0):
                     print("All items finished at timestep {}".format(idx))
