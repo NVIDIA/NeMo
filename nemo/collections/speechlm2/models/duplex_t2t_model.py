@@ -102,6 +102,15 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         self._use_fsdp = False
         self._use_tp = False
 
+        # Configuration for embedding combination mode
+        self.concat_embeddings = cfg.get("concat_embeddings", False)
+        if self.concat_embeddings:
+            # Linear layer to transform concatenated embeddings to LLM dimension
+            self.concat_projection = torch.nn.Linear(
+                self.embed_tokens.embedding_dim * 2,  # 2x because we concatenate user and agent embeddings
+                self.embed_tokens.embedding_dim
+            )
+
     @property
     def speech_vocab_size(self):
         """Return the size of the audio codec codebook including extra speech BOS and EOS tokens."""
@@ -152,6 +161,26 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
 
         """
         return get_pad_id(self.tokenizer)
+
+    def _combine_embeddings(self, agent_embeds: Tensor, user_embeds: Tensor) -> Tensor:
+        """
+        Combine agent and user embeddings based on the configuration.
+        
+        Args:
+            agent_embeds: Agent (target) embeddings of shape (B, T, H)
+            user_embeds: User (source) embeddings of shape (B, T, H)
+            
+        Returns:
+            Combined embeddings of shape (B, T, H)
+        """
+        if self.concat_embeddings:
+            # Concatenate embeddings and project to original dimension
+            concatenated = torch.cat([agent_embeds, user_embeds], dim=-1)  # (B, T, 2*H)
+            return self.concat_projection(concatenated)  # (B, T, H)
+        else:
+            # Add embeddings (original behavior)
+            user_weighted = user_embeds * self.cfg.get("duplex_user_channel_weight", 1.0)
+            return agent_embeds + user_weighted
 
     def forward(self, input_embeds: Tensor, cache=None, input_audio_tokens=None, loss_mask=None) -> dict[str, Tensor]:
         """
@@ -329,7 +358,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         # Add source token embeddings to input embeddings
         # This allows the model to condition on the source sequence
         source_embeds = self.embed_tokens(source_tokens[:, :-1])  # (B, T-1, H)
-        input_embeds.add_(source_embeds * self.cfg.get("duplex_user_channel_weight", 1.0))
+        input_embeds = self._combine_embeddings(input_embeds, source_embeds)
         
         return {
             "input_embeds": input_embeds,      # (B, T-1, H)
@@ -494,7 +523,8 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             T = T_local
 
         # Apply channel weight
-        input_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
+        if not self.concat_embeddings:
+            input_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
 
         # This cache is for self.llm
         cache = DynamicCache()
@@ -571,8 +601,9 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         # Embed source tokens
         source_embeds = self.embed_tokens(source_tokens)  # (B, T, H)
         
-        # Apply channel weight if specified
-        source_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
+        # Apply channel weight if specified (only for addition mode)
+        if not self.concat_embeddings:
+            source_embeds *= self.cfg.get("duplex_user_channel_weight", 1.0)
         
         # Initialize cache for autoregressive generation
         cache = DynamicCache()
@@ -581,22 +612,21 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         gen_tokens = torch.empty(B, T, device=self.device, dtype=torch.long)
         
         # First step, use BOS token
-        input_embeds = source_embeds[:, :1].clone()  # (B, 1, H)
-        input_embeds[:, 0] += self._get_bos_embedding()
+        bos_embedding = self._get_bos_embedding().expand(B, 1, -1)  # (B, 1, H)
+        first_step_embeds = self._combine_embeddings(bos_embedding, source_embeds[:, :1])
         
         # Generate first token
-        ans = self(input_embeds, cache=cache)
+        ans = self(first_step_embeds, cache=cache)
         gen_tokens[:, 0] = ans["text_logits"][:, -1].argmax(dim=-1)
         
         # Autoregressive loop
         for t in range(1, T):
             # Add embedding of previously generated token
             last_emb = self.embed_tokens(gen_tokens[:, t-1:t])  # (B, 1, H)
-            input_embeds = source_embeds[:, t:t+1].clone()  # (B, 1, H)
-            input_embeds += last_emb
+            step_embeds = self._combine_embeddings(last_emb, source_embeds[:, t:t+1])
             
             # Generate next token
-            ans = self(input_embeds, cache=ans["cache"])
+            ans = self(step_embeds, cache=ans["cache"])
             gen_tokens[:, t] = ans["text_logits"][:, -1].argmax(dim=-1)
         
         return {
@@ -707,6 +737,17 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
                     ),
                 )
 
+            if self.concat_embeddings:
+                parallelize_module(
+                    self.concat_projection,
+                    tp_mesh,
+                    ColwiseParallel(
+                        input_layouts=Shard(1),
+                        output_layouts=Shard(-1),
+                        use_local_output=False,
+                    ),
+                )
+
         if (dp_mesh := device_mesh["data_parallel"]).size() > 1:
             assert dp_mesh.ndim == 1
             self._use_fsdp = True
@@ -720,3 +761,5 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             self.lm_head = fully_shard(self.lm_head, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
             self.speech_generation = fully_shard(self.speech_generation, **fsdp_config)
+            if self.concat_embeddings:
+                self.concat_projection = fully_shard(self.concat_projection, **fsdp_config)
