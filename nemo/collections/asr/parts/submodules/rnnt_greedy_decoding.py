@@ -35,6 +35,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.transducer_decoding import (
     GreedyBatchedRNNTLabelLoopingComputer,
     GreedyBatchedTDTLabelLoopingComputer,
@@ -643,11 +644,19 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                     allow_cuda_graphs=self.use_cuda_graph_decoder,
-                    ngram_lm_model=ngram_lm_model,
+                    ngram_lm_model=(
+                        NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+                        if ngram_lm_model is not None
+                        else None
+                    ),
                     ngram_lm_alpha=ngram_lm_alpha,
                 )
             else:
                 # Frame-Looping algorithm
+                if ngram_lm_model is not None:
+                    raise NotImplementedError(
+                        "N-Gram Language Model fusion is not implemented with frame-looping algorithm"
+                    )
                 if not self.use_cuda_graph_decoder:
                     self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
                 else:
@@ -676,6 +685,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     else:
                         self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
+            if ngram_lm_model is not None:
+                raise NotImplementedError("N-Gram Language Model fusion is not implemented with `blank_as_pad=False`")
             self._greedy_decode = self._greedy_decode_masked
 
     def disable_cuda_graphs(self):
@@ -2830,11 +2841,17 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 include_duration_confidence=include_duration_confidence,
                 confidence_method_cfg=confidence_method_cfg,
                 allow_cuda_graphs=use_cuda_graph_decoder,
-                ngram_lm_model=ngram_lm_model,
+                ngram_lm_model=(
+                    NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+                    if ngram_lm_model is not None
+                    else None
+                ),
                 ngram_lm_alpha=ngram_lm_alpha,
             )
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
         else:
+            if ngram_lm_model is not None:
+                raise NotImplementedError("N-Gram Language Model fusion is not implemented with `blank_as_pad=False`")
             self._greedy_decode = self._greedy_decode_masked
 
     @typecheck()

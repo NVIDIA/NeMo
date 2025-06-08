@@ -215,7 +215,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         allow_cuda_graphs: bool = True,
-        ngram_lm_model: Optional[str | Path] = None,
+        ngram_lm_model: Optional[NGramGPULanguageModel] = None,
         ngram_lm_alpha: float = 0.0,
     ):
         """
@@ -231,7 +231,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
             include_duration: if predicted token durations are needed to be added to the Hypothesis object
             include_duration_confidence: if duration confidence is needed to be added to the frame confidence
             confidence_method_cfg: config for the confidence
-            ngram_lm_model: optional n-gram language model (LM) file to use for decoding
+            ngram_lm_model: optional n-gram language model (LM) instance to use for decoding
             ngram_lm_alpha: LM weight
         """
         super().__init__()
@@ -257,11 +257,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
 
-        if ngram_lm_model is not None:
-            assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
-            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
-        else:
-            self.ngram_lm_batch = None
+        self.ngram_lm_batch = ngram_lm_model
         self.ngram_lm_alpha = ngram_lm_alpha
 
     def reset_cuda_graphs_state(self):
