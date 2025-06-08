@@ -91,7 +91,15 @@ class MagpieTTSDecoderModel(ModelPT):
             mode='train',
         )
         self.eos_id = self.tokenizer.first_tokenizer.eos_token_id
-        self.cfg_unk_token_id = self.tokenizer.first_tokenizer.convert_tokens_to_ids("<|fim_prefix|>")
+        
+        if cfg.get('cfg_unk_token', None) is not None:
+            self.cfg_unk_token_id = self.tokenizer.first_tokenizer.convert_tokens_to_ids(cfg.cfg_unk_token)
+        else:
+            # Use pad token as unk token for CFG, if we don't have a specific unk token set
+            self.cfg_unk_token_id = self.tokenizer.first_tokenizer.pad_token_id
+            logging.warning(
+                "No cfg_unk_token specified in the config. Using pad token as unk token for CFG. "
+            )
 
         self.pad_context_text_to_max_duration = False
 

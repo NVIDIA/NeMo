@@ -34,8 +34,10 @@ model:
   local_transformer_hidden_dim: 256
 
   cfg_unconditional_prob: 0.1
-  cfg_token: "<|fim_prefix|>" # Any special token from the model's tokenizer, to be used as UNK token for unconditional CFG.
-
+  cfg_unk_token: "<|fim_prefix|>" # Any special token from the model's tokenizer, to be used as UNK token for unconditional CFG.
+  # To get special_tokens of the tokenzer, you can do:
+  # model.tokenizer.first_tokenizer.additional_special_tokens
+  
   text_tokenizers: # Add more languages for multi-lingual TTS
     english_phoneme:
       _target_: nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.IPATokenizer
