@@ -52,12 +52,14 @@ import glob
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import librosa
 import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
@@ -88,34 +90,53 @@ def filepath_to_absolute(filepath: str | Path, base_path: Path) -> Path:
     return filepath
 
 
-def load_audio(file_path, sample_rate=16000):
+def load_audio(file_path: str | Path, sample_rate: int = 16000) -> tuple[torch.Tensor, int]:
+    """Load audio from file"""
     audio, sr = librosa.load(file_path, sr=sample_rate)
     return torch.tensor(audio, dtype=torch.float32), sr
 
 
-def get_audio_batch(
-    test_audio_filenames,
-    device: torch.device = torch.device("cpu"),
-    dtype: torch.dtype = torch.float32,
-    sample_rate=16000,
-):
-    audio_filepaths = test_audio_filenames
+class AudioBatch(NamedTuple):
+    audio_signals: torch.Tensor
+    audio_signal_lengths: torch.Tensor
 
-    with torch.no_grad():
-        all_inputs, all_lengths = [], []
-        for audio_file in audio_filepaths:
-            audio_tensor, _ = load_audio(audio_file, sample_rate=sample_rate)
-            all_inputs.append(audio_tensor)
-            all_lengths.append(torch.tensor(audio_tensor.shape[0], dtype=torch.int64))
+    @staticmethod
+    def collate_fn(
+        audio_batch: list[torch.Tensor],
+    ) -> "AudioBatch":
+        """
+        Collate audio signals to batch
+        """
+        audio_signals = pad_sequence(
+            [audio_tensor for audio_tensor in audio_batch], batch_first=True, padding_value=0.0
+        )
+        audio_signal_lengths = torch.tensor([audio_tensor.shape[0] for audio_tensor in audio_batch]).long()
 
-        input_batch = torch.nn.utils.rnn.pad_sequence(all_inputs, batch_first=True).to(device=device, dtype=dtype)
-        length_batch = torch.tensor(all_lengths, dtype=torch.int64).to(device)
+        return AudioBatch(
+            audio_signals=audio_signals,
+            audio_signal_lengths=audio_signal_lengths,
+        )
 
-    return input_batch, length_batch
+
+class SimpleAudioDataset(Dataset):
+    """Dataset constructed from audio filenames. Each item - audio"""
+
+    def __init__(self, audio_filenames: list[str | Path], sample_rate: int = 16000):
+        super().__init__()
+        self.audio_filenames = audio_filenames
+        self.sample_rate = sample_rate
+
+    def __getitem__(self, item: int) -> torch.Tensor:
+        audio, _ = load_audio(self.audio_filenames[item])
+        return audio
+
+    def __len__(self):
+        return len(self.audio_filenames)
 
 
-def make_divisible_by(x, factor: int) -> int:
-    return (x // factor) * factor
+def make_divisible_by(num, factor: int) -> int:
+    """Make num divisible by factor"""
+    return (num // factor) * factor
 
 
 @dataclass
@@ -133,6 +154,7 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
+    num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
     random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
@@ -314,15 +336,27 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     latency_secs = (context_samples.chunk + context_samples.right) / audio_sample_rate
     logging.info(f"Theoretical latency: {latency_secs:.2f} seconds")
 
+    audio_dataset = SimpleAudioDataset(
+        audio_filenames=[record["audio_filepath"] for record in records], sample_rate=audio_sample_rate
+    )
+    audio_dataloader = DataLoader(
+        dataset=audio_dataset,
+        batch_size=cfg.batch_size,
+        shuffle=False,
+        num_workers=cfg.num_workers,
+        collate_fn=AudioBatch.collate_fn,
+        drop_last=False,
+        in_order=True,
+    )
+
     with torch.no_grad(), torch.inference_mode():
         all_hyps = []
-        for i in tqdm(range(0, len(records), cfg.batch_size)):
+        audio_data: AudioBatch
+        for audio_data in tqdm(audio_dataloader):
             # get audio
-            audio_batch, audio_batch_lengths = get_audio_batch(
-                [record["audio_filepath"] for record in records[i : i + cfg.batch_size]],
-                device=map_location,
-                sample_rate=audio_sample_rate,
-            )
+            # NB: preprocessor runs on torch.float32, no need to cast dtype here
+            audio_batch = audio_data.audio_signals.to(device=map_location)
+            audio_batch_lengths = audio_data.audio_signal_lengths.to(device=map_location)
             batch_size = audio_batch.shape[0]
             device = audio_batch.device
 
