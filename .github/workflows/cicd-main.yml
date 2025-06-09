@@ -106,18 +106,11 @@ jobs:
 
   cicd-test-container-build:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_build_container.yml@v0.14.0
+    uses: ./.github/workflows/_build_container.yml
     needs: [pre-flight, code-linting]
     with:
       image-name: nemo_container
       dockerfile: Dockerfile.ci
-      image-label: nemo-core
-      build-args: |
-        IMAGE_LABEL=nemo-core
-        NEMO_TAG=${{ github.sha }}
-        NEMO_REPO=https://github.com/NVIDIA/NeMo
-        ${{ needs.pre-flight.outputs.BUILD_ARGS }}
-      prune-filter-timerange: 24h
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
