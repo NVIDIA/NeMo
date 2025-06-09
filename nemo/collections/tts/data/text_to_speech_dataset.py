@@ -419,12 +419,6 @@ class MagpieTTSDataset(TextToSpeechDataset):
         self.context_duration_min = context_duration_min
         self.context_duration_max = context_duration_max
 
-    @staticmethod
-    def squeeze_mono_audio(audio: torch.Tensor):
-        if audio.dim() > 1:  # Sometimes mono audio gets stored as [T, 1]
-            audio = audio.squeeze(-1)
-        return audio
-
     def get_num_audio_samples_to_slice(self, duration, sample_rate):
         num_codec_frames = int(duration * sample_rate / self.codec_model_samples_per_frame)
         num_audio_samples = num_codec_frames * self.codec_model_samples_per_frame
@@ -470,7 +464,6 @@ class MagpieTTSDataset(TextToSpeechDataset):
                 volume_norm=self.volume_norm,
             )
             audio = torch.tensor(audio_array, dtype=torch.float32)
-            audio = self.squeeze_mono_audio(audio)
             # Pad audio to be multiple of downsample factor
             audio = torch.nn.functional.pad(
                 audio,
@@ -532,7 +525,6 @@ class MagpieTTSDataset(TextToSpeechDataset):
                 context_audio_array = np.tile(context_audio_array, _num_repeats)
                 context_audio_array = context_audio_array[:_num_samples_to_slice]
             context_audio = torch.tensor(context_audio_array, dtype=torch.float32)
-            context_audio = self.squeeze_mono_audio(context_audio)
             context_audio_len = context_audio.shape[0]
             example['context_audio'] = context_audio
             example['context_audio_len'] = context_audio_len
@@ -581,7 +573,6 @@ class MagpieTTSDataset(TextToSpeechDataset):
                 start_idx = random.randint(0, len(audio_array_16khz) - _num_samples_to_slice)
                 audio_array_16khz = audio_array_16khz[start_idx : start_idx + _num_samples_to_slice]
             audio_16khz = torch.tensor(audio_array_16khz, dtype=torch.float32)
-            audio_16khz = self.squeeze_mono_audio(audio_16khz)
             audio_len_16khz = audio_16khz.shape[0]
             example['audio_16khz'] = audio_16khz
             example['audio_len_16khz'] = audio_len_16khz
