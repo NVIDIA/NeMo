@@ -13,14 +13,14 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Union, Dict, TypedDict, NotRequired, Literal, Any, Iterable
+from typing import Any, Dict, Iterable, List, Literal, NotRequired, Optional, TypedDict, Union
 
 import torch
-
-from megatron.energon import Sample
 from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.energon import Sample
 
-from nemo.collections.multimodal.data.energon.config import AudioToken, VideoToken, MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.config import AudioToken, MultiModalSampleConfig, VideoToken
+
 
 @dataclass
 class AudioSize:

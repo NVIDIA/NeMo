@@ -15,9 +15,9 @@
 import nemo_run as run
 import pytest
 
+from nemo.collections.avlm import AVLMConfig8B, AVLMModel
 from nemo.collections.avlm.recipes import avlm_8b
 from nemo.collections.llm.api import finetune
-from nemo.collections.avlm import AVLMConfig8B, AVLMModel
 from nemo.collections.llm.peft import LoRA
 from nemo.lightning import Trainer
 
@@ -108,7 +108,9 @@ class TestAVLM8B:
             "freeze_audio_projection": True,
         }
         # Verify that the recipe honors different numbers of nodes and GPUs per node
-        recipe = recipe_module.finetune_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus, freeze_modules=freeze_modules)
+        recipe = recipe_module.finetune_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus, freeze_modules=freeze_modules
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus
 
@@ -171,7 +173,9 @@ class TestAVLM8BPretrain:
             "freeze_vision_projection": True,
             "freeze_audio_projection": True,
         }
-        recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus, freeze_modules=freeze_modules)
+        recipe = recipe_module.pretrain_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus, freeze_modules=freeze_modules
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus
 

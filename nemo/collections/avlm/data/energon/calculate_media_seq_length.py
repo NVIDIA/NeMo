@@ -145,6 +145,6 @@ def calculate_encoded_image_seq_length(
         raise ValueError(f"Unsupported model type: {model_type}")
 
     if projection_downsample_factor is not None:
-        encoder_seq_length = encoder_seq_length // (projection_downsample_factor ** 2)
+        encoder_seq_length = encoder_seq_length // (projection_downsample_factor**2)
 
     return encoder_seq_length

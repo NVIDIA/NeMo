@@ -22,7 +22,7 @@ from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoProcessor
 
-from nemo.collections.multimodal.data.energon.config import ImageToken, AudioToken
+from nemo.collections.multimodal.data.energon.config import AudioToken, ImageToken
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 

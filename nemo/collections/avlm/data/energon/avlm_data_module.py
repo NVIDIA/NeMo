@@ -14,9 +14,9 @@
 
 from typing import Optional
 
-from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
 from nemo.collections.avlm.data.energon.avlm_sample_config import AVLMSampleConfig
 from nemo.collections.avlm.data.energon.avlm_task_encoder import AVLMTaskEncoder
+from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
 
 
 class AVLMDataModule(EnergonMultiModalDataModule):
@@ -80,6 +80,6 @@ class AVLMDataModule(EnergonMultiModalDataModule):
         )
         self.audio_processor = audio_processor
 
-        # audio, video and image files wil be passed to the task encoder as raw 
+        # audio, video and image files wil be passed to the task encoder as raw
         # bytes which will be processed in a more fine-grained way.
         self.kwargs["auto_decode"] = False
