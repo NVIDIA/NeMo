@@ -990,7 +990,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @property
     def sharded_state_dict_metadata(self):
-        distrib_optim_sharding_type = "fully_sharded_model_space" if self.parallel_save_optim else "dp_zero_gather_scatter"
+        distrib_optim_sharding_type = (
+            "fully_sharded_model_space" if self.parallel_save_optim else "dp_zero_gather_scatter"
+        )
         return {
             'distrib_optim_sharding_type': distrib_optim_sharding_type,
         }
