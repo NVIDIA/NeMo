@@ -798,7 +798,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         if partial_hypotheses:
             for i, (hyp, hyp_continuation) in enumerate(zip(partial_hypotheses, hyps)):
                 if hyp is not None:
-                    hyp.merge(hyp_continuation)
+                    hyp.merge_(hyp_continuation)
                 else:
                     partial_hypotheses[i] = hyp_continuation
             return partial_hypotheses
@@ -2935,7 +2935,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         if partial_hypotheses:
             for i, (hyp, hyp_continuation) in enumerate(zip(partial_hypotheses, hyps)):
                 if hyp is not None:
-                    hyp.merge(hyp_continuation)
+                    hyp.merge_(hyp_continuation)
                 else:
                     partial_hypotheses[i] = hyp_continuation
             return partial_hypotheses

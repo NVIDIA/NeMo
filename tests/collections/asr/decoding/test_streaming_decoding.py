@@ -27,7 +27,7 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
     GreedyBatchedLabelLoopingComputerBase,
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.utils.rnnt_utils import batched_hyps_to_hypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import BatchedHyps, Hypothesis, batched_hyps_to_hypotheses
 from tests.collections.asr.decoding.utils import load_audio, preserve_decoding_cfg_and_cpu_device
 
 DEVICES = [torch.device("cpu")]
@@ -85,7 +85,7 @@ def get_batch_encoder_outputs_from_records(records, model, device):
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("max_symbols", [10])
-def test_label_looping_decoding_streaming_batched_state(
+def test_label_looping_streaming_batched_state(
     tmp_path_factory,
     an4_val_manifest_corrected,
     stt_en_fastconformer_transducer_large,
@@ -124,25 +124,24 @@ def test_label_looping_decoding_streaming_batched_state(
                 local_batch_size = encoder_output_len.shape[0]
                 # decode encoder output by chunks, passing state between decoder invocations
                 state: Optional[BatchedLabelLoopingState] = None
-                hyps: list | None = None
+                batched_hyps: BatchedHyps | None = None
                 encoder_output = encoder_output.transpose(1, 2)
                 for t in range(0, encoder_output.shape[1], chunk_size):
                     rest_len = encoder_output_len - t
                     current_len = torch.full_like(encoder_output_len, fill_value=chunk_size)
                     current_len = torch.minimum(current_len, rest_len)
                     current_len = torch.maximum(current_len, torch.zeros_like(current_len))
-                    batched_hyps, _, state = decoding_computer(
+                    batched_hyps_chunk, _, state = decoding_computer(
                         x=encoder_output[:, t : t + chunk_size],
                         out_len=current_len,
                         prev_batched_state=state,
                     )
-                    hyps_continuations = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=local_batch_size)
-                    if hyps is not None:
-                        for hyp, hyp_continuation in zip(hyps, hyps_continuations):
-                            hyp.merge(hyp_continuation)
+                    if batched_hyps is None:
+                        batched_hyps = batched_hyps_chunk
                     else:
-                        hyps = hyps_continuations
-                all_hyps.extend(hyps)
+                        batched_hyps.merge_(batched_hyps_chunk)
+                assert batched_hyps is not None
+                all_hyps.extend(batched_hyps_to_hypotheses(batched_hyps, None, batch_size=local_batch_size))
 
         streaming_transcripts = []
         for hyp in all_hyps:
@@ -159,7 +158,7 @@ def test_label_looping_decoding_streaming_batched_state(
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("max_symbols", [10])
-def test_label_looping_decoding_streaming_partial_hypotheses(
+def test_label_looping_streaming_partial_hypotheses(
     tmp_path_factory,
     an4_val_manifest_corrected,
     stt_en_fastconformer_transducer_large,
@@ -196,7 +195,7 @@ def test_label_looping_decoding_streaming_partial_hypotheses(
                     manifest[i : i + batch_size], model=model, device=device
                 )
                 # decode encoder output by chunks, passing state between decoder invocations
-                hyps: list | None = None
+                hyps: list[Hypothesis] | None = None
                 for t in range(0, encoder_output.shape[2], chunk_size):
                     rest_len = encoder_output_len - t
                     current_len = torch.full_like(encoder_output_len, fill_value=chunk_size)
@@ -226,7 +225,7 @@ def test_label_looping_decoding_streaming_partial_hypotheses(
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("max_symbols", [10])
-def test_label_looping_decoding_continuous_streaming_batched_state(
+def test_label_looping_continuous_streaming_batched_state(
     tmp_path_factory,
     an4_val_manifest_corrected,
     stt_en_fastconformer_transducer_large,
@@ -277,7 +276,7 @@ def test_label_looping_decoding_continuous_streaming_batched_state(
             next_batch_global_i = batch_size
             next_query_utterance_i = batch_size + batch_size
             has_next = True  # if we have anything in next batch to decode
-            hyps = [None for _ in range(batch_size)]
+            hyps: list[Hypothesis | None] = [None for _ in range(batch_size)]
             hyps_global_indices = list(range(batch_size))
             encoder_output_t = torch.zeros_like(encoder_output_len)
             state = None  # decoding state
@@ -298,7 +297,7 @@ def test_label_looping_decoding_continuous_streaming_batched_state(
                     if hyp is None:
                         hyps[i] = hyp_continuation
                     else:
-                        hyp.merge(hyp_continuation)
+                        hyp.merge_(hyp_continuation)
                 encoder_output_t += current_len
                 rest_len -= current_len
 
@@ -350,7 +349,7 @@ def test_label_looping_decoding_continuous_streaming_batched_state(
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("max_symbols", [10])
-def test_label_looping_decoding_continuous_streaming_partial_hypotheses(
+def test_label_looping_continuous_streaming_partial_hypotheses(
     tmp_path_factory,
     an4_val_manifest_corrected,
     stt_en_fastconformer_transducer_large,
@@ -403,7 +402,7 @@ def test_label_looping_decoding_continuous_streaming_partial_hypotheses(
             next_batch_global_i = batch_size
             next_query_utterance_i = batch_size + batch_size
             has_next = True  # if we have anything in next batch to decode
-            hyps = [None for _ in range(batch_size)]
+            hyps: list[Hypothesis | None] = [None for _ in range(batch_size)]
             hyps_global_indices = list(range(batch_size))
             encoder_output_t = torch.zeros_like(encoder_output_len)
             # while there is something to decode
