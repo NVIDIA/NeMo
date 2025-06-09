@@ -54,6 +54,15 @@ except ImportError:
         raise ImportError("causal_conv1d is required by the Hyena model but cannot be imported")
 
 
+try:
+    from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
+except ImportError:
+
+    def b2b_causal_conv1d(*args, **kwargs):
+        """Not imported: b2b_causal_conv1d. An error will be raised if this is called."""
+        raise ImportError("b2b_causal_conv1d is required by the Hyena model but cannot be imported")
+
+
 def _get_zigzag_indices(N, device=None):
     """Generates the zigzag indices for rearrangement.
 
@@ -575,7 +584,7 @@ class ExplicitSingleDecayFilter(nn.Module):
     ):
         super().__init__()
         with get_cuda_rng_tracker().fork():
-            h = torch.randn(d_model, L_cache) / math.sqrt(L_cache)
+            h = torch.randn(d_model, L_cache, device=torch.cuda.current_device()) / math.sqrt(L_cache)
         assert decay_preset in ["strong", "normal", "weak"]
         if decay_preset == "strong":
             log_r_min = 0
@@ -593,15 +602,17 @@ class ExplicitSingleDecayFilter(nn.Module):
             h[:, :1] = 1.0
         self.num_decay_repeats = num_decay_repeats
         self.h = nn.Parameter(h)
-        t = torch.linspace(0, 1, L_cache)[None]
+        t = torch.linspace(0, 1, L_cache, device=torch.cuda.current_device())[None]
         self.log_r_min = log_r_min
         self.log_r_max = log_r_max
         self.model_parallel_rank = get_tensor_model_parallel_rank()
         self.model_parallel_size = get_tensor_model_parallel_world_size()
         global_d_model = d_model * self.model_parallel_size // self.num_decay_repeats
-        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model)[:, None].repeat(self.num_decay_repeats, 1)
+        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model, device=torch.cuda.current_device())[
+            :, None
+        ].repeat(self.num_decay_repeats, 1)
         decay_domain = decay_domain[self.model_parallel_rank * d_model : (self.model_parallel_rank + 1) * d_model, :]
-        decay = torch.exp((-decay_domain * t).cuda())
+        decay = torch.exp(-decay_domain * t)
         self.register_buffer("decay", decay)
         setattr(self.h, 'tensor_model_parallel', True)
         setattr(self.decay, 'tensor_model_parallel', True)
@@ -717,6 +728,7 @@ class ParallelHyenaOperator(nn.Module):
         self.operator_type = operator_type
         self.fp16 = transformer_config.fp16
         self.bf16 = transformer_config.bf16
+        self.use_conv_bias = True  # Always True. Added here for compatibility with B2BCausalConv1dModule.
 
         if self.operator_type == "hyena_medium_conv" and hyena_config.hyena_medium_filter_cls is not None:
             self.hyena_filter_cls = hyena_config.hyena_medium_filter_cls
@@ -1023,7 +1035,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.kernel_size = kernel_size
-        self.use_bias = bias
+        self.use_conv_bias = bias
         self.use_fast_causal_conv = use_fast_causal_conv
         self.num_groups = num_groups
 
@@ -1130,6 +1142,140 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
             },
             sharded_offsets,
         )
+
+
+class B2BCausalConv1dModule(nn.Module):
+    """Module that performs back-to-back causal convolution operations using optimized CUDA kernels.
+
+    Combines the projection and mixer convolutions into a single optimized operation.
+    """
+
+    def __init__(
+        self, proj_conv_module, mixer_module, operator_type="hyena_short_conv", b2b_causal_conv1d=b2b_causal_conv1d
+    ):
+        """Initialize the B2BCausalConv1dModule.
+
+        Args:
+            proj_conv_module: The projection convolution module that performs the initial projection
+            mixer_module: The mixer module that performs the second convolution operation
+            operator_type: The type of hyena operator to use, either "hyena_short_conv" or "hyena_medium_conv"
+            b2b_causal_conv1d: The CUDA kernel function for optimized back-to-back causal convolution
+        """
+        super().__init__()
+        self.b2b_causal_conv1d_fn = b2b_causal_conv1d
+        # Store references to the modules, not their weights
+        self._proj_conv_module = proj_conv_module
+        self._mixer_module = mixer_module
+        self._use_conv_bias = self._mixer_module.use_conv_bias
+        self.operator_type = operator_type
+
+        # Combined padding from both convolutions - this is a key difference from the
+        # sequential execution of two convs which applies padding separately
+        self._proj_conv_kernel_size = self._proj_conv_module.kernel_size
+        if operator_type == "hyena_short_conv":
+            # For short conv, the mixer module is ParallelCausalDepthwiseConv1d
+            self._mixer_kernel_size = self._mixer_module.short_conv.kernel_size
+        elif operator_type == "hyena_medium_conv":
+            # For medium conv, we need to get the kernel size from the filter
+            self._mixer_kernel_size = self._mixer_module.kernel_size
+        else:
+            raise ValueError(f"Operator type {operator_type} not supported")
+
+        self.effective_pad_size = (self._mixer_kernel_size - 1) + (self._proj_conv_kernel_size - 1)
+
+    def forward(self, x, _use_cp=True):
+        """Forward pass for the B2BCausalConv1dModule.
+
+        Args:
+            x: Input tensor [B, D, L]
+            _use_cp: Whether to use context parallelism
+        Returns:
+            Tensor: Output of the back-to-back causal convolution operation
+        """
+        # Validate input dimensions
+        if x.dim() != 3:
+            raise ValueError("Input tensor must be 3D [batch_size, hidden_dim, seq_len]")
+
+        # Extract weights at runtime to avoid parameter registration
+        proj_weight = self._proj_conv_module.short_conv_weight
+        mixer_weight = None  # Initialize mixer_weight
+
+        if self.operator_type == "hyena_short_conv":
+            # For short conv, the mixer module is ParallelCausalDepthwiseConv1d
+            mixer_weight = self._mixer_module.short_conv.short_conv_weight
+        elif self.operator_type == "hyena_medium_conv":
+            # For medium conv, we need to compute the filter weights first
+            mixer_weight = self._mixer_module.filter.filter(self._mixer_module.hyena_medium_conv_len)
+            if isinstance(mixer_weight, tuple):
+                mixer_weight = mixer_weight[0]
+            # The filter weights need to be in the shape [groups, 1, kernel_size]
+            mixer_weight = mixer_weight.unsqueeze(1)  # Add channel dimension
+            mixer_weight = mixer_weight.to(x.dtype)  # Convert to the same dtype as the input
+        else:
+            raise ValueError(f"Operator type {self.operator_type} not supported in B2BCausalConv1dModule")
+
+        # Extract bias if needed
+        if self._use_conv_bias:
+            bias = self._mixer_module.conv_bias
+            # The mixer bias should have shape [x.shape[1] // 3] for the CUDA kernel
+            if bias.shape[0] != x.shape[1] // 3:
+                # Expand the bias to match the input width
+                bias = bias.repeat_interleave(x.shape[1] // (3 * bias.shape[0]), dim=0)
+        else:
+            # Create a zero bias with the correct shape [x.shape[1] // 3]
+            bias = torch.zeros(x.shape[1] // 3, dtype=x.dtype, device=x.device)
+
+        # Reshape proj_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
+        if proj_weight.dim() == 3:
+            proj_weight = proj_weight.reshape(-1, proj_weight.size(-1))
+        # Reshape mixer_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
+        if mixer_weight.dim() == 3:
+            # If the middle dimension is 1, we can just squeeze it
+            if mixer_weight.size(1) == 1:
+                mixer_weight = mixer_weight.squeeze(1)
+            else:
+                # Otherwise reshape to flatten the first two dimensions
+                mixer_weight = mixer_weight.reshape(-1, mixer_weight.size(-1))
+
+        # maybe handle num_groups
+        proj_weight = proj_weight.repeat_interleave(self._proj_conv_module.group_dim, dim=0)
+        mixer_weight = mixer_weight.repeat_interleave(self._mixer_module.group_dim, dim=0)
+
+        # Support context parallelism similar to how it's done in ParallelCausalDepthwiseConv1d
+        if _use_cp and get_context_parallel_world_size() > 1:
+            # Validate sequence length for CP mode
+            cp_size = get_context_parallel_world_size()
+            if x.size(-1) % cp_size != 0:
+                raise ValueError("Sequence length must be divisible by context parallel size")
+
+            cp_group = get_context_parallel_group()
+            cp_rank = get_context_parallel_rank()
+
+            # Transfer patches across ranks
+            seq_dim = 2  # Last dimension (L)
+
+            # Get overlapping patches - using the combined effective padding size
+            chunk_a, chunk_b = zigzag_get_overlapping_patches(x, seq_dim=seq_dim, overlap_size=self.effective_pad_size)
+
+            # We're exchanging larger patches once instead of smaller patches twice
+            received_a, received_b = ExchangeOverlappingRegionsCausal.apply(chunk_a, chunk_b, cp_group, cp_rank)
+
+            # Pad and rearrange
+            x = rearrange(x, "b h (nc s) -> (nc b) h s", nc=2)
+            padding = torch.concat([received_a, received_b], dim=0)
+
+            x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
+            result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
+            result = result[..., self.effective_pad_size :]  # Remove padding from output
+            result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
+        else:
+            # Add proper causal padding for the non-CP case
+            x = torch.nn.functional.pad(x, (self.effective_pad_size, 0))
+
+            # Call the CUDA kernel and remove the padding from result
+            result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
+            result = result[..., self.effective_pad_size :]  # Remove padding from output
+        return result
 
 
 def make_upper_case(tokens, lowercase_start=97, lowercase_end=122, case_diff=32):
