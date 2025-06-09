@@ -51,6 +51,7 @@ import copy
 import glob
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 import librosa
@@ -71,6 +72,20 @@ from nemo.collections.asr.parts.utils.streaming_utils import ContextSize, Stream
 from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, setup_model, write_transcription
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+
+
+def filepath_to_absolute(filepath: str | Path, base_path: Path) -> Path:
+    """
+    Return absolute path to an audio file.
+
+    Check if a file exists at audio_filepath.
+    If not, assume that the path is relative to base_path.
+    """
+    filepath = Path(filepath).expanduser()
+
+    if not filepath.is_file() and not filepath.is_absolute():
+        filepath = (base_path / filepath).absolute()
+    return filepath
 
 
 def load_audio(file_path, sample_rate=16000):
@@ -252,6 +267,10 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     if manifest is not None:
         records = read_manifest(manifest)
+        manifest_dir = Path(manifest).parent.absolute()
+        # fix relative paths
+        for record in records:
+            record["audio_filepath"] = str(filepath_to_absolute(record["audio_filepath"], manifest_dir))
     else:
         assert filepaths is not None
         records = [{"audio_filepath": audio_file} for audio_file in filepaths]
