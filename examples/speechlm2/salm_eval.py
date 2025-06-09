@@ -145,7 +145,7 @@ def main(cfg: SalmEvalConfig):
 
 
 def parse_hyp(answer: torch.Tensor, eos_tokens: list[int]):
-    end = (answer == torch.isin(answer, torch.tensor(eos_tokens))).nonzero(as_tuple=True)[0]
+    end = torch.isin(answer, torch.tensor(eos_tokens)).nonzero(as_tuple=True)[0]
     if end.numel() == 0:
         return answer
     end = end[0]
