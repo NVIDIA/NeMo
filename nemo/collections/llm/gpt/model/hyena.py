@@ -224,6 +224,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     # Use this if you want to turn FP8 on for the linear layer in the mixer only. When using this, do not set
     #  Fp8 in the mixed precision plugin.
     vortex_style_fp8: bool = False
+    use_b2b_causal_conv1d: bool = False
 
     def __post_init__(self):
         """
@@ -305,6 +306,7 @@ class HyenaTestConfig(HyenaConfig):
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
     use_short_conv_bias: bool = False
+    use_b2b_causal_conv1d: bool = False
 
 
 @dataclass

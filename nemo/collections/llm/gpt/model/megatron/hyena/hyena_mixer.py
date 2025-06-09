@@ -34,6 +34,7 @@ from megatron.core.transformer.utils import sharded_state_dict_default
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
+    B2BCausalConv1dModule,
     ParallelCausalDepthwiseConv1d,
     ParallelHyenaOperator,
     ParallelShortHyenaOperator,
@@ -105,6 +106,9 @@ class HyenaMixer(MegatronModule):
         self.fast_conv_proj = self.hyena_config.fast_conv_proj
         self.fast_conv_mixer = self.hyena_config.fast_conv_mixer
 
+        # Use b2b causal conv1d
+        self.use_b2b_causal_conv1d = self.transformer_config.use_b2b_causal_conv1d
+
         # Per attention head and per partition values.
         assert torch.distributed.is_initialized()
         self.model_parallel_size = get_tensor_model_parallel_world_size()
@@ -162,7 +166,7 @@ class HyenaMixer(MegatronModule):
             self.hyena_config,
             kernel_size=self.hyena_config.short_conv_L,
             init_method=transformer_config.init_method,
-            bias=self.hyena_config.conv_proj_bias,
+            bias=False,  # bias not currently supported (self.hyena_config.conv_proj_bias),
             use_fast_causal_conv=self.fast_conv_proj,
         )
 
@@ -179,6 +183,15 @@ class HyenaMixer(MegatronModule):
                 use_fast_causal_conv=self.fast_conv_mixer,
                 use_conv_bias=self.transformer_config.use_short_conv_bias,
             )
+
+            if self.use_b2b_causal_conv1d:
+                # Create a wrapper module that doesn't register parameters
+                # Use the existing weights from the original model
+                self.b2b_kernel = B2BCausalConv1dModule(
+                    self.hyena_proj_conv,
+                    self.mixer,
+                    operator_type=self.operator_type,
+                )
 
         if self.operator_type in [
             "hyena",
@@ -198,6 +211,15 @@ class HyenaMixer(MegatronModule):
                 operator_type,
                 max_sequence_length,
             )
+
+            if self.use_b2b_causal_conv1d and self.operator_type == "hyena_medium_conv":
+                # Create a wrapper module that doesn't register parameters
+                # Use the existing weights from the original model
+                self.b2b_kernel = B2BCausalConv1dModule(
+                    self.hyena_proj_conv,
+                    self.mixer,
+                    operator_type=self.operator_type,
+                )
 
         # Dropout. Note that for a single iteration, this layer will generate
         # different outputs on different number of parallel partitions but
@@ -223,7 +245,7 @@ class HyenaMixer(MegatronModule):
         sharded_state_dict = {}
         # Submodules
         for name, module in self.named_children():
-            if name != 'attention_dropout':
+            if name != 'attention_dropout' and name != 'b2b_kernel':  # Don't register b2b_kernel (it's a wrapper)
                 module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
 
                 sharded_state_dict.update(module_sharded_sd)
@@ -260,14 +282,17 @@ class HyenaMixer(MegatronModule):
             _proj_use_cp = False
         features, _ = self._maybe_use_fp8(self.dense_projection, x)
         features = rearrange(features, "l b d -> b d l").contiguous()
-        features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
 
-        x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
-            dim=2
-        )
+        if self.use_b2b_causal_conv1d and self.operator_type in ["hyena_short_conv", "hyena_medium_conv"]:
+            # Use the B2BCausalConv1dModule wrapper with the existing weights from the original model
+            z = self.b2b_kernel(features, _use_cp=_proj_use_cp)
+        else:
+            features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
+            x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
+                dim=2
+            )
+            z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp)
 
-        z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp)
         z = rearrange(z, "b d l -> l b d").contiguous()
-
         y, bias = self.dense(z)
         return y, bias
