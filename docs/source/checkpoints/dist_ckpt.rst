@@ -562,16 +562,17 @@ In order to introduce a new checkpoint version, two steps are required:
    **Make sure to keep the old logic in case the new flag is absent. This will ensure both the new and old checkpoints can be loaded correctly**.
    This logic must be kept until the old checkpoint version is deprecated. Similarly with metadata flag removal. For example:
 
-.. code-block:: python
-    def sharded_state_dict(..., metadata: Optional[dict] = None):
-        if (metadata or {}).get('model_X_layout_Y', False):
-            # new behavior
-        else:
-            # old behavior
-        if (metadata or {}).get('already_removed_flag', False):
-            # old behavior (!)
-        else:
-            # new behavior
+    .. code-block:: python
+
+        def sharded_state_dict(..., metadata: Optional[dict] = None):
+            if (metadata or {}).get('model_X_layout_Y', False):
+                # new behavior
+            else:
+                # old behavior
+            if (metadata or {}).get('already_removed_flag', False):
+                # old behavior (!)
+            else:
+                # new behavior
 
 Note: Currently the content metadata is part of the "common" checkpoint state (and in consequence resides in ``common.pt`` file) but this is an implementation
 detail and could be changed in the future. Therefore it's recommended to save/load the content metadata with the API described at the beginning of this section.
