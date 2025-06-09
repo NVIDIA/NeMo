@@ -442,7 +442,7 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": self.model_config.tokenizer_library, "model_type": "ssm"},
+            metadata_path={"library": self.model_config.tokenizer_library},
             vocab_file=self.model_config.vocab_file,
             use_fast=True,
         )

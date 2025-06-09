@@ -21,6 +21,7 @@ import torch
 import torch._dynamo
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.tokenizers import MegatronTokenizer
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -29,7 +30,6 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import nemotron_h_bf16_with_fp8_current_scaling_mixed
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
@@ -45,18 +45,20 @@ def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     Factory function to create a tokenizer configuration for NemotronH Hybrid model.
     """
     if vocab_file:
+        metadata = {"library": "tiktoken"}
+
         return run.Config(
-            get_nmt_tokenizer,
-            library='tiktoken',
-            model_name="TiktokenTokenizer",
-            vocab_file=vocab_file,
-            use_fast=True,
+            MegatronTokenizer.from_pretrained,
+            tokenizer_path=vocab_file,
+            metadata_path=metadata,
         )
     else:
+        metadata = {"library": "huggingface"}
+
         return run.Config(
-            get_nmt_tokenizer,
-            library='huggingface',
-            model_name="nvidia/Nemotron-H-8B-Base-8K",
+            MegatronTokenizer.from_pretrained,
+            tokenizer_path="nvidia/Nemotron-H-8B-Base-8K",
+            metadata_path=metadata,
             use_fast=True,
         )
 

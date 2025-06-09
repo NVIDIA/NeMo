@@ -29,7 +29,6 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 if TYPE_CHECKING:
     from transformers import AutoModelForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import MegatronTokenizerBase
 
 
@@ -175,7 +174,7 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "baichuan"},
+            metadata_path={"library": "huggingface"},
             trust_remote_code=True,
         )
 

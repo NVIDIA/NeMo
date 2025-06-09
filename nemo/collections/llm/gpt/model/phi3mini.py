@@ -119,7 +119,7 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "phi3mini"},
+            metadata_path={"library": "huggingface"},
         )
 
     @property

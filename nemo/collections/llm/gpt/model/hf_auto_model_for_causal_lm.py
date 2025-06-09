@@ -184,14 +184,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         try:
             return MegatronTokenizer.from_pretrained(
                 tokenizer_path=model_name,
-                metadata_path={"library": "huggingace", "model_type": "llama"},
+                metadata_path={"library": "huggingace"},
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
             )
         except:
             return MegatronTokenizer.from_pretrained(
                 tokenizer_path=model_name,
-                metadata_path={"library": "huggingace", "model_type": "llama"},
+                metadata_path={"library": "huggingace"},
                 use_fast=not use_fast,
                 trust_remote_code=trust_remote_code,
             )

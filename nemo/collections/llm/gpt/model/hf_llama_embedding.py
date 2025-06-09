@@ -298,7 +298,7 @@ def get_llama_bidirectional_hf_model(
     # check that the tokenizer matches the requirements of the pooling mode
     tokenizer = MegatronTokenizer.from_pretrained(
         tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-        metadata_path={"library": "huggingface", "model_type": "hf_llama_embedding"},
+        metadata_path={"library": "huggingface"},
         trust_remote_code=trust_remote_code,
     )
     pooling_mode = pooling_mode or "avg"

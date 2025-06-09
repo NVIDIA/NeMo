@@ -262,7 +262,7 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "nemotron"},
+            metadata_path={"library": "huggingface"},
         )
 
     @property

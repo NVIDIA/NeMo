@@ -226,7 +226,7 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "llama_nemotron"},
+            metadata_path={"library": "huggingface"},
             trust_remote_code=True,
         )
 

@@ -30,6 +30,7 @@ from megatron.core.transformer import ModuleSpec, TransformerConfig, Transformer
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnBackend, AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import Tensor, nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
@@ -44,9 +45,6 @@ from nemo.utils.import_utils import safe_import_from
 if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from transformers import Gemma3ForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 TERowParallelLinear, _ = safe_import_from("megatron.core.extensions.transformer_engine", "TERowParallelLinear")
 
@@ -499,11 +497,14 @@ class HFGemma3Importer(io.ModelConnector["Gemma3ForCausalLM", Gemma3Model]):
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         # pylint: disable=C0115,C0116
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(str(self))
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface"},
+        )
 
     @property
     def config(self) -> Gemma3Config:

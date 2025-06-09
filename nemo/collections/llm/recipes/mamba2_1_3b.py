@@ -20,6 +20,7 @@ import nemo_run as run
 import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.tokenizers import MegatronTokenizer
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -28,7 +29,6 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "mamba2_1_3b"
@@ -39,11 +39,13 @@ def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a tokenizer configuration.
     """
+    
+    metadata = {"library": "huggingface"}
+
     return run.Config(
-        get_nmt_tokenizer,
-        library='huggingface',
-        model_name="EleutherAI/gpt-neox-20b",
-        tokenizer_model=tokenizer_model,
+        MegatronTokenizer.from_pretrained,
+        tokenizer_path="EleutherAI/gpt-neox-20b",
+        metadata_path=metadata,
         use_fast=True,
     )
 

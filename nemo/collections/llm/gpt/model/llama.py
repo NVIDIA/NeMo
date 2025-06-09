@@ -649,7 +649,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "llama"},
+            metadata_path={"library": "huggingface"},
         )
 
     def _modify_llama4_source_state(self, source: nn.Module) -> _ModelState:

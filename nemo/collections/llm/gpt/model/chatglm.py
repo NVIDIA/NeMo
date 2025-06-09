@@ -177,7 +177,7 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "chatglm"},
+            metadata_path={"library": "huggingface"},
             trust_remote_code=True,
         )
 

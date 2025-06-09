@@ -244,7 +244,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "gemma2"},
+            metadata_path={"library": "huggingface"},
         )
 
     @property
