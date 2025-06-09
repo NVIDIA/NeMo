@@ -554,21 +554,24 @@ because the metadata serves for all models and optimizers and it's practically i
 
 In NeMo or Megatron-LM the versioning logic (calling ``sharded_state_dict`` method with appropriate metadata) is already implemented.
 In order to introduce a new checkpoint version, two steps are required:
+
 1. Add some new flag to the metadata which is passed to ``sharded_state_dict`` methods by the framework (e.g. ``metadata['model_X_layout_Y'] = True``).
    E.g. in NeMo the metadata is determined in the ``MegatronStrategy.sharded_state_dict_metadata`` property.
+
 1. Handle the new flag in the appropriate ``sharded_state_dict`` method (in Megatron-Core or framework or user code).
    **Make sure to keep the old logic in case the new flag is absent. This will ensure both the new and old checkpoints can be loaded correctly**.
    This logic must be kept until the old checkpoint version is deprecated. Similarly with metadata flag removal. For example:
-.. code-block:: python
-    def sharded_state_dict(..., metadata: Optional[dict] = None):
-        if (metadata or {}).get('model_X_layout_Y', False):
-            # new behavior
-        else:
-            # old behavior
-        if (metadata or {}).get('already_removed_flag', False):
-            # old behavior (!)
-        else:
-            # new behavior
+
+    .. code-block:: python
+        def sharded_state_dict(..., metadata: Optional[dict] = None):
+            if (metadata or {}).get('model_X_layout_Y', False):
+                # new behavior
+            else:
+                # old behavior
+            if (metadata or {}).get('already_removed_flag', False):
+                # old behavior (!)
+            else:
+                # new behavior
 
 Note: Currently the content metadata is part of the "common" checkpoint state (and in consequence resides in ``common.pt`` file) but this is an implementation
 detail and could be changed in the future. Therefore it's recommended to save/load the content metadata with the API described at the beginning of this section.
@@ -619,10 +622,10 @@ FAQs
 **9. Q: I get an error about an "invalid access pattern". What does it mean?**
 
    A: The logs print the access pattern tensor count. Its shape corresponds to the ShardedTensor sharding grid
-      (e.g. 3-dimensional parameter sharded by TP along the 1st axis would have the access pattern tensor of shape ``(1, TP size, 1)``).
-      The tensor values correspond to the number of ShardedTensors with main ``replica_id`` corresponding to that shard.
-      A correct shared_state_dict definition results in access pattern with ``1```s in each cell. Invalid access pattern usually
-      means an incorrect ShardedTensor sharding defined in the ``sharded_state_dict`` model method.
+   (e.g. 3-dimensional parameter sharded by TP along the 1st axis would have the access pattern tensor of shape ``(1, TP size, 1)``).
+   The tensor values correspond to the number of ShardedTensors with main ``replica_id`` corresponding to that shard.
+   A correct shared_state_dict definition results in access pattern with ``1``s in each cell. Invalid access pattern usually
+   means an incorrect ShardedTensor sharding defined in the ``sharded_state_dict`` model method.
 
 
 Glossary
