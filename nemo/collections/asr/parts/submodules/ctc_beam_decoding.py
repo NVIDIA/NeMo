@@ -925,20 +925,12 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         if self.preserve_alignments:
             raise ValueError("`Preserve alignments` is not supported for batched beam search.")
 
-        self.vocab = None  # This must be set by specific method by user before calling forward() !
-
         self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
 
         # Default beam search args
         self.ngram_lm_model = ngram_lm_model
-
-        # Default beam search scorer functions
-        self.default_beam_scorer = None
-        self.pyctcdecode_beam_scorer = None
-        self.flashlight_beam_scorer = None
-        self.token_offset = 0
 
         self.search_algorithm = BatchedBeamCTCComputer(
             blank_index=blank_index,
