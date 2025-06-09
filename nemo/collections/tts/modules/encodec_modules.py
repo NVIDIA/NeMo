@@ -847,6 +847,7 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
     def __init__(self, num_codebooks: int, num_groups: int, codebook_dim: int, **kwargs):
         super().__init__()
 
+        self._num_codebooks = num_codebooks
         self.num_groups = num_groups
         self.codebook_dim = codebook_dim
 
@@ -870,7 +871,7 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
     @property
     def num_codebooks(self):
         """Returns the number of codebooks."""
-        return self.num_groups
+        return self._num_codebooks
 
     @property
     def codebook_size(self):
