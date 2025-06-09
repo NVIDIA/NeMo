@@ -39,7 +39,7 @@ def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a tokenizer configuration.
     """
-    
+
     metadata = {"library": "huggingface"}
 
     return run.Config(

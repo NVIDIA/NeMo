@@ -26,11 +26,11 @@ from megatron.core.inference.contexts import BaseInferenceContext
 from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.packed_seq_params import PackedSeqParams
+from megatron.core.tokenizers import MegatronTokenizerBase
 from megatron.core.transformer import ModuleSpec, TransformerConfig, TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.enums import AttnBackend, AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
-from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import Tensor, nn
 
 from nemo.collections.llm.fn.activation import openai_gelu
