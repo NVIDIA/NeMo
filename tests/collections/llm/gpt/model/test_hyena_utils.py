@@ -297,12 +297,14 @@ def test_ensure_divisibility():
         ensure_divisibility(10, 3)
 
 
-@pytest.fixture(autouse=True, scope="module")
-def setup_cuda_rng():
+@pytest.fixture(autouse=True, scope="function")
+def setup_cuda_rng(request):
     """Setup CUDA RNG tracker for tests."""
     tracker = get_cuda_rng_tracker()
     if tracker is not None:
-        tracker.add('model-parallel-rng', seed=42)
+        # Use a unique seed based on the test function name
+        seed = hash(request.function.__name__) % 10000
+        tracker.add('model-parallel-rng', seed=seed)
         yield
         tracker.reset()
     else:

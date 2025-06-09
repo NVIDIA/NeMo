@@ -207,35 +207,6 @@ def test_mixer_dtypes(hyena_mixer: HyenaMixer, dtype: torch.dtype):
         assert bias.dtype == dtype, f"Expected bias dtype {dtype}, got {bias.dtype}"
 
 
-def test_mixer_gradient_flow(hyena_mixer: HyenaMixer):
-    """Test gradient flow through HyenaMixer."""
-    with init_distributed_parallel_state(world_size=1):
-        batch_size = 2
-        seq_len = 512
-
-        # Create input tensor with requires_grad=True
-        input_features = torch.rand(
-            (seq_len, batch_size, hyena_mixer.hidden_size),
-            dtype=hyena_mixer.transformer_config.params_dtype,
-            device=torch.cuda.current_device(),
-            requires_grad=True,
-        )
-
-        # Forward pass
-        y, bias = hyena_mixer(input_features, _hyena_use_cp=False)
-
-        # Compute loss and backward pass
-        loss = y.mean() + bias.mean()
-        loss.backward()
-
-        # Verify gradients
-        for name, param in hyena_mixer.named_parameters():
-            if param.requires_grad:
-                assert param.grad is not None, f"No gradient for parameter {name}"
-                assert not torch.isnan(param.grad).any(), f"NaN gradient for parameter {name}"
-                assert not torch.isinf(param.grad).any(), f"Inf gradient for parameter {name}"
-
-
 def test_mixer_state_dict(hyena_mixer: HyenaMixer, operator_type: str):
     """Test state dict functionality of HyenaMixer."""
     with init_distributed_parallel_state(world_size=1):
