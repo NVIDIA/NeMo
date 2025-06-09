@@ -106,8 +106,8 @@ jobs:
             runner: self-hosted-azure-gpus-2-h100
           - script: L2_NeMo_2_NEVA_PRELOADED_FINETUNE_PP2_SEQPACK_TRUNC
             runner: self-hosted-azure-gpus-2-h100
-          # - script: L2_NeMo_2_NEVA_LOAD_GENERATE
-          #   runner: self-hosted-azure-gpus-1
+          - script: L2_NeMo_2_NEVA_LOAD_GENERATE
+            runner: self-hosted-azure-gpus-1
           - script: L2_NeMo_2_LLAVA_IMPORT
             runner: self-hosted-azure-gpus-1
           - script: L2_NEMO_2_MLLAMA_Inference
@@ -197,8 +197,6 @@ jobs:
           - script: L2_NeMo_2_AVLM_ENERGON_TRAIN
             runner: self-hosted-azure
           - script: L2_NeMo_2_AVLM_ENERGON_CP2_TRAIN
-            runner: self-hosted-azure
-          - script: L2_NeMo_2_AVLM_ENERGON_PACKED_TRAIN
             runner: self-hosted-azure
           - script: L2_NeMo_2_CLIP_PRETRAIN
             runner: self-hosted-azure
