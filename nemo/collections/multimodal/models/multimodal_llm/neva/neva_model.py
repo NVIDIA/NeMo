@@ -1036,6 +1036,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                                 else None
                             )
                 elif parallel_state.is_pipeline_last_stage():
+                    print(f"Trigger Last pipeline stage: {parallel_state.get_pipeline_model_parallel_rank()}")
+                    exit()
                     # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:

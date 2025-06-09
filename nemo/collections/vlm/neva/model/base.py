@@ -299,7 +299,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 )
 
         if self.add_encoder:
-            self.vision_model = vision_transformer_config.configure_model()
+            self.vision_model = vision_transformer_config.configure_model(vp_stage=vp_stage)
             self.vision_projection = vision_projection_config.configure_model()
             self._drop_vision_class_token = drop_vision_class_token
             restore_model_weights(self.vision_model, config.vision_model_from_pretrained)

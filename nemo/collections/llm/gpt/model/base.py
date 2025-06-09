@@ -343,7 +343,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
 
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
-            transformer_layer_spec = transformer_layer_spec(self)
+            vp_stage = vp_stage or 0
+            transformer_layer_spec = transformer_layer_spec(self, vp_stage=vp_stage)
 
         if self.vocab_size is not None:
             vocab_size = self.vocab_size
