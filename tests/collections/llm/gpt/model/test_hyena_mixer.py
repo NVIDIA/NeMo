@@ -27,6 +27,9 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConf
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec_no_te
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import HyenaMixer
 
+# Add skip decorator for GPU tests
+skip_if_no_gpu = pytest.mark.skipif(not torch.cuda.is_available(), reason="Test requires GPU")
+
 
 @contextlib.contextmanager
 def init_distributed_parallel_state(
@@ -128,6 +131,7 @@ def hyena_mixer(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operato
         yield mixer
 
 
+@skip_if_no_gpu
 def test_mixer_initialization(
     hyena_mixer: HyenaMixer, test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type: str
 ):
@@ -156,6 +160,7 @@ def test_mixer_initialization(
             assert hyena_mixer.num_groups == hyena_config.num_groups_hyena
 
 
+@skip_if_no_gpu
 def test_mixer_forward_pass(hyena_mixer: HyenaMixer):
     """Test forward pass of HyenaMixer with different input shapes and configurations."""
     with init_distributed_parallel_state(world_size=1):
@@ -187,6 +192,7 @@ def test_mixer_forward_pass(hyena_mixer: HyenaMixer):
             assert not torch.isinf(y).any(), "Output contains Inf values"
 
 
+@skip_if_no_gpu
 def test_mixer_dtypes(hyena_mixer: HyenaMixer, dtype: torch.dtype):
     """Test HyenaMixer with different input data types."""
     with init_distributed_parallel_state(world_size=1):
@@ -207,6 +213,7 @@ def test_mixer_dtypes(hyena_mixer: HyenaMixer, dtype: torch.dtype):
         assert bias.dtype == dtype, f"Expected bias dtype {dtype}, got {bias.dtype}"
 
 
+@skip_if_no_gpu
 def test_mixer_state_dict(hyena_mixer: HyenaMixer, operator_type: str):
     """Test state dict functionality of HyenaMixer."""
     with init_distributed_parallel_state(world_size=1):
