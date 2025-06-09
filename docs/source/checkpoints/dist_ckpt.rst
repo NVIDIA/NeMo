@@ -552,7 +552,25 @@ ideally flat (or with a single nesting level) and with semantically meaningful f
 In particular, a simple integer (or SemVer) versioning flag (e.g. ``metadata['version'] = 3.4``) is discouraged,
 because the metadata serves for all models and optimizers and it's practically impossible to enforce a linearly increasing versioning for this whole space.
 
-Currently the content metadata is part of the "common" checkpoint state (and in consequence resides in ``common.pt`` file) but this is an implementation
+In NeMo or Megatron-LM the versioning logic (calling ``sharded_state_dict`` method with appropriate metadata) is already implemented.
+In order to introduce a new checkpoint version, two steps are required:
+1. Add some new flag to the metadata which is passed to ``sharded_state_dict`` methods by the framework (e.g. ``metadata['model_X_layout_Y'] = True``).
+    E.g. in NeMo the metadata is determined in the ``MegatronStrategy.sharded_state_dict_metadata`` property.
+1. Handle the new flag in the appropriate ``sharded_state_dict`` method (in Megatron-Core or framework or user code).
+    **Make sure to keep the old logic in case the new flag is absent. This will ensure both the new and old checkpoints can be loaded correctly**.
+    This logic must be kept until the old checkpoint version is deprecated. Similarly with metadata flag removal. For example:
+    .. code-block:: python
+        def sharded_state_dict(..., metadata: Optional[dict] = None):
+            if (metadata or {}).get('model_X_layout_Y', False):
+                # new behavior
+            else:
+                # old behavior
+            if (metadata or {}).get('already_removed_flag', False):
+                # old behavior (!)
+            else:
+                # new behavior
+
+Note: Currently the content metadata is part of the "common" checkpoint state (and in consequence resides in ``common.pt`` file) but this is an implementation
 detail and could be changed in the future. Therefore it's recommended to save/load the content metadata with the API described at the beginning of this section.
 
 FAQs
