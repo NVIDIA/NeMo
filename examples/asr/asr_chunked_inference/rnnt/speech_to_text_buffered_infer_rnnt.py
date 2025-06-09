@@ -248,7 +248,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.change_decoding_strategy(cfg.decoding, decoder_type='rnnt')
 
     feature_stride = model_cfg.preprocessor['window_stride']
-    model_stride_in_secs = feature_stride * asr_model.subsampling_factor
+    model_stride_in_secs = feature_stride * asr_model.encoder.subsampling_factor
     total_buffer = cfg.total_buffer_in_secs
     chunk_len = float(cfg.chunk_len_in_secs)
 
