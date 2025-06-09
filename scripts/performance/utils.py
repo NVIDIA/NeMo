@@ -76,6 +76,7 @@ def slurm_executor(
         "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
         "NEMORUN_HOME": log_dir,
+        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
     }
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
@@ -405,6 +406,10 @@ def set_primary_perf_configs(
         assert (
             recipe.model.config.recompute_num_layers is None
         ), "recompute_num_layers must be None when recompute_modules is provided"
+
+    # Disable local gradient checker at non-debugging mode
+    recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
+    recipe.trainer.strategy.ddp.check_for_large_grads = False
 
     return recipe
 
