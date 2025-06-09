@@ -23,7 +23,6 @@ from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from types import MappingProxyType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -992,12 +991,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     def sharded_state_dict_metadata(self):
         distrib_optim_sharding_type = "fully_sharded_model_space" if self.parallel_save_optim else "dp_zero_gather_scatter"
-        return MappingProxyType(
-            {
-                'distrib_optim_sharding_type': distrib_optim_sharding_type,
-                # TODO
-            }
-        )
+        return {
+            'distrib_optim_sharding_type': distrib_optim_sharding_type,
+        }
 
     def selective_restore(self) -> None:
         """Implements selective restoration of checkpoint"""
