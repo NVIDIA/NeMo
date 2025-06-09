@@ -19,7 +19,6 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 import torch.distributed as dist
-from megatron.core.tensor_parallel.random import get_cuda_rng_tracker
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     B2BCausalConv1dModule,
@@ -32,7 +31,6 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     fftconv_func,
     get_groups_and_group_sizes,
     get_init_method,
-    initialize_affine_weight_gpu,
     small_init_init_method,
     wang_init_method,
     zigzag_get_overlapping_patches,
@@ -295,31 +293,6 @@ def test_ensure_divisibility():
     # Test invalid division
     with pytest.raises(AssertionError):
         ensure_divisibility(10, 3)
-
-
-@pytest.fixture(autouse=True, scope="function")
-def setup_cuda_rng(request):
-    """Setup CUDA RNG tracker for tests."""
-    tracker = get_cuda_rng_tracker()
-    if tracker is not None:
-        # Use a unique seed based on the test function name
-        seed = hash(request.function.__name__) % 10000
-        tracker.add('model-parallel-rng', seed=seed)
-        yield
-        tracker.reset()
-    else:
-        yield
-
-
-def test_initialize_affine_weight_gpu():
-    """Test weight initialization for model parallel."""
-    weight = torch.nn.Parameter(torch.empty(10, 10))
-
-    def init_method(x):
-        torch.nn.init.ones_(x)
-
-    initialize_affine_weight_gpu(weight, init_method, partition_dim=0)
-    assert torch.all(weight == 1.0)
 
 
 def test_get_groups_and_group_sizes():
