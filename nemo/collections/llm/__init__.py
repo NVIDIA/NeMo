@@ -45,6 +45,7 @@ from nemo.collections.llm.gpt.data import (  # noqa: F401
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
+    CustomReRankerDataModule,
 )
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (  # noqa: F401
@@ -124,6 +125,7 @@ from nemo.collections.llm.gpt.model import (  # noqa: F401
     Llama32EmbeddingConfig1B,
     Llama32EmbeddingConfig3B,
     Llama33NemotronSuper49BConfig,
+    Llama32Reranker1BConfig,
     LlamaConfig,
     LlamaEmbeddingModel,
     LlamaModel,
@@ -175,6 +177,7 @@ from nemo.collections.llm.gpt.model import (  # noqa: F401
     Qwen25Config32B,
     Qwen25Config72B,
     Qwen25Config500M,
+    ReRankerModel,
     SSMConfig,
     Starcoder2Config,
     Starcoder2Config3B,
@@ -205,6 +208,7 @@ __all__ = [
     "MockDataModule",
     "T5MockDataModule",
     "CustomRetrievalDataModule",
+    "CustomReRankerDataModule",
     "GPTModel",
     "GPTConfig",
     "HyenaTestConfig",

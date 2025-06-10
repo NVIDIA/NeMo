@@ -185,6 +185,10 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         else:
             save_splits['test'] = split_dataset2['test']
 
+        logging.info(f"training samples: {len(save_splits['training'])}")
+        logging.info(f"validation samples: {len(save_splits['validation'])}")
+        logging.info(f"test samples: {len(save_splits['test'])}")
+
         for split_name, dataset in save_splits.items():
             output_file = self.dataset_root / f"{split_name}.jsonl"
             with output_file.open("w", encoding="utf-8") as f:

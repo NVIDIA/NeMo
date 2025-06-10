@@ -153,6 +153,10 @@ from nemo.collections.llm.gpt.model.qwen3 import (
     Qwen3Config600M,
     Qwen3Model,
 )
+from nemo.collections.llm.gpt.model.reranker import (
+    Llama32Reranker1BConfig,
+    ReRankerModel,
+)
 from nemo.collections.llm.gpt.model.ssm import (
     BaseMambaConfig1_3B,
     BaseMambaConfig2_7B,
@@ -220,6 +224,7 @@ __all__ = [
     "Llama33NemotronSuper49BConfig",
     "Llama31NemotronUltra253BConfig",
     "Llama31Nemotron70BConfig",
+    "Llama32Reranker1BConfig",
     "NemotronConfig",
     "Nemotron3Config4B",
     "Nemotron3Config8B",
@@ -285,6 +290,7 @@ __all__ = [
     "Qwen3Config30B_A3B",
     "Qwen3Config235B_A22B",
     "Qwen3Model",
+    "ReRankerModel",
     "SSMConfig",
     "BaseMambaConfig130M",
     "BaseMambaConfig370M",
