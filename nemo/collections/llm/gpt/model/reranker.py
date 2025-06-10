@@ -39,12 +39,13 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 if TYPE_CHECKING:
-    from transformers import AutoModelForSequenceClassification
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
-    from nemo.collections.llm.gpt.model.llama import LlamaConfig
+    from transformers import AutoModelForSequenceClassification
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
     from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
+    from nemo.collections.llm.gpt.model.llama import LlamaConfig
+
 
 def reranker_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     """Setup Reranker dataloader batch."""
@@ -107,6 +108,7 @@ class ReRankerBaseConfig:
 @dataclass
 class Llama32Reranker1BConfig(Llama32Config1B, ReRankerBaseConfig):
     """Config for Llama32Reranker1B model"""
+
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = bidirectional_attention_layer_spec
     forward_step_fn: Callable = reranker_forward_step
     data_step_fn: Callable = reranker_data_step
@@ -239,8 +241,8 @@ class ReRankerModel(GPTModel):
 
         pooled_hidden_states = self.pool(output, attention_mask)
 
-        # output and pooled_hidden_states are FP32 during training 
-        #(because the Float16Module wrapper converts back to FP32),
+        # output and pooled_hidden_states are FP32 during training
+        # (because the Float16Module wrapper converts back to FP32),
         # while self.score weight can be FP16 or FP32 depending on the model training precision.
         # To avoid precision mismatch,
         # we convert pooled_hidden_states to the same precision as self.score weight.

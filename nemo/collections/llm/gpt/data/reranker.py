@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 
+
 def create_reranker_dataset(
     path: Path,
     tokenizer: "TokenizerSpec",
@@ -339,7 +340,7 @@ class ReRankerDataset(Dataset):
         # Flatten the batch
         # In the case of a micro batch size = 2, self.num_hard_negatives = 4,
         # we will have 2 * (1 + 4) = 10 examples in the batch
-        # where the first 5 examples corresponds to the first question, 
+        # where the first 5 examples corresponds to the first question,
         # and the last 5 examples corresponds to the second question
         for item in batch:
             metadata.append(item['metadata'])
