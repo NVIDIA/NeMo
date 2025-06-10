@@ -91,8 +91,6 @@ def override_recipe_configs(
     recipe.model.config.language_transformer_config.cross_entropy_loss_fusion = True
     recipe.model.config.language_transformer_config.apply_rope_fusion = True
     recipe.model.config.language_transformer_config.moe_permute_fusion = True
-
-    recipe.model.config.vision_transformer_config.apply_rope_fusion = True
     recipe.model.config.vision_transformer_config.gradient_accumulation_fusion = True
 
     # enable cudagraph
@@ -100,9 +98,6 @@ def override_recipe_configs(
     recipe.model.config.vision_transformer_config.enable_cuda_graph = enable_cuda_graphs
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-
-    # # test sub configs
-    # recipe.model.config.language_transformer_config.num_layers = 1
 
     return recipe
 

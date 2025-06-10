@@ -91,8 +91,6 @@ def override_recipe_configs(
     recipe.model.config.language_transformer_config.cross_entropy_loss_fusion = True
     recipe.model.config.language_transformer_config.apply_rope_fusion = True
     recipe.model.config.language_transformer_config.moe_permute_fusion = True
-
-    recipe.model.config.vision_transformer_config.apply_rope_fusion = True
     recipe.model.config.vision_transformer_config.gradient_accumulation_fusion = True
 
     # enable cudagraph
