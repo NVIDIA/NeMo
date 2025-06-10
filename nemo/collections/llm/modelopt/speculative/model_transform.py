@@ -14,6 +14,7 @@
 
 import torch.nn as nn
 
+from nemo.collections.llm import GPTModel
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
@@ -46,6 +47,7 @@ def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> n
     assert algorithm in ALGORITHMS, f"Invalid algorithm: {algorithm}. Choices: {ALGORITHMS.keys()}"
     algo_cfg = ALGORITHMS[algorithm]
 
+    assert isinstance(model, GPTModel), "Speculative Decoding currently only supported for GPT models."
     unwrapped_model = unwrap_model(model)
 
     # Check if the model has already been transformed with speculative decoding

@@ -15,7 +15,7 @@
 
 from contextlib import nullcontext
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Union
+from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import lightning.pytorch as L
 import torch
@@ -46,6 +46,7 @@ if HAVE_TE and HAVE_MAMBA_SSM and HAVE_CAUSAL_CONV1D:
     from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
 
 if TYPE_CHECKING:
+    import lightning.pytorch as pl
     from lightning.fabric.plugins import CheckpointIO
 
     from nemo.lightning.megatron_parallel import MegatronParallel
@@ -222,9 +223,22 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     return model, trainer
 
 
-def restore_modelopt_state(model: nn.Module, path: str) -> None | Callable:
+def restore_modelopt_state(
+    model: nn.Module, path: Optional[str] = None, trainer: Optional["pl.Trainer"] = None
+) -> None | Callable:
+    """
+    Restore ModelOpt state from checkpoint.
+
+    Args:
+        model (nn.Module): The model to restore the state to.
+        path (str): The path to the checkpoint.
+        trainer (pl.Trainer): The trainer object, in case path not provided.
+    """
     if not HAVE_MODELOPT:
         return
+    if not path:
+        assert trainer is not None, "path or trainer must be provided"
+        path = getattr(trainer.strategy.restore_config, "path", trainer.ckpt_path)
 
     core_model = unwrap_model(model)
     if mto.ModeloptStateManager.is_converted(core_model):
@@ -248,6 +262,14 @@ def restore_modelopt_state(model: nn.Module, path: str) -> None | Callable:
 
 
 def save_modelopt_state(model: "MegatronParallel", path: str, checkpoint_io: "CheckpointIO"):
+    """
+    Save ModelOpt state to checkpoint.
+
+    Args:
+        model (nn.Module): The MegatronParallel model to save the state from.
+        path (str): The path to the checkpoint.
+        checkpoint_io (CheckpointIO): The checkpoint IO object from MegatronStrategy.
+    """
     if not HAVE_MODELOPT:
         return
 
