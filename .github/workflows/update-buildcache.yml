@@ -122,7 +122,7 @@ jobs:
 
   cicd-test-container-build:
     needs: [pre-flight]
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_container.yml@ko3n1g/feat/cache-to
     strategy:
       fail-fast: false
       matrix:
