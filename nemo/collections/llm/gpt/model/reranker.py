@@ -189,6 +189,8 @@ class ReRankerModel(GPTModel):
                 sequence_lengths = attention_mask.sum(dim=1) - 1
                 batch_size = last_hidden.shape[0]
                 emb = last_hidden[torch.arange(batch_size, device=last_hidden.device), sequence_lengths]
+        else:
+            raise ValueError(f"Invalid pool type: {pool_type}")
         return emb
 
     def forward(
@@ -244,7 +246,7 @@ class ReRankerModel(GPTModel):
         pooled_logits = self.score(pooled_hidden_states)[0]
         pooled_logits = pooled_logits / self.config.temperature
         if need_to_convert_back:
-            pooled_hidden_states = float16_to_fp32(pooled_logits)
+            pooled_logits = float16_to_fp32(pooled_logits)
         return pooled_logits
 
     @property
