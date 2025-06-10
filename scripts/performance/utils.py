@@ -35,6 +35,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
 )
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
+from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
@@ -54,6 +55,7 @@ def slurm_executor(
     hf_token: str = None,
     nemo_home: str = DEFAULT_NEMO_HOME,
     wandb_key: str = None,
+    network: str = None,
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
@@ -75,14 +77,29 @@ def slurm_executor(
         "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
         "NEMORUN_HOME": log_dir,
+        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
     }
+
+    # Assuming 4 GPU's per node as GB200, might need to revisit in future!
+    if num_gpus_per_node == 4:
+        env_vars["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
+        env_vars["NCCL_NET_GDR_C2C"] = 1  # For NCCL 2.26
+
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
-    srun_args = [
-        "--mpi=pmix",
-        "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",
-    ]
+
+    srun_args = custom_srun_args.copy()
+    srun_args.extend(
+        [
+            "--mpi=pmix",
+        ]
+    )
+
+    if num_gpus_per_node == 4:
+        srun_args.append("numactl --cpunodebind=$((SLURM_LOCALID/2)) --membind=$((SLURM_LOCALID/2))")
+    else:
+        srun_args.append("numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))")
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
@@ -92,7 +109,6 @@ def slurm_executor(
 
     env_vars |= custom_env_vars
     mounts.extend(custom_mounts)
-    srun_args.extend(custom_srun_args)
 
     # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
     segment = None
@@ -119,6 +135,7 @@ def slurm_executor(
         exclusive=True,
         packager=run.GitArchivePackager(),
         segment=segment,
+        network=network,
     )
 
     return executor
@@ -183,6 +200,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
 
     config = config_df.to_dict(orient='records')[0] if len(config_df) > 0 else {}
 
+    if gpu.lower() == "gb200" and args.gpus_per_node > 4:
+        args.gpus_per_node = 4
+        logging.warning("GB200 has 4 GPUs per node. Setting gpus_per_node to 4.")
     num_gpus = config.get("num_gpus") if args.num_gpus is None else args.num_gpus
     num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
     mbs = config.get("mbs") if args.micro_batch_size is None else args.micro_batch_size
@@ -247,6 +267,8 @@ def set_primary_perf_configs(
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
+    use_user_buffer_registration: bool = False,
+    use_sharp: bool = False,
     recompute_layers: int = 0,
     activation_offload_layers: int = 0,
     compute_dtype: str = None,
@@ -270,6 +292,8 @@ def set_primary_perf_configs(
     logging.info(f"etp_size: {etp_size}")
     logging.info(f"enable_cuda_graphs: {enable_cuda_graphs}")
     logging.info(f"use_mcore_fsdp: {use_mcore_fsdp}")
+    logging.info(f"use_user_buffer_registration: {use_user_buffer_registration}")
+    logging.info(f"use_sharp: {use_sharp}")
     logging.info(f"recompute_layers: {recompute_layers}")
     logging.info(f"activation_offload_layers: {activation_offload_layers}")
     logging.info(f"compute_dtype: {compute_dtype}")
@@ -348,6 +372,14 @@ def set_primary_perf_configs(
                 )
                 recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
+    # User buffers configs
+    if use_user_buffer_registration:
+        recipe.trainer.strategy.ddp.nccl_ub = True
+
+    # Sharp configs
+    if use_sharp:
+        recipe.trainer.strategy.use_sharp = True
+
     # Recompute configs
     if recompute_layers > 0:
         recipe.model.config.recompute_granularity = "full"
@@ -387,6 +419,10 @@ def set_primary_perf_configs(
             recipe.model.config.recompute_num_layers is None
         ), "recompute_num_layers must be None when recompute_modules is provided"
 
+    # Disable local gradient checker at non-debugging mode
+    recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
+    recipe.trainer.strategy.ddp.check_for_large_grads = False
+
     return recipe
 
 
@@ -424,7 +460,16 @@ def set_exp_logging_configs(
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
-    recipe.trainer.enable_checkpointing = False
+
+    # disable checkpointing if no ModelCheckpoint callback is found
+    callbacks = recipe.trainer.callbacks
+    checkpoint_callback_idx = None
+    if callbacks:  # default is None in lightning
+        for idx, callback in enumerate(callbacks):
+            if callback.__fn_or_cls__ == ModelCheckpoint:
+                checkpoint_callback_idx = idx
+                break
+    recipe.trainer.enable_checkpointing = checkpoint_callback_idx is not None
     recipe.trainer.log_every_n_steps = 1
 
     return recipe
