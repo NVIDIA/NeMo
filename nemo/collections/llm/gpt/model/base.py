@@ -365,6 +365,11 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             kwargs = {"mtp_block_spec": mtp_block_spec(self)}
         else:
             kwargs = {}
+
+        if not _grad_accum_fusion_available:
+            logging.warning("Gradient accumulation fusion is not available, setting to False")
+            self.gradient_accumulation_fusion = False
+
         with model_init_device_context():
             # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
             # non-None when using virtual pipeline model parallelism
