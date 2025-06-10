@@ -94,10 +94,11 @@ def override_recipe_configs(
     recipe.model.config.vision_transformer_config.gradient_accumulation_fusion = True
 
     # enable cudagraph
-    enable_cuda_graphs = True
-    recipe.model.config.vision_transformer_config.enable_cuda_graph = enable_cuda_graphs
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+    recipe.model.config.vision_transformer_config.enable_cuda_graph = True
+    recipe.model.config.enable_cuda_graph = True
+    recipe.trainer.strategy.use_te_rng_tracker = True
+
+    recipe.model.config.language_transformer_config.enable_cuda_graph = enable_cuda_graphs
 
     return recipe
 
@@ -143,7 +144,8 @@ if __name__ == "__main__":
         )
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
+        plugins.append(NsysPlugin(start_step=5, end_step=6, gen_shape=True))
+
 
     with run.Experiment(exp_name) as exp:
         exp.add(
