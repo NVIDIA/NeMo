@@ -2,12 +2,7 @@ import re
 
 ZWNJ = chr(0x200C)
 
-CommonDiacritics = [
-    'َ',
-    'ِ',
-    'ُ',
-    'ّ'
-]
+CommonDiacritics = ['َ', 'ِ', 'ُ', 'ّ']
 
 PhonemeChars = {
     "آ": "A",

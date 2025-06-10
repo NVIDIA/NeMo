@@ -33,9 +33,9 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     french_text_preprocessing,
     italian_text_preprocessing,
     japanese_text_preprocessing,
+    persian_text_preprocessing,
     spanish_text_preprocessing,
     vietnamese_text_preprocessing,
-    persian_text_preprocessing,
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -684,7 +684,6 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
                 self.g2p.phoneme_probability = self.phoneme_probability
 
 
-
 class PersianPhonemesTokenizer(BaseTokenizer):
     # fmt: off
 
@@ -711,8 +710,7 @@ class PersianPhonemesTokenizer(BaseTokenizer):
         "Y", "y", "Ą", "Ę", "Ó", "ð",
         "ʊ", "ɔ", "θ",
     )
-    
-     
+
     # fmt: on
 
     def __init__(
@@ -854,7 +852,6 @@ class PersianPhonemesTokenizer(BaseTokenizer):
         finally:
             if hasattr(self.g2p, "phoneme_probability"):
                 self.g2p.phoneme_probability = self.phoneme_probability
-
 
 
 @experimental

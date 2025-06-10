@@ -1,28 +1,31 @@
-import re
-import os
-import sys
 import importlib
+import os
+import re
+import sys
 import warnings
 
 parent = os.path.abspath(os.path.join(os.getcwd(), ".."))
 sys.path.append(parent)
-from . import mappings
-from . import patterns
+from . import mappings, patterns
 
 importlib.reload(mappings)
 importlib.reload(patterns)
+from pathlib import Path
+
 # from mappings import PhonemeChars, CharsPhoneme, CommonDiacritics
 # from patterns import RegexPatterns
-from Levenshtein import distance as levdist, editops
+from Levenshtein import distance as levdist
+from Levenshtein import editops
 
-from pathlib import Path
 currentpath = Path(__file__).resolve().parent
+
 
 class PersianPhonemizer:
     """
     if hamnevise=True, then for words with multiple pronounciation, multiple phoneme is generated, separated by /
     """
-    def __init__(self, dictionary_path = f'{currentpath}/persian-v4.0.dict', logs=False, hamnevise=False):
+
+    def __init__(self, dictionary_path=f'{currentpath}/persian-v4.0.dict', logs=False, hamnevise=False):
         self.ZWNJ = chr(0x200C)
         self.ZIIR = chr(0x0650)
         self.TASHDID = chr(0x0651)
@@ -32,7 +35,7 @@ class PersianPhonemizer:
         self.numberPattern = patterns.PersianNumbersPattern
         self.punctuations = r'[!،؛.؟:]'
         self.hamnevise = hamnevise
-    
+
     def load_dictionary(self, path):
         dictio = {}
         with open(path, 'r', encoding='utf-8') as file:
@@ -46,14 +49,14 @@ class PersianPhonemizer:
     def wordcheck(self, word):
         phoneme = self.dictionary.get(word, None)
         return phoneme
-            
+
     def charToUnicode(self, text):
         # convert characters of a text to unicode
         charDict = {}
         for char in text:
             charDict[char] = f'\\u{ord(char):04x}'
         return charDict
-    
+
     def has_diacritics(self, word):
         return any(diacritic in word for diacritic in mappings.CommonDiacritics)
 
@@ -62,7 +65,7 @@ class PersianPhonemizer:
 
     def has_sarya(self, word):
         return "ۀ" in word
-        
+
     def rmv_sarya(self, word):
         return re.sub(r'ۀ', 'ه', word)
 
@@ -73,18 +76,18 @@ class PersianPhonemizer:
         match = re.search(self.numberPattern, text)
         if not match:
             return text  # Base case: no more matches, return modified text
-        
+
         # Replace only the first match
-        modified_text = text[:match.start()] + match.group(1) + " O " + match.group(2) + text[match.end():]
-    
+        modified_text = text[: match.start()] + match.group(1) + " O " + match.group(2) + text[match.end() :]
+
         # Recursive call
         return self.replace_w_with_o_in_numbers(modified_text)
-        
+
     def phonemize(self, text):
         text = self.rmv_punctuations(text)
         # convert WAW to O in numbers
         text = self.replace_w_with_o_in_numbers(text)
-        
+
         words = text.split()
         parts = []
         for word in words:
@@ -108,16 +111,21 @@ class PersianPhonemizer:
         for pattern, replacement in self.patterns:
             regex = re.compile(pattern)
             for match in regex.finditer(text):
-                matches.append({
-                    'pattern': pattern, 'start': match.start(), 'end': match.end(), 'replacement': replacement,
-                })
+                matches.append(
+                    {
+                        'pattern': pattern,
+                        'start': match.start(),
+                        'end': match.end(),
+                        'replacement': replacement,
+                    }
+                )
 
         # Early exist if there is no match
         if not matches:
             return text
 
         # Sort matches from **right to left** (to avoid index shifting), find the longest match and replace
-        matches.sort(key=lambda x: x['start'], reverse=True)       
+        matches.sort(key=lambda x: x['start'], reverse=True)
         longest = max(matches, key=lambda x: x['end'] - x['start'])
         if self.logs:
             print(f'Matching Regex: {text} ---> {longest}')
@@ -134,11 +142,11 @@ class PersianPhonemizer:
 
         cword = self.rmv_sarya(word)
         cword = self.rmv_diacritics(cword)
-        
+
         if self.ZWNJ in word:
             if self.logs:
                 print(f'ZWNJ processing for: {word}')
-            parts = word.split(self.ZWNJ)           
+            parts = word.split(self.ZWNJ)
             for part in parts:
                 if part in self.dictionary:
                     phoneme += self.dictionary.get(part)
@@ -165,13 +173,12 @@ class PersianPhonemizer:
         # force overwrite diacritics of word into diacritics of exising
         nword = self.rmv_diacritics(word)
         nword = self.rmv_sarya(nword)
-        
-        
+
         if self.has_sarya(word) and not self.has_diacritics(word):
             sphoneme = self.dictionary.get(nword)
             dphoneme = re.sub('E', 'Y', sphoneme)
             return dphoneme
-            
+
         dword = self.diacritize(nword)
         wordList = self.splitter(word)
         dwordList = self.splitter(dword)
@@ -180,7 +187,7 @@ class PersianPhonemizer:
             if self.logs:
                 print(f'Rediacritize: matching issue {word} ---> {wordList} and {dword} ---> {dwordList}')
             return word
-        
+
         parts = []
         for i, ch in enumerate(wordList):
             if (self.has_diacritics(ch)) and (len(ch) >= len(dwordList[i])):
@@ -193,7 +200,6 @@ class PersianPhonemizer:
         dphoneme = self.rephomenize("".join(parts))
         return dphoneme
 
-    
     def splitter(self, word):
         # split a word based on diacritics in to parts (نِسبَت -> نِ س بَ ت)
         i, parts = 0, [""]
@@ -211,21 +217,20 @@ class PersianPhonemizer:
     def diacritize(self, word):
         phoneme = self.dictionary.get(word, None)
         rword = ""
-        
+
         if phoneme:
             wList = list(word)
             pList = list(phoneme.replace(' ', ''))
             j = 0
             while j < len(pList):
                 ph = pList[j]
-                if (j < len(pList) - 1) and (pList[j] == pList[j+1]):
+                if (j < len(pList) - 1) and (pList[j] == pList[j + 1]):
                     rword += mappings.CharsPhoneme.get(ph, "") + self.TASHDID
                     j += 2
                 else:
                     rword += mappings.CharsPhoneme.get(ph, "")
-                    j += 1                
+                    j += 1
         return rword
-
 
     def splinter(self, word):
         # split words and check if each part exist in dictioanry
@@ -236,7 +241,7 @@ class PersianPhonemizer:
             phonemes.append(phoneme) if phoneme else phonemes.append(part)
         if self.logs:
             print(f'Splinter: {parts}')
-        return "".join(phonemes)            
+        return "".join(phonemes)
 
     def checksplits(self, word):
         if word in self.dictionary:
@@ -246,7 +251,7 @@ class PersianPhonemizer:
         for i in range(1, len(word)):
             left = word[:i]
             right = word[i:]
-            if left in self.dictionary and len(left)>=4:
+            if left in self.dictionary and len(left) >= 4:
                 rparts = self.checksplits(right)
                 findings.append([left] + rparts) if rparts else findings.append([left])
         if findings:
@@ -255,12 +260,10 @@ class PersianPhonemizer:
             return [word]
 
 
-
-
 if __name__ == '__main__':
     phonemizer = PersianPhonemizer(f'{currentpath}/persian-v4.0.dict', logs=False)
     texts = [
-    'مبلغ هزار و سیصد پارسه',
+        'مبلغ هزار و سیصد پارسه',
     ]
     for text in texts:
         out = phonemizer.phonemize(text)
