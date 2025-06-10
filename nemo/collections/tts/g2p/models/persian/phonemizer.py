@@ -30,7 +30,7 @@ class PersianPhonemizer:
         self.logs = logs
         self.patterns = patterns.RegexPatterns
         self.numberPattern = patterns.PersianNumbersPattern
-        self.punctuations = r'[!،؛.؟]'
+        self.punctuations = r'[!،؛.؟:]'
         self.hamnevise = hamnevise
     
     def load_dictionary(self, path):
