@@ -1,18 +1,19 @@
+import hashlib
+import json
 import logging
+from functools import lru_cache
+from pathlib import Path
+from random import sample
+from typing import Any, Dict, List, Literal, Mapping, Optional, Union
+
 import numpy as np
 import torch
-import json
-import hashlib
-from pathlib import Path
-from typing import Literal, Mapping, Optional, Union, List, Dict, Any
-from nemo.core.classes import Dataset
-from functools import lru_cache
+
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.retrieval import CustomRetrievalDataModule
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import _get_samples_mapping, _JSONLMemMapDataset
-from random import sample
-
+from nemo.core.classes import Dataset
 
 
 def create_reranker_dataset(
@@ -53,6 +54,7 @@ def create_reranker_dataset(
         neg_key=neg_key,
         **kwargs,
     )
+
 
 class ReRankerDataset(Dataset):
     """ """
@@ -139,7 +141,6 @@ class ReRankerDataset(Dataset):
         self.pos_key = pos_key
         self.neg_key = neg_key
 
-
         # check if file_path is JSON file or JSONL file
         if file_path.endswith(".json"):
             # Convert JSON file to JSONL file
@@ -150,7 +151,7 @@ class ReRankerDataset(Dataset):
                 for item in data:
                     f.write(json.dumps(item) + "\n")
             file_path = file_path.replace(".json", ".jsonl")
-        
+
         self.indexed_dataset = _JSONLMemMapDataset(
             dataset_paths=[file_path],
             tokenizer=None,
@@ -239,7 +240,7 @@ class ReRankerDataset(Dataset):
         if self.negative_sample_strategy == 'random':
             neg_doc = sample(neg_doc, k=self.num_hard_negatives)
         elif self.negative_sample_strategy == 'first':
-            neg_doc = neg_doc[:self.num_hard_negatives]
+            neg_doc = neg_doc[: self.num_hard_negatives]
         else:
             raise ValueError(f"Invalid negative sample strategy: {self.negative_sample_strategy}")
         assert len(neg_doc) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
@@ -247,10 +248,9 @@ class ReRankerDataset(Dataset):
         # Construct 1 question + positive document, and self.num_hard_negatives question + negative documents
         def format_text(q, p):
             return f"question:{q} \n \n passage:{p}"
-        
+
         positive = self.tokenizer.text_to_ids(format_text(question, pos_doc))
         negatives = [self.tokenizer.text_to_ids(format_text(question, ex)) for ex in neg_doc]
-       
 
         if self.virtual_tokens:
             # (@adithyare) we are going to insert "pad/eos" tokens in the beginning of the text and context
@@ -358,6 +358,7 @@ class ReRankerDataset(Dataset):
 
 class CustomReRankerDataModule(CustomRetrievalDataModule):
     """Custom ReRanker Data Module loaded with json file"""
+
     def __init__(
         self,
         data_root: Union[str, List[str]],
@@ -443,7 +444,7 @@ class CustomReRankerDataModule(CustomRetrievalDataModule):
             neg_doc_key=neg_doc_key,
             dataset_kwargs=dataset_kwargs,
         )
-    
+
     @lru_cache
     def _create_dataset(self, path, **kwargs):
         return create_reranker_dataset(
@@ -454,4 +455,3 @@ class CustomReRankerDataModule(CustomRetrievalDataModule):
             seed=self.seed,
             **kwargs,
         )
-

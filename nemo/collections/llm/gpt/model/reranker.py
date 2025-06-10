@@ -12,31 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass
-from typing import Callable, Optional, Dict, Literal, Union, Annotated, Tuple
 from pathlib import Path
+from typing import Annotated, Callable, Dict, Literal, Optional, Tuple, Union
 
 import einops
-import torch
-from torch import nn
-from megatron.core import parallel_state
-from megatron.core.utils import get_batch_on_this_cp_rank
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear
-from nemo.lightning import OptimizerModule, io
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from megatron.core.transformer.spec_utils import ModuleSpec
 import pytorch_lightning as L
-from nemo.lightning.megatron_parallel import DDP
-from megatron.core.transformer.module import fp32_to_float16, float16_to_fp32, Float16Module
-from nemo.lightning.megatron_parallel import MegatronLossReduction
-from nemo.collections.llm.gpt.model.llama import HFLlamaImporter
-from nemo.collections.llm.gpt.model.llama_embedding import LlamaEmbeddingExporter
+import torch
+from megatron.core import parallel_state
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear
+from megatron.core.transformer.module import Float16Module, float16_to_fp32, fp32_to_float16
+from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.utils import get_batch_on_this_cp_rank
+from torch import nn
+
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
+from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, Llama32Config1B
+from nemo.collections.llm.gpt.model.llama_embedding import LlamaEmbeddingExporter
+from nemo.collections.llm.gpt.model.llama_embedding import (
+    get_nv_embedding_layer_spec as bidirectional_attention_layer_spec,
+)
 from nemo.collections.llm.utils import Config
-from nemo.collections.llm.gpt.model.llama import Llama32Config1B
-from nemo.collections.llm.gpt.model.llama_embedding import get_nv_embedding_layer_spec as bidirectional_attention_layer_spec
+from nemo.lightning import OptimizerModule, io
+from nemo.lightning.io.state import TransformFns
+from nemo.lightning.megatron_parallel import DDP, MegatronLossReduction
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
-from nemo.lightning.io.state import TransformFns
+
 
 def reranker_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     """Setup Reranker dataloader batch."""
@@ -95,6 +97,7 @@ class ReRankerBaseConfig:
     pool_type: Optional[Literal["cls", "avg", "last", "weighted_avg"]] = "avg"
     temperature: float = 1.0
 
+
 @dataclass
 class Llama32Reranker1BConfig(Llama32Config1B, ReRankerBaseConfig):
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = bidirectional_attention_layer_spec
@@ -102,7 +105,7 @@ class Llama32Reranker1BConfig(Llama32Config1B, ReRankerBaseConfig):
     data_step_fn: Callable = reranker_data_step
     importer_cls: io.ModelConnector = HFLlamaImporter
     exporter_cls: io.ModelConnector = LlamaEmbeddingExporter
-    
+
     def configure_model(self, tokenizer, pre_process=None, post_process=None, vp_stage=None) -> "MCoreGPTModel":
         """Configure the Reranker Model"""
         model = super().configure_model(tokenizer, pre_process, post_process, vp_stage)
@@ -123,7 +126,9 @@ class ReRankerModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or Llama32Reranker1BConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or Llama32Reranker1BConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
     @property
     def dataset_kwargs(self):
@@ -134,35 +139,35 @@ class ReRankerModel(GPTModel):
             'add_bos': self.config.add_bos,
             'add_eos': self.config.add_eos,
         }
-    
+
     def configure_model(self, vp_stage: Optional[int] = None) -> None:
         """Configure the underlying model if not already configured.
 
         This method ensures the model is instantiated from the configuration.
         """
-        assert self.config.pool_type in ["cls", "avg", "last", "weighted_avg"] or self.config.pool_type is None, (
-            f"Invalid pool type: {self.config.pool_type} should be in [cls, avg, last, weighted_avg] or None"
-        )
+        assert (
+            self.config.pool_type in ["cls", "avg", "last", "weighted_avg"] or self.config.pool_type is None
+        ), f"Invalid pool type: {self.config.pool_type} should be in [cls, avg, last, weighted_avg] or None"
 
         super().configure_model(vp_stage)
         # TODO: handle PP, all args
         self.module.score = ColumnParallelLinear(
-                self.config.hidden_size,
-                1,
-                config=self.config,
-                init_method=self.config.init_method,
-                bias=True,
-                skip_bias_add=True,
-                gather_output=True, # TODO verify
+            self.config.hidden_size,
+            1,
+            config=self.config,
+            init_method=self.config.init_method,
+            bias=True,
+            skip_bias_add=True,
+            gather_output=True,  # TODO verify
         )
-    
+
     def pool(self, last_hidden_states, attention_mask):
         """Pool the hidden states based on the configured pooling strategy.
-        
+
         Args:
             last_hidden_states: The hidden states from the transformer
             attention_mask: The attention mask for the input
-            
+
         Returns:
             The pooled embeddings
         """
@@ -183,26 +188,24 @@ class ReRankerModel(GPTModel):
             else:
                 sequence_lengths = attention_mask.sum(dim=1) - 1
                 batch_size = last_hidden.shape[0]
-                emb = last_hidden[
-                    torch.arange(batch_size, device=last_hidden.device), sequence_lengths
-                ]
+                emb = last_hidden[torch.arange(batch_size, device=last_hidden.device), sequence_lengths]
         return emb
 
     def forward(
-        self,         
+        self,
         input_ids: torch.LongTensor,
         position_ids: torch.LongTensor,
         attention_mask: torch.LongTensor,
         decoder_input: Optional[torch.Tensor] = None,
     ):
         """Forward pass of the reranker model.
-        
+
         Args:
             input_ids: Input token IDs
             position_ids: Position IDs for the input
             attention_mask: Attention mask for the input
             decoder_input: Optional decoder input
-            
+
         Returns:
             The pooled logits
         """
@@ -211,15 +214,13 @@ class ReRankerModel(GPTModel):
             # Also convert attention mask to binary
             extended_mask = attention_mask.unsqueeze(1).unsqueeze(1) < 0.5
         elif attention_mask.ndim == 4:
-            assert attention_mask.shape[1] == 1 and attention_mask.shape[2] == 1, (
-                "Attention mask shape incorrect"
-            )
+            assert attention_mask.shape[1] == 1 and attention_mask.shape[2] == 1, "Attention mask shape incorrect"
             extended_mask = attention_mask
             # Squeeze attention mask to [b, sq] for averaging pooling later
             attention_mask = extended_mask.squeeze() < 0.5
         else:
             raise ValueError("Attention_mask shape incorrect")
-        
+
         output = super().forward(
             input_ids=input_ids,
             position_ids=position_ids,
@@ -239,13 +240,13 @@ class ReRankerModel(GPTModel):
         else:
             need_to_convert_back = False
 
-        # TODO support bias 
+        # TODO support bias
         pooled_logits = self.score(pooled_hidden_states)[0]
         pooled_logits = pooled_logits / self.config.temperature
         if need_to_convert_back:
             pooled_hidden_states = float16_to_fp32(pooled_logits)
         return pooled_logits
-    
+
     @property
     def score(self):
         """Get the score module from the model."""
@@ -255,7 +256,7 @@ class ReRankerModel(GPTModel):
             return self.module.module.score
         assert hasattr(self.module.module.module, 'score'), "Score module not found"
         return self.module.module.module.score
-    
+
     def has_float16_module_wrapper(self):
         """Check if the model has a float16 module wrapper."""
         if isinstance(self.module, DDP) and isinstance(self.module.module, Float16Module):
@@ -291,7 +292,7 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
 
     def init(self) -> ReRankerModel:
         return ReRankerModel(self.config, tokenizer=self.tokenizer)
-    
+
     def apply(self, output_path: Path) -> Path:
         """Apply the conversion from HF to NeMo format.
 
@@ -302,9 +303,12 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
             Path: Path to the saved NeMo model
         """
         from transformers import AutoConfig, AutoModelForSequenceClassification
+
         target = self.init()
         trainer = self.nemo_setup(target)
-        source = AutoModelForSequenceClassification.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
+        source = AutoModelForSequenceClassification.from_pretrained(
+            str(self), torch_dtype='auto', trust_remote_code=True
+        )
 
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
@@ -312,8 +316,7 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
 
     @property
     def config(self) -> ReRankerBaseConfig:
-        """Create a NeMo ReRankerBaseConfig from the HF model config.
-        """
+        """Create a NeMo ReRankerBaseConfig from the HF model config."""
         from transformers import AutoConfig, GenerationConfig
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
@@ -322,7 +325,7 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
         )
-    
+
     @property
     def tokenizer(self) -> "AutoTokenizer":
         """Get the tokenizer for the HF model.
@@ -333,20 +336,25 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
-    
+
     def convert_state(self, source: "AutoModelForSequenceClassification", target: ReRankerModel) -> None:
         target_connector = target.config.importer_cls()
         target = target_connector.convert_state(source, target)
-        assert target.module.score.weight.dtype == source.score.weight.dtype, f"Score weight dtype mismatch: {target.score.weight.dtype} != {source.score.weight.dtype}"
+        assert (
+            target.module.score.weight.dtype == source.score.weight.dtype
+        ), f"Score weight dtype mismatch: {target.score.weight.dtype} != {source.score.weight.dtype}"
         with torch.no_grad():
             try:
                 target.module.score.weight.copy_(source.score.weight)
             except Exception as e:
-                logging.warning(f"Failed to copy score weight. This is expected if you are trying to convert model without score weights to NeMo.")
+                logging.warning(
+                    f"Failed to copy score weight. This is expected if you are trying to convert model without score weights to NeMo."
+                )
                 logging.info("init the score weight...")
                 target.config.init_method(target.module.score.weight)
 
         return target
+
 
 @io.model_exporter(ReRankerModel, "hf")
 class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceClassification"]):
@@ -355,6 +363,7 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
     This class handles the conversion of NeMo's ReRankerModel to Hugging Face's
     AutoModelForSequenceClassification format, including weight mapping and configuration translation.
     """
+
     def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
         """Initialize a HF AutoModelForSequenceClassification instance.
 
@@ -366,13 +375,14 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
         """
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
+
         from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalForSequenceClassification
+
         with no_init_weights():
             return LlamaBidirectionalForSequenceClassification._from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
-        """Apply the conversion from NeMo to HF format.
-        """
+        """Apply the conversion from NeMo to HF format."""
         source, _ = self.nemo_load(str(self))
         source_dtype = source.module.embedding.word_embeddings.weight.dtype
         target = self.init(source_dtype)
@@ -457,7 +467,6 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
             transforms=transforms,
         )
 
-    
     @property
     def tokenizer(self) -> "TokenizerSpec":
         """Get NeMo Tokenizer"""
@@ -465,8 +474,7 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
 
 
 class ReRankerLoss(MegatronLossReduction):
-    """
-    """
+    """ """
 
     def __init__(
         self,
@@ -531,6 +539,7 @@ class ReRankerLoss(MegatronLossReduction):
             return loss
 
         return torch.tensor(0.0, device=torch.cuda.current_device())
+
 
 def average_losses_across_data_parallel_group(losses):
     """Reduce a tensor of losses across all GPUs."""

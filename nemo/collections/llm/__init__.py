@@ -36,6 +36,7 @@ from nemo.collections.llm.bert.model import (
 from nemo.collections.llm.gpt.data import (  # noqa: F401
     AlpacaDataModule,
     ChatDataModule,
+    CustomReRankerDataModule,
     CustomRetrievalDataModule,
     DollyDataModule,
     FineTuningDataModule,
@@ -45,7 +46,6 @@ from nemo.collections.llm.gpt.data import (  # noqa: F401
     MockDataModule,
     PreTrainingDataModule,
     SquadDataModule,
-    CustomReRankerDataModule,
 )
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
 from nemo.collections.llm.gpt.model import (  # noqa: F401
@@ -124,8 +124,8 @@ from nemo.collections.llm.gpt.model import (  # noqa: F401
     Llama32Config3B,
     Llama32EmbeddingConfig1B,
     Llama32EmbeddingConfig3B,
-    Llama33NemotronSuper49BConfig,
     Llama32Reranker1BConfig,
+    Llama33NemotronSuper49BConfig,
     LlamaConfig,
     LlamaEmbeddingModel,
     LlamaModel,
