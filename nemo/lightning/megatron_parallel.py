@@ -483,8 +483,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 _data_step = data_step(model)
             else:
                 _data_step = data_step
-
-            batch = _data_step(dataloader_iter)
+            batch = _data_step(dataloader_iter, model.module.vp_stage)
             step = context["step"]
 
             if isinstance(loss_reduction, _ModuleStepFunction):

@@ -28,7 +28,7 @@ from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, MCoreNevaMod
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 
-def llama4_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
+def llama4_data_step(dataloader_iter, vp_stage: Optional[int] = None) -> Dict[str, torch.Tensor]:
     """Llama4 Omni Data Step"""
     from megatron.core import parallel_state
 
@@ -50,9 +50,9 @@ def llama4_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             "num_media_tiles",
         )
     )
-    if parallel_state.is_pipeline_first_stage():
+    if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage):
         required_keys.update(("position_ids",))
-    if parallel_state.is_pipeline_last_stage():
+    if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage):
         required_keys.update(
             (
                 "labels",
@@ -166,10 +166,10 @@ class Llama4OmniConfig(NevaConfig):
         model = Llama4OmniBaseModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage(),
-            post_process=ps.is_pipeline_last_stage(),
-            add_encoder=ps.is_pipeline_first_stage(),
-            add_decoder=ps.is_pipeline_last_stage()
+            pre_process=ps.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage),
+            post_process=ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage),
+            add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage),
+            add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage)
             or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
             vp_stage=vp_stage,
