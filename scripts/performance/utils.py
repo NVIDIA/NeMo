@@ -36,6 +36,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
+from megatron.core.distributed import DistributedDataParallelConfig
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
@@ -155,19 +156,7 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
     )
 
 
-def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
-    """
-    Choose recommended configs tuned for performance from a csv file if available.
-    User (command line) provided args override the recommended configs.
-
-    NOTE: pre-train and PEFT recommended configs available for H100 and B200.
-
-    Args:
-        gpu (str): target GPU machine for experiment. Options- ['h100', 'b200']
-        task (str): experiment task. Options- ['pre_train', 'sft', 'lora']
-        model_name (str): target model for experiment. E.g.: 'llama3', 'mixtral'
-        model_size (str): size of target model. E.g.: '8b' (for llama3)
-    """
+def get_csv_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> pd.DataFrame:
     script_dir = str(Path(__file__).parent.absolute())
     recommended_configs_csv = os.path.join(script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv")
     logging.info(f"Using {recommended_configs_csv} for loading default recommended model configs")
@@ -188,6 +177,24 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
             logging.warning("Make sure you provide all necessary arguments in the command line")
 
     config = config_df.to_dict(orient='records')[0] if len(config_df) > 0 else {}
+
+    return config
+
+
+def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
+    """
+    Choose recommended configs tuned for performance from a csv file if available.
+    User (command line) provided args override the recommended configs.
+
+    NOTE: pre-train and PEFT recommended configs available for H100 and B200.
+
+    Args:
+        gpu (str): target GPU machine for experiment. Options- ['h100', 'b200']
+        task (str): experiment task. Options- ['pre_train', 'sft', 'lora']
+        model_name (str): target model for experiment. E.g.: 'llama3', 'mixtral'
+        model_size (str): size of target model. E.g.: '8b' (for llama3)
+    """
+    config = get_csv_configs(gpu.lower(), task, model_name, model_size, args)
 
     if gpu.lower() == "gb200" and args.gpus_per_node > 4:
         args.gpus_per_node = 4
@@ -229,15 +236,92 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
         recompute_modules = None
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
-        recompute_modules,
-    ]
+    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] 
+    kwargs += [enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules]
 
     return kwargs
+
+
+def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_size: int | None):
+    recipe.model.config.init_model_with_meta_device = True
+    recipe.trainer.strategy.fsdp = "megatron"
+    recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+    recipe.trainer.strategy.ddp.average_in_collective = False
+    recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
+    recipe.model.config.gradient_accumulation_fusion = False
+    if comm_overlap_callback_idx is not None and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute:
+        logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
+        recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
+        if tp_size is not None and tp_size > 1:
+            logging.warning("Currently, TP overlap performance is poor when FSDP is used because of jitters. A fix is in progress. Disabling TP overlap.")
+            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+
+    return recipe
+
+
+def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = None):
+    if compute_dtype is None:
+        return recipe
+
+    if compute_dtype.lower() == "bf16":
+        recipe.optim.config.use_precision_aware_optimizer = True
+
+    if compute_dtype is not None and compute_dtype.lower() == "fp8":
+        if fp8_recipe is None:
+            fp8_recipe = "ds"
+        if fp8_recipe.lower() == "ds":
+            recipe.trainer.plugins = bf16_with_fp8_mixed()
+        elif fp8_recipe.lower() == "cs":
+            recipe.trainer.plugins = bf16_with_fp8_current_scaling_mixed()
+            # disable first/last layer bf16 for benchmarking
+            recipe.trainer.plugins.first_last_layers_bf16 = False
+        elif fp8_recipe.lower() == "mxfp8":
+            recipe.trainer.plugins = bf16_with_mxfp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
+    return recipe
+
+def set_recompute_configs(
+    recipe,
+    recompute_layers: int,
+    activation_offload_layers: int,
+    recompute_modules: Optional[List[str]],
+):
+    # Recompute configs
+    if recompute_layers > 0:
+        recipe.model.config.recompute_granularity = "full"
+        recipe.model.config.recompute_method = "block"
+        recipe.model.config.recompute_num_layers = recompute_layers
+
+    # Activation cpu offloading
+    if activation_offload_layers > 0:
+        recipe.model.config.cpu_offloading = True
+        recipe.model.config.cpu_offloading_weights = False
+        recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
+
+    # Activation recompute configs
+    if recompute_modules is not None:
+        recipe.model.config.recompute_modules = recompute_modules
+        assert (
+            recipe.model.config.recompute_granularity == "selective"
+        ), "recompute_granularity must be selective when recompute_modules is provided"
+        assert (
+            recipe.model.config.recompute_num_layers is None
+        ), "recompute_num_layers must be None when recompute_modules is provided"
+
+    return recipe
+
+def set_cuda_graph_configs(recipe, enable_cuda_graphs: bool, task: str):
+    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
+    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+    if (
+        task in ["none", "lora"]
+        and hasattr(recipe.data, "packed_sequence_specs")
+        and recipe.data.packed_sequence_specs is not None
+    ):
+        recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
+
+    return recipe
 
 
 def set_primary_perf_configs(
@@ -327,90 +411,25 @@ def set_primary_perf_configs(
     # enable cross entropy fusion with TE kernel
     recipe.model.config.cross_entropy_fusion_impl = "te"
 
-    # Cuda graph configs
     if use_mcore_fsdp and enable_cuda_graphs:
         logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
         enable_cuda_graphs = False
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    if (
-        task in ["none", "lora"]
-        and hasattr(recipe.data, "packed_sequence_specs")
-        and recipe.data.packed_sequence_specs is not None
-    ):
-        recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
+    recipe = set_cuda_graph_configs(recipe, enable_cuda_graphs, task)
 
-    # FSDP configs
     if use_mcore_fsdp:
-        recipe.model.config.init_model_with_meta_device = True
-        recipe.trainer.strategy.fsdp = "megatron"
-        recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
-        recipe.trainer.strategy.ddp.average_in_collective = False
-        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
-        recipe.model.config.gradient_accumulation_fusion = False
-        if (
-            comm_overlap_callback_idx is not None
-            and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute
-        ):
-            logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
-            recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
-            if tp_size is not None and tp_size > 1:
-                logging.warning(
-                    "Currently, TP overlap performance is poor when FSDP is used because of jitters. "
-                    "A fix is in progress. Disabling TP overlap."
-                )
-                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+        recipe = set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx, tp_size)
 
-    # User buffers configs
-    if use_user_buffer_registration:
-        recipe.trainer.strategy.ddp.nccl_ub = True
+    recipe = set_precision_configs(recipe, compute_dtype, fp8_recipe)
 
-    # Sharp configs
-    if use_sharp:
-        recipe.trainer.strategy.use_sharp = True
+    recipe = set_recompute_configs(recipe, recompute_layers, activation_offload_layers, recompute_modules)
 
-    # Recompute configs
-    if recompute_layers > 0:
-        recipe.model.config.recompute_granularity = "full"
-        recipe.model.config.recompute_method = "block"
-        recipe.model.config.recompute_num_layers = recompute_layers
+    recipe.trainer.strategy.use_sharp = bool(use_sharp)
+    recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
 
-    # Activation cpu offloading
-    if activation_offload_layers > 0:
-        recipe.model.config.cpu_offloading = True
-        recipe.model.config.cpu_offloading_weights = False
-        recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
-
-    if compute_dtype.lower() == "bf16":
-        recipe.optim.config.use_precision_aware_optimizer = True
-
-    # low precision training configs
-    if compute_dtype is not None and compute_dtype.lower() == "fp8":
-        if fp8_recipe is None:
-            fp8_recipe = "ds"
-        if fp8_recipe.lower() == "ds":
-            recipe.trainer.plugins = bf16_with_fp8_mixed()
-        elif fp8_recipe.lower() == "cs":
-            recipe.trainer.plugins = bf16_with_fp8_current_scaling_mixed()
-            # disable first/last layer bf16 for benchmarking
-            recipe.trainer.plugins.first_last_layers_bf16 = False
-        elif fp8_recipe.lower() == "mxfp8":
-            recipe.trainer.plugins = bf16_with_mxfp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
-
-    # Activation recompute configs
-    if recompute_modules is not None:
-        recipe.model.config.recompute_modules = recompute_modules
-        assert (
-            recipe.model.config.recompute_granularity == "selective"
-        ), "recompute_granularity must be selective when recompute_modules is provided"
-        assert (
-            recipe.model.config.recompute_num_layers is None
-        ), "recompute_num_layers must be None when recompute_modules is provided"
-
-    # Disable local gradient checker at non-debugging mode
-    recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
-    recipe.trainer.strategy.ddp.check_for_large_grads = False
+    if (hasattr(recipe.trainer.strategy, "ddp") and recipe.trainer.strategy.ddp.__fn_or_cls__ == DistributedDataParallelConfig):
+        # Disable local gradient checker at non-debugging mode
+        recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
+        recipe.trainer.strategy.ddp.check_for_large_grads = False
 
     return recipe
 
