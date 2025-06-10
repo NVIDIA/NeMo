@@ -25,11 +25,16 @@ on:
         default: self-hosted-azure-builder
         type: string
         description: VM to use for build
-      use-cache:
+      use-from-cache:
         required: false
         default: true
         type: boolean
         description: Whether to use the cache
+      override-main-cache:
+        required: false
+        default: false
+        type: boolean
+        description: Whether to override the main cache
 
 jobs:
   pre-flight:
@@ -37,6 +42,7 @@ jobs:
     outputs:
       build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
       cache-from: ${{ steps.cache-from.outputs.CACHE_FROM }}
+      cache-to: ${{ steps.cache-to.outputs.CACHE_TO }}
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -99,6 +105,21 @@ jobs:
             echo "EOF" >> $GITHUB_OUTPUT
           fi
 
+      - name: Cache to
+        id: cache-to
+        env:
+          OVERRIDE_MAIN_CACHE: ${{ inputs.override-main-cache }}
+        run: |
+          if [ "$OVERRIDE_MAIN_CACHE" = "true" ]; then
+            echo "CACHE_TO<<EOF" >> $GITHUB_OUTPUT
+            echo "nemoci.azurecr.io/${{ matrix.image-name }}-buildcache:main" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "CACHE_TO<<EOF" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
   cicd-test-container-build:
     needs: [pre-flight]
     uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_build_container.yml@v0.27.0
@@ -130,3 +151,5 @@ jobs:
       prune-filter-timerange: 24h
       cache-from: |
         ${{ needs.pre-flight.outputs.cache-from }}
+      cache-to: |
+        ${{ needs.pre-flight.outputs.cache-to }}
