@@ -28,7 +28,7 @@ from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADER
 from PIL import Image
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset, default_collate
-from transformers import CLIPImageProcessor, BaseImageProcessor
+from transformers import BaseImageProcessor, CLIPImageProcessor
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
@@ -36,7 +36,6 @@ from nemo.collections.vlm.neva.data.conversation import conv_templates as suppor
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, SPECIAL_TOKEN_MAP
 from nemo.collections.vlm.vision.vision_transform import VisualProcessor
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
 
 try:
     import decord
@@ -570,6 +569,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             logging.warning(f"Processor or tokenizer is not provided! Fall back to `{hf_processor_id}`.")
             from transformers import AutoProcessor
+
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
             processor = AutoProcessor.from_pretrained(hf_processor_id)

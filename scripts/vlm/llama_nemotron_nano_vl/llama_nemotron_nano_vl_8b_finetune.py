@@ -117,8 +117,9 @@ def main(args):
         ]
     }
     tokenizer.tokenizer.add_special_tokens(new_special_tokens)
-    image_processor = AutoImageProcessor.from_pretrained("nvidia/Llama-3.1-Nemotron-Nano-VL-8B-V1",
-                                                         trust_remote_code=True)
+    image_processor = AutoImageProcessor.from_pretrained(
+        "nvidia/Llama-3.1-Nemotron-Nano-VL-8B-V1", trust_remote_code=True
+    )
 
     if args.data_type == "llava":
         # Data configuration
