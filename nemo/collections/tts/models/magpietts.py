@@ -1874,7 +1874,12 @@ class MagpieTTSModel(ModelPT):
             # TODO @xueyang: better to distinguish cfg. self.cfg is the model cfg, while cfg here is train_ds cfg. Also
             #   cfg is a classifier-free guidance.
 
-            self._update_sample_rate_in_config(dataset_cfg)
+            # specify target sampling rate the same as codec model's because lhotse config defaults 16_000.
+            if not isinstance(dataset_cfg, DictConfig):
+                dataset_cfg = OmegaConf.create(dataset_cfg)
+            OmegaConf.set_struct(dataset_cfg.dataset, False)
+            dataset_cfg.dataset.update({"sample_rate": self.sample_rate})
+            OmegaConf.set_struct(dataset_cfg.dataset, True)
 
             self._train_dl = self.get_lhotse_dataloader(dataset_cfg, mode='train')
         else:
