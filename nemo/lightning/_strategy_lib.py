@@ -103,7 +103,7 @@ def init_parallel_ranks(
         use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
         num_distributed_optimizer_instances=getattr(parallel_config, "num_distributed_optimizer_instances", 1),
         nccl_communicator_config_path=getattr(parallel_config, "nccl_communicator_config_path", None),
-        high_priority_stream_groups=getattr(parallel_config, "high_priority_stream_groups", []),
+        high_priority_stream_groups=getattr(parallel_config, "high_priority_stream_groups", ['tp', 'cp', 'ep', 'dp_cp', 'ep_dp']),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
