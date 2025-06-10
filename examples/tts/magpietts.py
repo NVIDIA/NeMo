@@ -59,7 +59,7 @@ def main(cfg):
         model_cfg = cfg.model
         with open_dict(model_cfg):
             model_cfg.reference_model_ckpt_path = cfg.init_from_ptl_ckpt
-        model = MagpieTTSModelOnlinePO(cfg=cfg.model, trainer=trainer)
+        model = MagpieTTSModelOnlinePO(cfg=model_cfg, trainer=trainer)
     elif mode == 'test':
         model = MagpieTTSModelOfflinePODataGen(cfg=cfg.model, trainer=trainer)
     else:
