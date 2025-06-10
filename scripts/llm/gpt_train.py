@@ -23,10 +23,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.api import _load_model_from_path
-from nemo.collections.llm.gpt.data.chat import ChatDataModule
-from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.modelopt import SpeculativeTransform
+from nemo.collections.llm.gpt.data import ChatDataModule, MockDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -61,7 +58,6 @@ def get_args():
         help="Path to NeMo 2 checkpoint to use as a distillation teacher. Will trigger distillation mode if provided.",
     )
     parser.add_argument("--kd_config", type=str, help="""Path to Knowledge-Distillation config file""")
-    parser.add_argument("--specdec_algo", type=str, help="""Speculative-decoding algorithm to use""")
     parser.add_argument("--tp_size", type=int, default=1, help="Tensor parallel size")
     parser.add_argument("--cp_size", type=int, default=1, help="Context parallel size")
     parser.add_argument("--pp_size", type=int, default=1, help="Pipeline parallel size")
@@ -78,17 +74,17 @@ def get_args():
         nargs="+",
         help="List of tokenized data paths to load from. If using chat data, provide a single path.",
     )
+    parser.add_argument("--split", type=str, default="99,1,0", help="Train,Val,Test ratios to split data")
+    parser.add_argument("--index_mapping_dir", type=str, help="Folder to write cached data indices")
     parser.add_argument("--use-chat-data", action="store_true", help="Use chat data for fine-tuning.")
-    parser.add_argument(
-        "--use_mock_data", action="store_true", help="Use mock data instead of custom data in --data_paths"
-    )
     parser.add_argument(
         "--chat-template-path",
         type=str,
         help="Path to Chat template .txt file to use for chat data. Only provide if overriding default chat template in HuggingFace tokenizer.",
     )
-    parser.add_argument("--split", type=str, default="99,1,0", help="Train,Val,Test ratios to split data")
-    parser.add_argument("--index_mapping_dir", type=str, help="Folder to write cached data indices")
+    parser.add_argument(
+        "--use_mock_data", action="store_true", help="Use mock data instead of custom data in --data_paths"
+    )
     parser.add_argument("--seq_length", type=int, required=True, help="Number of tokens per input sample")
     parser.add_argument(
         "--tokenizer",
@@ -105,35 +101,16 @@ def get_args():
     return parser.parse_args()
 
 
-def read_chat_template(template_path):
-    """Read chat template from file if provided, otherwise return None.
-
-    Args:
-        template_path (str): Path to chat template file
-
-    Returns:
-        str or None: Chat template string if file exists, None otherwise
-    """
-    if template_path:
-        with open(template_path, 'r') as f:
-            return f.read().strip()
-    return None
+def _read_chat_template(template_path: str):
+    # pylint: disable=C0116
+    if not template_path:
+        return None
+    with open(template_path, 'r') as f:
+        return f.read().strip()
 
 
 if __name__ == "__main__":
     args = get_args()
-
-    ## Configure DDP
-    if not args.specdec_algo:
-        ddp_config = DistributedDataParallelConfig(
-            grad_reduce_in_fp32=True,
-            overlap_grad_reduce=True,
-            overlap_param_gather=True,
-            check_for_nan_in_grad=True,
-            average_in_collective=True,
-        )
-    else:  # TODO: DDPConfig class has non-serializable attributes, which SpecDec tries to deepcopy.
-        ddp_config = "megatron"
 
     ## Initialize the strategy and trainer
     strategy = nl.MegatronStrategy(
@@ -142,7 +119,13 @@ if __name__ == "__main__":
         context_parallel_size=args.cp_size,
         expert_model_parallel_size=args.ep_size,
         sequence_parallel=(args.tp_size > 1),
-        ddp=ddp_config,
+        ddp=DistributedDataParallelConfig(
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+            overlap_param_gather=True,
+            check_for_nan_in_grad=True,
+            average_in_collective=True,
+        ),
         ckpt_load_strictness=StrictHandling.LOG_ALL if args.legacy_ckpt else None,
     )
     trainer = nl.Trainer(
@@ -173,9 +156,11 @@ if __name__ == "__main__":
         assert len(args.data_paths) == 1, "If using chat data, provide a single path."
         assert args.tokenizer is not None, "Tokenizer is required if using chat data."
 
-        chat_template = read_chat_template(args.chat_template_path)
+        chat_template = _read_chat_template(args.chat_template_path)
         tokenizer = get_tokenizer(args.tokenizer, chat_template=chat_template)
         if '{% generation %}' not in tokenizer.tokenizer.chat_template:
+            if not args.chat_template_path:
+                raise ValueError("Tokenizer does not contain the '{% generation %}' keyword. Please provide a chat template path using --chat-template-path.")
             raise ValueError(
                 "Please ensure the chat template includes a '{% generation %}' keyword for proper assistant mask during training. See https://github.com/huggingface/transformers/pull/30650"
             )
@@ -233,15 +218,6 @@ if __name__ == "__main__":
         restore_config=nl.RestoreConfig(path=args.model_path),
     )
 
-    ## Set up model transform for speculative decoding if specified
-    if args.specdec_algo:
-        model_transform = SpeculativeTransform(algorithm=args.specdec_algo)
-        model = _load_model_from_path(args.model_path)
-        model.config.gradient_accumulation_fusion = False
-    else:
-        model = args.model_path
-        model_transform = None
-
     if args.teacher_path:
         llm.distill(
             student_model_path=args.model_path,
@@ -256,12 +232,11 @@ if __name__ == "__main__":
         )
     else:
         llm.train(
-            model=model,
+            model=args.model_path,
             data=data,
             trainer=trainer,
             optim=optim,
             log=logger,
             resume=resume,
             tokenizer="data" if args.use_chat_data else "model",
-            model_transform=model_transform,
         )

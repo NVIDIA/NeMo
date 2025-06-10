@@ -23,7 +23,6 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo script
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_train.py \
     --name 'test_speculative_training' \
     --model_path /tmp/speculative_ckpt \
-    --specdec_algo eagle \
     --use_mock_data \
     --tp_size 2 \
     --pp_size 1 \

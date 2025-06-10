@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional
-
 import torch.nn as nn
 
 from nemo.utils import logging
@@ -24,67 +22,45 @@ mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 mtsp, _ = safe_import("modelopt.torch.speculative")
 
 
-class SpeculativeTransform:
-    """
-    A callable class that applies speculative decoding transformation to a model.
+ALGORITHMS = {
+    "eagle3": mtsp.EAGLE3_DEFAULT_CFG,
+    # more TBD
+}
 
-    This transform applies modelopt's speculative decoding techniques to a model
-    when called. It can be used directly as a model_transform parameter in NeMo models.
+def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> nn.Module:
+    """
+    Transform a model to enable speculative decoding using Model Optimizer.
 
     Args:
+        model: The model to transform.
         algorithm: The algorithm to use for speculative decoding.
-        config: The configuration for the algorithm.
             (See https://github.com/NVIDIA/TensorRT-Model-Optimizer/blob/main/modelopt/torch/speculative/config.py)
 
-    Example:
-        >>> from nemo.collections.llm.modelopt import SpeculativeTransform
-        >>> model = GPTModel(config, model_transform=SpeculativeTransform())
-        >>> # The model will be transformed when trainer.fit() or trainer.validate() is called
+    Returns:
+        The transformed model.
     """
+    if not HAVE_MODELOPT:
+        raise ImportError("nvidia-modelopt is required to use speculative decoding")
 
-    ALGORITHMS = ["eagle"]  # more TBD
+    assert algorithm in ALGORITHMS, f"Invalid algorithm: {algorithm}. Choices: {ALGORITHMS.keys()}"
+    algo_cfg = ALGORITHMS[algorithm]
 
-    def __init__(self, algorithm: str = "eagle", config: Optional[dict[str, Any]] = None):
-        if not HAVE_MODELOPT:
-            raise ImportError("nvidia-modelopt is required to use SpeculativeTransform")
+    unwrapped_model = unwrap_model(model)
 
-        assert algorithm in self.ALGORITHMS, f"Invalid algorithm: {algorithm}. Choices: {self.ALGORITHMS}"
-        if config is None:
-            config = mtsp.EAGLE3_DEFAULT_CFG["config"]
-
-        self.algorithm = algorithm
-        self.config = config
-
-    def __call__(self, model: nn.Module) -> nn.Module:
-        """
-        Apply speculative decoding transformation to the model.
-
-        Args:
-            model: The model to transform.
-
-        Returns:
-            The transformed model.
-        """
-        unwrapped_model = unwrap_model(model)
-
-        # Verify model is compatible with speculative decoding
-        assert hasattr(unwrapped_model, "config"), "Model must have a config attached."
-        if unwrapped_model.config.virtual_pipeline_model_parallel_size is not None:
-            raise ValueError("SpeculativeTransform is incompatible with virtual pipeline parallelism.")
-        if unwrapped_model.config.gradient_accumulation_fusion is True:
-            raise ValueError("SpeculativeTransform is incompatible with gradient accumulation fusion.")
-
-        # Check if the model has already been transformed with speculative decoding
-        if mto.ModeloptStateManager.has_state_for_mode_type("speculative", model=unwrapped_model):
-            logging.info("Model has already been transformed with speculative decoding. Skipping transformation.")
-            return model
-
-        logging.info(
-            f"Converting to Speculative Decoding model with algorithm: {self.algorithm} and config:\n{self.config}"
-        )
-        mtsp.convert(  # assumes in-place
-            unwrapped_model,
-            [(self.algorithm, self.config)],
-        )
-
+    # Check if the model has already been transformed with speculative decoding
+    if mto.ModeloptStateManager.has_state_for_mode_type("speculative", model=unwrapped_model):
+        logging.info("Model has already been transformed with speculative decoding. Skipping transformation.")
         return model
+
+    # Verify model is compatible with speculative decoding
+    assert hasattr(unwrapped_model, "config"), "Model must have a config attached."
+    if unwrapped_model.config.virtual_pipeline_model_parallel_size is not None:
+        raise ValueError("Speculative decoding is incompatible with virtual pipeline parallelism.")
+
+    algo, cfg = algo_cfg["algorithm"], algo_cfg["config"]
+    logging.info(
+        f"Converting to Speculative Decoding model with algorithm: {algo} and config:\n{cfg}"
+    )
+    mtsp.convert(unwrapped_model, [(algo, cfg)])  # assumes in-place
+
+    return model

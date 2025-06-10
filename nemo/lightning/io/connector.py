@@ -231,7 +231,6 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         """
         from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
         from nemo.lightning.io.api import load_context
-        from nemo.lightning.pytorch.callbacks import PEFT
 
         model = load_context(path, subpath="model")
 
@@ -244,8 +243,9 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         # skip initialization since a checkpoint is loaded in this function
         model.config.perform_initialization = False
 
+        is_peft_ckpt = model.model_transform is not None
         callbacks = []
-        if model.model_transform is not None:
+        if is_peft_ckpt:
             callbacks.append(model.model_transform)
 
         _trainer = trainer or Trainer(
@@ -265,9 +265,8 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
                     model.configure_model()
             else:
                 model.configure_model()
-        _trainer.strategy.setup(_trainer)
 
-        is_peft_ckpt = model.model_transform is not None and isinstance(model.model_transform, PEFT)
+        _trainer.strategy.setup(_trainer)
         if is_peft_ckpt:
             from nemo.lightning.io.pl import ckpt_to_weights_subdir
 

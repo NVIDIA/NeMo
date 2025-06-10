@@ -13,11 +13,14 @@
 # limitations under the License.
 """Utility functions for loading models with modelopt layer spec."""
 
+from contextlib import nullcontext
 from functools import partial
-from typing import Union
+from typing import TYPE_CHECKING, Callable, Union
 
 import lightning.pytorch as L
 import torch
+import torch.nn as nn
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from megatron.core.dist_checkpointing.validation import StrictHandling
 
 from nemo import lightning as nl
@@ -27,6 +30,9 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
+from nemo.utils.model_utils import unwrap_model
+
+mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 
 _, HAVE_TE = safe_import("transformer_engine")
 if HAVE_TE:
@@ -38,6 +44,12 @@ _, HAVE_CAUSAL_CONV1D = safe_import("causal_conv1d")
 if HAVE_TE and HAVE_MAMBA_SSM and HAVE_CAUSAL_CONV1D:
     # Additionally, mamba-based models require both mamba_ssm and causal_conv1d.
     from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
+
+if TYPE_CHECKING:
+    from lightning.fabric.plugins import CheckpointIO
+
+    from nemo.lightning.megatron_parallel import MegatronParallel
+
 
 __all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
 
@@ -208,3 +220,53 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
 
     logging.info(f"Loaded model: {model}\n")
     return model, trainer
+
+
+def restore_modelopt_state(model: nn.Module, path: str) -> None | Callable:
+    if not HAVE_MODELOPT:
+        return
+
+    core_model = unwrap_model(model)
+    if mto.ModeloptStateManager.is_converted(core_model):
+        logging.info("Model Optimizer state already restored from checkpoint. Skipping.")
+        return
+
+    # If present, first restore and modify the model according to the ModelOpt state.
+    # Avoid quantizers being added to teacher model if model is a distillation model.
+    with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
+        mto.plugins.restore_sharded_modelopt_state(
+            [core_model],
+            ckpt_to_weights_subdir(path, is_saving=False),
+        )
+    if mto.ModeloptStateManager.is_converted(core_model):
+        logging.info("Restored Model Optimizer state from checkpoint.")
+
+    if hasattr(core_model, "hide_loss_modules"):
+        # Assume no optimizer means it's first time loading checkpoint into ModelOpt distillation model.
+        # We hide any extra parameters (i.e. hidden projection layers) the loss modules might have added.
+        return core_model.hide_loss_modules
+
+
+def save_modelopt_state(model: "MegatronParallel", path: str, checkpoint_io: "CheckpointIO"):
+    if not HAVE_MODELOPT:
+        return
+
+    # Save ModelOpt state too, if it exists.
+    core_model = unwrap_model(model)
+    if not mto.ModeloptStateManager.is_converted(core_model):
+        return
+
+    if isinstance(checkpoint_io, _WrappingCheckpointIO):
+        ckpt_io = checkpoint_io.checkpoint_io
+    if getattr(ckpt_io, "async_save", False):
+        logging.warning("Model-Optimizer library in use. Async checkpoint saving is blocked.")
+        # Finish up potentially async saving already started.
+        checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
+
+    with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
+        mto.plugins.save_sharded_modelopt_state(
+            [core_model],
+            ckpt_to_weights_subdir(path, is_saving=True),
+            sharded_strategy=ckpt_io.save_sharded_strategy,
+        )
+    logging.info("Saved Model-Optimizer state into checkpoint.")

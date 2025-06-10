@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .model_transform import SpeculativeTransform
+from .model_transform import apply_speculative_decoding
 
-__all__ = ["SpeculativeTransform"]
+__all__ = ["apply_speculative_decoding"]
