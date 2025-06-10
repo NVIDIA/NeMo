@@ -1,28 +1,39 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from dataclasses import dataclass
 from typing import Callable, Optional, Dict, Literal, Union, Annotated, Tuple
 from pathlib import Path
 
 import einops
 import torch
-import torch.nn.functional as F
 from torch import nn
 from megatron.core import parallel_state
 from megatron.core.utils import get_batch_on_this_cp_rank
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
-from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning import OptimizerModule, io
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from megatron.core.transformer.spec_utils import ModuleSpec
 import pytorch_lightning as L
 from nemo.lightning.megatron_parallel import DDP
 from megatron.core.transformer.module import fp32_to_float16, float16_to_fp32, Float16Module
 from nemo.lightning.megatron_parallel import MegatronLossReduction
-from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, HFLlamaExporter
+from nemo.collections.llm.gpt.model.llama import HFLlamaImporter
 from nemo.collections.llm.gpt.model.llama_embedding import LlamaEmbeddingExporter
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.utils import Config
 from nemo.collections.llm.gpt.model.llama import Llama32Config1B
 from nemo.collections.llm.gpt.model.llama_embedding import get_nv_embedding_layer_spec as bidirectional_attention_layer_spec
-from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear, TERowParallelLinear
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 from nemo.lightning.io.state import TransformFns
@@ -103,9 +114,7 @@ class Llama32Reranker1BConfig(Llama32Config1B, ReRankerBaseConfig):
 
 
 class ReRankerModel(GPTModel):
-    """
-    Base model for Reranking
-    """
+    """Base model for Reranking that extends GPTModel with reranking-specific functionality."""
 
     def __init__(
         self,
@@ -118,7 +127,7 @@ class ReRankerModel(GPTModel):
 
     @property
     def dataset_kwargs(self):
-        """Getter for dataset_kwargs from model config"""
+        """Getter for dataset_kwargs from model config."""
         return {
             'num_hard_negatives': self.config.num_hard_negatives,
             'negative_sample_strategy': self.config.negative_sample_strategy,
@@ -131,7 +140,9 @@ class ReRankerModel(GPTModel):
 
         This method ensures the model is instantiated from the configuration.
         """
-        assert self.config.pool_type in ["cls", "avg", "last", "weighted_avg"] or self.config.pool_type is None, f"Invalid pool type: {self.config.pool_type} should be in [cls, avg, last, weighted_avg] or None"
+        assert self.config.pool_type in ["cls", "avg", "last", "weighted_avg"] or self.config.pool_type is None, (
+            f"Invalid pool type: {self.config.pool_type} should be in [cls, avg, last, weighted_avg] or None"
+        )
 
         super().configure_model(vp_stage)
         # TODO: handle PP, all args
@@ -146,6 +157,15 @@ class ReRankerModel(GPTModel):
         )
     
     def pool(self, last_hidden_states, attention_mask):
+        """Pool the hidden states based on the configured pooling strategy.
+        
+        Args:
+            last_hidden_states: The hidden states from the transformer
+            attention_mask: The attention mask for the input
+            
+        Returns:
+            The pooled embeddings
+        """
         # [sq, b, h] -> [b, sq, h]
         last_hidden_states = einops.rearrange(last_hidden_states, 's b h -> b s h')
         last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
@@ -175,15 +195,27 @@ class ReRankerModel(GPTModel):
         attention_mask: torch.LongTensor,
         decoder_input: Optional[torch.Tensor] = None,
     ):
+        """Forward pass of the reranker model.
+        
+        Args:
+            input_ids: Input token IDs
+            position_ids: Position IDs for the input
+            attention_mask: Attention mask for the input
+            decoder_input: Optional decoder input
+            
+        Returns:
+            The pooled logits
+        """
         if attention_mask.ndim == 2:
             # extend attention mask to [b, 1, 1, sq]
             # Also convert attention mask to binary
             extended_mask = attention_mask.unsqueeze(1).unsqueeze(1) < 0.5
         elif attention_mask.ndim == 4:
-            assert attention_mask.shape[1] == 1 and attention_mask.shape[2] == 1, "Attention mask shape incorrect"
+            assert attention_mask.shape[1] == 1 and attention_mask.shape[2] == 1, (
+                "Attention mask shape incorrect"
+            )
             extended_mask = attention_mask
             # Squeeze attention mask to [b, sq] for averaging pooling later
-
             attention_mask = extended_mask.squeeze() < 0.5
         else:
             raise ValueError("Attention_mask shape incorrect")
@@ -216,6 +248,7 @@ class ReRankerModel(GPTModel):
     
     @property
     def score(self):
+        """Get the score module from the model."""
         if hasattr(self.module, 'score'):
             return self.module.score
         if hasattr(self.module.module, 'score'):
@@ -224,30 +257,31 @@ class ReRankerModel(GPTModel):
         return self.module.module.module.score
     
     def has_float16_module_wrapper(self):
+        """Check if the model has a float16 module wrapper."""
         if isinstance(self.module, DDP) and isinstance(self.module.module, Float16Module):
             return True
         return False
 
     @property
-    def training_loss_reduction(self):  # pylint: disable=C0115,C0116
+    def training_loss_reduction(self):
+        """Get the training loss reduction module."""
         if not self._training_loss_reduction:
             self._training_loss_reduction = ReRankerLoss(
                 validation_step=False,
                 num_hard_negatives=self.config.num_hard_negatives,
                 label_smoothing=self.config.label_smoothing,
             )
-
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self):  # pylint: disable=C0115,C0116
+    def validation_loss_reduction(self):
+        """Get the validation loss reduction module."""
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = ReRankerLoss(
                 validation_step=True,
                 num_hard_negatives=self.config.num_hard_negatives,
                 label_smoothing=self.config.label_smoothing,
             )
-
         return self._validation_loss_reduction
 
 
