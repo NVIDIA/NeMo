@@ -27,6 +27,7 @@ ALGORITHMS = {
     # more TBD
 }
 
+
 def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> nn.Module:
     """
     Transform a model to enable speculative decoding using Model Optimizer.
@@ -58,9 +59,7 @@ def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> n
         raise ValueError("Speculative decoding is incompatible with virtual pipeline parallelism.")
 
     algo, cfg = algo_cfg["algorithm"], algo_cfg["config"]
-    logging.info(
-        f"Converting to Speculative Decoding model with algorithm: {algo} and config:\n{cfg}"
-    )
+    logging.info(f"Converting to Speculative Decoding model with algorithm: {algo} and config:\n{cfg}")
     mtsp.convert(unwrapped_model, [(algo, cfg)])  # assumes in-place
 
     return model
