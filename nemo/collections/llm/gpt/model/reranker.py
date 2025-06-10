@@ -25,7 +25,6 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import nn
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel
 from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, Llama32Config1B
 from nemo.collections.llm.gpt.model.llama_embedding import LlamaEmbeddingExporter
@@ -39,6 +38,13 @@ from nemo.lightning.megatron_parallel import DDP, MegatronLossReduction
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
+if TYPE_CHECKING:
+    from transformers import AutoModelForSequenceClassification
+    from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
+    from nemo.collections.llm.gpt.model.llama import LlamaConfig
+
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+    from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
 
 def reranker_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     """Setup Reranker dataloader batch."""
@@ -307,7 +313,7 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
         Returns:
             Path: Path to the saved NeMo model
         """
-        from transformers import AutoConfig, AutoModelForSequenceClassification
+        from transformers import AutoModelForSequenceClassification
 
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -322,7 +328,7 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
     @property
     def config(self) -> ReRankerBaseConfig:
         """Create a NeMo ReRankerBaseConfig from the HF model config."""
-        from transformers import AutoConfig, GenerationConfig
+        from transformers import AutoConfig
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
         return Llama32Reranker1BConfig(
@@ -352,9 +358,10 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
         with torch.no_grad():
             try:
                 target.module.score.weight.copy_(source.score.weight)
-            except Exception as e:
+            except Exception:
                 logging.warning(
-                    f"Failed to copy score weight. This is expected if you are trying to convert model without score weights to NeMo."
+                    "Failed to copy score weight. This is expected if you are trying to "
+                    "convert model without score weights to NeMo."
                 )
                 logging.info("init the score weight...")
                 target.config.init_method(target.module.score.weight)
@@ -370,16 +377,15 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
     AutoModelForSequenceClassification format, including weight mapping and configuration translation.
     """
 
-    def init(self, dtype=torch.bfloat16) -> "LlamaForCausalLM":
+    def init(self, dtype=torch.bfloat16) -> "AutoModelForSequenceClassification":
         """Initialize a HF AutoModelForSequenceClassification instance.
 
         Args:
             dtype: Data type for model parameters
 
         Returns:
-            LlamaForCausalLM: Initialized HF Llama model
+            LlamaBidirectionalForSequenceClassification: Initialized HF Llama Bidirection reranker model
         """
-        from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalForSequenceClassification
