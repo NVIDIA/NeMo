@@ -22,7 +22,7 @@ class PersianPhonemizer:
     """
     if hamnevise=True, then for words with multiple pronounciation, multiple phoneme is generated, separated by /
     """
-    def __init__(self, dictionary_path = f'{currentpath}/persian-v3.0.dict', logs=False, hamnevise=False):
+    def __init__(self, dictionary_path = f'{currentpath}/persian-v4.0.dict', logs=False, hamnevise=False):
         self.ZWNJ = chr(0x200C)
         self.ZIIR = chr(0x0650)
         self.TASHDID = chr(0x0651)
@@ -30,7 +30,7 @@ class PersianPhonemizer:
         self.logs = logs
         self.patterns = patterns.RegexPatterns
         self.numberPattern = patterns.PersianNumbersPattern
-        self.punctuations = r'[!،؛.؟]'
+        self.punctuations = r'[!،؛.؟:]'
         self.hamnevise = hamnevise
     
     def load_dictionary(self, path):
@@ -258,7 +258,7 @@ class PersianPhonemizer:
 
 
 if __name__ == '__main__':
-    phonemizer = PersianPhonemizer(f'{currentpath}/persian-v3.0.dict', logs=False)
+    phonemizer = PersianPhonemizer(f'{currentpath}/persian-v4.0.dict', logs=False)
     texts = [
     'مبلغ هزار و سیصد پارسه',
     ]

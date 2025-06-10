@@ -236,6 +236,9 @@ RegexPatterns = [
         (r'إ', 'θ'),
     #  ّ
         (rf'({CNST}){TSHD}', r'\1\1'),
+        (rf'({CNST})({SVOW}){TSHD}', r'\1\1\2'),
+        (rf'{TSHD}', r'\1'),
+
     
     # << ARABIC Form of words in Persian >>
         (rf'({PUNC})({L03})(وا)({L03})({L03})({PUNC})', rf'\1\2{ZBAR}vΛ\4{ZIIR}\5\6'),  # فواعل
