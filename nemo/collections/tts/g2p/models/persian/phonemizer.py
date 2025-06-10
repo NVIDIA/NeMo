@@ -94,7 +94,7 @@ class PersianPhonemizer:
             parts.append(phoneme)
         ntext = " ".join(parts)
         phonemes = self.rephomenize(ntext)
-        return phonemes
+        return phonemes.replace("'", "")
 
     def rephomenize(self, text):
         ptext = None
