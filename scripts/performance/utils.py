@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 import nemo_run as run
 import pandas as pd
 from lightning.pytorch.callbacks.callback import Callback
+from megatron.core.distributed import DistributedDataParallelConfig
 from nemo_run.config import get_nemorun_home
 from numpy import nan
 
@@ -36,21 +37,21 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
-from megatron.core.distributed import DistributedDataParallelConfig
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
 PERF_ENV_VARS = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
-        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
-        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
-        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
-        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
-        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
-        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
-        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-    }
+    "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+    "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+    "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+    "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+    "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+    "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+    "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
+    "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+}
+
 
 def slurm_executor(
     account: str,
@@ -236,7 +237,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
         recompute_modules = None
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs] 
+    kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
     kwargs += [enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules]
 
     return kwargs
@@ -249,11 +250,16 @@ def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_siz
     recipe.trainer.strategy.ddp.average_in_collective = False
     recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
     recipe.model.config.gradient_accumulation_fusion = False
-    if comm_overlap_callback_idx is not None and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute:
+    if (
+        comm_overlap_callback_idx is not None
+        and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute
+    ):
         logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
         recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
         if tp_size is not None and tp_size > 1:
-            logging.warning("Currently, TP overlap performance is poor when FSDP is used because of jitters. A fix is in progress. Disabling TP overlap.")
+            logging.warning(
+                "Currently, TP overlap performance is poor when FSDP is used because of jitters. A fix is in progress. Disabling TP overlap."
+            )
             recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     return recipe
@@ -280,6 +286,7 @@ def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = N
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
+
 
 def set_recompute_configs(
     recipe,
@@ -310,6 +317,7 @@ def set_recompute_configs(
         ), "recompute_num_layers must be None when recompute_modules is provided"
 
     return recipe
+
 
 def set_cuda_graph_configs(recipe, enable_cuda_graphs: bool, task: str):
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
@@ -426,7 +434,10 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.use_sharp = bool(use_sharp)
     recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
 
-    if (hasattr(recipe.trainer.strategy, "ddp") and recipe.trainer.strategy.ddp.__fn_or_cls__ == DistributedDataParallelConfig):
+    if (
+        hasattr(recipe.trainer.strategy, "ddp")
+        and recipe.trainer.strategy.ddp.__fn_or_cls__ == DistributedDataParallelConfig
+    ):
         # Disable local gradient checker at non-debugging mode
         recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
         recipe.trainer.strategy.ddp.check_for_large_grads = False
