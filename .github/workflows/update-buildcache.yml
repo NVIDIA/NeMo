@@ -25,13 +25,18 @@ on:
         default: self-hosted-azure-builder
         type: string
         description: VM to use for build
+      use-cache:
+        required: false
+        default: true
+        type: boolean
+        description: Whether to use the cache
 
 jobs:
   pre-flight:
     runs-on: ubuntu-latest
     outputs:
       build_args: ${{ steps.manifest.outputs.BUILD_ARGS }}
-      cache-from: ${{ steps.cache_from.outputs.LAST_PRS }}
+      cache-from: ${{ steps.cache-from.outputs.CACHE_FROM }}
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
@@ -57,7 +62,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Get last merged PR
-        id: cache_from
+        id: last-prs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -77,6 +82,22 @@ jobs:
           echo "LAST_PRS<<EOF" >> $GITHUB_OUTPUT
           echo "$LAST_PRS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Cache from
+        id: cache-from
+        env:
+          USE_CACHE: ${{ inputs.use-cache }}
+        run: |
+          if [ "$USE_CACHE" = "true" ]; then
+            echo "CACHE_FROM<<EOF" >> $GITHUB_OUTPUT
+            echo "nemoci.azurecr.io/${{ matrix.image-name }}-buildcache:main" >> $GITHUB_OUTPUT
+            echo "$LAST_PRS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "CACHE_FROM<<EOF" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
 
   cicd-test-container-build:
     needs: [pre-flight]
@@ -108,5 +129,4 @@ jobs:
       use-inline-cache: false
       prune-filter-timerange: 24h
       cache-from: |
-        nemoci.azurecr.io/${{ matrix.image-name }}-buildcache:main
         ${{ needs.pre-flight.outputs.cache-from }}
