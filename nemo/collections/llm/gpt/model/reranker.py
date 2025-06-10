@@ -13,7 +13,7 @@
 # limitations under the License.
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Callable, Dict, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Annotated, Callable, Dict, Literal, Optional, Tuple, Union
 
 import einops
 import pytorch_lightning as L
@@ -39,11 +39,11 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 if TYPE_CHECKING:
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from transformers import AutoModelForSequenceClassification
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-    from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
     from nemo.collections.llm.gpt.model.llama import LlamaConfig
 
 

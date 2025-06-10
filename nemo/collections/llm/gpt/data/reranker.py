@@ -359,7 +359,6 @@ class ReRankerDataset(Dataset):
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(self._collate_item(input_ids, max_length=max_length))
-        lengths = torch.LongTensor(lengths) - 1  # subtract 1 to account for the eos token
 
         processed_batch = {
             'input_ids': input_ids,
