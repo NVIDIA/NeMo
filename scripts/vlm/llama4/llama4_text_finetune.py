@@ -30,10 +30,6 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-from nemo.collections.vlm.data.data_module import EnergonDataModule
-from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoder as Llama4TaskEncoder
-from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoderConfig as Llama4TaskEncoderConfig
-from nemo.collections.vlm.llama4.model.base import Llama4OmniModel
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -99,7 +95,6 @@ def main(args):
         expert_tensor_parallel_size=args.tp_size,
         expert_model_parallel_size=args.ep_size,
         pipeline_model_parallel_size=args.pp_size,
-        encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=True,
