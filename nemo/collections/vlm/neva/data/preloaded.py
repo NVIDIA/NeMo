@@ -28,7 +28,7 @@ from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADER
 from PIL import Image
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset, default_collate
-from transformers import CLIPImageProcessor, SiglipImageProcessor
+from transformers import CLIPImageProcessor, BaseImageProcessor
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
@@ -166,7 +166,7 @@ class TarOrFolderVideoLoader:
 
 
 def process_image(processor, image, image_process_mode="square"):  # this needs to be merged with conv's process image
-    if isinstance(processor, VisualProcessor):
+    if isinstance(processor, VisualProcessor) or isinstance(processor, BaseImageProcessor):
         image = processor.preprocess(image)['pixel_values']
     else:
         # image processor from HF

@@ -41,6 +41,7 @@ import argparse
 import torch
 from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
+from transformers import AutoImageProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
@@ -116,16 +117,8 @@ def main(args):
         ]
     }
     tokenizer.tokenizer.add_special_tokens(new_special_tokens)
-
-    image_processor = VisualProcessor(
-        crop_height=512,
-        crop_width=512,
-        use_tiling=True,
-        max_num_tiles=12,
-        use_thumbnail=True,
-        augment=False,
-        vision_model_type="radio",
-    )
+    image_processor = AutoImageProcessor.from_pretrained("nvidia/Llama-3.1-Nemotron-Nano-VL-8B-V1",
+                                                         trust_remote_code=True)
 
     if args.data_type == "llava":
         # Data configuration
@@ -192,7 +185,15 @@ def main(args):
         )
 
     elif args.data_type == "mock":
-
+        image_processor = VisualProcessor(
+            crop_height=512,
+            crop_width=512,
+            use_tiling=True,
+            max_num_tiles=12,
+            use_thumbnail=True,
+            augment=False,
+            vision_model_type="radio",
+        )
         data = vlm.NevaMockDataModule(
             seq_length=decoder_seq_length,
             global_batch_size=gbs,

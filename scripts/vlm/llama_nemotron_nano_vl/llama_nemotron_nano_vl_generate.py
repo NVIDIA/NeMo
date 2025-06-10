@@ -24,11 +24,10 @@ import os
 import requests
 import torch
 from PIL import Image
-
+from transformers import AutoImageProcessor
 import nemo.lightning as nl
 from nemo.collections.vlm import LlamaNemotronNanoVLConfig8B
 from nemo.collections.vlm.neva.model.llama_nemotron_vl import LlamaNemotronVLModel
-from nemo.collections.vlm.vision.vision_transform import VisualProcessor
 from nemo.utils import logging
 
 
@@ -112,15 +111,7 @@ def main(args) -> None:
     prompt = hf_tokenizer.tokenizer.apply_chat_template(conversation, add_generation_prompt=True, tokenize=False)
     input_ids = hf_tokenizer.tokenizer(prompt, return_tensors='pt', add_special_tokens=False)['input_ids'].cuda()
 
-    processor = VisualProcessor(
-        crop_height=512,
-        crop_width=512,
-        use_tiling=True,
-        max_num_tiles=12,
-        use_thumbnail=True,
-        augment=False,
-        vision_model_type="radio",
-    )
+    processor = AutoImageProcessor.from_pretrained("nvidia/Llama-3.1-Nemotron-Nano-VL-8B-V1", trust_remote_code=True)
     imgs = processor.preprocess(raw_image)['pixel_values']
     images = imgs.cuda()
     num_image_tiles = torch.tensor([len(imgs)], dtype=torch.int).cuda()
