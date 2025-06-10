@@ -18,7 +18,7 @@
 import lightning.pytorch as pl
 import nemo_run as run
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from megatron.core.tokenizer import MegatronTokenizerBase
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.recipes.hyena_base import model_recipe, pretrain_recipe_creater, tokenizer_recipe
 
@@ -27,7 +27,7 @@ NAME = "hyena_7b"
 
 
 @run.cli.factory(name=NAME)
-def tokenizer() -> run.Config[TokenizerSpec]:
+def tokenizer() -> run.Config[MegatronTokenizerBase]:
     """
     Defines a factory function for creating a tokenizer configuration.
 
@@ -35,7 +35,7 @@ def tokenizer() -> run.Config[TokenizerSpec]:
     returns a tokenizer configuration based on the `tokenizer_recipe`.
 
     Returns:
-        run.Config[TokenizerSpec]: A configuration object for the tokenizer.
+        run.Config[MegatronTokenizerBase]: A configuration object for the tokenizer.
     """
     return tokenizer_recipe()
 
