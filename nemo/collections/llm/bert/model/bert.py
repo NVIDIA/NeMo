@@ -227,7 +227,7 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         bos_token = "<pad>"
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "t5"},
+            metadata_path={"library": "huggingface"},
             bos_token=bos_token,
         )
 

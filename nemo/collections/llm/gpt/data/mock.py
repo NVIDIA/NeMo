@@ -81,7 +81,7 @@ class MockDataModule(pl.LightningDataModule):
         if tokenizer is None:
             self.tokenizer = MegatronTokenizer.from_pretrained(
                 tokenizer_path="GPT2BPETokenizer",
-                metadata_path={"library": "megatron", "model_type": "llama"},
+                metadata_path={"library": "megatron"},
             )
         else:
             self.tokenizer = tokenizer

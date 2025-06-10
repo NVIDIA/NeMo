@@ -69,7 +69,7 @@ class BERTMockDataModule(pl.LightningDataModule):
         if tokenizer is None:
             self.tokenizer = MegatronTokenizer.from_pretrained(
                 tokenizer_path="BertWordPieceLowerCase",
-                metadata_path={"library": "megatron", "model_type": "llama"},
+                metadata_path={"library": "megatron"},
             )
         else:
             self.tokenizer = tokenizer

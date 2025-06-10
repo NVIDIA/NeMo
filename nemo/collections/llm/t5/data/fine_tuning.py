@@ -75,7 +75,7 @@ class FineTuningDataModule(pl.LightningDataModule):
             special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
             tokenizer = MegatronTokenizer.from_pretrained(
                 tokenizer_path="BertWordPieceCase",
-                metadata_path={"library": "megatron", "model_type": "llama"},
+                metadata_path={"library": "megatron"},
                 **special_tokens,
             )
         self.tokenizer = tokenizer
