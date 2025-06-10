@@ -40,6 +40,16 @@ from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 
+PERF_ENV_VARS = {
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
+        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+    }
 
 def slurm_executor(
     account: str,
@@ -62,52 +72,33 @@ def slurm_executor(
     and fine-tuning experiments
     """
     err_msgs = []
+    mounts = []
+    srun_args = custom_srun_args.copy() + ["--mpi=pmix"]
+
     if log_dir != get_nemorun_home():
         err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
     if len(err_msgs) > 0:
         logging.error("\n".join(err_msgs))
         sys.exit(1)
 
-    env_vars = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
-        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
-        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
-        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
-        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
-        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
-        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
-        "NEMORUN_HOME": log_dir,
-        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-    }
-
-    # Assuming 4 GPU's per node as GB200, might need to revisit in future!
-    if num_gpus_per_node == 4:
-        env_vars["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
-        env_vars["NCCL_NET_GDR_C2C"] = 1  # For NCCL 2.26
-
+    PERF_ENV_VARS["NEMORUN_HOME"] = log_dir
     if wandb_key is not None:
-        env_vars["WANDB_API_KEY"] = wandb_key
-    mounts = []
-
-    srun_args = custom_srun_args.copy()
-    srun_args.extend(
-        [
-            "--mpi=pmix",
-        ]
-    )
+        PERF_ENV_VARS["WANDB_API_KEY"] = wandb_key
 
     if num_gpus_per_node == 4:
+        PERF_ENV_VARS["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
+        PERF_ENV_VARS["NCCL_NET_GDR_C2C"] = 1  # For NCCL 2.26
         srun_args.append("numactl --cpunodebind=$((SLURM_LOCALID/2)) --membind=$((SLURM_LOCALID/2))")
     else:
         srun_args.append("numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))")
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
-        env_vars.update({"NEMO_HOME": nemo_home})
+        PERF_ENV_VARS["NEMO_HOME"] = nemo_home
         mounts.extend([f"{nemo_home}:{nemo_home}"])
     if hf_token is not None:
-        env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
+        PERF_ENV_VARS.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
 
-    env_vars |= custom_env_vars
+    PERF_ENV_VARS |= custom_env_vars
     mounts.extend(custom_mounts)
 
     # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
@@ -121,14 +112,12 @@ def slurm_executor(
     executor = run.SlurmExecutor(
         account=account,
         partition=partition,
-        tunnel=run.LocalTunnel(
-            job_dir=os.path.join(log_dir, "experiments"),
-        ),
+        tunnel=run.LocalTunnel(job_dir=os.path.join(log_dir, "experiments")),
         nodes=nodes,
         ntasks_per_node=num_gpus_per_node,
         container_image=container_image,
         container_mounts=mounts,
-        env_vars=env_vars,
+        env_vars=PERF_ENV_VARS,
         srun_args=srun_args,
         time=time_limit,
         mem="0",
