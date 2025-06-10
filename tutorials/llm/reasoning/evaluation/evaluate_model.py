@@ -1,18 +1,21 @@
-import json
-import csv
-import re
-import pandas as pd
 import argparse
+import csv
+import json
+import re
+
+import pandas as pd
+
 
 def extract_model_answer(response):
     if not response or "Internal Server Error" in response:
         return "Internal Server Error"
-    
+
     # Look for the pattern "The final answer is <letter>"
     match = re.search(r"The final answer is ([A-D])", response)
     if match:
         return match.group(1)
     return ""
+
 
 def process_answers(input_file, output_file):
     # Read the JSONL file
@@ -21,26 +24,34 @@ def process_answers(input_file, output_file):
         for line in f:
             if line.strip():  # Skip empty lines
                 data.append(json.loads(line))
-    
+
     # Prepare CSV headers
-    headers = ['Question', 'Choice A', 'Choice B', 'Choice C', 'Choice D', 
-              'Expected Answer', 'Model Response', 'Extracted Model Answer']
-    
+    headers = [
+        'Question',
+        'Choice A',
+        'Choice B',
+        'Choice C',
+        'Choice D',
+        'Expected Answer',
+        'Model Response',
+        'Extracted Model Answer',
+    ]
+
     # Write to CSV
     with open(output_file, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(headers)
-        
+
         # Process each question
         for question_data in data:
             question = question_data.get('question', '')
             choices = question_data.get('choices', {})
             expected_answer = question_data.get('expected_answer', '')
             model_response = question_data.get('model_response', '')
-            
+
             # Extract model answer
             extracted_answer = extract_model_answer(model_response)
-            
+
             # Write row
             row = [
                 question,
@@ -50,11 +61,12 @@ def process_answers(input_file, output_file):
                 choices.get('D', ''),
                 expected_answer,
                 model_response,
-                extracted_answer
+                extracted_answer,
             ]
             writer.writerow(row)
-    
+
     return output_file
+
 
 def evaluate_results(csv_file, model_name):
     # Read the CSV file
@@ -72,16 +84,16 @@ def evaluate_results(csv_file, model_name):
     print(f"Refusals: {refusals}")
     print(f"Accuracy: {correct/total*100:.1f}% ({correct}/{total})")
 
+
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description='Process and evaluate model responses')
-    parser.add_argument('--input_file', type=str, required=True,
-                      help='Path to the input JSONL file containing model responses')
-    parser.add_argument('--output_file', type=str, required=True,
-                      help='Path to the output CSV file')
-    parser.add_argument('--model_name', type=str, required=True,
-                      help='Name of the model for reporting results')
-    
+    parser.add_argument(
+        '--input_file', type=str, required=True, help='Path to the input JSONL file containing model responses'
+    )
+    parser.add_argument('--output_file', type=str, required=True, help='Path to the output CSV file')
+    parser.add_argument('--model_name', type=str, required=True, help='Name of the model for reporting results')
+
     args = parser.parse_args()
 
     # Process answers and generate CSV
@@ -93,5 +105,6 @@ def main():
     print("\nEvaluating results...")
     evaluate_results(csv_file, args.model_name)
 
+
 if __name__ == "__main__":
-    main() 
+    main()

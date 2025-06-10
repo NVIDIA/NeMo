@@ -1,10 +1,12 @@
+import argparse
 import json
 import random
-import argparse
+from typing import Any, Dict, List, Tuple
+
 from datasets import load_dataset
-from typing import Dict, List, Tuple, Any
 
 random.seed(42)
+
 
 def process_mmlu_dataset() -> List[Dict[str, Any]]:
     """Process the MMLU dataset and return a list of formatted entries."""
@@ -17,30 +19,30 @@ def process_mmlu_dataset() -> List[Dict[str, Any]]:
             question = item['question']
             choices = item['choices']
             answer = item['answer']
-            
+
             if not question or not choices:
                 skipped += 1
                 continue
-            
+
             # Create a list of (choice, is_correct) tuples
             answers = []
             for i, choice in enumerate(choices):
-                is_correct = (chr(65 + i) == chr(65 + answer))
+                is_correct = chr(65 + i) == chr(65 + answer)
                 answers.append((choice, is_correct))
-            
+
             # Shuffle the answers
             random.shuffle(answers)
-            
+
             # Create the choices dictionary
             choices_dict = {}
             correct_letter = None
-            
+
             for i, (answer_text, is_correct) in enumerate(answers):
                 letter = chr(65 + i)
                 choices_dict[f'Choice {i+1}'] = answer_text
                 if is_correct:
                     correct_letter = letter
-            
+
             entry = {
                 'Question': question,
                 'Choice 1': choices_dict['Choice 1'],
@@ -48,12 +50,13 @@ def process_mmlu_dataset() -> List[Dict[str, Any]]:
                 'Choice 3': choices_dict['Choice 3'],
                 'Choice 4': choices_dict['Choice 4'],
                 'Answer': correct_letter,
-                'Subject': item['subject']
+                'Subject': item['subject'],
             }
-            
+
             output_data.append(entry)
-    
+
     return output_data, skipped
+
 
 def process_gpqa_dataset() -> List[Dict[str, Any]]:
     """Process the GPQA dataset and return a list of formatted entries."""
@@ -68,41 +71,37 @@ def process_gpqa_dataset() -> List[Dict[str, Any]]:
             incorrect_1 = item['Incorrect Answer 1']
             incorrect_2 = item['Incorrect Answer 2']
             incorrect_3 = item['Incorrect Answer 3']
-            
+
             if not question or not correct_answer or not incorrect_1 or not incorrect_2 or not incorrect_3:
                 skipped += 1
                 continue
-            
-            answers = [
-                (correct_answer, True),
-                (incorrect_1, False),
-                (incorrect_2, False),
-                (incorrect_3, False)
-            ]
-            
+
+            answers = [(correct_answer, True), (incorrect_1, False), (incorrect_2, False), (incorrect_3, False)]
+
             random.shuffle(answers)
-            
+
             choices = {}
             correct_letter = None
-            
+
             for i, (answer_text, is_correct) in enumerate(answers):
                 letter = chr(65 + i)
                 choices[f'Choice {i+1}'] = answer_text
                 if is_correct:
                     correct_letter = letter
-            
+
             entry = {
                 'Question': question,
                 'Choice 1': choices['Choice 1'],
                 'Choice 2': choices['Choice 2'],
                 'Choice 3': choices['Choice 3'],
                 'Choice 4': choices['Choice 4'],
-                'Answer': correct_letter
+                'Answer': correct_letter,
             }
-            
+
             output_data.append(entry)
-    
+
     return output_data, skipped
+
 
 def process_gpqa_diamond_dataset() -> List[Dict[str, Any]]:
     """Process the GPQA Diamond dataset and return a list of formatted entries."""
@@ -117,41 +116,37 @@ def process_gpqa_diamond_dataset() -> List[Dict[str, Any]]:
             incorrect_1 = item['Incorrect Answer 1']
             incorrect_2 = item['Incorrect Answer 2']
             incorrect_3 = item['Incorrect Answer 3']
-            
+
             if not question or not correct_answer or not incorrect_1 or not incorrect_2 or not incorrect_3:
                 skipped += 1
                 continue
-            
-            answers = [
-                (correct_answer, True),
-                (incorrect_1, False),
-                (incorrect_2, False),
-                (incorrect_3, False)
-            ]
-            
+
+            answers = [(correct_answer, True), (incorrect_1, False), (incorrect_2, False), (incorrect_3, False)]
+
             random.shuffle(answers)
-            
+
             choices = {}
             correct_letter = None
-            
+
             for i, (answer_text, is_correct) in enumerate(answers):
                 letter = chr(65 + i)
                 choices[f'Choice {i+1}'] = answer_text
                 if is_correct:
                     correct_letter = letter
-            
+
             entry = {
                 'Question': question,
                 'Choice 1': choices['Choice 1'],
                 'Choice 2': choices['Choice 2'],
                 'Choice 3': choices['Choice 3'],
                 'Choice 4': choices['Choice 4'],
-                'Answer': correct_letter
+                'Answer': correct_letter,
             }
-            
+
             output_data.append(entry)
-    
+
     return output_data, skipped
+
 
 def write_to_jsonl(data: List[Dict[str, Any]], filename: str) -> None:
     """Write the processed data to a JSONL file."""
@@ -159,20 +154,27 @@ def write_to_jsonl(data: List[Dict[str, Any]], filename: str) -> None:
         for entry in data:
             f.write(json.dumps(entry) + '\n')
 
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description='Convert datasets to JSONL format')
-    parser.add_argument('--datasets', nargs='+', choices=['mmlu', 'gpqa', 'gpqa_diamond', 'all'],
-                      default=['all'], help='Datasets to process (default: all)')
+    parser.add_argument(
+        '--datasets',
+        nargs='+',
+        choices=['mmlu', 'gpqa', 'gpqa_diamond', 'all'],
+        default=['all'],
+        help='Datasets to process (default: all)',
+    )
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
-    
+
     # If 'all' is selected, process all datasets
     if 'all' in args.datasets:
         args.datasets = ['mmlu', 'gpqa', 'gpqa_diamond']
-    
+
     # Process selected datasets
     if 'mmlu' in args.datasets:
         mmlu_data, mmlu_skipped = process_mmlu_dataset()
@@ -200,6 +202,7 @@ def main():
             print(f"Skipped {gpqa_diamond_skipped} GPQA Diamond entries due to missing data")
         print("\nGPQA Diamond Sample entry:")
         print(json.dumps(gpqa_diamond_data[0], indent=2))
+
 
 if __name__ == "__main__":
     main()
