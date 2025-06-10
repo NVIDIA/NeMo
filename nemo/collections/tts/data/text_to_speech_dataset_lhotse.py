@@ -317,7 +317,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                 context_audio_list.append(context_audio)
                 context_audio_len_list.append(context_audio_len)
             else:
-                # We always want to have context_audio_codes if available for multi-encoder model. These are ignored for singlencoder model.
+                # We always want to have context_audio_codes if available for multi-encoder model. These are ignored for single-encoder model.
                 # If context audio is not available, just use a dummy context_audio_codes
                 # (Will be used in text context scenario)
                 # TODO @xueyang: verified that this block should cover below 3 conditions which were handled well.
