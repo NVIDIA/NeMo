@@ -408,7 +408,7 @@ class CodecExtractor(pl.LightningModule):
             context_audios = context_audios.to(self.device)
             context_audio_lens = context_audio_lens.to(self.device)
             # NOTE: we avoided directly calling `self.codec_model.encode()` because it pads audios again.
-            with torch.no_grad():
+            with torch.inference_mode():
                 target_audios_encoded, target_audios_encoded_len = self.codec_model.audio_encoder(
                     audio=target_audios, audio_len=target_audio_lens
                 )
