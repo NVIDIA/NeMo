@@ -20,6 +20,7 @@ import nemo_run as run
 import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
+from megatron.core.tokenizers import MegatronTokenizer
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -39,11 +40,12 @@ def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a tokenizer configuration.
     """
+    metadata = {"library": "huggingface"}
+
     return run.Config(
-        get_nmt_tokenizer,
-        library='megatron',
-        model_name="GPTSentencePieceTokenizer",
-        tokenizer_model=tokenizer_model,
+        MegatronTokenizer.from_pretrained,
+        tokenizer_path="EleutherAI/gpt-neox-20b",
+        metadata_path=metadata,
         use_fast=True,
     )
 

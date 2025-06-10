@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 import torch.nn.functional as F
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
@@ -28,9 +29,6 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 
 if TYPE_CHECKING:
     from transformers import AutoModelForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
@@ -89,7 +87,7 @@ class ChatGLMModel(GPTModel):
         self,
         config: Annotated[Optional[ChatGLMConfig], Config[ChatGLMConfig]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or ChatGLMConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
@@ -168,16 +166,20 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
         return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv_weight, _import_qkv_bias])
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         """
         Get the tokenizer for the HF model.
 
         Returns:
-            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+            MegatronTokenizerBase: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface"},
+            trust_remote_code=True,
+        )
 
     @property
     def config(self) -> ChatGLMConfig:
@@ -300,7 +302,7 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
         Get the tokenizer from the NeMo model.
 
         Returns:
-            TokenizerSpec: Tokenizer from the NeMo model
+            MegatronTokenizerBase: Tokenizer from the NeMo model
         """
         return io.load_context(str(self)).model.tokenizer.tokenizer
 

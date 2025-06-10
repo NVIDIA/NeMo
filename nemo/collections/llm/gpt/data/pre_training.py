@@ -23,6 +23,7 @@ from lightning.pytorch.utilities.rank_zero import rank_zero_info
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
 from megatron.core.datasets.gpt_dataset import GPTDataset
 from megatron.core.datasets.megatron_dataset import MegatronDataset
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
@@ -34,8 +35,6 @@ _, HAVE_TE = safe_import("transformer_engine")
 
 if TYPE_CHECKING:
     from megatron.core.datasets.gpt_dataset import GPTDatasetConfig
-
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 def is_number_tryexcept(s):
@@ -126,7 +125,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             Note that if limit_val_batches <= 1, we generate the entire validaton dataset, so
             weights should not be provided for the validation split.
         seq_length (int): Sequence length.
-        tokenizer (Optional["TokenizerSpec"]): An instance of a TokenizerSpec object.
+        tokenizer (Optional["MegatronTokenizerBase"]): An instance of a MegatronTokenizerBase object.
         micro_batch_size (int): Batch size per GPU.
         global_batch_size (int): Global batch size.
         rampup_batch_size (Optional[List[int]]): Rampup batch size, should be in format of
@@ -159,7 +158,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self,
         paths: Path | List | Dict[str, List],
         seq_length: int = 2048,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -228,9 +227,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
 
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        if tokenizer is None:
+            self.tokenizer = MegatronTokenizer.from_pretrained(
+                tokenizer_path="GPT2BPETokenizer", metadata_path={"library": "megatron"}
+            )
+        else:
+            self.tokenizer = tokenizer
 
-        self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=self.micro_batch_size,
