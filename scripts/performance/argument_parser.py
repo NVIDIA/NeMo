@@ -379,6 +379,13 @@ def parse_cli_args():
     parser.add_argument(
         "-pso", "--profiling_stop_step", type=int, help="Defines start step for profiling", required=False, default=50
     )
+    
+    parser.add_argument(
+        "-pgm", 
+        "--profiling_gpu_metrics",
+        help="Enable nsys gpu metrics. Disabled by default.",
+        action="store_true",
+    )
 
     parser.add_argument(
         "-cps",
