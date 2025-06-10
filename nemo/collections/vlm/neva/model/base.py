@@ -891,9 +891,9 @@ class NevaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return output_tensor
 
-    def data_step(self, dataloader_iter, vp_stage: Optional[int] = None) -> Dict[str, torch.Tensor]:
+    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:
         # pylint: disable=C0115,C0116
-        return self.config.data_step_fn(dataloader_iter, vp_stage=vp_stage)
+        return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:
         # pylint: disable=C0115,C0116

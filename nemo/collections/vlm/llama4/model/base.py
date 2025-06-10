@@ -28,7 +28,7 @@ from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, MCoreNevaMod
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 
-def llama4_data_step(dataloader_iter, vp_stage: Optional[int] = None) -> Dict[str, torch.Tensor]:
+def llama4_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     """Llama4 Omni Data Step"""
     from megatron.core import parallel_state
 
@@ -50,9 +50,9 @@ def llama4_data_step(dataloader_iter, vp_stage: Optional[int] = None) -> Dict[st
             "num_media_tiles",
         )
     )
-    if parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage):
+    if parallel_state.is_pipeline_first_stage():
         required_keys.update(("position_ids",))
-    if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage):
+    if parallel_state.is_pipeline_last_stage():
         required_keys.update(
             (
                 "labels",
@@ -325,7 +325,7 @@ class Llama4OmniBaseModel(MCoreNevaModel):
             packed_seq_params=packed_seq_params,
         )
 
-        if labels is None or loss_mask is None:
+        if not ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=self.vp_stage):
             return output
 
         return output, final_loss_mask.contiguous()
