@@ -91,11 +91,8 @@ def override_recipe_configs(
 
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_loss_fusion = True
-    recipe.model.config.apply_rope_fusion = False
+    recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
-
-    recipe.model.config.num_layers = 4
-    recipe.model.config.num_moe_experts = 2
 
     return recipe
 
@@ -124,23 +121,21 @@ if __name__ == "__main__":
     else:
         custom_env_vars = {}
 
-    # executor = slurm_executor(
-    #     args.account,
-    #     args.partition,
-    #     args.log_dir,
-    #     num_nodes,
-    #     args.gpus_per_node,
-    #     args.time_limit,
-    #     args.container_image,
-    #     custom_mounts=args.custom_mounts,
-    #     custom_env_vars=custom_env_vars,
-    #     hf_token=args.hf_token,
-    #     nemo_home=args.nemo_home,
-    #     wandb_key=args.wandb_key,
-    #     network='sharp' if args.use_sharp else None,
-    # )
-    executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
-
+    executor = slurm_executor(
+        args.account,
+        args.partition,
+        args.log_dir,
+        num_nodes,
+        args.gpus_per_node,
+        args.time_limit,
+        args.container_image,
+        custom_mounts=args.custom_mounts,
+        custom_env_vars=custom_env_vars,
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
+        wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
+    )
 
     plugins = [
         PerfEnvPlugin(
@@ -154,9 +149,7 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-    
-    run.run(recipe, executor=executor, plugins=plugins, name="llama4_e16_local_test")
-    exit()
+
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,

@@ -89,9 +89,10 @@ def override_recipe_configs(
 
     recipe.model.config.language_transformer_config.cross_entropy_fusion_impl = "te"
     recipe.model.config.language_transformer_config.cross_entropy_loss_fusion = True
-    recipe.model.config.language_transformer_config.apply_rope_fusion = False
+    recipe.model.config.language_transformer_config.apply_rope_fusion = True
     recipe.model.config.language_transformer_config.moe_permute_fusion = True
 
+    recipe.model.config.vision_transformer_config.apply_rope_fusion = True
     recipe.model.config.vision_transformer_config.gradient_accumulation_fusion = True
 
     # enable cudagraph
@@ -101,8 +102,8 @@ def override_recipe_configs(
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
 
     # # test sub configs
-    recipe.model.config.language_transformer_config.num_layers = 4
-    recipe.model.config.language_transformer_config.num_moe_experts = 2
+    # recipe.model.config.language_transformer_config.num_layers = 1
+
     return recipe
 
 
@@ -124,21 +125,20 @@ if __name__ == "__main__":
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    # executor = slurm_executor(
-    #     args.account,
-    #     args.partition,
-    #     args.log_dir,
-    #     num_nodes,
-    #     args.gpus_per_node,
-    #     args.time_limit,
-    #     args.container_image,
-    #     custom_mounts=args.custom_mounts,
-    #     custom_env_vars={},
-    #     hf_token=args.hf_token,
-    #     nemo_home=args.nemo_home,
-    #     wandb_key=args.wandb_key,
-    # )
-    executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
+    executor = slurm_executor(
+        args.account,
+        args.partition,
+        args.log_dir,
+        num_nodes,
+        args.gpus_per_node,
+        args.time_limit,
+        args.container_image,
+        custom_mounts=args.custom_mounts,
+        custom_env_vars={},
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
+        wandb_key=args.wandb_key,
+    )
 
     plugins = [
         PerfEnvPlugin(
@@ -150,10 +150,15 @@ if __name__ == "__main__":
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
 
-    run.run(
-        recipe,
-        executor=executor,
-        name="test_vlm_llama4_e16",
-        plugins=plugins,
-    )
-    exit()
+    with run.Experiment(exp_name) as exp:
+        exp.add(
+            recipe,
+            executor=executor,
+            name=exp_name,
+            plugins=plugins,
+        )
+
+        if not args.dryrun:
+            exp.run(sequential=True, detach=True)
+        else:
+            exp.dryrun()
