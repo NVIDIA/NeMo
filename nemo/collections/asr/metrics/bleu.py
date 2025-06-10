@@ -38,7 +38,7 @@ def _get_bleu_tokenizers_from_cuts(cuts):
     """
 
     def _get_lang(c):
-        return c.custom.get(BLEU_TOKENIZER, None)
+        return c.custom.get(BLEU_TOKENIZER)
 
     # Dataloader passes multiple types of cuts. Need to diambiguate to access custom.
     # TODO: resolve in lhotse backend.
@@ -102,19 +102,21 @@ class BLEU(SacreBLEUScore):
     def __init__(
         self,
         decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding],
-        tokenize: SacreBLEUToken = "13a",
+        bleu_tokenizer: SacreBLEUToken = "13a",
         n_gram: int = 4,
         lowercase: bool = False,
         weights: Optional[Sequence[float]] = None,
         smooth: bool = False,
         check_cuts_for_tokenizers: bool = False,
         log_prediction=True,
+        fold_consecutive=True,
         batch_dim_index=0,
         dist_sync_on_step=False,
         sync_on_compute=True,
         **kwargs,
     ):
         self.log_prediction = log_prediction
+        self.fold_consecutive = fold_consecutive
         self.batch_dim_index = batch_dim_index
 
         self.decoding = decoding
@@ -122,7 +124,7 @@ class BLEU(SacreBLEUScore):
 
         self.check_cuts = check_cuts_for_tokenizers
         super().__init__(
-            tokenize=tokenize,
+            tokenize=bleu_tokenizer,
             n_gram=n_gram,
             lowercase=lowercase,
             weights=weights,
@@ -169,7 +171,7 @@ class BLEU(SacreBLEUScore):
 
         with torch.no_grad():
             # get predictions
-            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids)
+            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids) if predictions.numel() > 0 else []
 
             # Get references
             if self.batch_dim_index != 0:
@@ -183,6 +185,7 @@ class BLEU(SacreBLEUScore):
 
                 # TODO: the backend implementation of this has a lot of cpu to gpu operations. Should reimplement
                 # for speedup.
+                print(hypotheses[idx].text, reference)
                 self.preds_len, self.target_len = _bleu_score_update(
                     [hypotheses[idx].text],
                     [[reference]],  # Nested list as BLEU permits multiple references per prediction.
@@ -193,7 +196,7 @@ class BLEU(SacreBLEUScore):
                     self.n_gram,
                     self._get_tokenizer(tok),
                 )
-                if self.log_prediction and idx == 0:
+                if hypotheses and self.log_prediction and idx == 0:
                     logging.info("\n")
                     logging.info(f"BLEU reference:{reference}")
                     logging.info(f"BLEU predicted:{hypotheses[idx].text}")
@@ -213,6 +216,7 @@ class BLEU(SacreBLEUScore):
                 and suffix flags, respectively.
         """
         bleu = super().compute()
+        print(self.preds_len, self.target_len, self.numerator, self.denominator)
         if return_all_metrics:
             return {
                 f"{prefix}bleu{suffix}": bleu,

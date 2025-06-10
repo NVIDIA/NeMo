@@ -1,5 +1,10 @@
-from typing import Dict, Literal, Optional
+import operator
+import os
+from collections import defaultdict
+from functools import partial
+from typing import Optional
 
+import regex as re
 import torch
 from lhotse import CutSet
 from lhotse.cut import MixedCut
@@ -7,101 +12,232 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import PromptedAudioToTextMiniBatch
-from nemo.collections.common.prompts.canary import TASK_TRANSLATE
 from nemo.core.classes import Serialization
 
 __all__ = ['MultiTaskMetric']
 
-# TODO: add decoding metric updater
+
+# Helper functions for managing constraint criteria on metrics.
+def _logical_not(expr, properties):
+    return not expr(properties)
+
+
+def _logical_and(l_expr, r_expr, properties):
+    return l_expr(properties) and r_expr(properties)
+
+
+def _logical_or(l_expr, r_expr, properties):
+    return l_expr(properties) or r_expr(properties)
+
+
+def _static_constraint(fnc, key, val, properties):
+    return fnc(val, properties.get(key))
+
+
+def _compare_constraint(fnc, key1, key2, properties):
+    return (prop_val1 := properties.get(key1)) is not None and (prop_val2 := properties.get(key2)) is not None and fnc(prop_val1, prop_val2)
+
+
+# Basic operators for comparison. Add more as necessary. 
+operators = {
+    "==": operator.eq,
+    "!=": operator.ne,
+}
+
+
+def _build_constraint_fn(constraint: str):
+    """
+    Parse a constraint string and build a callable constraint function.
+    
+    Supports the following constraint syntax:
+    - Simple comparisons: ".task == transcribe", ".lang != en"
+    - Property comparisons: ".source_lang == .target_lang"
+    - Logical operations: "not .task == translate", ".task == transcribe and .lang == en"
+    - Complex expressions: ".task == transcribe or (.task == translate and .source_lang != .target_lang)"
+    
+    Args:
+        constraint (str): Constraint expression string
+        
+    Returns:
+        callable: Function that takes properties dict and returns bool
+        
+    Raises:
+        AssertionError: If constraint syntax is invalid
+        
+    Examples:
+        >>> fn = _build_constraint_fn(".task == transcribe")
+        >>> fn({"task": "transcribe"})  # True
+        >>> fn({"task": "translate"})   # False
+        
+        >>> fn = _build_constraint_fn(".task == transcribe and .lang == en")
+        >>> fn({"task": "transcribe", "lang": "en"})  # True
+        >>> fn({"task": "transcribe", "lang": "de"})  # False
+    """
+    c = constraint.strip()
+
+    # Basic boolean recursion precedence.
+    pattern = r'not\s+(.+)'  # not
+    match = re.match(pattern, c)
+    if match:
+        expr = match.group(1).strip()
+        return partial(_logical_not, _build_constraint_fn(expr))
+
+    pattern = fr'(.+?)\s+and\s+(.+)'  # and
+    match = re.match(pattern, c)
+    if match:
+        left_expr, right_expr = match.groups()
+        return partial(_logical_and, _build_constraint_fn(left_expr), _build_constraint_fn(right_expr))
+    
+    pattern = fr'(.+?)\s+or\s+(.+)'  # or
+    match = re.match(pattern, c)
+    if match:
+        left_expr, right_expr = match.groups()
+        return partial(_logical_or, _build_constraint_fn(left_expr), _build_constraint_fn(right_expr))
+
+    # Check for compare custom against defined value.
+    for n, o in operators.items():
+        pattern = fr'\.(\w+)\s*{n}\s*(\w+)'
+        match = re.match(pattern, c)
+        if match:
+            key1, val = match.groups()
+            return partial(_static_constraint, o, key1, val)
+
+    # Check for compare custom against custom
+    for n, o in operators.items():
+        pattern = fr'\.(\w+)\s*{n}\s*\.(\w+)'
+        match = re.match(pattern, c)
+        if match:
+            key1, key2 = match.groups()
+            return partial(_compare_constraint, o, key1, key2)
+
+    assert False, f"Constraint {c} cannot be resolved by `MultiTaskMetric`."
 
 
 class MultiTaskMetric(Serialization):
     """
-    Wrapper class for managing multiple torch metrics. Used primarily for `EncDecMultiTaskModel` but can support any model with defined prompt schema.
-
-    Provides two major functionalities:
-        1) Automatically populates parent `model` class with each submetric, allowing customization of logging behavior without needing to define each
-            metric within model instantiation.
-        2) Manages targeted calls to `update`, `compute`, and `reset` so only samples fullfilling specific conditions will be logged. This avoids excessive
-            metric calculations (e.g. wer estimation for translation task) and improves metric quality over multitask setup.
+    Wrapper class for managing multiple metrics in multitask ASR/NLP models.
+    
+    This class enables conditional metric computation based on sample properties stored in Lhotse cuts.
+    It's primarily designed for `EncDecMultiTaskModel` but can support any model with a prompt schema.
+    
+    Key Features:
+        1. **Automatic Model Integration**: Instantiated metrics are automatically added as attributes
+           to the parent model, enabling seamless integration with existing logging infrastructure.
+           
+        2. **Conditional Metric Updates**: Only samples meeting specific constraints are passed to
+           each metric, avoiding inappropriate metric calculations (e.g., WER for translation tasks).
+           
+        3. **Flexible Constraint System**: Supports complex logical expressions for determining
+           when metrics should be applied to samples.
+           
+        4. **Configuration Inheritance**: Global configuration parameters are automatically
+           inherited by all metrics unless explicitly overridden.
 
     Args:
-        model: nn.Module (ideally the parent model initializing the metric)
-        cfg: OmegaConf for setup. (See below.)
+        model (nn.Module): Parent model that will receive metric instances as attributes.
+                          Must have a `decoding` attribute for metrics that require decoding.
+        cfg (DictConfig): Configuration dictionary containing metric definitions and constraints.
 
+    Configuration Format:
+        The configuration should follow this structure:
+        
+        ``'
+        # Global parameters (inherited by all metrics unless overridden)
+        log_predictions: true
+        batch_dim_index: 0
+        
+        # Metric definitions
+        metrics:
+          - name: wer                                    # Metric name (becomes model attribute)
+            _target_: nemo.collections.asr.metrics.WER  # Metric class to instantiate
+            constraint: ".task == transcribe"           # When to apply this metric
+            use_cer: false                              # Metric-specific parameters
+            
+          - name: bleu
+            _target_: nemo.collections.asr.metrics.BLEU
+            constraint: ".task == translate"
+            bleu_tokenizer: "13a"
+            n_gram: 4
+            
+          - name: multilingual_wer
+            _target_: nemo.collections.asr.metrics.WER
+            constraint: ".task == transcribe and .lang != en"
+            use_cer: true
+        ```
 
-    Assumes following cfg format:
+    Constraint Syntax:
+        Constraints are evaluated against the `custom` dictionary of Lhotse cuts:
+        
+        - **Custom attribute Access**: `.task`, `.lang`, `.domain`
+        - **Comparisons**: `==`, `!=`
+        - **Logical Operations**: `and`, `or`, `not`
+        - **Property Comparisons**: `.source_lang == .target_lang`
+        
+        Examples:
+        - `".task == transcribe"` - Apply to transcription tasks
+        - `".task == translate and .source_lang != .target_lang"` - Cross-lingual translation
+        - `"not .task == other"` - Apply to all tasks except 'other'
+        - `".domain == medical or .domain == legal"` - Specific domains
 
-    ```
-        multitask_metrics_cfg:
-            log_predictions: true
-            ...
-            metrics:
-            -   name: wer
-                _target_: nemo.collections.asr.metrics.WER
-                slots:
-                    task: "transcribe"
-            -   name: bleu
-                tokenize: ???
-                check_cuts_for_tokenizers: ???
-                _target_: nemo.collections.asr.metrics.BLEU
-                slots:
-                    task: "translate"
-            ...
-    ```
+    Usage Example:
+        ```python
+        # In model initialization
+        if hasattr(cfg, 'multitask_metrics'):
+            self.multitask_metrics = MultiTaskMetric(self, cfg.multitask_metrics)
+        
+        # During training/validation
+        if hasattr(self, 'multitask_metrics'):
+            metrics = self.multitask_metrics.eval(
+                batch=batch,
+                predictions=predictions,
+                predictions_lengths=pred_lengths,
+                predictions_mask=pred_mask,
+                prefix="val",
+                return_all_metrics=True
+            )
+            self.log_dict(metrics)
+        ```
 
-    Where only the `metrics` schema is required. Each element of `metrics` requires a `name` for the metric, `_target_` class for serialization, and series of `slot`
-    values that determines the conditions for the metric to apply. (Currently only the keyword `task` with vals `transcribe` and `translate` is supported.) All defined
-    metrics in `asr.collections.metrics` are supported.
-
-    Similar to `input_cfg` for dataloading, extra defined properties assume soft inheritance. All properties defined outside
-    the `metrics` dict will be autopopulated into all metrics. Meanwhile, properties defined within a metrics entry will only populate that metric.
-
+    Note:
+        - Each metric receives the model's `decoding` instance for text decoding operations
+        - Metrics are automatically added to the model as attributes (e.g., `model.wer`, `model.bleu`)
+        - Global configuration parameters are inherited unless explicitly overridden per metric
+        - Empty batches (no samples matching constraints) are handled by children metrics.
     """
 
-    # trick from torch metrics `SacreBLEUTokenizer`
-    _INDEX_FN = {
-        "canary": "_canary_index_fn",
-        "canary2": "_canary2_index_fn",
-    }
-
     def __init__(self, model: nn.Module, cfg: DictConfig):
+        """
+        Initialize MultiTaskMetric with model and configuration.
+        
+        Args:
+            model (nn.Module): Parent model that will contain metric instances
+            cfg (DictConfig): Configuration containing metric definitions
+        """
         super().__init__()
 
-        # Select function for proper task splitting
-        self.prompt = model.prompt
-        assert (
-            self.prompt.NAME in self._INDEX_FN
-        ), f"MultiTaskMetric logging is only supported for {[k for k in self._INDEX_FN.keys()]}"
-        self.split_task_indices = getattr(self, f"{self._INDEX_FN[self.prompt.NAME]}")
-
-        # Setup tracking hashes
-        self._metric_dict, self._slot_dict, self._skip_dict = {}, {}, {}
+        # Setup tracking dictionaries
+        self._metric_dict, self._constr_dict = {}, {}
         cfg = OmegaConf.to_container(cfg)
+        
+        # Process each metric definition
         for metric in cfg.pop("metrics"):
-            name = metric["name"]
+            name, constraint = metric.pop("name"), metric.pop("constraint")
 
-            # TODO: Expand slot coverage as metrics demands. Right now just manages two tasks.
-            slots = metric["slots"]
-            assert (
-                "task" in slots and len(slots) == 1
-            ), "MultiTask metric currently only supports task constraints. Check 'MultiTaskMetric' cfg."
-
-            # Assume other vals are global attributes across metrics.
+            # Inherit global configuration parameters
             for k, v in cfg.items():
                 if k not in metric:  # do not override explicit metric values
                     metric[k] = v
 
+            # Instantiates as instance of `model`. Avoids breaking behavior when other modules call specific metrics. (See `asr_model` for example.)
             metric["decoding"] = model.decoding  # For decoding reliant metrics like 'WER' or 'BLEU'
-
-            # Instantiates metric. Make property of parent model
             metric = MultiTaskMetric.from_config_dict(metric)
             setattr(model, name, metric)
 
-            # Tracking dicts for quick lookup
-            self._metric_dict[name], self._slot_dict[name], self._skip_dict[name] = metric, {**slots}, False
+            # Store metric and its constraint function
+            self._metric_dict[name] = metric
+            self._constr_dict[name] = _build_constraint_fn(constraint)
 
-    # Performs full PyMetrics validation loop for all metrics
+    # Performs full PyMetrics validation loop for all metrics.
     def eval(
         self,
         batch: PromptedAudioToTextMiniBatch,
@@ -125,7 +261,7 @@ class MultiTaskMetric(Serialization):
         metric_dict.update(
             self.compute(
                 prefix=f"{prefix}_" if prefix else "",
-                suffix=f"{suffix}_" if suffix else "",
+                suffix=f"_{suffix}" if suffix else "",
                 return_all_metrics=return_all_metrics,
             )
         )
@@ -140,24 +276,15 @@ class MultiTaskMetric(Serialization):
         targets: torch.Tensor,
         targets_lengths: torch.Tensor,
         input_ids: torch.Tensor,
-        cuts: Optional[CutSet] = None,
+        cuts: CutSet,
     ):
-        # Just iterate cuts to avoid expensive reindexing
-        if cuts is not None:
-            cuts = [c for c in cuts]
-
+        cuts_split, idx_split = self._split_cuts(cuts)
+        
+        # Update each metric with its filtered data
         for name, metric in self._metric_dict.items():
-            indices = self.split_task_indices(input_ids, self._slot_dict[name])
-            if indices.numel() == 0:  # No instances of metric in this tensor, skip
-                self._skip_dict[name] = True
-                continue
-
-            # bleu metric allos you to pass cuts
-            cuts_idx = None
-            if cuts is not None:
-                indices_cpu = indices.cpu().tolist()
-                cuts_idx = [cuts[idx] for idx in indices_cpu]
-
+            cuts_subset, indices = cuts_split[name], idx_split[name]
+            
+            # Update metric with filtered tensors
             metric.update(
                 predictions=predictions[indices],
                 predictions_lengths=predictions_lengths[indices],
@@ -165,37 +292,29 @@ class MultiTaskMetric(Serialization):
                 targets=targets[indices],
                 targets_lengths=targets_lengths[indices],
                 input_ids=input_ids[indices],
-                cuts=cuts_idx,
+                cuts=cuts_subset,
             )
 
     def compute(self, return_all_metrics=False, prefix="", suffix=""):
         output_dict = {}
+        
         for name, metric in self._metric_dict.items():
-            # Check if update marked this metric empty for batch
-            # Since ASR models do full loop per step this ignores breaking behavior
-            if self._skip_dict[name]:
-                self._skip_dict[name] = False
-                continue
-
-            # TODO: Change behavior of WER
-            # so it has a dict output
+            # Handle WER metric's special return format
+            # TODO: Standardize WER to return dict like other metrics
             if name == "wer":
                 wer, wer_num, wer_denom = metric.compute()
                 if return_all_metrics:
-                    output_dict.update(
-                        {
-                            f"{prefix}wer{suffix}": wer,
-                            f"{prefix}wer_num{suffix}": wer_num,
-                            f"{prefix}wer_denom{suffix}": wer_denom,
-                        }
-                    )
+                    output_dict.update({
+                        f"{prefix}wer{suffix}": wer,
+                        f"{prefix}wer_num{suffix}": wer_num,
+                        f"{prefix}wer_denom{suffix}": wer_denom,
+                    })
                 else:
-                    output_dict.update(
-                        {
-                            f"{prefix}wer{suffix}": wer,
-                        }
-                    )
+                    output_dict.update({
+                        f"{prefix}wer{suffix}": wer,
+                    })
             else:
+                # Standard metric compute (returns dict)
                 output_dict.update(
                     metric.compute(
                         return_all_metrics=return_all_metrics,
@@ -208,30 +327,31 @@ class MultiTaskMetric(Serialization):
     def reset(self):
         {metric.reset() for name, metric in self._metric_dict.items()}
 
-    # TODO: Add properties to `Canary` to simply return `task` idx.
-    def _canary_index_fn(self, prompt_ids: torch.Tensor, slots: Dict[str, (str | bool)]) -> torch.Tensor:
-        if slots["task"] in TASK_TRANSLATE:
-            # 1 -> `source_lang` in canary, 3 -> 'target_lang. Use these instead of task ID to avoid lookup.
-            condition_met = prompt_ids[:, 1] != prompt_ids[:, 3]
-        else:  # default to transcribe
-            condition_met = prompt_ids[:, 1] == prompt_ids[:, 3]
-        indices = torch.nonzero(condition_met, as_tuple=False)
-        # reshape in case 0 dim
-        return indices.reshape(indices.numel())
-
-    # TODO: Add properties to `Canary2` to simply return `task` idx.
-    def _canary2_index_fn(self, prompt_ids: torch.Tensor, slots: Dict[str, str | bool]) -> torch.Tensor:
-        # Canary2 has variable prompt length, use bos as offset.
-        bos_idx = (prompt_ids == self.prompt.tokenizer.bos_id).nonzero(as_tuple=True)[1]
-
-        # 2 -> `source_lang`, 3 -> 'target_lang`
-        bos_idx = bos_idx.unsqueeze(1)  # for gather
-        src_lang, tgt_lang = prompt_ids.gather(1, bos_idx + 2), prompt_ids.gather(1, bos_idx + 3)
-        src_lang, tgt_lang = src_lang.view([prompt_ids.shape[0]]), tgt_lang.view([prompt_ids.shape[0]])
-        if slots["task"] in TASK_TRANSLATE:
-            condition_met = src_lang != tgt_lang
-        else:  # default to transcribe
-            condition_met = src_lang == tgt_lang
-        indices = torch.nonzero(condition_met, as_tuple=False)
-        # reshape in case 0 dimen
-        return indices.reshape(indices.numel())
+    def _split_cuts(self, cuts):
+        """
+        Split cuts based on metric constraints and return filtered subsets.
+        
+        This method evaluates each cut against all metric constraints and creates
+        separate lists of cuts and indices for each metric.
+        
+        Args:
+            cuts (CutSet): Input cuts containing sample metadata
+            
+        Returns:
+            tuple: (cuts_splits, idx_splits) where:
+                - cuts_splits (dict): Maps metric names to lists of matching cuts
+                - idx_splits (dict): Maps metric names to lists of matching indices
+                
+        Note:
+            - Handles both regular cuts and MixedCuts (uses first_non_padding_cut)
+            - A single cut may match multiple metrics
+            - Cuts not matching any constraints are ignored
+        """
+        idx_splits, cuts_splits = defaultdict(list), defaultdict(list)
+        for idx, c in enumerate(cuts):
+            c = c.first_non_padding_cut if isinstance(c, MixedCut) else c
+            for metric in self._metric_dict:
+                if self._constr_dict[metric](c.custom):
+                    idx_splits[metric].append(idx)
+                    cuts_splits[metric].append(idx)
+        return cuts_splits, idx_splits

@@ -43,20 +43,19 @@ model:
   prompt_defaults: null
 
   # Sub-config for specifying multiple metrics for multitask modeling.
-  # See `asr.collections.metrics.multitask` for detsils.
+  # Each metric allows a custom bool constraint to determine conditions for evaluation. 
+  # See `asr.collections.metrics.multitask` for further details.
   multitask_metrics_cfg:
     log_predictions: true
     metrics:
       -   name: wer
           _target_: nemo.collections.asr.metrics.WER
-          slots: 
-              task: "transcribe"
+          constraint: ".source_lang==.target_lang"
       -   name: bleu
-          tokenize: flores101
-          multi_tokenize: true
           _target_: nemo.collections.asr.metrics.BLEU  
-          slots: 
-              task: "translate"
+          constraint: ".source_lang!=.target_lang"
+          bleu_tokenizer: 13a
+          check_cuts_for_tokenizers: true  # Indicates if metric should check batch for per sample SacreBLEU tokenizer.
 
   model_defaults:
     asr_enc_hidden: 1024
