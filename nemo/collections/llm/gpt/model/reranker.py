@@ -100,6 +100,7 @@ class ReRankerBaseConfig:
 
 @dataclass
 class Llama32Reranker1BConfig(Llama32Config1B, ReRankerBaseConfig):
+    """Config for Llama32Reranker1B model"""
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = bidirectional_attention_layer_spec
     forward_step_fn: Callable = reranker_forward_step
     data_step_fn: Callable = reranker_data_step
@@ -232,9 +233,11 @@ class ReRankerModel(GPTModel):
 
         pooled_hidden_states = self.pool(output, attention_mask)
 
-        # output and pooled_hidden_states are FP32 during training (because the Float16Module wrapper converts back to FP32),
+        # output and pooled_hidden_states are FP32 during training 
+        #(because the Float16Module wrapper converts back to FP32),
         # while self.score weight can be FP16 or FP32 depending on the model training precision.
-        # To avoid precision mismatch, we convert pooled_hidden_states to the same precision as self.score weight.
+        # To avoid precision mismatch,
+        # we convert pooled_hidden_states to the same precision as self.score weight.
         if self.has_float16_module_wrapper():
             float16_module = self.module.module
             pooled_hidden_states = fp32_to_float16(pooled_hidden_states, float16_module.float16_convertor)
@@ -340,6 +343,7 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 
     def convert_state(self, source: "AutoModelForSequenceClassification", target: ReRankerModel) -> None:
+        """Convert the state of the source model to the target model."""
         target_connector = target.config.importer_cls()
         target = target_connector.convert_state(source, target)
         assert (
@@ -406,6 +410,7 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
 
     @property
     def config(self):
+        """Create a NeMo LlamaBidirectionalConfig from the HF model config."""
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
 
         from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalConfig

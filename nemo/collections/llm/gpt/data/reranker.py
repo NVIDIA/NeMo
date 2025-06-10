@@ -10,7 +10,6 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.llm.gpt.data.core import get_dataset_root
 from nemo.collections.llm.gpt.data.retrieval import CustomRetrievalDataModule
 from nemo.collections.llm.gpt.data.utils import _get_samples_mapping, _JSONLMemMapDataset
 from nemo.core.classes import Dataset
@@ -325,7 +324,8 @@ class ReRankerDataset(Dataset):
         # Flatten the batch
         # In the case of a micro batch size = 2, self.num_hard_negatives = 4,
         # we will have 2 * (1 + 4) = 10 examples in the batch
-        # where the first 5 examples corresponds to the first question, and the last 5 examples corresponds to the second question
+        # where the first 5 examples corresponds to the first question, 
+        # and the last 5 examples corresponds to the second question
         for item in batch:
             metadata.append(item['metadata'])
             input_ids.append(item['positive'])
