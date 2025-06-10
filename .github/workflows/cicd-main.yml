@@ -1845,8 +1845,8 @@ jobs:
 
       - L2_TTS_Fast_dev_runs_Magpietts_DecoderContext
       - L2_TTS_Fast_dev_runs_Magpietts_MultiEncoder
-      # - L2_TTS_InferEvaluate_Magpietts_ZeroShot
-      # - L2_TTS_InferEvaluate_Magpietts_SeenSpeakers
+      - L2_TTS_InferEvaluate_Magpietts_ZeroShot
+      - L2_TTS_InferEvaluate_Magpietts_SeenSpeakers
 
       # - ASR_dev_run_Speech_to_Text
       # - ASR_dev_run_Speech_to_Text_WPE_CitriNet
