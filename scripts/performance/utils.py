@@ -35,6 +35,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
 )
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
+from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
@@ -78,16 +79,27 @@ def slurm_executor(
         "NEMORUN_HOME": log_dir,
         "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
     }
+
+    # Assuming 4 GPU's per node as GB200, might need to revisit in future!
+    if num_gpus_per_node == 4:
+        env_vars["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
+        env_vars["NCCL_NET_GDR_C2C"] = 1  # For NCCL 2.26
+
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
+
     srun_args = custom_srun_args.copy()
     srun_args.extend(
         [
             "--mpi=pmix",
-            "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",  # numactl command should be always at the end of srun_args
         ]
     )
+
+    if num_gpus_per_node == 4:
+        srun_args.append("numactl --cpunodebind=$((SLURM_LOCALID/2)) --membind=$((SLURM_LOCALID/2))")
+    else:
+        srun_args.append("numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))")
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
@@ -448,7 +460,16 @@ def set_exp_logging_configs(
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
-    recipe.trainer.enable_checkpointing = False
+
+    # disable checkpointing if no ModelCheckpoint callback is found
+    callbacks = recipe.trainer.callbacks
+    checkpoint_callback_idx = None
+    if callbacks:  # default is None in lightning
+        for idx, callback in enumerate(callbacks):
+            if callback.__fn_or_cls__ == ModelCheckpoint:
+                checkpoint_callback_idx = idx
+                break
+    recipe.trainer.enable_checkpointing = checkpoint_callback_idx is not None
     recipe.trainer.log_every_n_steps = 1
 
     return recipe
