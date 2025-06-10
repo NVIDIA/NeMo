@@ -160,7 +160,7 @@ class NsysPlugin(run.Plugin):
     nsys_trace: Optional[list[str]] = None
     nsys_extra_args: Optional[list[str]] = None
     gen_shape: bool = False
-    nsys_gpu_metrics: bool=False
+    nsys_gpu_metrics: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         """Set up the nsys profiling plugin."""
@@ -189,11 +189,9 @@ class NsysPlugin(run.Plugin):
         ]
         if self.nsys_gpu_metrics:
             if hasattr(launcher, "nsys_gpu_metrics"):
-                launcher.nsys_gpu_metrics=self.nsys_gpu_metrics
+                launcher.nsys_gpu_metrics = self.nsys_gpu_metrics
             else:
-                logging.warning(
-                    f"Unable to enable nsys gpu metrics collection. Please upgrade Nemo-Run."
-                )
+                logging.warning(f"Unable to enable nsys gpu metrics collection. Please upgrade Nemo-Run.")
 
 
 @dataclass(kw_only=True)
