@@ -550,7 +550,7 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
-            metadata_path={"library": "huggingface", "model_type": "starcoder"},
+            metadata_path={"library": "huggingface"},
             trust_remote_code=True,
         )
 
@@ -680,7 +680,7 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
 
         return MegatronTokenizer.from_pretrained(
             tokenizer_path="nvidia/Nemotron-H-8B-Base-8K",
-            metadata_path={"library": "huggingface", "model_type": "ssm"},
+            metadata_path={"library": "huggingface"},
             trust_remote_code=True,
         )
 
