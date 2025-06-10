@@ -283,7 +283,7 @@ dataset_meta_info = {
         'feature_dir' : None,
     },
     'an4_val_ci': {
-        'manifest_path' : '/home/TestData/an4_dataset/an4_val.json',
+        'manifest_path' : '/home/TestData/an4_dataset/an4_val_context_v1.json',
         'audio_dir' : '/',
         'feature_dir' : None,
     },

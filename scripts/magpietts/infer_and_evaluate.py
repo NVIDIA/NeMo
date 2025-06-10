@@ -117,7 +117,8 @@ def run_inference(
         confidence_level=0.95,
         use_local_transformer=False,
         maskgit_n_steps=3,
-        legacy_codebooks=False
+        legacy_codebooks=False,
+        clean_up_disk=False,
     ):
     # Load model
     if hparams_file is not None:
@@ -256,7 +257,7 @@ def run_inference(
                     use_local_transformer_for_inference=use_local_transformer,
                     maskgit_n_steps=maskgit_n_steps
                 )
-                
+
                 all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
                 print(f"Time taken for inference: {et-st}", predicted_audio.size())
@@ -331,7 +332,16 @@ def run_inference(
         with open(all_experiment_csv_with_ci, "a") as f:
             f.write(f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']},{metrics_mean_ci['frechet_codec_distance']}\n")
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
-        
+
+        measurements = [m['ssim_pred_context_avg'] for m in metrics_n_repeated]
+        ssim = np.mean(measurements)
+        measurements = [m['cer_cumulative'] for m in metrics_n_repeated]
+        cer = np.mean(measurements)
+
+        if clean_up_disk:
+            shutil.rmtree(out_dir)
+        return cer, ssim
+
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
@@ -364,6 +374,9 @@ def main():
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
+    parser.add_argument('--clean_up_disk', action='store_true')
+    parser.add_argument('--cer_target', type=float, default=None)
+    parser.add_argument('--ssim_target', type=float, default=None)
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -380,7 +393,7 @@ def main():
         print("Running inference for checkpoint files: ", checkpoint_files)
         assert len(hparam_files) == len(checkpoint_files), "Number of hparams files and checkpoint files should be the same."
         for hparams_file, checkpoint_file in zip(hparam_files, checkpoint_files):
-            run_inference(
+            cer, ssim = run_inference(
                 hparams_file=hparams_file,
                 checkpoint_file=checkpoint_file,
                 nemo_file=None,
@@ -404,13 +417,14 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
-                legacy_codebooks=args.legacy_codebooks
+                legacy_codebooks=args.legacy_codebooks,
+                clean_up_disk=args.clean_up_disk
             )
         return
     elif (args.nemo_file is not None):
         nemo_file = args.nemo_file
         print("Running inference for nemo file: ", nemo_file)
-        run_inference(
+        cer, ssim = run_inference(
             hparams_file=None,
             checkpoint_file=None,
             nemo_file=nemo_file,
@@ -434,7 +448,8 @@ def main():
             confidence_level=args.confidence_level,
             use_local_transformer=args.use_local_transformer,
             maskgit_n_steps=args.maskgit_n_steps,
-            legacy_codebooks=args.legacy_codebooks
+            legacy_codebooks=args.legacy_codebooks,
+            clean_up_disk=args.clean_up_disk
         )
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -497,8 +512,13 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
-                legacy_codebooks=args.legacy_codebooks
+                legacy_codebooks=args.legacy_codebooks,
+                clean_up_disk=args.clean_up_disk
             )
+    if cer > float(args.cer_target):
+        raise ValueError()
+    if ssim < float(args.ssim_target):
+        raise ValueError()
 
 
 if __name__ == '__main__':
