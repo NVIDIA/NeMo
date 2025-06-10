@@ -607,7 +607,9 @@ class MagpieTTSDataset(TextToSpeechDataset):
             example["align_prior"] = align_prior
 
         if "original_text" in data.manifest_entry:
-            # For Manifests in which text field is IPA.
+            # Raw Text is used as the GT for CER/WER computation in DPO pref data generation
+            # and GRPO reward setup. For manifests in which the 'text' field is phonemized,
+            # we use the 'original_text' field as the raw text. Otherwise, we use the regular text field.
             example['raw_text'] = data.manifest_entry['original_text']
         else:
             example['raw_text'] = data.text
