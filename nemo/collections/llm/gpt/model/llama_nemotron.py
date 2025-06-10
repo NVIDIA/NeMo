@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -346,6 +347,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
             if from_config:
                 # Llama-Nemotron Nano / Llama31Nemotron70BConfig
                 return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
+
             # Llama-Nemotron Super/Ultra
             assert model_name is not None
             # Since Llama-Nemotron Super/Ultra is not importable from transformers, we can only initialize the HF model
@@ -388,7 +390,7 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         source, _ = self.nemo_load(str(self))
         is_heterogeneous = isinstance(source.config, HeterogeneousTransformerConfig)
         if target_model_name is None:
-            # Llama-Nemotron Super/Ultra uses customize modeling class
+            # Llama-Nemotron Super/Ultra uses custom modeling class
             if is_heterogeneous:
                 num_layers = source.config.num_layers
                 if num_layers == 80:
@@ -532,7 +534,7 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
     adapters, specifically LoRA and DoRA adapters.
     """
 
-    def init(self, dtype=torch.bfloat16) -> "AutoPeftModelForCausalLM":
+    def init(self, dtype=torch.bfloat16, from_config=False, model_name=None) -> "AutoPeftModelForCausalLM":
         """Initialize a HF PEFT model.
 
         Args:
@@ -543,7 +545,7 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
         """
         from peft import get_peft_model
 
-        model = super().init(dtype=dtype)
+        model = super().init(dtype=dtype, from_config=from_config, model_name=model_name)
 
         # Infer base model checkpoint from checkpoint metadata file
         adapter_meta_path = ckpt_to_weights_subdir(str(self), is_saving=False) / ADAPTER_META_FILENAME
@@ -553,7 +555,7 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
 
         return get_peft_model(model, self.peft_config, autocast_adapter_dtype=False)
 
-    def apply(self, output_path: Path) -> Path:
+    def apply(self, output_path: Path, target_model_name=None) -> Path:
         """Apply the conversion from NeMo PEFT model to HF format.
 
         Args:
@@ -564,10 +566,29 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
         """
         from nemo.collections.llm.peft import CanonicalLoRA, DoRA, LoRA
 
-        self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(str(self)).model.model_transform
+        self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(str(self), subpath="model.model_transform")
 
         source, _ = self.nemo_load(str(self))
-        target = self.init(torch_dtype_from_mcore_config(source.config))
+        is_heterogeneous = isinstance(source.config, HeterogeneousTransformerConfig)
+        if target_model_name is None:
+            # Llama-Nemotron Super/Ultra uses customize modeling class
+            if is_heterogeneous:
+                num_layers = source.config.num_layers
+                if num_layers == 80:
+                    target_model_name = 'nvidia/Llama-3_3-Nemotron-Super-49B-v1'
+                elif num_layers == 162:
+                    target_model_name = 'nvidia/Llama-3_1-Nemotron-Ultra-253B-v1'
+                else:
+                    raise ValueError(
+                        'Unknown target model. '
+                        'Currently only support exporting Llama-Nemotron Nano/Super/Ultra models.'
+                    )
+
+        target = self.init(
+            torch_dtype_from_mcore_config(source.config),
+            from_config=not is_heterogeneous,
+            model_name=target_model_name,
+        )
         target = self.convert_state(source, target)
         target = target.cpu()
         target.save_pretrained(output_path, save_embedding_layers=False)
