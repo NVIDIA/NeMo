@@ -42,7 +42,7 @@ class SpeculativeTransform:
         >>> # The model will be transformed when trainer.fit() or trainer.validate() is called
     """
 
-    ALGORITHMS = ["eagle", "medusa"]
+    ALGORITHMS = ["eagle"]  # more TBD
 
     def __init__(self, algorithm: str = "eagle", config: Optional[dict[str, Any]] = None):
         if not HAVE_MODELOPT:
@@ -50,7 +50,7 @@ class SpeculativeTransform:
 
         assert algorithm in self.ALGORITHMS, f"Invalid algorithm: {algorithm}. Choices: {self.ALGORITHMS}"
         if config is None:
-            config = mtsp.MedusaConfig() if algorithm == "medusa" else mtsp.EAGLE3_DEFAULT_CFG["config"]
+            config = mtsp.EAGLE3_DEFAULT_CFG["config"]
 
         self.algorithm = algorithm
         self.config = config
