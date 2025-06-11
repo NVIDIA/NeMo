@@ -624,25 +624,24 @@ class TestBLEUMetric:
         if decode_type == "ctc":
             decoding = Mock(spec=AbstractCTCDecoding)
             decoding.decode_tokens_to_str = lambda tokens: ''.join([self.vocabulary[id_] for id_ in tokens])
-            decoding.ctc_decoder_predictions_tensor = Mock(return_value=[
-                Hypothesis(score=1.0, y_sequence=[], text="hello world")
-            ])
+            decoding.ctc_decoder_predictions_tensor = Mock(
+                return_value=[Hypothesis(score=1.0, y_sequence=[], text="hello world")]
+            )
         elif decode_type == "rnnt":
             decoding = Mock(spec=AbstractRNNTDecoding)
             decoding.decode_tokens_to_str = lambda tokens: ''.join([self.vocabulary[id_] for id_ in tokens])
-            decoding.rnnt_decoder_predictions_tensor = Mock(return_value=[
-                Hypothesis(score=1.0, y_sequence=[], text="hello world")
-            ])
+            decoding.rnnt_decoder_predictions_tensor = Mock(
+                return_value=[Hypothesis(score=1.0, y_sequence=[], text="hello world")]
+            )
         elif decode_type == "multitask":
             decoding = Mock(spec=AbstractMultiTaskDecoding)
             decoding.decode_tokens_to_str = lambda tokens: ''.join([self.vocabulary[id_] for id_ in tokens])
-            decoding.decode_predictions_tensor = Mock(return_value=[
-                Hypothesis(score=1.0, y_sequence=[], text="hello world")
-            ])
+            decoding.decode_predictions_tensor = Mock(
+                return_value=[Hypothesis(score=1.0, y_sequence=[], text="hello world")]
+            )
         else:
             raise TypeError(f"`decode_type:` {decode_type} is invalid type for `create_mock_decoding'")
         return decoding
-
 
     def __reference_string_to_tensor(self, txt: str) -> torch.Tensor:
         """Convert reference string to tensor"""
@@ -834,7 +833,7 @@ class TestBLEUMetric:
         decoding.ctc_decoder_predictions_tensor.return_value = [
             Hypothesis(score=1.0, y_sequence=[], text=perfect_text)
         ]
-        
+
         bleu.update(
             predictions=predictions,
             predictions_lengths=predictions_lengths,
@@ -916,10 +915,10 @@ class TestBLEUMetric:
         elif n_gram == 3:
             expected_bleu = (p1 * p2 * p3) ** (1 / 3)
         elif n_gram == 4:
-            expected_bleu = (p1 * p2 * p3 * p4) ** (1/4)
+            expected_bleu = (p1 * p2 * p3 * p4) ** (1 / 4)
         else:
             raise ValueError(f"`n_gram` value of {n_gram} is not supported by `test_bleu_partial_match")
-        
+
         # BP = 1 (same length: 5 words each)
         assert (
             abs(result.item() - expected_bleu) < 0.1
