@@ -34,12 +34,7 @@ from ..helpers import (
     set_primary_perf_configs,
     slurm_executor,
 )
-from ..utils import (
-    hf_tokenizer,
-    import_ckpt_experiment,
-    isfile_train_pack_metadata,
-    get_comm_overlap_callback_idx,
-)
+from ..utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata
 
 HF_MODEL_URI = "meta-llama/Llama-3.1-405B"
 

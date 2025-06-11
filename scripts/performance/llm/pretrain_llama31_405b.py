@@ -36,10 +36,7 @@ from ..helpers import (
     set_primary_perf_configs,
     slurm_executor,
 )
-from ..utils import (
-    hf_tokenizer,
-    get_comm_overlap_callback_idx,
-)
+from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
 
 
 def override_recipe_configs(
