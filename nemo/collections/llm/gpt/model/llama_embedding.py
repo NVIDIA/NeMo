@@ -320,6 +320,7 @@ class LlamaEmbeddingImporter(HFLlamaImporter):
             # Wrap the source in a model for causal LM
             class ModelWrapper(nn.Module):
                 """Wrap the source in a model so that the key mapping is consistent with LlamaModelImporter"""
+
                 def __init__(self, model, config):
                     super().__init__()
                     self.model = model
