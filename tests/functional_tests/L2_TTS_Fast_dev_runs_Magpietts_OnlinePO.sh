@@ -39,7 +39,7 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     +val_ds_meta.an4.audio_dir="/" \
     +val_ds_meta.an4.tokenizer_names="[english_phoneme]" \
     +val_ds_meta.an4.feature_dir=null \
-    +init_from_ptl_ckpt="/home/TestData/tts/2506_SeenSpeaker/T5TTS--val_loss=0.3125-epoch=8.ckpt" \
+    +init_from_ptl_ckpt="/home/TestData/tts/2506_SeenSpeaker/T5TTS--val_loss\=0.3125-epoch\=8.ckpt" \
     max_epochs=1 \
     batch_size=2 \
     +model.grpo_beta=0.0 \
