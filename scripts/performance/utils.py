@@ -541,7 +541,7 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
         print("Files found:", list(packed_dir.glob("*.bin")))
 
 
-def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str):
+def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048):
     """
     Downloads and prepares the SQuAD dataset for fine-tuning.
     """
@@ -551,7 +551,7 @@ def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: st
     dataset_executor.ntasks_per_node = 1
     dataset_executor.nodes = 1
 
-    return run.Partial(prepare_squad_dataset, model_name=model_name), dataset_executor, "prepare_squad_dataset_exp"
+    return run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length), dataset_executor, "prepare_squad_dataset_exp"
 
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
