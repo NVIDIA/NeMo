@@ -136,6 +136,9 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
+    if args.gpu.lower() in ['gb200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+        del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
+    
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
