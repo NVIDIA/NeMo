@@ -283,6 +283,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         use_tp_pp_dp_mapping: bool = False,
         num_distributed_optimizer_instances: int = 1,
         nccl_communicator_config_path: Optional[str] = None,
+        full_cuda_graph: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -340,6 +341,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
         self.nccl_communicator_config_path = nccl_communicator_config_path
+        self.full_cuda_graph = full_cuda_graph
         self.restore_config = restore_config
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
 
@@ -626,6 +628,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             ddp_config=self.ddp_config,
             fsdp=self._fsdp,
             convert_module_fn=convert_module_fn,
+            full_cuda_graph=self.full_cuda_graph,
         )
 
         # Assign trainer to megatron_parallel before init_model_parallel as its required to check stage of trainer
