@@ -81,11 +81,10 @@ class Llama4VisionConfig(CLIPViTConfig):
     rotary_interleaved: bool = True
     transformer_layer_spec: Optional[ModuleSpec] = None
 
-    def configure_model(self, vp_stage=None) -> "Llama4ViTModel":
+    def configure_model(self) -> "Llama4ViTModel":
         # pylint: disable=C0115,C0116
         """Configures and returns an instance of the Llama4ViTModel."""
         transformer_layer_spec = self.transformer_layer_spec
-        vp_stage = vp_stage or 0
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
 
@@ -102,7 +101,6 @@ class Llama4VisionConfig(CLIPViTConfig):
             img_h=self.img_h,
             img_w=self.img_w,
             model_subtype=self.vision_model_type,
-            vp_stage=vp_stage,
         )
 
 
@@ -269,7 +267,6 @@ class Llama4ViTModel(VisionModule):
         img_h: int = 336,
         img_w: int = 336,
         model_subtype: str = "llama4",
-        vp_stage: Optional[int] = None,
     ) -> None:
         """Initializes the Llama4 Vision Transformer model.
 
@@ -352,7 +349,8 @@ class Llama4ViTModel(VisionModule):
             spec=transformer_layer_spec,
             pre_process=True,
             post_process=False,
-            vp_stage=vp_stage,
+            # Hardcode vp_stage=0 since ViT models don't support virtual pipeline parallelism
+            vp_stage=0, 
         )
         self.adapter = PixelShuffleMLP(
             config=transformer_config,
