@@ -15,7 +15,7 @@
 import operator
 from collections import defaultdict
 from functools import partial
-from typing import Optional
+from typing import List, Optional
 
 import regex as re
 import torch
@@ -32,112 +32,140 @@ __all__ = ['MultiTaskMetric']
 
 
 # Helper functions for managing constraint criteria on metrics.
-def _logical_not(expr, properties):
-    return not expr(properties)
+class ConstraintParser():
+    """Boolean Parser class for constraint passing in config"""
+    _primitives = None
+    _booleans = None
 
+    def parse_constraint(self, constraint: str):
+        array = re.sub(r"([()])", r" \1 ", constraint).strip().split()  # Add space only for keywords.
+        if not array:
+            return self._no_constraint
+        
+        self._resolve_primitives(array)
+        if len(array) == 1:
+            return array[0]
 
-def _logical_and(l_expr, r_expr, properties):
-    return l_expr(properties) and r_expr(properties)
+        # Basic nested list parser. Starts from tail to aid readibility in subfunction.
+        stack = []
+        array = ["("] + array + [")"]
+        while array:
+            if  (c := array.pop()) == "(":
+                expr = []
+                while stack:
+                    if (e := stack.pop()) ==  ")":
+                        if not (fnc := self._resolve_bools(expr)):
+                            raise SyntaxError(f"Malformed subexpression find in constraint parsing: {fnc}")
+                        stack.append(fnc)
+                        break
+                    expr.append(e)
+            else:
+                stack.append(c)
+        if not (fnc := self._resolve_bools(stack)):
+            raise SyntaxError(f"Parser cannot resolve constraint: {constraint}")
+        return fnc
 
+    @property
+    def primitives(self):
+        if self._primitives is None:
+            self._primitives = {
+                "==": operator.eq,
+                "!=": operator.ne,
+            }
+        return self._primitives
 
-def _logical_or(l_expr, r_expr, properties):
-    return l_expr(properties) or r_expr(properties)
+    @property
+    def booleans(self):
+        if self._booleans is None:
+            self._booleans = {
+                "and": self._logical_and,
+                "or": self._logical_or,
+                "xor": self._logical_xor,
+            }
+        return self._booleans
 
+    @staticmethod
+    def _logical_not(expr, properties):
+        if not expr:
+            raise ValueError(f"Malformed subexpression find in 'not' constraint parsing: {expr}")
+        return not expr(properties)
 
-def _no_constraint(properties):
-    return True
+    @staticmethod
+    def _logical_and(l_expr, r_expr, properties):
+        if not (l_expr and r_expr):
+            raise ValueError(f"Malformed subexpression find in 'and' constraint parsing: {l_expr} and {r_expr}")
+        return l_expr(properties) and r_expr(properties)
 
+    @staticmethod
+    def _logical_or(l_expr, r_expr, properties):
+        if not (l_expr and r_expr):
+            raise ValueError(f"Malformed subexpression find in 'or' constraint parsing: {l_expr} or {r_expr}")
+        return l_expr(properties) or r_expr(properties)
 
-def _static_constraint(fnc, key, val, properties):
-    return fnc(val, properties.get(key))
+    @staticmethod
+    def _logical_xor(l_expr, r_expr, properties):
+        if not (l_expr and r_expr):
+            raise ValueError(f"Malformed subexpression find in 'xor' constraint parsing: {l_expr} xor {r_expr}")
+        return l_expr(properties) ^ r_expr(properties)
 
+    @staticmethod
+    def _no_constraint(properties):
+        return True
 
-def _compare_constraint(fnc, key1, key2, properties):
-    return (
-        (prop_val1 := properties.get(key1)) is not None
-        and (prop_val2 := properties.get(key2)) is not None
-        and fnc(prop_val1, prop_val2)
-    )
+    @staticmethod
+    def _static_constraint(fnc, key, val, properties):
+        return fnc(val, properties.get(key))
 
+    @staticmethod
+    def _compare_constraint(fnc, key1, key2, properties):
+        return (
+            (prop_val1 := properties.get(key1)) is not None
+            and (prop_val2 := properties.get(key2)) is not None
+            and fnc(prop_val1, prop_val2)
+        )
 
-# Basic operators for comparison. Add more as necessary.
-operators = {
-    "==": operator.eq,
-    "!=": operator.ne,
-}
+    def _resolve_primitives(self, constraint):
+        for idx, c in enumerate(constraint):
+            for n, o in self.primitives.items(): 
+                # Check if string is for value assertion or equivalency of values.
+                entail, equal = fr'\.(\S+)\s*{n}\s*(\S+)', fr'\.(\S+)\s*{n}\s*\.(\S+)'
+                match_entail, match_equal = re.match(entail, c), re.match(equal, c)
+                if match_equal:
+                    key1, key2 = match_equal.groups()
+                    constraint[idx] = partial(self._compare_constraint, o, key1, key2)
+                elif match_entail:
+                    key1, val = match_entail.groups()
+                    constraint[idx] = partial(self._static_constraint, o, key1, val)
+                else:
+                    pass
 
+    def _resolve_bools(self, constraint: List[str]):
+        idx = 0
+        stack = []
+        while idx < len(constraint):
+            c = constraint[idx]
+            if c == "not":
+                c = partial(self._logical_not, constraint[idx + 1])
+                idx += 1  # Skip so don't see the character again.
+            stack.append(c)
+            idx += 1
 
-def _build_constraint_fn(constraint: str):
-    """
-    Parse a constraint string and build a callable constraint function.
+        constraint = stack
+        for n, o in self.booleans.items():
+            idx = 0
+            stack = []
+            while idx < len(constraint):
+                c = constraint[idx]
+                if c == n:
+                    c = partial(o, stack.pop(), constraint[idx + 1])
+                    idx += 1
+                stack.append(c)
+                idx += 1
+            constraint = stack
+        if len(constraint) > 1:  # More than one constraint, something went wrong.
+            return None
 
-    Supports the following constraint syntax:
-    - Simple comparisons: ".task == transcribe", ".lang != en"
-    - Property comparisons: ".source_lang == .target_lang"
-    - Logical operations: "not .task == translate", ".task == transcribe and .lang == en"
-    - Complex expressions: ".task == transcribe or .task == translate and .source_lang != .target_lang"
-
-    Args:
-        constraint (str): Constraint expression string
-
-    Returns:
-        callable: Function that takes properties dict and returns bool
-
-    Raises:
-        AssertionError: If constraint syntax is invalid
-
-    Examples:
-        >>> fn = _build_constraint_fn(".task == transcribe")
-        >>> fn({"task": "transcribe"})  # True
-        >>> fn({"task": "translate"})   # False
-
-        >>> fn = _build_constraint_fn(".task == transcribe and .lang == en")
-        >>> fn({"task": "transcribe", "lang": "en"})  # True
-        >>> fn({"task": "transcribe", "lang": "de"})  # False
-    """
-    c = constraint.strip()
-
-    # Dummy function to return no constraint (i.e. True).
-    if not constraint:
-        return _no_constraint
-
-    # Basic boolean recursion precedence.
-    pattern = r'not\s+(.+)'  # not
-    match = re.match(pattern, c)
-    if match:
-        expr = match.group(1).strip()
-        return partial(_logical_not, _build_constraint_fn(expr))
-
-    pattern = r'(.+?)\s+and\s+(.+)'  # and
-    match = re.match(pattern, c)
-    if match:
-        left_expr, right_expr = match.groups()
-        return partial(_logical_and, _build_constraint_fn(left_expr), _build_constraint_fn(right_expr))
-
-    pattern = r'(.+?)\s+or\s+(.+)'  # or
-    match = re.match(pattern, c)
-    if match:
-        left_expr, right_expr = match.groups()
-        return partial(_logical_or, _build_constraint_fn(left_expr), _build_constraint_fn(right_expr))
-
-    # Check for compare custom against defined value.
-    for n, o in operators.items():
-        pattern = fr'\.(\S+)\s*{n}\s*(\S+)'
-        match = re.match(pattern, c)
-        if match:
-            key1, val = match.groups()
-            return partial(_static_constraint, o, key1, val)
-
-    # Check for compare custom against custom
-    for n, o in operators.items():
-        pattern = fr'\.(\S+)\s*{n}\s*\.(\S+)'
-        match = re.match(pattern, c)
-        if match:
-            key1, key2 = match.groups()
-            return partial(_compare_constraint, o, key1, key2)
-
-    assert False, f"Constraint {c} cannot be resolved by `MultiTaskMetric`."
-
+        return constraint[0]
 
 class MultiTaskMetric(Serialization):
     """
@@ -247,6 +275,7 @@ class MultiTaskMetric(Serialization):
         cfg = OmegaConf.to_container(cfg)
 
         # Process each metric instance.
+        parser = ConstraintParser()
         seen_types = set()
         for metric in cfg.pop("metrics"):
             name, constraint = metric.pop("name"), metric.pop(
@@ -263,7 +292,7 @@ class MultiTaskMetric(Serialization):
             metric = MultiTaskMetric.from_config_dict(metric)
             setattr(model, name, metric)
 
-            # TODO: This is a limitation brought upon by `asr_model` aggregation. To fix, update metric classes to support custom naming
+            # TODO: This is a from `asr_model` aggregation. To fix, update metric classes to support custom naming
             # and update `asr_model` `multi_{validation,test}_epoch_end` to support metric aggregation with custom names.
             metric_type = type(metric)
             if metric_type in seen_types:
@@ -274,7 +303,8 @@ class MultiTaskMetric(Serialization):
 
             # Store metric and its constraint function
             self._metric_dict[name] = metric
-            self._constr_dict[name] = _build_constraint_fn(constraint)
+            self._constr_dict[name] = parser.parse_constraint(constraint)
+
 
     # Performs full PyMetrics validation loop for all metrics.
     def eval(
@@ -390,8 +420,8 @@ class MultiTaskMetric(Serialization):
         cuts_splits, idx_splits = defaultdict(list), defaultdict(list)
         for idx, c in enumerate(cuts):
             c = c.first_non_padding_cut if isinstance(c, MixedCut) else c
-            for metric in self._metric_dict:
-                if self._constr_dict[metric](c.custom):
+            for metric, constr in self._constr_dict.items():
+                if constr(c.custom):
                     cuts_splits[metric].append(c)
                     idx_splits[metric].append(idx)
         return cuts_splits, idx_splits

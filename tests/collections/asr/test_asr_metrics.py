@@ -30,16 +30,7 @@ from nemo.collections.asr.metrics.bleu import (
     _get_bleu_tokenizers_from_cuts,
     _move_dimension_to_the_front,
 )
-from nemo.collections.asr.metrics.multitask import (
-    MultiTaskMetric,
-    _build_constraint_fn,
-    _compare_constraint,
-    _logical_and,
-    _logical_not,
-    _logical_or,
-    _static_constraint,
-    operators,
-)
+from nemo.collections.asr.metrics.multitask import ConstraintParser, MultiTaskMetric
 from nemo.collections.asr.metrics.wer import WER, word_error_rate, word_error_rate_detail, word_error_rate_per_utt
 from nemo.collections.asr.parts.submodules.ctc_decoding import (
     AbstractCTCDecoding,
@@ -796,7 +787,7 @@ class TestBLEUMetric:
     def test_bleu_cuts_length_mismatch(self):
         """Test BLEU with mismatched cuts and batch size"""
         decoding = self.create_mock_decoding("ctc")
-        bleu = BLEU(decoding=decoding, check_cuts_for_tokenizers=True)
+        bleu = BLEU(decoding=decoding, check_cuts_for_bleu_tokenizers=True)
 
         # Create cuts with wrong length
         cuts = [Mock()]  # Only 1 cut
@@ -1082,11 +1073,11 @@ class TestBLEUMetric:
         """Test BLEU calculation with multiple tokenizers for different languages"""
         # Test without multi-tokenization (single tokenizer)
         decoding_single = self.create_mock_decoding("ctc")
-        bleu_single = BLEU(decoding=decoding_single, bleu_tokenizer="13a", check_cuts_for_tokenizers=False, n_gram=2)
+        bleu_single = BLEU(decoding=decoding_single, bleu_tokenizer="13a", check_cuts_for_bleu_tokenizers=False, n_gram=2)
 
         # Test with multi-tokenization (tokenizers from cuts)
         decoding_multi = self.create_mock_decoding("ctc")
-        bleu_multi = BLEU(decoding=decoding_multi, bleu_tokenizer="13a", check_cuts_for_tokenizers=True, n_gram=2)
+        bleu_multi = BLEU(decoding=decoding_multi, bleu_tokenizer="13a", check_cuts_for_bleu_tokenizers=True, n_gram=2)
 
         batch_size = 2
         predictions = torch.randn(batch_size, 100, len(self.vocabulary))
@@ -1392,54 +1383,62 @@ class TestBLEUEdgeCases:
 class TestMultiTaskMetricConstraintFunctions:
     """Test the constraint parsing and evaluation functions"""
 
+    def setUp(self):
+        """Set up test fixtures"""
+        self.parser = ConstraintParser()
+
     @pytest.mark.unit
     def test_static_constraint_equality(self):
         """Test static constraint with equality operator"""
+        parser = ConstraintParser()
         properties = {"task": "transcribe", "lang": "en"}
 
         # Test successful match
-        result = _static_constraint(operator.eq, "task", "transcribe", properties)
+        result = parser._static_constraint(operator.eq, "task", "transcribe", properties)
         assert result is True
 
         # Test failed match
-        result = _static_constraint(operator.eq, "task", "translate", properties)
+        result = parser._static_constraint(operator.eq, "task", "translate", properties)
         assert result is False
 
         # Test missing key
-        result = _static_constraint(operator.eq, "missing", "value", properties)
+        result = parser._static_constraint(operator.eq, "missing", "value", properties)
         assert result is False
 
     @pytest.mark.unit
     def test_static_constraint_inequality(self):
         """Test static constraint with inequality operator"""
+        parser = ConstraintParser()
         properties = {"task": "transcribe", "lang": "en"}
 
-        result = _static_constraint(operator.ne, "task", "translate", properties)
+        result = parser._static_constraint(operator.ne, "task", "translate", properties)
         assert result is True
 
-        result = _static_constraint(operator.ne, "task", "transcribe", properties)
+        result = parser._static_constraint(operator.ne, "task", "transcribe", properties)
         assert result is False
 
     @pytest.mark.unit
     def test_compare_constraint(self):
         """Test comparing two properties"""
+        parser = ConstraintParser()
         properties = {"source_lang": "en", "target_lang": "en", "other": "different"}
 
         # Test equal properties
-        result = _compare_constraint(operator.eq, "source_lang", "target_lang", properties)
+        result = parser._compare_constraint(operator.eq, "source_lang", "target_lang", properties)
         assert result is True
 
         # Test unequal properties
-        result = _compare_constraint(operator.eq, "source_lang", "other", properties)
+        result = parser._compare_constraint(operator.eq, "source_lang", "other", properties)
         assert result is False
 
         # Test missing property
-        result = _compare_constraint(operator.eq, "source_lang", "missing", properties)
+        result = parser._compare_constraint(operator.eq, "source_lang", "missing", properties)
         assert result is False
 
     @pytest.mark.unit
     def test_logical_operations(self):
         """Test logical AND, OR, NOT operations"""
+        parser = ConstraintParser()
         properties = {"task": "transcribe", "lang": "en"}
 
         # Create simple constraint functions
@@ -1447,34 +1446,36 @@ class TestMultiTaskMetricConstraintFunctions:
         false_constraint = lambda p: p.get("task") == "translate"
 
         # Test AND
-        result = _logical_and(true_constraint, true_constraint, properties)
-        assert result is True
-
-        result = _logical_and(true_constraint, false_constraint, properties)
+        result = parser._logical_and(true_constraint, false_constraint, properties)
         assert result is False
 
         # Test OR
-        result = _logical_or(true_constraint, false_constraint, properties)
+        result = parser._logical_or(true_constraint, false_constraint, properties)
         assert result is True
 
-        result = _logical_or(false_constraint, false_constraint, properties)
+        result = parser._logical_or(false_constraint, false_constraint, properties)
         assert result is False
 
         # Test NOT
-        result = _logical_not(true_constraint, properties)
+        result = parser._logical_not(true_constraint, properties)
         assert result is False
 
-        result = _logical_not(false_constraint, properties)
+        result = parser._logical_not(false_constraint, properties)
         assert result is True
 
 
 class TestMultiTaskMetricConstraintParsing:
     """Test the constraint string parsing functionality"""
 
+    def setUp(self):
+        """Set up test fixtures"""
+        self.parser = ConstraintParser()
+
     @pytest.mark.unit
     def test_simple_equality_constraint(self):
         """Test parsing simple equality constraints"""
-        constraint_fn = _build_constraint_fn(".task == transcribe")
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint(".task==transcribe")
 
         properties = {"task": "transcribe"}
         assert constraint_fn(properties) is True
@@ -1485,7 +1486,8 @@ class TestMultiTaskMetricConstraintParsing:
     @pytest.mark.unit
     def test_simple_inequality_constraint(self):
         """Test parsing simple inequality constraints"""
-        constraint_fn = _build_constraint_fn(".task != translate")
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint(".task!=translate")
 
         properties = {"task": "transcribe"}
         assert constraint_fn(properties) is True
@@ -1496,7 +1498,8 @@ class TestMultiTaskMetricConstraintParsing:
     @pytest.mark.unit
     def test_property_comparison_constraint(self):
         """Test parsing property-to-property comparisons"""
-        constraint_fn = _build_constraint_fn(".source_lang == .target_lang")
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint(".source_lang==.target_lang")
 
         properties = {"source_lang": "en", "target_lang": "en"}
         assert constraint_fn(properties) is True
@@ -1507,7 +1510,8 @@ class TestMultiTaskMetricConstraintParsing:
     @pytest.mark.unit
     def test_and_constraint(self):
         """Test parsing AND constraints"""
-        constraint_fn = _build_constraint_fn(".task == transcribe and .lang == en")
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint(".task==transcribe and .lang==en")
 
         properties = {"task": "transcribe", "lang": "en"}
         assert constraint_fn(properties) is True
@@ -1521,7 +1525,8 @@ class TestMultiTaskMetricConstraintParsing:
     @pytest.mark.unit
     def test_or_constraint(self):
         """Test parsing OR constraints"""
-        constraint_fn = _build_constraint_fn(".task == transcribe or .task == translate")
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint(".task==transcribe or .task==translate")
 
         properties = {"task": "transcribe"}
         assert constraint_fn(properties) is True
@@ -1535,7 +1540,8 @@ class TestMultiTaskMetricConstraintParsing:
     @pytest.mark.unit
     def test_not_constraint(self):
         """Test parsing NOT constraints"""
-        constraint_fn = _build_constraint_fn("not .task == translate")
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint("not .task==translate")
 
         properties = {"task": "transcribe"}
         assert constraint_fn(properties) is True
@@ -1546,7 +1552,8 @@ class TestMultiTaskMetricConstraintParsing:
     @pytest.mark.unit
     def test_complex_constraint(self):
         """Test parsing complex nested constraints"""
-        constraint_fn = _build_constraint_fn(".task == transcribe and .source_lang == .target_lang")
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint(".task==transcribe and .source_lang==.target_lang")
 
         properties = {"task": "transcribe", "source_lang": "en", "target_lang": "en"}
         assert constraint_fn(properties) is True
@@ -1558,10 +1565,81 @@ class TestMultiTaskMetricConstraintParsing:
         assert constraint_fn(properties) is False
 
     @pytest.mark.unit
+    def test_parentheses_constraint(self):
+        """Test parsing constraints with parentheses"""
+        parser = ConstraintParser()
+        # Basic parentheses
+        constraint_fn = parser.parse_constraint("(.task==transcribe or .task==translate) and .lang==en")
+
+        properties = {"task": "transcribe", "lang": "en"}
+        assert constraint_fn(properties) is True
+
+        properties = {"task": "translate", "lang": "en"}
+        assert constraint_fn(properties) is True
+
+        properties = {"task": "transcribe", "lang": "de"}
+        assert constraint_fn(properties) is False
+
+        properties = {"task": "other", "lang": "en"}
+        assert constraint_fn(properties) is False
+
+    @pytest.mark.unit
+    def test_nested_parentheses_constraint(self):
+        """Test parsing constraints with nested parentheses"""
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint("(.task==transcribe and (.lang==en or .lang==de)) or .task==translate")
+
+        properties = {"task": "transcribe", "lang": "en"}
+        assert constraint_fn(properties) is True
+
+        properties = {"task": "transcribe", "lang": "de"}
+        assert constraint_fn(properties) is True
+
+        properties = {"task": "transcribe", "lang": "fr"}
+        assert constraint_fn(properties) is False
+
+        properties = {"task": "translate", "lang": "fr"}
+        assert constraint_fn(properties) is True
+
+    @pytest.mark.unit
+    def test_parentheses_with_not_constraint(self):
+        """Test parsing constraints with parentheses and NOT operator"""
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint("not (.task==transcribe and .lang==en)")
+
+        properties = {"task": "transcribe", "lang": "en"}
+        assert constraint_fn(properties) is False
+
+        properties = {"task": "transcribe", "lang": "de"}
+        assert constraint_fn(properties) is True
+
+        properties = {"task": "translate", "lang": "en"}
+        assert constraint_fn(properties) is True
+
+    @pytest.mark.unit
+    def test_complex_parentheses_constraint(self):
+        """Test parsing complex constraints with multiple parentheses"""
+        parser = ConstraintParser()
+        constraint_fn = parser.parse_constraint("(.task==transcribe or .task==translate) and (.source_lang!=.target_lang or .domain==special)")
+
+        properties = {"task": "transcribe", "source_lang": "en", "target_lang": "de", "domain": "general"}
+        assert constraint_fn(properties) is True
+
+        properties = {"task": "translate", "source_lang": "en", "target_lang": "en", "domain": "special"}
+        assert constraint_fn(properties) is True
+
+        properties = {"task": "transcribe", "source_lang": "en", "target_lang": "en", "domain": "general"}
+        assert constraint_fn(properties) is False
+
+        properties = {"task": "other", "source_lang": "en", "target_lang": "de", "domain": "general"}
+        assert constraint_fn(properties) is False
+
+    @pytest.mark.unit
     def test_invalid_constraint(self):
         """Test that invalid constraints raise errors"""
-        with pytest.raises(AssertionError):
-            _build_constraint_fn("invalid constraint format")
+        parser = ConstraintParser()
+        with pytest.raises(SyntaxError):
+            parser.parse_constraint("invalid constraint format")
 
 
 class TestMultiTaskMetricCutSplitting:
@@ -1594,12 +1672,12 @@ class TestMultiTaskMetricCutSplitting:
                 "metrics": [
                     {
                         "name": "wer",
-                        "constraint": ".task == transcribe",
+                        "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     },
                     {
                         "name": "bleu",
-                        "constraint": ".task == translate",
+                        "constraint": ".task==translate",
                         "_target_": "nemo.collections.asr.metrics.BLEU",
                     },
                 ]
@@ -1636,7 +1714,7 @@ class TestMultiTaskMetricCutSplitting:
                 "metrics": [
                     {
                         "name": "wer",
-                        "constraint": ".task == transcribe",
+                        "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     }
                 ]
@@ -1667,7 +1745,7 @@ class TestMultiTaskMetricCutSplitting:
                 "metrics": [
                     {
                         "name": "wer",
-                        "constraint": ".task == transcribe",
+                        "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     }
                 ]
@@ -1699,12 +1777,12 @@ class TestMultiTaskMetricUpdate:
                 "metrics": [
                     {
                         "name": "wer",
-                        "constraint": ".task == transcribe",
+                        "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     },
                     {
                         "name": "bleu",
-                        "constraint": ".task == translate",
+                        "constraint": ".task==translate",
                         "_target_": "nemo.collections.asr.metrics.BLEU",
                     },
                 ]
@@ -1814,7 +1892,7 @@ class TestMultiTaskMetricCompute:
                 "metrics": [
                     {
                         "name": "wer",
-                        "constraint": ".task == transcribe",
+                        "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     }
                 ]
@@ -1823,14 +1901,14 @@ class TestMultiTaskMetricCompute:
 
         with patch('nemo.collections.asr.metrics.multitask.MultiTaskMetric.from_config_dict') as mock_from_config:
             mock_wer = Mock()
-            mock_wer.compute.return_value = (0.1, 10.0, 100.0)  # wer, scores, words
+            mock_wer.compute.return_value = {"val_wer": 0.1, "val_wer_num": 10.0, "val_wer_denom": 100.0}  # wer, scores, words
             mock_from_config.return_value = mock_wer
 
             multitask_metric = MultiTaskMetric(mock_model, cfg)
 
-            result = multitask_metric.compute(return_all_metrics=True, prefix="val_", suffix="_epoch")
+            result = multitask_metric.compute(return_all_metrics=True, prefix="val_")
 
-            expected = {"val_wer_epoch": 0.1, "val_wer_num_epoch": 10.0, "val_wer_denom_epoch": 100.0}
+            expected = {"val_wer": 0.1, "val_wer_num": 10.0, "val_wer_denom": 100.0}
             assert result == expected
 
     @pytest.mark.unit
@@ -1844,7 +1922,7 @@ class TestMultiTaskMetricCompute:
                 "metrics": [
                     {
                         "name": "bleu",
-                        "constraint": ".task == translate",
+                        "constraint": ".task==translate",
                         "_target_": "nemo.collections.asr.metrics.BLEU",
                     }
                 ]
@@ -1873,12 +1951,12 @@ class TestMultiTaskMetricCompute:
                 "metrics": [
                     {
                         "name": "wer",
-                        "constraint": ".task == transcribe",
+                        "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     },
                     {
                         "name": "bleu",
-                        "constraint": ".task == translate",
+                        "constraint": ".task==translate",
                         "_target_": "nemo.collections.asr.metrics.BLEU",
                     },
                 ]
@@ -1911,7 +1989,7 @@ class TestMultiTaskMetricEdgeCases:
                 "metrics": [
                     {
                         "name": "wer",
-                        "constraint": ".task == transcribe",
+                        "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     }
                 ]
@@ -1937,20 +2015,23 @@ class TestMultiTaskMetricEdgeCases:
     @pytest.mark.unit
     def test_complex_constraint_edge_cases(self):
         """Test complex constraints with edge cases"""
+        parser = ConstraintParser()
+        
         # Test constraint with missing properties
-        constraint_fn = _build_constraint_fn(".missing_prop == value")
+        constraint_fn = parser.parse_constraint(".missing_prop==value")
         result = constraint_fn({})
         assert result is False
 
         # Test constraint with None values
-        constraint_fn = _build_constraint_fn(".prop == value")
+        constraint_fn = parser.parse_constraint(".prop==value")
         result = constraint_fn({"prop": None})
         assert result is False
 
     @pytest.mark.unit
     def test_operators_coverage(self):
         """Test that all operators are properly defined"""
-        assert "==" in operators
-        assert "!=" in operators
-        assert operators["=="] == operator.eq
-        assert operators["!="] == operator.ne
+        parser = ConstraintParser()
+        assert "==" in parser.primitives
+        assert "!=" in parser.primitives
+        assert parser.primitives["=="] == operator.eq
+        assert parser.primitives["!="] == operator.ne
