@@ -43,8 +43,10 @@ def _logical_and(l_expr, r_expr, properties):
 def _logical_or(l_expr, r_expr, properties):
     return l_expr(properties) or r_expr(properties)
 
+
 def _no_constraint(properties):
     return True
+
 
 def _static_constraint(fnc, key, val, properties):
     return fnc(val, properties.get(key))
@@ -74,7 +76,7 @@ def _build_constraint_fn(constraint: str):
     - Property comparisons: ".source_lang == .target_lang"
     - Logical operations: "not .task == translate", ".task == transcribe and .lang == en"
     - Complex expressions: ".task == transcribe or .task == translate and .source_lang != .target_lang"
-    
+
     Args:
         constraint (str): Constraint expression string
 
@@ -243,11 +245,13 @@ class MultiTaskMetric(Serialization):
         # Setup tracking dictionaries
         self._metric_dict, self._constr_dict = {}, {}
         cfg = OmegaConf.to_container(cfg)
-        
+
         # Process each metric instance.
         seen_types = set()
         for metric in cfg.pop("metrics"):
-            name, constraint = metric.pop("name"), metric.pop("constraint", "")  # Empty string for no constraint value. Metric always calculated.
+            name, constraint = metric.pop("name"), metric.pop(
+                "constraint", ""
+            )  # Empty string for no constraint value. Metric always calculated.
 
             # Inherit global configuration parameters
             for k, v in cfg.items():
@@ -263,7 +267,9 @@ class MultiTaskMetric(Serialization):
             # and update `asr_model` `multi_{validation,test}_epoch_end` to support metric aggregation with custom names.
             metric_type = type(metric)
             if metric_type in seen_types:
-                raise TypeError("MultiTaskMetric currently only supports one instance of each metric class. Please check your configs for duplicates values of `_target_` entry.")
+                raise TypeError(
+                    "MultiTaskMetric currently only supports one instance of each metric class. Please check your configs for duplicates values of `_target_` entry."
+                )
             seen_types.add(metric_type)
 
             # Store metric and its constraint function
@@ -309,7 +315,7 @@ class MultiTaskMetric(Serialization):
         input_ids: torch.Tensor,
         cuts: CutSet,
     ):
-        
+
         # Update each metric with its filtered data
         cuts_split, idx_split = self._split_cuts(cuts)
         for name, metric in self._metric_dict.items():
@@ -335,15 +341,19 @@ class MultiTaskMetric(Serialization):
             if type(metric) is WER:
                 wer, wer_num, wer_denom = metric.compute()
                 if return_all_metrics:
-                    output_dict.update({
-                        f"{prefix}wer": wer,
-                        f"{prefix}wer_num": wer_num,
-                        f"{prefix}wer_denom": wer_denom,
-                    })
+                    output_dict.update(
+                        {
+                            f"{prefix}wer": wer,
+                            f"{prefix}wer_num": wer_num,
+                            f"{prefix}wer_denom": wer_denom,
+                        }
+                    )
                 else:
-                    output_dict.update({
-                        f"{prefix}wer": wer,
-                    })
+                    output_dict.update(
+                        {
+                            f"{prefix}wer": wer,
+                        }
+                    )
             else:
                 # Standard metric compute (returns dict)
                 output_dict.update(
