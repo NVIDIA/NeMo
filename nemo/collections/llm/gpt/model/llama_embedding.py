@@ -334,7 +334,7 @@ class LlamaEmbeddingImporter(HFLlamaImporter):
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llama model to Nemo, model saved to {output_path}.")
+        print(f"Converted LlamaEmbedding model to Nemo, model saved to {output_path}.")
 
         teardown(trainer, target)
         del trainer, target
