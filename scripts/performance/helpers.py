@@ -119,8 +119,21 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
 
     # print the received arguments for users to debug
     logging.info("Received model parallel configs: ")
-    for arg in kwargs:
-        logging.info(f"{arg=}")
+    logging.info(f"{num_nodes=}")
+    logging.info(f"num_gpus_per_node={args.gpus_per_node}")
+    logging.info(f"{mbs=}")
+    logging.info(f"{gbs=}")
+    logging.info(f"{tp_size=}")
+    logging.info(f"{pp_size=}")
+    logging.info(f"{cp_size=}")
+    logging.info(f"{vp_size=}")
+    logging.info(f"{ep_size=}")
+    logging.info(f"{etp_size=}")
+    logging.info(f"{enable_cuda_graphs=}")
+    logging.info(f"{use_mcore_fsdp=}")
+    logging.info(f"{recompute_layers=}")
+    logging.info(f"{activation_offload_layers=}")
+    logging.info(f"{recompute_modules=}")
 
     return kwargs
 
