@@ -412,6 +412,13 @@ def parse_cli_args():
     )
 
     parser.add_argument(
+        "-pgm",
+        "--profiling_gpu_metrics",
+        help="Enable nsys gpu metrics. Disabled by default.",
+        action="store_true",
+    )
+
+    parser.add_argument(
         "-cps",
         "--checkpoint_save",
         type=bool_arg,

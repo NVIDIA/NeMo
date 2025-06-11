@@ -189,6 +189,7 @@ if __name__ == "__main__":
                 start_step=args.profiling_start_step,
                 end_step=args.profiling_stop_step,
                 ranks=list(range(num_nodes * args.gpus_per_node)),
+                nsys_gpu_metrics=args.profiling_gpu_metrics,
             )
         )
         # nsys takes precedent over ncclttrace
