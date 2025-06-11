@@ -206,7 +206,7 @@ def export_ckpt(
     output_path: Optional[Path] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], ModelConnector] = load_connector_from_trainer_ckpt,
-    modelopt_export_kwargs: dict[str, Any] = {},
+    modelopt_export_kwargs: dict[str, Any] = None,
     **kwargs,
 ) -> Path:
     """
@@ -254,6 +254,9 @@ def export_ckpt(
     _output_path = output_path or Path(path) / target
 
     if target == "hf":
+        if modelopt_export_kwargs is None:
+            modelopt_export_kwargs = {}
+
         # First try to export via ModelOpt route. If rejected, return to the default route
         output = export_hf_checkpoint(path, _output_path, **modelopt_export_kwargs)
         if output is not None:

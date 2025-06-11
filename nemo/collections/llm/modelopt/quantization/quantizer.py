@@ -299,6 +299,9 @@ class Quantizer:
 
         If forward_loop is not provided, a forward loop will be created using the calibration dataset.
         """
+        if forward_loop is None and not self.quantization_config.is_weight_only():
+            forward_loop = self._get_forward_loop(model)
+
         algorithm = self.quantization_config.algorithm
         if algorithm is None:
             logging.info("Quantization algorithm set to None, returning the non-quantized model")

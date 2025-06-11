@@ -556,8 +556,6 @@ def ptq(
             trainer_kwargs={},
             model_config_overrides={"sequence_parallel": False},
         )
-    if forward_loop is None and not quantization_config.is_weight_only():
-        forward_loop = quantizer._get_forward_loop(model)
 
     model = quantizer.quantize(model, forward_loop)
     quantizer.export(model, model_path, trainer)
@@ -939,7 +937,7 @@ def export_ckpt(
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
-    modelopt_export_kwargs: dict[str, Any] = {},
+    modelopt_export_kwargs: dict[str, Any] = None,
     **kwargs,
 ) -> Path:
     """
