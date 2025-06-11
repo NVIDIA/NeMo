@@ -27,8 +27,8 @@ from ..helpers import (
     logging,
     set_exp_logging_configs,
     set_primary_perf_configs,
-    slurm_executor,
 )
+from ..executors import slurm_executor
 
 
 def override_recipe_configs(

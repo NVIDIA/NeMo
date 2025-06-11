@@ -24,11 +24,11 @@ from ..argument_parser import parse_cli_args
 from ..helpers import (
     args_sanity_check,
     get_user_configs,
-    hf_tokenizer,
     set_exp_logging_configs,
     set_primary_perf_configs,
-    slurm_executor,
 )
+from ..executors import slurm_executor
+from ..utils import hf_tokenizer
 
 
 def override_recipe_configs(

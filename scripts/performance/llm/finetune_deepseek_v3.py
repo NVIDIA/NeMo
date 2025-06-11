@@ -27,11 +27,13 @@ from ..argument_parser import parse_cli_args
 from ..helpers import (
     args_sanity_check,
     get_user_configs,
+    set_primary_perf_configs,
+)
+from ..executors import slurm_executor
+from ..utils import (
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
-    set_primary_perf_configs,
-    slurm_executor,
 )
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"

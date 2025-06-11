@@ -33,9 +33,11 @@ from ..helpers import (
     logging,
     set_exp_logging_configs,
     set_primary_perf_configs,
-    slurm_executor,
 )
-from ..utils import get_comm_overlap_callback_idx
+from ..executors import slurm_executor
+from ..utils import (
+    get_comm_overlap_callback_idx,
+)
 
 
 def override_recipe_configs(
@@ -185,7 +187,7 @@ if __name__ == "__main__":
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
     if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not none
+        assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
