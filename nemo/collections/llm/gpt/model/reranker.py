@@ -39,10 +39,10 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
     from transformers import AutoModelForSequenceClassification
 
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
     from nemo.collections.llm.gpt.model.llama import LlamaConfig
 
@@ -124,9 +124,12 @@ class Llama32Reranker1BConfig(Llama32Config1B, ReRankerBaseConfig):
         model.post_process = False
         return model
 
+
 class Llama32Reranker500MConfig(Llama32Reranker1BConfig):
     """Config for Llama32Reranker500M model"""
+
     num_layers: int = 8
+
 
 class ReRankerModel(GPTModel):
     """Base model for Reranking that extends GPTModel with reranking-specific functionality."""
