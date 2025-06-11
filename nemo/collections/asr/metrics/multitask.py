@@ -243,14 +243,9 @@ class MultiTaskMetric(Serialization):
         # Setup tracking dictionaries
         self._metric_dict, self._constr_dict = {}, {}
         cfg = OmegaConf.to_container(cfg)
-<<<<<<< HEAD
         
         # Process each metric instance.
         seen_types = set()
-=======
-
-        # Process each metric definition
->>>>>>> 5da09f8a74bd6c6f77f4fa339e2cb52e5b6f84ab
         for metric in cfg.pop("metrics"):
             name, constraint = metric.pop("name"), metric.pop("constraint", "")  # Empty string for no constraint value. Metric always calculated.
 
@@ -314,20 +309,11 @@ class MultiTaskMetric(Serialization):
         input_ids: torch.Tensor,
         cuts: CutSet,
     ):
-<<<<<<< HEAD
         
-=======
-        cuts_split, idx_split = self._split_cuts(cuts)
-
->>>>>>> 5da09f8a74bd6c6f77f4fa339e2cb52e5b6f84ab
         # Update each metric with its filtered data
         cuts_split, idx_split = self._split_cuts(cuts)
         for name, metric in self._metric_dict.items():
             cuts_subset, indices = cuts_split[name], idx_split[name]
-<<<<<<< HEAD
-=======
-
->>>>>>> 5da09f8a74bd6c6f77f4fa339e2cb52e5b6f84ab
             # Update metric with filtered tensors
             metric.update(
                 predictions=predictions[indices],
@@ -349,7 +335,6 @@ class MultiTaskMetric(Serialization):
             if type(metric) is WER:
                 wer, wer_num, wer_denom = metric.compute()
                 if return_all_metrics:
-<<<<<<< HEAD
                     output_dict.update({
                         f"{prefix}wer": wer,
                         f"{prefix}wer_num": wer_num,
@@ -359,21 +344,6 @@ class MultiTaskMetric(Serialization):
                     output_dict.update({
                         f"{prefix}wer": wer,
                     })
-=======
-                    output_dict.update(
-                        {
-                            f"{prefix}wer{suffix}": wer,
-                            f"{prefix}wer_num{suffix}": wer_num,
-                            f"{prefix}wer_denom{suffix}": wer_denom,
-                        }
-                    )
-                else:
-                    output_dict.update(
-                        {
-                            f"{prefix}wer{suffix}": wer,
-                        }
-                    )
->>>>>>> 5da09f8a74bd6c6f77f4fa339e2cb52e5b6f84ab
             else:
                 # Standard metric compute (returns dict)
                 output_dict.update(
