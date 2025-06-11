@@ -282,4 +282,9 @@ dataset_meta_info = {
         'audio_dir' : '/mnt/drive1/data/LibriTTS/',
         'feature_dir' : None,
     },
+    'an4_val_ci': {
+        'manifest_path' : '/home/TestData/an4_dataset/an4_val_context_v1.json',
+        'audio_dir' : '/',
+        'feature_dir' : None,
+    },
 }
