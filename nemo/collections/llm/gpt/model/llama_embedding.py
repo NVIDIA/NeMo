@@ -36,7 +36,7 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaModel,
 )
 from nemo.collections.llm.utils import Config
-from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning import OptimizerModule, io
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
@@ -270,82 +270,6 @@ class LlamaEmbeddingImporter(HFLlamaImporter):
 
     def init(self) -> LlamaEmbeddingModel:
         return LlamaEmbeddingModel(self.config, tokenizer=self.tokenizer)
-
-    def apply(self, output_path: Path) -> Path:
-        """Apply the conversion from HF to NeMo format.
-
-        Args:
-            output_path: Path where the converted model will be saved
-
-        Returns:
-            Path: Path to the saved NeMo model
-        """
-        from transformers import AutoModel, AutoModelForSequenceClassification
-
-        # source = AutoModel.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
-        print('start')
-        source = AutoModelForSequenceClassification.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
-        print('end')
-        breakpoint()
-
-        target = self.init()
-        trainer = self.nemo_setup(target)
-
-        breakpoint()
-        self.convert_state(source, target)
-        self.nemo_save(output_path, trainer)
-
-        print(f"Converted Llama model to Nemo, model saved to {output_path} in {source.dtype}.")
-
-        teardown(trainer, target)
-        del trainer, target
-
-        return output_path
-
-    def convert_state(self, source, target):    
-        """Convert state dict from HF format to NeMo format.
-
-        Maps the weights from the HF model to the NeMo model according to
-        the appropriate mapping scheme.
-
-        Args:
-            source: Source HF model
-            target: Target NeMo model
-
-        Returns:
-            The result of applying the transforms
-        """
-        mapping = {
-            "embed_tokens.weight": "embedding.word_embeddings.weight",
-            "layers.*.self_attn.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
-            "layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-            "norm.weight": "decoder.final_layernorm.weight",
-            "lm_head.weight": "output_layer.weight",
-            "layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-            "layers.*.mlp.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
-        }
-        if getattr(source.config, "tie_word_embeddings", False):
-            # llama 3.2 1B and 3B models have no shared input output embeddings
-            del mapping["lm_head.weight"]
-
-        transforms = [
-            io.state_transform(
-                source_key=(
-                    "layers.*.self_attn.q_proj.weight",
-                    "layers.*.self_attn.k_proj.weight",
-                    "layers.*.self_attn.v_proj.weight",
-                ),
-                target_key="decoder.layers.*.self_attention.linear_qkv.weight",
-                fn=TransformFns.merge_qkv,
-            ),
-            io.state_transform(
-                source_key=("layers.*.mlp.gate_proj.weight", "layers.*.mlp.up_proj.weight"),
-                target_key="decoder.layers.*.mlp.linear_fc1.weight",
-                fn=TransformFns.merge_fc1,
-            )
-        ]
-
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def config(self) -> Llama32Config1B:
