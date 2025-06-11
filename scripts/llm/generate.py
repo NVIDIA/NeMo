@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -165,6 +165,7 @@ if __name__ == "__main__":
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
         expert_model_parallel_size=args.ep,
+        expert_tensor_parallel_size=1 if args.ep > 1 else None,
         context_parallel_size=1,
         sequence_parallel=False,
         setup_optimizers=False,

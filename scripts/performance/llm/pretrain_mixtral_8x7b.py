@@ -66,6 +66,8 @@ def override_recipe_configs(
         ep_size,
         etp_size,
         enable_cuda_graphs,
+        use_user_buffer_registration=args.use_user_buffer_registration,
+        use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
@@ -115,7 +117,13 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
     )
+
+    # TODO: we currently disable PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+    # for mixtral_8x7b on B200 as it causes an unexpected error. Add back when issue is debugged and fixed.
+    if args.gpu.lower() in ['b200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+        del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
 
     plugins = [
         PerfEnvPlugin(
