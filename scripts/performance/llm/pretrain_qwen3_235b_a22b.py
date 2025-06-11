@@ -16,7 +16,7 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.llm.recipes.qwen3_30b_a3b import pretrain_recipe
+from nemo.collections.llm.recipes.qwen3_235b_a22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
@@ -107,6 +107,8 @@ def override_recipe_configs(
     recipe.model.config.recompute_granularity = None
     recipe.model.config.recompute_method = None
     recipe.model.config.recompute_num_layers = None
+
+    # embedding and CE in a separate stage is already set in the recipe
     
     # local test 
     recipe.trainer.max_steps = 10
@@ -124,7 +126,7 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "qwen3", "30b_a3b", args)
+    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "qwen3", "235b_a22b", args)
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, _, _, _ = kwargs[
         0:13
     ]
@@ -177,7 +179,7 @@ if __name__ == "__main__":
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
     if args.use_localrun:
-        run.run(recipe, executor=executor, plugins=plugins, name="qwen3_30b_a3b_local_test")
+        run.run(recipe, executor=executor, plugins=plugins, name="qwen3_235b_a22b_local_test")
         exit()
 
     with run.Experiment(exp_name) as exp:
