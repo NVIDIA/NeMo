@@ -108,13 +108,13 @@ def _build_constraint_fn(constraint: str):
         expr = match.group(1).strip()
         return partial(_logical_not, _build_constraint_fn(expr))
 
-    pattern = fr'(.+?)\s+and\s+(.+)'  # and
+    pattern = r'(.+?)\s+and\s+(.+)'  # and
     match = re.match(pattern, c)
     if match:
         left_expr, right_expr = match.groups()
         return partial(_logical_and, _build_constraint_fn(left_expr), _build_constraint_fn(right_expr))
 
-    pattern = fr'(.+?)\s+or\s+(.+)'  # or
+    pattern = r'(.+?)\s+or\s+(.+)'  # or
     match = re.match(pattern, c)
     if match:
         left_expr, right_expr = match.groups()
