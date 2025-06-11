@@ -16,7 +16,7 @@ import argparse
 
 from nemo_run.config import get_nemorun_home
 
-from .helpers import DEFAULT_NEMO_HOME
+from .utils import DEFAULT_NEMO_HOME
 
 
 def parse_cli_args():
