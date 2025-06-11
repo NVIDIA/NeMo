@@ -76,7 +76,7 @@ class ReRankerDataset(Dataset):
     """A dataset class for training reranking models that handles
     query-document pairs with positive and negative examples.
 
-    This dataset processes JSONL files containing query-document triplets 
+    This dataset processes JSONL files containing query-document triplets
     (query, positive document, negative documents) and prepares them for reranking model training.
     It supports various tokenization options, sequence length constraints,
     and negative sampling strategies.
@@ -112,7 +112,7 @@ class ReRankerDataset(Dataset):
         special_tokens (Optional[Mapping[str, str]], optional): Special tokens for formatting. Defaults to None.
         data_type (str, optional): Type of data ('train', 'query', or 'doc'). Defaults to 'train'.
         num_hard_negatives (int, optional): Number of negative examples to use. Defaults to 4.
-        negative_sample_strategy (Literal["random", "first"], optional): Strategy for sampling negatives. 
+        negative_sample_strategy (Literal["random", "first"], optional): Strategy for sampling negatives.
         Defaults to 'first'.
         question_key (str, optional): Key for question in input data. Defaults to 'question'.
         pos_key (str, optional): Key for positive document in input data. Defaults to 'pos_doc'.

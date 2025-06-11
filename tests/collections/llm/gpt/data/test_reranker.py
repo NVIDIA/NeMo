@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from nemo.collections.llm.gpt.data.reranker import ReRankerDataset, CustomReRankerDataModule
+from nemo.collections.llm.gpt.data.reranker import CustomReRankerDataModule, ReRankerDataset
 
 
 @pytest.fixture
@@ -31,8 +31,12 @@ def sample_data():
         {
             "question": "What is PyTorch?",
             "pos_doc": ["PyTorch is a machine learning framework"],  # Always use list
-            "neg_doc": ["Incorrect PyTorch description 1", "Incorrect PyTorch description 2", 
-                       "Incorrect PyTorch description 3", "Incorrect PyTorch description 4"],
+            "neg_doc": [
+                "Incorrect PyTorch description 1",
+                "Incorrect PyTorch description 2",
+                "Incorrect PyTorch description 3",
+                "Incorrect PyTorch description 4",
+            ],
         },
     ] * 20
 
@@ -102,7 +106,7 @@ def test_reranker_dataset_getitem(temp_data_files, mock_tokenizer):
         num_hard_negatives=4,
         negative_sample_strategy="first",
     )
-    
+
     item = dataset[0]
     assert "positive" in item
     assert "negatives" in item
@@ -121,16 +125,16 @@ def test_reranker_dataset_collate_fn(temp_data_files, mock_tokenizer):
         num_hard_negatives=4,
         negative_sample_strategy="first",
     )
-    
+
     batch = [dataset[0], dataset[1]]
     collated = dataset.collate_fn(batch)
-    
+
     assert "input_ids" in collated
     assert "attention_mask" in collated
     assert "token_type_ids" in collated
     assert "position_ids" in collated
     assert "metadata" in collated
-    
+
     # Check shapes
     batch_size = len(batch)
     num_examples = batch_size * (1 + dataset.num_hard_negatives)  # positive + negatives
@@ -243,11 +247,11 @@ def test_reranker_dataset_negative_sampling_strategies(temp_data_files, mock_tok
         num_hard_negatives=4,
         negative_sample_strategy="random",
     )
-    
+
     # Test random sampling
     item = dataset[0]
     assert len(item["negatives"]) == 4
-    
+
     # Test first sampling
     dataset.negative_sample_strategy = "first"
     item = dataset[0]
@@ -263,7 +267,7 @@ def test_reranker_dataset_sequence_length_handling(temp_data_files, mock_tokeniz
         max_seq_length=max_seq_length,
         num_hard_negatives=4,
     )
-    
+
     item = dataset[0]
     assert len(item["positive"]) <= max_seq_length
-    assert all(len(n) <= max_seq_length for n in item["negatives"]) 
+    assert all(len(n) <= max_seq_length for n in item["negatives"])

@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest.mock import MagicMock, patch
+
 import torch
-from unittest.mock import patch, MagicMock
 
 from nemo.collections.llm.gpt.model.llama_embedding import get_nv_embedding_layer_spec
 from nemo.collections.llm.gpt.model.reranker import (
@@ -47,7 +48,7 @@ def test_llama32_reranker_1b_config():
     assert config.num_attention_heads == 32
     assert config.num_query_groups == 8
     assert config.ffn_hidden_size == 8192
-    
+
     # Test ReRankerBaseConfig properties
     assert config.truncation_method == 'right'
     assert config.num_hard_negatives == 4
@@ -59,7 +60,7 @@ def test_llama32_reranker_1b_config():
     assert config.add_eos is False
     assert config.pool_type == 'avg'
     assert config.temperature == 1.0
-    
+
     # Test specific properties
     assert config.transformer_layer_spec == get_nv_embedding_layer_spec
     assert config.forward_step_fn.__name__ == 'reranker_forward_step'
@@ -73,7 +74,7 @@ def test_llama32_reranker_500m_config():
     assert config.num_attention_heads == 32
     assert config.num_query_groups == 8
     assert config.ffn_hidden_size == 8192
-    
+
     # Test ReRankerBaseConfig properties
     assert config.truncation_method == 'right'
     assert config.num_hard_negatives == 4
@@ -99,12 +100,7 @@ def test_reranker_loss(mock_cp_size, mock_dp_group, mock_world_size, mock_all_re
     mock_all_reduce.return_value = None
 
     # Test initialization
-    loss_fn = ReRankerLoss(
-        validation_step=False,
-        val_drop_last=True,
-        num_hard_negatives=2,
-        label_smoothing=0.1
-    )
+    loss_fn = ReRankerLoss(validation_step=False, val_drop_last=True, num_hard_negatives=2, label_smoothing=0.1)
     assert loss_fn.validation_step is False
     assert loss_fn.val_drop_last is True
     assert loss_fn.num_hard_negatives == 2
@@ -114,11 +110,11 @@ def test_reranker_loss(mock_cp_size, mock_dp_group, mock_world_size, mock_all_re
     batch_size = 4
     num_hard_negatives = 2
     num_tensors_per_example = 1 + num_hard_negatives
-    
+
     # Create dummy input
     forward_out = torch.randn(batch_size * num_tensors_per_example, device='cuda')
     batch = {}
-    
+
     # Test forward pass
     loss, metrics = loss_fn.forward(batch, forward_out)
     assert isinstance(loss, torch.Tensor)
@@ -137,31 +133,31 @@ def test_reranker_model_pooling():
     # Test different pooling strategies
     config = Llama32Reranker1BConfig()
     model = ReRankerModel(config)
-    
+
     batch_size = 2
     seq_length = 10
     hidden_size = config.hidden_size
-    
+
     # Create dummy input
     last_hidden_states = torch.randn(seq_length, batch_size, hidden_size, device='cuda')
     attention_mask = torch.ones(batch_size, seq_length, device='cuda')
-    
+
     # Test average pooling
     config.pool_type = 'avg'
     pooled = model.pool(last_hidden_states, attention_mask)
     assert pooled.shape == (batch_size, hidden_size)
-    
+
     # Test weighted average pooling
     config.pool_type = 'weighted_avg'
     pooled = model.pool(last_hidden_states, attention_mask)
     assert pooled.shape == (batch_size, hidden_size)
-    
+
     # Test CLS pooling
     config.pool_type = 'cls'
     pooled = model.pool(last_hidden_states, attention_mask)
     assert pooled.shape == (batch_size, hidden_size)
-    
+
     # Test last token pooling
     config.pool_type = 'last'
     pooled = model.pool(last_hidden_states, attention_mask)
-    assert pooled.shape == (batch_size, hidden_size) 
+    assert pooled.shape == (batch_size, hidden_size)
