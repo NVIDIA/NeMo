@@ -237,8 +237,11 @@ def restore_modelopt_state(
     if not HAVE_MODELOPT:
         return
     if not path:
-        assert trainer is not None, "path or trainer must be provided"
+        if trainer is None:
+            return
         path = getattr(trainer.strategy.restore_config, "path", trainer.ckpt_path)
+        if not path:
+            return
 
     core_model = unwrap_model(model)
     if mto.ModeloptStateManager.is_converted(core_model):
@@ -278,8 +281,7 @@ def save_modelopt_state(model: "MegatronParallel", path: str, checkpoint_io: "Ch
     if not mto.ModeloptStateManager.is_converted(core_model):
         return
 
-    if isinstance(checkpoint_io, _WrappingCheckpointIO):
-        ckpt_io = checkpoint_io.checkpoint_io
+    ckpt_io = checkpoint_io.checkpoint_io if isinstance(checkpoint_io, _WrappingCheckpointIO) else checkpoint_io
     if getattr(ckpt_io, "async_save", False):
         logging.warning("Model-Optimizer library in use. Async checkpoint saving is blocked.")
         # Finish up potentially async saving already started.

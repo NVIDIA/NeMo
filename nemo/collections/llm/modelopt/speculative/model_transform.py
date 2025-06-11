@@ -31,28 +31,29 @@ ALGORITHMS = {
 
 def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> nn.Module:
     """
-    Transform a model to enable speculative decoding using Model Optimizer.
+    Transform a model to enable Speculative Decoding using Model Optimizer.
 
     Args:
         model: The model to transform.
-        algorithm: The algorithm to use for speculative decoding.
+        algorithm: The algorithm to use for Speculative Decoding.
             (See https://github.com/NVIDIA/TensorRT-Model-Optimizer/blob/main/modelopt/torch/speculative/config.py)
 
     Returns:
         The transformed model.
     """
     if not HAVE_MODELOPT:
-        raise ImportError("nvidia-modelopt is required to use speculative decoding")
+        raise ImportError("nvidia-modelopt is required to use Speculative Decoding")
 
     assert algorithm in ALGORITHMS, f"Invalid algorithm: {algorithm}. Choices: {ALGORITHMS.keys()}"
-    algo_cfg = ALGORITHMS[algorithm]
+    mode_cfg = ALGORITHMS[algorithm]
+    mode, cfg = mode_cfg["algorithm"], mode_cfg["config"]
 
     assert isinstance(model, GPTModel), "Speculative Decoding currently only supported for GPT models."
     unwrapped_model = unwrap_model(model)
 
     # Check if the model has already been transformed with speculative decoding
-    if mto.ModeloptStateManager.has_state_for_mode_type("speculative", model=unwrapped_model):
-        logging.info("Model has already been transformed with speculative decoding. Skipping transformation.")
+    if _has_same_speculative_decoding_state(unwrapped_model, mode):
+        logging.info("Model has already been transformed with Speculative Decoding. Skipping transformation.")
         return model
 
     # Verify model is compatible with speculative decoding
@@ -60,8 +61,26 @@ def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> n
     if unwrapped_model.config.virtual_pipeline_model_parallel_size is not None:
         raise ValueError("Speculative decoding is incompatible with virtual pipeline parallelism.")
 
-    algo, cfg = algo_cfg["algorithm"], algo_cfg["config"]
-    logging.info(f"Converting to Speculative Decoding model with algorithm: {algo} and config:\n{cfg}")
-    mtsp.convert(unwrapped_model, [(algo, cfg)])  # assumes in-place
+    logging.info(f"Converting to Speculative Decoding model with mode: {mode} and config:\n{cfg}")
+    mtsp.convert(unwrapped_model, [(mode, cfg)])  # assumes in-place
 
     return model
+
+
+def _has_same_speculative_decoding_state(model: nn.Module, mode: str) -> bool:
+    """
+    Check if the model has the same Speculative Decoding state as the incoming algorithm mode.
+    """
+    from modelopt.torch.opt.mode import _ModeRegistryCls
+
+    mode_registry = _ModeRegistryCls.get_registry_by_name("speculative")
+    modelopt_state = mto.modelopt_state(model)
+    for _mode, _ in modelopt_state["modelopt_state_dict"]:
+        if _mode in mode_registry:
+            if _mode != mode:
+                raise ValueError(
+                    "Model has already been transformed with Speculative Decoding, but"
+                    f" with a different mode: {_mode}. Please use the same mode."
+                )
+            return True
+    return False

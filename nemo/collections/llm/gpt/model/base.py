@@ -586,7 +586,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             # Restore ModelOpt state if it exists.
             # NOTE: Also called in MegatronStrategy.load_checkpoint but we do it for GPTModel here first,
             # for transformations which add new parameters to the model that need to be included in the optimizer.
-            restore_modelopt_state(self.module, trainer=self.trainer)
+            # TODO: Add to other models when needed.
+            restore_modelopt_state(self.module, trainer=getattr(self, "trainer", None))
 
     def forward(
         self,

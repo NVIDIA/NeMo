@@ -27,7 +27,7 @@ Example usage:
         --devices 2
 
 Available speculative decoding algorithms in Nemo 2.0:
-    - Eagle 3 (default): Efficient Agent-Guide Language model Execution
+    - Eagle 3 (default): Extrapolation Algorithm for Greater Language-model Efficiency
 
 For more details on speculative decoding algorithms, refer to the NVIDIA Model Optimizer documentation:
 https://nvidia.github.io/TensorRT-Model-Optimizer/guides/7_speculative_decoding.html
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     )
 
     # Transform
-    model = apply_speculative_decoding(model, algorithm=args.specdec_algo)
+    apply_speculative_decoding(model, algorithm=args.specdec_algo)
 
     # Save to disk
     trainer.save_checkpoint(args.export_dir)
