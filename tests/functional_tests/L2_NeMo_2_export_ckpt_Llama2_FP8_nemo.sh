@@ -14,4 +14,4 @@
 
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/ptq.py -nc /home/TestData/llm/models/llama32_1b_nemo2 -algo fp8 -out /tmp/nemo2_ptq_ckpt --export_format nemo --legacy_ckpt
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo nemo llm export /tmp/nemo2_ptq_ckpt target="hf" output_path="/tmp/nemo2_hf_ckpt"
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo $(which nemo) llm export path="/tmp/nemo2_ptq_ckpt" target="hf" output_path="/tmp/nemo2_hf_ckpt" overwrite=false -y
