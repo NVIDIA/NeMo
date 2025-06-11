@@ -42,7 +42,8 @@ TASK_TRANSCRIBE = {
 TASK_TRANSLATE = {"ast", "translate", "<|translate|>", "s2t_translation"}
 
 
-class CanaryPromptFormatter(PromptFormatter):  # pylint disable=missing-class-docstring
+class CanaryPromptFormatter(PromptFormatter):
+    """Canary Prompt"""
     NAME = "canary"
     OUTPUT_ROLE = "assistant"
     TEMPLATE = {
