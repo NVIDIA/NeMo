@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
-from nemo.lightning.pytorch.utils import dtype_from_hf
 import torch
 from torch import nn
 
@@ -26,6 +25,7 @@ from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 if TYPE_CHECKING:

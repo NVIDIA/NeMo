@@ -302,7 +302,7 @@ class LlamaEmbeddingImporter(HFLlamaImporter):
         )
 
         return output
-    
+
     def apply(self, output_path: Path) -> Path:
         """Apply the conversion from HF to NeMo format.
         Args:
@@ -316,14 +316,15 @@ class LlamaEmbeddingImporter(HFLlamaImporter):
             source = AutoModelForCausalLM.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
         except:
             source = AutoModel.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
+
             # Wrap the source in a model for causal LM
             class ModelWrapper(nn.Module):
                 def __init__(self, model, config):
                     super().__init__()
                     self.model = model
                     self.config = config
+
             source = ModelWrapper(source, source.config)
-            
 
         target = self.init()
         trainer = self.nemo_setup(target)
