@@ -27,8 +27,8 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..helpers import args_sanity_check
 from ..executors import slurm_executor
+from ..helpers import args_sanity_check
 from ..utils import import_ckpt_experiment
 
 NUM_NODES = 1

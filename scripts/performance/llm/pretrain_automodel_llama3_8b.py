@@ -22,8 +22,8 @@ from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..helpers import args_sanity_check, get_user_configs
 from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs
 
 SEQ_LENGTH = 2048
 NUM_GPUS_PER_NODE = 8
