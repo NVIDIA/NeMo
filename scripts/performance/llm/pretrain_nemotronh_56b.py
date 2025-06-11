@@ -21,7 +21,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
+from ..helpers import (
     args_sanity_check,
     get_user_configs,
     hf_tokenizer,

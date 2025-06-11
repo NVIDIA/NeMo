@@ -24,7 +24,7 @@ from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCal
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
+from ..helpers import (
     args_sanity_check,
     get_user_configs,
     hf_tokenizer,

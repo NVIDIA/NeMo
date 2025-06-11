@@ -22,7 +22,7 @@ from nemo.collections.vlm.recipes.llama4_omni_e128 import pretrain_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
+from ..helpers import (
     args_sanity_check,
     get_user_configs,
     set_exp_logging_configs,
