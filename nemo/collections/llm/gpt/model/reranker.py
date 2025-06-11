@@ -124,6 +124,9 @@ class Llama32Reranker1BConfig(Llama32Config1B, ReRankerBaseConfig):
         model.post_process = False
         return model
 
+class Llama32Reranker500MConfig(Llama32Reranker1BConfig):
+    """Config for Llama32Reranker500M model"""
+    num_layers: int = 8
 
 class ReRankerModel(GPTModel):
     """Base model for Reranking that extends GPTModel with reranking-specific functionality."""
@@ -165,9 +168,9 @@ class ReRankerModel(GPTModel):
             1,
             config=self.config,
             init_method=self.config.init_method,
-            bias=True,
+            bias=False,
             skip_bias_add=True,
-            gather_output=True,  # TODO verify
+            gather_output=True,
         )
 
     def pool(self, last_hidden_states, attention_mask):
@@ -253,7 +256,7 @@ class ReRankerModel(GPTModel):
         else:
             need_to_convert_back = False
 
-        # TODO support bias
+        # Assume no bias
         pooled_logits = self.score(pooled_hidden_states)[0]
         pooled_logits = pooled_logits / self.config.temperature
         if need_to_convert_back:
@@ -337,6 +340,7 @@ class ReRankerImporter(io.ModelConnector["AutoModelForSequenceClassification", R
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
+            num_layers=source.num_hidden_layers,
         )
 
     @property
@@ -489,7 +493,28 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
 
 
 class ReRankerLoss(MegatronLossReduction):
-    """ """
+    """Loss function for reranking models that learns to score passages by relevance.
+
+    This loss function implements a cross-entropy based approach for learning to rank passages.
+    For each example, it takes a positive passage and multiple hard negative passages,
+    and learns to assign higher scores to the positive passage compared to the negatives.
+
+    The loss is computed by treating the scoring task as a classification problem where
+    the positive passage should be ranked first among all passages (positive + negatives).
+    Cross-entropy loss is used to learn this ranking behavior.
+
+    Args:
+        validation_step (bool, optional): Whether this is being used in validation. Defaults to False.
+        val_drop_last (bool, optional): Whether to drop the last batch in validation. Defaults to True.
+        num_hard_negatives (int, optional): Number of hard negative passages per positive passage. Defaults to 1.
+        label_smoothing (float, optional): Label smoothing factor for cross-entropy loss. Defaults to 0.0.
+
+    Note:
+        - The input logits should be organized such that for each example, the first score
+          corresponds to the positive passage, followed by scores for hard negative passages.
+        - The loss assumes all examples have the same number of passages (1 positive + num_hard_negatives).
+        - Context parallelism (CP) is not currently supported.
+    """
 
     def __init__(
         self,

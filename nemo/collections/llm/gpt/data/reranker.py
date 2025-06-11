@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional, U
 import numpy as np
 import torch
 
+from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.retrieval import CustomRetrievalDataModule
 from nemo.collections.llm.gpt.data.utils import _get_samples_mapping, _JSONLMemMapDataset
 from nemo.core.classes import Dataset
@@ -72,7 +73,48 @@ def create_reranker_dataset(
 
 
 class ReRankerDataset(Dataset):
-    """ """
+    """A dataset class for training reranking models that handles query-document pairs with positive and negative examples.
+
+    This dataset processes JSONL files containing query-document triplets (query, positive document, negative documents)
+    and prepares them for reranking model training. It supports various tokenization options, sequence length constraints,
+    and negative sampling strategies.
+
+    The dataset expects each example to contain:
+    - A query/question
+    - One or more positive documents (relevant to the query)
+    - Multiple negative documents (irrelevant to the query)
+
+    During processing, it:
+    1. Formats each query-document pair with appropriate separators
+    2. Applies tokenization with optional BOS/EOS tokens
+    3. Handles sequence length constraints through truncation
+    4. Samples negative examples based on the specified strategy
+    5. Prepares attention masks and position IDs for model input
+
+    The collate function combines multiple examples into batches, handling padding and attention masks
+    appropriately for the reranking task.
+
+    Args:
+        file_path (str): Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets.
+        tokenizer (TokenizerSpec): Tokenizer for processing text.
+        max_seq_length (int, optional): Maximum sequence length for each example. Defaults to 1024.
+        min_seq_length (int, optional): Minimum sequence length for each example. Defaults to 1.
+        add_bos (bool, optional): Whether to add beginning of sequence token. Defaults to True.
+        add_eos (bool, optional): Whether to add end of sequence token. Defaults to True.
+        max_num_samples (int, optional): Maximum number of samples to load. Defaults to None.
+        seed (int, optional): Random seed for data shuffling. Defaults to 1234.
+        index_mapping_dir (str, optional): Directory to save index mapping. Defaults to None.
+        virtual_tokens (int, optional): Number of virtual tokens to add. Defaults to 0.
+        memmap_workers (Optional[int], optional): Number of workers for memmap loading. Defaults to None.
+        truncation_method (str, optional): Truncation method ('left' or 'right'). Defaults to 'right'.
+        special_tokens (Optional[Mapping[str, str]], optional): Special tokens for formatting. Defaults to None.
+        data_type (str, optional): Type of data ('train', 'query', or 'doc'). Defaults to 'train'.
+        num_hard_negatives (int, optional): Number of negative examples to use. Defaults to 4.
+        negative_sample_strategy (Literal["random", "first"], optional): Strategy for sampling negatives. Defaults to 'first'.
+        question_key (str, optional): Key for question in input data. Defaults to 'question'.
+        pos_key (str, optional): Key for positive document in input data. Defaults to 'pos_doc'.
+        neg_key (str, optional): Key for negative documents in input data. Defaults to 'neg_doc'.
+    """
 
     def __init__(
         self,
@@ -372,7 +414,49 @@ class ReRankerDataset(Dataset):
 
 
 class CustomReRankerDataModule(CustomRetrievalDataModule):
-    """Custom ReRanker Data Module loaded with json file"""
+    """A data module for managing reranking datasets that handles data loading, preprocessing, and batching.
+
+    This module extends CustomRetrievalDataModule to provide specialized functionality for reranking tasks.
+    It manages the creation and organization of training, validation, and test datasets for reranking models,
+    with support for automatic dataset splitting and various data loading configurations.
+
+    The module can work with either:
+    1. A single data file that will be automatically split into train/val/test sets
+    2. Separate files for training, validation, and testing
+
+    Key features:
+    - Automatic dataset splitting with configurable ratios
+    - Support for both JSON and JSONL file formats
+    - Configurable batch sizes and data loading parameters
+    - Efficient data loading with memory mapping
+    - Support for packed sequence specifications
+    - Customizable data keys for query and document fields
+
+    Args:
+        data_root (Union[str, List[str]]): Path(s) to the training data file(s) in JSON/JSONL format.
+        val_root (Optional[str]): Path to validation data file. If None, will split from data_root.
+        test_root (Optional[str]): Path to test data file. If None, will split from data_root.
+        val_ratio (Optional[float]): Ratio of data to use for validation when splitting. Defaults to 0.04.
+        test_ratio (Optional[float]): Ratio of data to use for testing when splitting. Defaults to 0.01.
+        dataset_identifier (Optional[str]): Unique identifier for the dataset. If None, generated from data_root.
+        seq_length (int): Maximum sequence length for model input. Defaults to 2048.
+        tokenizer (Optional[TokenizerSpec]): Tokenizer for text processing. Defaults to None.
+        micro_batch_size (int): Batch size for each training step. Defaults to 4.
+        global_batch_size (int): Total batch size across all GPUs. Defaults to 8.
+        rampup_batch_size (Optional[List[int]]): Batch sizes for training rampup. Defaults to None.
+        force_redownload (bool): Whether to force redownload of dataset. Defaults to False.
+        delete_raw (bool): Whether to delete raw data after processing. Defaults to True.
+        seed (int): Random seed for reproducibility. Defaults to 1234.
+        memmap_workers (int): Number of workers for memory-mapped file loading. Defaults to 1.
+        num_workers (int): Number of workers for data loading. Defaults to 8.
+        pin_memory (bool): Whether to pin memory for faster GPU transfer. Defaults to True.
+        persistent_workers (bool): Whether to keep workers alive between epochs. Defaults to False.
+        packed_sequence_specs (Optional[PackedSequenceSpecs]): Specifications for packed sequences. Defaults to None.
+        query_key (str): Key for query field in data. Defaults to "question".
+        pos_doc_key (str): Key for positive document field in data. Defaults to "pos_doc".
+        neg_doc_key (str): Key for negative document field in data. Defaults to "neg_doc".
+        dataset_kwargs (Optional[Dict[str, Any]]): Additional arguments for dataset creation. Defaults to None.
+    """
 
     def __init__(
         self,
