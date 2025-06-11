@@ -216,7 +216,6 @@ def run_inference(
             )
             assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
 
-            # import ipdb; ipdb.set_trace()
             test_dataset.text_tokenizer = model.tokenizer
             # Set phoneme prob = 1 for g2p
             g2p = None

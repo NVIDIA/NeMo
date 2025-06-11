@@ -798,7 +798,6 @@ class IPATokenizer(BaseTokenizer):
 
         # transliterate the text into phoneme sequences and/or grapheme sequences.
         g2p_text = self.g2p(text)
-        print(g2p_text)
 
         return self.encode_from_g2p(g2p_text, text)
 

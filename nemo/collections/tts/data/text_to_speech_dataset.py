@@ -430,7 +430,6 @@ class MagpieTTSDataset(TextToSpeechDataset):
         if data.tokenizer_names is not None:
             # Pick a random tokenizer from the list of tokenizers
             tokenizer_name = random.choice(data.tokenizer_names)
-        # print(self.text_tokenizer.tokenizers[tokenizer_name])
         tokens = self.text_tokenizer.encode(text=data.text, tokenizer_name=tokenizer_name)
         tokens = tokens + [self.eos_id]  # Not adding BOS id
         tokens = torch.tensor(tokens, dtype=torch.int32)
