@@ -121,6 +121,7 @@ class TranscriptionConfig:
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
+    matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -155,8 +156,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     Currently, greedy_batched inferece for TDT is not supported. Decoding strategy
     will be set to greedy for TDT automatically.
     """
+    logging.warning(
+        "This script is deprecated. Consider using the new buffered inference script "
+        "`examples/asr/asr_chunked_inference/rnnt/speech_to_text_streaming_infer_rnnt.py`"
+    )
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
+    torch.set_float32_matmul_precision(cfg.matmul_precision)
 
     cfg = OmegaConf.structured(cfg)
 

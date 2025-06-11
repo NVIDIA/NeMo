@@ -38,18 +38,6 @@ def stt_en_fastconformer_transducer_xxlarge():
     return ASRModel.from_pretrained(model_name, map_location="cpu").eval()
 
 
-@pytest.fixture(scope="module")
-def stt_en_fastconformer_transducer_large():
-    model_name = "stt_en_fastconformer_transducer_large"
-    return ASRModel.from_pretrained(model_name, map_location="cpu").eval()
-
-
-@pytest.fixture(scope="module")
-def stt_en_fastconformer_tdt_large():
-    model_name = "nvidia/stt_en_fastconformer_tdt_large"
-    return ASRModel.from_pretrained(model_name=model_name, map_location="cpu").eval()
-
-
 @pytest.mark.with_downloads
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA decoder can run only on CUDA")
 @pytest.mark.parametrize(
@@ -159,7 +147,7 @@ def test_loop_labels_cuda_graph_rnnt_greedy_decoder_forced_mode(
     # transcribe with use implementation with cuda graphs
     decoding_config["greedy"]["use_cuda_graph_decoder"] = True
     nemo_model.change_decoding_strategy(decoding_config)
-    nemo_model.decoding.decoding._decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+    nemo_model.decoding.decoding.decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
     with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
         fast_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
