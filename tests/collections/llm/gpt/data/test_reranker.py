@@ -16,7 +16,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-import torch
 
 from nemo.collections.llm.gpt.data.reranker import ReRankerDataset, CustomReRankerDataModule
 

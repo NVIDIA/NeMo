@@ -13,10 +13,8 @@
 # limitations under the License.
 
 import torch
-import torch.nn as nn
 from unittest.mock import patch, MagicMock
 
-from nemo.collections.llm.gpt.model.llama import Llama32Config1B
 from nemo.collections.llm.gpt.model.llama_embedding import get_nv_embedding_layer_spec
 from nemo.collections.llm.gpt.model.reranker import (
     Llama32Reranker1BConfig,
@@ -116,7 +114,6 @@ def test_reranker_loss(mock_cp_size, mock_dp_group, mock_world_size, mock_all_re
     batch_size = 4
     num_hard_negatives = 2
     num_tensors_per_example = 1 + num_hard_negatives
-    hidden_size = 768
     
     # Create dummy input
     forward_out = torch.randn(batch_size * num_tensors_per_example, device='cuda')
