@@ -11,13 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import dataclasses
 import io
 import math
 import operator
 import random
 import string
-from collections import defaultdict
 from copy import deepcopy
 from typing import List
 from unittest.mock import Mock, patch
@@ -622,27 +620,29 @@ class TestBLEUMetric:
 
     def create_mock_decoding(self, decode_type="ctc"):
         """Create mock decoding instance"""
+        decoding = None
         if decode_type == "ctc":
             decoding = Mock(spec=AbstractCTCDecoding)
             decoding.decode_tokens_to_str = lambda tokens: ''.join([self.vocabulary[id_] for id_ in tokens])
             decoding.ctc_decoder_predictions_tensor = Mock(return_value=[
                 Hypothesis(score=1.0, y_sequence=[], text="hello world")
             ])
-            return decoding
         elif decode_type == "rnnt":
             decoding = Mock(spec=AbstractRNNTDecoding)
             decoding.decode_tokens_to_str = lambda tokens: ''.join([self.vocabulary[id_] for id_ in tokens])
             decoding.rnnt_decoder_predictions_tensor = Mock(return_value=[
                 Hypothesis(score=1.0, y_sequence=[], text="hello world")
             ])
-            return decoding
         elif decode_type == "multitask":
             decoding = Mock(spec=AbstractMultiTaskDecoding)
             decoding.decode_tokens_to_str = lambda tokens: ''.join([self.vocabulary[id_] for id_ in tokens])
             decoding.decode_predictions_tensor = Mock(return_value=[
                 Hypothesis(score=1.0, y_sequence=[], text="hello world")
             ])
-            return decoding
+        else:
+            raise TypeError(f"`decode_type:` {decode_type} is invalid type for `create_mock_decoding'")
+        return decoding
+
 
     def __reference_string_to_tensor(self, txt: str) -> torch.Tensor:
         """Convert reference string to tensor"""
@@ -839,10 +839,6 @@ class TestBLEUMetric:
             Hypothesis(score=1.0, y_sequence=[], text=perfect_text)
         ]
         
-        # Debug: Check what the decoded reference looks like
-        target_list = targets[0][:targets_lengths[0]].tolist()
-        decoded_reference = decoding.decode_tokens_to_str(target_list)
-        
         bleu.update(
             predictions=predictions,
             predictions_lengths=predictions_lengths,
@@ -918,6 +914,7 @@ class TestBLEUMetric:
         p1, p2, p3, p4 = 4/5, 3/4, 2/3, 1/2
         
         # Calculate expected BLEU for each n-gram level
+        expected_bleu = -1
         if n_gram == 1:
             expected_bleu = p1
         elif n_gram == 2:
@@ -926,6 +923,8 @@ class TestBLEUMetric:
             expected_bleu = (p1 * p2 * p3) ** (1/3)
         elif n_gram == 4:
             expected_bleu = (p1 * p2 * p3 * p4) ** (1/4)
+        else:
+            raise ValueError(f"`n_gram` value of {n_gram} is not supported by `test_bleu_partial_match")
         
         # BP = 1 (same length: 5 words each)
         assert abs(result.item() - expected_bleu) < 0.1, f"Expected BLEU ≈ {expected_bleu:.3f}, got {result.item():.3f}"

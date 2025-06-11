@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ class BLEU(SacreBLEUScore):
         lowercase: bool = False,
         weights: Optional[Sequence[float]] = None,
         smooth: bool = False,
-        check_cuts_for_tokenizers: bool = False,
+        check_cuts_for_bleu_tokenizers: bool = False,
         log_prediction=True,
         fold_consecutive=True,
         batch_dim_index=0,
@@ -122,7 +122,7 @@ class BLEU(SacreBLEUScore):
         self.decoding = decoding
         self._init_decode()
 
-        self.check_cuts = check_cuts_for_tokenizers
+        self.check_cuts = check_cuts_for_bleu_tokenizers
         super().__init__(
             tokenize=bleu_tokenizer,
             n_gram=n_gram,
@@ -185,7 +185,6 @@ class BLEU(SacreBLEUScore):
 
                 # TODO: the backend implementation of this has a lot of cpu to gpu operations. Should reimplement
                 # for speedup.
-                print(hypotheses[idx].text, reference)
                 self.preds_len, self.target_len = _bleu_score_update(
                     [hypotheses[idx].text],
                     [[reference]],  # Nested list as BLEU permits multiple references per prediction.
@@ -201,7 +200,7 @@ class BLEU(SacreBLEUScore):
                     logging.info(f"BLEU reference:{reference}")
                     logging.info(f"BLEU predicted:{hypotheses[idx].text}")
 
-    def compute(self, return_all_metrics=True, prefix="", suffix=""):
+    def compute(self, return_all_metrics=True, prefix=""):
         """
         Returns BLEU values and component metrics.
 
@@ -209,24 +208,21 @@ class BLEU(SacreBLEUScore):
             return_all_metrics: bool flag. On True, BLEU and composite metrics returned. If False, returns
                 only BLEU. Default: True.
             prefix: str to prepend to metric value keys.
-            suffix: str to append to metric value keys.
 
         Returns:
-            Dict: key-value pairs of BLEU metrics and values. Keys are prepended and appended with prefix
-                and suffix flags, respectively.
+            Dict: key-value pairs of BLEU metrics and values. Keys are prepended with prefix flag.
         """
         bleu = super().compute()
-        print(self.preds_len, self.target_len, self.numerator, self.denominator)
         if return_all_metrics:
             return {
-                f"{prefix}bleu{suffix}": bleu,
-                f"{prefix}bleu_pred_len{suffix}": self.preds_len.detach().float(),
-                f"{prefix}bleu_target_len{suffix}": self.target_len.detach().float(),
-                f"{prefix}bleu_num{suffix}": self.numerator.detach().float(),
-                f"{prefix}bleu_denom{suffix}": self.denominator.detach().float(),
+                f"{prefix}bleu": bleu,
+                f"{prefix}bleu_pred_len": self.preds_len.detach().float(),
+                f"{prefix}bleu_target_len": self.target_len.detach().float(),
+                f"{prefix}bleu_num": self.numerator.detach().float(),
+                f"{prefix}bleu_denom": self.denominator.detach().float(),
             }
         return {
-            f"{prefix}bleu{suffix}": bleu,
+            f"{prefix}bleu": bleu,
         }
 
     # Adding wrapper to avoid imports and extra variables over the namespace

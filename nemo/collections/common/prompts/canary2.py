@@ -31,15 +31,15 @@ from nemo.collections.common.tokenizers.canary_tokenizer import (
 )
 
 # Use global variables to import slot values in other modules.
-ITN_TRUE = {
+ITN_TRUE = BOOL_TRUE | {
     "itn",
     "<|itn|>",
 }
-ITN_FALSE = {"noitn", "<|noitn|>"}
-TIMESTAMP_TRUE = {"timestamp", "<|timestamp|>"}
-TIMESTAMP_FALSE = {"notimestamp", "<|notimestamp|>"}
-DIARIZE_TRUE = {"diarize", "<|diarize|>"}
-DIARIZE_FALSE = {"nodiarize", "<|nodiarize|>"}
+ITN_FALSE = BOOL_FALSE | {"noitn", "<|noitn|>"}
+TIMESTAMP_TRUE = BOOL_TRUE | {"timestamp", "<|timestamp|>"}
+TIMESTAMP_FALSE = BOOL_FALSE | {"notimestamp", "<|notimestamp|>"}
+DIARIZE_TRUE = BOOL_TRUE | {"diarize", "<|diarize|>"}
+DIARIZE_FALSE = BOOL_FALSE | {"nodiarize", "<|nodiarize|>"}
 
 
 class Canary2PromptFormatter(PromptFormatter):
@@ -62,13 +62,13 @@ class Canary2PromptFormatter(PromptFormatter):
                 # Transcription language - specified by the user.
                 "target_lang": Modality.Text,
                 # Should we predict punctuation and capitalization?
-                "pnc": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | PNC_TRUE | PNC_FALSE)),
+                "pnc": Modality.TextLiteral(*(PNC_TRUE | PNC_FALSE)),
                 # Should we predict with inverse text normalization (numerals as digits, abbreviations, etc.)
-                "itn": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | ITN_TRUE | ITN_FALSE)),
+                "itn": Modality.TextLiteral(*(ITN_TRUE | ITN_FALSE)),
                 # Should we predict timestamps?
-                "timestamp": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | TIMESTAMP_TRUE | TIMESTAMP_FALSE)),
+                "timestamp": Modality.TextLiteral(*(TIMESTAMP_TRUE | TIMESTAMP_FALSE)),
                 # # Should we diarize speech?
-                "diarize": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | DIARIZE_TRUE | DIARIZE_FALSE)),
+                "diarize": Modality.TextLiteral(*(DIARIZE_TRUE | DIARIZE_FALSE)),
             },
         },
         # User prompt.

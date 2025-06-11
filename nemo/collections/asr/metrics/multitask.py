@@ -1,5 +1,18 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import operator
-import os
 from collections import defaultdict
 from functools import partial
 from typing import Optional
@@ -12,6 +25,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import PromptedAudioToTextMiniBatch
+from nemo.collections.asr.metrics.wer import WER
 from nemo.core.classes import Serialization
 
 __all__ = ['MultiTaskMetric']
@@ -29,6 +43,8 @@ def _logical_and(l_expr, r_expr, properties):
 def _logical_or(l_expr, r_expr, properties):
     return l_expr(properties) or r_expr(properties)
 
+def _no_constraint(properties):
+    return True
 
 def _static_constraint(fnc, key, val, properties):
     return fnc(val, properties.get(key))
@@ -53,7 +69,7 @@ def _build_constraint_fn(constraint: str):
     - Simple comparisons: ".task == transcribe", ".lang != en"
     - Property comparisons: ".source_lang == .target_lang"
     - Logical operations: "not .task == translate", ".task == transcribe and .lang == en"
-    - Complex expressions: ".task == transcribe or (.task == translate and .source_lang != .target_lang)"
+    - Complex expressions: ".task == transcribe or .task == translate and .source_lang != .target_lang"
     
     Args:
         constraint (str): Constraint expression string
@@ -74,6 +90,10 @@ def _build_constraint_fn(constraint: str):
         >>> fn({"task": "transcribe", "lang": "de"})  # False
     """
     c = constraint.strip()
+
+    # Dummy function to return no constraint (i.e. True).
+    if not constraint:
+        return _no_constraint
 
     # Basic boolean recursion precedence.
     pattern = r'not\s+(.+)'  # not
@@ -96,7 +116,7 @@ def _build_constraint_fn(constraint: str):
 
     # Check for compare custom against defined value.
     for n, o in operators.items():
-        pattern = fr'\.(\w+)\s*{n}\s*(\w+)'
+        pattern = fr'\.(\S+)\s*{n}\s*(\S+)'
         match = re.match(pattern, c)
         if match:
             key1, val = match.groups()
@@ -104,7 +124,7 @@ def _build_constraint_fn(constraint: str):
 
     # Check for compare custom against custom
     for n, o in operators.items():
-        pattern = fr'\.(\w+)\s*{n}\s*\.(\w+)'
+        pattern = fr'\.(\S+)\s*{n}\s*\.(\S+)'
         match = re.match(pattern, c)
         if match:
             key1, key2 = match.groups()
@@ -219,9 +239,10 @@ class MultiTaskMetric(Serialization):
         self._metric_dict, self._constr_dict = {}, {}
         cfg = OmegaConf.to_container(cfg)
         
-        # Process each metric definition
+        # Process each metric instance.
+        seen_types = set()
         for metric in cfg.pop("metrics"):
-            name, constraint = metric.pop("name"), metric.pop("constraint")
+            name, constraint = metric.pop("name"), metric.pop("constraint", "")  # Empty string for no constraint value. Metric always calculated.
 
             # Inherit global configuration parameters
             for k, v in cfg.items():
@@ -232,6 +253,13 @@ class MultiTaskMetric(Serialization):
             metric["decoding"] = model.decoding  # For decoding reliant metrics like 'WER' or 'BLEU'
             metric = MultiTaskMetric.from_config_dict(metric)
             setattr(model, name, metric)
+
+            # TODO: This is a limitation brought upon by `asr_model` aggregation. To fix, update metric classes to support custom naming
+            # and update `asr_model` `multi_{validation,test}_epoch_end` to support metric aggregation with custom names.
+            metric_type = type(metric)
+            if metric_type in seen_types:
+                raise TypeError("MultiTaskMetric currently only supports one instance of each metric class. Please check your configs for duplicates values of `_target_` entry.")
+            seen_types.add(metric_type)
 
             # Store metric and its constraint function
             self._metric_dict[name] = metric
@@ -246,7 +274,6 @@ class MultiTaskMetric(Serialization):
         predictions_mask: torch.Tensor,
         return_all_metrics: Optional[bool] = False,
         prefix: Optional[str] = None,
-        suffix: Optional[str] = None,
     ):
         metric_dict = {}
         self.update(
@@ -255,13 +282,12 @@ class MultiTaskMetric(Serialization):
             targets=batch.transcript,
             targets_lengths=batch.transcript_lens,
             predictions_mask=predictions_mask,
-            input_ids=batch.prompt,
+            input_ids=getattr(batch, "prompt", None),  # Allows for CTC and RNN-T support.
             cuts=batch.cuts,
         )
         metric_dict.update(
             self.compute(
                 prefix=f"{prefix}_" if prefix else "",
-                suffix=f"_{suffix}" if suffix else "",
                 return_all_metrics=return_all_metrics,
             )
         )
@@ -278,12 +304,11 @@ class MultiTaskMetric(Serialization):
         input_ids: torch.Tensor,
         cuts: CutSet,
     ):
-        cuts_split, idx_split = self._split_cuts(cuts)
         
         # Update each metric with its filtered data
+        cuts_split, idx_split = self._split_cuts(cuts)
         for name, metric in self._metric_dict.items():
             cuts_subset, indices = cuts_split[name], idx_split[name]
-            
             # Update metric with filtered tensors
             metric.update(
                 predictions=predictions[indices],
@@ -295,23 +320,24 @@ class MultiTaskMetric(Serialization):
                 cuts=cuts_subset,
             )
 
-    def compute(self, return_all_metrics=False, prefix="", suffix=""):
+    def compute(self, return_all_metrics=False, prefix=""):
         output_dict = {}
         
         for name, metric in self._metric_dict.items():
             # Handle WER metric's special return format
+            # Custom name of metric used as suffix to allow custom naming.
             # TODO: Standardize WER to return dict like other metrics
-            if name == "wer":
+            if type(metric) is WER:
                 wer, wer_num, wer_denom = metric.compute()
                 if return_all_metrics:
                     output_dict.update({
-                        f"{prefix}wer{suffix}": wer,
-                        f"{prefix}wer_num{suffix}": wer_num,
-                        f"{prefix}wer_denom{suffix}": wer_denom,
+                        f"{prefix}wer": wer,
+                        f"{prefix}wer_num": wer_num,
+                        f"{prefix}wer_denom": wer_denom,
                     })
                 else:
                     output_dict.update({
-                        f"{prefix}wer{suffix}": wer,
+                        f"{prefix}wer": wer,
                     })
             else:
                 # Standard metric compute (returns dict)
@@ -319,7 +345,6 @@ class MultiTaskMetric(Serialization):
                     metric.compute(
                         return_all_metrics=return_all_metrics,
                         prefix=prefix,
-                        suffix=suffix,
                     )
                 )
         return output_dict
@@ -347,11 +372,11 @@ class MultiTaskMetric(Serialization):
             - A single cut may match multiple metrics
             - Cuts not matching any constraints are ignored
         """
-        idx_splits, cuts_splits = defaultdict(list), defaultdict(list)
+        cuts_splits, idx_splits = defaultdict(list), defaultdict(list)
         for idx, c in enumerate(cuts):
             c = c.first_non_padding_cut if isinstance(c, MixedCut) else c
             for metric in self._metric_dict:
                 if self._constr_dict[metric](c.custom):
+                    cuts_splits[metric].append(c)
                     idx_splits[metric].append(idx)
-                    cuts_splits[metric].append(idx)
         return cuts_splits, idx_splits
