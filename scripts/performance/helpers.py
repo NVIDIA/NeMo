@@ -246,7 +246,10 @@ def set_perf_configs(
 
     recipe.trainer.strategy.use_sharp = bool(use_sharp)
 
-    is_ddp_configured = hasattr(recipe.trainer.strategy, "ddp") and recipe.trainer.strategy.ddp.__fn_or_cls__ == DistributedDataParallelConfig
+    is_ddp_configured = (
+        hasattr(recipe.trainer.strategy, "ddp")
+        and recipe.trainer.strategy.ddp.__fn_or_cls__ == DistributedDataParallelConfig
+    )
     if use_user_buffer_registration and not is_ddp_configured:
         logging.warning("DDP is not configured. Cannot use user buffer registration.")
     if is_ddp_configured:
