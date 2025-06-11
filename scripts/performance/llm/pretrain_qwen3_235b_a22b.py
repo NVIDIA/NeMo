@@ -20,6 +20,8 @@ from nemo.collections.llm.recipes.qwen3_235b_a22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -75,18 +77,10 @@ def override_recipe_configs(
         recipe, "pre_train", "llm", "qwen3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
-    # # data module configs
-    # if args.use_hf_tokenizer:
-    #     recipe.data.tokenizer = hf_tokenizer('Qwen/Qwen3-30B-A3B')
-    # else:
-    #     recipe.data.tokenizer = run.Config(
-    #         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=151936
-    #     )
-    #     recipe.model.tokenizer = recipe.data.tokenizer
 
     # set it to use token drop config
-    from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
     recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+    recipe.trainer.callbacks.append(run.Config(MegatronCommOverlapCallback, tp_comm_overlap=True))
 
 
 
