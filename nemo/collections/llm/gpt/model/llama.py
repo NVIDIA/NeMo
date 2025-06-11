@@ -67,7 +67,7 @@ class LlamaConfig(GPTConfig):
     masked_softmax_fusion: bool = True
     persist_layer_norm: bool = True
     bias_dropout_fusion: bool = True
-    apply_rope_fusion: bool = True
+    apply_rope_fusion: bool = False
 
 
 @dataclass
@@ -138,7 +138,7 @@ class Llama3Config(LlamaConfig):
     masked_softmax_fusion: bool = True
     persist_layer_norm: bool = True
     bias_dropout_fusion: bool = True
-    apply_rope_fusion: bool = True
+    apply_rope_fusion: bool = False
     share_embeddings_and_output_weights: bool = False
     position_embedding_type: str = "rope"
     rotary_percent: float = 1.0
