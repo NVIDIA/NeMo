@@ -328,14 +328,32 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         cls,
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
+        batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
         raise NotImplementedError()
 
-    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+    @classmethod
+    def clone_state(
+        cls, states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
+        """Return copy of the states"""
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
         """
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_unsplit_states(
+        cls, batch_states: list[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]], device=None, dtype=None
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
+        """
+        Concatenate a batch of decoder state to a packed state. Inverse of `batch_split_states`.
         """
         raise NotImplementedError()
 

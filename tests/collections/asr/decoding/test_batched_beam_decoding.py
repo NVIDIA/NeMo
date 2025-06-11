@@ -33,6 +33,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
+from tests.collections.asr.decoding.utils import load_audio
 
 RNNT_MODEL = "stt_en_conformer_transducer_small"
 CTC_MODEL = "nvidia/stt_en_conformer_ctc_small"
@@ -47,13 +48,6 @@ if torch.cuda.is_available():
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
 ) or numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
-
-
-def load_audio(file_path, target_sr=16000):
-    import librosa
-
-    audio, sr = librosa.load(file_path, sr=target_sr)
-    return torch.tensor(audio, dtype=torch.float32), sr
 
 
 # available audio filename fixtures
