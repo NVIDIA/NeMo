@@ -326,7 +326,11 @@ class WER(Metric):
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
-            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids) if predictions.numel() > 0 else []
+            hypotheses = (
+                self.decode(predictions, predictions_lengths, predictions_mask, input_ids)
+                if predictions.numel() > 0
+                else []
+            )
 
         if hypotheses and self.log_prediction:
             logging.info("\n")

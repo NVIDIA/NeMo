@@ -51,10 +51,14 @@ def _static_constraint(fnc, key, val, properties):
 
 
 def _compare_constraint(fnc, key1, key2, properties):
-    return (prop_val1 := properties.get(key1)) is not None and (prop_val2 := properties.get(key2)) is not None and fnc(prop_val1, prop_val2)
+    return (
+        (prop_val1 := properties.get(key1)) is not None
+        and (prop_val2 := properties.get(key2)) is not None
+        and fnc(prop_val1, prop_val2)
+    )
 
 
-# Basic operators for comparison. Add more as necessary. 
+# Basic operators for comparison. Add more as necessary.
 operators = {
     "==": operator.eq,
     "!=": operator.ne,
@@ -64,7 +68,7 @@ operators = {
 def _build_constraint_fn(constraint: str):
     """
     Parse a constraint string and build a callable constraint function.
-    
+
     Supports the following constraint syntax:
     - Simple comparisons: ".task == transcribe", ".lang != en"
     - Property comparisons: ".source_lang == .target_lang"
@@ -73,18 +77,18 @@ def _build_constraint_fn(constraint: str):
     
     Args:
         constraint (str): Constraint expression string
-        
+
     Returns:
         callable: Function that takes properties dict and returns bool
-        
+
     Raises:
         AssertionError: If constraint syntax is invalid
-        
+
     Examples:
         >>> fn = _build_constraint_fn(".task == transcribe")
         >>> fn({"task": "transcribe"})  # True
         >>> fn({"task": "translate"})   # False
-        
+
         >>> fn = _build_constraint_fn(".task == transcribe and .lang == en")
         >>> fn({"task": "transcribe", "lang": "en"})  # True
         >>> fn({"task": "transcribe", "lang": "de"})  # False
@@ -107,7 +111,7 @@ def _build_constraint_fn(constraint: str):
     if match:
         left_expr, right_expr = match.groups()
         return partial(_logical_and, _build_constraint_fn(left_expr), _build_constraint_fn(right_expr))
-    
+
     pattern = fr'(.+?)\s+or\s+(.+)'  # or
     match = re.match(pattern, c)
     if match:
@@ -136,20 +140,20 @@ def _build_constraint_fn(constraint: str):
 class MultiTaskMetric(Serialization):
     """
     Wrapper class for managing multiple metrics in multitask ASR/NLP models.
-    
+
     This class enables conditional metric computation based on sample properties stored in Lhotse cuts.
     It's primarily designed for `EncDecMultiTaskModel` but can support any model with a prompt schema.
-    
+
     Key Features:
         1. **Automatic Model Integration**: Instantiated metrics are automatically added as attributes
            to the parent model, enabling seamless integration with existing logging infrastructure.
-           
+
         2. **Conditional Metric Updates**: Only samples meeting specific constraints are passed to
            each metric, avoiding inappropriate metric calculations (e.g., WER for translation tasks).
-           
+
         3. **Flexible Constraint System**: Supports complex logical expressions for determining
            when metrics should be applied to samples.
-           
+
         4. **Configuration Inheritance**: Global configuration parameters are automatically
            inherited by all metrics unless explicitly overridden.
 
@@ -160,25 +164,25 @@ class MultiTaskMetric(Serialization):
 
     Configuration Format:
         The configuration should follow this structure:
-        
+
         ``'
         # Global parameters (inherited by all metrics unless overridden)
         log_predictions: true
         batch_dim_index: 0
-        
+
         # Metric definitions
         metrics:
           - name: wer                                    # Metric name (becomes model attribute)
             _target_: nemo.collections.asr.metrics.WER  # Metric class to instantiate
             constraint: ".task == transcribe"           # When to apply this metric
             use_cer: false                              # Metric-specific parameters
-            
+
           - name: bleu
             _target_: nemo.collections.asr.metrics.BLEU
             constraint: ".task == translate"
             bleu_tokenizer: "13a"
             n_gram: 4
-            
+
           - name: multilingual_wer
             _target_: nemo.collections.asr.metrics.WER
             constraint: ".task == transcribe and .lang != en"
@@ -187,12 +191,12 @@ class MultiTaskMetric(Serialization):
 
     Constraint Syntax:
         Constraints are evaluated against the `custom` dictionary of Lhotse cuts:
-        
+
         - **Custom attribute Access**: `.task`, `.lang`, `.domain`
         - **Comparisons**: `==`, `!=`
         - **Logical Operations**: `and`, `or`, `not`
         - **Property Comparisons**: `.source_lang == .target_lang`
-        
+
         Examples:
         - `".task == transcribe"` - Apply to transcription tasks
         - `".task == translate and .source_lang != .target_lang"` - Cross-lingual translation
@@ -204,7 +208,7 @@ class MultiTaskMetric(Serialization):
         # In model initialization
         if hasattr(cfg, 'multitask_metrics'):
             self.multitask_metrics = MultiTaskMetric(self, cfg.multitask_metrics)
-        
+
         # During training/validation
         if hasattr(self, 'multitask_metrics'):
             metrics = self.multitask_metrics.eval(
@@ -222,13 +226,14 @@ class MultiTaskMetric(Serialization):
         - Each metric receives the model's `decoding` instance for text decoding operations
         - Metrics are automatically added to the model as attributes (e.g., `model.wer`, `model.bleu`)
         - Global configuration parameters are inherited unless explicitly overridden per metric
+        - Metrics defined without 'constraint' keyword are called on every prediction sample
         - Empty batches (no samples matching constraints) are handled by children metrics.
     """
 
     def __init__(self, model: nn.Module, cfg: DictConfig):
         """
         Initialize MultiTaskMetric with model and configuration.
-        
+
         Args:
             model (nn.Module): Parent model that will contain metric instances
             cfg (DictConfig): Configuration containing metric definitions
@@ -238,9 +243,14 @@ class MultiTaskMetric(Serialization):
         # Setup tracking dictionaries
         self._metric_dict, self._constr_dict = {}, {}
         cfg = OmegaConf.to_container(cfg)
+<<<<<<< HEAD
         
         # Process each metric instance.
         seen_types = set()
+=======
+
+        # Process each metric definition
+>>>>>>> 5da09f8a74bd6c6f77f4fa339e2cb52e5b6f84ab
         for metric in cfg.pop("metrics"):
             name, constraint = metric.pop("name"), metric.pop("constraint", "")  # Empty string for no constraint value. Metric always calculated.
 
@@ -304,11 +314,20 @@ class MultiTaskMetric(Serialization):
         input_ids: torch.Tensor,
         cuts: CutSet,
     ):
+<<<<<<< HEAD
         
+=======
+        cuts_split, idx_split = self._split_cuts(cuts)
+
+>>>>>>> 5da09f8a74bd6c6f77f4fa339e2cb52e5b6f84ab
         # Update each metric with its filtered data
         cuts_split, idx_split = self._split_cuts(cuts)
         for name, metric in self._metric_dict.items():
             cuts_subset, indices = cuts_split[name], idx_split[name]
+<<<<<<< HEAD
+=======
+
+>>>>>>> 5da09f8a74bd6c6f77f4fa339e2cb52e5b6f84ab
             # Update metric with filtered tensors
             metric.update(
                 predictions=predictions[indices],
@@ -322,7 +341,7 @@ class MultiTaskMetric(Serialization):
 
     def compute(self, return_all_metrics=False, prefix=""):
         output_dict = {}
-        
+
         for name, metric in self._metric_dict.items():
             # Handle WER metric's special return format
             # Custom name of metric used as suffix to allow custom naming.
@@ -330,6 +349,7 @@ class MultiTaskMetric(Serialization):
             if type(metric) is WER:
                 wer, wer_num, wer_denom = metric.compute()
                 if return_all_metrics:
+<<<<<<< HEAD
                     output_dict.update({
                         f"{prefix}wer": wer,
                         f"{prefix}wer_num": wer_num,
@@ -339,6 +359,21 @@ class MultiTaskMetric(Serialization):
                     output_dict.update({
                         f"{prefix}wer": wer,
                     })
+=======
+                    output_dict.update(
+                        {
+                            f"{prefix}wer{suffix}": wer,
+                            f"{prefix}wer_num{suffix}": wer_num,
+                            f"{prefix}wer_denom{suffix}": wer_denom,
+                        }
+                    )
+                else:
+                    output_dict.update(
+                        {
+                            f"{prefix}wer{suffix}": wer,
+                        }
+                    )
+>>>>>>> 5da09f8a74bd6c6f77f4fa339e2cb52e5b6f84ab
             else:
                 # Standard metric compute (returns dict)
                 output_dict.update(
@@ -355,18 +390,18 @@ class MultiTaskMetric(Serialization):
     def _split_cuts(self, cuts):
         """
         Split cuts based on metric constraints and return filtered subsets.
-        
+
         This method evaluates each cut against all metric constraints and creates
         separate lists of cuts and indices for each metric.
-        
+
         Args:
             cuts (CutSet): Input cuts containing sample metadata
-            
+
         Returns:
             tuple: (cuts_splits, idx_splits) where:
                 - cuts_splits (dict): Maps metric names to lists of matching cuts
                 - idx_splits (dict): Maps metric names to lists of matching indices
-                
+
         Note:
             - Handles both regular cuts and MixedCuts (uses first_non_padding_cut)
             - A single cut may match multiple metrics

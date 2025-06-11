@@ -171,7 +171,11 @@ class BLEU(SacreBLEUScore):
 
         with torch.no_grad():
             # get predictions
-            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids) if predictions.numel() > 0 else []
+            hypotheses = (
+                self.decode(predictions, predictions_lengths, predictions_mask, input_ids)
+                if predictions.numel() > 0
+                else []
+            )
 
             # Get references
             if self.batch_dim_index != 0:
