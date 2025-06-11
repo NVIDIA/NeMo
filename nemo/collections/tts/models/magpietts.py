@@ -113,7 +113,7 @@ class MagpieTTSModel(ModelPT):
 
         self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
         # TODO @xueyang: both tokenizers are only used to get some token ids. We
-        # should kill them to save a small mount of mem resources since dataloader will initialize them
+        # should kill them to save a small amount of mem resources since dataloader will initialize them
         # again after the worker processes are spawned.
         self.tokenizer, self.text_conditioning_tokenizer = setup_tokenizers(
             all_tokenizers_config=cfg.text_tokenizers,
@@ -1681,7 +1681,7 @@ class MagpieTTSModel(ModelPT):
                     )
 
                 finished_items = {k: v for k, v in finished_texts_counter.items() if v >= 20} # Items that have been close to the end for atleast 20 timesteps
-                unifinished_items = {k: v for k, v in unfinished_texts.items() if v}
+                unfinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
                 if use_local_transformer_for_inference:
@@ -1691,7 +1691,7 @@ class MagpieTTSModel(ModelPT):
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
                             topk=topk,
-                            unfinished_items=unifinished_items,
+                            unfinished_items=unfinished_items,
                             finished_items=finished_items,
                             use_cfg=use_cfg,
                             cfg_scale=cfg_scale
@@ -1701,7 +1701,7 @@ class MagpieTTSModel(ModelPT):
                             dec_output=dec_out[:,-1,:],
                             temperature=temperature,
                             topk=topk,
-                            unfinished_items=unifinished_items,
+                            unfinished_items=unfinished_items,
                             finished_items=finished_items,
                             use_cfg=use_cfg,
                             cfg_scale=cfg_scale,
@@ -1713,8 +1713,8 @@ class MagpieTTSModel(ModelPT):
                     all_codes_next_argmax = audio_codes_next
                 else:
                     # Parallel sampling from all codebooks
-                    audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
-                    all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
+                    audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks)
+                    all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks)
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
@@ -1821,7 +1821,10 @@ class MagpieTTSModel(ModelPT):
         val_codebook_loss = collect("val_codebook_loss")
         val_alignment_loss = collect("val_alignment_loss")
         val_aligner_encoder_loss = collect("val_aligner_encoder_loss")
-        self.log("val_loss", val_loss, prog_bar=True, sync_dist=True)
+        # log val_loss in the same group as the other val metrics.
+        self.log("val/loss", val_loss, prog_bar=True, sync_dist=True)
+        # ensure val_loss is available for epoch-level checkpointing and filename generation without cluttering wandb logs.
+        self.log("val_loss", val_loss, prog_bar=False, sync_dist=True, on_step=False, on_epoch=True, logger=False, enable_graph=False)
         self.log("val/codebook_loss", val_codebook_loss, prog_bar=True, sync_dist=True)
         self.log("val/alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.log("val/aligner_encoder_loss", val_aligner_encoder_loss, prog_bar=True, sync_dist=True)
