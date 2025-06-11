@@ -246,9 +246,10 @@ def set_perf_configs(
 
     recipe.trainer.strategy.use_sharp = bool(use_sharp)
 
-    if use_user_buffer_registration and not hasattr(recipe.trainer.strategy, "ddp"):
+    is_ddp_obj = hasattr(recipe.trainer.strategy, "ddp") and not isinstance(recipe.trainer.strategy.ddp, str)
+    if use_user_buffer_registration and not is_ddp_obj:
         logging.warning("DDP is not configured. Cannot use user buffer registration.")
-    if hasattr(recipe.trainer.strategy, "ddp"):
+    if is_ddp_obj:
         # Disable local gradient checker at non-debugging mode
         recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
         recipe.trainer.strategy.ddp.check_for_large_grads = False
