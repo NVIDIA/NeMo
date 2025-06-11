@@ -13,9 +13,8 @@
 # limitations under the License.
 
 import os
-import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 import nemo_run as run
 import pandas as pd
