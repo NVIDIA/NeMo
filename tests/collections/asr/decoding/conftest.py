@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from pathlib import Path
 
 import pytest
 
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+
+CHECKPOINTS_PATH = Path("/home/TestData/asr")
 
 
 @pytest.fixture(scope="session")
@@ -51,3 +53,27 @@ def an4_train_manifest_corrected(tmp_path_factory, test_data_dir):
         )
     write_manifest(an4_train_manifest_corrected_path, an4_train_records)
     return an4_train_manifest_corrected_path
+
+
+@pytest.fixture(scope="module")
+def stt_en_fastconformer_transducer_large():
+    if CHECKPOINTS_PATH.exists():
+        model = ASRModel.restore_from(
+            str(CHECKPOINTS_PATH / "stt_en_fastconformer_transducer_large.nemo"), map_location="cpu"
+        )
+    else:
+        model_name = "stt_en_fastconformer_transducer_large"
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    return model.eval()
+
+
+@pytest.fixture(scope="module")
+def stt_en_fastconformer_tdt_large():
+    if CHECKPOINTS_PATH.exists():
+        model = ASRModel.restore_from(
+            str(CHECKPOINTS_PATH / "stt_en_fastconformer_tdt_large.nemo"), map_location="cpu"
+        )
+    else:
+        model_name = "nvidia/stt_en_fastconformer_tdt_large"
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    return model.eval()
