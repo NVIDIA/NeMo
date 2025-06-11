@@ -19,6 +19,7 @@ import torch.nn.functional as F
 
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
 from megatron.core.models.common.vision_module.vision_module import VisionModule
+from megatron.core.models.vision.qwen25vl import Qwen25VLVisionTransformerBlock
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import TransformerBlock
@@ -277,7 +278,7 @@ class Qwen25VisionModel(VisionModule):
         # TODO: Make pre_process and post_process configurable.
         # NOTE: a final layer norm and/or linear layer in some implementations are omitted here.
         # They can be added separately where needed.
-        self.decoder = TransformerBlock(
+        self.decoder = Qwen25VLVisionTransformerBlock(
             config=transformer_config,
             spec=transformer_layer_spec,
             pre_process=True,
@@ -437,8 +438,8 @@ class Qwen25VisionModel(VisionModule):
         # https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/models/common/embeddings/rotary_pos_embedding.py#L164
         rotary_pos_emb = rotary_pos_emb[:, None, None, :]
 
-        packed_seq_params = self.get_packed_seq_params(grid_thw)
-        packed_seq_params_full = self.get_packed_seq_params(None, cu_window_seqlens)
+        packed_seq_params_full = self.get_packed_seq_params(grid_thw)
+        packed_seq_params = self.get_packed_seq_params(None, cu_window_seqlens)
 
         x = self.decoder(
             x,
