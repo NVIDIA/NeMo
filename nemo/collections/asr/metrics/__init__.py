@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.metrics.bleu import BLEU, BLEU_TOKENIZER, _get_bleu_tokenizers_from_cuts
+from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.metrics.multitask import MultiTaskMetric
 from nemo.collections.asr.metrics.wer import WER
+
+__all__=[
+    "MultiTaskMetric",
+    "WER",
+    "BLEU",
+]

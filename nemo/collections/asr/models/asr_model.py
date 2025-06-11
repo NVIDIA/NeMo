@@ -60,32 +60,32 @@ class ASRModel(ModelPT, ABC):
         return {**val_loss, 'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        test_loss = {}
+        val_loss = {}
         tensorboard_logs = {}
 
         if 'test_loss' in outputs[0]:
-            test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-            test_loss = {'test_loss': test_loss_mean}
+            val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+            val_loss = {'test_loss': val_loss_mean}
 
-            tensorboard_logs.update(test_loss)
+            tensorboard_logs.update(val_loss)
 
         if "test_wer_num" in outputs[0]:
             wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
             wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
-            test_wer = {'test_wer': wer_num / wer_denom}
+            val_wer = {'test_wer': wer_num / wer_denom}
 
-            tensorboard_logs.update(test_wer)
+            tensorboard_logs.update(val_wer)
 
         if "test_bleu_num" in outputs[0]:
             bleu_pred_len = torch.stack([x[f"test_bleu_pred_len"] for x in outputs]).sum()
             bleu_target_len = torch.stack([x[f"test_bleu_target_len"] for x in outputs]).sum()
-            bleu_num = torch.stack([x[f"test_bleu_num"] for x in outputs]).sum(dim=0)
-            bleu_denom = torch.stack([x[f"test_bleu_denom"] for x in outputs]).sum(dim=0)
-            test_bleu = {"test_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+            bleu_num = torch.stack([x[f"test_bleu_num"] for x in outputs]).sum()
+            bleu_denom = torch.stack([x[f"test_bleu_denom"] for x in outputs]).sum()
+            val_bleu = {"test_bleu": self.wer._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
 
-            tensorboard_logs.update(test_bleu)
+            tensorboard_logs.update(val_bleu)
 
-        return {**test_loss, 'log': tensorboard_logs}
+        return {**val_loss, 'log': tensorboard_logs}
 
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':

@@ -25,7 +25,7 @@ from nemo.collections.asr.parts.submodules.multitask_decoding import AbstractMul
 from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
 from nemo.utils import logging
 
-__all__ = ['BLEU', 'BLEU_TOKENIZER']
+__all__ = ['BLEU']
 
 # Keyword to avoid mispelling issues.
 BLEU_TOKENIZER = "bleu_tokenizer"

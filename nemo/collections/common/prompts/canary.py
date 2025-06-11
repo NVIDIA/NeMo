@@ -32,8 +32,8 @@ from nemo.collections.common.tokenizers.canary_tokenizer import (
 # Use global variables to import slot values in other modules.
 BOOL_TRUE = {"yes", "Yes", "true", "True", "1"}
 BOOL_FALSE = {"no", "No", "false", "False", "0"}
-PNC_TRUE = {"pnc", "<|pnc|>"}
-PNC_FALSE = {"nopnc", "<|nopnc|>"}
+PNC_TRUE = BOOL_TRUE | {"pnc", "<|pnc|>"}
+PNC_FALSE = BOOL_FALSE | {"nopnc", "<|nopnc|>"}
 TASK_TRANSCRIBE = {
     "asr",
     "transcribe",
@@ -42,7 +42,7 @@ TASK_TRANSCRIBE = {
 TASK_TRANSLATE = {"ast", "translate", "<|translate|>", "s2t_translation"}
 
 
-class CanaryPromptFormatter(PromptFormatter):
+class CanaryPromptFormatter(PromptFormatter): # pylint disable=missing-class-docstring
     NAME = "canary"
     OUTPUT_ROLE = "assistant"
     TEMPLATE = {
@@ -52,7 +52,7 @@ class CanaryPromptFormatter(PromptFormatter):
                 "source_lang": Modality.Text,
                 "task": Modality.TextLiteral(*(TASK_TRANSLATE | TASK_TRANSCRIBE)),
                 "target_lang": Modality.Text,
-                "pnc": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | PNC_TRUE | PNC_FALSE)),
+                "pnc": Modality.TextLiteral(*(PNC_TRUE | PNC_FALSE)),
             },
         },
         OUTPUT_ROLE: {
@@ -82,6 +82,7 @@ class CanaryPromptFormatter(PromptFormatter):
 
 
 def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[str, str]:
+    """Convert manifest values to Canary special token format."""
     slot_values = slot_values.copy()
 
     any_special_token_present = False
@@ -132,7 +133,7 @@ def canary(cut: Cut, prompt: CanaryPromptFormatter) -> dict[str, torch.Tensor]:
 
     The prompt format syntax is as follows:
 
-        <|startoftranscript|> [ <|nospeech|> | <|LANG|> [ <|transcribe|> | <|translate|> ] <|LANG|> [ <|pnc|> | <|nopnc|> ] TEXT <|endoftext|> ]
+        <|startoftranscript|> [ <|nospeech|> | <|LANG|> [ <|transcribe|> | <|translate|> ] <|LANG|> [ <|pnc|> | <|nopnc|> ] TEXT <|endoftext|> ]  # pylint: disable=line-too-long
 
     Where expression ``[ a | b ]`` denotes expression ``a`` or expression ``b``, and can be nested.
     Note that ``<|LANG|>`` appears twice: the first occurrence is for the "source" language
