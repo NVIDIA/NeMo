@@ -68,70 +68,17 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
     GreedyBatchedLabelLoopingComputerBase,
 )
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import filepath_to_absolute, read_manifest
 from nemo.collections.asr.parts.utils.rnnt_utils import BatchedHyps, batched_hyps_to_hypotheses
-from nemo.collections.asr.parts.utils.streaming_utils import ContextSize, StreamingBatchedAudioBuffer
+from nemo.collections.asr.parts.utils.streaming_utils import (
+    AudioBatch,
+    ContextSize,
+    SimpleAudioDataset,
+    StreamingBatchedAudioBuffer,
+)
 from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, setup_model, write_transcription
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
-
-def filepath_to_absolute(filepath: str | Path, base_path: Path) -> Path:
-    """
-    Return absolute path to an audio file.
-
-    Check if a file exists at audio_filepath.
-    If not, assume that the path is relative to base_path.
-    """
-    filepath = Path(filepath).expanduser()
-
-    if not filepath.is_file() and not filepath.is_absolute():
-        filepath = (base_path / filepath).absolute()
-    return filepath
-
-
-def load_audio(file_path: str | Path, sample_rate: int = 16000) -> tuple[torch.Tensor, int]:
-    """Load audio from file"""
-    audio, sr = librosa.load(file_path, sr=sample_rate)
-    return torch.tensor(audio, dtype=torch.float32), sr
-
-
-class AudioBatch(NamedTuple):
-    audio_signals: torch.Tensor
-    audio_signal_lengths: torch.Tensor
-
-    @staticmethod
-    def collate_fn(
-        audio_batch: list[torch.Tensor],
-    ) -> "AudioBatch":
-        """
-        Collate audio signals to batch
-        """
-        audio_signals = pad_sequence(
-            [audio_tensor for audio_tensor in audio_batch], batch_first=True, padding_value=0.0
-        )
-        audio_signal_lengths = torch.tensor([audio_tensor.shape[0] for audio_tensor in audio_batch]).long()
-
-        return AudioBatch(
-            audio_signals=audio_signals,
-            audio_signal_lengths=audio_signal_lengths,
-        )
-
-
-class SimpleAudioDataset(Dataset):
-    """Dataset constructed from audio filenames. Each item - audio"""
-
-    def __init__(self, audio_filenames: list[str | Path], sample_rate: int = 16000):
-        super().__init__()
-        self.audio_filenames = audio_filenames
-        self.sample_rate = sample_rate
-
-    def __getitem__(self, item: int) -> torch.Tensor:
-        audio, _ = load_audio(self.audio_filenames[item])
-        return audio
-
-    def __len__(self):
-        return len(self.audio_filenames)
 
 
 def make_divisible_by(num, factor: int) -> int:
