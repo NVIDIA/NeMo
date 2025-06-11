@@ -1073,7 +1073,9 @@ class TestBLEUMetric:
         """Test BLEU calculation with multiple tokenizers for different languages"""
         # Test without multi-tokenization (single tokenizer)
         decoding_single = self.create_mock_decoding("ctc")
-        bleu_single = BLEU(decoding=decoding_single, bleu_tokenizer="13a", check_cuts_for_bleu_tokenizers=False, n_gram=2)
+        bleu_single = BLEU(
+            decoding=decoding_single, bleu_tokenizer="13a", check_cuts_for_bleu_tokenizers=False, n_gram=2
+        )
 
         # Test with multi-tokenization (tokenizers from cuts)
         decoding_multi = self.create_mock_decoding("ctc")
@@ -1620,7 +1622,9 @@ class TestMultiTaskMetricConstraintParsing:
     def test_complex_parentheses_constraint(self):
         """Test parsing complex constraints with multiple parentheses"""
         parser = ConstraintParser()
-        constraint_fn = parser.parse_constraint("(.task==transcribe or .task==translate) and (.source_lang!=.target_lang or .domain==special)")
+        constraint_fn = parser.parse_constraint(
+            "(.task==transcribe or .task==translate) and (.source_lang!=.target_lang or .domain==special)"
+        )
 
         properties = {"task": "transcribe", "source_lang": "en", "target_lang": "de", "domain": "general"}
         assert constraint_fn(properties) is True
@@ -1901,7 +1905,11 @@ class TestMultiTaskMetricCompute:
 
         with patch('nemo.collections.asr.metrics.multitask.MultiTaskMetric.from_config_dict') as mock_from_config:
             mock_wer = Mock()
-            mock_wer.compute.return_value = {"val_wer": 0.1, "val_wer_num": 10.0, "val_wer_denom": 100.0}  # wer, scores, words
+            mock_wer.compute.return_value = {
+                "val_wer": 0.1,
+                "val_wer_num": 10.0,
+                "val_wer_denom": 100.0,
+            }  # wer, scores, words
             mock_from_config.return_value = mock_wer
 
             multitask_metric = MultiTaskMetric(mock_model, cfg)
@@ -2016,7 +2024,7 @@ class TestMultiTaskMetricEdgeCases:
     def test_complex_constraint_edge_cases(self):
         """Test complex constraints with edge cases"""
         parser = ConstraintParser()
-        
+
         # Test constraint with missing properties
         constraint_fn = parser.parse_constraint(".missing_prop==value")
         result = constraint_fn({})

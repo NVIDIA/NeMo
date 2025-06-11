@@ -32,8 +32,9 @@ __all__ = ['MultiTaskMetric']
 
 
 # Helper functions for managing constraint criteria on metrics.
-class ConstraintParser():
+class ConstraintParser:
     """Boolean Parser class for constraint passing in config"""
+
     _primitives = None
     _booleans = None
 
@@ -41,7 +42,7 @@ class ConstraintParser():
         array = re.sub(r"([()])", r" \1 ", constraint).strip().split()  # Add space only for keywords.
         if not array:
             return self._no_constraint
-        
+
         self._resolve_primitives(array)
         if len(array) == 1:
             return array[0]
@@ -50,10 +51,10 @@ class ConstraintParser():
         stack = []
         array = ["("] + array + [")"]
         while array:
-            if  (c := array.pop()) == "(":
+            if (c := array.pop()) == "(":
                 expr = []
                 while stack:
-                    if (e := stack.pop()) ==  ")":
+                    if (e := stack.pop()) == ")":
                         if not (fnc := self._resolve_bools(expr)):
                             raise SyntaxError(f"Malformed subexpression find in constraint parsing: {fnc}")
                         stack.append(fnc)
@@ -126,7 +127,7 @@ class ConstraintParser():
 
     def _resolve_primitives(self, constraint):
         for idx, c in enumerate(constraint):
-            for n, o in self.primitives.items(): 
+            for n, o in self.primitives.items():
                 # Check if string is for value assertion or equivalency of values.
                 entail, equal = fr'\.(\S+)\s*{n}\s*(\S+)', fr'\.(\S+)\s*{n}\s*\.(\S+)'
                 match_entail, match_equal = re.match(entail, c), re.match(equal, c)
@@ -166,6 +167,7 @@ class ConstraintParser():
             return None
 
         return constraint[0]
+
 
 class MultiTaskMetric(Serialization):
     """
@@ -304,7 +306,6 @@ class MultiTaskMetric(Serialization):
             # Store metric and its constraint function
             self._metric_dict[name] = metric
             self._constr_dict[name] = parser.parse_constraint(constraint)
-
 
     # Performs full PyMetrics validation loop for all metrics.
     def eval(
