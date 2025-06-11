@@ -246,17 +246,12 @@ def set_perf_configs(
 
     recipe.trainer.strategy.use_sharp = bool(use_sharp)
 
-    is_ddp_configured = (
-        hasattr(recipe.trainer.strategy, "ddp")
-        and recipe.trainer.strategy.ddp.__fn_or_cls__ == DistributedDataParallelConfig
-    )
-    if use_user_buffer_registration and not is_ddp_configured:
+    if use_user_buffer_registration and not hasattr(recipe.trainer.strategy, "ddp"):
         logging.warning("DDP is not configured. Cannot use user buffer registration.")
-    if is_ddp_configured:
+    if hasattr(recipe.trainer.strategy, "ddp"):
         # Disable local gradient checker at non-debugging mode
         recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
         recipe.trainer.strategy.ddp.check_for_large_grads = False
-
         recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
 
     return recipe
