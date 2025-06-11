@@ -30,6 +30,7 @@ from PIL import Image
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
 from nemo.collections.tts.models import MagpieTTSModel
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer, IPATokenizer
 
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
@@ -215,7 +216,16 @@ def run_inference(
             )
             assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
 
+            # import ipdb; ipdb.set_trace()
             test_dataset.text_tokenizer = model.tokenizer
+            # Set phoneme prob = 1 for g2p
+            g2p = None
+            if isinstance(model.tokenizer, AggregatedTTSTokenizer):
+                g2p = model.tokenizer.tokenizers["english_phoneme"].g2p
+            elif isinstance(model.tokenizer, IPATokenizer):
+                g2p = model.tokenizer.g2p
+            if g2p is not None:
+                g2p.phoneme_probability = 1.0
             test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
 
             test_data_loader = torch.utils.data.DataLoader(
