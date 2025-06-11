@@ -192,7 +192,7 @@ class NsysPlugin(run.Plugin):
                 launcher.nsys_gpu_metrics = self.nsys_gpu_metrics
             else:
                 logging.warning(
-                    f"Unable to enable nsys gpu metrics collection. Please upgrade Nemo-Run to include commit 70a0df4."
+                    "Unable to enable nsys gpu metrics collection. Please upgrade Nemo-Run to include commit 70a0df4."
                 )
 
 
