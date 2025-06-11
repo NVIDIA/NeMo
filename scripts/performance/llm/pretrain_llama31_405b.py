@@ -174,6 +174,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -182,10 +183,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={
-            "NVTE_NORM_FWD_USE_CUDNN": "1",
-            "NVTE_NORM_BWD_USE_CUDNN": "1",
-        },  # for properly overlapping normalization kernels with FSDP communication
+        custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,

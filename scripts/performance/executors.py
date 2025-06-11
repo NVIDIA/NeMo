@@ -32,11 +32,11 @@ PERF_ENV_VARS = {
     "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
     "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
     "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
-    "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
 }
 
 
 def slurm_executor(
+    gpu: str,
     account: str,
     partition: str,
     log_dir: str,
@@ -66,6 +66,10 @@ def slurm_executor(
         logging.error("\n".join(err_msgs))
         sys.exit(1)
 
+    if gpu.lower() not in ['b200']:
+        # TODO: we currently disable PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+        # on B200 as it causes an unexpected error. Add back when issue is debugged and fixed.
+        PERF_ENV_VARS["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     PERF_ENV_VARS["NEMORUN_HOME"] = log_dir
     if wandb_key is not None:
         PERF_ENV_VARS["WANDB_API_KEY"] = wandb_key

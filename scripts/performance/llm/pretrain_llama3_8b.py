@@ -96,6 +96,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
