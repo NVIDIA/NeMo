@@ -28,7 +28,6 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.qwen3 import qwen3_model, qwen3_trainer
 from nemo.utils.exp_manager import TimingCallback
 
-
 NAME = "qwen3_30b_a3b"
 
 

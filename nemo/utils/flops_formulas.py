@@ -149,7 +149,6 @@ def qwen3(config: FLOPSConfig):
     causal_self_attn = True 
     seq_len = config.enc_seq_len
     hidden_size = config.hs
-    # ffn_hidden_size = config.ffn_hs
     gated_linear_multiplier = 2
 
 
@@ -161,8 +160,20 @@ def qwen3(config: FLOPSConfig):
     )
 
     # mlp flops
+<<<<<<< HEAD
     mlp_flops = 3 * 2 * config.gbs * config.layers * seq_len * hidden_size * (1 + gated_linear_multiplier) * (
         config.moe_ffn_hidden_size * 1 * config.moe_router_topk # MoE layers
+=======
+    mlp_flops = (
+        3
+        * 2
+        * config.gbs
+        * config.layers
+        * seq_len
+        * hidden_size
+        * (1 + gated_linear_multiplier)
+        * (config.moe_ffn_hidden_size * config.moe_router_topk)  # MoE layers
+>>>>>>> 153755b1a (clean up)
     )
 
     # vocab flops
