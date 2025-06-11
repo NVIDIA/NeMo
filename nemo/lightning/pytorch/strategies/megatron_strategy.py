@@ -203,6 +203,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             If not None, overwrites the `strict` flag passed to `load_checkpoint`.
             Defaults to None. For a list of supported values, refer to the Megatron Core documentation:
             https://github.com/NVIDIA/Megatron-LM/blob/d4e72c0d33edc0c53aeb624f617eb77cebce6ae9/megatron/core/dist_checkpointing/validation.py#L46
+        ckpt_persistent_workers (bool): Whether to persist the workers in the async checkpointing queue.
+            Defaults to True.
         setup_optimizers (bool): Whether to call the trainer's setup_optimizers function to perform any
             necessary conversions of optimizer parameters and move optimizer parameters to the correct device.
             Defaults to True.
@@ -274,6 +276,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_parallel_save_optim: bool = True,
         ckpt_load_directly_on_device: bool = True,
         ckpt_load_strictness: Optional['StrictHandling'] = None,
+        ckpt_persistent_workers: bool = True,
         setup_optimizers: bool = True,
         init_model_parallel: bool = True,
         replace_progress_bar: bool = True,
@@ -319,6 +322,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
         self.ckpt_load_strictness = ckpt_load_strictness
+        self.ckpt_persistent_workers = ckpt_persistent_workers
         self.use_te_rng_tracker = use_te_rng_tracker
         self.use_sharp = use_sharp
         self._pipeline_dtype = pipeline_dtype
@@ -1086,6 +1090,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 parallel_save_within_dp=self.parallel_save_within_dp,
                 parallel_load=self.parallel_load,
                 load_directly_on_device=self.load_directly_on_device,
+                ckpt_persistent_workers=self.ckpt_persistent_workers,
             )
 
         return self._checkpoint_io

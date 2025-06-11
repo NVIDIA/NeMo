@@ -198,7 +198,8 @@ def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
     if wrapping_ckpt_io:
         checkpoint_io = wrapping_ckpt_io(checkpoint_io)
     if kwargs.get("async_save", False):
-        checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io)
+        persistent = kwargs.get("ckpt_persistent_workers", True)
+        checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io, persistent=persistent)
 
     return checkpoint_io
 
