@@ -12,20 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import lightning.pytorch as pl
-
-from nemo.collections.vlm.qwen2vl.data.mock import Qwen2VLMockDataModule
-from nemo.collections.vlm.qwen2vl.data.preloaded import Qwen2VLPreloadedDataModule
+from nemo.lightning.pytorch.callbacks import RuntimeEstimator
 
 
-def mock() -> pl.LightningDataModule:
-    """Mock Qwen2-VL Data Module"""
-    return Qwen2VLMockDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+def test_runtime_estimator():
+    monitor = RuntimeEstimator(time_unit='seconds')
+    assert monitor.divider == 1
 
+    monitor = RuntimeEstimator(time_unit='minutes')
+    assert monitor.divider == 60
 
-def preloaded() -> pl.LightningDataModule:
-    """Preloaded Qwen2-VL-like Data Module"""
-    return Qwen2VLPreloadedDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+    monitor = RuntimeEstimator(time_unit='hours')
+    assert monitor.divider == 60 * 60
 
-
-__all__ = ["mock", "preloaded"]
+    monitor = RuntimeEstimator(time_unit='days')
+    assert monitor.divider == 60 * 60 * 24
