@@ -127,7 +127,7 @@ def run_inference(
         hparams_file_from_wandb=False,
     ):
     # Load model
-    if hparams_file is not None:
+    if hparams_file is not None and checkpoint_file is not None:
         model_cfg = OmegaConf.load(hparams_file)
         if "cfg" in model_cfg:
             model_cfg = model_cfg.cfg
@@ -155,7 +155,7 @@ def run_inference(
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
     else:
-        raise ValueError("Need a checkpoint")
+        raise ValueError("Need either a checkpoint and hparams file, or a nemo file.")
 
     if cfg_sample_rate is not None and cfg_sample_rate != model.sample_rate:
         raise ValueError("Sample rate in config and model do not match")
@@ -407,6 +407,7 @@ def main():
     if args.apply_prior_to_layers is not None:
         apply_prior_to_layers = [int(l.strip()) for l in args.apply_prior_to_layers.split(",")]
 
+    # Mode 1: Run inference from provided hparams and checkpoint files
     if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null") and (args.checkpoint_files != "null"):
         hparam_files = args.hparams_files.split(",")
         checkpoint_files = args.checkpoint_files.split(",")
@@ -443,13 +444,13 @@ def main():
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
             )
         return
-    elif (args.nemo_file is not None):
-        nemo_file = args.nemo_file
-        print("Running inference for nemo file: ", nemo_file)
+    # Mode 2: Run inference from a .nemo file
+    elif args.nemo_file:
+        print(f"Running inference for nemo file: {args.nemo_file}")
         cer, ssim = run_inference(
             hparams_file=None,
             checkpoint_file=None,
-            nemo_file=nemo_file,
+            nemo_file=args.nemo_file,
             datasets=args.datasets.split(","),
             out_dir=args.out_dir,
             temperature=args.temperature,
@@ -474,11 +475,12 @@ def main():
             clean_up_disk=args.clean_up_disk,
             hparams_file_from_wandb=args.hparams_file_from_wandb,
         )
-    else:
+    # Mode 3: Discover and run experiments from a base directory
+    #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
+    #   sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
+    elif args.base_exp_dir:
         BASE_EXP_DIR = args.base_exp_dir
         DRACO_EXP_DIR = args.draco_exp_dir
-        # Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
-        # sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
         if args.exp_names is None:
             exp_names = os.listdir(BASE_EXP_DIR)
         else:
@@ -539,6 +541,13 @@ def main():
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
             )
+    else:
+        parser.error(
+            "You must provide a model to run. Please specify either:\n"
+            "1. --hparams_files and --checkpoint_files\n"
+            "2. --nemo_file\n"
+            "3. --base_exp_dir to discover experiments"
+        )
     if cer > float(args.cer_target):
         raise ValueError()
     if ssim < float(args.ssim_target):
