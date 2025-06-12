@@ -226,7 +226,7 @@ def set_cuda_graph_configs(recipe, enable_cuda_graphs: bool, task: str):
     return recipe
 
 
-def set_perf_configs(
+def set_perf_optimization_configs(
     recipe,
     use_mcore_fsdp: bool,
     enable_cuda_graphs: bool,
@@ -330,7 +330,7 @@ def set_primary_perf_configs(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
 
-    recipe = set_perf_configs(
+    recipe = set_perf_optimization_configs(
         recipe,
         use_mcore_fsdp,
         enable_cuda_graphs,
