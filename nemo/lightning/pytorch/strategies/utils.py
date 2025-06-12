@@ -186,19 +186,19 @@ def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
     Returns:
         Checkpoint IO handler instance.
     """
+    # Remove ckpt_persistent_workers from kwargs as it's only for AsyncFinalizableCheckpointIO
+    persistent = kwargs.pop("ckpt_persistent_workers", True)
     if kwargs.get("model_library", None) == "huggingface":
         from nemo.lightning.io.hf import HFCheckpointIO
 
         checkpoint_io = HFCheckpointIO(adapter_only=kwargs.get("lora", False))
     else:
         from nemo.lightning.io.pl import MegatronCheckpointIO
-
-        checkpoint_io = MegatronCheckpointIO(**kwargs)
+        checkpoint_io = MegatronCheckpointIO(**megatron_kwargs)
 
     if wrapping_ckpt_io:
         checkpoint_io = wrapping_ckpt_io(checkpoint_io)
     if kwargs.get("async_save", False):
-        persistent = kwargs.get("ckpt_persistent_workers", True)
         checkpoint_io = AsyncFinalizableCheckpointIO(checkpoint_io, persistent=persistent)
 
     return checkpoint_io
