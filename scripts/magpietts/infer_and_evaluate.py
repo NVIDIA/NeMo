@@ -118,7 +118,9 @@ def run_inference(
         use_local_transformer=False,
         maskgit_n_steps=3,
         maskgit_noise_scale=0.0,
-        legacy_codebooks=False
+        legacy_codebooks=False,
+        fixed_schedule_n_unmasked=None,
+        sampling_type=None
     ):
     # Load model
     if hparams_file is not None:
@@ -153,22 +155,22 @@ def run_inference(
     model.eval()
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps_{}_MGnoise_{}_sv_{}".format(
+    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
         checkpoint_name,
         temperature,
         topk,
         use_cfg,
         cfg_scale,
         apply_attention_prior,
-        attention_prior_epsilon,
-        attention_prior_lookahead_window,
-        start_prior_after_n_audio_steps,
-        "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
-        "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
+        # attention_prior_epsilon,
+        # attention_prior_lookahead_window,
+        # start_prior_after_n_audio_steps,
+        # "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
+        # "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
         use_local_transformer,
         maskgit_n_steps,
-        maskgit_noise_scale,
-        sv_model
+        sampling_type,
+        "".join([str(l) for l in fixed_schedule_n_unmasked]) if fixed_schedule_n_unmasked is not None else "None"
     )
     dataset_meta_info = evalset_config.dataset_meta_info
     for dataset in datasets:
@@ -257,9 +259,13 @@ def run_inference(
                     start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
                     use_local_transformer_for_inference=use_local_transformer,
                     maskgit_n_steps=maskgit_n_steps,
-                    maskgit_noise_scale=maskgit_noise_scale
+                    maskgit_noise_scale=maskgit_noise_scale,
+                    fixed_schedule_n_unmasked=fixed_schedule_n_unmasked,
+                    sampling_type=sampling_type
                 )
-                
+                if predicted_audio.numel() == 0 or predicted_codes.numel() == 0:
+                    print("\n*** WARNING: Predicted audio or codes is empty. Skipping batch. ***\n")
+                    
                 all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
                 print(f"Time taken for inference: {et-st}", predicted_audio.size())
@@ -368,6 +374,9 @@ def main():
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
+    parser.add_argument('--fixed_schedule_n_unmasked', type=int, nargs='+', default=None)
+    parser.add_argument('--sampling_type', default=None, choices=["default", "alternate", "causal"])
+
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -409,7 +418,9 @@ def main():
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
                 maskgit_noise_scale=args.maskgit_noise_scale,
-                legacy_codebooks=args.legacy_codebooks
+                legacy_codebooks=args.legacy_codebooks,
+                fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
+                sampling_type=args.sampling_type
             )
         return
     elif (args.nemo_file is not None):
@@ -440,7 +451,9 @@ def main():
             use_local_transformer=args.use_local_transformer,
             maskgit_n_steps=args.maskgit_n_steps,
             maskgit_noise_scale=args.maskgit_noise_scale,
-            legacy_codebooks=args.legacy_codebooks
+            legacy_codebooks=args.legacy_codebooks,
+            fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
+            sampling_type=args.sampling_type
         )
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -504,7 +517,8 @@ def main():
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
                 maskgit_noise_scale=args.maskgit_noise_scale,
-                legacy_codebooks=args.legacy_codebooks
+                legacy_codebooks=args.legacy_codebooks,
+                sampling_type=args.sampling_type
             )
 
 
