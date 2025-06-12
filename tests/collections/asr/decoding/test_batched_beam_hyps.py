@@ -68,17 +68,6 @@ def assert_hyps_timestamps_equal(
     assert_nested_lists_approx(actual, expected, rel_tol, abs_tol)
 
 
-@contextmanager
-def avoid_sync_operations(device: torch.device):
-    try:
-        if device.type == "cuda":
-            torch.cuda.set_sync_debug_mode(2)  # fail if a blocking operation
-        yield
-    finally:
-        if device.type == "cuda":
-            torch.cuda.set_sync_debug_mode(0)  # default, blocking operations are allowed
-
-
 DEVICES: List[torch.device] = [torch.device("cpu")]
 
 if torch.cuda.is_available():
