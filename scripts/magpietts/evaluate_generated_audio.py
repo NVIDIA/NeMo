@@ -10,7 +10,7 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 import librosa
-import evalset_config
+import scripts.magpietts.evalset_config as evalset_config
 from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
 
 def find_sample_audios(audio_dir):

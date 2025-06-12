@@ -142,6 +142,7 @@ class Attention(torch.nn.Module):
         d_model: int,
         p_dropout: float,
         is_causal: bool = True,
+        d_head: Optional[int] = None,
     ):
         """
         Base Attention parent class. Users should not be instantiating this class, but rather use SelfAttention or
@@ -154,10 +155,11 @@ class Attention(torch.nn.Module):
             d_model (int): Dimension of the model.
             p_dropout (float): Dropout probability.
             is_causal (bool): Whether to use causal attention. Only supported when used in SelfAttention.
+            d_head (int): Head dimension. Defaults to d_model // n_heads.
         """
         super().__init__()
         assert d_model % n_heads == 0, "d_model % n_head != 0"
-        self.d_head = d_model // n_heads
+        self.d_head = d_head if d_head is not None else d_model // n_heads
         self.n_heads = n_heads
         self.d_model = d_model
         self.scale = self.d_head**-0.5
@@ -350,6 +352,7 @@ class CrossAttention(Attention):
         d_memory: int,
         p_dropout: float,
         make_prior_window_strict: bool = False,
+        d_head: Optional[int] = None,
     ):
         """
         Implements CrossAttention. See parent class for forward implementation. Must be non-causal.
@@ -360,15 +363,15 @@ class CrossAttention(Attention):
             d_memory (int): Dimension of the conditioning / cross-attention input.
             p_dropout (float): Dropout probability.
             make_prior_window_strict (bool): Make attention scores lowest where prior is zero.
+            d_head (int): Head dimension. if None, defaults to d_model // n_heads in parent class.
         """
         super().__init__(
             n_heads=n_heads,
             d_model=d_model,
             p_dropout=p_dropout,
             is_causal=False,
+            d_head=d_head,
         )
-        if d_memory is None:
-            raise ValueError("d_memory must be provided for cross-attention")
         self.q_net = torch.nn.Linear(d_model, n_heads * self.d_head, bias=False)
         self.kv_net = torch.nn.Linear(d_memory, 2 * n_heads * self.d_head, bias=False)
         self.make_prior_window_strict = make_prior_window_strict
@@ -414,6 +417,7 @@ class TransformerLayer(torch.nn.Module):
         has_xattn: bool,
         xa_d_memory: Optional[int] = None,
         xa_n_heads: Optional[int] = None,
+        xa_d_head: Optional[int] = None,
         is_causal: bool = True,
         apply_norm_to_cond: bool = True,
         max_length_causal_mask: int = 4096,
@@ -431,6 +435,7 @@ class TransformerLayer(torch.nn.Module):
             has_xattn <bool>: Whether to use cross attention
             xa_d_memory <int>: Hidden dimension for cross attention
             xa_n_heads <int>: Number of attention heads used in cross attention
+            xa_d_head <int>: Head dimension for cross attention. if None, defaults to d_model // xa_n_heads in Attention class.
             is_causal <bool>: Whether to use causal attention
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor
             max_length_causal_mask <int>: Maximum length of causal mask
@@ -450,7 +455,6 @@ class TransformerLayer(torch.nn.Module):
         )
 
         if self.has_xattn:
-            self.apply_norm_to_cond = apply_norm_to_cond
             self.norm_xattn_query = torch.nn.LayerNorm(d_model, bias=False)
             self.cross_attention = CrossAttention(
                 n_heads=xa_n_heads,
@@ -458,9 +462,11 @@ class TransformerLayer(torch.nn.Module):
                 d_memory=xa_d_memory,
                 p_dropout=p_dropout,
                 make_prior_window_strict=make_prior_window_strict,
+                d_head=xa_d_head,
             )
 
-            if self.apply_norm_to_cond:
+            self.norm_xattn_memory = torch.nn.Identity()
+            if apply_norm_to_cond:
                 self.norm_xattn_memory = torch.nn.LayerNorm(xa_d_memory, bias=False)
 
         self.norm_pos_ff = torch.nn.LayerNorm(d_model, bias=False)
@@ -521,7 +527,7 @@ class TransformerLayer(torch.nn.Module):
             if self.use_cache and self.cache['memory'] is not None:
                 memory = self.cache['memory']
             else:
-                memory = self.norm_xattn_memory(cond) if self.apply_norm_to_cond else cond
+                memory = self.norm_xattn_memory(cond)
                 if self.use_cache:
                     self.cache['memory'] = memory
 
@@ -557,6 +563,7 @@ class Transformer(torch.nn.Module):
         has_xattn: bool = False,
         xa_d_memory: Optional[int] = None,
         xa_n_heads: Optional[int] = None,
+        xa_d_head: Optional[int] = None,
         is_causal: bool = True,
         apply_norm_to_cond: bool = True,
         apply_norm_out: bool = False,
@@ -579,6 +586,7 @@ class Transformer(torch.nn.Module):
             has_xattn <bool>: Whether to use cross attention
             xa_d_memory <int>: Hidden dimension for cross attention; required if has_xattn is True
             xa_n_heads <int>: Number of attention heads used in cross attention; required if has_xattn is True
+            xa_d_head <int>: Head dimension for cross attention. if None, defaults to d_model // xa_n_heads in Attention class.
             is_causal <bool>: Whether to make attention and the convolution feedforward networks causal.
             apply_norm_to_cond <bool>: Whether to apply normalization to conditioning tensor; conditioning tensor being
                 the input to the memory part of cross-attention.
@@ -592,22 +600,20 @@ class Transformer(torch.nn.Module):
             raise ValueError("It requires that `xa_d_memory` and `xa_n_heads` are specified when `has_xattn` is True!")
 
         super().__init__()
+        self.n_layers = n_layers
         self.dropout = torch.nn.Dropout(p_dropout)
         self.p_dropout_out = p_dropout_out
 
+        self.dropout_out = torch.nn.Identity()
         if self.p_dropout_out > 0.0:
             self.dropout_out = torch.nn.Dropout(self.p_dropout_out)
-        else:
-            self.dropout_out = None
 
-        self.apply_norm_out = apply_norm_out
-        if self.apply_norm_out:
+        self.norm_out = torch.nn.Identity()
+        if apply_norm_out:
             self.norm_out = torch.nn.LayerNorm(d_model, bias=False)
-        else:
-            self.norm_out = None
 
         self.layers = torch.nn.ModuleList()
-        for _ in range(n_layers):
+        for _ in range(self.n_layers):
             self.layers.append(
                 TransformerLayer(
                     d_model=d_model,
@@ -618,6 +624,7 @@ class Transformer(torch.nn.Module):
                     has_xattn=has_xattn,
                     xa_d_memory=xa_d_memory,
                     xa_n_heads=xa_n_heads,
+                    xa_d_head=xa_d_head,
                     is_causal=is_causal,
                     apply_norm_to_cond=apply_norm_to_cond,
                     max_length_causal_mask=max_length_causal_mask,
@@ -636,7 +643,7 @@ class Transformer(torch.nn.Module):
         self.apply(self._init_weights_gpt2)
         for name, param in self.named_parameters():
             if 'o_net' in name and name.endswith('weight'):
-                torch.nn.init.normal_(param, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+                torch.nn.init.normal_(param, mean=0.0, std=0.02 / math.sqrt(2 * self.n_layers))
 
     def reset_cache(self, use_cache=False):
         for layer in self.layers:
@@ -728,10 +735,6 @@ class Transformer(torch.nn.Module):
             if max_layer_idx is not None and idx == max_layer_idx:
                 break
 
-        if self.norm_out is not None:
-            x = self.norm_out(x)
-
-        if self.dropout_out is not None:
-            x = self.dropout_out(x)
-
+        x = self.norm_out(x)
+        x = self.dropout_out(x)
         return {'output': x, 'attn_probabilities': attn_probabilities}
