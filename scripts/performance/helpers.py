@@ -18,7 +18,6 @@ from typing import List, Optional
 
 import nemo_run as run
 import pandas as pd
-from megatron.core.distributed import DistributedDataParallelConfig
 from numpy import nan
 
 from nemo.collections.llm.gpt.data.mock import MockDataModule
