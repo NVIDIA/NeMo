@@ -12,20 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import lightning.pytorch as pl
 
-from nemo.collections.vlm.qwen2vl.data.mock import Qwen2VLMockDataModule
-from nemo.collections.vlm.qwen2vl.data.preloaded import Qwen2VLPreloadedDataModule
-
-
-def mock() -> pl.LightningDataModule:
-    """Mock Qwen2-VL Data Module"""
-    return Qwen2VLMockDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
-
-
-def preloaded() -> pl.LightningDataModule:
-    """Preloaded Qwen2-VL-like Data Module"""
-    return Qwen2VLPreloadedDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
-
-
-__all__ = ["mock", "preloaded"]
+from .endpoint_interceptor import EndpointInterceptor  # noqa: F401
+from .logging_interceptor import RequestLoggingInterceptor, ResponseLoggingInterceptor  # noqa: F401
+from .reasoning_interceptor import ResponseReasoningInterceptor  # noqa: F401
+from .system_message_interceptor import SystemMessageInterceptor  # noqa: F401
+from .types import (  # noqa: F401
+    AdapterMetadata,
+    AdapterRequest,
+    AdapterResponse,
+    RequestInterceptor,
+    ResponseInterceptor,
+)

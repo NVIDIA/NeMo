@@ -192,8 +192,15 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_LLAVA_NEXT_ENERGON_PACKED_TRAIN
             runner: self-hosted-azure
+          - script: L2_NeMo_2_AVLM_MOCK_TRAINING
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_AVLM_ENERGON_TRAIN
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_AVLM_ENERGON_CP2_TRAIN
+            runner: self-hosted-azure
           - script: L2_NeMo_2_CLIP_PRETRAIN
             runner: self-hosted-azure
+            timeout: 20
           - script: L2_NeMo_2_CLIP_INFER
             runner: self-hosted-azure
           - script: L2_NeMo_2_Auto_Configurator_llama_TP1_PP1_MBS124
@@ -201,6 +208,8 @@ jobs:
           - script: L2_NeMo_2_Auto_Configurator_bert_TP1_PP1_MBS124
             runner: self-hosted-azure-gpus-1
           - script: L2_NeMo_2_Auto_Configurator_t5_TP1_PP1_MBS124
+            runner: self-hosted-azure-gpus-1
+          - script: L2_NeMo_2_Auto_Configurator_callbacks
             runner: self-hosted-azure-gpus-1
           - script: L2_NeMo_2_Conversion_Test_Baichuan2
             runner: self-hosted-azure
@@ -211,6 +220,10 @@ jobs:
           - script: L2_NeMo_2_Conversion_Test_Gemma
             runner: self-hosted-azure
           - script: L2_NeMo_2_Conversion_Test_Gemma2
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Gemma3_llm
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Gemma3_vlm
             runner: self-hosted-azure
           - script: L2_NeMo_2_Conversion_Test_Mistral
             runner: self-hosted-azure
@@ -260,7 +273,7 @@ jobs:
             script: L2_NeMo_2_Flux_Inference_Test
           - runner: self-hosted-azure
             script: L2_NeMo_2_Flux_Training_Test
-          
+
     needs: [build]
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.is-optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
@@ -277,3 +290,4 @@ jobs:
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
           is_optional: ${{ matrix.is-optional || false }}
+          timeout: ${{ matrix.timeout || 10 }}
