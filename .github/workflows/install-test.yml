@@ -80,23 +80,20 @@ jobs:
         env:
           INSTALLER: ${{ matrix.installer }}
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
-
           if [ "$INSTALLER" = "pip-install" ]; then
-            pip install --upgrade pip
-            pip install ".[all]"
+            pip3 install --upgrade pip
+            pip3 install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
             bash docker/common/install_dep.sh --library all --mode install
-            pip install --no-cache-dir ".[all]"
+            pip3 install --no-cache-dir ".[all]"
           fi
 
       - name: Run import checks
         run: |
           # Run import checks
           for collection in "asr" "tts" "nlp"; do
-            python tests/core_ptl/check_imports.py --domain "$collection"
+            python3 tests/core_ptl/check_imports.py --domain "$collection"
           done
 
   test-installs-linux-arm:
