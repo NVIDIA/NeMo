@@ -162,7 +162,7 @@ class Llama4OmniConfig(NevaConfig):
         self.language_transformer_config.moe_pad_expert_input_to_capacity = self.moe_pad_expert_input_to_capacity
         self.language_transformer_config.moe_expert_capacity_factor = self.moe_expert_capacity_factor
 
-        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be 
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
         # non-None when using virtual pipeline model parallelism
         vp_stage = vp_stage or 0
         model = Llama4OmniBaseModel(

@@ -339,13 +339,14 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 self.num_layers // p_size
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
-        from megatron.core import parallel_state
         import inspect
+
+        from megatron.core import parallel_state
 
         # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
         # non-None when using virtual pipeline model parallelism
         vp_stage = vp_stage or 0
-        
+
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             # Check if the transformer_layer_spec function accepts vp_stage parameter
