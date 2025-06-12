@@ -56,6 +56,7 @@ from nemo.collections.llm.recipes import (
     llama33_nemotron_super_49b,
     llama_embedding_1b,
     llama_embedding_3b,
+    llama_reranker_1b,
     mamba2_1_3b,
     mamba2_2_7b,
     mamba2_8b,
