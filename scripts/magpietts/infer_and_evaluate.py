@@ -124,12 +124,16 @@ def run_inference(
         maskgit_n_steps=3,
         legacy_codebooks=False,
         clean_up_disk=False,
+        hparams_file_from_wandb=False,
     ):
     # Load model
     if hparams_file is not None:
         model_cfg = OmegaConf.load(hparams_file)
         if "cfg" in model_cfg:
             model_cfg = model_cfg.cfg
+
+        if hparams_file_from_wandb:
+            model_cfg = model_cfg.value
 
         with open_dict(model_cfg):
             model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
@@ -362,6 +366,7 @@ def run_inference(
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
     parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
+    parser.add_argument('--hparams_file_from_wandb', action='store_true')
     parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
     parser.add_argument('--nemo_file', type=str, default=None)
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo")
@@ -434,7 +439,8 @@ def main():
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
                 legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk
+                clean_up_disk=args.clean_up_disk,
+                hparams_file_from_wandb=args.hparams_file_from_wandb,
             )
         return
     elif (args.nemo_file is not None):
@@ -465,7 +471,8 @@ def main():
             use_local_transformer=args.use_local_transformer,
             maskgit_n_steps=args.maskgit_n_steps,
             legacy_codebooks=args.legacy_codebooks,
-            clean_up_disk=args.clean_up_disk
+            clean_up_disk=args.clean_up_disk,
+            hparams_file_from_wandb=args.hparams_file_from_wandb,
         )
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -529,7 +536,8 @@ def main():
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
                 legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk
+                clean_up_disk=args.clean_up_disk,
+                hparams_file_from_wandb=args.hparams_file_from_wandb,
             )
     if cer > float(args.cer_target):
         raise ValueError()
