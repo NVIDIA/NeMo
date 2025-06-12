@@ -32,7 +32,7 @@ For your reference here are the loss plots from our own experiments using 500,00
 
 You might be wondering about the sudden loss drop at the end. This is expected!
 The training dataset is arranged in the increasing order of sample difficulty (i.e. curriculum learning).
-With 500,000 training samples, a batch size of 256 and 2000 steps, that’s just slightly over 1 epoch of training.
+With 500,000 training samples, a batch size of 256 and 2000 steps, that's just slightly over 1 epoch of training.
 Towards the end of that epoch, when the model sees the first few (easier samples) again, it can easily predict the right tokens for them so the loss ends up being much lower.
 
 #### LoRA Training Loss Plots
@@ -40,3 +40,29 @@ Towards the end of that epoch, when the model sees the first few (easier samples
 
 #### Full Fine-tuning Loss Plots
 ![Fine-tuning Loss Plots](images/loss-plot-full-finetuning.png)
+
+## Evaluation
+
+This section describes how to evaluate your trained reasoning model on various benchmarks. The evaluation process consists of three main steps:
+
+1. **Prepare the Dataset**: Use `prepare_dataset.py` to download and prepare benchmark datasets from HuggingFace. The script supports:
+   - [GPQA main](https://huggingface.co/datasets/Idavidrein/gpqa/viewer/gpqa_main)
+   - [GPQA diamond](https://huggingface.co/datasets/Idavidrein/gpqa/viewer/gpqa_diamond)
+   - [MMLU](https://huggingface.co/datasets/cais/mmlu)
+
+2. **Deploy and Get Responses**: Use `deploy_and_get_responses.py` to:
+   - Deploy your trained model using Triton Inference Server
+   - Set up OpenAI-like endpoints for querying
+   - Generate responses for the selected benchmark
+
+3. **Evaluate Responses**: Use `evaluate_responses.py` to:
+   - Extract final answers from model responses
+   - Compare with ground truth
+   - Calculate model performance metrics
+
+### Hardware Requirements for Evaluation
+- At least 1 GPU is required to run the Llama 8B model
+- The evaluation scripts have been tested on nvcr.io/nvidia/nemo:25.04
+
+For detailed instructions on running each evaluation script, please refer to the [evaluation README](./evaluation/README.md).
+
