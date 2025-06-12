@@ -112,7 +112,7 @@ def test_reranker_loss(mock_cp_size, mock_dp_group, mock_world_size, mock_all_re
     num_tensors_per_example = 1 + num_hard_negatives
 
     # Create dummy input
-    forward_out = torch.randn(batch_size * num_tensors_per_example, device='cuda')
+    forward_out = torch.randn(batch_size * num_tensors_per_example, device='cpu')
     batch = {}
 
     # Test forward pass
@@ -139,8 +139,8 @@ def test_reranker_model_pooling():
     hidden_size = config.hidden_size
 
     # Create dummy input
-    last_hidden_states = torch.randn(seq_length, batch_size, hidden_size, device='cuda')
-    attention_mask = torch.ones(batch_size, seq_length, device='cuda')
+    last_hidden_states = torch.randn(seq_length, batch_size, hidden_size, device='cpu')
+    attention_mask = torch.ones(batch_size, seq_length, device='cpu')
 
     # Test average pooling
     config.pool_type = 'avg'
