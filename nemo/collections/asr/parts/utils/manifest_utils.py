@@ -183,7 +183,7 @@ def get_subsegment_dict(subsegments_manifest_file: str, window: float, shift: fl
         for segment in segments:
             segment = segment.strip()
             dic = json.loads(segment)
-            audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
+            audio, offset, duration = dic['audio_filepath'], dic['offset'], dic['duration']
             subsegments = get_subsegments_scriptable(offset=offset, window=window, shift=shift, duration=duration)
             if dic['uniq_id'] is not None:
                 uniq_id = dic['uniq_id']
@@ -432,7 +432,7 @@ def create_manifest(
         if rttm is not None:
             rttm = rttm.strip()
             labels = rttm_to_labels(rttm)
-            num_speakers = Counter([l.split()[-1] for l in labels]).keys().__len__()
+            num_speakers = Counter([label.split()[-1] for label in labels]).keys().__len__()
         else:
             num_speakers = None
 
