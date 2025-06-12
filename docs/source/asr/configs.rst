@@ -147,7 +147,7 @@ BLEU score relies on TorchMetrics' SacreBLEU implementation and supports all Sac
 
 **Dynamic Tokenizer Selection**
 
-In multilingual training scenarios, it is somtimes desireable to configure the BLEU tokenizer per sample to avoid sub-optimal parsing (e.g. tokenizing Chinese characters as English words). This can be toggled with ``check_cuts_for_bleu_tokenizers: true``. When enabled with lhotse dataloading, BLEU will check individual ``cuts``` in a batch's Lhotse CutSet for the ``bleu_tokenizer`` attribute. If found, the tokenizer will be used for that sample. If not, the default ``bleu_tokenizer`` from config will be used.
+In multilingual training scenarios, it is somtimes desireable to configure the BLEU tokenizer per sample to avoid sub-optimal parsing (e.g. tokenizing Chinese characters as English words). This can be toggled with ``check_cuts_for_bleu_tokenizers: true``. When enabled with Lhotse dataloading, BLEU will check individual ``cuts``` in a batch's Lhotse CutSet for the ``bleu_tokenizer`` attribute. If found, the tokenizer will be used for that sample. If not, the default ``bleu_tokenizer`` from config will be used.
 
 MultiTask Metrics
 ~~~~~~~~~~~~~~~~~
@@ -173,7 +173,7 @@ Multiple metrics can be configured simultaneously using a ``MultiTaskMetric`` co
 
 **Metric Constraints**
 
-Each metric within ``MultiTaskMetric`` can be configured with an optional boolean ``constraint`` pattern that filters batch samples before metric computation. This allows validation to be limited to only applicable samples in a batch (e.g. only apply WER to transcription samples, only apply BLEU to translation samples). Constraint patterns match against property keywords in the batch's lhotse CutSet.
+Each metric within ``MultiTaskMetric`` can be configured with an optional boolean ``constraint`` pattern that filters batch samples before metric computation. This allows validation to be limited to only applicable samples in a batch (e.g. only apply WER to transcription samples, only apply BLEU to translation samples). Constraint patterns match against property keywords in the batch's Lhotse CutSet.
 
 .. code-block:: yaml
 
