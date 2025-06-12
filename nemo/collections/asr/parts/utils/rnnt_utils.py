@@ -143,6 +143,40 @@ class Hypothesis:
         """
         return [] if self.text is None else self.text.split()
 
+    def merge_(self, other: "Hypothesis") -> "Hypothesis":
+        """Merge (inplace) current hypothesis with another one."""
+        self.score += other.score
+        if self.y_sequence is None:
+            self.y_sequence = other.y_sequence
+        elif isinstance(self.y_sequence, torch.Tensor):
+            self.y_sequence = torch.cat((self.y_sequence, other.y_sequence), dim=0)
+        else:
+            self.y_sequence.extend(other.y_sequence)
+        self.dec_state = other.dec_state
+        if self.timestamp is None:
+            self.timestamp = other.timestamp
+        elif isinstance(self.timestamp, torch.Tensor):
+            self.timestamp = torch.cat((self.timestamp, other.timestamp), dim=0)
+        else:
+            self.timestamp.extend(other.timestamp)
+        self.length += other.length
+        self.last_token = other.last_token
+        if self.alignments is None:
+            self.alignments = other.alignments
+        else:
+            self.alignments.extend(other.alignments)
+        if self.frame_confidence is None:
+            self.frame_confidence = other.frame_confidence
+        else:
+            self.frame_confidence.extend(other.frame_confidence)
+        # Invalidated. Need to rerun decode_hypothesis here.
+        self.text = None
+        return self
+
+    def clean_decoding_state_(self):
+        """Clean the decoding state to save memory."""
+        self.dec_state = None
+
 
 @dataclass
 class NBestHypotheses:
@@ -257,6 +291,9 @@ class BatchedHyps:
         if batch_size <= 0:
             raise ValueError(f"batch_size must be > 0, got {batch_size}")
         self._max_length = init_length
+        self.batch_size = batch_size
+        self.device = device
+        self.float_dtype = float_dtype
 
         # batch of current lengths of hypotheses and correspoinding timestamps
         self.current_lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
@@ -383,6 +420,7 @@ class BatchedHyps:
             labels: non-blank labels to add
             time_indices: tensor of time index for each label
             scores: label scores
+            token_durations: token durations for TDT
         """
         if (self.current_lengths + active_mask).max() >= self._max_length:
             self._allocate_more()
@@ -412,6 +450,7 @@ class BatchedHyps:
             labels: non-blank labels to add
             time_indices: tensor of time index for each label
             scores: label scores
+            token_durations: token durations for TDT
         """
         # accumulate scores
         # same as self.scores[active_mask] += scores[active_mask], but non-blocking
@@ -440,6 +479,55 @@ class BatchedHyps:
         torch.where(active_mask, time_indices, self.last_timestamp, out=self.last_timestamp)
         # increase lengths
         self.current_lengths += active_mask
+
+    def get_last_labels(self, pad_id: int = -1):
+        """Get last labels. For elements without labels use pad_id"""
+        return torch.where(
+            self.current_lengths > 0, self.transcript[self._batch_indices, self.current_lengths - 1], pad_id
+        )
+
+    def clone(self) -> "BatchedHyps":
+        """Return a copy of self"""
+        batched_hyps = BatchedHyps(
+            batch_size=self.batch_size,
+            init_length=self._max_length,
+            device=self.device,
+            float_dtype=self.float_dtype,
+        )
+        batched_hyps.current_lengths.copy_(self.current_lengths)
+        batched_hyps.transcript.copy_(self.transcript)
+        batched_hyps.timestamps.copy_(self.timestamps)
+        batched_hyps.token_durations.copy_(self.token_durations)
+        batched_hyps.scores.copy_(self.scores)
+        batched_hyps.last_timestamp.copy_(self.last_timestamp)
+        batched_hyps.last_timestamp_lasts.copy_(self.last_timestamp_lasts)
+        return batched_hyps
+
+    def merge_(self, other: "BatchedHyps") -> "BatchedHyps":
+        """
+        Merge two batched hypotheses structures.
+        NB: this will reallocate memory
+
+        Args:
+            other: BatchedHyps
+        """
+        self.transcript = torch.cat((self.transcript, torch.zeros_like(other.transcript)), dim=-1)
+        self.timestamps = torch.cat((self.timestamps, torch.zeros_like(other.timestamps)), dim=-1)
+        self.token_durations = torch.cat((self.token_durations, torch.zeros_like(other.token_durations)), dim=-1)
+        self._max_length += other._max_length
+
+        indices = torch.arange(other.transcript.shape[1], device=self.current_lengths.device)
+        shifted_indices = self.current_lengths[:, None] + indices[None, :]
+        self.transcript.scatter_(dim=1, index=shifted_indices, src=other.transcript)
+        self.timestamps.scatter_(dim=1, index=shifted_indices, src=other.timestamps)
+        self.token_durations.scatter_(dim=1, index=shifted_indices, src=other.token_durations)
+
+        self.current_lengths += other.current_lengths
+        self.scores += other.scores
+        self.last_timestamp.copy_(other.last_timestamp)
+        self.last_timestamp_lasts.copy_(other.last_timestamp_lasts)
+
+        return self
 
 
 class BatchedAlignments:
@@ -474,6 +562,10 @@ class BatchedAlignments:
             raise ValueError(f"init_length must be > 0, got {init_length}")
         if batch_size <= 0:
             raise ValueError(f"batch_size must be > 0, got {batch_size}")
+        self.batch_size = batch_size
+        self.logits_dim = logits_dim
+        self.device = device
+        self.float_dtype = float_dtype
         self.with_frame_confidence = store_frame_confidence
         self.with_duration_confidence = with_duration_confidence
         self.with_alignments = store_alignments
@@ -622,6 +714,25 @@ class BatchedAlignments:
         # increase lengths
         self.current_lengths += active_mask
 
+    def clone(self) -> "BatchedAlignments":
+        """Return a copy of self"""
+        batched_alignments = BatchedAlignments(
+            batch_size=self.batch_size,
+            logits_dim=self.logits_dim,
+            init_length=self._max_length,
+            device=self.device,
+            float_dtype=self.float_dtype,
+            store_alignments=self.with_alignments,
+            store_frame_confidence=self.with_frame_confidence,
+            with_duration_confidence=self.with_duration_confidence,
+        )
+        batched_alignments.current_lengths.copy_(self.current_lengths)
+        batched_alignments.timestamps.copy_(self.timestamps)
+        batched_alignments.logits.copy_(self.logits)
+        batched_alignments.labels.copy_(self.labels)
+        batched_alignments.frame_confidence.copy_(self.frame_confidence)
+        return batched_alignments
+
 
 def batched_hyps_to_hypotheses(
     batched_hyps: BatchedHyps, alignments: Optional[BatchedAlignments] = None, batch_size=None
@@ -641,15 +752,16 @@ def batched_hyps_to_hypotheses(
     """
     assert batch_size is None or batch_size <= batched_hyps.scores.shape[0]
     num_hyps = batched_hyps.scores.shape[0] if batch_size is None else batch_size
-    # We clone `timestamps` and `y_sequence` to avoid keeping references
-    # to the tensors that can be allocated by CUDA graphs. If we don't do this,
-    # subsequent batches might reuse and overwrite the same memory,
-    # leading to unexpected results due to shared references.
+    # NB: clone is not necessary anymore, since CUDA graph decoder always returns an independent copy
+    scores = batched_hyps.scores.cpu()
+    current_lengths = batched_hyps.current_lengths.cpu()
+    transcript = batched_hyps.transcript.cpu()
+    timestamps = batched_hyps.timestamps.cpu()
     hypotheses = [
         Hypothesis(
-            score=batched_hyps.scores[i].item(),
-            y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]].clone(),
-            timestamp=batched_hyps.timestamps[i, : batched_hyps.current_lengths[i]].clone(),
+            score=scores[i].item(),
+            y_sequence=transcript[i, : current_lengths[i]],
+            timestamp=timestamps[i, : batched_hyps.current_lengths[i]],
             token_duration=(
                 durations
                 if not torch.all(
