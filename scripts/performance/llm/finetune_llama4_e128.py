@@ -14,10 +14,7 @@
 
 from os.path import basename, splitext
 
-import fiddle as fdl
-import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
-import hf_xet
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
@@ -64,14 +61,12 @@ def override_recipe_configs(
     activation_offload_layers: int,
 ):
     """
-    llama3 70b fine-tuning recipe aimed at achieving best possible performance.
+    Llama4 e128 fine-tuning recipe aimed at achieving best possible performance.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
     assert finetuning_scheme != "lora"
-
-    gpu_type = args.gpu.lower()
 
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, packed_sequence=True)
 
@@ -106,14 +101,12 @@ def override_recipe_configs(
 
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    # If you want to force redownload for SquadDataModule, uncomment and adjust the following:
     # if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
     #     # flag is valid only for SquadDataModule
     #     recipe.data.force_redownload = False
 
-    assert recipe.data.tokenizer is not None, "Tokenizer has not been set"
-    print("Tokenizer info:",recipe.data.tokenizer)
-
-    # compute dtype configs
+    # Compute dtype configs
     if args.compute_dtype.lower() == "fp8":
         recipe.trainer.plugins = bf16_with_fp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
@@ -122,14 +115,7 @@ def override_recipe_configs(
     recipe.model.config.cross_entropy_loss_fusion = True
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
-    enable_cuda_graphs = False 
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    
-
-
     return recipe
-
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
@@ -154,7 +140,6 @@ if __name__ == "__main__":
         activation_offload_layers,
     ) = kwargs[0:15]
 
-    print("KWARGS:",kwargs)
     recipe = override_recipe_configs(
         args,
         num_nodes,
@@ -185,22 +170,6 @@ if __name__ == "__main__":
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
         )
     ]
-    custom_env_vars = {}
-    if args.enable_nsys:
-        plugins.append(
-            NsysPlugin(
-                start_step=args.profiling_start_step,
-                end_step=args.profiling_stop_step,
-                ranks=list(range(num_nodes * args.gpus_per_node)),
-            )
-        )
-        # nsys takes precedent over ncclttrace
-    elif args.enable_nccltrace:
-        exp_name = exp_name + "_nccltrace"
-        custom_env_vars |= {
-            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
-            "NCCL_DEBUG": "INFO",
-        }
 
     executor = slurm_executor(
         args.account,
@@ -211,7 +180,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars=custom_env_vars,
+        custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
