@@ -2,3 +2,4 @@ docker>=6.0.0
 docker>=6.0.0
 docstring-parser>=0.8.0
 nemo_run
+urllib3>=1.26.19
