@@ -58,6 +58,8 @@ jobs:
   test-installs-linux-amd:
     name: ubuntu-22.04-amd-${{ matrix.installer }}
     runs-on: ubuntu-22.04
+    container:
+      image: ubuntu:22.04
     strategy:
       fail-fast: false
       matrix:
@@ -67,9 +69,12 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y python3-pip python3-venv
+          python3 -m venv .venv
+          source .venv/bin/activate
 
       - name: Install NeMo
         env:
