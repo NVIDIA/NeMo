@@ -150,6 +150,7 @@ __all__ = [
     "llama31_nemotron_70b",
     "llama_embedding_1b",
     "llama_embedding_3b",
+    "llama_reranker_1b",
     "mamba2_130m",
     "mamba2_370m",
     "mamba2_780m",

@@ -28,9 +28,6 @@ from nemo.collections.llm.gpt.model.reranker import Llama32Reranker1BConfig, ReR
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama_reranker_1b"
 
