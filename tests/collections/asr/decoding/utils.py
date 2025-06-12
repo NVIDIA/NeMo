@@ -34,9 +34,26 @@ def preserve_decoding_cfg_and_cpu_device(model: ASRModel):
         yield
     finally:
         model.to(device="cpu")
-        model.change_decoding_strategy(backup_decoding_cfg)
+        if model.cfg.decoding != backup_decoding_cfg:
+            model.change_decoding_strategy(backup_decoding_cfg)
 
 
 def load_audio(file_path, target_sr=16000) -> tuple[torch.Tensor, int]:
     audio, sr = librosa.load(file_path, sr=target_sr)
     return torch.tensor(audio, dtype=torch.float32), sr
+
+
+@contextmanager
+def avoid_sync_operations(device: torch.device):
+    try:
+        if device.type == "cuda":
+            torch.cuda.set_sync_debug_mode(2)  # fail if a blocking operation
+        yield
+    finally:
+        if device.type == "cuda":
+            torch.cuda.set_sync_debug_mode(0)  # default, blocking operations are allowed
+
+
+def make_preprocessor_deterministic(model: ASRModel):
+    model.preprocessor.featurizer.dither = 0.0
+    model.preprocessor.featurizer.pad_to = 0

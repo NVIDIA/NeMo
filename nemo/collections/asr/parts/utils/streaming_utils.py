@@ -15,12 +15,15 @@
 import copy
 import os
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
+from typing import NamedTuple, Optional
 
+import librosa
 import numpy as np
 import torch
 from omegaconf import OmegaConf
-from torch.utils.data import DataLoader
+from torch.nn.utils.rnn import pad_sequence
+from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import PromptedAudioToTextMiniBatch
 from nemo.collections.asr.models import ASRModel
@@ -2175,3 +2178,47 @@ class StreamingBatchedAudioBuffer:
         # leave only full_ctx_audio_samples in buffer
         if extra_samples_in_buffer > 0:
             self.samples = self.samples[:, extra_samples_in_buffer:].clone()
+
+
+def load_audio(file_path: str | Path, sample_rate: int = 16000) -> tuple[torch.Tensor, int]:
+    """Load audio from file"""
+    audio, sr = librosa.load(file_path, sr=sample_rate)
+    return torch.tensor(audio, dtype=torch.float32), sr
+
+
+class AudioBatch(NamedTuple):
+    audio_signals: torch.Tensor
+    audio_signal_lengths: torch.Tensor
+
+    @staticmethod
+    def collate_fn(
+        audio_batch: list[torch.Tensor],
+    ) -> "AudioBatch":
+        """
+        Collate audio signals to batch
+        """
+        audio_signals = pad_sequence(
+            [audio_tensor for audio_tensor in audio_batch], batch_first=True, padding_value=0.0
+        )
+        audio_signal_lengths = torch.tensor([audio_tensor.shape[0] for audio_tensor in audio_batch]).long()
+
+        return AudioBatch(
+            audio_signals=audio_signals,
+            audio_signal_lengths=audio_signal_lengths,
+        )
+
+
+class SimpleAudioDataset(Dataset):
+    """Dataset constructed from audio filenames. Each item - audio"""
+
+    def __init__(self, audio_filenames: list[str | Path], sample_rate: int = 16000):
+        super().__init__()
+        self.audio_filenames = audio_filenames
+        self.sample_rate = sample_rate
+
+    def __getitem__(self, item: int) -> torch.Tensor:
+        audio, _ = load_audio(self.audio_filenames[item])
+        return audio
+
+    def __len__(self):
+        return len(self.audio_filenames)
