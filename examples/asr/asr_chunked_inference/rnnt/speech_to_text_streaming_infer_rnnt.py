@@ -36,14 +36,14 @@ Example usage:
 python speech_to_text_streaming_infer_rnnt.py \
     pretrained_name=nvidia/parakeet-rnnt-1.1b \
     model_path=null \
-    audio_dir="<remove or path to folder of audio files>" \
-    dataset_manifest="<remove or path to manifest>" \
-    output_filename="<remove or specify output filename>" \
+    audio_dir="<optional path to folder of audio files>" \
+    dataset_manifest="<optional path to manifest>" \
+    output_filename="<optional output filename>" \
     right_context_secs=2.0 \
     chunk_secs=2 \
     left_context_secs=10.0 \
     batch_size=32 \
-    clean_groundtruth_text=True \
+    clean_groundtruth_text=False \
     langid='en'
 ```
 """
@@ -52,14 +52,12 @@ import glob
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Optional
 
-import librosa
 import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
@@ -118,7 +116,9 @@ class TranscriptionConfig:
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     allow_mps: bool = True  # allow to select MPS device (Apple Silicon M-series GPU)
-    compute_dtype: str = "float32"
+    compute_dtype: Optional[str] = (
+        None  # "float32", "bfloat16" or "float16"; if None (default): bfloat16 if available, else float32
+    )
     matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
@@ -179,7 +179,18 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     else:
         map_location = torch.device(f'cuda:{cfg.cuda}')
 
-    logging.info(f"Inference will be done on device : {map_location}")
+    compute_dtype: torch.dtype
+    if cfg.compute_dtype is None:
+        can_use_bfloat16 = map_location.type == "cuda" and torch.cuda.is_bf16_supported()
+        if can_use_bfloat16:
+            compute_dtype = torch.bfloat16
+        else:
+            compute_dtype = torch.float32
+    else:
+        assert cfg.compute_dtype in {"float32", "bfloat16", "float16"}
+        compute_dtype = getattr(torch, cfg.compute_dtype)
+
+    logging.info(f"Inference will be done on device : {map_location} with compute_dtype: {compute_dtype}")
 
     asr_model, model_name = setup_model(cfg, map_location)
 
@@ -208,8 +219,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     asr_model.freeze()
     asr_model = asr_model.to(asr_model.device)
-    if cfg.compute_dtype != "float32":
-        asr_model.to(getattr(torch, cfg.compute_dtype))
+    asr_model.to(compute_dtype)
 
     # Change Decoding Config
     with open_dict(cfg.decoding):
