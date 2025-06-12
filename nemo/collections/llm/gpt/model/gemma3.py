@@ -28,7 +28,7 @@ from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEm
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer import ModuleSpec, TransformerConfig, TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.enums import AttnBackend, AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from torch import Tensor, nn
 
@@ -142,6 +142,8 @@ class Gemma3Config(GPTConfig):
     interleaved_attn_pattern: tuple = (5, 1)  # (local, global)
     attention_dropout: float = 0.0
     hidden_dropout: float = 0.0
+    # Disable cuDNN attention since TE 1.8 does not support head dim > 128
+    attention_backend: AttnBackend = AttnBackend.flash
 
     # mlp
     gated_linear_unit: bool = True
