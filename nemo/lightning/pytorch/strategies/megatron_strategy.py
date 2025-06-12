@@ -399,16 +399,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if isinstance(self.ddp_config, DistributedDataParallelConfig):
             self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
 
-        # Setting FSDP communication groups for high priority streams for Blackwell and later architectures
-        # Assigning high priority to communication streams ensures that communication kernels are scheduled
-        # with higher priority, minimizing the exposed communication when it is overlapped with other kernels.
-        if fsdp and get_device_arch_version() >= 10:
-            if self.high_priority_stream_groups is None:
-                self.high_priority_stream_groups = []
-            if 'dp_cp' not in self.high_priority_stream_groups:
-                self.high_priority_stream_groups.append('dp_cp')
-            if self.expert_model_parallel_size > 1 and 'ep_dp' not in self.high_priority_stream_groups:
-                self.high_priority_stream_groups.append('ep_dp')
+        # By default, high_priority_stream_groups is set to TP/CP/EP/DP(FSDP) communication groups
+        # for Blackwell and later architectures.
+        default_high_priority_stream_groups = ['tp', 'cp', 'ep', 'dp_cp', 'ep_dp']
+        if get_device_arch_version() >= 10:
+            self.high_priority_stream_groups = self.high_priority_stream_groups or []
+            for pg_name in default_high_priority_stream_groups:
+                if pg_name not in self.high_priority_stream_groups:
+                    self.high_priority_stream_groups.append(pg_name)
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
