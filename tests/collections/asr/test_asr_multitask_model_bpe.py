@@ -293,7 +293,7 @@ class TestEncDecMultiTaskModel:
         with torch.no_grad():
             ans = asr_model.validation_pass(batch, batch_idx=0)
         print(ans)
-        assert list(ans.keys()) == [
+        assert set(ans.keys()) == set([
             "val_loss",
             "val_wer",
             "val_wer_num",
@@ -303,7 +303,7 @@ class TestEncDecMultiTaskModel:
             "val_bleu_target_len",
             "val_bleu_num",
             "val_bleu_denom",
-        ]
+        ])
 
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):

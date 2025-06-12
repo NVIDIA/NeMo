@@ -1673,18 +1673,16 @@ class TestMultiTaskMetricCutSplitting:
 
         cfg = DictConfig(
             {
-                "metrics": [
-                    {
-                        "name": "wer",
+                "metrics": {
+                    "wer": {
                         "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     },
-                    {
-                        "name": "bleu",
+                    "bleu": {
                         "constraint": ".task==translate",
                         "_target_": "nemo.collections.asr.metrics.BLEU",
                     },
-                ]
+                }
             }
         )
 
@@ -1715,13 +1713,12 @@ class TestMultiTaskMetricCutSplitting:
 
         cfg = DictConfig(
             {
-                "metrics": [
-                    {
-                        "name": "wer",
+                "metrics": {
+                    "wer": {
                         "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     }
-                ]
+                }
             }
         )
 
@@ -1746,13 +1743,12 @@ class TestMultiTaskMetricCutSplitting:
 
         cfg = DictConfig(
             {
-                "metrics": [
-                    {
-                        "name": "wer",
+                "metrics": {
+                    "wer": {
                         "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     }
-                ]
+                }
             }
         )
 
@@ -1778,18 +1774,16 @@ class TestMultiTaskMetricUpdate:
 
         cfg = DictConfig(
             {
-                "metrics": [
-                    {
-                        "name": "wer",
+                "metrics": {
+                    "wer": {
                         "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     },
-                    {
-                        "name": "bleu",
+                    "bleu": {
                         "constraint": ".task==translate",
                         "_target_": "nemo.collections.asr.metrics.BLEU",
                     },
-                ]
+                }
             }
         )
 
@@ -1893,13 +1887,12 @@ class TestMultiTaskMetricCompute:
 
         cfg = DictConfig(
             {
-                "metrics": [
-                    {
-                        "name": "wer",
+                "metrics": {
+                    "wer": {
                         "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     }
-                ]
+                }
             }
         )
 
@@ -1927,13 +1920,12 @@ class TestMultiTaskMetricCompute:
 
         cfg = DictConfig(
             {
-                "metrics": [
-                    {
-                        "name": "bleu",
+                "metrics": {
+                    "bleu": {
                         "constraint": ".task==translate",
                         "_target_": "nemo.collections.asr.metrics.BLEU",
                     }
-                ]
+                }
             }
         )
 
@@ -1956,18 +1948,16 @@ class TestMultiTaskMetricCompute:
 
         cfg = DictConfig(
             {
-                "metrics": [
-                    {
-                        "name": "wer",
+                "metrics": {
+                    "wer": {
                         "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     },
-                    {
-                        "name": "bleu",
+                    "bleu": {
                         "constraint": ".task==translate",
                         "_target_": "nemo.collections.asr.metrics.BLEU",
                     },
-                ]
+                }
             }
         )
 
@@ -1994,13 +1984,12 @@ class TestMultiTaskMetricEdgeCases:
 
         cfg = DictConfig(
             {
-                "metrics": [
-                    {
-                        "name": "wer",
+                "metrics": {
+                    "wer": {
                         "constraint": ".task==transcribe",
                         "_target_": "nemo.collections.asr.metrics.WER",
                     }
-                ]
+                }
             }
         )
 

@@ -221,10 +221,20 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         self.val_loss = GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True)
 
-        # Setup metric logger. Use `get` for backcompatibility we aed checkpointing.
-        self.metric_cfg = cfg.get("multitask_metrics_cfg")
-        if self.metric_cfg is not None:
-            self.metric = MultiTaskMetric(model=self, cfg=self.metric_cfg)
+        # Setup metric logger. Use `get` for backcompatibility with aed checkpointing.
+        if (metric_cfg := cfg.get("multitask_metrics_cfg")) is None:
+            metric_cfg = DictConfig({
+                "metrics": {
+                    "wer": {
+                        "_target_": "nemo.collections.asr.metrics.WER",
+                    },
+                    "bleu": {   
+                        "_target_": "nemo.collections.asr.metrics.BLEU",
+                    },
+                }
+            })
+        self.metric_cfg = metric_cfg
+        self.metric = MultiTaskMetric(model=self, cfg=metric_cfg)
 
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
