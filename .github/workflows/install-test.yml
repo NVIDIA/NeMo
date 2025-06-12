@@ -112,7 +112,7 @@ jobs:
         run: |
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip
-            pip install -vvv ".[all]"
+            pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
             bash docker/common/install_dep.sh --library all --mode install
