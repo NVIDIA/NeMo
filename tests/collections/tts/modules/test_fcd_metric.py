@@ -112,3 +112,4 @@ class TestFrechetCodecDistance:
         codes_len = T * torch.ones(B, device=device)
         # if it crashes PyTest will report it
         metric.update(codes, codes_len, is_real=True)
+
