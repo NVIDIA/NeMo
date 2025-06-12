@@ -469,7 +469,7 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
 
     def forward(self, *args, **kwargs):
         '''
-        Calling the controlnet forward pass.
+        Forward pass for the FluxControlNet model.
         '''
         # FSDP module -> Bfloat16 module -> ForwardWrapper
         forward_wrapper = self.module.module.module
