@@ -48,14 +48,14 @@ model:
   multitask_metrics_cfg:
     log_predictions: true
     metrics:
-      -   name: wer
-          _target_: nemo.collections.asr.metrics.WER
-          constraint: ".source_lang==.target_lang"
-      -   name: bleu
-          _target_: nemo.collections.asr.metrics.BLEU  
-          constraint: ".source_lang!=.target_lang"
-          bleu_tokenizer: 13a
-          check_cuts_for_bleu_tokenizers: false  # For E.Asian languages. If `true`, calculates BLEU with SacreBLEU tokenizer passed by `bleu_tokenizer string' property in `cuts.custom`.
+      wer:
+        _target_: nemo.collections.asr.metrics.WER
+        constraint: ".source_lang==.target_lang"
+      bleu:
+        _target_: nemo.collections.asr.metrics.BLEU  
+        constraint: ".source_lang!=.target_lang"
+        bleu_tokenizer: 13a
+        check_cuts_for_bleu_tokenizers: false  # For E.Asian languages. If `true`, calculates BLEU with SacreBLEU tokenizer passed by `bleu_tokenizer string' property in `cuts.custom`.
 
   model_defaults:
     asr_enc_hidden: 1024

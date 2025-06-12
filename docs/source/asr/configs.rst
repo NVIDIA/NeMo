@@ -152,7 +152,7 @@ In multilingual training scenarios, it is somtimes desireable to configure the B
 MultiTask Metrics
 ~~~~~~~~~~~~~~~~~
 
-Multiple metrics can be configured simultaneously using a ``MultiTaskMetric`` config. This is done by specifying in the config each desired metric with a custom ``name`` and ``_target_`` path, along with desired properties. All properties specified within a metric config will be passed only to the metric class. All properties specified at the top level of the config will be inherited by all submetrics.
+Multiple metrics can be configured simultaneously using a ``MultiTaskMetric`` config. This is done by specifying in the config each desired metric as a DictConfig entry with a custom key name and ``_target_`` path, along with desired properties. All properties specified within a metric config will be passed only to the metric class. All properties specified at the top level of the config will be inherited by all submetrics.
 
 .. code-block:: yaml
 
@@ -160,11 +160,11 @@ Multiple metrics can be configured simultaneously using a ``MultiTaskMetric`` co
     multitask_metrics_config:
       log_prediction: true
       metrics:
-        - name: wer
+        wer:
           _target_: nemo.collections.asr.metrics.wer.WER
           use_cer: true
           constraint: ".task==transcribe"  # Only apply WER to transcription samples
-        - name: bleu
+        bleu:
           _target_: nemo.collections.asr.metrics.bleu.BLEU
           bleu_tokenizer: flores101
           lowercase: true
@@ -180,11 +180,11 @@ Each metric within ``MultiTaskMetric`` can be configured with an optional boolea
   model:
     multitask_metrics_config:
       metrics:
-        - name: pnc_wer
+        pnc_wer:
           _target_: nemo.collections.asr.metrics.wer.WER
           constraint: ".task==transcribe and .pnc==true"
 
-        - name: multilingual_bleu
+        multilingual_bleu:
           _target_: nemo.collections.asr.metrics.bleu.BLEU
           constraint: "(.source_lang!=.target_lang) or .task==translate"
 

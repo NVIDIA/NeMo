@@ -108,7 +108,7 @@ class BLEU(SacreBLEUScore):
         weights: Optional[Sequence[float]] = None,
         smooth: bool = False,
         check_cuts_for_bleu_tokenizers: bool = False,
-        log_prediction=True,
+        log_prediction=False,
         fold_consecutive=True,
         batch_dim_index=0,
         dist_sync_on_step=False,

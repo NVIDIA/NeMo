@@ -204,21 +204,16 @@ class MultiTaskMetric(Serialization):
 
         # Metric definitions
         metrics:
-          - name: wer                                    # Metric name (becomes model attribute)
-            _target_: nemo.collections.asr.metrics.WER  # Metric class to instantiate
-            constraint: ".task == transcribe"           # When to apply this metric
-            use_cer: false                              # Metric-specific parameters
+            wer:
+                _target_: nemo.collections.asr.metrics.WER  # Metric class to instantiate
+                constraint: ".task == transcribe"           # When to apply this metric
+                use_cer: false                              # Metric-specific parameters
+            bleu:
+                _target_: nemo.collections.asr.metrics.BLEU
+                constraint: ".task == translate"
+                bleu_tokenizer: "13a"
+                n_gram: 4
 
-          - name: bleu
-            _target_: nemo.collections.asr.metrics.BLEU
-            constraint: ".task == translate"
-            bleu_tokenizer: "13a"
-            n_gram: 4
-
-          - name: multilingual_wer
-            _target_: nemo.collections.asr.metrics.WER
-            constraint: ".task == transcribe and .lang != en"
-            use_cer: true
         ```
 
     Constraint Syntax:
@@ -226,7 +221,7 @@ class MultiTaskMetric(Serialization):
 
         - **Custom attribute Access**: `.task`, `.lang`, `.domain`
         - **Comparisons**: `==`, `!=`
-        - **Logical Operations**: `and`, `or`, `not`
+        - **Logical Operations**: `and`, `or`, `not`, `xor`
         - **Property Comparisons**: `.source_lang == .target_lang`
 
         Examples:
@@ -256,10 +251,10 @@ class MultiTaskMetric(Serialization):
 
     Note:
         - Each metric receives the model's `decoding` instance for text decoding operations
-        - Metrics are automatically added to the model as attributes (e.g., `model.wer`, `model.bleu`)
+        - Metrics are automatically instantiated for the parent model as attributes (e.g., `model.wer`, `model.bleu`)
         - Global configuration parameters are inherited unless explicitly overridden per metric
         - Metrics defined without 'constraint' keyword are called on every prediction sample
-        - Empty batches (no samples matching constraints) are handled by children metrics.
+        - Empty batches (no samples matching constraints) are handled by child metrics.
     """
 
     def __init__(self, model: nn.Module, cfg: DictConfig):
@@ -279,19 +274,19 @@ class MultiTaskMetric(Serialization):
         # Process each metric instance.
         parser = ConstraintParser()
         seen_types = set()
-        for metric in cfg.pop("metrics"):
-            name, constraint = metric.pop("name"), metric.pop(
+        for name, metric_cfg in cfg.pop("metrics").items():
+            constraint = metric_cfg.pop(
                 "constraint", ""
             )  # Empty string for no constraint value. Metric always calculated.
 
             # Inherit global configuration parameters
             for k, v in cfg.items():
-                if k not in metric:  # do not override explicit metric values
-                    metric[k] = v
+                if k not in metric_cfg:  # do not override explicit metric values
+                    metric_cfg[k] = v
 
             # Instantiates as instance of `model`. Avoids breaking behavior when other modules call specific metrics. (See `asr_model` for example.)
-            metric["decoding"] = model.decoding  # For decoding reliant metrics like 'WER' or 'BLEU'
-            metric = MultiTaskMetric.from_config_dict(metric)
+            metric_cfg["decoding"] = model.decoding  # For decoding reliant metrics like 'WER' or 'BLEU'
+            metric = MultiTaskMetric.from_config_dict(metric_cfg)
             setattr(model, name, metric)
 
             # TODO: This is a from `asr_model` aggregation. To fix, update metric classes to support custom naming

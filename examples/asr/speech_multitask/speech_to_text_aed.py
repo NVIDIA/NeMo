@@ -83,6 +83,10 @@ def main(cfg):
     aed_model.maybe_init_from_pretrained_checkpoint(cfg)
     trainer.fit(aed_model)
 
+    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        if aed_model.prepare_test(trainer):
+            trainer.test(aed_model)
+
 
 if __name__ == '__main__':
     main()
