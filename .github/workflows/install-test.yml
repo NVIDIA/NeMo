@@ -8,16 +8,16 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
+permissions:
+  contents: read # access to check out code and install dependencies
 jobs:
   test-installs-macos:
-    name: ${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.installer }}
+    name: ${{ matrix.os }}-${{ matrix.installer }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest]
-        python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
@@ -56,12 +56,11 @@ jobs:
           done
 
   test-installs-linux-amd:
-    name: ubuntu-22.04-amd-py${{ matrix.python }}-${{ matrix.installer }}
+    name: ubuntu-22.04-amd-${{ matrix.installer }}
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
@@ -96,12 +95,11 @@ jobs:
           done
 
   test-installs-linux-arm:
-    name: ubuntu-22.04-arm-py${{ matrix.python }}-${{ matrix.installer }}
+    name: ubuntu-22.04-arm-${{ matrix.installer }}
     runs-on: ubuntu-22.04-arm
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
