@@ -22,16 +22,9 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    hf_tokenizer,
-    import_ckpt_experiment,
-    isfile_train_pack_metadata,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
 
@@ -131,6 +124,7 @@ if __name__ == "__main__":
     exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
