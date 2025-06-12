@@ -33,6 +33,9 @@ jobs:
           NEMO_TAG: ${{ github.sha }}
           NEMO_REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
+
           if [[ "$INSTALLER" == "pip-install" ]]; then
             pip install --no-cache-dir -U pip
             pip install --no-cache-dir ".[all]"
@@ -73,6 +76,9 @@ jobs:
         env:
           INSTALLER: ${{ matrix.installer }}
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
+
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip
             pip install ".[all]"
