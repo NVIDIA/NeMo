@@ -135,7 +135,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
                 use_sharp=app_state.use_sharp,
-                order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
+                order="tp-ep-pp-cp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
                 num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
                 nccl_communicator_config_path=app_state.nccl_communicator_config_path,
             )
