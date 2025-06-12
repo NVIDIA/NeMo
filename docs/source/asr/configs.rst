@@ -147,7 +147,7 @@ BLEU score relies on TorchMetrics' SacreBLEU implementation and supports all Sac
 
 **Dynamic Tokenizer Selection**
 
-In multilingual training scenarios, it is somtimes desireable to configure the BLEU tokenizer per sample to avoid sub-optimal parsing (e.g. tokenizing Chinese characters as English words). This can be toggled with ``check_cuts_for_bleu_tokenizers: true``. When enabled with Lhotse dataloading, BLEU will check individual ``cuts``` in a batch's Lhotse CutSet for the ``bleu_tokenizer`` attribute. If found, the tokenizer will be used for that sample. If not, the default ``bleu_tokenizer`` from config will be used.
+In multilingual training scenarios, it is somtimes desireable to configure the BLEU tokenizer per sample to avoid sub-optimal parsing (e.g. tokenizing Chinese characters as English words). This can be toggled with ``check_cuts_for_bleu_tokenizers: true``. When enabled with Lhotse dataloading, BLEU will check individual ``cuts`` in a batch's Lhotse ``CutSet`` for the ``bleu_tokenizer`` attribute. If found, the tokenizer will be used for that sample. If not, the default ``bleu_tokenizer`` from config will be used.
 
 MultiTask Metrics
 ~~~~~~~~~~~~~~~~~
