@@ -277,7 +277,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     compute_dtype: torch.dtype
     if cfg.compute_dtype is None:
-        can_use_bfloat16 = not cfg.amp and map_location.type == "cuda" and torch.cuda.is_bf16_supported()
+        can_use_bfloat16 = (not cfg.amp) and map_location.type == "cuda" and torch.cuda.is_bf16_supported()
         if can_use_bfloat16:
             compute_dtype = torch.bfloat16
         else:
