@@ -84,16 +84,6 @@ class QuantizationConfig:
     calibration_batch_size: int = 64
     calibration_seq_len: int = 128
 
-    def is_weight_only(self):
-        """Check if the quantization is weight only."""
-        if self.algorithm not in QUANT_CFG_CHOICES:
-            return False
-        quant_cfg = QUANT_CFG_CHOICES[self.algorithm]['quant_cfg']
-        input_cfg = quant_cfg.get("*input_quantizer", None)
-        # no input quantizer or input quantizer is disabled
-        cfg_weight_only = input_cfg is None or not input_cfg.get("enable", True)
-        return "awq" not in self.algorithm and cfg_weight_only
-
 
 @dataclass
 class ExportConfig:
@@ -303,7 +293,8 @@ class Quantizer:
 
         If forward_loop is not provided, a forward loop will be created using the calibration dataset.
         """
-        if forward_loop is None and not self.quantization_config.is_weight_only():
+        modelopt_cfg = QUANT_CFG_CHOICES[self.quantization_config.algorithm]
+        if forward_loop is None and mtq.config.need_calibration(modelopt_cfg):
             forward_loop = self._get_forward_loop(model)
 
         algorithm = self.quantization_config.algorithm
