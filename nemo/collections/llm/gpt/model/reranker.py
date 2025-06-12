@@ -428,9 +428,10 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
         """Create a NeMo LlamaBidirectionalConfig from the HF model config."""
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
 
-        from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalConfig
+        from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalConfig, LlamaBidirectionalForSequenceClassification
 
         LlamaBidirectionalConfig.register_for_auto_class("AutoConfig")
+        LlamaBidirectionalForSequenceClassification.register_for_auto_class("AutoModelForSequenceClassification")
         return LlamaBidirectionalConfig(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
@@ -447,6 +448,14 @@ class ReRankerExporter(io.ModelConnector[ReRankerModel, "AutoModelForSequenceCla
             bos_token_id=self.tokenizer.bos_id,
             eos_token_id=self.tokenizer.eos_id,
             pad_token_id=self.tokenizer.eos_id,
+            temperature=source.temperature,
+            rope_scaling={
+                "factor": source.scale_factor,
+                "high_freq_factor": source.high_freq_factor,
+                "low_freq_factor": source.low_freq_factor,
+                "original_max_position_embeddings": source.old_context_len,
+                "rope_type": "llama3",
+            }
         )
 
     def convert_state(self, source, target):
