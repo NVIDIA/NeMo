@@ -528,6 +528,68 @@ def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTMod
     return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
 
 
+def get_hf_home():
+    """Get the HuggingFace home directory."""
+    return os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+
+
+def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
+    """Prepare the SQuAD dataset for fine-tuning.
+    Args:
+        model_name (str): The name of the model
+        seq_length (int): The sequence length to use for packing. Defaults to 2048.
+    """
+    from pathlib import Path
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from nemo.collections.llm.gpt.data.squad import SquadDataModule
+
+    hf_home = Path(get_hf_home())
+    dataset_root = hf_home / "datasets" / "squad"
+    dataset_root.mkdir(parents=True, exist_ok=True)
+
+    tokenizer = AutoTokenizer(pretrained_model_name=model_name)
+
+    # Configure SquadDataModule with packing specs
+    datamodule = SquadDataModule(
+        dataset_root=dataset_root,
+        seq_length=seq_length,
+        global_batch_size=8,
+        micro_batch_size=1,
+        packed_sequence_specs=PackedSequenceSpecs(packed_sequence_size=seq_length),
+        tokenizer=tokenizer,
+        force_redownload=True,
+        delete_raw=False,
+        seed=1234,
+    )
+
+    # This will generate both JSONL and packed .bin files
+    datamodule.prepare_data()
+
+    # Verify the output
+    packed_dir = dataset_root / "packed" / model_name.replace("/", "--") / str(seq_length)
+    print(f"Packed files should be in: {packed_dir}")
+    if packed_dir.exists():
+        print("Files found:", list(packed_dir.glob("*.bin")))
+
+
+def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048):
+    """
+    Downloads and prepares the SQuAD dataset for fine-tuning.
+    """
+    from copy import deepcopy
+
+    dataset_executor = deepcopy(executor)
+    dataset_executor.ntasks_per_node = 1
+    dataset_executor.nodes = 1
+
+    return (
+        run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length),
+        dataset_executor,
+        "prepare_squad_dataset_exp",
+    )
+
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
     """
     This method is used for fine-tuning. It checks if packed train data for a partiular
