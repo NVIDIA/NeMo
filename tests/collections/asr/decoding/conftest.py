@@ -57,6 +57,19 @@ def an4_train_manifest_corrected(tmp_path_factory, test_data_dir):
 
 
 @pytest.fixture(scope="package")
+def _stt_en_conformer_transducer_small_raw():
+    if CHECKPOINTS_PATH.exists():
+        model = ASRModel.restore_from(
+            str(CHECKPOINTS_PATH / "stt_en_conformer_transducer_small.nemo"), map_location="cpu"
+        )
+    else:
+        model_name = "stt_en_conformer_transducer_small"
+        model = ASRModel.from_pretrained(model_name, map_location="cpu")
+    make_preprocessor_deterministic(model)
+    return model
+
+
+@pytest.fixture(scope="package")
 def _stt_en_fastconformer_transducer_large_raw():
     if CHECKPOINTS_PATH.exists():
         model = ASRModel.restore_from(
@@ -83,7 +96,16 @@ def _stt_en_fastconformer_tdt_large_raw():
 
 
 @pytest.fixture
+def stt_en_conformer_transducer_small(_stt_en_conformer_transducer_small_raw):
+    """Function-level fixture for model. Guarantees to preserve decoding config and device"""
+    model = _stt_en_conformer_transducer_small_raw
+    with preserve_decoding_cfg_and_cpu_device(model):
+        yield model
+
+
+@pytest.fixture
 def stt_en_fastconformer_transducer_large(_stt_en_fastconformer_transducer_large_raw):
+    """Function-level fixture for model. Guarantees to preserve decoding config and device"""
     model = _stt_en_fastconformer_transducer_large_raw
     with preserve_decoding_cfg_and_cpu_device(model):
         yield model
@@ -91,6 +113,7 @@ def stt_en_fastconformer_transducer_large(_stt_en_fastconformer_transducer_large
 
 @pytest.fixture
 def stt_en_fastconformer_tdt_large(_stt_en_fastconformer_tdt_large_raw):
+    """Function-level fixture for model. Guarantees to preserve decoding config and device"""
     model = _stt_en_fastconformer_tdt_large_raw
     with preserve_decoding_cfg_and_cpu_device(model):
         yield model
