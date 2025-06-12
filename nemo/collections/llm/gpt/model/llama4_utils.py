@@ -121,7 +121,7 @@ def chunkify(x, attention_chunk_size):
     return x
 
 
-def get_llama4_layer_spec(config, vp_stage=0) -> ModuleSpec:
+def get_llama4_layer_spec(config, vp_stage: Optional[int] = None) -> ModuleSpec:
     """Get llama4 layer spec"""
 
     from megatron.core.transformer.enums import AttnMaskType
