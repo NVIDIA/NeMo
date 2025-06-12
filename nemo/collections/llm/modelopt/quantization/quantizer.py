@@ -462,21 +462,25 @@ class Quantizer:
 
 def export_hf_checkpoint(
     model_dir: AnyPath, export_dir: AnyPath, model: Optional["pl.LightningModule"] = None, **kwargs
-) -> Optional[Path]:
+) -> Path | None:
     """Export a GPTModel or HFAutoModelForCausalLM to a HuggingFace checkpoint."""
-    exporter = load_connector_from_trainer_ckpt(model_dir, "hf")
-    if model is None:
-        model, _ = exporter.nemo_load(model_dir)
-    unwrapped_model = unwrap_for_modelopt_operations(model)
 
-    if not mto.ModeloptStateManager.is_converted(model):
-        # Model was not converted by ModelOpt.
-        return None
+    if isinstance(model, llm.HFAutoModelForCausalLM):
+        # Special case for NeMo AutoModels.
+        unwrapped_model = unwrap_for_modelopt_operations(model)
+        if not mto.ModeloptStateManager.is_converted(unwrapped_model):
+            return None  # Model was not converted by ModelOpt.
+        with torch.inference_mode():
+            mte.export_hf_checkpoint(unwrapped_model, export_dir=str(export_dir), **kwargs)
+    else:
+        exporter = load_connector_from_trainer_ckpt(model_dir, "hf")
+        if model is None:
+            model, _ = exporter.nemo_load(model_dir)
+        unwrapped_model = unwrap_for_modelopt_operations(model)
+        if not mto.ModeloptStateManager.is_converted(unwrapped_model):
+            return None  # Model was not converted by ModelOpt.
 
-    with torch.inference_mode():
-        if isinstance(model, llm.HFAutoModelForCausalLM):
-            mte.export_hf_checkpoint(unwrapped_model, export_dir=export_dir, **kwargs)
-        else:
+        with torch.inference_mode():
             with tempfile.TemporaryDirectory() as tmp_dir:
                 exporter.config.save_pretrained(tmp_dir)
                 mte.export_mcore_gpt_to_hf(

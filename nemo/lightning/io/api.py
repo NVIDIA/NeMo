@@ -266,13 +266,12 @@ def export_ckpt(
     _output_path = output_path or Path(path) / target
 
     if target == "hf":
-        if modelopt_export_kwargs is None:
-            modelopt_export_kwargs = {}
-
+        modelopt_export_kwargs = modelopt_export_kwargs or {}
         # First try to export via ModelOpt route. If rejected, return to the default route
         output = export_hf_checkpoint(path, _output_path, **modelopt_export_kwargs)
         if output is not None:
             return output
+
     _verify_peft_export(path, target)
     exporter: ModelConnector = load_connector(path, target)
 
