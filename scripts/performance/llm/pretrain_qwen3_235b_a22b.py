@@ -96,22 +96,10 @@ def override_recipe_configs(
     recipe.model.config.bias_dropout_fusion = True
     recipe.model.config.bias_activation_fusion = True
 
-
-    # reset a few args in the recipe
+    # reset recompute args in the default recipe
     recipe.model.config.recompute_granularity = None
     recipe.model.config.recompute_method = None
     recipe.model.config.recompute_num_layers = None
-
-    # embedding and CE in a separate stage is already set in the recipe
-    
-    # local test 
-    recipe.trainer.max_steps = 10
-    recipe.trainer.val_check_interval = 10
-    recipe.trainer.limit_val_batches = 0.0
-    if args.use_localrun:
-        recipe.model.config.num_layers = 2
-
-
 
     return recipe
 
@@ -125,8 +113,6 @@ if __name__ == "__main__":
         0:13
     ]
 
-    if args.use_localrun:
-        num_nodes, gbs, ep_size, tp_size, pp_size, cp_size, vp_size, etp_size = 1, 32, 8, 1, 1, 1, 1, 1
 
     recipe = override_recipe_configs(
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs
@@ -137,15 +123,13 @@ if __name__ == "__main__":
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    if args.use_localrun:
-        executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
-    else:
-        executor = slurm_executor(
-            args.account,
-            args.partition,
-            args.log_dir,
-            num_nodes,
-            args.gpus_per_node,
+
+    executor = slurm_executor(
+        args.account,
+        args.partition,
+        args.log_dir,
+        num_nodes,
+        args.gpus_per_node,
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
@@ -155,8 +139,8 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
         network='sharp' if args.use_sharp else None,
     )
-        
-    if args.gpu.lower() in ['b200','gb200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+
+    if args.gpu.lower() in ['b200', 'gb200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
         del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
 
 
@@ -172,9 +156,6 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-    if args.use_localrun:
-        run.run(recipe, executor=executor, plugins=plugins, name="qwen3_235b_a22b_local_test")
-        exit()
 
     with run.Experiment(exp_name) as exp:
         exp.add(
