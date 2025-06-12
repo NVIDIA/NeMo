@@ -29,7 +29,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata
+from ..utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata,prepare_squad_dataset_experiment
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-70B"
 
@@ -112,9 +112,9 @@ def override_recipe_configs(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
         )
         recipe.model.tokenizer = recipe.data.tokenizer
-    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
-        # flag is valid only for SquadDataModule
-        recipe.data.force_redownload = True
+    # if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+    #     # flag is valid only for SquadDataModule
+    #     recipe.data.force_redownload = True
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
@@ -223,6 +223,7 @@ if __name__ == "__main__":
         if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096))
         exp.add(
             recipe,
             executor=executor,
