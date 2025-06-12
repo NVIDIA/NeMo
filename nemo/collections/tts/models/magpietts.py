@@ -585,10 +585,10 @@ class MagpieTTSModel(ModelPT):
             print(c, end="")
         print()
 
-    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule_n_unmasked=None, dynamic_cfg_scale=False):
+    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule_n_unmasked=None, dynamic_cfg_scale=False, sampling_type=None):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
-        """
+        """        
         debug_print = False
         # dec_output: (B, E)
         device = dec_output.device
@@ -599,7 +599,7 @@ class MagpieTTSModel(ModelPT):
         codebook_seq_len = self.num_audio_codebooks * self.downsampling_factor
         B = dec_output.size(0)
 
-        min_confidence = float("-inf")
+        min_confidence = 0
         # this needs to be large enough that unmasked items will always remain unmasked (even after noise addition)
         # Setting it smaller could allow "regret", i.e. re-masking a codebook that was previously unmasked; we might want to try that
         max_confidence = 5 
@@ -607,11 +607,13 @@ class MagpieTTSModel(ModelPT):
         # initialize to all masked
         codes = self.mask_token_id * torch.ones((B, codebook_seq_len), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
+        topk_indices = None
+        if debug_print: print(f"Sampling type: {sampling_type}")
         if fixed_schedule_n_unmasked is not None:
             n_steps = len(fixed_schedule_n_unmasked)
-            print(f"Using fixed schedule: {fixed_schedule_n_unmasked}")        
+            if debug_print: print(f"Using fixed schedule: {fixed_schedule_n_unmasked}")        
         if dynamic_cfg_scale:
-            print(f"Using dynamic CFG scale")
+            if debug_print: print(f"Using dynamic CFG scale")
         for step in range(n_steps):
             # how far along we are in the unmasking process
             progress = step / n_steps
@@ -623,6 +625,20 @@ class MagpieTTSModel(ModelPT):
             else:
                 n_masked = codebook_seq_len - fixed_schedule_n_unmasked[step]
             n_unmasked = codebook_seq_len - n_masked
+
+            if sampling_type == "causal" and n_unmasked <= self.num_audio_codebooks:
+                # force second frame not to be unmasked
+                confidences[:,self.num_audio_codebooks:] = min_confidence-1 # only works for downsampling_factor=2
+            elif sampling_type == "alternate":
+                # TODO: preserve already-unmasked codebooks
+                if step % 2 == 1:
+                    confidences[:,self.num_audio_codebooks:] = min_confidence-1
+                else:
+                    confidences[:,:self.num_audio_codebooks] = min_confidence-1
+                # for unmasked codebooks, set confidence to max so that they will remain unmasked
+                if topk_indices is not None:
+                    confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+
             # pick top-confidence codebooks up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
             if use_cfg:
@@ -666,10 +682,11 @@ class MagpieTTSModel(ModelPT):
                 else:
                     # gradually increase the scale until mid point through sampling, then reduce it again
                     progress = step / (n_steps-1)
-                    interp = -abs(progress-0.5)+0.5 # increase from 0..1 in the interval from start to midpoint and then go back to zero
-                    #interp = 1.0 - progress
+                    #interp = -abs(progress-0.5)+0.5 # increase from 0..1 in the interval from start to midpoint and then go back to zero
+                    #interp = 1.0 - progress  # decrease from 1 to 0
+                    interp = progress # gradually increase from 0 to 1
                     current_cfg_scale = (cfg_scale - 1) * interp + 1.0  # 1.0 --> cfg_scale --> 1.0
-                    #print(f"step={step}, current_cfg_scale={current_cfg_scale:.2f}")
+                    print(f"step={step}, current_cfg_scale={current_cfg_scale:.2f}")
                 cfg_logits = current_cfg_scale * conditional_logits +  (1.0 - current_cfg_scale) * unconditional_logits                                    
                 logits[:actual_batch_size] = cfg_logits
 
@@ -710,7 +727,10 @@ class MagpieTTSModel(ModelPT):
             assert confidences.max() + confidence_eps < max_confidence, f"Predicted confidence is approaching max_confidence: {confidences.max()}"
             # for unmasked codebooks, set confidence to max so that they will remain unmasked
             confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
-
+        rand_sampling = False
+        if rand_sampling:
+            print("Using random sampling")
+            confidences = torch.rand_like(confidences)
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
 
@@ -720,11 +740,6 @@ class MagpieTTSModel(ModelPT):
             print("--------------------------------")
         # break downsampled groups of frames into individual frames
         codes = codes.reshape(B, self.downsampling_factor, self.num_audio_codebooks).permute(0,2,1) # B, C, downsampling_factor
-
-        if debug_print:
-            print(f"Final codes after reshape")
-            print(codes)
-            print("--------------------------------")
 
         if use_cfg: 
             # drop unconditional codes
@@ -737,7 +752,7 @@ class MagpieTTSModel(ModelPT):
         dec_output = dec_output.unsqueeze(1) # (B, 1, E)
         local_transformer_input = self.local_transformer_in_projection(dec_output) # (B, 1, 128)
         all_preds = []
-        for codebook_num in range(self.num_audio_codebooks):
+        for codebook_num in range(self.num_audio_codebooks * self.downsampling_factor):
             _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
             local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, T, 128)
             codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, -1, :]) # (B, num_all_tokens_per_codebook)
@@ -767,7 +782,8 @@ class MagpieTTSModel(ModelPT):
             next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, 128)
             local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, T+1, 128)
 
-        all_preds = torch.cat(all_preds, dim=1).long() # (B, num_codebooks)
+        all_preds = torch.cat(all_preds, dim=1).long() # (B, num_codebooks * downsampling_factor)
+        all_preds = all_preds.reshape(-1, self.downsampling_factor, self.num_audio_codebooks).permute(0,2,1) # (B, num_codebooks, downsampling_factor)
         if use_cfg:
             all_preds = all_preds[:actual_batch_size]
 
@@ -1658,7 +1674,8 @@ class MagpieTTSModel(ModelPT):
             maskgit_n_steps=3,
             maskgit_noise_scale=0.0,
             fixed_schedule_n_unmasked=None,
-            dynamic_cfg_scale=False):
+            dynamic_cfg_scale=False,
+            sampling_type=None):
         with torch.no_grad():
             start_time = time.time()
             self.decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
@@ -1831,7 +1848,8 @@ class MagpieTTSModel(ModelPT):
                             n_steps=maskgit_n_steps,
                             noise_scale=maskgit_noise_scale,
                             fixed_schedule_n_unmasked=fixed_schedule_n_unmasked,
-                            dynamic_cfg_scale=dynamic_cfg_scale
+                            dynamic_cfg_scale=dynamic_cfg_scale,
+                            sampling_type=sampling_type
                         )
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
@@ -1888,15 +1906,8 @@ class MagpieTTSModel(ModelPT):
             }
             torch.cuda.empty_cache()
             if predicted_audio.numel() == 0 or predicted_codes.numel() == 0:
-                # attach debugger if not attached
-                import debugpy
-                # only attach if not already attached
-                if not debugpy.is_client_connected():
-                    debugpy.listen(('0.0.0.0', 5678))  # You can change the port if needed
-                    print('Waiting for debugger to attach...')
-                    debugpy.wait_for_client()  # This will block execution until the debugger attaches
-                    print('Debugger is attached!')
                 print("Zero length output")
+                raise ValueError("Zero length output")
 
             if return_cross_attn_probs:
                 cross_attention_maps, headwise_cross_attention_maps = self.get_inference_attention_plots(
