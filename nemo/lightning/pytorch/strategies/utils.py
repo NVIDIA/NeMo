@@ -194,7 +194,7 @@ def create_checkpoint_io(wrapping_ckpt_io=None, **kwargs):
         checkpoint_io = HFCheckpointIO(adapter_only=kwargs.get("lora", False))
     else:
         from nemo.lightning.io.pl import MegatronCheckpointIO
-        checkpoint_io = MegatronCheckpointIO(**megatron_kwargs)
+        checkpoint_io = MegatronCheckpointIO(**kwargs)
 
     if wrapping_ckpt_io:
         checkpoint_io = wrapping_ckpt_io(checkpoint_io)
