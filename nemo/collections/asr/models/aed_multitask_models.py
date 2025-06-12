@@ -223,16 +223,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         # Setup metric logger. Use `get` for backcompatibility with aed checkpointing.
         if (metric_cfg := cfg.get("multitask_metrics_cfg")) is None:
-            metric_cfg = DictConfig({
-                "metrics": {
-                    "wer": {
-                        "_target_": "nemo.collections.asr.metrics.WER",
-                    },
-                    "bleu": {   
-                        "_target_": "nemo.collections.asr.metrics.BLEU",
-                    },
+            metric_cfg = DictConfig(
+                {
+                    "metrics": {
+                        "wer": {
+                            "_target_": "nemo.collections.asr.metrics.WER",
+                        },
+                        "bleu": {
+                            "_target_": "nemo.collections.asr.metrics.BLEU",
+                        },
+                    }
                 }
-            })
+            )
         self.metric_cfg = metric_cfg
         self.metric = MultiTaskMetric(model=self, cfg=metric_cfg)
 
