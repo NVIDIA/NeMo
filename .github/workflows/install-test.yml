@@ -110,6 +110,9 @@ jobs:
         env:
           INSTALLER: ${{ matrix.installer }}
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
+
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip
             pip install ".[all]"
