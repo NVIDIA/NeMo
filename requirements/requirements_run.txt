@@ -1,2 +1,2 @@
-nemo_run
 docker>=6.0.0
+nemo_run
