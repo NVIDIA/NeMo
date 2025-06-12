@@ -8,7 +8,6 @@ model:
   use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
   context_duration_min: 5.0
   context_duration_max: 5.0
-  codec_model_name: "21fpsCausalDecoder"
   load_cached_codes_if_available: true
   prior_scaling_factor: 0.5
   prior_end_step: 12_000
@@ -64,6 +63,8 @@ model:
 
     dataset:
       min_duration: 0.2
+      min_context_speaker_similarity: 0.6
+      max_cer: 0.03
       batch_duration : ???  # in seconds. Adjust based on your GPU memory.
       quadratic_duration: ${quadratic_duration}
       use_bucketing: true
@@ -90,6 +91,8 @@ model:
 
     dataset:
       min_duration: 0.2
+      min_context_speaker_similarity: 0.6
+      max_cer: 0.03
       batch_duration: ???   # recommend to use smaller batch_duration for validation dataset than training dataset.
       quadratic_duration: ${quadratic_duration}
       use_bucketing: false
