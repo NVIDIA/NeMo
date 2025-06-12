@@ -169,7 +169,7 @@ class FrechetCodecDistance(Metric):
         assert codes.ndim == 3
 
         if codes.numel() == 0:
-            logging.warning(f"\n***FCD metric received an empty batch of codes - skipping update***\n")
+            logging.warning(f"\nFCD metric received an empty batch of codes - skipping update\n")
             return
 
         # Dequantize the codes to a continuous representation
