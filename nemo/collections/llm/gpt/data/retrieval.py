@@ -90,7 +90,7 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         self.delete_raw = delete_raw
 
         assert packed_sequence_specs is None, "RetrievalDataModule does not support packed sequences."
-        if isinstance(data_root, str):
+        if not isinstance(data_root, list):
             data_root = [data_root]
         for directory in data_root:
             assert os.path.exists(directory), f"Data root {directory} does not exist."
