@@ -23,8 +23,8 @@ from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.gpt.model.reranker import Llama32Reranker1BConfig, ReRankerModel
 from nemo.collections.llm.api import finetune
+from nemo.collections.llm.gpt.model.reranker import Llama32Reranker1BConfig, ReRankerModel
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
@@ -227,4 +227,3 @@ def finetune_recipe(
     )
 
     return recipe
-

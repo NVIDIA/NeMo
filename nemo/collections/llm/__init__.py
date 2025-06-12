@@ -38,7 +38,6 @@ from nemo.collections.llm.gpt.data import (  # noqa: F401
     ChatDataModule,
     CustomReRankerDataModule,
     CustomRetrievalDataModule,
-    SpecterReRankerDataModule,
     DollyDataModule,
     FineTuningDataModule,
     HFDatasetDataModule,
@@ -46,6 +45,7 @@ from nemo.collections.llm.gpt.data import (  # noqa: F401
     HFMockDataModule,
     MockDataModule,
     PreTrainingDataModule,
+    SpecterReRankerDataModule,
     SquadDataModule,
 )
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad

@@ -14,9 +14,9 @@
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from unittest.mock import patch
 from datasets import Dataset, DatasetDict
 
 from nemo.collections.llm.gpt.data.reranker import CustomReRankerDataModule, ReRankerDataset, SpecterReRankerDataModule
@@ -282,21 +282,23 @@ def mock_specter_dataset():
         {
             'anchor': 'What is NeMo?',
             'positive': 'NeMo is NVIDIA\'s framework for conversational AI',
-            'negative': 'Wrong answer about NeMo'
+            'negative': 'Wrong answer about NeMo',
         },
         {
             'anchor': 'What is PyTorch?',
             'positive': 'PyTorch is a machine learning framework',
-            'negative': 'Incorrect PyTorch description'
-        }
+            'negative': 'Incorrect PyTorch description',
+        },
     ] * 10  # Multiply to create more examples
-    
-    train_dataset = Dataset.from_dict({
-        'anchor': [item['anchor'] for item in train_data],
-        'positive': [item['positive'] for item in train_data],
-        'negative': [item['negative'] for item in train_data]
-    })
-    
+
+    train_dataset = Dataset.from_dict(
+        {
+            'anchor': [item['anchor'] for item in train_data],
+            'positive': [item['positive'] for item in train_data],
+            'negative': [item['negative'] for item in train_data],
+        }
+    )
+
     return DatasetDict({'train': train_dataset})
 
 
@@ -346,12 +348,12 @@ def test_specter_reranker_datamodule_prepare_data(specter_data_module, temp_data
     """Test data preparation and splitting functionality."""
     # Call prepare_data which should trigger download and preprocessing
     specter_data_module.prepare_data()
-    
+
     # Verify that the dataset files were created
     assert (temp_dataset_dir / "training.jsonl").exists()
     assert (temp_dataset_dir / "validation.jsonl").exists()
     assert (temp_dataset_dir / "test.jsonl").exists()
-    
+
     # Verify the content of the training file
     with open(temp_dataset_dir / "training.jsonl", 'r') as f:
         lines = f.readlines()
@@ -368,10 +370,9 @@ def test_specter_reranker_datamodule_dataset_creation(specter_data_module):
     # Prepare data and create datasets
     specter_data_module.prepare_data()
     train_dataset = specter_data_module._create_dataset(
-        specter_data_module.dataset_root / "training.jsonl",
-        num_hard_negatives=1
+        specter_data_module.dataset_root / "training.jsonl", num_hard_negatives=1
     )
-    
+
     # Test dataset properties
     assert train_dataset.max_seq_length == 512
     assert train_dataset.num_hard_negatives == 1
@@ -381,7 +382,7 @@ def test_specter_reranker_datamodule_dataset_creation(specter_data_module):
 def test_specter_reranker_datamodule_split_ratios(specter_data_module):
     """Test that the dataset is split according to the specified ratios."""
     specter_data_module.prepare_data()
-    
+
     # Count lines in each split file
     with open(specter_data_module.dataset_root / "training.jsonl", 'r') as f:
         train_lines = len(f.readlines())
@@ -389,10 +390,10 @@ def test_specter_reranker_datamodule_split_ratios(specter_data_module):
         val_lines = len(f.readlines())
     with open(specter_data_module.dataset_root / "test.jsonl", 'r') as f:
         test_lines = len(f.readlines())
-    
+
     total_lines = train_lines + val_lines + test_lines
-    
+
     # Verify approximate split ratios (allowing for small rounding differences)
     assert abs(train_lines / total_lines - 0.80) < 0.05  # 80% training
-    assert abs(val_lines / total_lines - 0.15) < 0.05   # 15% validation
+    assert abs(val_lines / total_lines - 0.15) < 0.05  # 15% validation
     assert abs(test_lines / total_lines - 0.05) < 0.05  # 5% test

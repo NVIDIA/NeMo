@@ -13,8 +13,8 @@
 # limitations under the License.
 import hashlib
 import json
-import shutil
 import logging
+import shutil
 from functools import lru_cache
 from pathlib import Path
 from random import sample
@@ -22,7 +22,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional, U
 
 import numpy as np
 import torch
-
 from datasets import DatasetDict, load_dataset
 
 from nemo.collections.common.tokenizers import TokenizerSpec
@@ -42,6 +41,7 @@ def get_dataset_root(name: str) -> Path:
     output.mkdir(parents=True, exist_ok=True)
 
     return output
+
 
 def create_reranker_dataset(
     path: Path,
@@ -569,6 +569,7 @@ class CustomReRankerDataModule(CustomRetrievalDataModule):
             **kwargs,
         )
 
+
 class SpecterReRankerDataModule(CustomReRankerDataModule):
     """A data module for fine-tuning on the Specter dataset.
 
@@ -686,7 +687,7 @@ class SpecterReRankerDataModule(CustomReRankerDataModule):
     def reconfigure_limit_batches(self):
         """No need to reconfigure trainer.limit_val_batches for finetuning"""
         return
-    
+
     @lru_cache
     def _create_dataset(self, path, **kwargs):
         return create_reranker_dataset(
