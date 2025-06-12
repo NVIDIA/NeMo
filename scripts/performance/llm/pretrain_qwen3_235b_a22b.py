@@ -16,13 +16,11 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.llm.recipes.qwen3_235b_a22b import pretrain_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+from nemo.collections.llm.recipes.qwen3_235b_a22b import pretrain_recipe
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
-from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -77,12 +75,9 @@ def override_recipe_configs(
         recipe, "pre_train", "llm", "qwen3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
-
     # set it to use token drop config
     recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
     recipe.trainer.callbacks.append(run.Config(MegatronCommOverlapCallback, tp_comm_overlap=True))
-
-
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
@@ -113,7 +108,6 @@ if __name__ == "__main__":
         0:13
     ]
 
-
     recipe = override_recipe_configs(
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs
     )
@@ -122,7 +116,6 @@ if __name__ == "__main__":
         f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-
 
     executor = slurm_executor(
         args.account,
@@ -142,7 +135,6 @@ if __name__ == "__main__":
 
     if args.gpu.lower() in ['b200', 'gb200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
         del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
-
 
     plugins = [
         PerfEnvPlugin(

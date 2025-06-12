@@ -18,6 +18,7 @@ import lightning.pytorch as pl
 import nemo_run as run
 import torch
 from lightning.pytorch.callbacks.callback import Callback
+from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
 from nemo.collections.llm.gpt.model.qwen3 import (
@@ -32,7 +33,7 @@ from nemo.collections.llm.gpt.model.qwen3 import (
     Qwen3Model,
 )
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
-from megatron.core.distributed import DistributedDataParallelConfig
+
 
 def qwen3_model(version: str) -> run.Config[pl.LightningModule]:
     """

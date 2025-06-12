@@ -150,19 +150,28 @@ def mixtral(config: FLOPSConfig):
         )
     )
 
+
 def qwen3(config: FLOPSConfig):
     """Model FLOPs for Qwen3 family"""
-    causal_self_attn = True 
+    causal_self_attn = True
     seq_len = config.enc_seq_len
     hidden_size = config.hs
     gated_linear_multiplier = 2
 
-
     # attention flops for GQA
-    attention_flops = 3* 2 * config.gbs * config.layers * seq_len * hidden_size * hidden_size * (
-        (config.query_groups / config.attention_heads * 2 +1) + # QKV gemm
-        (seq_len / hidden_size * 2 * ( 0.5 if causal_self_attn else 1)) + # attention
-        1 # attention proj gemm
+    attention_flops = (
+        3
+        * 2
+        * config.gbs
+        * config.layers
+        * seq_len
+        * hidden_size
+        * hidden_size
+        * (
+            (config.query_groups / config.attention_heads * 2 + 1)  # QKV gemm
+            + (seq_len / hidden_size * 2 * (0.5 if causal_self_attn else 1))  # attention
+            + 1  # attention proj gemm
+        )
     )
 
     # mlp flops
@@ -181,7 +190,6 @@ def qwen3(config: FLOPSConfig):
     vocab_flops = 3 * 2 * config.gbs * seq_len * hidden_size * config.vocab_size
 
     return attention_flops + mlp_flops + vocab_flops
-
 
 
 def bert(config: FLOPSConfig):
