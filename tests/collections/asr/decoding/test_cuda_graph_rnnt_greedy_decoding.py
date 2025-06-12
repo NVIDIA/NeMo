@@ -21,21 +21,8 @@ import pytest
 import torch
 from omegaconf import DictConfig, open_dict
 
-from nemo.collections.asr.models import ASRModel
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
-
-
-@pytest.fixture(scope="module")
-def stt_en_fastconformer_transducer_xlarge():
-    model_name = "stt_en_fastconformer_transducer_xlarge"
-    return ASRModel.from_pretrained(model_name, map_location="cpu").eval()
-
-
-@pytest.fixture(scope="module")
-def stt_en_fastconformer_transducer_xxlarge():
-    model_name = "stt_en_fastconformer_transducer_xxlarge"
-    return ASRModel.from_pretrained(model_name, map_location="cpu").eval()
 
 
 @pytest.mark.with_downloads
@@ -43,18 +30,8 @@ def stt_en_fastconformer_transducer_xxlarge():
 @pytest.mark.parametrize(
     ("model_name", "batch_size", "enable_bfloat16"),
     [
-        ("stt_en_fastconformer_transducer_xlarge", 8, False),
-        ("stt_en_fastconformer_transducer_xxlarge", 8, True),
-        pytest.param(
-            "stt_en_fastconformer_transducer_large",
-            8,
-            True,
-            marks=pytest.mark.xfail(
-                reason="""Cannot instantiate the
-body cuda graph of a conditional node with a persistent kernel (in this case,
-a persistent LSTM), which is triggered in cudnn by using a batch size of 8."""
-            ),
-        ),
+        ("stt_en_fastconformer_transducer_large", 8, False),
+        ("stt_en_fastconformer_transducer_large", 8, True),
     ],
 )
 @pytest.mark.parametrize("loop_labels", [False, True])
@@ -147,21 +124,25 @@ def test_loop_labels_cuda_graph_rnnt_greedy_decoder_forced_mode(
     # transcribe with use implementation with cuda graphs
     decoding_config["greedy"]["use_cuda_graph_decoder"] = True
     nemo_model.change_decoding_strategy(decoding_config)
-    nemo_model.decoding.decoding.decoding_computer.force_cuda_graphs_mode(mode=force_mode)
+    backup_cuda_graph_mode = nemo_model.decoding.decoding.decoding_computer.cuda_graphs_mode
+    try:
+        nemo_model.decoding.decoding.decoding_computer.force_cuda_graphs_mode(mode=force_mode)
 
-    with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
-        fast_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
-    fast_transcripts = [hyp.text for hyp in fast_hypotheses]
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16, enabled=enable_bfloat16):
+            fast_hypotheses = nemo_model.transcribe(audio_filepaths, batch_size=batch_size, num_workers=None)
+        fast_transcripts = [hyp.text for hyp in fast_hypotheses]
 
-    wer = jiwer.wer(actual_transcripts, fast_transcripts)
+        wer = jiwer.wer(actual_transcripts, fast_transcripts)
 
-    assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
+        assert wer <= 1e-3, "Cuda graph greedy decoder should match original decoder implementation."
 
-    for actual, fast in zip(actual_transcripts, fast_transcripts):
-        if actual != fast:
-            print("erroneous samples:")
-            print("Original transcript:", actual)
-            print("New transcript:", fast)
+        for actual, fast in zip(actual_transcripts, fast_transcripts):
+            if actual != fast:
+                print("erroneous samples:")
+                print("Original transcript:", actual)
+                print("New transcript:", fast)
+    finally:
+        nemo_model.decoding.decoding.decoding_computer.force_cuda_graphs_mode(mode=backup_cuda_graph_mode)
 
 
 @pytest.mark.with_downloads
@@ -220,7 +201,7 @@ def test_loop_labels_cuda_graph_ddp_mixed_precision(
 @pytest.mark.with_downloads
 @pytest.mark.skipif(not torch.cuda.is_available() or torch.cuda.device_count() < 2, reason="Test requires 2 GPUs")
 @pytest.mark.parametrize("loop_labels", [False, True])
-def test_change_devices(loop_labels: bool, stt_en_fastconformer_transducer_xlarge):
+def test_change_devices(loop_labels: bool, stt_en_fastconformer_transducer_large):
     if not loop_labels:
         skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported()
 
@@ -229,7 +210,7 @@ def test_change_devices(loop_labels: bool, stt_en_fastconformer_transducer_xlarg
 
     batch_size = 8
 
-    nemo_model = stt_en_fastconformer_transducer_xlarge.to(second_device)
+    nemo_model = stt_en_fastconformer_transducer_large.to(second_device)
     decoding_config = copy.deepcopy(nemo_model.cfg.decoding)
 
     with open_dict(decoding_config):
