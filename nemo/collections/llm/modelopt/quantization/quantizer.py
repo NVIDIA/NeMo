@@ -86,6 +86,8 @@ class QuantizationConfig:
 
     def is_weight_only(self):
         """Check if the quantization is weight only."""
+        if self.algorithm not in QUANT_CFG_CHOICES:
+            return False
         quant_cfg = QUANT_CFG_CHOICES[self.algorithm]['quant_cfg']
         input_cfg = quant_cfg.get("*input_quantizer", None)
         # no input quantizer or input quantizer is disabled
