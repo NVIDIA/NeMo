@@ -8,6 +8,7 @@ librosa
 matplotlib
 # pynini does not currently support aarch, disable nemo_text_processing for now
 nemo_text_processing; 'arm' not in platform_machine and 'aarch' not in platform_machine and sys_platform != "darwin"
+Cython>=0.29.15 # 0.29.14 requires no-build-isolation
 nltk
 pandas
 pypinyin
