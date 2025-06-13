@@ -19,6 +19,7 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -26,7 +27,6 @@ from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Collection, Dict, List, Optional, Tuple, Union
-import uuid
 
 import lightning.pytorch
 import torch
@@ -450,11 +450,11 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[pl.Trainer] = None) ->
         trainer: Optional trainer instance for checkpoint configuration
     """
     try:
+        from nv_one_logger.exporter.wandb_exporter import WandbExporter
+        from nv_one_logger.training_telemetry.api.checkpoint import CheckPointStrategy
         from nv_one_logger.training_telemetry.api.config import ApplicationType, TrainingTelemetryConfig
         from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-        from nv_one_logger.exporter.wandb_exporter import WandbExporter
         from pytorch_lightning.plugins.io import AsyncCheckpointIO
-        from nv_one_logger.training_telemetry.api.checkpoint import CheckPointStrategy
 
         # Extract metadata from config
         metadata = MetaInfoManager(cfg).get_metadata()
@@ -476,13 +476,13 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[pl.Trainer] = None) ->
         # Setup exporters
         # TODO: This is nvidia internal code, we need to remove it. Added here only for testing
         exporters = []
-        
+
         # Add wandb exporter
         wandb_config = cfg.get("wandb_logger_kwargs", {})
         if not wandb_config:
             logging.warning("No wandb_logger_kwargs provided, using defaults")
             wandb_config = {}
-        
+
         # Set default wandb configuration
         wandb_config.setdefault("host", "https://api.wandb.ai")
         wandb_config.setdefault("api_key", os.environ.get("WANDB_API_KEY", ""))
@@ -491,7 +491,7 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[pl.Trainer] = None) ->
         wandb_config.setdefault("name", metadata.get("session_tag", f"e2e-tracking-run-{uuid.uuid4()}"))
         wandb_config.setdefault("save_dir", "./wandb")
         wandb_config.setdefault("tags", ["e2e_metrics_testing"])
-        
+
         # Create wandb exporter with configuration
         wandbEx = WandbExporter(
             host=wandb_config["host"],
