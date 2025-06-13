@@ -52,11 +52,11 @@ class ConfigParams(BaseModel):
 
     top_p: float = Field(
         description="Limits to the top tokens within a certain probability",
-        default=0.9999999,
+        default=0,
     )
     temperature: float = Field(
         description="Temp of 0 indicates greedy decoding, where the token with highest prob is chosen",
-        default=0.0000001,
+        default=0,
     )
     limit_samples: Optional[Union[int, float]] = Field(
         description="Limit evaluation to `limit` samples. Default: use all samples", default=None
@@ -117,6 +117,63 @@ class EvaluationConfig(BaseModel):
     )
     type: str = Field(description="Name/type of the task")
     params: ConfigParams = Field(description="Parameters to be used for evaluation", default=ConfigParams())
+
+
+class AdapterConfig(BaseModel):
+    """Adapter is a mechanism for hooking into the chain of requests/responses btw benchmark and endpoint."""
+
+    @staticmethod
+    def get_validated_config(run_config: dict[str, Any]) -> "AdapterConfig | None":
+        """Factory. Shall return `None` if the adapter_config is not passed, or validate the schema.
+
+        Args:
+            run_config: is the main dict of a configuration run, see `api_dataclasses`.
+        """
+        # CAVEAT: adaptor will be bypassed alltogether in a rare case when streaming is requested.
+        if run_config.get("target", {}).get("api_endpoint", {}).get("stream", False):
+            return None
+
+        adapter_config = run_config.get("target", {}).get("api_endpoint", {}).get("adapter_config")
+        if not adapter_config:
+            return None
+
+        adapter_config["endpoint_type"] = run_config.get("target", {}).get("api_endpoint", {}).get("type", "")
+
+        return AdapterConfig.model_validate(adapter_config)
+
+    api_url: str = Field(
+        description="The URL where the model endpoint is served",
+    )
+
+    local_port: Optional[int] = Field(
+        description="Local port to use for the adapter server. If `None` (default) will choose any free port",
+        default=None,
+    )
+
+    use_reasoning: bool = Field(
+        description="Whether to use the clean-reasoning-tokens adapter. See `end_reasoning_token`.",
+        default=False,
+    )
+
+    end_reasoning_token: str = Field(
+        description="Token that singifies the end of reasoning output",
+        default="</think>",
+    )
+
+    custom_system_prompt: Optional[str] = Field(
+        description="A custom system prompt to replace original one (if not None).",
+        default=None,
+    )
+
+    max_logged_responses: int | None = Field(
+        description="Maximum number of responses to log. Set to 0 to disable. If None, all will be logged.",
+        default=5,
+    )
+
+    max_logged_requests: int | None = Field(
+        description="Maximum number of requests to log. Set to 0 to disable. If None, all will be logged.",
+        default=5,
+    )
 
 
 class MisconfigurationError(Exception):

@@ -29,15 +29,9 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_comm_overlap_callback_idx,
-    get_user_configs,
-    hf_tokenizer,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
 
 
 def override_recipe_configs(
@@ -76,6 +70,8 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
+        use_user_buffer_registration=args.use_user_buffer_registration,
+        use_sharp=args.use_sharp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
@@ -96,6 +92,16 @@ def override_recipe_configs(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
         )
         recipe.model.tokenizer = recipe.data.tokenizer
+
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.qkv_fprop.aggregate = False
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.proj_dgrad.aggregate = False
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.fc1_fprop.aggregate = False
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.fc2_dgrad.aggregate = False
+
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192.qkv_fprop.aggregate = False
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192.proj_dgrad.aggregate = False
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192.fc1_fprop.aggregate = False
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192.fc2_dgrad.aggregate = False
 
     ub_cfg = {
         "h100": {
@@ -168,6 +174,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -176,13 +183,11 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={
-            "NVTE_NORM_FWD_USE_CUDNN": "1",
-            "NVTE_NORM_BWD_USE_CUDNN": "1",
-        },  # for properly overlapping normalization kernels with FSDP communication
+        custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
     )
 
     plugins = [

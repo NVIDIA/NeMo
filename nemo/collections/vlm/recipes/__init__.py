@@ -16,6 +16,9 @@
 from nemo.collections.vlm.recipes import (
     clip_b32,
     llama_nemotron_nano_vl_8b,
+    gemma3vl_4b,
+    gemma3vl_12b,
+    gemma3vl_27b,
     llava15_7b,
     llava15_13b,
     llava_next_7b,
@@ -31,4 +34,7 @@ __all__ = [
     "llava_next_7b",
     "clip_b32",
     "llama_nemotron_nano_vl_8b",
+    "gemma3vl_4b",
+    "gemma3vl_12b",
+    "gemma3vl_27b",
 ]

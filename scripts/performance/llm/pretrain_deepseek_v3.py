@@ -19,26 +19,16 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.deepseek_v3 import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    hf_tokenizer,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import hf_tokenizer
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
-
-
-# Use token drop callback
-USE_TOKEN_DROP = True
+USE_TOKEN_DROP = True  # Use token drop callback
 
 
 def override_recipe_configs(
@@ -61,7 +51,7 @@ def override_recipe_configs(
     """
     DeepSeek V3 pre-train recipe aimed at achieving best possible performance.
     """
-    recipe = pretrain_recipe()
+    recipe = pretrain_recipe(performance_mode=True)
     recipe.model.config.moe_permute_fusion = True
     recipe.model.config.recompute_granularity = "selective"
     recipe.model.config.recompute_num_layers = None
@@ -75,20 +65,10 @@ def override_recipe_configs(
     recipe.trainer.strategy.num_layers_in_first_pipeline_stage = num_layers_in_middle_pipeline_stages - 1
     recipe.trainer.strategy.num_layers_in_last_pipeline_stage = num_layers_in_middle_pipeline_stages - 2
 
-    callbacks = []
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
     if USE_TOKEN_DROP:
-        callbacks.append(run.Config(MegatronTokenDropCallback))
-    garbage_collection_callback = run.Config(
-        GarbageCollectionCallback,
-        gc_interval_train=60,
-        gc_interval_val=60,
-    )
-    comm_overlap_callback = run.Config(
-        MegatronCommOverlapCallback,
-        tp_comm_overlap=False,
-    )
-    callbacks.extend([garbage_collection_callback, comm_overlap_callback])
-    recipe.trainer.callbacks.extend(callbacks)
+        recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -106,6 +86,8 @@ def override_recipe_configs(
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
+        use_user_buffer_registration=args.use_user_buffer_registration,
+        use_sharp=args.use_sharp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
@@ -183,6 +165,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -195,6 +178,7 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
     )
 
     plugins = [
