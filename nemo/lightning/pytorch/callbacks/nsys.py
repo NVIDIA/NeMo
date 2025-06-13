@@ -16,7 +16,12 @@ from typing import List, Optional
 
 import torch
 from lightning.pytorch.callbacks.callback import Callback
-from megatron.core.utils import configure_nvtx_profiling
+
+try:
+    from megatron.core.utils import configure_nvtx_profiling
+    HAVE_MCORE_UTILS = True
+except ImportError:
+    HAVE_MCORE_UTILS = False
 
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
@@ -80,7 +85,7 @@ class NsysCallback(Callback):
 
         app_state = AppState()
         app_state._nvtx_ranges = nvtx_ranges
-        if nvtx_ranges:
+        if nvtx_ranges and HAVE_MCORE_UTILS:
             configure_nvtx_profiling(True)  # Enable NVTX profiling in MCore
 
         logging.info(
