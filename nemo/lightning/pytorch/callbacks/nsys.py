@@ -19,6 +19,7 @@ from lightning.pytorch.callbacks.callback import Callback
 
 try:
     from megatron.core.utils import configure_nvtx_profiling
+
     HAVE_MCORE_UTILS = True
 except ImportError:
     HAVE_MCORE_UTILS = False
