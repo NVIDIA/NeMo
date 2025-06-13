@@ -13,7 +13,7 @@
 # limitations under the License.
 
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_convert_speculative.py \
-    --model_path /home/TestData/nemo2_ckpt/llama_68M_v4 \
+    --model_path /home/TestData/nemo2_ckpt/llama3-1b-lingua \
     --export_dir /tmp/speculative_ckpt \
     --tp_size 2 \
     --pp_size 1 \
