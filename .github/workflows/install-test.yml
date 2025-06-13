@@ -8,16 +8,16 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
-
+permissions:
+  contents: read # access to check out code and install dependencies
 jobs:
   test-installs-macos:
-    name: ${{ matrix.os }}-py${{ matrix.python }}-${{ matrix.installer }}
+    name: ${{ matrix.os }}-${{ matrix.installer }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest]
-        python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
@@ -33,6 +33,9 @@ jobs:
           NEMO_TAG: ${{ github.sha }}
           NEMO_REPO: ${{ github.server_url }}/${{ github.repository }}
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
+
           if [[ "$INSTALLER" == "pip-install" ]]; then
             pip install --no-cache-dir -U pip
             pip install --no-cache-dir ".[all]"
@@ -53,49 +56,52 @@ jobs:
           done
 
   test-installs-linux-amd:
-    name: ubuntu-22.04-amd-py${{ matrix.python }}-${{ matrix.installer }}
+    name: ubuntu-22.04-amd-${{ matrix.installer }}
     runs-on: ubuntu-22.04
+    container:
+      image: ubuntu:22.04
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
 
       - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y python3-pip python3-venv
+          python3 -m venv .venv
+          source .venv/bin/activate
 
       - name: Install NeMo
         env:
           INSTALLER: ${{ matrix.installer }}
         run: |
           if [ "$INSTALLER" = "pip-install" ]; then
-            pip install --upgrade pip
-            pip install ".[all]"
+            pip3 install --upgrade pip
+            pip3 install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
             bash docker/common/install_dep.sh --library all --mode install
-            pip install --no-cache-dir ".[all]"
+            pip3 install --no-cache-dir ".[all]"
           fi
 
       - name: Run import checks
         run: |
           # Run import checks
           for collection in "asr" "tts" "nlp"; do
-            python tests/core_ptl/check_imports.py --domain "$collection"
+            python3 tests/core_ptl/check_imports.py --domain "$collection"
           done
 
   test-installs-linux-arm:
-    name: ubuntu-22.04-arm-py${{ matrix.python }}-${{ matrix.installer }}
+    name: ubuntu-22.04-arm-${{ matrix.installer }}
     runs-on: ubuntu-22.04-arm
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.10", "3.11", "3.12"]
         installer: ["pip-install", "nemo-install"]
     steps:
       - name: Checkout repo
@@ -110,9 +116,12 @@ jobs:
         env:
           INSTALLER: ${{ matrix.installer }}
         run: |
+          python -m venv .venv
+          source .venv/bin/activate
+
           if [ "$INSTALLER" = "pip-install" ]; then
             pip install --upgrade pip
-            pip install -vvv ".[all]"
+            pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
             bash docker/common/install_dep.sh --library all --mode install

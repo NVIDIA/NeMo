@@ -1,5 +1,6 @@
 attrdict
 cdifflib==1.2.6
+Cython>=0.29.15 # 0.29.14 requires no-build-isolation
 einops
 janome
 jieba
@@ -10,6 +11,7 @@ matplotlib
 nemo_text_processing; 'arm' not in platform_machine and 'aarch' not in platform_machine and sys_platform != "darwin"
 nltk
 pandas
+pynini>2.1.5 # 2.1.5 requires no-build-isolation
 pypinyin
 pypinyin-dict
 seaborn
