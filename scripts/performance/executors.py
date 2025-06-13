@@ -37,11 +37,8 @@ INLINE_TEMPLATE = r"""
 #!/usr/bin/env bash
 set -euo pipefail
 
-# user pre-commands
-PRE_CMDS='{{ pre_cmds }}'
-
 # run everything through one bash -c with *single* quotes
-bash -c '${PRE_CMDS} && {{ command }}'
+bash -c '{{ pre_cmds }} && {{ command }}'
 """
 
 
