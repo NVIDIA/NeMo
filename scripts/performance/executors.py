@@ -61,7 +61,7 @@ def slurm_executor(
     nemo_home: str = DEFAULT_NEMO_HOME,
     wandb_key: str = None,
     network: str = None,
-    custom_bash_cmds: List[str] = [],
+    custom_bash_cmds: List[str] = None,
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
@@ -107,6 +107,8 @@ def slurm_executor(
                 break
 
     numa_divisor = 2 if gpu.lower() == 'gb200' else 4
+    if custom_bash_cmds is None:
+        custom_bash_cmds = []
     numa_cmd = f"numactl --cpunodebind=$((SLURM_LOCALID/{numa_divisor})) --membind=$((SLURM_LOCALID/{numa_divisor}))"
     custom_bash_cmds.append(numa_cmd)
 
