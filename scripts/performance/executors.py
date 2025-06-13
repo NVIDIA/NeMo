@@ -18,11 +18,31 @@ from typing import Dict, List
 
 import nemo_run as run
 from nemo_run.config import get_nemorun_home
+from nemo_run.core.execution.launcher import SlurmTemplate
 
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
+PERF_ENV_VARS = {
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
+    }
+INLINE_TEMPLATE = r"""
+#!/usr/bin/env bash
+set -euo pipefail
+
+# user pre-commands
+PRE_CMDS='{{ pre_cmds }}'
+
+# run everything through one bash -c with *single* quotes
+bash -c '${PRE_CMDS} && {{ command }}'
+"""
 
 
 def slurm_executor(
@@ -41,21 +61,12 @@ def slurm_executor(
     nemo_home: str = DEFAULT_NEMO_HOME,
     wandb_key: str = None,
     network: str = None,
+    custom_bash_cmds: List[str] = [],
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
     and fine-tuning experiments
     """
-    PERF_ENV_VARS = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
-        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
-        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
-        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
-        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
-        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
-        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
-    }
-
     err_msgs = []
     mounts = []
     srun_args = custom_srun_args.copy() + ["--mpi=pmix"]
@@ -74,7 +85,7 @@ def slurm_executor(
     if wandb_key is not None:
         PERF_ENV_VARS["WANDB_API_KEY"] = wandb_key
 
-    if num_gpus_per_node == 4:
+    if gpu.lower() == 'gb200':
         PERF_ENV_VARS["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
         PERF_ENV_VARS["NCCL_NET_GDR_C2C"] = "1"  # For NCCL 2.26
 
@@ -84,7 +95,7 @@ def slurm_executor(
     if hf_token is not None:
         PERF_ENV_VARS.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
 
-    PERF_ENV_VARS |= custom_env_vars
+    PERF_ENV_VARS.update(custom_env_vars)
     mounts.extend(custom_mounts)
 
     # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
@@ -94,6 +105,15 @@ def slurm_executor(
             if nodes % segment_candidate == 0:
                 segment = segment_candidate
                 break
+    
+    numa_divisor = 2 if gpu.lower() == 'gb200' else 4
+    numa_cmd = f"numactl --cpunodebind=$((SLURM_LOCALID/{numa_divisor})) --membind=$((SLURM_LOCALID/{numa_divisor}))"
+    custom_bash_cmds.append(numa_cmd)
+
+    launcher = SlurmTemplate(
+        template_inline=INLINE_TEMPLATE,
+        template_vars={"pre_cmds": " && ".join(custom_bash_cmds)},
+    )
 
     executor = run.SlurmExecutor(
         account=account,
@@ -111,6 +131,7 @@ def slurm_executor(
         packager=run.GitArchivePackager(),
         segment=segment,
         network=network,
+        launcher=launcher,
     )
 
     return executor
