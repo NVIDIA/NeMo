@@ -89,90 +89,70 @@ class OneLoggerNeMoCallback(Callback):
         # If not found, raise AttributeError as normal
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
-    def _add_checkpoint_callbacks(self, trainer: pl.Trainer) -> None:
-        """Add checkpoint callbacks to track checkpoint timing."""
-        method = trainer.save_checkpoint
-
-        def wrapper(filepath: Any, *args, **kwargs) -> None:
-            self.on_start_save_checkpoint(trainer, filepath)
-            exc = None
-            try:
-                method(filepath, *args, **kwargs)
-            except Exception as e:
-                exc = e
-                raise e
-            finally:
-                self.on_end_save_checkpoint(trainer, exc)
-
-        wrapper.orig_method = method
-        trainer.save_checkpoint = wrapper
-
     @rank_zero_only
-    def on_start_save_checkpoint(self, trainer: pl.Trainer, filepath: Any) -> None:
-        """Called when checkpoint saving begins."""
-        CB.on_save_checkpoint_start(global_step=trainer.global_step)
-
-    @rank_zero_only
-    def on_end_save_checkpoint(self, trainer: pl.Trainer, exception: Optional[Exception]) -> None:
-        """Called when checkpoint saving ends."""
-        CB.on_save_checkpoint_end()
-
-    @rank_zero_only
-    def teardown(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
-        """Called when fit or test ends."""
-        if stage != "fit":
-            return
-
-        CB.on_app_end()
-        # Restore the save checkpoint method
-        if trainer.save_checkpoint is not None and hasattr(trainer.save_checkpoint, "orig_method"):
-            trainer.save_checkpoint = trainer.save_checkpoint.orig_method
-
-    @rank_zero_only
-    def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def on_train_start(self, trainer: Trainer,
+                       pl_module: LightningModule) -> None:
         """Called when training begins."""
+        # Extract necessary information from the trainer
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
+
         CB.on_train_start(
             train_iterations_start=current_step,
             train_iterations_target_or_fn=max_steps
         )
 
     @rank_zero_only
-    def on_train_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        """Called when training ends."""
+    def on_train_end(self, trainer: Trainer,
+                     pl_module: LightningModule) -> None:
         CB.on_train_end()
 
     @rank_zero_only
-    def on_train_batch_start(
-        self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch: Any, batch_idx: int
-    ) -> None:
-        """Called when a training batch begins."""
+    def on_train_batch_start(self, trainer: Trainer,
+                             pl_module: LightningModule, batch: Any,
+                             batch_idx: int) -> None:
         CB.on_training_single_iteration_start()
 
     @rank_zero_only
     def on_train_batch_end(
-        self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: Any, batch: Any, batch_idx: int
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        outputs: STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
     ) -> None:
-        """Called when a training batch ends."""
         CB.on_training_single_iteration_end()
 
     @rank_zero_only
-    def on_validation_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        """Called when validation begins."""
+    def on_validation_start(self, trainer: Trainer,
+                            pl_module: LightningModule) -> None:
         CB.on_validation_start()
 
     @rank_zero_only
-    def on_validation_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        """Called when validation ends."""
+    def on_validation_end(self, trainer: Trainer,
+                          pl_module: LightningModule) -> None:
         CB.on_validation_end()
 
     @rank_zero_only
-    def on_test_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        """Called when testing begins."""
-        CB.on_test_start()
+    def on_validation_batch_start(
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        CB.on_validation_single_iteration_start()
 
     @rank_zero_only
-    def on_test_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        """Called when testing ends."""
-        CB.on_test_end()
+    def on_validation_batch_end(
+        self,
+        trainer: Trainer,
+        pl_module: LightningModule,
+        outputs: STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        CB.on_validation_single_iteration_end()
