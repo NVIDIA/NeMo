@@ -24,11 +24,14 @@ from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
+
+# NOTE: If you update this template,
+# PLEASE test it by submitting a job to GPU/node/cluster and verifying the sbatch and bash scripts.
 INLINE_TEMPLATE = r"""
 #!/usr/bin/env bash
 set -euo pipefail
 
-# run everything through one bash -c with *single* quotes
+# NOTE: DO NOT change the single quotes to double quotes.
 bash -c '{{ pre_cmds }} {{ command }}'
 """
 
