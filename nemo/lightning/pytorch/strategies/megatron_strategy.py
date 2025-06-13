@@ -48,7 +48,6 @@ from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.accelerators import CPUAccelerator
 from lightning.pytorch.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
 from lightning.pytorch.loops.fetchers import _DataLoaderIterDataFetcher
-from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
@@ -65,7 +64,6 @@ from typing_extensions import override
 
 from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.lightning import _strategy_lib, io
-from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.callbacks import ModelTransform
 from nemo.lightning.pytorch.strategies.utils import (
@@ -80,10 +78,6 @@ from nemo.lightning.pytorch.strategies.utils import (
 )
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizerCallback
-from nemo.utils.import_utils import safe_import
-from nemo.utils.model_utils import unwrap_model
-
-mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -893,6 +887,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
     ) -> None:
         """Saves checkpoint"""
+        from nemo.collections.llm.modelopt.model_utils import save_modelopt_state
+
         if (
             isinstance(self.ddp_config, DistributedDataParallelConfig)
             and self.ddp_config.use_distributed_optimizer
@@ -918,23 +914,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
-        if HAVE_MODELOPT:
-            # Save ModelOpt state too, if it exists.
-            core_model = unwrap_model(self.megatron_parallel)
-            if mto.ModeloptStateManager.is_converted(core_model):
-                if self.async_save:
-                    logging.warning("Model-Optimizer library in use. Async checkpoint saving is blocked.")
-                    self.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
-                ckpt_io = self.checkpoint_io
-                if isinstance(ckpt_io, _WrappingCheckpointIO):
-                    ckpt_io = ckpt_io.checkpoint_io
-                with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
-                    mto.plugins.save_sharded_modelopt_state(
-                        [core_model],
-                        ckpt_to_weights_subdir(filepath, is_saving=True),
-                        sharded_strategy=ckpt_io.save_sharded_strategy,
-                    )
-                logging.info("Saved Model-Optimizer state into checkpoint.")
+        # Save ModelOpt state too, if it exists.
+        save_modelopt_state(self.megatron_parallel, filepath, self.checkpoint_io)
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
         """Determines whether to restore optimizer states or not"""
@@ -950,30 +931,20 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         the distributed load function. We get the sharded_state_dict from self.lightning_module
         which makes it convenient to have the loading logic happen at the strategy level.
         """
-        torch.cuda.empty_cache()
+        from nemo.collections.llm.modelopt.model_utils import restore_modelopt_state
 
-        if HAVE_MODELOPT:
-            # If present, first restore and modify the model according to the ModelOpt state.
-            # Avoid quantizers being added to teacher model if model is a distillation model.
-            core_model = unwrap_model(self.megatron_parallel)
-            with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
-                mto.plugins.restore_sharded_modelopt_state(
-                    [core_model],
-                    ckpt_to_weights_subdir(checkpoint_path, is_saving=False),
-                )
-            if mto.ModeloptStateManager.is_converted(core_model):
-                logging.info("Restored Model-Optimizer state from checkpoint.")
+        torch.cuda.empty_cache()
 
         restore_optimizers = self.should_restore_optimizer_states(selective_restore=selective_restore)
 
+        # Restore ModelOpt state if it exists.
+        sharded_state_context = restore_modelopt_state(self.megatron_parallel, checkpoint_path)
+        if sharded_state_context is None or restore_optimizers or self.trainer.state.fn != TrainerFn.FITTING:
+            sharded_state_context = nullcontext
+
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
         sharded_state_dict = {}
-        with ExitStack() as stack:
-            if HAVE_MODELOPT and hasattr(core_model, "hide_loss_modules"):
-                if not restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
-                    # Assume no optimizer means it's first time loading checkpoint into ModelOpt distillation model.
-                    # We hide any extra parameters (i.e. hidden projection layers) the loss modules might have added.
-                    stack.enter_context(core_model.hide_loss_modules())
+        with sharded_state_context():
             sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
 
         if restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
