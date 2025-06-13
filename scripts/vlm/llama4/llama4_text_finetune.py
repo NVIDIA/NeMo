@@ -14,8 +14,10 @@
 
 """
 Mock Data Example:
-  torchrun --nproc_per_node=2 scripts/vlm/llama4/llama4_finetune.py \
-  --devices=2 --tp=2 --data_type=mock --mbs=1 --gbs=4 --use_toy_model
+  torchrun --nproc_per_node=4 scripts/vlm/llama4/llama4_text_finetune.py \
+  --devices=4 --cp=1 --tp=2 --data_type=mock --mbs=1 --gbs=4 --use_toy_model \
+  --mock_data_qkv_layout="thd"
+
 """
 
 import argparse
@@ -51,46 +53,27 @@ def main(args):
 
     # Submodules configurations
     # switch to 128E with  vlm.Llama4MaverickExperts128Config()
-    llama4_config = vlm.Llama4ScoutExperts16Config()
+    llama4_config = llm.Llama4Experts16Config(scatter_embedding_sequence_parallel=False)
     if args.use_toy_model:
-        decoder_seq_length = 4096
+        decoder_seq_length = 32768
         val_check_interval = 50
-        llama4_config.vision_transformer_config.num_layers = 2
-        llama4_config.language_transformer_config.num_layers = 2
-        llama4_config.language_transformer_config.num_moe_experts = 2
-        llama4_config.language_transformer_config.attention_chunk_size = 1024
-        llama4_config.language_transformer_config.no_rope_freq = [0, 1]
+        llama4_config.num_layers = 2
+        llama4_config.num_moe_experts = 2
+        llama4_config.attention_chunk_size = 1024
+        llama4_config.no_rope_freq = [0, 1]
 
         num_workers = 0
 
-    if args.data_type == "llava":
-        raise NotImplementedError
-    elif args.data_type == "energon":
-
-        task_encoder = Llama4TaskEncoder(
-            config=Llama4TaskEncoderConfig(
-                hf_path='meta-llama/Llama-4-Scout-17B-16E-Instruct',
-            )
-        )
-        data = EnergonDataModule(
-            path=args.data_path,
-            train_encoder=task_encoder,
-            seq_length=decoder_seq_length,
-            global_batch_size=gbs,
-            micro_batch_size=mbs,
-            num_workers=num_workers,
-        )
-    elif args.data_type == "mock":
+    if args.data_type == "mock":
         llama_tokenizer = AutoTokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
-
-        data = vlm.Llama4MockDataModule(
+        data = llm.MockDataModule(
             seq_length=decoder_seq_length,
             global_batch_size=gbs,
             micro_batch_size=mbs,
             tokenizer=llama_tokenizer,
-            image_processor=None,
             num_workers=num_workers,
-            packed_sequence=args.use_packed_sequence,
+            attention_layout=args.mock_data_qkv_layout,
+            possible_thd_lengths=list(range(8000, 20000)),
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -117,7 +100,7 @@ def main(args):
         ckpt_load_strictness="log_all",
     )
 
-    model = Llama4OmniModel(llama4_config, tokenizer=data.tokenizer)
+    model = llm.LlamaModel(llama4_config, tokenizer=data.tokenizer)
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
@@ -238,6 +221,14 @@ if __name__ == "__main__":
     parser.add_argument("--mbs", type=int, required=False, default=1, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
     parser.add_argument("--decoder_seq_length", type=int, required=False, default=8192, help="decoder sequence length")
+    parser.add_argument(
+        "--mock_data_qkv_layout",
+        type=str,
+        required=False,
+        default="sbhd",
+        choices=["sbhd", "thd"],
+        help="QKV layout for mock data. Options: sbhd, thd. Default: sbhd.",
+    )
     parser.add_argument(
         "--use_packed_sequence",
         action="store_true",
