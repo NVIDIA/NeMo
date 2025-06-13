@@ -4,122 +4,175 @@ OneLogger callback for NeMo training.
 This module provides a callback that integrates OneLogger telemetry with NeMo training.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Type
 
 import pytorch_lightning as pl
-from one_logger_utils.core import OneLogger
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.utilities import rank_zero_only
+from pytorch_lightning.plugins.io import AsyncCheckpointIO
+
+import nv_one_logger.training_telemetry.api.callbacks as CB
+
+import torch
+import logging
+import functools
 
 
 class OneLoggerNeMoCallback(Callback):
     """
-    NeMo callback that integrates with OneLogger for tracking metrics.
+    NeMo callback that integrates with OneLogger v2 for tracking metrics.
 
     This callback implements NeMo's callback group API and internally
-    uses OneLogger's core functionality to track metrics.
+    uses OneLogger's training telemetry functionality to track metrics.
     """
 
-    def __init__(self, callback_config: Optional[Dict[str, Any]] = None, set_barrier: bool = False):
+    def __init__(
+        self,
+        callback_config: Optional[Dict[str, Any]] = None,
+        log_interval: int = 1,
+        async_io_checkpoint_classes: List[Type[Any]] | None = None,
+    ):
         """
         Initialize the OneLogger NeMo callback.
 
         Args:
             callback_config (dict): Configuration dictionary with metadata
                 from MetaInfoManager(cfg).get_metadata()
-            set_barrier (bool): Whether to use barriers for synchronization
+            log_interval (int): How often to log metrics
+            async_io_checkpoint_classes (List[Type]): Additional classes to identify as async checkpoints
         """
         super().__init__()
+        self.log_interval = log_interval
+        self.async_io_checkpoint_classes = async_io_checkpoint_classes or []
+        self.state = {
+            "is_async_checkpoint": None,
+        }
 
-        # Create a copy of the configuration to avoid modifying the original
+        # Extract configuration values
         if callback_config is not None:
-            # Map new metadata keys to old variable names expected by OneLogger
-            converted_config = callback_config.copy()
-
-            # Mapping of new names to old names
-            name_mapping = {
-                "app_name": "one_logger_project",
-                "log_every_n_iterations": "log_every_n_train_iterations",
-                "perf_version_tag": "app_tag_run_version",
-                "workload_type": "app_run_type",
-                "perf_tag": "app_tag",
-                "session_tag": "app_tag_run_name",
-            }
-
-            # Convert names in the config
-            for new_name, old_name in name_mapping.items():
-                if new_name in converted_config:
-                    converted_config[old_name] = converted_config.pop(new_name)
+            self.app_name = callback_config.get("app_name", "")
+            self.perf_tag = callback_config.get("perf_tag", "")
+            self.session_tag = callback_config.get("session_tag", "")
+            self.global_batch_size = callback_config.get("global_batch_size", 0)
         else:
-            converted_config = None
-
-        # Create OneLogger instance with the converted metadata
-        self.one_logger = OneLogger(callback_config=converted_config, set_barrier=set_barrier)
-        self.world_size = callback_config.get("world_size", 1) if callback_config else 1
-        self.rank = callback_config.get("rank", 0) if callback_config else 0
+            self.app_name = ""
+            self.perf_tag = ""
+            self.session_tag = ""
+            self.global_batch_size = 0
 
     def __getattr__(self, name: str) -> Any:
-        """
-        Automatically forward any undefined method calls to the underlying OneLogger instance.
-
+        """Automatically forward any undefined method calls to the OneLogger v2 callbacks mainly for non-trainer methods.
+        
         This eliminates the need for manually writing pass-through methods for each OneLogger API.
         Only methods that need custom logic (like those interacting with the trainer) need to be
         explicitly defined in this class.
 
         Args:
-            name (str): The name of the method being called
-
+            name: The name of the method being called
         Returns:
-            The method from the underlying OneLogger instance
+            The method from the OneLogger v2 callbacks
+        Raises:
+            AttributeError: If the method is not found in the OneLogger callbacks
         """
-        # Check if the method exists on the OneLogger instance
-        if hasattr(self.one_logger, name):
-            return getattr(self.one_logger, name)
+        # Check if the method exists in the OneLogger callbacks module
+        if hasattr(CB, name):
+            # Get the original method
+            original_method = getattr(CB, name)
+            
+            # Create a wrapper that adds rank_zero_only decorator
+            @functools.wraps(original_method)
+            def wrapper(*args, **kwargs):
+                return rank_zero_only(original_method)(*args, **kwargs)
+            
+            return wrapper
 
         # If not found, raise AttributeError as normal
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
+    def _add_checkpoint_callbacks(self, trainer: pl.Trainer) -> None:
+        """Add checkpoint callbacks to track checkpoint timing."""
+        method = trainer.save_checkpoint
+
+        def wrapper(filepath: Any, *args, **kwargs) -> None:
+            self.on_start_save_checkpoint(trainer, filepath)
+            exc = None
+            try:
+                method(filepath, *args, **kwargs)
+            except Exception as e:
+                exc = e
+                raise e
+            finally:
+                self.on_end_save_checkpoint(trainer, exc)
+
+        wrapper.orig_method = method
+        trainer.save_checkpoint = wrapper
+
+    @rank_zero_only
+    def on_start_save_checkpoint(self, trainer: pl.Trainer, filepath: Any) -> None:
+        """Called when checkpoint saving begins."""
+        CB.on_save_checkpoint_start(global_step=trainer.global_step)
+
+    @rank_zero_only
+    def on_end_save_checkpoint(self, trainer: pl.Trainer, exception: Optional[Exception]) -> None:
+        """Called when checkpoint saving ends."""
+        CB.on_save_checkpoint_end()
+
+    @rank_zero_only
+    def teardown(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
+        """Called when fit or test ends."""
+        if stage != "fit":
+            return
+
+        CB.on_app_end()
+        # Restore the save checkpoint method
+        if trainer.save_checkpoint is not None and hasattr(trainer.save_checkpoint, "orig_method"):
+            trainer.save_checkpoint = trainer.save_checkpoint.orig_method
+
+    @rank_zero_only
     def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         """Called when training begins."""
-        # Extract necessary information from the trainer
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
+        CB.on_train_start(
+            train_iterations_start=current_step,
+            train_iterations_target_or_fn=max_steps
+        )
 
-        # Call OneLogger's on_train_start with the extracted information
-        self.one_logger.on_train_start(train_iterations_start=current_step, train_iterations_target=max_steps)
-
+    @rank_zero_only
     def on_train_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         """Called when training ends."""
-        self.one_logger.on_train_end(train_iterations_end=trainer.global_step)
+        CB.on_train_end()
 
+    @rank_zero_only
     def on_train_batch_start(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch: Any, batch_idx: int
     ) -> None:
         """Called when a training batch begins."""
-        self.one_logger.on_train_batch_start(train_iterations=trainer.global_step)
+        CB.on_training_single_iteration_start()
 
+    @rank_zero_only
     def on_train_batch_end(
         self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: Any, batch: Any, batch_idx: int
     ) -> None:
         """Called when a training batch ends."""
-        self.one_logger.on_train_batch_end()
+        CB.on_training_single_iteration_end()
 
+    @rank_zero_only
     def on_validation_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         """Called when validation begins."""
-        self.one_logger.on_validation_start(val_iterations=trainer.global_step)
+        CB.on_validation_start()
 
+    @rank_zero_only
     def on_validation_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         """Called when validation ends."""
-        self.one_logger.on_validation_end(val_iterations=trainer.global_step)
+        CB.on_validation_end()
 
+    @rank_zero_only
     def on_test_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         """Called when testing begins."""
-        self.one_logger.on_test_start(test_iterations=trainer.global_step)
+        CB.on_test_start()
 
+    @rank_zero_only
     def on_test_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         """Called when testing ends."""
-        self.one_logger.on_test_end(test_iterations=trainer.global_step)
-
-    def on_fit_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        """Called when fit (train + validation) ends."""
-        # Make sure all metrics are finalized
-        self.one_logger.finalize()
+        CB.on_test_end()
