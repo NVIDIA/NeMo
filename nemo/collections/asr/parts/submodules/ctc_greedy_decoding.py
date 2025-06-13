@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.parts.submodules.ngram_lm import FastNGramLM
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.core.classes import Typing, typecheck
@@ -43,12 +43,9 @@ except ImportError:
 NEG_INF = float("-inf")
 
 
-from nemo.core.utils.optional_libs import TRITON_AVAILABLE
-
-
 class CTCDecoderCudaGraphsState:
     """
-    State for Loop Labels algorithm. Used only with CUDA graphs.
+    State for greedy CTC with NGPU-LM decoding. Used only with CUDA graphs.
     In initialization phase it is possible to assign values (tensors) to the state.
     For algorithm code the storage should be reused (prefer copy data instead of assigning tensors).
     """
@@ -93,7 +90,6 @@ class CTCDecoderCudaGraphsState:
             batch_size: batch size for encoder output storage
             max_time: maximum time for encoder output storage
             encoder_dim: last dimension for encoder output storage (projected encoder output)
-            max_symbols: max symbols per step (to avoid infinite looping and pre-allocate storage)
             device: device to store tensors
             float_dtype: default float dtype for tensors (should match projected encoder output)
         """
@@ -102,7 +98,7 @@ class CTCDecoderCudaGraphsState:
         self.batch_size = batch_size
         self.max_time = max_time
 
-        self.frame_i = torch.tensor(0, dtype=torch.long, device=device)
+        self.frame_i = torch.tensor(0, dtype=torch.long, device=device) # current frame index for each utterance (used to check if the decoding is finished)
         self.decoding_active = torch.tensor(True, dtype=torch.bool, device=device)
 
         self.logits = torch.zeros(
@@ -133,50 +129,6 @@ class CTCDecoderCudaGraphsState:
             or self.max_time < logits.shape[1]
             or self.device.index != logits.device.index
         )
-
-
-if TRITON_AVAILABLE:
-    import triton
-    import triton.language as tl
-
-    from nemo.collections.asr.parts.submodules.ngram_lm_triton import _ngram_advance_triton_kernel_v2
-
-    @triton.jit
-    def _ctc_greedy_decode_lm_triton(
-        logits_ptr,
-        out_len_ptr,
-        vocab_size: "tl.constexpr",
-        states_ptr,
-        new_states_ptr,
-        scores_ptr,
-        start_state: int,
-        max_order: int,
-        backoff_to_states_ptr,
-        backoff_weights_ptr,
-        state_start_arcs_ptr,
-        state_end_arcs_ptr,
-        to_states_ptr,
-        ilabels_ptr,
-        arcs_weights_ptr,
-        BLOCK_SIZE: "tl.constexpr",
-    ):
-        _ngram_advance_triton_kernel_v2(
-            vocab_size=vocab_size,
-            states_ptr=states_ptr,
-            new_states_ptr=new_states_ptr,
-            scores_ptr=scores_ptr,
-            start_state=start_state,
-            max_order=max_order,
-            backoff_to_states_ptr=backoff_to_states_ptr,
-            backoff_weights_pt=backoff_weights_ptr,
-            state_start_arcs_ptr=state_start_arcs_ptr,
-            state_end_arcs_ptr=state_end_arcs_ptr,
-            to_states_ptr=to_states_ptr,
-            ilabels_ptr=ilabels_ptr,
-            arcs_weights_ptr=arcs_weights_ptr,
-            BLOCK_SIZE=BLOCK_SIZE,
-        )
-        ...
 
 
 def pack_hypotheses(
@@ -491,7 +443,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
     """
 
-    ngram_lm_batch: Optional[FastNGramLM]
+    ngram_lm_batch: Optional[NGramGPULanguageModel]
 
     @property
     def input_types(self):
@@ -532,7 +484,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # init ngram lm
         if ngram_lm_model is not None:
-            self.ngram_lm_batch = FastNGramLM.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id)
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
@@ -942,7 +894,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # This mimics the for loop in GreedyCTCInfer::forward.
         for i in range(batch_size):
-            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestep=[], last_token=None)
+            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
             hypothesis.score = scores[i]
 
             prediction_labels_no_padding = predictions_labels[i, : out_len[i]].tolist()
