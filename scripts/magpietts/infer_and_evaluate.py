@@ -17,6 +17,7 @@ import glob
 import json
 import os
 import shutil
+import time
 
 import scripts.magpietts.evalset_config as evalset_config
 import scripts.magpietts.evaluate_generated_audio as evaluate_generated_audio
@@ -187,23 +188,35 @@ def run_inference(
         print(f"Evaluating dataset {dataset}")
         metrics_n_repeated = []
         manifest_records = read_manifest(dataset_meta_info[dataset]['manifest_path'])
+        language = dataset_meta_info[dataset].get('whisper_language', 'en')
+        dataset_meta_for_dl = copy.deepcopy(dataset_meta_info[dataset])
+        for key in ["whisper_language", "load_cached_codes_if_available"]:
+            if key in dataset_meta_for_dl:
+                del dataset_meta_for_dl[key]
+
+        dataset_meta = {dataset: dataset_meta_for_dl}
+
+        eval_dir = os.path.join(out_dir, f"{checkpoint_name}_{dataset}")
+        audio_dir = os.path.join(eval_dir, "audio")
+        all_experiment_csv = os.path.join(eval_dir, "all_experiment_metrics.csv")
+        os.makedirs(eval_dir, exist_ok=True)
+
+        if not os.path.exists(all_experiment_csv):
+            with open(all_experiment_csv, "w") as f:
+                f.write(
+                    "checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n"
+                )
+
+        context_duration_min = model.cfg.get('context_duration_min', 5.0)
+        context_duration_max = model.cfg.get('context_duration_max', 5.0)
+        if context_duration_min < 5.0 and context_durration_max > 5.0:
+            context_duration_min = 5.0
+            context_duration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
+
         for repeat_idx in range(num_repeats):
-            eval_dir = os.path.join(out_dir, "{}_{}".format(checkpoint_name, dataset))
-            audio_dir = os.path.join(eval_dir, "audio")
             pred_audio_dir = os.path.join(audio_dir, f"repeat_{repeat_idx}")
             os.makedirs(pred_audio_dir, exist_ok=True)
-            language = dataset_meta_info[dataset].get('whisper_language', 'en')
-            dataset_meta_for_dl = copy.deepcopy(dataset_meta_info[dataset])
-            for key in ["whisper_language", "load_cached_codes_if_available"]:
-                if key in dataset_meta_for_dl:
-                    del dataset_meta_for_dl[key]
 
-            dataset_meta = {dataset: dataset_meta_for_dl}
-            context_durration_min = model.cfg.get('context_duration_min', 5.0)
-            context_durration_max = model.cfg.get('context_duration_max', 5.0)
-            if context_durration_min < 5.0 and context_durration_max > 5.0:
-                context_durration_min = 5.0
-                context_durration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
             test_dataset = MagpieTTSDataset(
                 dataset_meta=dataset_meta,
                 sample_rate=model.sample_rate,
@@ -224,10 +237,10 @@ def run_inference(
                 load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
                 use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
                 pad_context_text_to_max_duration=model.pad_context_text_to_max_duration,
-                context_duration_min=context_durration_min,
-                context_duration_max=context_durration_max,
+                context_duration_min=context_duration_min,
+                context_duration_max=context_duration_max,
             )
-            assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
+            assert len(test_dataset) == len(manifest_records), f"Dataset length and manifest length should be the same. Dataset length: {len(test_dataset)}, Manifest length: {len(manifest_records)}"
 
             test_dataset.text_tokenizer = model.tokenizer
             test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
@@ -237,24 +250,23 @@ def run_inference(
                 batch_size=batch_size,
                 collate_fn=test_dataset.collate_fn,
                 num_workers=2,
-                shuffle=False
+                shuffle=False,
             )
 
             item_idx = 0
             all_rtf_metrics = []
             codec_file_paths = []
             for bidx, batch in enumerate(test_data_loader):
-                print("Processing batch {} out of {} of dataset {}".format(bidx, len(test_data_loader), dataset))
-                batch_cuda ={}
+                print(f"Processing batch {bidx} out of {len(test_data_loader)} of dataset {dataset}")
+                batch_cuda = {}
                 for key in batch:
                     if isinstance(batch[key], torch.Tensor):
                         batch_cuda[key] = batch[key].cuda()
                     else:
                         batch_cuda[key] = batch[key]
 
-                import time
                 st = time.time()
-                predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics, cross_attention_maps, _  = model.infer_batch(
+                predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics, cross_attention_maps, _ = model.infer_batch(
                     batch_cuda,
                     max_decoder_steps=440,
                     temperature=temperature,
@@ -269,7 +281,7 @@ def run_inference(
                     apply_prior_to_layers=apply_prior_to_layers,
                     start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
                     use_local_transformer_for_inference=use_local_transformer,
-                    maskgit_n_steps=maskgit_n_steps
+                    maskgit_n_steps=maskgit_n_steps,
                 )
 
                 all_rtf_metrics.append(rtf_metrics)
@@ -322,13 +334,10 @@ def run_inference(
             with open(os.path.join(eval_dir, f"{dataset}_rtf_metrics_{repeat_idx}.json"), "w") as f:
                 json.dump(mean_rtf_metrics, f, indent=4)
 
-            all_experiment_csv = os.path.join(eval_dir, "all_experiment_metrics.csv")
-            if not os.path.exists(all_experiment_csv):
-                with open(all_experiment_csv, "w") as f:
-                    f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n")
             with open(all_experiment_csv, "a") as f:
                 f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']},{metrics['frechet_codec_distance']}\n")
                 print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
+
             # Clean up temporary codec files
             for codes_file in codec_file_paths:
                 os.remove(codes_file)
