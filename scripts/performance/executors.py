@@ -65,6 +65,7 @@ def slurm_executor(
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
     }
 
+    custom_bash_cmds = [] if custom_bash_cmds is None else custom_bash_cmds
     err_msgs = []
     mounts = []
     srun_args = custom_srun_args.copy() + ["--mpi=pmix"]
@@ -105,14 +106,12 @@ def slurm_executor(
                 break
 
     numa_divisor = 2 if gpu.lower() == 'gb200' else 4
-    if custom_bash_cmds is None:
-        custom_bash_cmds = []
     numa_cmd = f"numactl --cpunodebind=$((SLURM_LOCALID/{numa_divisor})) --membind=$((SLURM_LOCALID/{numa_divisor}))"
     custom_bash_cmds.append(numa_cmd)
 
     launcher = SlurmTemplate(
         template_inline=INLINE_TEMPLATE,
-        template_vars={"pre_cmds": " && ".join(custom_bash_cmds)},
+        template_vars={"pre_cmds": " ; ".join(custom_bash_cmds)},
     )
 
     executor = run.SlurmExecutor(
