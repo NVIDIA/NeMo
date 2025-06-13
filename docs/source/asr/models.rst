@@ -56,6 +56,27 @@ HuggingFace Spaces to try out Parakeet models in your browser:
 
 * `Parakeet-TDT-0.6B V2 <https://huggingface.co/spaces/nvidia/parakeet-tdt-0.6b-v2>`__ space
 
+.. _AED_model:
+
+AED
+---
+
+Attention-based Encoder-Decoder (AED) models in NeMo are based on Fast-conformer encoder and Transformer decoder. 
+
+Here is the overall architecture of the AED models in NeMo:
+
+    .. image:: images/aed_model.png
+        :align: center
+        :alt: AED Model
+        :scale: 50%
+
+The Multi-task AED model is implemented in the :class:`~nemo.collections.asr.models.EncDecMultiTaskModel` class. 
+The model uses an aggregate tokenizer system with special tokens to control different tasks (ASR and translation) and languages during inference. 
+You can find the example config file for the Multi-task AED model at ``<NeMo_git_root>/examples/asr/conf/speech_multitask/fast-conformer_aed.yaml``. 
+For more details about tokenizer configuration, refer to the `Tokenizer Configurations <./configs.html#_canary_tokenizer_config>`_ section. 
+Example launch script for Multi-task AED model can be found at ``<NeMo_git_root>/examples/asr/speech_multitask/speech_to_text_aed.py``.
+
+
 .. _Conformer_model:
 
 Conformer

@@ -540,6 +540,7 @@ An example using an AIS cluster at ``hostname:port`` with a tarred dataset for t
 
 .. _Hybrid-ASR-TTS_model__Text-Only-Data:
 
+.. _lhotse_dataloading:
 
 Lhotse Dataloading
 ------------------
