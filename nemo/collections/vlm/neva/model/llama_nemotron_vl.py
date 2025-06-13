@@ -480,7 +480,6 @@ class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrai
 def _import_vision_qkv(ctx: io.TransformCTX, qkv):
     vision_config = ctx.target.config.vision_transformer_config
 
-    head_num = vision_config.num_attention_heads
     num_query_groups = vision_config.num_query_groups
     head_size = vision_config.kv_channels
     hidden_size = vision_config.hidden_size

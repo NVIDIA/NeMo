@@ -64,7 +64,6 @@ def main(args):
     max_steps = args.max_steps
 
     decoder_seq_length = 16384
-    recompute_num_layers = 0 if args.peft == "lora" else 20
 
     # Submodules configurations
     language_transformer_config = llm.Llama31Config8B(
@@ -95,6 +94,11 @@ def main(args):
         freeze_vision_model=False,
         freeze_vision_projection=False,
     )
+    if args.use_toy_model:
+        decoder_seq_length = 4096
+        llama_nemotron_nano_vl_config.vision_transformer_config.num_layers = 2
+        llama_nemotron_nano_vl_config.language_transformer_config.num_layers = 2
+
     num_image_embeddings_per_tile = (
         vision_transformer_config.num_image_embeddings_per_tile
         - vision_transformer_config.class_token_len * llama_nemotron_nano_vl_config.drop_vision_class_token
@@ -354,6 +358,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_packed_sequence",
         action="store_true",
+    )
+    parser.add_argument(
+        "--use_toy_model",
+        action="store_true",
+        help="Toy size model used for testing",
     )
     args = parser.parse_args()
     main(args)

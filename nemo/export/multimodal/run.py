@@ -747,8 +747,6 @@ class MultimodalModelRunner:
             area = width * height
             for ratio in target_ratios:
                 target_aspect_ratio = ratio[0] / ratio[1]
-                ratio_diff = abs(aspect_ratio - target_aspect_ratio)
-                area_ratio = (ratio[0] * ratio[1] * image_size * image_size) / area
                 factor_based_on_area_n_ratio = min((ratio[0] * ratio[1] * image_size * image_size) / area, 0.6) * min(
                     target_aspect_ratio / aspect_ratio, aspect_ratio / target_aspect_ratio
                 )

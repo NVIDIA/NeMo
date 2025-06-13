@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -24,19 +24,15 @@ from nemo.collections.vlm.vision.layer_scaling import LayerScalingTransformerLay
 
 try:
     from megatron.core.extensions.transformer_engine import (
-        TEColumnParallelLinear,
         TEDotProductAttention,
         TELayerNormColumnParallelLinear,
-        TENorm,
         TERowParallelLinear,
     )
 except ImportError:
     from nemo.utils import logging
 
     # These Defaults are needed to make sure the code compiles
-    TEColumnParallelLinear = None
     TEDotProductAttention = object
-    TENorm = None
     TERowParallelLinear = None
     TELayerNormColumnParallelLinear = None
 
@@ -51,7 +47,7 @@ from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 
 from nemo.collections.llm.fn.activation import openai_gelu
 from nemo.collections.vlm.vision.base import CLIPViTConfig
