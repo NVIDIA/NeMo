@@ -99,7 +99,9 @@ class CTCDecoderCudaGraphsState:
         self.batch_size = batch_size
         self.max_time = max_time
 
-        self.frame_idx = torch.tensor(0, dtype=torch.long, device=device) # current frame index for each utterance (used to check if the decoding is finished)
+        self.frame_idx = torch.tensor(
+            0, dtype=torch.long, device=device
+        )  # current frame index for each utterance (used to check if the decoding is finished)
         self.active_mask = torch.tensor(True, dtype=torch.bool, device=device)
 
         self.decoder_outputs = torch.zeros(
@@ -445,7 +447,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
     """
 
     ngram_lm_batch: Optional[NGramGPULanguageModel]
-    
+
     class CudaGraphsMode(PrettyStrEnum):
         FULL_GRAPH = "full_graph"  # Cuda graphs with conditional nodes, fastest implementation
         NO_WHILE_LOOPS = "no_while_loops"  # Decoding with PyTorch while loops + partial Cuda graphs
@@ -494,7 +496,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             self.allow_cuda_graphs = allow_cuda_graphs
             self.cuda_graphs_mode = None
             self.maybe_enable_cuda_graphs()
-            
+
             self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id)
             self.ngram_lm_alpha = ngram_lm_alpha
             self.state: CTCDecoderCudaGraphsState | None = None
@@ -553,7 +555,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         max_time = x.shape[1]
 
         predictions = x
-        
+
         if self.ngram_lm_batch is None:
             # In CTC greedy decoding, each output maximum likelihood token
             # is calculated independent of the other tokens.
@@ -569,7 +571,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
                 predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_torch(
                     logits=x, out_len=out_len
                 )
-        
+
         # Since predictions_logprobs is a padded matrix in the time
         # dimension, we consider invalid timesteps to be "blank".
         time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
@@ -579,7 +581,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         # Temporal Classification: Labelling Unsegmented Sequence Data
         # with Recurrent Neural Networks".
         scores = torch.where(non_blank_ids_mask, predictions_logprobs, 0.0).sum(axis=1)
-        
+
         scores = scores.cpu()
         predictions_labels = predictions_labels.cpu()
         out_len = out_len.cpu()
@@ -666,7 +668,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         device = logits.device
         float_dtype = logits.dtype
         batch_indices = torch.arange(batch_size, device=device, dtype=torch.long)
-        
+
         # Step 1: Initialization
         batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
         last_labels = torch.full([batch_size], fill_value=self.blank_id, device=device, dtype=torch.long)
@@ -678,12 +680,12 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             # Step 2: Get most likely labels for current frame
             log_probs, labels = logits[:, i].max(dim=-1)
             log_probs_w_lm = logits[:, i].clone()
-            
+
             # Step 3: Get LM scores
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
             lm_scores = lm_scores.to(dtype=float_dtype)
             log_probs_w_lm[:, :-1] += self.ngram_lm_alpha * lm_scores
-            
+
             # Step 4: Get most likely labels with LM scores. Labels that are blank or repeated are ignored.
             # Note: no need to mask blank labels log_probs_w_lm[:, -1] = NEG_INF, as argmax is without blanks
             # Note: for efficiency, use scatter instead of log_probs_w_lm[batch_indices, last_labels] = NEG_INF
@@ -694,7 +696,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             blank_or_repeated = (labels == self.blank_id) | (labels == last_labels)
             torch.where(blank_or_repeated, labels, labels_w_lm, out=labels)
             torch.where(blank_or_repeated, log_probs, log_probs_w_lm, out=log_probs_w_lm)
-            
+
             # Step 6: Update LM states and scores for non-blank and non-repeated labels
             torch.where(
                 blank_or_repeated,
@@ -702,11 +704,11 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
                 batch_lm_states_candidates[batch_indices, labels * ~blank_or_repeated],
                 out=batch_lm_states,
             )
-            
+
             predictions_labels[:, i] = labels
             predictions_logprobs[:, i] = log_probs_w_lm
             last_labels = labels
-        
+
         return predictions_labels, predictions_logprobs
 
     @torch.no_grad()
@@ -734,14 +736,12 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         logits = self.state.decoder_outputs[:, self.state.frame_idx.unsqueeze(0)].squeeze(1)
         log_probs, labels = logits.max(dim=-1)
         log_probs_w_lm = logits.clone()
-    
+
         # Step 3: Get LM scores
-        lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
-            states=self.state.batch_lm_states
-        )
-        lm_scores = lm_scores.to(dtype=self.state.float_dtype)       
+        lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=self.state.batch_lm_states)
+        lm_scores = lm_scores.to(dtype=self.state.float_dtype)
         log_probs_w_lm[:, :-1] += self.ngram_lm_alpha * lm_scores
-        
+
         # Step 4: Get most likely labels with LM scores. Labels that are blank or repeated are ignored.
         # Note: no need to mask blank labels log_probs_w_lm[:, -1] = NEG_INF, as argmax is without blanks
         # Note: for efficiency, use scatter instead of log_probs_w_lm[batch_indices, last_labels] = NEG_INF
@@ -753,10 +753,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         torch.where(blank_or_repeated, labels, labels_w_lm, out=labels)
         torch.where(blank_or_repeated, log_probs, log_probs_w_lm, out=log_probs_w_lm)
 
-        self.state.predictions_labels[:, self.state.frame_idx.unsqueeze(0)] = \
-            labels.unsqueeze(-1)    
-        self.state.predictions_logprobs[:, self.state.frame_idx.unsqueeze(0)] = \
-            log_probs_w_lm.unsqueeze(-1)    
+        self.state.predictions_labels[:, self.state.frame_idx.unsqueeze(0)] = labels.unsqueeze(-1)
+        self.state.predictions_logprobs[:, self.state.frame_idx.unsqueeze(0)] = log_probs_w_lm.unsqueeze(-1)
 
         # Step 6: Update LM states and scores for non-blank and non-repeated labels
         torch.where(
@@ -768,9 +766,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         self.state.last_labels.copy_(labels)
         self.state.frame_idx += 1
-        self.state.active_mask.copy_(
-            (self.state.decoder_lengths > self.state.frame_idx).any()
-        )
+        self.state.active_mask.copy_((self.state.decoder_lengths > self.state.frame_idx).any())
 
     @classmethod
     def _create_while_loop_kernel(cls):
@@ -808,16 +804,12 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             with (
                 torch.cuda.stream(stream_for_graph),
                 torch.inference_mode(),
-                torch.cuda.graph(
-                    self.state.full_graph, stream=stream_for_graph, capture_error_mode="thread_local"
-                ),
+                torch.cuda.graph(self.state.full_graph, stream=stream_for_graph, capture_error_mode="thread_local"),
             ):
                 self._before_loop()
 
                 capture_status, _, graph, _, _ = cu_call(
-                    cudart.cudaStreamGetCaptureInfo(
-                        torch.cuda.current_stream(device=self.state.device).cuda_stream
-                    )
+                    cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.state.device).cuda_stream)
                 )
                 assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
 
@@ -886,7 +878,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         self.state.decoder_lengths[: logits.shape[0]].copy_(out_len)
         # set length to zero for elements outside the current batch
         self.state.decoder_lengths[current_batch_size:].fill_(0)
-        
+
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self.state.full_graph.replay()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
@@ -901,7 +893,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
                 self._inner_loop()
         else:
             raise NotImplementedError(f"Unknown graph mode: {self.cuda_graphs_mode}")
-        
+
         return (
             self.state.predictions_labels[:current_batch_size, :current_max_time].clone(),
             self.state.predictions_logprobs[:current_batch_size, :current_max_time].clone(),
