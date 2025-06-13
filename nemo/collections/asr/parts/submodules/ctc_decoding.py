@@ -299,6 +299,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 confidence_method_cfg=self.confidence_method_cfg,
                 ngram_lm_model=self.cfg.greedy.get("ngram_lm_model", None),
                 ngram_lm_alpha=self.cfg.greedy.get("ngram_lm_alpha", 0.0),
+                allow_cuda_graphs=self.cfg.greedy.get("allow_cuda_graphs", True),
             )
 
         elif self.cfg.strategy == 'beam':
