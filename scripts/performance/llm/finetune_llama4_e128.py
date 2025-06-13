@@ -43,6 +43,7 @@ HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 # downloaded from HuggingFace
 SKIP_IMPORT = True
 
+
 def override_recipe_configs(
     args: str,
     num_nodes: int,
@@ -96,9 +97,15 @@ def override_recipe_configs(
     )
 
     recipe = set_exp_logging_configs(
-        recipe, finetuning_scheme, "llm", "llama4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        finetuning_scheme,
+        "llm",
+        "llama4",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
-
 
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
@@ -117,6 +124,7 @@ def override_recipe_configs(
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
     return recipe
+
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
