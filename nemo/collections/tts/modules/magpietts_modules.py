@@ -126,7 +126,8 @@ class CharAwareSubwordEncoder(NeuralModule):
             d_ffn=d_embed * 4,
             sa_n_heads=8,
             kernel_size=1,
-            max_length_causal_mask=256
+            max_length_causal_mask=256,
+            use_learnable_pos_emb=True
         )
 
     @property
