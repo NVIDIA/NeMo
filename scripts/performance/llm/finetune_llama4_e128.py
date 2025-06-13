@@ -15,9 +15,10 @@
 from os.path import basename, splitext
 
 import nemo_run as run
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
@@ -28,10 +29,10 @@ from ..utils import (
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
+    prepare_squad_dataset_experiment,
     set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
-    prepare_squad_dataset_experiment,
 )
 
 HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
