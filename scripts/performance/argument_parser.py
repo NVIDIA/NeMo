@@ -345,6 +345,13 @@ def parse_cli_args():
         return arg.split(',')
 
     parser.add_argument(
+        "--high_priority_stream_groups",
+        type=list_of_strings,
+        help="Comma separated string of high priority stream group (e.g., dp_cp,ep_dp,cp). Defaults to None",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "-rm",
         "--recompute_modules",
         nargs="*",
