@@ -573,6 +573,8 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         This method ensures the model is instantiated from the configuration.
         """
+        from nemo.collections.llm.modelopt.model_utils import restore_modelopt_state
+
         if not hasattr(self, "module"):
             with contextlib.ExitStack() as stack:
                 # Apply requested context managers for this block
@@ -580,6 +582,12 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
                     stack.enter_context(cm)
 
                 self.module = self.config.configure_model(self.tokenizer, vp_stage=vp_stage)
+
+            # Restore ModelOpt state if it exists.
+            # NOTE: Also called in MegatronStrategy.load_checkpoint but we do it for GPTModel here first,
+            # for transformations which add new parameters to the model that need to be included in the optimizer.
+            # TODO: Add to other models when needed.
+            restore_modelopt_state(self.module, trainer=self._trainer)  # `self.trainer` throws exception if not set
 
     def forward(
         self,
