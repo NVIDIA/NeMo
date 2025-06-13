@@ -15,9 +15,10 @@
 from os.path import basename, splitext
 
 import nemo_run as run
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
@@ -28,10 +29,10 @@ from ..utils import (
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
+    prepare_squad_dataset_experiment,
     set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
-    prepare_squad_dataset_experiment,
 )
 
 HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
@@ -41,6 +42,7 @@ HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
 SKIP_IMPORT = True
+
 
 def override_recipe_configs(
     args: str,
@@ -95,9 +97,15 @@ def override_recipe_configs(
     )
 
     recipe = set_exp_logging_configs(
-        recipe, finetuning_scheme, "llm", "llama4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        finetuning_scheme,
+        "llm",
+        "llama4",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
-
 
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
@@ -116,6 +124,7 @@ def override_recipe_configs(
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
     return recipe
+
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
