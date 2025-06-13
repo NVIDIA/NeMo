@@ -4,18 +4,16 @@ OneLogger callback for NeMo training.
 This module provides a callback that integrates OneLogger telemetry with NeMo training.
 """
 
-from typing import Any, Dict, Optional, List, Type
-
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback
-from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.plugins.io import AsyncCheckpointIO
+import functools
+import logging
+from typing import Any, Dict, List, Optional, Type
 
 import nv_one_logger.training_telemetry.api.callbacks as CB
-
+import pytorch_lightning as pl
 import torch
-import logging
-import functools
+from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.plugins.io import AsyncCheckpointIO
+from pytorch_lightning.utilities import rank_zero_only
 
 
 class OneLoggerNeMoCallback(Callback):
@@ -62,7 +60,7 @@ class OneLoggerNeMoCallback(Callback):
 
     def __getattr__(self, name: str) -> Any:
         """Automatically forward any undefined method calls to the OneLogger v2 callbacks mainly for non-trainer methods.
-        
+
         This eliminates the need for manually writing pass-through methods for each OneLogger API.
         Only methods that need custom logic (like those interacting with the trainer) need to be
         explicitly defined in this class.
@@ -78,39 +76,32 @@ class OneLoggerNeMoCallback(Callback):
         if hasattr(CB, name):
             # Get the original method
             original_method = getattr(CB, name)
-            
+
             # Create a wrapper that adds rank_zero_only decorator
             @functools.wraps(original_method)
             def wrapper(*args, **kwargs):
                 return rank_zero_only(original_method)(*args, **kwargs)
-            
+
             return wrapper
 
         # If not found, raise AttributeError as normal
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
     @rank_zero_only
-    def on_train_start(self, trainer: Trainer,
-                       pl_module: LightningModule) -> None:
+    def on_train_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called when training begins."""
         # Extract necessary information from the trainer
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
 
-        CB.on_train_start(
-            train_iterations_start=current_step,
-            train_iterations_target_or_fn=max_steps
-        )
+        CB.on_train_start(train_iterations_start=current_step, train_iterations_target_or_fn=max_steps)
 
     @rank_zero_only
-    def on_train_end(self, trainer: Trainer,
-                     pl_module: LightningModule) -> None:
+    def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         CB.on_train_end()
 
     @rank_zero_only
-    def on_train_batch_start(self, trainer: Trainer,
-                             pl_module: LightningModule, batch: Any,
-                             batch_idx: int) -> None:
+    def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
         CB.on_training_single_iteration_start()
 
     @rank_zero_only
@@ -125,13 +116,11 @@ class OneLoggerNeMoCallback(Callback):
         CB.on_training_single_iteration_end()
 
     @rank_zero_only
-    def on_validation_start(self, trainer: Trainer,
-                            pl_module: LightningModule) -> None:
+    def on_validation_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         CB.on_validation_start()
 
     @rank_zero_only
-    def on_validation_end(self, trainer: Trainer,
-                          pl_module: LightningModule) -> None:
+    def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         CB.on_validation_end()
 
     @rank_zero_only
