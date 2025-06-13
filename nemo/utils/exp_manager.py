@@ -26,6 +26,7 @@ from datetime import timedelta
 from pathlib import Path
 from shutil import copy, move
 from typing import Any, Collection, Dict, List, Optional, Tuple, Union
+import uuid
 
 import lightning.pytorch
 import torch
@@ -250,7 +251,7 @@ class ExpManagerConfig:
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
-    # disable initial validation when resuming from a checkpoint saved during validation
+    # disable initial validation when resuming from a checkpoint
     disable_validation_on_resume: Optional[bool] = True
     ema: Optional[EMAParams] = field(default_factory=lambda: EMAParams())
     # Wall clock time limit
@@ -441,24 +442,85 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
-def configure_onelogger(trainer: 'lightning.pytorch.Trainer', cfg: Union[DictConfig, Dict]) -> None:
-    """Configure OneLogger callback using MetaInfoManager.
+def configure_onelogger(cfg: OmegaConf, trainer: Optional[pl.Trainer] = None) -> None:
+    """Configure OneLogger v2 callback with training telemetry and exporters.
 
     Args:
-        trainer: The lightning trainer
-        cfg: Configuration object containing metadata
+        cfg: The configuration object
+        trainer: Optional trainer instance for checkpoint configuration
     """
     try:
-        from nemo.lightning import OneLoggerNeMoCallback
-        from nemo.utils.callback_group import init_global_callback_group
-        from nemo.utils.meta_info_manager import MetaInfoManager
+        from nv_one_logger.training_telemetry.api.config import ApplicationType, TrainingTelemetryConfig
+        from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
+        from nv_one_logger.exporter.wandb_exporter import WandbExporter
+        from pytorch_lightning.plugins.io import AsyncCheckpointIO
+        from nv_one_logger.training_telemetry.api.checkpoint import CheckPointStrategy
 
-        one_logger_cb = OneLoggerNeMoCallback(callback_config=MetaInfoManager(cfg).get_metadata())
-        init_global_callback_group(callbacks=[one_logger_cb])
-        trainer.callbacks.append(one_logger_cb)
-        logging.info("OneLogger callback has been set up")
+        # Extract metadata from config
+        metadata = MetaInfoManager(cfg).get_metadata()
+
+        # Configure training telemetry
+        world_size = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+        config = TrainingTelemetryConfig(
+            world_size_or_fn=world_size,
+            application_name=metadata.get("app_name", ""),
+            app_type_or_fn=ApplicationType.TRAINING,
+            is_baseline_run_or_fn=False,
+            perf_tag_or_fn=metadata.get("perf_tag", ""),
+            session_tag_or_fn=metadata.get("session_tag", ""),
+            global_batch_size_or_fn=metadata.get("global_batch_size", 0),
+            log_every_n_train_iterations=cfg.get("log_interval", 1),
+        )
+        config.validate_config()
+
+        # Setup exporters
+        # TODO: This is nvidia internal code, we need to remove it. Added here only for testing
+        exporters = []
+        
+        # Add wandb exporter
+        wandb_config = cfg.get("wandb_logger_kwargs", {})
+        if not wandb_config:
+            logging.warning("No wandb_logger_kwargs provided, using defaults")
+            wandb_config = {}
+        
+        # Set default wandb configuration
+        wandb_config.setdefault("host", "https://api.wandb.ai")
+        wandb_config.setdefault("api_key", os.environ.get("WANDB_API_KEY", ""))
+        wandb_config.setdefault("entity", "hwinf_dcm")  # Default entity from v1
+        wandb_config.setdefault("project", metadata.get("app_name", "e2e-tracking"))
+        wandb_config.setdefault("name", metadata.get("session_tag", f"e2e-tracking-run-{uuid.uuid4()}"))
+        wandb_config.setdefault("save_dir", "./wandb")
+        wandb_config.setdefault("tags", ["e2e_metrics_testing"])
+        
+        # Create wandb exporter with configuration
+        wandbEx = WandbExporter(
+            host=wandb_config["host"],
+            api_key=wandb_config["api_key"],
+            entity=wandb_config["entity"],
+            project=wandb_config["project"],
+            name=wandb_config["name"],
+            save_dir=wandb_config["save_dir"],
+            tags=wandb_config["tags"],
+            config=wandb_config.get("config", {}),
+        )
+        wandbEx.initialize()
+        exporters.append(wandbEx)
+        # TODO: End of nvidia internal code
+
+        # Configure checkpoint strategy
+        if trainer is not None:
+            if isinstance(trainer.strategy.checkpoint_io, AsyncCheckpointIO):
+                config.save_checkpoint_strategy = CheckPointStrategy.ASYNC
+            else:
+                config.save_checkpoint_strategy = CheckPointStrategy.SYNC
+
+        # Configure the provider
+        TrainingTelemetryProvider.instance().configure(config, exporters)
+
+        logging.info("OneLogger v2 callback configured with training telemetry and wandb exporter")
+
     except ImportError:
-        logging.warning("OneLogger dependencies not found. Skipping OneLogger setup.")
+        logging.warning("OneLogger v2 not available, skipping configuration")
 
 
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
@@ -707,7 +769,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         )
 
     # Configure OneLogger callback
-    configure_onelogger(trainer, cfg)
+    configure_onelogger(cfg, trainer)
 
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:
