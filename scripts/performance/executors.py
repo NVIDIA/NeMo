@@ -25,14 +25,14 @@ from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
 PERF_ENV_VARS = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
-        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
-        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
-        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
-        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
-        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
-        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
-    }
+    "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+    "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+    "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+    "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+    "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+    "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+    "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
+}
 INLINE_TEMPLATE = r"""
 #!/usr/bin/env bash
 set -euo pipefail
@@ -105,7 +105,7 @@ def slurm_executor(
             if nodes % segment_candidate == 0:
                 segment = segment_candidate
                 break
-    
+
     numa_divisor = 2 if gpu.lower() == 'gb200' else 4
     numa_cmd = f"numactl --cpunodebind=$((SLURM_LOCALID/{numa_divisor})) --membind=$((SLURM_LOCALID/{numa_divisor}))"
     custom_bash_cmds.append(numa_cmd)
