@@ -13,6 +13,7 @@
 # limitations under the License.
 import importlib
 import json
+import multiprocessing
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -28,7 +29,12 @@ from typing_extensions import Annotated
 
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
-from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
+from nemo.collections.llm.evaluation.api import (
+    AdapterConfig,
+    EvaluationConfig,
+    EvaluationTarget,
+    MisconfigurationError,
+)
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -379,6 +385,7 @@ def distill(
     teacher_model_path: AnyPath,
     data: pl.LightningDataModule,
     trainer: Trainer,
+    distillation_config_path: Optional[AnyPath] = None,
     log: Annotated[Optional[NeMoLogger], run.Config[NeMoLogger]] = None,
     resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
@@ -397,6 +404,8 @@ def distill(
         teacher_model_path (Path): Path to teacher model NeMo checkpoint to distill from.
         data (pl.LightningDataModule): The data module containing training data.
         trainer (Trainer): The trainer instance configured with a MegatronStrategy.
+        distillation_config_path (Optional[Path]): Path to distillation config YAML file.
+            If not provided, by default will perform logits-only distillation.
         log (NeMoLogger): A nemologger instance.
         resume (Optional[Union[AutoResume, Resume]]): Resume training from a checkpoint.
         optim (Optional[OptimizerModule]): The optimizer module to be used. If not provided, the default optimizer
@@ -435,6 +444,7 @@ def distill(
         _student_model.config,
         _teacher_model.config,
         teacher_ckpt_path=teacher_model_path,
+        distillation_config_path=distillation_config_path,
     )
     model.__io__ = _student_model.__io__
 
@@ -590,6 +600,7 @@ def deploy(
     output_context_logits: bool = True,
     output_generation_logits: bool = True,
     enable_flash_decode: bool = True,
+    legacy_ckpt: bool = False,
 ):
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
@@ -636,6 +647,7 @@ def deploy(
             benchmarks (like MMLU, lambada). Default: True. Used only with "trtllm" backend.
         enable_flash_decode (bool): If True runs in-framework deployment with flash decode enabled (not supported for
             the trtllm backend).
+        legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False
     """
     import os
 
@@ -675,6 +687,7 @@ def deploy(
             inference_max_seq_length=max_input_len,
             enable_flash_decode=enable_flash_decode,
             max_batch_size=max_batch_size,
+            legacy_ckpt=legacy_ckpt,
         )
 
         if torch.distributed.is_initialized():
@@ -775,6 +788,7 @@ def deploy(
 def evaluate(
     target_cfg: EvaluationTarget,
     eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
+    adapter_cfg: AdapterConfig | None = None,
 ) -> dict:
     """
     Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval
@@ -783,6 +797,8 @@ def evaluate(
         target_cfg (EvaluationTarget): target of the evaluation. Providing model_id and
             url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
+        adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.
+            Default: None.
     """
     from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
@@ -795,6 +811,9 @@ def evaluate(
     eval_type_components = eval_cfg.type.split(".")
     if len(eval_type_components) == 2:
         framework_name, task_name = eval_type_components
+        # evaluation package expect framework name to be hyphenated
+        framework_name = framework_name.replace("_", "-")
+        eval_cfg.type = f"{framework_name}.{task_name}"
     elif len(eval_type_components) == 1:
         framework_name, task_name = None, eval_type_components[0]
     else:
@@ -805,7 +824,7 @@ def evaluate(
     if framework_name is None:
         framework_module_name = find_framework(task_name)
     else:
-        framework_module_name = f"core_evals.{framework_name}"
+        framework_module_name = f"core_evals.{framework_name.replace('-', '_')}"
     try:
         evaluate = importlib.import_module(".evaluate", package=framework_module_name)
     except ImportError:
@@ -819,11 +838,27 @@ def evaluate(
     if not server_ready:
         raise RuntimeError("Server not ready for evaluation")
 
-    results = evaluate.evaluate_accuracy(
-        target_cfg=target_cfg,
-        eval_cfg=eval_cfg,
-    )
-    results_dict = results.model_dump()
+    # NOTE(agronskiy): START of the adapter hook
+    p: multiprocessing.Process | None = None
+    if adapter_cfg:
+        from nemo.collections.llm.evaluation.adapters.server import create_server_process
+
+        p, adapter_cfg = create_server_process(adapter_cfg)
+        # This will be unhooked below
+        target_cfg.api_endpoint.url = f"http://localhost:{adapter_cfg.local_port}"
+
+    try:
+        results = evaluate.evaluate_accuracy(
+            target_cfg=target_cfg,
+            eval_cfg=eval_cfg,
+        )
+        results_dict = results.model_dump()
+    finally:
+        if adapter_cfg and p is not None and p.is_alive():
+            # TODO(agronskiy): if the url is logged in results_dict, get it back to the adapter.api_url
+            target_cfg.api_endpoint.url = adapter_cfg.api_url
+            p.terminate()
+    # NOTE(agronskiy): END of the adapter hook
 
     logging.info("========== RESULTS ==========")
     logging.info(yaml.dump(results_dict))
@@ -849,13 +884,13 @@ def import_ckpt(
     CLI Usage:
     ```bash
     # Import Llama 3 8B from HuggingFace (saves to $NEMO_MODELS_CACHE)
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B"
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B"
 
     # Import with custom output path
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B" output_path="/path/to/save"
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B" output_path="/path/to/save"
 
     # Force overwrite existing checkpoint
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B" overwrite=true
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B" overwrite=true
     ```
 
     Python Usage:
@@ -941,13 +976,13 @@ def export_ckpt(
     CLI Usage:
     ```bash
     # Export model to HuggingFace format (saves to {checkpoint_path}/hf/)
-    nemo llm export /path/to/model.nemo target="hf"
+    nemo llm export path=/path/to/model.nemo target="hf"
 
     # Export with custom output path
-    nemo llm export /path/to/model.nemo target="hf" output_path="/path/to/save"
+    nemo llm export path=/path/to/model.nemo target="hf" output_path="/path/to/save"
 
     # Force overwrite existing export
-    nemo llm export /path/to/model.nemo target="hf" overwrite=true
+    nemo llm export path=/path/to/model.nemo target="hf" overwrite=true
     ```
 
     Python Usage:
@@ -1109,12 +1144,15 @@ def generate(
     inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max_seq_length
     inference_wrapped_model.inference_context.max_sequence_length = max_seq_length
 
-    dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
-    dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
-    chunk_size = (len(inputs) + dp_size - 1) // dp_size
-    start_idx = dp_rank * chunk_size
-    end_idx = min(start_idx + chunk_size, len(inputs))
-    inputs_on_this_dp_rank = inputs[start_idx:end_idx]
+    if trainer.strategy.expert_model_parallel_size > 1:
+        inputs_on_this_dp_rank = inputs
+    else:
+        dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
+        dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
+        chunk_size = (len(inputs) + dp_size - 1) // dp_size
+        start_idx = dp_rank * chunk_size
+        end_idx = min(start_idx + chunk_size, len(inputs))
+        inputs_on_this_dp_rank = inputs[start_idx:end_idx]
 
     results_on_this_dp_rank = inference.generate(
         model=inference_wrapped_model,
@@ -1126,16 +1164,20 @@ def generate(
         random_seed=random_seed,
         inference_params=inference_params,
     )
-    gathered_results = [None] * dp_size
 
-    all_gather_object(
-        gathered_results,
-        [r.generated_text if text_only else r for r in results_on_this_dp_rank],
-        group=parallel_state.get_data_parallel_group(),
-    )
-    gathered_results = [result for sublist in gathered_results for result in sublist]
+    if trainer.strategy.expert_model_parallel_size > 1:
+        gathered_results = results_on_this_dp_rank
+    else:
+        gathered_results = [None] * dp_size
 
-    assert len(gathered_results) == len(inputs)
+        all_gather_object(
+            gathered_results,
+            [r.generated_text if text_only else r for r in results_on_this_dp_rank],
+            group=parallel_state.get_data_parallel_group(),
+        )
+        gathered_results = [result for sublist in gathered_results for result in sublist]
+
+        assert len(gathered_results) == len(inputs)
 
     if output_path is not None and is_global_rank_zero():
         with open(output_path, "w") as f:

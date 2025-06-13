@@ -24,7 +24,13 @@ from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
 
 
-def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int):
+def tokenize_dataset(
+    path: Path,
+    tokenizer: TokenizerSpec,
+    max_seq_length: int,
+    seed: int,
+    dataset_kwargs: Optional[dict],
+):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
     and prepares it for further processing.
@@ -38,12 +44,27 @@ def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, 
     Returns:
         np.ndarray: A NumPy array containing the tokenized data.
     """
+
+    if not dataset_kwargs:
+        dataset_kwargs = {}
+
+    ts = dataset_kwargs.get("tool_schemas")
+    if ts and not isinstance(ts, str):
+        dataset_kwargs["tool_schemas"] = json.dumps(ts)
+
+    chat_template = dataset_kwargs.pop("chat_template", None)
+    if chat_template:
+        # Needs to be called after the trainer has started and populated the tokenizer
+        # But it can't be in prepare_data because it is only called in Rank 0
+        tokenizer.tokenizer.chat_template = chat_template
+
     dataset = create_sft_dataset(
         path=path,
         tokenizer=tokenizer,
         seq_length=max_seq_length,
         seed=seed,
         is_test=True,
+        **dataset_kwargs,
     )
     return np.array([dataset[i] for i in range(len(dataset))])
 
@@ -57,6 +78,7 @@ def prepare_packed_sequence_data(
     max_seq_length: int,
     seed: Optional[int] = 0,
     packing_algorithm: str = "first_fit_shuffle",
+    dataset_kwargs: dict = None,
 ):
     """
     Prepares a packed sequence dataset from a given input file and saves it to an output file.
@@ -76,7 +98,7 @@ def prepare_packed_sequence_data(
     """
 
     logging.info(f"Preparing packed sequence from {input_path}")
-    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed)
+    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed, dataset_kwargs)
     sequences, histogram = create_hist(dataset, max_seq_length)
 
     assignments, packing_metadata = create_packing_strategy(histogram, packed_sequence_size, packing_algorithm)
@@ -109,11 +131,14 @@ def prepare_packed_sequence_data(
 
 @dataclass
 class PackedSequenceSpecs:
+    """Defines the packed sequence specifications used for generating a packed dataset."""
+
     packed_sequence_size: int = -1
     """
     If a positive integer, this arg enables training with sequence packing and specifies the pack size
     If less than or equal to 0, sequence packing is disabled. Defaults to -1.
-    Note: This arg is distinct from `seq_length` because `seq_length` specifies the maximum length of the original sequence
+    Note: This arg is distinct from `seq_length` because `seq_length` specifies the maximum
+        length of the original sequence
     (i.e. the length to truncate long sequences in the input data).
     """
 
