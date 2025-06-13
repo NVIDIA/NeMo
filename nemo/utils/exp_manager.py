@@ -474,7 +474,6 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[pl.Trainer] = None) ->
         config.validate_config()
 
         # Setup exporters
-        # TODO: This is nvidia internal code, we need to remove it. Added here only for testing
         exporters = []
         
         # Add wandb exporter
@@ -484,13 +483,13 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[pl.Trainer] = None) ->
             wandb_config = {}
         
         # Set default wandb configuration
-        wandb_config.setdefault("host", "https://api.wandb.ai")
+        wandb_config.setdefault("host", os.environ.get("WANDB_HOST", ""))
         wandb_config.setdefault("api_key", os.environ.get("WANDB_API_KEY", ""))
-        wandb_config.setdefault("entity", "hwinf_dcm")  # Default entity from v1
+        wandb_config.setdefault("entity", os.environ.get("WANDB_ENTITY", ""))  # Default entity from v1
         wandb_config.setdefault("project", metadata.get("app_name", "e2e-tracking"))
         wandb_config.setdefault("name", metadata.get("session_tag", f"e2e-tracking-run-{uuid.uuid4()}"))
-        wandb_config.setdefault("save_dir", "./wandb")
-        wandb_config.setdefault("tags", ["e2e_metrics_testing"])
+        wandb_config.setdefault("save_dir", os.environ.get("WANDB_SAVE_DIR", "./wandb"))
+        wandb_config.setdefault("tags", [os.environ.get("WANDB_TAGS", "")])
         
         # Create wandb exporter with configuration
         wandbEx = WandbExporter(
@@ -505,7 +504,6 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[pl.Trainer] = None) ->
         )
         wandbEx.initialize()
         exporters.append(wandbEx)
-        # TODO: End of nvidia internal code
 
         # Configure checkpoint strategy
         if trainer is not None:
