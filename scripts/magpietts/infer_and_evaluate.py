@@ -164,7 +164,6 @@ def run_inference(
     model.cuda()
     model.eval()
 
-    checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps{}_sv_{}".format(
         checkpoint_name,
         temperature,
