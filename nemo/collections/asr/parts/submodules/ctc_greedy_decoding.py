@@ -55,11 +55,11 @@ class CTCDecoderCudaGraphsState:
     device: torch.device  # device to store preallocated tensors
     float_dtype: torch.dtype
 
-    frame_i: torch.Tensor
-    decoding_active: torch.Tensor
+    frame_idx: torch.Tensor
+    active_mask: torch.Tensor
 
-    logits: torch.Tensor  # projected output from the encoder for decoding algorithm
-    logits_len: torch.Tensor  # length of the (projected) output from the encoder
+    decoder_outputs: torch.Tensor  # projected output from the encoder for decoding algorithm
+    decoder_lengths: torch.Tensor  # length of the (projected) output from the encoder
 
     labels: torch.Tensor  # storage for current labels
     last_labels: torch.Tensor  # storage for previous labels
@@ -98,15 +98,15 @@ class CTCDecoderCudaGraphsState:
         self.batch_size = batch_size
         self.max_time = max_time
 
-        self.frame_i = torch.tensor(0, dtype=torch.long, device=device) # current frame index for each utterance (used to check if the decoding is finished)
-        self.decoding_active = torch.tensor(True, dtype=torch.bool, device=device)
+        self.frame_idx = torch.tensor(0, dtype=torch.long, device=device) # current frame index for each utterance (used to check if the decoding is finished)
+        self.active_mask = torch.tensor(True, dtype=torch.bool, device=device)
 
-        self.logits = torch.zeros(
+        self.decoder_outputs = torch.zeros(
             (self.batch_size, self.max_time, encoder_dim),
             dtype=float_dtype,
             device=self.device,
         )
-        self.logits_len = torch.zeros((self.batch_size,), dtype=torch.long, device=self.device)
+        self.decoder_lengths = torch.zeros((self.batch_size,), dtype=torch.long, device=self.device)
 
         self.labels = torch.zeros([self.batch_size], dtype=torch.long, device=self.device)
         self.last_labels = torch.zeros([self.batch_size], dtype=torch.long, device=self.device)
@@ -559,7 +559,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         # Temporal Classification: Labelling Unsegmented Sequence Data
         # with Recurrent Neural Networks".
         scores = torch.where(non_blank_ids_mask, predictions_logprobs, 0.0).sum(axis=1)
-
+        
         scores = scores.cpu()
         predictions_labels = predictions_labels.cpu()
         out_len = out_len.cpu()
@@ -640,41 +640,53 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         return hypotheses
 
     @torch.no_grad()
-    def _greedy_decode_logprobs_batched_lm_loop(self, logits: torch.Tensor, out_len: torch.Tensor):
+    def _greedy_decode_logprobs_batched_lm_torch(self, logits: torch.Tensor, out_len: torch.Tensor):
         batch_size = logits.shape[0]
         max_time = logits.shape[1]
         device = logits.device
         float_dtype = logits.dtype
+        batch_indices = torch.arange(batch_size, device=device, dtype=torch.long)
+        
+        # Step 1: Initialization
         batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
         predictions_labels = torch.zeros([batch_size, max_time], device=device, dtype=torch.long)
         predictions_logprobs = torch.zeros([batch_size, max_time], device=device, dtype=float_dtype)
-        batch_indices = torch.arange(batch_size, device=device, dtype=torch.long)
         last_labels = torch.full([batch_size], fill_value=self.blank_id, device=device, dtype=torch.long)
 
         for i in range(max_time):
+            # Step 2: Get most likely labels for current frame
+            log_probs, labels = logits[:, i].max(dim=-1)
+            log_probs_w_lm = logits[:, i].clone()
+            
+            # Step 3: Get LM scores
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states)
             lm_scores = lm_scores.to(dtype=float_dtype)
-
-            labels = torch.argmax(logits[:, i], dim=-1)
-            log_probs_w_lm = logits[:, i]  # .clone()
             log_probs_w_lm[:, :-1] += self.ngram_lm_alpha * lm_scores
-            # log_probs_w_lm[:, -1] = NEG_INF - no need, argmax without last label
-            # use scatter instead of
-            # log_probs_w_lm[batch_indices, last_labels] = NEG_INF
+            
+            # Step 4: Get most likely labels with LM scores. Labels that are blank or repeated are ignored.
+            # Note: no need to mask blank labels log_probs_w_lm[:, -1] = NEG_INF, as argmax is without blanks
+            # Note: for efficiency, use scatter instead of log_probs_w_lm[batch_indices, last_labels] = NEG_INF
             log_probs_w_lm.scatter_(dim=1, index=last_labels.unsqueeze(-1), value=NEG_INF)
-            labels_w_lm = log_probs_w_lm[:, :-1].argmax(dim=-1)
+            log_probs_w_lm, labels_w_lm = log_probs_w_lm[:, :-1].max(dim=-1)
 
+
+            # Step 5: Update labels if they initially weren't blank or repeated
             blank_or_repeated = (labels == self.blank_id) | (labels == last_labels)
             torch.where(blank_or_repeated, labels, labels_w_lm, out=labels)
+            torch.where(blank_or_repeated, log_probs, log_probs_w_lm, out=log_probs_w_lm)
+            
+            # Step 6: Update LM states and scores for non-blank and non-repeated labels
             torch.where(
                 blank_or_repeated,
                 batch_lm_states,
                 batch_lm_states_candidates[batch_indices, labels * ~blank_or_repeated],
                 out=batch_lm_states,
             )
+            
             predictions_labels[:, i] = labels
-            # TODO: logprobs
+            predictions_logprobs[:, i] = log_probs_w_lm
             last_labels = labels
+        
         return predictions_labels, predictions_logprobs
 
     @torch.no_grad()
@@ -686,8 +698,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         self._cuda_graphs_state.predictions_logprobs.zero_()
         self._cuda_graphs_state.last_labels.fill_(self.blank_id)
 
-        self._cuda_graphs_state.frame_i.fill_(0)
-        self._cuda_graphs_state.decoding_active.copy_((self._cuda_graphs_state.logits_len > 0).any())
+        self._cuda_graphs_state.frame_idx.fill_(0)
+        self._cuda_graphs_state.active_mask.copy_((self._cuda_graphs_state.decoder_lengths > 0).any())
 
     @torch.no_grad()
     def _inner_loop_code(self):
@@ -695,7 +707,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             states=self._cuda_graphs_state.batch_lm_states
         )
         lm_scores = lm_scores.to(dtype=self._cuda_graphs_state.float_dtype)
-        cur_logits = self._cuda_graphs_state.logits[:, self._cuda_graphs_state.frame_i.unsqueeze(0)].squeeze(1)
+        cur_logits = self._cuda_graphs_state.decoder_outputs[:, self._cuda_graphs_state.frame_idx.unsqueeze(0)].squeeze(1)
         # cur_logits = torch.index_select(self._cuda_graphs_state.logits, dim=1, index=self._cuda_graphs_state.frame_i).squeeze(1)
         labels = torch.argmax(cur_logits, dim=-1)
         log_probs_w_lm = cur_logits.clone()
@@ -714,14 +726,14 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             batch_lm_states_candidates[self._cuda_graphs_state.batch_indices, labels * ~blank_or_repeated],
             out=self._cuda_graphs_state.batch_lm_states,
         )
-        self._cuda_graphs_state.predictions_labels[:, self._cuda_graphs_state.frame_i.unsqueeze(0)] = labels.unsqueeze(
+        self._cuda_graphs_state.predictions_labels[:, self._cuda_graphs_state.frame_idx.unsqueeze(0)] = labels.unsqueeze(
             -1
         )
         # # TODO: logprobs
         self._cuda_graphs_state.last_labels.copy_(labels)
-        self._cuda_graphs_state.frame_i += 1
-        self._cuda_graphs_state.decoding_active.copy_(
-            (self._cuda_graphs_state.logits_len > self._cuda_graphs_state.frame_i).any()
+        self._cuda_graphs_state.frame_idx += 1
+        self._cuda_graphs_state.active_mask.copy_(
+            (self._cuda_graphs_state.decoder_lengths > self._cuda_graphs_state.frame_idx).any()
         )
 
     @classmethod
@@ -777,7 +789,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
                 # capture: while decoding_active:
                 (loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
                 loop_kernel = self._create_while_loop_kernel()
-                decoding_active_ptr = np.array([self._cuda_graphs_state.decoding_active.data_ptr()], dtype=np.uint64)
+                decoding_active_ptr = np.array([self._cuda_graphs_state.active_mask.data_ptr()], dtype=np.uint64)
                 loop_args = np.array(
                     [loop_conditional_handle.getPtr(), decoding_active_ptr.ctypes.data],
                     dtype=np.uint64,
@@ -829,10 +841,10 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
             self._graph_reinitialize(logits=logits, logits_len=out_len)
 
         # copy (projected) encoder output and lenghts
-        self._cuda_graphs_state.logits[:current_batch_size, :current_max_time, ...].copy_(logits)
-        self._cuda_graphs_state.logits_len[: logits.shape[0]].copy_(out_len)
+        self._cuda_graphs_state.decoder_outputs[:current_batch_size, :current_max_time, ...].copy_(logits)
+        self._cuda_graphs_state.decoder_lengths[: logits.shape[0]].copy_(out_len)
         # set length to zero for elements outside the current batch
-        self._cuda_graphs_state.logits_len[current_batch_size:].fill_(0)
+        self._cuda_graphs_state.decoder_lengths[current_batch_size:].fill_(0)
         # if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
         # self._cuda_graphs_state.full_graph.replay()
 
@@ -861,12 +873,12 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         log_probs = x
 
-        # predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_loop(
-        #     logits=x, out_len=out_len
-        # )
-        predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_loop_cuda_graphs(
+        predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_torch(
             logits=x, out_len=out_len
         )
+        # predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_lm_loop_cuda_graphs(
+        #     logits=x, out_len=out_len
+        # )
 
         # In CTC greedy decoding, each output maximum likelihood token
         # is calculated independent of the other tokens.
