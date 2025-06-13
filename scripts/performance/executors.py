@@ -29,7 +29,7 @@ INLINE_TEMPLATE = r"""
 set -euo pipefail
 
 # run everything through one bash -c with *single* quotes
-bash -c '{{ pre_cmds }} && {{ command }}'
+bash -c '{{ pre_cmds }} {{ command }}'
 """
 
 
