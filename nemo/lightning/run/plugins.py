@@ -160,6 +160,7 @@ class NsysPlugin(run.Plugin):
     nsys_trace: Optional[list[str]] = None
     nsys_extra_args: Optional[list[str]] = None
     gen_shape: bool = False
+    nsys_gpu_metrics: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         """Set up the nsys profiling plugin."""
@@ -186,6 +187,13 @@ class NsysPlugin(run.Plugin):
             "--cuda-event-trace=false",
             "--nvtx-domain-include=NCCL",
         ]
+        if self.nsys_gpu_metrics:
+            if hasattr(launcher, "nsys_gpu_metrics"):
+                launcher.nsys_gpu_metrics = self.nsys_gpu_metrics
+            else:
+                logging.warning(
+                    "Unable to enable nsys gpu metrics collection. Please upgrade Nemo-Run to include commit 70a0df4."
+                )
 
 
 @dataclass(kw_only=True)

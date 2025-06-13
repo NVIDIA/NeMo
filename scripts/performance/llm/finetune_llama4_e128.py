@@ -13,32 +13,34 @@
 # limitations under the License.
 
 from os.path import basename, splitext
-from typing import List, Optional
 
 import nemo_run as run
-
-from nemo.collections.llm.recipes.deepseek_v3 import pretrain_recipe
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
     args_sanity_check,
+    get_comm_overlap_callback_idx,
     get_user_configs,
     hf_tokenizer,
+    import_ckpt_experiment,
+    isfile_train_pack_metadata,
     set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
+    prepare_squad_dataset_experiment,
 )
 
-HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
+HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 
-
-# Use token drop callback
-USE_TOKEN_DROP = True
-
+# Set this to True if checkpoint is available at 'NEMO_HOME'. If set to False,
+# extra Slurm job will be scheduled. In this case, if checkpoint is available
+# at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
+# downloaded from HuggingFace
+SKIP_IMPORT = True
 
 def override_recipe_configs(
     args: str,
@@ -57,42 +59,20 @@ def override_recipe_configs(
     use_mcore_fsdp: bool,
     recompute_layers: int,
     activation_offload_layers: int,
-    recompute_modules: Optional[List[str]] = None,
 ):
     """
-    DeepSeek V3 pre-train recipe aimed at achieving best possible performance.
+    Llama4 e128 fine-tuning recipe aimed at achieving best possible performance.
+
+    NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe()
-    recipe.model.config.moe_permute_fusion = True
-    recipe.model.config.recompute_granularity = "selective"
-    recipe.model.config.recompute_num_layers = None
-    recipe.model.config.recompute_method = None
-    recipe.model.config.cross_entropy_fusion_impl = "te"
-    recipe.model.config.moe_router_dtype = 'fp32'
+    finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
+    assert finetuning_scheme != "lora"
 
-    assert pp_size is None or pp_size == 1 or (64 % pp_size == 0), "pp_size must be 1 or a factor of 64"
-    num_layers_in_middle_pipeline_stages = 64 // pp_size
+    recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, packed_sequence=True)
 
-    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = num_layers_in_middle_pipeline_stages - 1
-    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = num_layers_in_middle_pipeline_stages - 2
-
-    callbacks = []
-    if USE_TOKEN_DROP:
-        callbacks.append(run.Config(MegatronTokenDropCallback))
-    garbage_collection_callback = run.Config(
-        GarbageCollectionCallback,
-        gc_interval_train=60,
-        gc_interval_val=60,
-    )
-    comm_overlap_callback = run.Config(
-        MegatronCommOverlapCallback,
-        tp_comm_overlap=False,
-    )
-    callbacks.extend([garbage_collection_callback, comm_overlap_callback])
-    recipe.trainer.callbacks.extend(callbacks)
     recipe = set_primary_perf_configs(
         recipe,
-        "pre_train",
+        finetuning_scheme,
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -112,35 +92,36 @@ def override_recipe_configs(
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
-        recompute_modules=recompute_modules,
     )
+
     recipe = set_exp_logging_configs(
-        recipe,
-        "pre_train",
-        "llm",
-        "deepseekv3",
-        args.tensorboard,
-        args.wandb,
-        args.wandb_prj_name,
-        args.wandb_job_name,
+        recipe, finetuning_scheme, "llm", "llama4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
+
 
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    recipe.model.tokenizer = recipe.data.tokenizer
+    # If you want to force redownload for SquadDataModule, uncomment and adjust the following:
+    # if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+    #     # flag is valid only for SquadDataModule
+    #     recipe.data.force_redownload = False
 
-    # compute dtype configs
+    # Compute dtype configs
     if args.compute_dtype.lower() == "fp8":
-        raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
+        recipe.trainer.plugins = bf16_with_fp8_mixed()
+        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+    recipe.model.config.cross_entropy_loss_fusion = True
+    recipe.model.config.apply_rope_fusion = True
+    recipe.model.config.moe_permute_fusion = True
     return recipe
-
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "deepseek", "v3", args)
+    kwargs = get_user_configs(args.gpu.lower(), "sft", "llama4", "e128", args)
     (
         num_nodes,
         mbs,
@@ -157,8 +138,8 @@ if __name__ == "__main__":
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-        recompute_modules,
-    ) = kwargs
+    ) = kwargs[0:15]
+
     recipe = override_recipe_configs(
         args,
         num_nodes,
@@ -176,10 +157,10 @@ if __name__ == "__main__":
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-        recompute_modules,
     )
-
-    exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_mbs{mbs}_gbs{gbs}"
+    exp_config = (
+        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
+    )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     plugins = [
@@ -189,11 +170,8 @@ if __name__ == "__main__":
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
         )
     ]
+
     custom_env_vars = {}
-
-    if args.gpu.lower() == 'gb200':
-        custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
-
     if args.enable_nsys:
         plugins.append(
             NsysPlugin(
@@ -210,7 +188,6 @@ if __name__ == "__main__":
             "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
             "NCCL_DEBUG": "INFO",
         }
-
     executor = slurm_executor(
         args.account,
         args.partition,
@@ -227,13 +204,16 @@ if __name__ == "__main__":
     )
 
     with run.Experiment(exp_name) as exp:
+        if not SKIP_IMPORT:
+            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
+            exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096))
         exp.add(
             recipe,
             executor=executor,
             name=exp_name,
             plugins=plugins,
         )
-
         if not args.dryrun:
             exp.run(sequential=True, detach=True)
         else:
