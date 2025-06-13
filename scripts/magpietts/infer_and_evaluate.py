@@ -404,8 +404,8 @@ def main():
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
     parser.add_argument('--clean_up_disk', action='store_true')
-    parser.add_argument('--cer_target', type=float, default=None)
-    parser.add_argument('--ssim_target', type=float, default=None)
+    parser.add_argument('--cer_target', type=float, default=1.0)
+    parser.add_argument('--ssim_target', type=float, default=0.)
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
