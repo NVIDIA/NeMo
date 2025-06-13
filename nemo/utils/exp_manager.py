@@ -490,7 +490,7 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[pl.Trainer] = None) ->
         wandb_config.setdefault("name", metadata.get("session_tag", f"e2e-tracking-run-{uuid.uuid4()}"))
         wandb_config.setdefault("save_dir", os.environ.get("WANDB_SAVE_DIR", "./wandb"))
         wandb_config.setdefault("tags", [os.environ.get("WANDB_TAGS", "")])
-        
+
         # Create wandb exporter with configuration
         wandbEx = WandbExporter(
             host=wandb_config["host"],
