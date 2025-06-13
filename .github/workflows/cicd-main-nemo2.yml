@@ -184,6 +184,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_Prune_Llama_TP1PP2
             runner: self-hosted-azure
+          - script: L2_NeMo_2_GPT_Speculative_Llama3_TP2PP1
+            runner: self-hosted-azure
           - script: L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
             runner: self-hosted-azure
           - script: L2_NeMo_2_LLAVA_NEXT_HF_CONVERSION
