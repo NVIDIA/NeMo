@@ -101,14 +101,14 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
     Requires the underlying checkpoint_io.save_checkpoint to return save_fn, save_args, finalize_fn.
     """
 
-    def __init__(self, checkpoint_io: AsyncCompatibleCheckpointIO) -> None:
+    def __init__(self, checkpoint_io: AsyncCompatibleCheckpointIO, persistent: bool = True) -> None:
         if not HAVE_MEGATRON_CORE:
             raise ImportError(IMPORT_ERROR)
         if not isinstance(checkpoint_io, AsyncCompatibleCheckpointIO):
             raise ValueError(f'Incompatible wrapped checkpoint_io type: {type(checkpoint_io)}')
 
         super().__init__(checkpoint_io)
-        self.async_calls_queue = AsyncCallsQueue()
+        self.async_calls_queue = AsyncCallsQueue(persistent=persistent)
 
     def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
         """Executes async request returned from the underlying checkpoint_io asynchronously.
