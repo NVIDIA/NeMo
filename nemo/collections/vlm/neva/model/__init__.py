@@ -13,6 +13,12 @@
 # limitations under the License.
 
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
+from nemo.collections.vlm.neva.model.llama_nemotron_vl import (
+    LlamaNemotronNanoVLConfig2B,
+    LlamaNemotronNanoVLConfig8B,
+    LlamaNemotronVLConfig,
+    LlamaNemotronVLModel,
+)
 from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
 
 __all__ = [
@@ -22,4 +28,8 @@ __all__ = [
     "Llava15Config7B",
     "Llava15Config13B",
     "LlavaModel",
+    "LlamaNemotronVLConfig",
+    "LlamaNemotronNanoVLConfig8B",
+    "LlamaNemotronNanoVLConfig2B",
+    "LlamaNemotronVLModel",
 ]

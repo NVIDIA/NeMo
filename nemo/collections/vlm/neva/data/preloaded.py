@@ -28,14 +28,14 @@ from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADER
 from PIL import Image
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset, default_collate
-from transformers import CLIPImageProcessor, SiglipImageProcessor
+from transformers import BaseImageProcessor, CLIPImageProcessor
 
 from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
 from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, SPECIAL_TOKEN_MAP
+from nemo.collections.vlm.vision.vision_transform import VisualProcessor
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
 
 try:
     import decord
@@ -165,7 +165,9 @@ class TarOrFolderVideoLoader:
 
 
 def process_image(processor, image, image_process_mode="square"):  # this needs to be merged with conv's process image
-    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
+    if isinstance(processor, VisualProcessor) or isinstance(processor, BaseImageProcessor):
+        image = processor.preprocess(image)['pixel_values']
+    else:
         # image processor from HF
         if image_process_mode == 'keep':
             max_hw, min_hw = max(image.size), min(image.size)
@@ -191,12 +193,10 @@ def process_image(processor, image, image_process_mode="square"):  # this needs 
                     return result
 
             image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values']
         else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
-    else:
-        assert image_process_mode == 'square', 'NeMo image transform with setting `image_process_mode` to `square`.'
-        image = processor(image)
+            image = processor.preprocess(image, return_tensors='pt')['pixel_values']
+
     return image
 
 
@@ -257,6 +257,7 @@ class LazySupervisedDataset(Dataset):
         data_config,
         tokenizer,
         image_processor,
+        image_tag_type=None,
     ):
         super().__init__()
         if data_path is not None:
@@ -278,6 +279,7 @@ class LazySupervisedDataset(Dataset):
         self.conv = supported_conv_templates[self.conv_template]
         self.image_process_mode = data_config.image_process_mode
         self.list_data_dict = list_data_dict
+        self.image_tag_type = image_tag_type
 
         image_folder = getattr(data_config, "image_folder", None)
         video_folder = getattr(data_config, "video_folder", None)
@@ -291,6 +293,11 @@ class LazySupervisedDataset(Dataset):
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         source = self.list_data_dict[i]
         conversations = self._apply_prompt_templates(source, use_plain=self.conv_template == "plain")
+        if self.image_tag_type == "internvl":
+            # TODO(yuya): update hardcoded solution
+            conversations = conversations.replace("<image>", "<img><image></img>")
+        else:
+            assert self.image_tag_type is None, f"Not supported image_tag_type {self.image_tag_type}"
         tokens, labels = self._tokenize_and_label(conversations)
 
         media_tensors = self._process_images(source)
@@ -302,7 +309,7 @@ class LazySupervisedDataset(Dataset):
         return data_dict
 
     def _process_images(self, source):
-        media_tensors = torch.tensor([])
+        media_tensors = torch.empty((0, 0))
         if 'image' in source:
             if not isinstance(source['image'], list):
                 source['image'] = [source['image']]
@@ -313,6 +320,8 @@ class LazySupervisedDataset(Dataset):
                 if image is None:
                     logging.warning(f"Image {image_file} could not be found!")
                 image = process_image(self.image_processor, image, self.image_process_mode)
+                if image.ndim == 3:
+                    image.unsqueeze_(0)  # tile dim
                 images.append(image)
 
             if images:
@@ -356,7 +365,7 @@ class LazySupervisedDataset(Dataset):
                 stop_str is not None
             ), "If `stop_str` is not provided, issues might occur in labeling the answer tokens."
             answer_tokens = self.tokenizer.encode(
-                self.conv.messages[i][1] + ("" if stop_str is None else stop_str),
+                self.conv.messages[i][1].strip() + ("" if stop_str is None else stop_str),
                 add_special_tokens=False,
                 return_tensors="pt",
             )[0]
@@ -399,13 +408,14 @@ class NevaDataset(LazySupervisedDataset):
         image_processor,
         packed_sequence=False,
         num_image_embeddings_per_tile=576,
+        image_tag_type=None,
     ):
 
         if data_path.endswith(".json"):
-            super().__init__(data_path, data_config, tokenizer, image_processor)
+            super().__init__(data_path, data_config, tokenizer, image_processor, image_tag_type)
 
         elif data_path.endswith(".jsonl"):
-            super().__init__(None, data_config, tokenizer, image_processor)
+            super().__init__(None, data_config, tokenizer, image_processor, image_tag_type)
             logging.warning("Loading image inputs from SteerLM Dataset...")
             if data_config.media_type == 'image':
                 image_folder = data_config.image_folder
@@ -418,7 +428,7 @@ class NevaDataset(LazySupervisedDataset):
 
                     record['image'] = []
                     for turn in record['conversations']:
-                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                        matches = re.finditer(r"<img src=['\"]([^'\"]+)['\"]", turn['value'])
                         for match in matches:
                             image_name = match.group(1).split("/")[-1]
                             image_path = os.path.join(image_folder, image_name)
@@ -426,7 +436,7 @@ class NevaDataset(LazySupervisedDataset):
                                 logging.warning(f"Image not found: {image_path}")
                                 continue
                             record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', "<image>", turn['value'])
+                        turn['value'] = re.sub(r"<img src=['\"]([^'\"]+)['\"]", "<image>", turn['value'])
 
                     self.list_data_dict.append(record)
 
@@ -434,6 +444,7 @@ class NevaDataset(LazySupervisedDataset):
             raise ValueError(f"Formatting of {data_path} is not supported in Neva.")
         self.packed_sequence = packed_sequence
         self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
+        self.image_tag_type = image_tag_type
 
     def collate_fn(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         data_config = self.data_config
@@ -442,9 +453,12 @@ class NevaDataset(LazySupervisedDataset):
         media_type = data_config.media_type
         if media_type == 'image':
             media = [instance.pop('image') for instance in instances]
+            num_media_tiles = [item.shape[1] for item in media if item.shape[1] > 0]
+            media = [item.reshape(-1, *item.shape[2:]) for item in media]
             media = torch.cat(media, dim=0)
         elif media_type == 'video':
             media = [instance.pop('video', None) for instance in instances]
+            num_media_tiles = None
         else:
             raise ValueError(f"Unsupported media type {media_type}")
 
@@ -488,6 +502,7 @@ class NevaDataset(LazySupervisedDataset):
             'loss_mask': loss_mask,
             'position_ids': position_ids,
             'media': media,
+            "num_media_tiles": num_media_tiles,
         }
         if packed_sequence:
             batch["packed_seq_params"] = packed_seq_params
@@ -502,6 +517,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         data_config: Optional[DataConfig] = ImageDataConfig,
         seq_length: int = 2048,
         decoder_seq_length: Optional[int] = None,
+        hf_processor_id: Optional[str] = "llava-hf/llava-1.5-7b-hf",
         tokenizer: Optional = None,
         image_processor: Optional = None,
         micro_batch_size: int = 4,
@@ -514,7 +530,9 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
         packed_sequence: bool = False,
         num_image_embeddings_per_tile: int = 576,
+        pixel_shuffle_ratio: float = 1.0,
         seed: int = 1234,
+        image_tag_type: Optional[str] = None,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple)):
@@ -542,17 +560,24 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.seed = seed
         self.packed_sequence = packed_sequence
-        self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
+        self.num_image_embeddings_per_tile = int(
+            num_image_embeddings_per_tile * pixel_shuffle_ratio * pixel_shuffle_ratio
+        )
         self.init_global_step = 0
+        self.image_tag_type = image_tag_type
 
         if tokenizer is None or image_processor is None:
-            logging.warning("Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
+            logging.warning(f"Processor or tokenizer is not provided! Fall back to `{hf_processor_id}`.")
             from transformers import AutoProcessor
+
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
-            processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf", use_fast=False)
+            processor = AutoProcessor.from_pretrained(hf_processor_id)
+            self.tokenizer = tokenizer or AutoTokenizer(hf_processor_id)
             self.image_processor = image_processor or processor.image_processor
+        else:
+            self.tokenizer = tokenizer
+            self.image_processor = image_processor
 
         if self.packed_sequence:
             import dataclasses
@@ -585,6 +610,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             self.image_processor,
             packed_sequence=self.packed_sequence,
             num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
+            image_tag_type=self.image_tag_type,
         )
         self._validation_ds = NevaDataset(
             self.paths[0],
@@ -593,6 +619,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             self.image_processor,
             packed_sequence=self.packed_sequence,
             num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
+            image_tag_type=self.image_tag_type,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
