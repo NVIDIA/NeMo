@@ -124,7 +124,20 @@ class EarlyStoppingParams:
 
 @dataclass
 class IPLEpochStopperParams:
-    """IPLEpochStopperParams POD"""
+    """
+    Parameters for the IPLEpochStopper callback used in iterative pseudo-label training.
+
+    This is part of the TopIPL pipeline, a semi-supervised training method for ASR that uses iterative pseudo-labeling (IPL) — 
+    periodically stopping training to generate pseudo-labels for unlabeled data and fine-tuning the model on them.
+
+    For more details, see:  
+    🔗 Top-IPL: Top-N Pseudo-Label Averaging for Iterative ASR Training  
+    https://arxiv.org/abs/2506.07659
+
+    Attributes:
+        enable_stop (bool): If True, enables the stopping behavior in the callback.
+        stop_every_n_epochs (int): Specifies how many epochs to train before stopping.
+    """
 
     # Flag that allows stopping
     enable_stop: bool = True

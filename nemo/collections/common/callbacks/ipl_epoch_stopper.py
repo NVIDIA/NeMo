@@ -18,12 +18,24 @@ from lightning.pytorch.core import LightningModule
 
 
 class IPLEpochStopper(Callback):
-    r"""
-    Gracefully terminates training at the *end* of an epoch.
-    This is done to generate pseudo-labels dynamically.
-    enable_stop : bool, default=False
-        If ``True`` the callback will request a stop in
-        :py:meth:`on_train_epoch_end`.  If ``False`` it is inert.
+    """
+    Callback to gracefully terminate training at the *end* of an epoch,
+    typically used in Iterative Pseudo-Labeling (IPL) pipelines.
+
+    IPL is a semi-supervised learning approach where models are trained
+    iteratively, alternating between generating pseudo-labels and fine-tuning
+    on them. For more details, see our paper:
+    "TopIPL: Unified Semi-Supervised Pipeline for Automatic Speech Recognition"
+    https://arxiv.org/abs/2506.07659
+
+    This callback is used to signal the Trainer to stop training after a given number
+    of epochs, allowing pseudo-label generation and model reinitialization to occur.
+
+    Args:
+        enable_stop (bool): If True, the trainer will be requested to stop during
+            `on_train_epoch_end`. If False, the callback is inert.
+        stop_every_n_epochs (int): Number of epochs to run before each stop. If set to 1,
+            training will stop after every epoch.
     """
 
     def __init__(self, enable_stop: bool = False, stop_every_n_epochs: int = 1) -> None:
