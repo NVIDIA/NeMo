@@ -61,6 +61,7 @@ def trt_dtype_to_torch(dtype):
 
 class MultimodalModelRunner:
     """TRTLLM runner for multimodal models"""
+
     def __init__(self, visual_engine_dir, llm_engine_dir, modality='vision'):
         self.modality = modality
         self.runtime_rank = tensorrt_llm.mpi_rank()
@@ -763,6 +764,7 @@ class MultimodalModelRunner:
 
     def process_llama_nemotron_img(self, images, input_size=512, max_num=12):
         """Processes images specifically for LLaMA-Nemotron."""
+
         def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
             best_factor = float('-inf')
             best_ratio = (1, 1)
