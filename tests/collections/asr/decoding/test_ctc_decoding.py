@@ -20,7 +20,7 @@ from pathlib import Path
 import jiwer
 import pytest
 import torch
-from omegaconf import DictConfig, OmegaConf, open_dict
+from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.mixins import mixins

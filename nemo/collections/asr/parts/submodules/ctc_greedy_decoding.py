@@ -59,8 +59,8 @@ class CTCDecoderCudaGraphsState:
     frame_idx: torch.Tensor
     active_mask: torch.Tensor
 
-    decoder_outputs: torch.Tensor  # projected output from the encoder for decoding algorithm
-    decoder_lengths: torch.Tensor  # length of the (projected) output from the encoder
+    decoder_outputs: torch.Tensor  # decoder output (probs)
+    decoder_lengths: torch.Tensor  # decoder output lengths
 
     labels: torch.Tensor  # storage for current labels
     last_labels: torch.Tensor  # storage for previous labels
@@ -81,7 +81,7 @@ class CTCDecoderCudaGraphsState:
         self,
         batch_size: int,
         max_time: int,
-        encoder_dim: int,
+        vocab_dim: int,
         device: torch.device,
         float_dtype: torch.dtype,
     ):
@@ -90,7 +90,7 @@ class CTCDecoderCudaGraphsState:
         Args:
             batch_size: batch size for encoder output storage
             max_time: maximum time for encoder output storage
-            encoder_dim: last dimension for encoder output storage (projected encoder output)
+            vocab_dim: number of vocabulary tokens (including blank)
             device: device to store tensors
             float_dtype: default float dtype for tensors (should match projected encoder output)
         """
@@ -105,7 +105,7 @@ class CTCDecoderCudaGraphsState:
         self.active_mask = torch.tensor(True, dtype=torch.bool, device=device)
 
         self.decoder_outputs = torch.zeros(
-            (self.batch_size, self.max_time, encoder_dim),
+            (self.batch_size, self.max_time, vocab_dim),
             dtype=float_dtype,
             device=self.device,
         )
@@ -118,9 +118,8 @@ class CTCDecoderCudaGraphsState:
         # indices of elements in batch (constant)
         self.batch_indices = torch.arange(self.batch_size, dtype=torch.long, device=self.device)
 
+        # LM states
         self.batch_lm_states = torch.zeros([batch_size], dtype=torch.long, device=device)
-        self.batch_lm_states_candidates = torch.zeros([batch_size, encoder_dim], dtype=torch.long, device=device)
-        self.lm_scores = torch.zeros([batch_size, encoder_dim], dtype=float_dtype, device=device)
 
         self.predictions_labels = torch.zeros([batch_size, max_time], device=device, dtype=torch.long)
         self.predictions_logprobs = torch.zeros([batch_size, max_time], device=device, dtype=float_dtype)
@@ -788,11 +787,11 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         return run_nvrtc(kernel_string, b"ctc_loop_conditional", b"while_conditional_ctc.cu")
 
     def _graph_reinitialize(self, logits, logits_len):
-        batch_size, max_time, encoder_dim = logits.shape
+        batch_size, max_time, vocab_dim = logits.shape
         self.state = CTCDecoderCudaGraphsState(
             batch_size=batch_size,
             max_time=max(max_time, 375),
-            encoder_dim=encoder_dim,
+            vocab_dim=vocab_dim,
             device=logits.device,
             float_dtype=logits.dtype,
         )
