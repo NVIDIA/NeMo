@@ -503,15 +503,16 @@ def get_nemo_home():
 
 def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
     """Prepare the SQuAD dataset for fine-tuning.
-    
+
     Args:
         model_name (str): The name of the model
         seq_length (int): The sequence length to use for packing. Defaults to 2048.
     """
-    from nemo.collections.llm.gpt.data.squad import SquadDataModule
-    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from pathlib import Path
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
     nemo_home = Path(get_nemo_home())
     dataset_root = nemo_home / "datasets" / "squad"
@@ -543,6 +544,7 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
     else:
         raise FileNotFoundError(f"Packed dataset dir not found at {packed_dir}. Dataset download failed")
 
+
 def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048):
     """
     Downloads and prepares the SQuAD dataset for fine-tuning.
@@ -553,7 +555,11 @@ def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: st
     dataset_executor.ntasks_per_node = 1
     dataset_executor.nodes = 1
 
-    return run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length), dataset_executor, "prepare_squad_dataset_exp"
+    return (
+        run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length),
+        dataset_executor,
+        "prepare_squad_dataset_exp",
+    )
 
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
