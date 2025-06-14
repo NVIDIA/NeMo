@@ -647,6 +647,7 @@ def build_llama_nemotron_visual_engine(
     model_dtype = hf_model.dtype
 
     class RadioWithNeck(torch.nn.Module):
+        # pylint: disable=C0115,C0116
         def __init__(self, model):
             super().__init__()
             image_size = model.config.force_image_size
