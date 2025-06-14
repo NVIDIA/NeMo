@@ -134,45 +134,120 @@ python scripts/magpietts/dpo/create_text_contextpairs.py \
 
 2. Train using GRPO
 
+To train with GRPO, we use a similar training command as the base model training with a few modifications.
+
+1. We start from a pretrained checkpoint supplied using `+init_from_ptl_ckpt`
+2. We add `+mode="onlinepo_train"` to specify preference optimization based training.
+3. Use a small batch size (bs=2) since we generate `num_generations_per_item` samples per item in the batch and the effective batch size becomes `bs*num_generations_per_item` 
+4. The manifest should contain absolute audio paths and the `audio_dir` is specified as "/" in the `train_ds_meta` command.
+5. Use the same model specific overrides as the base model (eg. x-attn heads, is_causal, num_layers, local transformer etc).
+6. Set dropout probs to 0 for all modules - This is especially important if we are not using reference free mode. KL divergence loss becomes very spiky and unstable. Set prob to 0 by `model.decoder.p_dropout=0.0`.
+7. Dont use attention prior or CTC loss during GRPO. 
+8. Add the following GRPO specific arguments in the training command.
+
 ```
-python examples/tts/magpietts.py \
-+mode="onlinepo_train" \
-+init_from_ptl_ckpt="/Data/ICML2025_CKPTS/icml2025_base_checkpoints/decodercontext_small_sp_ks3CorrectWithPrior_onlyphoneme_epoch161.ckpt" \
-max_epochs=1000 \
-exp_manager.exp_dir="/Data/Experiments/NewT5TTSGRPO/Try3NoDropoutBeta0.01_CFG/" \
-+train_ds_meta.grpotrainnomls.manifest_path="/Data/DPOPairsInputDatav2/text_context_pairs_grpo_train_nomls.json" \
-+train_ds_meta.grpotrainnomls.audio_dir="/" \
-+train_ds_meta.grpotrainnomls.feature_dir="/" \
-+val_ds_meta.grpovalnomls.manifest_path="/Data/DPOPairsInputDatav2/text_context_pairs_grpo_val_unseenspeakers_tinysubset.json" \
-+val_ds_meta.grpovalnomls.audio_dir="/" \
-+val_ds_meta.grpovalnomls.feature_dir="/" \
-+model.num_generations_per_item=6 \
-+model.grpo_beta=0.01 \
-+model.reference_free=true \
-model.decoder.p_dropout=0.0 \
-model.encoder.p_dropout=0.0 \
-model.model_type="decoder_context_tts" \
-model.use_text_conditioning_encoder=true \
-model.context_duration_min=5.0 \
-model.context_duration_max=5.0 \
-model.codecmodel_path="/Data/Checkpoints/AudioCodec_21Hz_no_eliz.nemo" \
-model.alignment_loss_scale=0.0 \
-model.prior_scaling_factor=null \
-model.train_ds.dataloader_params.num_workers=0 \
-model.validation_ds.dataloader_params.num_workers=0 \
-exp_manager.checkpoint_callback_params.monitor="val_mean_reward" \
-exp_manager.checkpoint_callback_params.mode="max" \
-+trainer.use_distributed_sampler=False \
-+model.inference_cfg_prob=0.5 \
-+model.inference_cfg_scale=2.5 \
-batch_size=2 \
-model.optim.lr=1e-6 \
-trainer.devices=2 \
-trainer.log_every_n_steps=1 \
-trainer.val_check_interval=50 \
-~model.optim.sched \
-trainer.num_nodes=${SLURM_JOB_NUM_NODES} ;
++model.grpo_beta=0.0 \ # Coeffecient for KL loss (if not using reference free mode)
++model.num_generations_per_item=12 \ # 12 samples generated for each item and we compute reward for each
++model.reference_free=true \ # Reference free means we dont use KL loss term. Only optimize for rewards
++model.inference_cfg_prob=0.0 \ # fraction of generations generated using CFG. Can set > 0.0 if we want to optimize for both CFG and non CFG modes of generation
++model.inference_cfg_scale=2.5 \ # CFG scale for samples generated using CFG
++model.cer_reward_weight=0.33 \ # weightage of CER reward in the overall reward
++model.ssim_reward_weight=0.33 \ # weightage of SSIM reward in the overall reward
++model.pesq_reward_weight=0.33 \ # weightage of PESQ reward in the overall reward
++model.use_pesq=true \ # set this is true is using pesq reward
++model.reward_asr_model="whisper" \ # Use whisper only for multilingual settings, dont specify for English
+model.cfg_unconditional_prob=0.0 \ # Set this to 0, we dont want want to drop out unconditional input
++model.inference_topk=2016 \ # Top-K - Not yet sure if we should use topk=80 or not. top_k 2016 just disable top_k in a way.
++model.inference_temperature=0.8 \ # Slightly higher temperature for more variety of generations in preference optimization
++model.use_kv_cache_during_online_po=true \ # Use KV caching while generating samples for GRPO
++model.loss_type="grpo" \ # can be grpo or dr_grpo. grpo works better in my experiments.
++model.scale_rewards=true \ # Whether to divide advantages by std deviation or not (set true for GRPO and false for DR_GRPO)
++model.max_decoder_steps=430 \ # Max steps for generation
 ```
 
-Note that setting `+model.reference_free=true` makes the `grpo_beta` param effectively 0 since it does not use the KL regularization loss and saves memory. If using the `grpo_beta > 0` and `+model.reference_free=false`, make sure to set dropout params to 0, `model.decoder.p_dropout=0.0` and
-`model.encoder.p_dropout=0.0` for training stabilization. Recommended learning rate is `model.optim.lr=1e-6` or lower. Setting `+model.inference_cfg_prob=0.5` means that for half of the generations will be generated using cfg, so that we optimize for our preferences in both cfg and non cfg inference modes. You may set `+model.inference_cfg_prob=0.0` if we only care about non-cfg inference.
+9. We also want to validate more frequently during GRPO since each step takes longer. So we add the following args.
+```
+~trainer.check_val_every_n_epoch \
++trainer.val_check_interval=50 \
+```
+
+10. We use a lower learning rate and save the best checkpoints based on lowest CER on our validation set using:
+```
+model.optim.lr=1e-7 \
+~model.optim.sched \
+exp_manager.checkpoint_callback_params.monitor="val_cer_gt" \
+exp_manager.checkpoint_callback_params.mode="min" \
+```
+
+11. Specify precision and gradient clipping as necessary
+```
+trainer.precision=32 \
++trainer.gradient_clip_val=2.5 \
+```
+
+
+Below is a sample training command for multilingual GRPO:
+
+```
+python examples/tts/magpietts.py \
+--config-name=magpietts_multilingual_v1 \
+batch_size=2 \
++init_from_ptl_ckpt="/mountdir/checkpoints/magpie_checkpoints/shared_char_ipa_epoch285.ckpt" \
++mode="onlinepo_train" \
+~model.text_tokenizers.multilingual_sentencepiece \
++model.text_tokenizers.chartokenizer._target_=AutoTokenizer \
++model.text_tokenizers.chartokenizer.pretrained_model="google/byt5-small" \
+max_epochs=20 \
+exp_manager.exp_dir="${DOCKER_EXP_DIR}" \
++exp_manager.version=0 \
+exp_manager.checkpoint_callback_params.always_save_nemo=false \
++train_ds_meta.dpopreftrain.manifest_path="/data/TTS/CML/manifests_with_codecs_ipa3/cml_tts_dataset_portuguese_v0.1/train_withAudioCodes_codec21KhzCausalDecoder_filtered_textcontextpairs_train_GRPO_ipa_NoDuplicates.json" \
++train_ds_meta.dpopreftrain.audio_dir="/" \
++train_ds_meta.dpopreftrain.feature_dir="/" \
++train_ds_meta.dpopreftrain.tokenizer_names="[chartokenizer]" \
++val_ds_meta.dpoprefval.manifest_path="/data/TTS/CML/manifests_with_codecs_ipa3/cml_tts_dataset_portuguese_v0.1/train_withAudioCodes_codec21KhzCausalDecoder_filtered_textcontextpairs_val_GRPO_ipa.json" \
++val_ds_meta.dpoprefval.audio_dir="/" \
++val_ds_meta.dpoprefval.feature_dir="/" \
++val_ds_meta.dpoprefval.tokenizer_names="[chartokenizer]" \
++model.grpo_beta=0.0 \
++model.num_generations_per_item=12 \
++model.reference_free=true \
++model.inference_cfg_prob=0.0 \
++model.inference_cfg_scale=2.5 \
++model.cer_reward_weight=0.33 \
++model.ssim_reward_weight=0.33 \
++model.pesq_reward_weight=0.33 \
++model.use_pesq=true \
++model.reward_asr_model="whisper" \
+model.cfg_unconditional_prob=0.0 \
++model.inference_topk=2016 \
++model.inference_temperature=0.8 \
++model.use_kv_cache_during_online_po=true \
++model.loss_type="grpo" \
++model.scale_rewards=true \
++model.max_decoder_steps=430 \
+model.model_type="decoder_context_tts" \
+model.context_duration_min=5.0 \
+model.context_duration_max=5.0 \
+model.decoder.p_dropout=0.0 \
+model.encoder.p_dropout=0.0 \
+model.local_transformer_type="autoregressive" \
+model.local_transformer_n_layers=1 \
+model.local_transformer_n_heads=1 \
+model.local_transformer_hidden_dim=256 \
+model.use_text_conditioning_encoder=true \
+model.codecmodel_path="/mountdir/checkpoints/21fps_causal_codecmodel.nemo" \
+model.alignment_loss_scale=0.0 \
+model.prior_scaling_factor=null \
+~trainer.check_val_every_n_epoch \
++trainer.val_check_interval=50 \
+trainer.log_every_n_steps=10 \
+model.optim.lr=1e-7 \
+~model.optim.sched \
+exp_manager.checkpoint_callback_params.monitor="val_cer_gt" \
+exp_manager.checkpoint_callback_params.mode="min" \
+trainer.precision=32 \
++trainer.gradient_clip_val=2.5 \
+trainer.num_nodes=${SLURM_JOB_NUM_NODES}
+```
+

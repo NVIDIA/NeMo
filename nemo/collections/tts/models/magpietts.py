@@ -283,6 +283,22 @@ class MagpieTTSModel(ModelPT):
                 del state_dict[key]
         return state_dict
 
+    def update_ckpt(self, state_dict):
+        """
+        Backward compatibility for checkpoints saved with old model names.
+        """
+        new_state_dict = {}
+        for key in state_dict.keys():
+            if 't5_encoder' in key:
+                new_key = key.replace('t5_encoder', 'encoder')
+                new_state_dict[new_key] = state_dict[key]
+            elif 't5_decoder' in key:
+                new_key = key.replace('t5_decoder', 'decoder')
+                new_state_dict[new_key] = state_dict[key]
+            else:
+                new_state_dict[key] = state_dict[key]
+        return new_state_dict
+    
     def load_state_dict(self, state_dict, strict=True):
         """
         Modify load_state_dict so that we don't restore weights to _speaker_verification_model and _codec_model when
@@ -290,10 +306,14 @@ class MagpieTTSModel(ModelPT):
         When strict is False, we can call pytorch's load_state_dict.
         When strict is True, we loop through all parameters and rename them to enable loading.
         """
+        state_dict = self.update_ckpt(state_dict)
         if strict == False:
             super().load_state_dict(state_dict, strict=False)
         for name, child in self.named_children():
-            if name in ['_speaker_verification_model', '_codec_model']:
+            if name in ['_speaker_verification_model', '_codec_model', '_reference_model', 
+                        'eval_asr_model', 'eval_speaker_verification_model', 
+                        'whisper_model', 'squim_objective_model'
+                        ]:
                 continue
             if any(param.numel() > 0 for param in child.parameters()):
                 # If the module has parameters, we want to change the default mapping so that the state_dict gets
