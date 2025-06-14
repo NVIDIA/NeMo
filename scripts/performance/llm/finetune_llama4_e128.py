@@ -17,6 +17,7 @@ from os.path import basename, splitext
 import nemo_run as run
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
@@ -41,6 +42,10 @@ HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
 SKIP_IMPORT = True
+
+# Set this to True if dataset is already downloaded. If set to False,
+# dataset will be downloaded from HuggingFace
+SKIP_DATASET_DOWNLOAD = False
 
 def override_recipe_configs(
     args: str,
@@ -100,11 +105,15 @@ def override_recipe_configs(
 
 
     # data module configs
-    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    # If you want to force redownload for SquadDataModule, uncomment and adjust the following:
+    if args.use_hf_tokenizer:
+        recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    else:
+        recipe.data.tokenizer = run.Config(
+            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=202048
+        )
+    # #If you want to force redownload for SquadDataModule, uncomment and adjust the following:
     # if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
-    #     # flag is valid only for SquadDataModule
-    #     recipe.data.force_redownload = False
+    #     SKIP_DATASET_DOWNLOAD = True
 
     # Compute dtype configs
     if args.compute_dtype.lower() == "fp8":
@@ -190,6 +199,7 @@ if __name__ == "__main__":
         if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+        if not SKIP_DATASET_DOWNLOAD:
             exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096))
         exp.add(
             recipe,

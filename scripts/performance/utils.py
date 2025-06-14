@@ -73,9 +73,10 @@ def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTMod
     return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
 
 
-def get_hf_home():
-    """Get the HuggingFace home directory."""
-    return os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+def get_nemo_home():
+    if "NEMO_HOME" not in os.environ:
+        raise ValueError("NEMO_HOME environment variable must be set")
+    return os.environ["NEMO_HOME"]
 
 
 def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
@@ -90,8 +91,8 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from pathlib import Path
 
-    hf_home = Path(get_hf_home())
-    dataset_root = hf_home / "datasets" / "squad"
+    nemo_home = Path(get_nemo_home())
+    dataset_root = nemo_home / "datasets" / "squad"
     dataset_root.mkdir(parents=True, exist_ok=True)
 
     tokenizer = AutoTokenizer(pretrained_model_name=model_name)
@@ -117,7 +118,8 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
     print(f"Packed files should be in: {packed_dir}")
     if packed_dir.exists():
         print("Files found:", list(packed_dir.glob("*.bin")))
-
+    else:
+        raise FileNotFoundError(f"Packed dataset dir not found at {packed_dir}. Dataset download failed")
 
 def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048):
     """
