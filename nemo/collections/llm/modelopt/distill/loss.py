@@ -30,6 +30,7 @@ mtd, _ = safe_import("modelopt.torch.distill")
 
 if TYPE_CHECKING:
     from megatron.core.transformer.transformer_config import TransformerConfig
+
     DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
 
 
