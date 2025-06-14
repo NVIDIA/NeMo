@@ -940,8 +940,6 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
     def reset_cuda_graphs_state(self):
         """Reset state to release memory (for CUDA graphs implementations)"""
         self.state = None
-        self.full_graph = None
-        self.separate_graphs = None
 
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
