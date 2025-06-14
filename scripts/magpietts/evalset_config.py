@@ -312,4 +312,9 @@ dataset_meta_info = {
         'whisper_language': 'bn',
         'load_cached_codes_if_available': False
     },
+    'an4_val_ci': {
+        'manifest_path' : '/home/TestData/an4_dataset/an4_val_context_v1.json',
+        'audio_dir' : '/',
+        'feature_dir' : None,
+    },
 }

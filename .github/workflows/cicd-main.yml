@@ -1162,15 +1162,24 @@ jobs:
   #     SCRIPT: |-
   #       RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_1_Hifigan.sh
 
-  L2_TTS_Fast_dev_runs_Magpietts_config1:
+  L2_TTS_Fast_dev_runs_Magpietts_DecoderContext:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
-    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_Magpietts_config1')
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_Magpietts_DecoderContext')
     with:
       RUNNER: self-hosted-azure
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_Magpietts_config1.sh
-  
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_Magpietts_DecoderContext.sh
+
+  L2_TTS_Fast_dev_runs_Magpietts_MultiEncoder:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_Fast_dev_runs_Magpietts_MultiEncoder')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_Magpietts_MultiEncoder.sh
+
   L2_TTS_Fast_dev_runs_Magpietts_OnlinePO:
     needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/_test_template.yml
@@ -1179,6 +1188,24 @@ jobs:
       RUNNER: self-hosted-azure
       SCRIPT: |-
         RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_Fast_dev_runs_Magpietts_OnlinePO.sh
+
+  L2_TTS_InferEvaluate_Magpietts_ZeroShot:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_InferEvaluate_Magpietts_ZeroShot')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_InferEvaluate_Magpietts_ZeroShot.sh
+
+  L2_TTS_InferEvaluate_Magpietts_SeenSpeakers:
+    needs: [pre-flight, cicd-test-container-build]
+    uses: ./.github/workflows/_test_template.yml
+    if: contains(fromJSON(needs.pre-flight.outputs.test_to_run), 'L2_TTS_InferEvaluate_Magpietts_SeenSpeakers')
+    with:
+      RUNNER: self-hosted-azure
+      SCRIPT: |-
+        RUN_ID=${{ github.run_id }} bash tests/functional_tests/L2_TTS_InferEvaluate_Magpietts_SeenSpeakers.sh
 
   # # L2: NeRF
   # # L2_NeRF_DreamFusion:
@@ -1825,7 +1852,10 @@ jobs:
       - L0_Unit_Tests_CPU_Lightning
       - L0_Unit_Tests_CPU_Others
 
-      - L2_TTS_Fast_dev_runs_Magpietts_config1
+      - L2_TTS_Fast_dev_runs_Magpietts_DecoderContext
+      - L2_TTS_Fast_dev_runs_Magpietts_MultiEncoder
+      - L2_TTS_InferEvaluate_Magpietts_ZeroShot
+      - L2_TTS_InferEvaluate_Magpietts_SeenSpeakers
 
       # - ASR_dev_run_Speech_to_Text
       # - ASR_dev_run_Speech_to_Text_WPE_CitriNet
