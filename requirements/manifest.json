@@ -15,7 +15,7 @@
     },
     "trt-llm": {
       "repo": "https://github.com/NVIDIA/TensorRT-LLM.git",
-      "ref": "v0.18.0"
+      "ref": "bfa3b59bb696686b00132e8a5d9884ea02848f51"
     }
   },
   "pypi-dependencies": {}
