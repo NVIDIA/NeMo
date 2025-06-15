@@ -11,7 +11,7 @@ Subject: [PATCH] [autotuner] Lazily initiailize do_bench
 
 ---
 diff --git a/a/autotuner.py b/b/autotuner.py
-index 0ee6bea09..91616affc 100644
+index 0ee6bea09..b75c5e353 100644
 --- a/a/autotuner.py
 +++ b/b/autotuner.py
 @@ -4,6 +4,7 @@ import builtins
@@ -48,16 +48,14 @@ index 0ee6bea09..91616affc 100644
                  kernel_call,
                  warmup=warmup if warmup is not None else 25,
                  rep=rep if rep is not None else 100,
-@@ -124,9 +126,15 @@ class Autotuner(KernelInterface):
+@@ -123,10 +125,11 @@ class Autotuner(KernelInterface):
+             )
              return
 
-         if do_bench is None:
+-        if do_bench is None:
 -            self.do_bench = driver.active.get_benchmarker()
-+            self._do_bench = driver.active.get_benchmarker()
-         else:
+-        else:
 -            self.do_bench = do_bench
-+            self._do_bench = do_bench
-+
 +    @cached_property
 +    def do_bench(self):
 +        if self._do_bench is None:
