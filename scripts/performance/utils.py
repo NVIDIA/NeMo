@@ -73,26 +73,42 @@ def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTMod
     return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
 
 
-def get_nemo_home():
-    if "NEMO_HOME" not in os.environ:
-        raise ValueError("NEMO_HOME environment variable must be set")
-    return os.environ["NEMO_HOME"]
+def get_nemo_home(nemo_home=None):
+    """
+    Get NEMO_HOME path. Checks for both nemo_home argument and NEMO_HOME environment variable.
+    """
+    arg_nemo_set = nemo_home is True
+    env_nemo_set = "NEMO_HOME" in os.environ
+
+    if arg_nemo_set and env_nemo_set:
+        if os.environ["NEMO_HOME"] != nemo_home:
+            logging.warning(f"Using nemo_home ({nemo_home}) instead of NEMO_HOME ({os.environ['NEMO_HOME']})")
+        return nemo_home
+    
+    if arg_nemo_set:
+        return nemo_home
+        
+    if env_nemo_set:
+        return os.environ["NEMO_HOME"]
+        
+    raise ValueError("Neither nemo_home argument nor NEMO_HOME environment variable is set")
 
 
-def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
+def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=None):
     """Prepare the SQuAD dataset for fine-tuning.
     
     Args:
         model_name (str): The name of the model
         seq_length (int): The sequence length to use for packing. Defaults to 2048.
+        nemo_home: Optional path to NEMO home directory set via args.nemo_home
     """
     from nemo.collections.llm.gpt.data.squad import SquadDataModule
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from pathlib import Path
 
-    nemo_home = Path(get_nemo_home())
-    dataset_root = nemo_home / "datasets" / "squad"
+    nemo_home_path = Path(get_nemo_home(nemo_home))
+    dataset_root = nemo_home_path / "datasets" / "squad"
     dataset_root.mkdir(parents=True, exist_ok=True)
 
     tokenizer = AutoTokenizer(pretrained_model_name=model_name)
@@ -121,7 +137,7 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
     else:
         raise FileNotFoundError(f"Packed dataset dir not found at {packed_dir}. Dataset download failed")
 
-def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048):
+def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048, nemo_home=None):
     """
     Downloads and prepares the SQuAD dataset for fine-tuning.
     """
@@ -131,7 +147,7 @@ def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: st
     dataset_executor.ntasks_per_node = 1
     dataset_executor.nodes = 1
 
-    return run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length), dataset_executor, "prepare_squad_dataset_exp"
+    return run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length, nemo_home=nemo_home), dataset_executor, "prepare_squad_dataset_exp"
 
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:

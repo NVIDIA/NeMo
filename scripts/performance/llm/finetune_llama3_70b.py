@@ -39,6 +39,9 @@ HF_MODEL_URI = "meta-llama/Meta-Llama-3-70B"
 # downloaded from HuggingFace
 SKIP_IMPORT = False
 
+# Set this to True if dataset is already downloaded. If set to False,
+# dataset will be downloaded from HuggingFace
+SKIP_DATASET_DOWNLOAD = False
 
 def override_recipe_configs(
     args: str,
@@ -223,7 +226,9 @@ if __name__ == "__main__":
         if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
-            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096))
+        if not SKIP_DATASET_DOWNLOAD:
+            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home))
+
         exp.add(
             recipe,
             executor=executor,
