@@ -528,29 +528,54 @@ def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTMod
     return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
 
 
-def get_hf_home():
-    """Get the HuggingFace home directory."""
-    return os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+def get_nemo_home(nemo_home=None):
+    """
+    Get NEMO_HOME path. Checks for both nemo_home argument and NEMO_HOME environment variable.
+    """
+    arg_nemo_set = nemo_home is True
+    env_nemo_set = "NEMO_HOME" in os.environ
+
+    if arg_nemo_set and env_nemo_set:
+        if os.environ["NEMO_HOME"] != nemo_home:
+            logging.warning(f"Using nemo_home ({nemo_home}) instead of NEMO_HOME ({os.environ['NEMO_HOME']})")
+        return nemo_home
+
+    if arg_nemo_set:
+        return nemo_home
+
+    if env_nemo_set:
+        return os.environ["NEMO_HOME"]
+
+    raise ValueError("Neither nemo_home argument nor NEMO_HOME environment variable is set")
 
 
-def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
+def prepare_squad_dataset(
+    model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True, vocab_size=None
+):
     """Prepare the SQuAD dataset for fine-tuning.
-    
+
     Args:
         model_name (str): The name of the model
         seq_length (int): The sequence length to use for packing. Defaults to 2048.
+        nemo_home: Optional path to NEMO home directory set via args.nemo_home
+        use_hf_tokenizer: Whether to use HuggingFace tokenizer or NullTokenizer
+        vocab_size: Vocabulary size to use when use_hf_tokenizer is False. Required when use_hf_tokenizer is False.
     """
-    from nemo.collections.llm.gpt.data.squad import SquadDataModule
-    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from pathlib import Path
 
-    hf_home = Path(get_hf_home())
-    dataset_root = hf_home / "datasets" / "squad"
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from nemo.collections.llm.gpt.data.squad import SquadDataModule
+
+    if not use_hf_tokenizer and vocab_size is None:
+        raise ValueError("vocab_size must be provided when use_hf_tokenizer is False")
+
+    nemo_home_path = Path(get_nemo_home(nemo_home))
+    dataset_root = nemo_home_path / "datasets" / "squad"
     dataset_root.mkdir(parents=True, exist_ok=True)
 
-    tokenizer = AutoTokenizer(pretrained_model_name=model_name)
-
+    if use_hf_tokenizer:
+        tokenizer = AutoTokenizer(pretrained_model_name=model_name)
     # Configure SquadDataModule with packing specs
     datamodule = SquadDataModule(
         dataset_root=dataset_root,
@@ -568,13 +593,22 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048):
     datamodule.prepare_data()
 
     # Verify the output
-    packed_dir = dataset_root / "packed" / model_name.replace("/", "--") / str(seq_length)
+    packed_dir = dataset_root / "packed" / model_name.replace("/", "--")
     print(f"Packed files should be in: {packed_dir}")
     if packed_dir.exists():
-        print("Files found:", list(packed_dir.glob("*.bin")))
+        print("Files found:", list(packed_dir.glob("*")))
+    else:
+        raise FileNotFoundError(f"Packed dataset dir not found at {packed_dir}. Dataset download failed")
 
 
-def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048):
+def prepare_squad_dataset_experiment(
+    executor: run.SlurmExecutor,
+    model_name: str,
+    seq_length: int = 2048,
+    nemo_home=None,
+    use_hf_tokenizer=True,
+    vocab_size=None,
+):
     """
     Downloads and prepares the SQuAD dataset for fine-tuning.
     """
@@ -584,8 +618,17 @@ def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: st
     dataset_executor.ntasks_per_node = 1
     dataset_executor.nodes = 1
 
-    return run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length), dataset_executor, "prepare_squad_dataset_exp"
-
+    return (
+        run.Partial(
+            prepare_squad_dataset,
+            model_name=model_name,
+            seq_length=seq_length,
+            nemo_home=nemo_home,
+            use_hf_tokenizer=use_hf_tokenizer,
+        ),
+        dataset_executor,
+        "prepare_squad_dataset_exp",
+    )
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
     """

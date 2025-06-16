@@ -36,15 +36,6 @@ from ..utils import (
 
 HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 
-# Set this to True if checkpoint is available at 'NEMO_HOME'. If set to False,
-# extra Slurm job will be scheduled. In this case, if checkpoint is available
-# at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
-# downloaded from HuggingFace
-SKIP_IMPORT = True
-
-# Set this to True if dataset is already downloaded. If set to False,
-# dataset will be downloaded from HuggingFace
-SKIP_DATASET_DOWNLOAD = False
 
 def override_recipe_configs(
     args: str,
@@ -66,11 +57,12 @@ def override_recipe_configs(
 ):
     """
     Llama4 e128 fine-tuning recipe aimed at achieving best possible performance.
+    Only supports SFT (Supervised Fine-Tuning).
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
-    assert finetuning_scheme != "lora"
+    #assert finetuning_scheme != "lora"
 
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, packed_sequence=True)
 
@@ -104,7 +96,8 @@ def override_recipe_configs(
 
 
     # data module configs
-    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    if args.use_hf_tokenizer:
+        recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     # If you want to force redownload for SquadDataModule, uncomment and adjust the following:
     # if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
     #     # flag is valid only for SquadDataModule
@@ -192,18 +185,19 @@ if __name__ == "__main__":
     )
 
     with run.Experiment(exp_name) as exp:
-        if not SKIP_IMPORT:
+        if not args.skip_import_checkpoint:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
-        if not SKIP_DATASET_DOWNLOAD:    
+        if not args.skip_dataset_download:    
             exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096))
-        exp.add(
-            recipe,
-            executor=executor,
-            name=exp_name,
-            plugins=plugins,
-        )
-        if not args.dryrun:
-            exp.run(sequential=True, detach=True)
-        else:
-            exp.dryrun()
+        if not args.skip_finetuning:
+            exp.add(
+                recipe,
+                executor=executor,
+                name=exp_name,
+                plugins=plugins,
+            )
+            if not args.dryrun:
+                exp.run(sequential=True, detach=True)
+            else:
+                exp.dryrun()
