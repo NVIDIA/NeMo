@@ -84,19 +84,21 @@ def get_nemo_home(nemo_home=None):
         if os.environ["NEMO_HOME"] != nemo_home:
             logging.warning(f"Using nemo_home ({nemo_home}) instead of NEMO_HOME ({os.environ['NEMO_HOME']})")
         return nemo_home
-    
+
     if arg_nemo_set:
         return nemo_home
-        
+
     if env_nemo_set:
         return os.environ["NEMO_HOME"]
-        
+
     raise ValueError("Neither nemo_home argument nor NEMO_HOME environment variable is set")
 
 
-def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True, vocab_size=None):
+def prepare_squad_dataset(
+    model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True, vocab_size=None
+):
     """Prepare the SQuAD dataset for fine-tuning.
-    
+
     Args:
         model_name (str): The name of the model
         seq_length (int): The sequence length to use for packing. Defaults to 2048.
@@ -104,11 +106,12 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=Non
         use_hf_tokenizer: Whether to use HuggingFace tokenizer or NullTokenizer
         vocab_size: Vocabulary size to use when use_hf_tokenizer is False. Required when use_hf_tokenizer is False.
     """
-    from nemo.collections.llm.gpt.data.squad import SquadDataModule
-    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from pathlib import Path
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.null_tokenizer import NullTokenizer
-    from pathlib import Path
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
     if not use_hf_tokenizer and vocab_size is None:
         raise ValueError("vocab_size must be provided when use_hf_tokenizer is False")
@@ -145,8 +148,16 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=Non
         print("Files found:", list(packed_dir.glob("*")))
     else:
         raise FileNotFoundError(f"Packed dataset dir not found at {packed_dir}. Dataset download failed")
-    
-def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True, vocab_size=None):
+
+
+def prepare_squad_dataset_experiment(
+    executor: run.SlurmExecutor,
+    model_name: str,
+    seq_length: int = 2048,
+    nemo_home=None,
+    use_hf_tokenizer=True,
+    vocab_size=None,
+):
     """
     Downloads and prepares the SQuAD dataset for fine-tuning.
     """
@@ -156,7 +167,17 @@ def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: st
     dataset_executor.ntasks_per_node = 1
     dataset_executor.nodes = 1
 
-    return run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length, nemo_home=nemo_home, use_hf_tokenizer=use_hf_tokenizer), dataset_executor, "prepare_squad_dataset_exp"
+    return (
+        run.Partial(
+            prepare_squad_dataset,
+            model_name=model_name,
+            seq_length=seq_length,
+            nemo_home=nemo_home,
+            use_hf_tokenizer=use_hf_tokenizer,
+        ),
+        dataset_executor,
+        "prepare_squad_dataset_exp",
+    )
 
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
