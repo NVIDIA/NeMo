@@ -21,7 +21,7 @@ import wandb
 from hydra.utils import instantiate
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import nn
 from torch.utils.data import get_worker_info
 import numpy as np
@@ -1186,13 +1186,13 @@ class MagpieTTSModel(ModelPT):
     def get_binarized_prior_matrix(self, aligner_attn_soft, audio_lens, text_lens):
         # aligner_attn_soft B, 1, audio_timesteps, text_timesteps
         if self.binarize_attn_method == 'nemo_binarize':
-            logging.info("Binarizing attention using nemo_binarize")
+            logging.debug("Binarizing attention using nemo_binarize")
             binarize_repeat_audio_factor = self.binarize_repeat_audio_factor
             aligner_attn_soft_repeated = aligner_attn_soft.repeat_interleave(binarize_repeat_audio_factor, dim=2) # B, 1, 2*audio_timesteps, text_timesteps
             aligner_attn_hard = binarize_attention_parallel(aligner_attn_soft_repeated, text_lens, audio_lens*binarize_repeat_audio_factor).squeeze(1) # B, 2*audio_timesteps, text_timesteps
             aligner_attn_hard = aligner_attn_hard[:, ::2, :] # B, audio_timesteps, text_timesteps
         elif self.binarize_attn_method == 'argmax':
-            logging.info("Binarizing attention using argmax")
+            logging.debug("Binarizing attention using argmax")
             aligner_attn_hard = torch.argmax(aligner_attn_soft.squeeze(1), dim=-1)
             aligner_attn_hard = torch.nn.functional.one_hot(aligner_attn_hard, num_classes=aligner_attn_soft.size(-1)).float()
         else:
@@ -1449,7 +1449,7 @@ class MagpieTTSModel(ModelPT):
         batch_info_dict = {
             "train/batch_size": batch_size,
             "train/text_token_max_len": text_token_max_len,
-            "train/text_token_total_num_in_batch": text_token_total_num,
+            "train/text_token_total_num_in_batch": text_token_total_num.item(),
             "train/text_token_pad_ratio_percent_in_batch": 100 * (1 - text_token_total_num / (batch_size * text_token_max_len)),
         }
 
@@ -1458,7 +1458,7 @@ class MagpieTTSModel(ModelPT):
             audio_codes_total_num = batch["audio_codes_lens"].sum()
             batch_info_dict.update({
                 "train/audio_codes_max_len": audio_codes_max_len,
-                "train/audio_codes_total_num_in_batch": audio_codes_total_num,
+                "train/audio_codes_total_num_in_batch": audio_codes_total_num.item(),
                 "train/audio_codes_pad_ratio_percent_in_batch": 100 * (1 - audio_codes_total_num / (batch_size * audio_codes_max_len)),
             })
         else:
@@ -1466,7 +1466,7 @@ class MagpieTTSModel(ModelPT):
             audio_samples_total_num = batch["audio_lens"].sum()
             batch_info_dict.update({
                 "train/audio_samples_max_len": audio_samples_max_len,
-                "train/audio_samples_total_num_in_batch": audio_samples_total_num,
+                "train/audio_samples_total_num_in_batch": audio_samples_total_num.item(),
                 "train/audio_samples_pad_ratio_percent_in_batch": 100 * (1 - audio_samples_total_num / (batch_size * audio_samples_max_len)),
             })
 
@@ -2048,7 +2048,6 @@ class MagpieTTSModel(ModelPT):
             sample_rate=self.sample_rate,
             volume_norm=dataset_cfg.volume_norm,
             codec_model_samples_per_frame=self.codec_model_samples_per_frame,
-            codec_model_name=self.cfg.codec_model_name,
             audio_bos_id=self.audio_bos_id,
             audio_eos_id=self.audio_eos_id,
             context_audio_bos_id=self.context_audio_bos_id,
@@ -2076,6 +2075,14 @@ class MagpieTTSModel(ModelPT):
         if dataset_cfg.get("use_lhotse", False):
             # TODO @xueyang: better to distinguish cfg. self.cfg is the model cfg, while cfg here is train_ds cfg. Also
             #   cfg is a classifier-free guidance.
+
+            # specify target sampling rate the same as codec model's because lhotse config defaults 16_000.
+            if not isinstance(dataset_cfg, DictConfig):
+                dataset_cfg = OmegaConf.create(dataset_cfg)
+            OmegaConf.set_struct(dataset_cfg.dataset, False)
+            dataset_cfg.dataset.update({"sample_rate": self.sample_rate})
+            OmegaConf.set_struct(dataset_cfg.dataset, True)
+
             self._train_dl = self.get_lhotse_dataloader(dataset_cfg, mode='train')
         else:
             dataset = self.get_dataset(dataset_cfg, dataset_type='train')
@@ -2100,6 +2107,12 @@ class MagpieTTSModel(ModelPT):
 
     def _setup_test_dataloader(self, dataset_cfg) -> torch.utils.data.DataLoader:
         if dataset_cfg.get("use_lhotse", False):
+            # specify target sampling rate the same as codec model's because lhotse config defaults 16_000.
+            if not isinstance(dataset_cfg, DictConfig):
+                dataset_cfg = OmegaConf.create(dataset_cfg)
+            OmegaConf.set_struct(dataset_cfg.dataset, False)
+            dataset_cfg.dataset.update({"sample_rate": self.sample_rate})
+            OmegaConf.set_struct(dataset_cfg.dataset, True)
             data_loader = self.get_lhotse_dataloader(dataset_cfg, mode='test')
         else:
             dataset = self.get_dataset(dataset_cfg, dataset_type='test')
@@ -2122,11 +2135,11 @@ class MagpieTTSModel(ModelPT):
             )
         return data_loader
 
-    def setup_validation_data(self, cfg):
-        self._validation_dl = self._setup_test_dataloader(cfg)
+    def setup_validation_data(self, dataset_cfg):
+        self._validation_dl = self._setup_test_dataloader(dataset_cfg)
 
-    def setup_test_data(self, cfg):
-        self._test_dl = self._setup_test_dataloader(cfg)
+    def setup_test_data(self, dataset_cfg):
+        self._test_dl = self._setup_test_dataloader(dataset_cfg)
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
