@@ -687,7 +687,7 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         source: SSMConfig = io.load_context(str(self), subpath="model.config")
 
         # TODO @ataghibakhsh: Change AutoConfig to NemotronHConfig once merged to HF
-        
+
         # Check for local model path from environment variable first
         local_model_path = os.environ.get('HF_LOCAL_MODEL_PATH')
         if type(source) == NemotronHConfig4B:
