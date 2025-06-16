@@ -12,9 +12,6 @@ weighted_sampling_steps_per_epoch: null
 train_ds_meta: ???
 val_ds_meta: ???
 
-# Modify these values based on your sample rate
-sample_rate: 22050
-
 model:
   model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
   use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
@@ -33,8 +30,6 @@ model:
   codecmodel_path: ???
   max_epochs: ${max_epochs}
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
-
-  sample_rate: ${sample_rate}
 
   # Alignment encoder parameters, to binarize the prior
   # This is used for attention-constrained training and inference
@@ -128,8 +123,6 @@ model:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
       dataset_meta: ${train_ds_meta}
       weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
-      sample_rate: ${sample_rate}
-      # speaker_path: ${speaker_path}
       min_duration: 0.5
       max_duration: 20.0
 
@@ -142,8 +135,6 @@ model:
     dataset:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
       dataset_meta: ${val_ds_meta}
-      sample_rate: ${sample_rate}
-      # speaker_path: ${speaker_path}
       min_duration: 0.5
       max_duration: 20.0
 
@@ -217,7 +208,6 @@ trainer:
   logger: false # Provided by exp_manager
   log_every_n_steps: 100
   val_check_interval: 500
-  # check_val_every_n_epoch: 10
   benchmark: false
   gradient_clip_val: 2.5
 

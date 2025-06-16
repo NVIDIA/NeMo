@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/tts/magpietts.py \
-    --config-name magpietts_dc_en \
-    +train_ds_meta.an4.manifest_path="/home/TestData/an4_dataset/an4_train.json" \
+    --config-name magpietts_en \
+    +train_ds_meta.an4.manifest_path="/home/TestData/an4_dataset/an4_train_context_v1.json" \
     +train_ds_meta.an4.audio_dir="/" \
     +train_ds_meta.an4.tokenizer_names="[english_phoneme]" \
     +train_ds_meta.an4.feature_dir=null \
-    +val_ds_meta.an4.manifest_path="/home/TestData/an4_dataset/an4_val.json" \
+    +val_ds_meta.an4.manifest_path="/home/TestData/an4_dataset/an4_val_context_v1.json" \
     +val_ds_meta.an4.audio_dir="/" \
     +val_ds_meta.an4.tokenizer_names="[english_phoneme]" \
     +val_ds_meta.an4.feature_dir=null \

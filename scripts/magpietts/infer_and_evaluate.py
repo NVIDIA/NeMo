@@ -120,7 +120,8 @@ def run_inference(
         maskgit_noise_scale=0.0,
         legacy_codebooks=False,
         fixed_schedule_n_unmasked=None,
-        sampling_type=None
+        sampling_type=None,
+        clean_up_disk=False,
     ):
     # Load model
     if hparams_file is not None:
@@ -266,6 +267,7 @@ def run_inference(
                 if predicted_audio.numel() == 0 or predicted_codes.numel() == 0:
                     print("\n*** WARNING: Predicted audio or codes is empty. Skipping batch. ***\n")
                     
+
                 all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
                 print(f"Time taken for inference: {et-st}", predicted_audio.size())
@@ -342,6 +344,26 @@ def run_inference(
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
         
 
+        measurements = [m['ssim_pred_context_avg'] for m in metrics_n_repeated]
+        ssim = np.mean(measurements)
+        measurements = [m['cer_cumulative'] for m in metrics_n_repeated]
+        cer = np.mean(measurements)
+
+        if clean_up_disk:
+            shutil.rmtree(out_dir)
+        return cer, ssim
+
+
+        measurements = [m['ssim_pred_context_avg'] for m in metrics_n_repeated]
+        ssim = np.mean(measurements)
+        measurements = [m['cer_cumulative'] for m in metrics_n_repeated]
+        cer = np.mean(measurements)
+
+        if clean_up_disk:
+            shutil.rmtree(out_dir)
+        return cer, ssim
+
+
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
     parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
@@ -377,6 +399,9 @@ def main():
     parser.add_argument('--fixed_schedule_n_unmasked', type=int, nargs='+', default=None)
     parser.add_argument('--sampling_type', default=None, choices=["default", "alternate", "causal"])
 
+    parser.add_argument('--clean_up_disk', action='store_true')
+    parser.add_argument('--cer_target', type=float, default=None)
+    parser.add_argument('--ssim_target', type=float, default=None)
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -393,7 +418,7 @@ def main():
         print("Running inference for checkpoint files: ", checkpoint_files)
         assert len(hparam_files) == len(checkpoint_files), "Number of hparams files and checkpoint files should be the same."
         for hparams_file, checkpoint_file in zip(hparam_files, checkpoint_files):
-            run_inference(
+            cer, ssim = run_inference(
                 hparams_file=hparams_file,
                 checkpoint_file=checkpoint_file,
                 nemo_file=None,
@@ -419,6 +444,7 @@ def main():
                 maskgit_n_steps=args.maskgit_n_steps,
                 maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks,
+                clean_up_disk=args.clean_up_disk,
                 fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
                 sampling_type=args.sampling_type
             )
@@ -426,7 +452,7 @@ def main():
     elif (args.nemo_file is not None):
         nemo_file = args.nemo_file
         print("Running inference for nemo file: ", nemo_file)
-        run_inference(
+        cer, ssim = run_inference(
             hparams_file=None,
             checkpoint_file=None,
             nemo_file=nemo_file,
@@ -452,6 +478,7 @@ def main():
             maskgit_n_steps=args.maskgit_n_steps,
             maskgit_noise_scale=args.maskgit_noise_scale,
             legacy_codebooks=args.legacy_codebooks,
+            clean_up_disk=args.clean_up_disk,
             fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
             sampling_type=args.sampling_type
         )
@@ -518,8 +545,13 @@ def main():
                 maskgit_n_steps=args.maskgit_n_steps,
                 maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks,
-                sampling_type=args.sampling_type
+                sampling_type=args.sampling_type,
+                clean_up_disk=args.clean_up_disk
             )
+    if cer > float(args.cer_target):
+        raise ValueError()
+    if ssim < float(args.ssim_target):
+        raise ValueError()
 
 
 if __name__ == '__main__':
