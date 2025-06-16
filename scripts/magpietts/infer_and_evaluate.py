@@ -30,6 +30,7 @@ from PIL import Image
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
 from nemo.collections.tts.models import MagpieTTSModel
+from scripts.magpietts.infer_streaming import run_inference_streaming
 
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
@@ -345,8 +346,8 @@ def run_inference(
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
-    parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
-    parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
+    parser.add_argument('--hparams_files', type=str, default=None)
+    parser.add_argument('--checkpoint_files', type=str, default=None)
     parser.add_argument('--nemo_file', type=str, default=None)
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo")
     parser.add_argument('--datasets', type=str, default="libri_unseen_test_12.5")
@@ -370,13 +371,14 @@ def main():
     parser.add_argument('--topk', type=int, default=80)
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--sv_model', type=str, default="titanet") # titanet, wavlm
-    parser.add_argument('--asr_model_name', type=str, default="stt_en_conformer_transducer_large") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
+    parser.add_argument('--asr_model_name', type=str, default="nvidia/parakeet-ctc-0.6b") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=None)
     parser.add_argument('--ssim_target', type=float, default=None)
+    parser.add_argument('--streaming', action='store_true')
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -386,6 +388,8 @@ def main():
     if args.apply_prior_to_layers is not None:
         apply_prior_to_layers = [int(l.strip()) for l in args.apply_prior_to_layers.split(",")]
 
+    infer_fn = run_inference_streaming if args.streaming else run_inference
+
     if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null") and (args.checkpoint_files != "null"):
         hparam_files = args.hparams_files.split(",")
         checkpoint_files = args.checkpoint_files.split(",")
@@ -393,7 +397,7 @@ def main():
         print("Running inference for checkpoint files: ", checkpoint_files)
         assert len(hparam_files) == len(checkpoint_files), "Number of hparams files and checkpoint files should be the same."
         for hparams_file, checkpoint_file in zip(hparam_files, checkpoint_files):
-            cer, ssim = run_inference(
+            cer, ssim = infer_fn(
                 hparams_file=hparams_file,
                 checkpoint_file=checkpoint_file,
                 nemo_file=None,
@@ -424,7 +428,7 @@ def main():
     elif (args.nemo_file is not None):
         nemo_file = args.nemo_file
         print("Running inference for nemo file: ", nemo_file)
-        cer, ssim = run_inference(
+        cer, ssim = infer_fn(
             hparams_file=None,
             checkpoint_file=None,
             nemo_file=nemo_file,
@@ -488,7 +492,7 @@ def main():
             print("Copied hparams file.")
             print("Hparams file path: ", hparams_copy_path)
             print("Checkpoint file path: ", checkpoint_copy_path)
-            run_inference(
+            cer, ssim = infer_fn(
                 hparams_copy_path,
                 checkpoint_copy_path,
                 nemo_file=None,

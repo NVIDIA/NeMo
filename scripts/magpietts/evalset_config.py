@@ -39,13 +39,13 @@ dataset_meta_info = {
     },
     'local_longer_4': {
         'manifest_path' : '/workspace/NeMo/filtered_test_longer_4.json',
-        'audio_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
-        'feature_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+        'audio_dir' : '/data/TTS/LibriTTS',
+        'feature_dir' : '/data/TTS/LibriTTS',
     },
     'local_longer_1': {
         'manifest_path' : '/workspace/NeMo/filtered_test_longer_1_magpie_gemma2.json',
-        'audio_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
-        'feature_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+        'audio_dir' : '/data/TTS/LibriTTS',
+        'feature_dir' : '/data/TTS/LibriTTS',
     },
     'local_magpie_longer_10': {
         'manifest_path' : '/workspace/NeMo/magpie_gemma2_test_long_10_normalize_noasterisk.json',

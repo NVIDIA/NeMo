@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import copy
 import os
 import random
 import time
@@ -18,6 +19,7 @@ from typing import List
 import soundfile as sf
 import torch
 import wandb
+import numpy as np  
 from hydra.utils import instantiate
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
@@ -1937,7 +1939,8 @@ class MagpieTTSModel(ModelPT):
         # Parameters for maintaining history
         self.history_text = None # Maintains the history of text tokens the model looks at to generate audio in the current step
         self.history_context_tensor = None # Maintains the history of text encoder output the model looks at to generate audio in the current step
-        self.audio_codes_input = torch.full((1, self.cfg.num_audio_codebooks, 1), self.audio_bos_id).long() # Maintains history of audio codes generated
+        num_audio_codebooks = self.cfg.num_audio_codebooks if "num_audio_codebooks" in self.cfg else self.num_audio_codebooks
+        self.audio_codes_input = torch.full((1, num_audio_codebooks, 1), self.audio_bos_id).long() # Maintains history of audio codes generated
         self.audio_codes_lens = torch.full((1,), 1).long() # Maintains history of audio codes generated length
         self.history_attn_prior = None # Maintains history of attn prior based on the text step the model has attended to in the last step
         self.left_offset = 0 # As we move the window to the right, we need to keep track of how much we have discarded
@@ -1948,6 +1951,7 @@ class MagpieTTSModel(ModelPT):
         self.unfinished_texts = {} # Maintains the unfinished texts .i.e. all of the text tokens have not been provided to the model yet
         self.finished_texts_counter = {}
         self.end_indices = {}
+        self.encoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
 
     def generate_speech_per_chunk_of_text(
             self, 
@@ -1968,6 +1972,7 @@ class MagpieTTSModel(ModelPT):
             compute_all_heads_attn_maps=False,
             return_cross_attn_probs=False, 
             go_to_end_of_text_window=False,
+            use_exponential_weight=False,
         ):
         """
         This method is used for streaming inference. Method to do text to speech inference one chunk of text/words at a time.
@@ -1978,16 +1983,32 @@ class MagpieTTSModel(ModelPT):
         with torch.no_grad():
             self.audio_codes_input = self.audio_codes_input.to(device)
             self.audio_codes_lens = self.audio_codes_lens.to(device)
-            # self.t5_decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
             current_chunk_len = batch['text_lens']
             batch_size = batch["text"].size(0)
-            current_text = torch.cat([self.history_text, batch["text"]], dim=1) if self.history_text is not None else batch["text"]
-            current_text = current_text[:, max(0, current_text.size(1)-self.true_window_size):]
-            current_text_lens = current_text.size(1)
-            self.history_text = current_text
-            batch['text'] = current_text
-            batch['text_lens'] = torch.tensor([current_text_lens]).to(device).long()
-            context_tensors = self.prepare_context_tensors(batch)
+            # Next section is for processing text through encoder.
+            if not self.use_kv_cache_for_inference or beginning_of_text:
+                # First if condition is if encoder cache is not user or if encoder cache is used and first chunk of text is being processed.
+                current_text = torch.cat([self.history_text, batch["text"]], dim=1) if self.history_text is not None else batch["text"]
+                current_text = current_text[:, max(0, current_text.size(1)-self.true_window_size):]
+                current_text_lens = current_text.size(1)
+                self.history_text = current_text
+                batch['text'] = current_text
+                batch['text_lens'] = torch.tensor([current_text_lens]).to(device).long()
+                context_tensors = self.prepare_context_tensors(batch)
+            else:
+                # This section is when encoder cache is used and not the first chunk of text is being processed.
+                _current_text = copy.deepcopy(batch["text"])
+                for _i in range(_current_text.shape[1]):
+                    tok = _current_text[:, _i].unsqueeze(0)
+                    current_text = torch.cat([self.history_text, tok], dim=1) if self.history_text is not None else batch["text"]
+                    if current_text.size(1) >= self.true_window_size:
+                        self.encoder.move_cache_window(self.true_window_size-1)
+                    current_text = current_text[:, max(0, current_text.size(1)-self.true_window_size):]
+                    current_text_lens = current_text.size(1)
+                    self.history_text = current_text
+                    batch['text'] = current_text
+                    batch['text_lens'] = torch.tensor([current_text_lens]).to(device).long()
+                    context_tensors = self.prepare_context_tensors(batch)
 
             if not beginning_of_text:
                 context_tensors['cond'][:, :-current_chunk_len] = self.history_context_tensor[:, -(context_tensors['cond'].size(1) - current_chunk_len):]
@@ -2003,7 +2024,7 @@ class MagpieTTSModel(ModelPT):
                     context_tensors['cond'],
                     context_tensors['cond_mask'],
                     context_tensors['additional_decoder_input'],
-                    context_tensors['addtional_decoder_mask']
+                    context_tensors['additional_decoder_mask']
                 )
 
             if self.history_attn_prior is not None:
@@ -2047,7 +2068,7 @@ class MagpieTTSModel(ModelPT):
                 audio_codes_embedded = self.embed_audio_tokens(self.audio_codes_input)
                 if context_tensors['additional_decoder_input'] is not None:
                     _audio_codes_embedded = torch.cat([context_tensors['additional_decoder_input'], audio_codes_embedded], dim=1)
-                    _audio_codes_mask = torch.cat([context_tensors['addtional_decoder_mask'], audio_codes_mask], dim=1)
+                    _audio_codes_mask = torch.cat([context_tensors['additional_decoder_mask'], audio_codes_mask], dim=1)
                 else:
                     _audio_codes_embedded = audio_codes_embedded
                     _audio_codes_mask = audio_codes_mask
@@ -2147,14 +2168,38 @@ class MagpieTTSModel(ModelPT):
                                 # Very short sentences, No Prior
                                 self.history_attn_prior[bidx, 0, :] = 1.0
                             else:
-                                self.history_attn_prior[bidx, 0, :max(1, text_time_step_attended[bidx]-1-self.left_offset)] = prior_epsilon*prior_epsilon # if not go_to_end_of_text_window else prior_epsilon
-                                self.history_attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1-self.left_offset)] = 0.2 # Slight exposure to history for better pronounciation. Not very important.
-                                self.history_attn_prior[bidx, 0, text_time_step_attended[bidx]-self.left_offset] = 0.8 # Slightly bias to continue moving forward. Not very important.
-                                self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+1-self.left_offset, _text_len - 1) ] = 1.0
-                                self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset, _text_len - 1) ] = 0.8
-                                self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset + 1, _text_len - 1):min(text_time_step_attended[bidx]+2-self.left_offset + 10, _text_len - 1) ] = prior_epsilon
-                                # if not go_to_end_of_text_window:
-                                self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset + 10, _text_len - 1): ] = prior_epsilon*prior_epsilon
+                                if use_exponential_weight:
+                                    scale = 1.25
+                                    n_steps = text_time_step_attended[bidx]-self.left_offset + 1
+                                    x_pdf = list(range(n_steps))
+                                    pdf = [(1/scale) * np.exp(-x/2) for x in x_pdf]
+                                    pdf = pdf[::-1]
+                                    for ii, p in enumerate(pdf):
+                                        self.history_attn_prior[bidx, 0, ii] = max(p, prior_epsilon*prior_epsilon)
+                                    # Future
+                                    self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+1-self.left_offset, _text_len - 1) ] = 1.0
+
+                                    # n_steps = self.history_attn_prior.size(2) - (text_time_step_attended[bidx]+2-self.left_offset)
+                                    # if n_steps > 0:
+                                    #     x_pdf = list(range(n_steps))
+                                    #     pdf = [(1/scale) * np.exp(-x/2) for x in x_pdf]
+                                    #     for ii, p in enumerate(pdf):
+                                    #         iii = (text_time_step_attended[bidx]+2-self.left_offset) + ii
+                                    #         self.history_attn_prior[bidx, 0, iii] = p
+
+                                    self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset, _text_len - 1) ] = 0.8
+                                    self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset + 1, _text_len - 1):min(text_time_step_attended[bidx]+2-self.left_offset + 10, _text_len - 1) ] = prior_epsilon
+                                    # if not go_to_end_of_text_window:
+                                    self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset + 10, _text_len - 1): ] = prior_epsilon*prior_epsilon
+                                else:
+                                    self.history_attn_prior[bidx, 0, :max(1, text_time_step_attended[bidx]-1-self.left_offset)] = prior_epsilon*prior_epsilon # if not go_to_end_of_text_window else prior_epsilon
+                                    self.history_attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1-self.left_offset)] = 0.2 # Slight exposure to history for better pronounciation. Not very important.
+                                    self.history_attn_prior[bidx, 0, text_time_step_attended[bidx]-self.left_offset] = 0.8 # Slightly bias to continue moving forward. Not very important.
+                                    self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+1-self.left_offset, _text_len - 1) ] = 1.0
+                                    self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset, _text_len - 1) ] = 0.8
+                                    self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset + 1, _text_len - 1):min(text_time_step_attended[bidx]+2-self.left_offset + 10, _text_len - 1) ] = prior_epsilon
+                                    # if not go_to_end_of_text_window:
+                                    self.history_attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-self.left_offset + 10, _text_len - 1): ] = prior_epsilon*prior_epsilon
                             
                             # Penalize timesteps that have been attended to more than 10 times
                             for _timestep in self.attended_timestep_counter[bidx]:
