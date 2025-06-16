@@ -1,4 +1,5 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved. Except portions as noted which are Copyright (c) 2023 OpenGVLab and licensed under the MIT license found in LICENSE.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Except portions as noted which are Copyright (c) 2023 OpenGVLab and licensed under the MIT license found in LICENSE.
 from torchvision import transforms as T
 from torchvision.transforms import Compose
 from torchvision.transforms.functional import InterpolationMode
@@ -24,10 +25,11 @@ pixel_statistics = {
     "huggingface": (SIGLIP_PIXEL_MEAN, SIGLIP_PIXEL_STD),
 }
 
-
+# pylint: disable=C0301
 # From https://github.com/OpenGVLab/InternVL/blob/c62fa4f7c850165d7386bdc48ac6bc5a6fab0864/internvl_chat/internvl/train/dataset.py#L685
 # Copyright (c) 2023 OpenGVLab.
 def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
+    """ Find the closest aspect ratio to target_ratio"""
     best_ratio_diff = float('inf')
     best_ratio = (1, 1)
     area = width * height
@@ -78,7 +80,7 @@ class ImageTransform:
 
         return imgs
 
-
+# pylint: disable=C0301
 # From https://github.com/OpenGVLab/InternVL/blob/c62fa4f7c850165d7386bdc48ac6bc5a6fab0864/internvl_chat/internvl/train/dataset.py#L702
 # Copyright (c) 2023 OpenGVLab.
 def dynamic_preprocess(
@@ -89,6 +91,7 @@ def dynamic_preprocess(
     use_thumbnail=False,
     find_closest_aspect_ratio_fn=find_closest_aspect_ratio,
 ):
+    """ """
     orig_width, orig_height = image.size
     aspect_ratio = orig_width / orig_height
 
@@ -131,7 +134,7 @@ def dynamic_preprocess(
         processed_images.append(thumbnail_img)
     return processed_images
 
-
+# pylint: disable=C0301
 # Based on https://github.com/openai/CLIP/blob/dcba3cb2e2827b402d2701e7e1c7d9fed8a20ef1/clip/clip.py#L79
 # and https://github.com/OpenGVLab/InternVL/blob/aa521e6eb1df4cf153aa4118fcf13e673c055d46/internvl_chat/internvl/train/dataset.py#L276
 def _build_transform(input_size, vision_model_type):

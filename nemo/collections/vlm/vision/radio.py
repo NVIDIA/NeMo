@@ -55,6 +55,7 @@ from nemo.lightning import io, teardown
 
 
 def get_norm_mlp_module_spec_te() -> ModuleSpec:
+    """ Get specs for MLP layer """
     return ModuleSpec(
         module=MLP,
         submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear),
@@ -62,6 +63,8 @@ def get_norm_mlp_module_spec_te() -> ModuleSpec:
 
 
 def get_radio_g_layer_spec_te() -> ModuleSpec:
+    """ Get specs for Radio transformer layer """
+
     attn_mask_type = AttnMaskType.no_mask
 
     mlp = get_norm_mlp_module_spec_te()

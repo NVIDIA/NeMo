@@ -900,6 +900,7 @@ class MultimodalModelRunner:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + "<|start_header_id|>assistant<|end_header_id|>\n\n"
         elif self.model_type == "llama_nemotron":
+            # pylint: disable=C0301
             pre_prompt = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAnswer the questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
             post_prompt = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
             if input_text is None:

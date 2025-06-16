@@ -20,6 +20,7 @@ from nemo.collections.vlm.utils import ImageTransform
 
 
 class VisualProcessor:
+    """ Default image processor for generic usage """
     def __init__(
         self,
         crop_height=512,

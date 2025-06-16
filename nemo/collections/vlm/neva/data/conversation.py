@@ -15,7 +15,6 @@
 import base64
 import dataclasses
 import re
-from collections import defaultdict
 from enum import Enum, auto
 from io import BytesIO
 from typing import Any, List, Optional, Union
@@ -23,6 +22,7 @@ from typing import Any, List, Optional, Union
 from PIL import Image
 from transformers import AutoTokenizer
 
+# pylint: disable=C0301
 
 class SeparatorStyle(Enum):
     """Different separator style."""
