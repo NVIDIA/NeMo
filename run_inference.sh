@@ -54,6 +54,9 @@ python scripts/magpietts/infer_and_evaluate.py \
 --start_prior_after_n_audio_steps 0 \
 --cfg_scale 2.5 \
 --temperature 0.7 \
---streaming ;
+--streaming \
+--clean_up_disk \
+--cer_target 1.0 \
+--ssim_target 0.01 ;
 
 # --legacy_codebooks \

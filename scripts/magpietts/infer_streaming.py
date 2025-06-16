@@ -113,7 +113,8 @@ def run_inference_streaming(
         maskgit_n_steps=3,
         legacy_codebooks=False,
         use_exponential_weight=True,
-        tokenizer_name=None
+        tokenizer_name=None,
+        clean_up_disk=False,
     ):
     num_chunk_per_window = 2
     num_audio_tokens_per_text = 1
