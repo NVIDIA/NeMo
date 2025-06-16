@@ -14,7 +14,6 @@
 
 from os.path import basename, splitext
 
-import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
 
 from nemo.collections.llm.recipes.nemotronh_56b import pretrain_recipe
@@ -50,7 +49,7 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe()
+    recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -73,7 +72,7 @@ def override_recipe_configs(
         load_checkpoint_path=args.checkpoint_load_path,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe, "pre_train", "llm", "nemotronh", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
     gpu_type = args.gpu.lower()
