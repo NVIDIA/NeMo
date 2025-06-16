@@ -96,7 +96,7 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
 
             # Make sure prompt_dictionary exists
             if 'prompt_dictionary' not in cfg.model_defaults:
-                logging.ValueError("No prompt_dictionary found in config.")
+                raise ValueError("No prompt_dictionary found in config.")
 
             # Set subsampling_factor in a place accessible to the class
             self.subsampling_factor = cfg.get('subsampling_factor', 8)
@@ -282,38 +282,6 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
         return temporary_datalayer
 
     def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
-        # Debug print to see batch structure
-        logging.info(f"Batch type: {type(batch)}, len: {len(batch)}")
-        for i, item in enumerate(batch):
-            logging.info(f"Batch[{i}] type: {type(item)}, shape: {item.shape if hasattr(item, 'shape') else 'N/A'}")
-
-        # Handle different batch formats safely
-        if isinstance(batch, dict):
-            # Dictionary-style batch
-            input_signal = batch.get('input_signal') or batch.get('audio_signal')
-            input_signal_length = batch.get('input_signal_length') or batch.get('audio_signal_length')
-            prompt = batch.get('language')
-
-            if input_signal is None or input_signal_length is None:
-                raise ValueError("Could not find input signal tensors in batch dictionary")
-
-            if prompt is None:
-                logging.warning("Prompt tensor not found in batch dictionary, using default")
-                # Create a dummy prompt tensor if needed
-                # This is a fallback and depends on your specific requirements
-        else:
-            # List/tuple style batch - use positional access
-            input_signal = batch[0]
-            input_signal_length = batch[1]
-
-            # Safely get prompt - batch[4] is expected to be the prompt
-            if len(batch) > 4:
-                prompt = batch[4]
-            else:
-                logging.error(f"Batch doesn't contain prompt at index 4 (batch length = {len(batch)})")
-                logging.error(f"Batch: {batch}")
-                raise ValueError(f"Batch doesn't contain prompt at index 4 (batch length = {len(batch)})")
-
         # Forward pass with prompt
         encoded, encoded_len = self.forward(
             input_signal=input_signal, input_signal_length=input_signal_length, prompt=prompt
@@ -393,7 +361,7 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
             override_config=override_config,
             **config_kwargs,
         )
-
+    @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):
             input_signal_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
@@ -408,7 +376,7 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
             "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
             "prompt": NeuralType(('B', 'T', 'D'), LabelsType()),
         }
-
+    @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
@@ -619,7 +587,6 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
         return {'loss': loss_value}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        # TODO: add support for CTC decoding
         signal, signal_len, transcript, transcript_len, sample_id, prompt = batch
 
         # forward() only performs encoder forward
@@ -629,12 +596,21 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
             encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len, prompt=prompt)
         del signal
 
-        best_hyp_text, all_hyp_text = self.decoding.rnnt_decoder_predictions_tensor(
-            encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
-        )
+        if self.cur_decoder == 'rnnt':
+            best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
+                encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=True
+            )
+        else:
+            logits = self.ctc_decoder(encoder_output=encoded)
+            best_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
+                decoder_outputs=logits,
+                decoder_lengths=encoded_len,
+                return_hypotheses=True,
+            )
 
-        sample_id = sample_id.cpu().detach().numpy()
-        return list(zip(sample_id, best_hyp_text))
+        if isinstance(sample_id, torch.Tensor):
+            sample_id = sample_id.cpu().detach().numpy()
+        return list(zip(sample_id, best_hyp))
 
     def validation_pass(self, batch, batch_idx, dataloader_idx):
         if self.is_interctc_enabled():
@@ -817,6 +793,7 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
 
         return metrics
 
+    @property
     def bleu(self):
         return self._bleu
 
