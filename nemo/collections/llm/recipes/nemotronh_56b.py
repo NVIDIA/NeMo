@@ -143,7 +143,7 @@ def trainer(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
             overlap_grad_reduce=True,
-            overlap_param_gather=False,  # Verify that this works
+            overlap_param_gather=True,  # Verify that this works
             grad_reduce_in_fp32=True,
         ),
     )
