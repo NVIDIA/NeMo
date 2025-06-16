@@ -29,7 +29,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata
+from ..utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata,prepare_squad_dataset_experiment
 
 HF_MODEL_URI = "meta-llama/Llama-3.1-405B"
 
@@ -39,6 +39,9 @@ HF_MODEL_URI = "meta-llama/Llama-3.1-405B"
 # downloaded from HuggingFace
 SKIP_IMPORT = False
 
+# Set this to True if dataset is already downloaded. If set to False,
+# dataset will be downloaded from HuggingFace
+SKIP_DATASET_DOWNLOAD = False
 
 def override_recipe_configs(
     args: str,
@@ -216,6 +219,8 @@ if __name__ == "__main__":
         if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+        if not SKIP_DATASET_DOWNLOAD:
+            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home,vocab_size=128256))
         exp.add(
             recipe,
             executor=executor,

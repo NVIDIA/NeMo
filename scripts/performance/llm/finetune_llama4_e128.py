@@ -41,7 +41,7 @@ HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 # extra Slurm job will be scheduled. In this case, if checkpoint is available
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
-SKIP_IMPORT = True
+SKIP_IMPORT = False
 
 # Set this to True if dataset is already downloaded. If set to False,
 # dataset will be downloaded from HuggingFace
@@ -192,7 +192,7 @@ if __name__ == "__main__":
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
         if not SKIP_DATASET_DOWNLOAD:
-            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home, use_hf_tokenizer=args.use_hf_tokenizer, vocab_size=args.vocab_size))
+            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home, use_hf_tokenizer=args.use_hf_tokenizer, vocab_size=202048))
         exp.add(
             recipe,
             executor=executor,
