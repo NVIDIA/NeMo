@@ -239,6 +239,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_Conversion_Test_Nemotron
             runner: self-hosted-azure
+          - script: L2_NeMo_2_Conversion_Test_Nemotron_H_4B
+            runner: self-hosted-azure
           - script: L2_NeMo_2_Conversion_Test_Phi3Mini
             runner: self-hosted-azure
           - script: L2_NeMo_2_Conversion_Test_Qwen2
