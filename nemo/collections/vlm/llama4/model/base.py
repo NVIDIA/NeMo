@@ -161,6 +161,7 @@ class Llama4OmniConfig(NevaConfig):
         # set token_drop setting from config
         self.language_transformer_config.moe_pad_expert_input_to_capacity = self.moe_pad_expert_input_to_capacity
         self.language_transformer_config.moe_expert_capacity_factor = self.moe_expert_capacity_factor
+        self.language_transformer_config.tp_comm_overlap = self.tp_comm_overlap
 
         assert (
             getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
