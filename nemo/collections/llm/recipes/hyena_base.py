@@ -25,7 +25,7 @@ import nemo_run as run
 import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
-from megatron.core.tokenizer import MegatronTokenizer, MegatronTokenizerBase
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 
 from nemo import lightning as nl
 from nemo.collections import llm

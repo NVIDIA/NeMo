@@ -18,7 +18,7 @@
 import lightning.pytorch as pl
 import nemo_run as run
 
-from megatron.core.tokenizer import MegatronTokenizerBase
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.recipes.hyena_base import model_recipe, pretrain_recipe_creater, tokenizer_recipe
