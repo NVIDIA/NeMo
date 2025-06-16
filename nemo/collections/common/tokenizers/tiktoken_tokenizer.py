@@ -81,14 +81,16 @@ class TiktokenTokenizer(TokenizerSpec):
 
     def __init__(
         self,
-        vocab_file: str,
+        vocab_file: Optional[str] = None,
+        encoding_name: Optional[str] = None,
         pattern: str = PATTERN_TIKTOKEN,
         vocab_size: int = DEFAULT_TIKTOKEN_MAX_VOCAB,  # 131072
         num_special_tokens: int = 1000,
         special_tokens: Optional[List[str]] = None,
     ):
-        if not vocab_file or not os.path.exists(vocab_file):
-            raise ValueError(f"vocab_file: {vocab_file} is invalid")
+        if not encoding_name:
+            if not vocab_file or not os.path.exists(vocab_file):
+                raise ValueError(f"vocab_file: {vocab_file} is invalid")
 
         if special_tokens is None:
             special_tokens = SPECIAL_TOKENS.copy()
@@ -105,7 +107,20 @@ class TiktokenTokenizer(TokenizerSpec):
         self._cls_id = special_tokens.index("<cls>")
         self._sep_id = special_tokens.index("<sep>")
 
-        self._vocab_size = vocab_size
+        if vocab_file is not None:
+            # reload vocab
+            self.token2id = reload_mergeable_ranks(vocab_file, max_vocab=self.inner_vocab_size)
+            tokenizer_name = Path(vocab_file).parent.name
+            self._vocab_size = vocab_size
+            self.inner_vocab_size = self._vocab_size - num_special_tokens
+        else:
+            tokenizer_base = tiktoken.get_encoding(encoding_name)  # "o200k_base"
+            self.token2id = tokenizer_base._mergeable_ranks
+            pattern = tokenizer_base._pat_str
+            tokenizer_name = encoding_name
+            self.inner_vocab_size = len(self.token2id)
+            self._vocab_size = self.inner_vocab_size + num_special_tokens
+
         print(f'{self._vocab_size = }')
         self.num_special_tokens = num_special_tokens
         special_filler = [SPECIAL_TOKEN_TEMPLATE.format(id=i) for i in range(len(special_tokens), num_special_tokens)]
@@ -114,19 +129,16 @@ class TiktokenTokenizer(TokenizerSpec):
             print(f"Adding special tokens {special_filler[0]}, ..., {special_filler[-1]}")
         self.special_tokens = special_tokens + special_filler
         assert len(set(self.special_tokens)) == len(self.special_tokens) == num_special_tokens, self.special_tokens
-        self.inner_vocab_size = vocab_size - num_special_tokens
 
-        # reload vocab
-        self.token2id = reload_mergeable_ranks(vocab_file, max_vocab=self.inner_vocab_size)
-        self.id2token = {v: k for k, v in self.token2id.items()}
-        assert set(range(self.inner_vocab_size)) == set(self.id2token.keys())
+        id2token = {v: k for k, v in self.token2id.items()}
+        assert set(range(self.inner_vocab_size)) == set(id2token.keys())
 
         self.shifted_id2token = {i: tok for i, tok in enumerate(self.special_tokens)}
-        for key, value in self.id2token.items():
+        for key, value in id2token.items():
             self.shifted_id2token[key + self.num_special_tokens] = value.decode('utf-8', errors='replace')
 
         self.tokenizer = tiktoken.Encoding(
-            name=Path(vocab_file).parent.name,
+            name=tokenizer_name,
             pat_str=pattern,
             mergeable_ranks=self.token2id,
             special_tokens={},  # special tokens are handled manually
