@@ -146,7 +146,7 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=Non
     else:
         raise FileNotFoundError(f"Packed dataset dir not found at {packed_dir}. Dataset download failed")
 
-def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True, vocab_size=202048):
+def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True, vocab_size=None):
     """
     Downloads and prepares the SQuAD dataset for fine-tuning.
     """
