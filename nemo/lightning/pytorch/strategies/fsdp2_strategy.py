@@ -544,14 +544,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         #   In this case, the self._checkpoint_io object is a wrapper and holds a `checkpoint_io`
         #   attribute which we query for the `adapter_only` attribute
         # - otherwise, it's the base case which has the adapter_only attribute directly accesible.
-        is_adapter_only = getattr(self._checkpoint_io, 'adapter_only',
-            getattr(
-                getattr(
-                    self._checkpoint_io, 'checkpoint_io', {}
-                ),
-                'adapter_only',
-                False
-            )
+        is_adapter_only = getattr(
+            self._checkpoint_io,
+            'adapter_only',
+            getattr(getattr(self._checkpoint_io, 'checkpoint_io', {}), 'adapter_only', False),
         )
 
         if is_adapter_only:
