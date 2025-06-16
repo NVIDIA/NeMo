@@ -20,6 +20,7 @@ model:
     pred_hidden: 640
     joint_hidden: 640
     initialize_prompt_feature: true
+    num_prompts: 128
     norm: None
     # Dictionary mapping prompt identifiers to their corresponding embedding indices
     # Custom prompts can be added with descriptive keys and indices 
@@ -110,19 +111,24 @@ model:
     manifest_filepath: null
     sample_rate: ${model.sample_rate}
     batch_size: 16 # you may increase batch_size if your memory allows
+    batch_duration: 800
+    num_buckets: 24
     shuffle: true
     num_workers: 8
     pin_memory: true
     max_duration: 20 # you may need to update it for your dataset
     min_duration: 0.1
     # tarred datasets
-    is_tarred: false
+    is_tarred: true
     tarred_audio_filepaths: null
     shuffle_n: 2048
+    use_lhotse: true
     # bucketing params
     bucketing_strategy: "fully_randomized"
     bucketing_batch_size: null
-    
+    #prompt 
+    prompt_dict: ${model.model_defaults.prompt_dictionary}
+    prompt_field: target_lang
 
   validation_ds:
     manifest_filepath: ???
@@ -132,6 +138,8 @@ model:
     use_start_end_token: false
     num_workers: 8
     pin_memory: true
+    batch_duration: null
+    use_lhotse: true
 
   test_ds:
     manifest_filepath: null
@@ -305,8 +313,8 @@ model:
 trainer:
   devices: -1 # number of GPUs, -1 would use all available GPUs
   num_nodes: 1
-  max_epochs: 1000
-  max_steps: -1 # computed at runtime if not set
+  max_epochs: -1
+  max_steps: 10000
   val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
   accelerator: auto
   strategy: ddp
@@ -321,6 +329,7 @@ trainer:
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   benchmark: false # needs to be false for models with variable-length speech input as it slows down training
+  use_distributed_sampler: false
 
 
 exp_manager:
