@@ -470,6 +470,4 @@ def parse_cli_args():
         default=0,
     )
 
-    args = parser.parse_args()
-
-    return args
+    return parser

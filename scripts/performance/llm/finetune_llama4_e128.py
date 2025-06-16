@@ -98,11 +98,6 @@ def override_recipe_configs(
     # data module configs
     if args.use_hf_tokenizer:
         recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    # If you want to force redownload for SquadDataModule, uncomment and adjust the following:
-    # if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
-    #     # flag is valid only for SquadDataModule
-    #     recipe.data.force_redownload = False
-    #     SKIP_DATASET_DOWNLOAD = True
 
     # Compute dtype configs
     if args.compute_dtype.lower() == "fp8":
