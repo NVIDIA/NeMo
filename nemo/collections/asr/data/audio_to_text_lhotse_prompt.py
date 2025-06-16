@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import math
 from typing import Dict, Optional, Tuple
 
@@ -34,7 +47,12 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.cfg = cfg
-        self.window_stride = cfg.get('window_stride', 160)
+        
+        # Calculate num_sample_per_mel_frame from config
+        sample_rate = cfg.get('sample_rate', 16000)
+        window_stride = cfg.get('window_stride', 0.01)
+        self.num_sample_per_mel_frame = int(sample_rate * window_stride)
+        
         self.subsampling_factor = cfg.get('subsampling_factor', 8)
 
         # Load prompt dictionary from config if provided
@@ -42,7 +60,7 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         if self.prompt_dict:
         # Set num_prompts based on the length of prompt_dictionary or a minimum value
         # This ensures we have enough dimensions in our embedding space
-        self.num_prompts = cfg.get('num_prompts', 128)
+            self.num_prompts = cfg.get('num_prompts', 128)
 
         # Field to use for prompt key (default to 'language')
         self.prompt_field = cfg.get('prompt_field', 'language')
@@ -67,7 +85,7 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         Create prompt target tensor for the sequence.
         """
         # Calculate encoder output length based on subsampling factor
-        encoder_hidden_len = self.get_hidden_length_from_sample_length(cut.num_samples, window_stride)
+        encoder_hidden_len = self.get_hidden_length_from_sample_length(cut.num_samples)
 
         # Initialize prompt target matrix
         mask = np.zeros((num_prompts, encoder_hidden_len))
@@ -82,18 +100,17 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
 
         return mask
 
-    def get_hidden_length_from_sample_length(self, num_samples: int, window_stride: int = 160) -> int:
+    def get_hidden_length_from_sample_length(self, num_samples: int) -> int:
         """
         Calculate the hidden length from the given number of samples.
 
         Parameters:
             num_samples (int): The total number of audio samples.
-            window_stride (int, optional): The number of samples per mel frame. Default is 160.
 
         Returns:
             hidden_length (int): The calculated hidden length in terms of the number of frames.
         """
-        mel_frame_count = math.ceil((num_samples + 1) / window_stride)
+        mel_frame_count = math.ceil((num_samples + 1) / self.num_sample_per_mel_frame)
         hidden_length = math.ceil(mel_frame_count / self.subsampling_factor)
         return int(hidden_length)
 
@@ -108,7 +125,7 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
                     self.prompt_to_target(
                         c,
                         self.num_prompts,
-                        self.window_stride,
+                        self.num_sample_per_mel_frame,
                         self.subsampling_factor,
                     ),
                     dtype=torch.float32,
@@ -123,12 +140,16 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=0)
         prompt_targets = collate_matrices(prompt_targets)
+        
+        # Create sample_id tensor from cut IDs
+        sample_ids = torch.tensor([hash(c.id) % (2**31) for c in cuts], dtype=torch.long)
 
         return (
             audio,  # Audio signal
             audio_lens,  # Audio lengths
             tokens,  # Text tokens
             token_lens,  # Token lengths
+            sample_ids,  # Sample IDs
             prompt_targets,  # Prompt targets
         )
 
