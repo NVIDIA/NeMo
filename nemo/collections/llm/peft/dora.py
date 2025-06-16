@@ -180,7 +180,9 @@ class DoRA(PEFT, ModuleMatcher):
         """
         if (ans := self.match(m, name, prefix)) is not None:
             (match, full_name) = ans
-            input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
+                get_adapter_attributes_from_linear(m)
+            )
             logging.info(f"Adding DoRA to: {full_name}")
             adapter = ParallelLinearDoRAAdapter(
                 in_features,
