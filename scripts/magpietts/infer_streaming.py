@@ -7,6 +7,7 @@ import evalset_config
 import numpy as np
 import copy
 import random
+import shutil
 from PIL import Image
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
