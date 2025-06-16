@@ -69,7 +69,6 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
-    assert finetuning_scheme != "lora"
 
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, packed_sequence=True)
 
@@ -107,6 +106,7 @@ def override_recipe_configs(
         recipe.data.tokenizer = run.Config(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=202048
         )
+        recipe.model.tokenizer = recipe.data.tokenizer
     # #If you want to force redownload for SquadDataModule, uncomment and adjust the following:
     # if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
     #     SKIP_DATASET_DOWNLOAD = True
@@ -192,7 +192,7 @@ if __name__ == "__main__":
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
         if not SKIP_DATASET_DOWNLOAD:
-            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home))
+            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home, use_hf_tokenizer=args.use_hf_tokenizer))
         exp.add(
             recipe,
             executor=executor,

@@ -94,24 +94,29 @@ def get_nemo_home(nemo_home=None):
     raise ValueError("Neither nemo_home argument nor NEMO_HOME environment variable is set")
 
 
-def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=None):
+def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True):
     """Prepare the SQuAD dataset for fine-tuning.
     
     Args:
         model_name (str): The name of the model
         seq_length (int): The sequence length to use for packing. Defaults to 2048.
         nemo_home: Optional path to NEMO home directory set via args.nemo_home
+        use_hf_tokenizer: Whether to use HuggingFace tokenizer or NullTokenizer
     """
     from nemo.collections.llm.gpt.data.squad import SquadDataModule
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.null_tokenizer import NullTokenizer
     from pathlib import Path
 
     nemo_home_path = Path(get_nemo_home(nemo_home))
     dataset_root = nemo_home_path / "datasets" / "squad"
     dataset_root.mkdir(parents=True, exist_ok=True)
 
-    tokenizer = AutoTokenizer(pretrained_model_name=model_name)
+    if use_hf_tokenizer:
+        tokenizer = AutoTokenizer(pretrained_model_name=model_name)
+    else:
+        tokenizer = NullTokenizer(vocab_size=202048)
 
     # Configure SquadDataModule with packing specs
     datamodule = SquadDataModule(
@@ -137,7 +142,7 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=Non
     else:
         raise FileNotFoundError(f"Packed dataset dir not found at {packed_dir}. Dataset download failed")
 
-def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048, nemo_home=None):
+def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True):
     """
     Downloads and prepares the SQuAD dataset for fine-tuning.
     """
@@ -147,7 +152,7 @@ def prepare_squad_dataset_experiment(executor: run.SlurmExecutor, model_name: st
     dataset_executor.ntasks_per_node = 1
     dataset_executor.nodes = 1
 
-    return run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length, nemo_home=nemo_home), dataset_executor, "prepare_squad_dataset_exp"
+    return run.Partial(prepare_squad_dataset, model_name=model_name, seq_length=seq_length, nemo_home=nemo_home, use_hf_tokenizer=use_hf_tokenizer), dataset_executor, "prepare_squad_dataset_exp"
 
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
