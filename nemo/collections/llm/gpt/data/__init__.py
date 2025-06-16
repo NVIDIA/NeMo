@@ -20,6 +20,7 @@ from nemo.collections.llm.gpt.data.hf_dataset import HFDatasetDataModule, HFData
 from nemo.collections.llm.gpt.data.mlperf_govreport import MLPerfGovReportDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.pre_training import PreTrainingDataModule, build_pretraining_datamodule
+from nemo.collections.llm.gpt.data.reranker import CustomReRankerDataModule, SpecterReRankerDataModule
 from nemo.collections.llm.gpt.data.retrieval import CustomRetrievalDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
@@ -37,4 +38,6 @@ __all__ = [
     "build_pretraining_datamodule",
     "SquadDataModule",
     "CustomRetrievalDataModule",
+    "CustomReRankerDataModule",
+    "SpecterReRankerDataModule",
 ]

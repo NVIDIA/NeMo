@@ -184,6 +184,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_Prune_Llama_TP1PP2
             runner: self-hosted-azure
+          - script: L2_NeMo_2_GPT_Speculative_Llama3_TP2PP1
+            runner: self-hosted-azure
           - script: L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
             runner: self-hosted-azure
           - script: L2_NeMo_2_LLAVA_NEXT_HF_CONVERSION
@@ -191,6 +193,12 @@ jobs:
           - script: L2_NeMo_2_LLAVA_NEXT_ENERGON_TRAIN
             runner: self-hosted-azure
           - script: L2_NeMo_2_LLAVA_NEXT_ENERGON_PACKED_TRAIN
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_AVLM_MOCK_TRAINING
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_AVLM_ENERGON_TRAIN
+            runner: self-hosted-azure
+          - script: L2_NeMo_2_AVLM_ENERGON_CP2_TRAIN
             runner: self-hosted-azure
           - script: L2_NeMo_2_CLIP_PRETRAIN
             runner: self-hosted-azure
@@ -202,6 +210,8 @@ jobs:
           - script: L2_NeMo_2_Auto_Configurator_bert_TP1_PP1_MBS124
             runner: self-hosted-azure-gpus-1
           - script: L2_NeMo_2_Auto_Configurator_t5_TP1_PP1_MBS124
+            runner: self-hosted-azure-gpus-1
+          - script: L2_NeMo_2_Auto_Configurator_callbacks
             runner: self-hosted-azure-gpus-1
           - script: L2_NeMo_2_Conversion_Test_Baichuan2
             runner: self-hosted-azure
