@@ -6,7 +6,7 @@
 # FastConformer-CTC's architecture config: NeMo/examples/asr/conf/fastconformer/fast-conformer_ctc_bpe.yaml
 # FastConformer-Transducer's architecture config, along with the optimal batch size and precision: NeMo/examples/asr/conf/fastconformer/fast-conformer_transducer_bpe.yaml
 
-name: "FastConformerXL-Hybrid-Transducer-CTC-BPE"
+name: "FastConformerXL-Hybrid-Transducer-CTC-BPE-Prompt"
 
 model:
   sample_rate: 16000
@@ -19,11 +19,92 @@ model:
     enc_hidden: ${model.encoder.d_model}
     pred_hidden: 640
     joint_hidden: 640
-    num_langs: 128
-    num_sample_per_mel_frame: 160
-    num_mel_frame_per_asr_frame: 8
-    initialize_target_lang_id_concatination: true
+    initialize_prompt_feature: true
     norm: None
+    # Dictionary mapping prompt identifiers to their corresponding embedding indices
+    # Custom prompts can be added with descriptive keys and indices 
+    # Examples: 'en-US': 0, 'pnc': 100 (Punctuation mode)
+    prompt_dictionary: {
+    # Language prompts (0-99)
+    'en-US': 0,
+    'en-GB': 1,
+    'es-ES': 2,
+    'es-US': 3,
+    'zh-CN': 4,
+    'zh-TW': 5,
+    'hi-IN': 6,
+    'ar-AR': 7,
+    'fr-FR': 8,
+    'de-DE': 9,
+    'ja-JP': 10,
+    'ru-RU': 11,
+    'pt-BR': 12,
+    'pt-PT': 13,
+    'ko-KR': 14,
+    'it-IT': 15,
+    'nl-NL': 16,
+    'pl-PL': 17,
+    'tr-TR': 18,
+    'uk-UA': 19,
+    'ro-RO': 20,
+    'el-GR': 21,
+    'cs-CZ': 22,
+    'hu-HU': 23,
+    'sv-SE': 24,
+    'da-DK': 25,
+    'fi-FI': 26,
+    'no-NO': 27,
+    'sk-SK': 28,
+    'hr-HR': 29,
+    'bg-BG': 30,
+    'lt-LT': 31,
+    'th-TH': 32,
+    'vi-VN': 33,
+    'id-ID': 34,
+    'ms-MY': 35,
+    'bn-IN': 36,
+    'ur-PK': 37,
+    'fa-IR': 38,
+    'ta-IN': 39,
+    'te-IN': 40,
+    'mr-IN': 41,
+    'gu-IN': 42,
+    'kn-IN': 43,
+    'ml-IN': 44,
+    'si-LK': 45,
+    'ne-NP': 46,
+    'km-KH': 47,
+    'sw-KE': 48,
+    'am-ET': 49,
+    'ha-NG': 50,
+    'zu-ZA': 51,
+    'yo-NG': 52,
+    'ig-NG': 53,
+    'af-ZA': 54,
+    'rw-RW': 55,
+    'so-SO': 56,
+    'ny-MW': 57,
+    'ln-CD': 58,
+    'or-KE': 59,
+    'he-IL': 64,
+    'ku-TR': 65,
+    'az-AZ': 66,
+    'ka-GE': 67,
+    'hy-AM': 68,
+    'uz-UZ': 69,
+    'tg-TJ': 70,
+    'ky-KG': 71,
+    'qu-PE': 80,
+    'ay-BO': 81,
+    'gn-PY': 82,
+    'nah-MX': 83,
+    'mi-NZ': 96,
+    'haw-US': 97,
+    'sm-WS': 98,
+    'to-TO': 99 
+    # Custom prompts can be added here
+    }
+
 
   train_ds:
     manifest_filepath: null
@@ -91,7 +172,7 @@ model:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
     feat_out: -1 # you may set it if you need different output size other than the default d_model
-    n_layers: 24
+    n_layers: 42
     d_model: 1024
 
     # Sub-sampling parameters
