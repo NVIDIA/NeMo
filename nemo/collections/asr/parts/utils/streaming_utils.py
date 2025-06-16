@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import copy
-import os
+import logging
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Optional
@@ -34,7 +35,6 @@ from nemo.collections.asr.parts.preprocessing.segment import get_samples
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
-from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models_tgt_lang import GLOBAL_LANG_MAP
 
 # Minimum number of tokens required to assign a LCS merge step, otherwise ignore and
 # select all i-1 and ith buffer tokens to merge.
@@ -1047,6 +1047,11 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         self.reset()
 
+    def set_target_lang_id(self, target_lang_id):
+        """Set the target language ID for multilingual models."""
+        self.target_lang_id = target_lang_id
+        print(f"Set target language ID to: {target_lang_id}")
+
     def reset(self):
         """
         Reset frame_history and decoder's state
@@ -1129,13 +1134,8 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                 continue
 
             batch = next(data_iters[idx])
-            if len(batch) == 2:
-                feat_signal, feat_signal_len = batch
-                feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-            # Handle case where batch also includes target_lang_id
-            elif len(batch) == 3:
-                feat_signal, feat_signal_len, _ = batch
-                feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+            feat_signal, feat_signal_len = batch
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
 
             feat_signals.append(feat_signal)
             feat_signal_lens.append(feat_signal_len)
@@ -1151,36 +1151,48 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         del feat_signals, feat_signal_lens
 
-        # Handle target language ID if needed
-        target_lang_tensor = None
-        if self.target_lang_id is not None and hasattr(self.asr_model, 'num_langs'):
-            lang_id_index = 0  # Default value
-            
-            if isinstance(self.target_lang_id, str):
-                lang_id_index = GLOBAL_LANG_MAP.get(self.target_lang_id, 0)
-                if lang_id_index == 0 and self.target_lang_id not in GLOBAL_LANG_MAP:
-                    print(f"Warning: Language ID '{self.target_lang_id}' not found in GLOBAL_LANG_MAP")
-            else:
-                print(f"Warning: Unsupported language ID type: {type(self.target_lang_id)}")
+        # Handle prompt if needed - check if model supports prompts
+        prompt_tensor = None
+        if hasattr(self.asr_model, 'num_prompts') or hasattr(self.asr_model, 'prompt_kernel'):
+            logging.info("Model supports prompts, creating prompt tensor")
 
-            # Create target language tensor
+            # Get prompt dictionary from model config
+            prompt_dict = getattr(self.asr_model._cfg, 'model_defaults', {}).get('prompt_dictionary', {})
+            if not prompt_dict:
+                logging.ValueError("Prompt dictionary is empty in model config")
+
+            # Get prompt index from dictionary or default to 0
+            prompt_idx = 0  # Default value
+            if self.target_lang_id is not None and isinstance(self.target_lang_id, str):
+                prompt_idx = prompt_dict.get(self.target_lang_id, 0)
+                if prompt_idx == 0 and self.target_lang_id not in prompt_dict:
+                    logging.ValueError(f"Prompt ID '{self.target_lang_id}' not found in prompt dictionary")
+
+            # Create target prompt tensor with calculated time dimension
             time_length = feat_signal.shape[2]
             hidden_length = math.ceil(time_length / 8)
 
-            num_langs = self.asr_model.num_langs  # Create language ID tensor with calculated time dimension
-            target_lang_tensor = torch.zeros(
-                [feat_signal.size(0), hidden_length, num_langs], dtype=feat_signal.dtype, device=device
+            # Get number of prompts from model
+            if hasattr(self.asr_model, 'num_prompts'):
+                num_prompts = self.asr_model.num_prompts
+            else:
+                # Fallback: get from config or use default
+                num_prompts = getattr(self.asr_model._cfg, 'model_defaults', {}).get('num_prompts', 128)
+
+            prompt_tensor = torch.zeros(
+                [feat_signal.size(0), hidden_length, num_prompts], dtype=feat_signal.dtype, device=device
             )
 
             # Set the target language
-            for i in range(target_lang_tensor.size(0)):
-                target_lang_tensor[i, :, lang_id_index] = 1
+            for i in range(prompt_tensor.size(0)):
+                prompt_tensor[i, :, prompt_idx] = 1
 
-        if target_lang_tensor is not None:
+        # Call model forward with or without prompt
+        if prompt_tensor is not None:
             encoded, encoded_len = self.asr_model.forward(
                 processed_signal=feat_signal,
                 processed_signal_length=feat_signal_len,
-                target_lang_id=target_lang_tensor,
+                prompt=prompt_tensor,
             )
         else:
             encoded, encoded_len = self.asr_model.forward(
@@ -1310,6 +1322,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         decoded_prediction = [p for p in preds]
         hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
         return hypothesis
+
 
 class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
     """
