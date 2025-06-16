@@ -141,7 +141,7 @@ if __name__ == "__main__":
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[0:15]
+    ) = kwargs[0:13]
 
     recipe = override_recipe_configs(
         args,
