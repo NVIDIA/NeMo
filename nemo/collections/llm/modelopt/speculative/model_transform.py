@@ -16,7 +16,7 @@ import torch.nn as nn
 
 from nemo.collections.llm import GPTModel
 from nemo.utils import logging
-from nemo.utils.import_utils import safe_import, UnavailableError
+from nemo.utils.import_utils import UnavailableError, safe_import
 from nemo.utils.model_utils import unwrap_model
 
 mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
