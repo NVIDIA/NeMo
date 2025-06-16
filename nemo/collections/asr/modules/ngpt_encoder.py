@@ -20,6 +20,7 @@ from rotary_embedding_torch import RotaryEmbedding
 import torch
 import torch.distributed
 import torch.nn as nn
+from rotary_embedding_torch import RotaryEmbedding
 
 from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling
 from nemo.core.classes.common import typecheck
@@ -209,29 +210,6 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
         self.ngpt.normalize_matrices()
 
 
-def apply_rotary_position_embeddings(sinusoidal_pos, q, k):
-    # Split the sinusoidal_pos into sin and cos parts
-    sin, cos = sinusoidal_pos.chunk(2, dim=-1)
-    # Apply the rotary embeddings to the query and key
-    q_rot = torch.stack((-q[..., 1::2], q[..., ::2]), dim=-1)
-    k_rot = torch.stack((-k[..., 1::2], k[..., ::2]), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape[:-1] + (q.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    k_rot = torch.reshape(k_rot, k.shape[:-1] + (k.shape[-1] // 2, 2)) * torch.stack((cos, sin), dim=-1)
-    q_rot = torch.reshape(q_rot, q.shape)
-    k_rot = torch.reshape(k_rot, k.shape)
-    return q_rot.to(q.dtype), k_rot.to(k.dtype)
-
-
-def get_sinusoidal_embeddings(n_positions, dim, device):
-    """Generate sinusoidal positional embeddings."""
-    position = torch.arange(n_positions, dtype=torch.float, device=device).unsqueeze(1)
-    div_term = torch.exp(torch.arange(0, dim, 2, dtype=torch.float, device=device) * (-math.log(10000.0) / dim))
-    sinusoidal_emb = torch.empty((n_positions, dim), device=device)
-    sinusoidal_emb[:, 0::2] = torch.sin(position * div_term)
-    sinusoidal_emb[:, 1::2] = torch.cos(position * div_term)
-    return sinusoidal_emb
-
-
 def justnorm(x, fp32: bool = False, idim: int = -1):
     if fp32:
         dtype = x.dtype
@@ -248,10 +226,11 @@ def justnorm_fp32(x, idim: int = -1):
 
 class Block(nn.Module):
 
-    def __init__(self, config, iblock):
+    def __init__(self, config, rope):
         super().__init__()
         self.config = config
 
+        self.rope = rope
         self.key = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.query = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.value = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
@@ -302,11 +281,8 @@ class Block(nn.Module):
         q = q.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
         k = k.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
         v = v.view(B, T, self.config.n_head, self.config.n_embd // self.config.n_head)
-        q = q.transpose(2, 1)
-        k = k.transpose(2, 1)
-
-        q = self.rotary_emb.rotate_queries_or_keys(q)
-        k = self.rotary_emb.rotate_queries_or_keys(k)
+        q = self.rope.rotate_queries_or_keys(q.transpose(2, 1))
+        k = self.rope.rotate_queries_or_keys(k.transpose(2, 1))
         q = q.transpose(2, 1)
         k = k.transpose(2, 1)
 
@@ -410,11 +386,12 @@ class GPT(nn.Module):
         super().__init__()
         self.config = config
 
+        self.rope = RotaryEmbedding(dim=config.n_embd // config.n_head)
         self.transformer = nn.ModuleDict(
             dict(
                 # wte=nn.Embedding(config.vocab_size, config.n_embd),
                 # drop=nn.Dropout(config.dropout),
-                h=nn.ModuleList([Block(config, il) for il in range(config.n_layer)])
+                h=nn.ModuleList([Block(config, rope=self.rope) for il in range(config.n_layer)])
             )
         )
         # self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
