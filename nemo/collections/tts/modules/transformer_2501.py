@@ -323,6 +323,12 @@ class SelfAttention(Attention):
             )
         self.qkv_net = torch.nn.Linear(d_model, 3 * n_heads * self.d_head, bias=False)
 
+    def move_cache_window(self, window_size: int):
+        if self.use_cache:
+            if self.cache['self_k'] is not None:
+                self.cache['self_k'] = self.cache['self_k'][:, -window_size:]
+                self.cache['self_v'] = self.cache['self_v'][:, -window_size:]
+
     def compute_qkv_and_mask(
         self,
         query: torch.Tensor,
@@ -488,6 +494,16 @@ class TransformerLayer(torch.nn.Module):
         if self.has_xattn:
             self.cross_attention.reset_cache(use_cache)
 
+    def move_cache_window(self, window_size: int, context_size: Optional[int] = None):
+        if self.use_cache:
+            if self.cache['self_attn_output'] is not None:
+                if context_size is not None:
+                    ctx = self.cache['self_attn_output'][:, :context_size]
+                self.cache['self_attn_output'] = self.cache['self_attn_output'][:, -window_size:]
+                if context_size is not None:
+                    self.cache['self_attn_output'] = torch.cat([ctx, self.cache['self_attn_output']], dim=1)
+            self.self_attention.move_cache_window(window_size)
+
     def forward(
         self,
         x: torch.Tensor,
@@ -641,6 +657,10 @@ class Transformer(torch.nn.Module):
     def reset_cache(self, use_cache=False):
         for layer in self.layers:
             layer.reset_cache(use_cache)
+
+    def move_cache_window(self, window_size: int, context_size: int = None):
+        for layer in self.layers:
+            layer.move_cache_window(window_size, context_size)
 
     @staticmethod
     def _init_weights_gpt2(module):
