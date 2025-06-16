@@ -25,11 +25,12 @@ pixel_statistics = {
     "huggingface": (SIGLIP_PIXEL_MEAN, SIGLIP_PIXEL_STD),
 }
 
+
 # pylint: disable=C0301
 # From https://github.com/OpenGVLab/InternVL/blob/c62fa4f7c850165d7386bdc48ac6bc5a6fab0864/internvl_chat/internvl/train/dataset.py#L685
 # Copyright (c) 2023 OpenGVLab.
 def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
-    """ Find the closest aspect ratio to target_ratio"""
+    """Find the closest aspect ratio to target_ratio"""
     best_ratio_diff = float('inf')
     best_ratio = (1, 1)
     area = width * height
@@ -79,6 +80,7 @@ class ImageTransform:
             imgs = [self._transform(img)]
 
         return imgs
+
 
 # pylint: disable=C0301
 # From https://github.com/OpenGVLab/InternVL/blob/c62fa4f7c850165d7386bdc48ac6bc5a6fab0864/internvl_chat/internvl/train/dataset.py#L702
@@ -133,6 +135,7 @@ def dynamic_preprocess(
         thumbnail_img = image.resize((image_size, image_size))
         processed_images.append(thumbnail_img)
     return processed_images
+
 
 # pylint: disable=C0301
 # Based on https://github.com/openai/CLIP/blob/dcba3cb2e2827b402d2701e7e1c7d9fed8a20ef1/clip/clip.py#L79

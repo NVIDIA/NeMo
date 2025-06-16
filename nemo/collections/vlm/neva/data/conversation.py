@@ -24,6 +24,7 @@ from transformers import AutoTokenizer
 
 # pylint: disable=C0301
 
+
 class SeparatorStyle(Enum):
     """Different separator style."""
 
