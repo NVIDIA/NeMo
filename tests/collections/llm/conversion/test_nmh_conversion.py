@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections import llm
-from nemo.collections.llm.gpt.model.ssm import HFNemotronHExporter
-from nemo.collections.llm.gpt.model.ssm import HFNemotronHImporter
 import argparse
+
+from nemo.collections import llm
+from nemo.collections.llm.gpt.model.ssm import HFNemotronHExporter, HFNemotronHImporter
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -25,13 +26,12 @@ def get_args():
     return parser.parse_args()
 
 
-
 if __name__ == "__main__":
 
     args = get_args()
     nmh_config = llm.NemotronHConfig4B()
     if args.conversion_type == "NEMO2_TO_HF":
-            
+
         exporter = HFNemotronHExporter(args.source_ckpt, model_config=nmh_config)
         exporter.apply(args.target_ckpt)
 
@@ -39,6 +39,6 @@ if __name__ == "__main__":
 
         exporter = HFNemotronHImporter(args.source_ckpt)
         exporter.apply(args.target_ckpt)
-    
+
     else:
         raise ValueError(f"Invalid conversion type: {args.conversion_type}")
