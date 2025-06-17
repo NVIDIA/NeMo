@@ -84,6 +84,10 @@ def build_index_from_memdata(fn, newline_int):
 
 
 def safe_map(fn, iterable, workers=1, ctx="fork"):
+    """
+    Crash-resilient alternative to multiprocessing.Pool.map() that can handle
+    worker process crashes gracefully without hanging the entire operation.
+    """
     ctx = mp.get_context(ctx)
     input_queue = ctx.Queue()
     output_queue = ctx.Queue()
