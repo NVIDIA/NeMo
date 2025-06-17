@@ -71,6 +71,11 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
+    # Log custom message at the beginning of training configuration
+    logging.info("GSW: 🚀 Nemotron4 15B pre-training configuration initiated!")
+    logging.info(f"GSW: Training setup - Nodes: {num_nodes}, TP: {tp_size}, PP: {pp_size}, CP: {cp_size}, VP: {vp_size}")
+    logging.info(f"GSW: Batch sizes - MBS: {mbs}, GBS: {gbs}, Precision: {args.compute_dtype}")
+    
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
         recipe,
@@ -95,14 +100,6 @@ def override_recipe_configs(
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
-    )
-
-    # Add custom training start callback
-    recipe.trainer.callbacks.append(
-        run.Config(
-            CustomTrainingStartCallback,
-            custom_message="Nemotron4 15B pre-training initiated!",
-        )
     )
 
     gpu_type = args.gpu.lower()
