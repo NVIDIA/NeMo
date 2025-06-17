@@ -304,6 +304,7 @@ class FilterbankFeatures(nn.Module):
             )
         logging.info(f"PADDING: {pad_to}")
 
+        self.sample_rate = sample_rate
         self.win_length = n_window_size
         self.hop_length = n_window_stride
         self.n_fft = n_fft or 2 ** math.ceil(math.log2(self.win_length))
