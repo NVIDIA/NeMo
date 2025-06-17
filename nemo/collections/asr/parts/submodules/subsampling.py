@@ -717,9 +717,9 @@ def apply_channel_mask(tensor, mask):
     return tensor * expanded_mask
 
 
-def calculate_conv_output_size(input_size, kernel_size, stride, padding):
+def calculate_conv_output_size(input_size: torch.Tensor, kernel_size: int, stride: int, padding: tuple[int, int]):
     """Calculate exact output size after convolution."""
-    return (input_size + 2 * padding - kernel_size) // stride + 1
+    return (input_size + padding[0] + padding[1] - kernel_size) // stride + 1
 
 
 class MaskedConvSequential(nn.Sequential):
@@ -739,12 +739,12 @@ class MaskedConvSequential(nn.Sequential):
 
             # Update lengths for stride operations with proper padding
             if hasattr(layer, 'stride') and layer.stride != (1, 1):
-                # Assuming CausalConv2D has proper padding info
-                padding = getattr(layer, 'padding', (0, 0))
-                kernel_size = getattr(layer, 'kernel_size', (3, 3))
-
+                if hasattr(layer, "_left_padding"):
+                    padding = (layer._left_padding, layer._right_padding)  # CausalConv2D
+                else:
+                    padding = layer.padding
                 current_lengths = calculate_conv_output_size(
-                    current_lengths, kernel_size[0], layer.stride[0], padding[0]
+                    current_lengths, layer.kernel_size[0], layer.stride[0], padding
                 )
                 mask = self._create_mask(x, current_lengths.long())
 
