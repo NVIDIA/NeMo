@@ -630,7 +630,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
 
     def normalize_matrices(self):
         with torch.no_grad():
-            for module in self.modules():
+            for module in self.children():
                 if hasattr(module, "normalize_matrices"):
                     module.normalize_matrices()
 
