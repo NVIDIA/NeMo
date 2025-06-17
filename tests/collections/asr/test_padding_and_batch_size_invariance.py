@@ -15,7 +15,6 @@ import pytest
 import torch.testing
 from lhotse.testing.random import deterministic_rng
 
-from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor, ConformerEncoder
 from nemo.collections.asr.parts.preprocessing import FilterbankFeatures
 
@@ -43,9 +42,6 @@ def test_preprocessor_invariant_to_padding(deterministic_rng, length):
 
 @pytest.mark.parametrize("length", [16000])
 def test_canary_encoder_invariant_to_padding(deterministic_rng, length):
-    # model = ASRModel.from_pretrained("nvidia/canary-180m-flash").eval()
-    # preprocessor = model.preprocessor
-    # encoder = model.encoder
     preprocessor = AudioToMelSpectrogramPreprocessor(
         sample_rate=16000,
         normalize="per_feature",
