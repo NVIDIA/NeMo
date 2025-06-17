@@ -81,11 +81,11 @@ trt() {
       bash docker/common/install_ccache.sh
 
       . docker/common/install_tensorrt.sh \
-        --TRT_VER="10.9.0.34" \
-        --CUDA_VER="12.8" \
-        --CUDNN_VER="9.8.0.87-1" \
-        --NCCL_VER="2.25.1-1+cuda12.8" \
-        --CUBLAS_VER="12.8.4.1-1"
+        --TRT_VER="10.10.0.31" \
+        --CUDA_VER="12.9" \
+        --CUDNN_VER="9.9.0.52-1" \
+        --NCCL_VER="2.26.5-1+cuda12.9" \
+        --CUBLAS_VER="12.9.0.13-1"
       set -u
     fi
   fi
