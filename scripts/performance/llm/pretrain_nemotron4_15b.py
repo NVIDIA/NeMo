@@ -18,11 +18,13 @@ from os.path import basename, splitext
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
+from lightning.pytorch.callbacks.callback import Callback
 
 from nemo.collections.llm.recipes.nemotron4_15b import pretrain_recipe
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.utils import logging
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -34,6 +36,20 @@ from ..utils import (
     set_primary_perf_configs,
     slurm_executor,
 )
+
+
+class CustomTrainingStartCallback(Callback):
+    """Custom callback to log a message at the very beginning of training."""
+    
+    def __init__(self, custom_message: str = "Training started!"):
+        self.custom_message = custom_message
+    
+    def on_fit_start(self, trainer, pl_module):
+        """Called when fit begins."""
+        logging.info(f"GSW: 🚀 {self.custom_message}")
+        logging.info(f"Training configuration: {trainer.num_nodes} nodes, {trainer.num_devices} devices per node")
+        logging.info(f"Model: Nemotron4 15B")
+        logging.info(f"Precision: {pl_module.trainer.precision}")
 
 
 def override_recipe_configs(
@@ -79,6 +95,14 @@ def override_recipe_configs(
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+    )
+
+    # Add custom training start callback
+    recipe.trainer.callbacks.append(
+        run.Config(
+            CustomTrainingStartCallback,
+            custom_message="Nemotron4 15B pre-training initiated!",
+        )
     )
 
     gpu_type = args.gpu.lower()
