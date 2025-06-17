@@ -309,9 +309,11 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         input_image_index = 0
         processed_audios = []
         processed_audio_lengths = []
+        encoded_audio_seq_length_list = []
         processed_images = []
         processed_num_image_tiles = []
         processed_image_sizes = []
+        encoded_image_seq_length_list = []
         processed_audio_tensor = None
         processed_audio_lengths_tensor = None
         processed_image_tensor = None
@@ -346,6 +348,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                         'max_spectrogram_length'
                     ],
                 )
+                encoded_audio_seq_length_list.append(encoded_audio_seq_length)
                 tokenized_chunks.extend([self.audio_token.token_id] * encoded_audio_seq_length)
 
             elif chunk == self.video_token.token_str:
@@ -376,6 +379,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                     ],
                 )
                 encoded_video_seq_length = len(processed_video) * encoded_image_seq_length
+                encoded_image_seq_length_list.append(encoded_image_seq_length)
                 tokenized_chunks.extend([self.image_token.token_id] * encoded_video_seq_length)
 
             elif chunk == self.image_token.token_str:
@@ -399,6 +403,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                         'projection_downsample_factor'
                     ],
                 )
+                encoded_image_seq_length_list.append(encoded_image_seq_length)
                 tokenized_chunks.extend([self.image_token.token_id] * encoded_image_seq_length)
 
             elif len(chunk) > 0:
@@ -410,17 +415,20 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         if processed_audios:
             processed_audio_tensor = processed_audios
             processed_audio_lengths_tensor = torch.tensor(processed_audio_lengths)
+            encoded_audio_seq_length_tensor = torch.tensor(encoded_audio_seq_length_list)
         if processed_images:
             processed_image_tensor = torch.concatenate(processed_images)  # T c h w
             processed_num_image_tiles_tensor = torch.tensor(processed_num_image_tiles)
             processed_image_sizes_tensor = torch.tensor(processed_image_sizes)
-
+            encoded_image_seq_length_tensor = torch.tensor(encoded_image_seq_length_list)
         return {
             "tokens": tokens,
             "audios": processed_audio_tensor,
             "audio_lengths": processed_audio_lengths_tensor,
+            "encoded_audio_seq_length": encoded_audio_seq_length_tensor,
             "images": processed_image_tensor,
             "num_image_tiles": processed_num_image_tiles_tensor,
+            "encoded_image_seq_length": encoded_image_seq_length_tensor,
             "image_sizes": processed_image_sizes_tensor,
         }
 
@@ -440,9 +448,11 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
         tokens = media_dict["tokens"]
         output_sample.audios = media_dict["audios"]
         output_sample.audio_lengths = media_dict["audio_lengths"]
+        output_sample.encoded_audio_seq_length = media_dict["encoded_audio_seq_length"]
         output_sample.images = media_dict["images"]
         output_sample.num_image_tiles = media_dict["num_image_tiles"]
         output_sample.image_sizes = media_dict["image_sizes"]
+        output_sample.encoded_image_seq_length = media_dict["encoded_image_seq_length"]
 
         labels = self.compute_labels(tokens, input_sample)
         tokens = tokens[:-1].contiguous()
@@ -576,14 +586,18 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
                 loss_mask,
                 audios,
                 audio_lengths,
+                encoded_audio_seq_length_list, 
                 videos,
                 video_lengths,
                 num_video_tiles,
                 images,
                 num_image_tiles,
                 image_sizes,
+                encoded_image_seq_length_list,
                 attention_mask,
             ) = (
+                [],
+                [],
                 [],
                 [],
                 [],
@@ -607,6 +621,8 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
                     audios.append(sample.audios)
                 if sample.audio_lengths is not None:
                     audio_lengths.append(sample.audio_lengths)
+                if sample.encoded_audio_seq_length is not None:
+                    encoded_audio_seq_length_list.append(sample.encoded_audio_seq_length)
                 if sample.videos is not None:
                     videos.append(sample.videos)
                 if sample.video_lengths is not None:
@@ -619,6 +635,8 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
                     num_image_tiles.append(sample.num_image_tiles)
                 if sample.image_sizes is not None:
                     image_sizes.append(sample.image_sizes)
+                if sample.encoded_image_seq_length is not None:
+                    encoded_image_seq_length_list.append(sample.encoded_image_seq_length)
                 if sample.attention_mask is not None:
                     attention_mask.append(sample.attention_mask)
 
@@ -636,6 +654,8 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
                 rawBatch.audios = pad_sequence(audios, batch_first=True)
                 if audio_lengths:
                     rawBatch.audio_lengths = torch.tensor(torch.cat(audio_lengths), dtype=torch.int)
+                if encoded_audio_seq_length_list:
+                    rawBatch.encoded_audio_seq_length = torch.cat(encoded_audio_seq_length_list)
             if videos:
                 rawBatch.videos = torch.cat(videos)
                 if video_lengths:
@@ -648,6 +668,8 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
                     rawBatch.num_image_tiles = torch.tensor(torch.cat(num_image_tiles), dtype=torch.int)
                 if image_sizes:
                     rawBatch.image_sizes = torch.cat(image_sizes)
+                if encoded_image_seq_length_list:
+                    rawBatch.encoded_image_seq_length = torch.cat(encoded_image_seq_length_list)
             if attention_mask:
                 rawBatch.attention_mask = batch_pad_stack(attention_mask)
 

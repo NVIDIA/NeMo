@@ -39,6 +39,7 @@ from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMas
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.collections.speechlm.modules.asr_module import HFWrappedEncoder
 
 MODEL_CONFIG_ATTR = [
     'num_layers',
@@ -111,8 +112,10 @@ def avlm_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             "images",
             "num_image_tiles",
             "image_sizes",
+            "encoded_image_seq_length",
             "audios",
             "audio_lengths",
+            "encoded_audio_seq_length",
         )
     )
     if parallel_state.is_pipeline_first_stage():
@@ -163,10 +166,12 @@ def avlm_forward_step(model, batch) -> torch.Tensor:
         "labels": batch.get("labels", None),
         "images": batch["images"],
         "num_image_tiles": batch.get("num_image_tiles", None),
+        "encoded_image_seq_length": batch.get("encoded_image_seq_length", None),
         # "image_sizes": batch.get("image_sizes", None),
         # "image_token_mask": batch.get("image_token_mask", None),
         "audios": batch["audios"],
         "audio_lengths": batch.get("audio_lengths", None),
+        "encoded_audio_seq_length": batch.get("encoded_audio_seq_length", None),
         "packed_seq_params": batch.get("packed_seq_params", None),
     }
 
@@ -323,7 +328,8 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 # model_parallel_size to 1 to load audio encoder, because
                 # audio encoder does not support model parallel
                 # and was saved with model_parallel_size=1
-                if config.audio_model_from_pretrained and config.audio_model_from_pretrained.endswith(".nemo"):
+                if (config.audio_model_from_pretrained and config.audio_model_from_pretrained.endswith(".nemo")) or \
+                    (audio_transformer_config.pretrained_model):
                     with temporary_model_parallel_size(app_state, 1):
                         self.audio_model = audio_transformer_config.configure_model()
                         restore_model_weights(self.audio_model, config.audio_model_from_pretrained)
@@ -505,9 +511,11 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         labels: Optional[torch.Tensor] = None,
         images: Optional[torch.Tensor] = None,
         num_image_tiles: Optional[List[int]] = None,
+        encoded_image_seq_length: Optional[List[int]] = None,
         image_token_index: Optional[int] = ImageToken.token_id,
         audios: Optional[torch.Tensor] = None,
         audio_lengths: Optional[List[int]] = None,
+        encoded_audio_seq_length: Optional[List[int]] = None,
         audio_token_index: Optional[int] = AudioToken.token_id,
         inference_params: Optional[InferenceParams] = None,
         runtime_gather_output: Optional[bool] = None,
@@ -517,8 +525,6 @@ class MCoreAVLMModel(MCoreLLaVAModel):
         """Forward function of the LLaVA model.
 
         Args:
-            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w]. num_tiles means the number of
-            image tiles in this batch.
             input_ids (torch.Tensor): input text ids [batch, text_seq_len].
             position_ids (torch.Tensor): input text position ids [batch, text_seq_len].
             attention_mask (torch.Tensor): Attention mask for the language model [batch, 1, combined_seq_len,
@@ -526,8 +532,17 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             labels (torch.Tensor): Optional target text labels [batch, combined_seq_len].
             loss_mask (torch.Tensor): Text loss mask [batch, text_seq_len].
             inference_params (InferenceParams): Inference-time parameters including KV cache.
+            images (torch.Tensor): input image of shape [num_tiles, img_h, img_w]. num_tiles means the number of
+                image tiles in this batch.
             num_image_tiles (list of int): Number of tiles per image. Default 1 tile per image.
+            encoded_image_seq_length (torch.Tensor): The pre-calculated number of tokens for image embeddings used
             image_token_index (int): ID for input images. Default None means `image_token_index`
+                arg in the constructor will be used.
+            audios (torch.Tensor): input audio of shape [num_audios, audio_feature_dim]. num_audios means the number of
+                audio in this batch.
+            audio_lengths (torch.Tensor): Length of each audio.
+            encoded_audio_seq_length (torch.Tensor): The pre-calculated number of tokens for audio embeddings used
+            audio_token_index (int): ID for input audios. Default None means `audio_token_index`
                 arg in the constructor will be used.
             runtime_gather_output (bool): Gather output at runtime. Default None means
                 `parallel_output` arg in the constructor will be used.
@@ -580,6 +595,17 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                         1, 0, 2
                     ).contiguous()  # [img_seq_len, num_tiles, h_vision]
 
+                    # assert image_embeddings.shape[0]*image_embeddings.shape[1] == encoded_image_seq_length.sum(), (
+                    #     f"image_embeddings.shape[0] ({image_embeddings.shape[0]}) * image_embeddings.shape[1] ({image_embeddings.shape[1]}) != encoded_image_seq_length.sum() ({encoded_image_seq_length.sum()})"
+                    # )
+                    # make sure the image embeddings have the expected sequence length
+                    assert image_embeddings.shape[0]*image_embeddings.shape[1] == encoded_image_seq_length.sum(), (
+                        f"The image embeddings do not have the expected sequence length as the calculated length: "
+                        f"image_embeddings.shape[0] ({image_embeddings.shape[0]}) * "
+                        f"image_embeddings.shape[1] ({image_embeddings.shape[1]}) != "
+                        f"encoded_image_seq_length.sum() ({encoded_image_seq_length.sum()})"
+                    )                     
+
                     # map vision model output size to language model input size.
                     image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
 
@@ -617,6 +643,21 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     # [num_audios, h_audio, audio_seq_len] -> [audio_seq_len, num_audios, h_audio]
                     # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
                     audio_embeddings = audio_embeddings.permute(2, 0, 1).contiguous()
+
+                    # make sure the audio embeddings have the expected sequence length
+                    #  + for the case of using hf auto model (e.g. Whisper), the encoder always returns the padded sequence length (e.g.
+                    #    padded to 30 seconds). Hence, we use the encoded_audio_seq_length as the audio_embedding_lens.
+                    #  + for other cases, we need to check if the audio embeddings sequence length with "assert"
+                    # if audio_transformer_config.use_hf_auto_model:
+                    
+                    if isinstance(self.audio_model.encoder, HFWrappedEncoder):
+                        audio_embedding_lens = encoded_audio_seq_length
+                    else:
+                        assert audio_embedding_lens.tolist() == encoded_audio_seq_length.tolist(), (
+                            f"The audio embeddings do not have the expected sequence length as the calculated length: "
+                            f"audio_embedding_lens ({audio_embedding_lens.tolist()}) != "
+                            f"encoded_audio_seq_length ({encoded_audio_seq_length.tolist()})"
+                        )
 
                     # map audio model output size to language model input size.
                     audio_embeddings = self.audio_projection(audio_embeddings)
@@ -917,9 +958,11 @@ class AVLMModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         images: Optional[torch.Tensor] = None,
         num_image_tiles: Optional[List[int]] = None,
         image_token_index: Optional[int] = ImageToken.token_id,
+        encoded_image_seq_length: Optional[List[int]] = None,
         # image_token_mask: Optional[torch.Tensor] = None,
         audios: Optional[torch.Tensor] = None,
         audio_lengths: Optional[List[int]] = None,
+        encoded_audio_seq_length: Optional[List[int]] = None,
         audio_token_index: Optional[int] = AudioToken.token_id,
         inference_params: Optional[InferenceParams] = None,
         runtime_gather_output: Optional[bool] = None,
@@ -936,9 +979,11 @@ class AVLMModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             images=images,
             num_image_tiles=num_image_tiles,
             image_token_index=image_token_index,
+            encoded_image_seq_length=encoded_image_seq_length,
             # image_token_mask=image_token_mask,
             audios=audios,
             audio_lengths=audio_lengths,
+            encoded_audio_seq_length=encoded_audio_seq_length,
             audio_token_index=audio_token_index,
             inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
