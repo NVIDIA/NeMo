@@ -1262,19 +1262,16 @@ class B2BCausalConv1dModule(nn.Module):
 
             # Pad and rearrange
             x = rearrange(x, "b h (nc s) -> (nc b) h s", nc=2)
-            padding = torch.concat([received_a, received_b], dim=0)
+            padding = torch.concat([received_a, received_b], dim=0)  # non-zero padding
 
             x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
             result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
             result = result[..., self.effective_pad_size :]  # Remove padding from output
             result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
         else:
-            # Add proper causal padding for the non-CP case
-            x = torch.nn.functional.pad(x, (self.effective_pad_size, 0))
-
-            # Call the CUDA kernel and remove the padding from result
+            # Call the CUDA kernel
+            # Padding is not required and is handled in the CUDA kernel when CP=1 (padding=0)
             result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
-            result = result[..., self.effective_pad_size :]  # Remove padding from output
         return result
 
 
