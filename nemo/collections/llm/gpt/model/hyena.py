@@ -87,7 +87,7 @@ class HyenaModel(GPTModel):
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=vocab_size,
-            inference_max_seq_length=inference_max_seq_length,
+            inference_max_seq_length=mcore_model.config.seq_length,
         )
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
@@ -223,7 +223,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     use_short_conv_bias: bool = False
     # Use this if you want to turn FP8 on for the linear layer in the mixer only. When using this, do not set
     #  Fp8 in the mixed precision plugin.
-    vortex_style_fp8: bool = False
+    vortex_style_fp8: bool = True
 
     def __post_init__(self):
         """
@@ -460,6 +460,7 @@ class Hyena7bARCLongContextConfig(Hyena7bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 11264
+    seq_len_interpolation_factor: float = 128
 
 
 @dataclass
@@ -468,6 +469,7 @@ class Hyena40bARCLongContextConfig(Hyena40bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 22528
+    seq_len_interpolation_factor: float = 128
 
 
 @io.model_importer(HyenaModel, "pytorch")
