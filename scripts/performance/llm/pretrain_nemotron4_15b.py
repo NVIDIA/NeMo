@@ -210,18 +210,7 @@ if __name__ == "__main__":
         )
 
 
-    # script = run.Script("./scripts/echo.sh")
-    inline_script = run.Script(
-        inline="""
-env
-echo "Hello 1"
-echo "Hello 2"
-"""
-    )
-
-
     with run.Experiment(exp_name) as exp:
-        exp.add(inline_script, tail_logs=True)
 
         exp.add(
             recipe,
