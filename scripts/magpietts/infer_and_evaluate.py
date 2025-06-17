@@ -192,7 +192,7 @@ def run_inference(
                 context_durration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
             test_dataset = MagpieTTSDataset(
                 dataset_meta=dataset_meta,
-                sample_rate=model_cfg.sample_rate,
+                sample_rate=model.sample_rate,
                 min_duration=0.5,
                 max_duration=20,
                 codec_model_samples_per_frame=model.codec_model_samples_per_frame,
@@ -268,7 +268,7 @@ def run_inference(
                     predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                     predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
                     audio_path = os.path.join(pred_audio_dir, f"predicted_audio_{item_idx}.wav")
-                    sf.write(audio_path, predicted_audio_np, model.cfg.sample_rate)
+                    sf.write(audio_path, predicted_audio_np, model.sample_rate)
                     codes_path = os.path.join(pred_audio_dir, f"predicted_codes_{item_idx}.pt")
                     torch.save(predicted_codes[idx][:predicted_codes_lens[idx]], codes_path)
                     codec_file_paths.append(codes_path)
