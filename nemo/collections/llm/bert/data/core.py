@@ -149,7 +149,7 @@ class BertEmbeddingDataset(Dataset):
             self.special_tokens = special_tokens
         self.data_type = data_type
         self.num_hard_negatives = num_hard_negatives
-        
+
         self.indexed_dataset = _JSONLMemMapDataset(
             dataset_paths=[file_path],
             tokenizer=None,
