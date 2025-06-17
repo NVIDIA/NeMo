@@ -36,14 +36,14 @@ Example usage:
 python speech_to_text_streaming_infer_rnnt.py \
     pretrained_name=nvidia/parakeet-rnnt-1.1b \
     model_path=null \
-    audio_dir="<remove or path to folder of audio files>" \
-    dataset_manifest="<remove or path to manifest>" \
-    output_filename="<remove or specify output filename>" \
+    audio_dir="<optional path to folder of audio files>" \
+    dataset_manifest="<optional path to manifest>" \
+    output_filename="<optional output filename>" \
     right_context_secs=2.0 \
     chunk_secs=2 \
     left_context_secs=10.0 \
     batch_size=32 \
-    clean_groundtruth_text=True \
+    clean_groundtruth_text=False \
     langid='en'
 ```
 """
@@ -52,14 +52,12 @@ import glob
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Optional
 
-import librosa
 import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
@@ -68,70 +66,17 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
     GreedyBatchedLabelLoopingComputerBase,
 )
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import filepath_to_absolute, read_manifest
 from nemo.collections.asr.parts.utils.rnnt_utils import BatchedHyps, batched_hyps_to_hypotheses
-from nemo.collections.asr.parts.utils.streaming_utils import ContextSize, StreamingBatchedAudioBuffer
+from nemo.collections.asr.parts.utils.streaming_utils import (
+    AudioBatch,
+    ContextSize,
+    SimpleAudioDataset,
+    StreamingBatchedAudioBuffer,
+)
 from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, setup_model, write_transcription
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
-
-def filepath_to_absolute(filepath: str | Path, base_path: Path) -> Path:
-    """
-    Return absolute path to an audio file.
-
-    Check if a file exists at audio_filepath.
-    If not, assume that the path is relative to base_path.
-    """
-    filepath = Path(filepath).expanduser()
-
-    if not filepath.is_file() and not filepath.is_absolute():
-        filepath = (base_path / filepath).absolute()
-    return filepath
-
-
-def load_audio(file_path: str | Path, sample_rate: int = 16000) -> tuple[torch.Tensor, int]:
-    """Load audio from file"""
-    audio, sr = librosa.load(file_path, sr=sample_rate)
-    return torch.tensor(audio, dtype=torch.float32), sr
-
-
-class AudioBatch(NamedTuple):
-    audio_signals: torch.Tensor
-    audio_signal_lengths: torch.Tensor
-
-    @staticmethod
-    def collate_fn(
-        audio_batch: list[torch.Tensor],
-    ) -> "AudioBatch":
-        """
-        Collate audio signals to batch
-        """
-        audio_signals = pad_sequence(
-            [audio_tensor for audio_tensor in audio_batch], batch_first=True, padding_value=0.0
-        )
-        audio_signal_lengths = torch.tensor([audio_tensor.shape[0] for audio_tensor in audio_batch]).long()
-
-        return AudioBatch(
-            audio_signals=audio_signals,
-            audio_signal_lengths=audio_signal_lengths,
-        )
-
-
-class SimpleAudioDataset(Dataset):
-    """Dataset constructed from audio filenames. Each item - audio"""
-
-    def __init__(self, audio_filenames: list[str | Path], sample_rate: int = 16000):
-        super().__init__()
-        self.audio_filenames = audio_filenames
-        self.sample_rate = sample_rate
-
-    def __getitem__(self, item: int) -> torch.Tensor:
-        audio, _ = load_audio(self.audio_filenames[item])
-        return audio
-
-    def __len__(self):
-        return len(self.audio_filenames)
 
 
 def make_divisible_by(num, factor: int) -> int:
@@ -171,7 +116,9 @@ class TranscriptionConfig:
     # If `cuda` is a negative number, inference will be on CPU only.
     cuda: Optional[int] = None
     allow_mps: bool = True  # allow to select MPS device (Apple Silicon M-series GPU)
-    compute_dtype: str = "float32"
+    compute_dtype: Optional[str] = (
+        None  # "float32", "bfloat16" or "float16"; if None (default): bfloat16 if available, else float32
+    )
     matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
@@ -232,7 +179,18 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     else:
         map_location = torch.device(f'cuda:{cfg.cuda}')
 
-    logging.info(f"Inference will be done on device : {map_location}")
+    compute_dtype: torch.dtype
+    if cfg.compute_dtype is None:
+        can_use_bfloat16 = map_location.type == "cuda" and torch.cuda.is_bf16_supported()
+        if can_use_bfloat16:
+            compute_dtype = torch.bfloat16
+        else:
+            compute_dtype = torch.float32
+    else:
+        assert cfg.compute_dtype in {"float32", "bfloat16", "float16"}
+        compute_dtype = getattr(torch, cfg.compute_dtype)
+
+    logging.info(f"Inference will be done on device : {map_location} with compute_dtype: {compute_dtype}")
 
     asr_model, model_name = setup_model(cfg, map_location)
 
@@ -261,8 +219,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     asr_model.freeze()
     asr_model = asr_model.to(asr_model.device)
-    if cfg.compute_dtype != "float32":
-        asr_model.to(getattr(torch, cfg.compute_dtype))
+    asr_model.to(compute_dtype)
 
     # Change Decoding Config
     with open_dict(cfg.decoding):
