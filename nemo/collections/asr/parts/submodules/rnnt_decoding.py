@@ -902,7 +902,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         for i, offsets in enumerate(char_offsets):
             decoded_chars = []
             for char in offsets['char']:
-                # NB: if blank tokens are present, _refine_timestamps will not work properly 
+                # NB: if blank tokens are present, _refine_timestamps will not work properly
                 # as offests and encoded_offsets will not be 1:1 match
                 assert char != self.blank_id, "Offsets should not contain blank tokens"
                 decoded_chars.append(self.decode_tokens_to_str([int(char)]))
@@ -982,7 +982,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 - "char": List[str] - The character/subword token
                 - "start_offset": int - The start time index of the token
                 - "end_offset": int - The end time index of the token
-        
+
         **Note**: Blank tokens are not included in the offsets.
         """
         if isinstance(hypothesis.timestamp, torch.Tensor):
@@ -990,11 +990,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         # Merge the results per token into a list of dictionaries
         offsets = [
-            {"char": [t], "start_offset": s, "end_offset": s+1}
+            {"char": [t], "start_offset": s, "end_offset": s + 1}
             for t, s in zip(hypothesis.y_sequence, hypothesis.timestamp)
             if t != blank_id
         ]
-        
+
         return offsets
 
     @staticmethod
@@ -1011,7 +1011,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 - "char": List[str] - The character/subword token
                 - "start_offset": int - The start time index of the token
                 - "end_offset": int - The end time index of the token
-                
+
         **Note**: Blank tokens are not included in the offsets.
         """
         if isinstance(hypothesis.timestamp, torch.Tensor):
