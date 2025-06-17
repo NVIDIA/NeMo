@@ -17,6 +17,7 @@ import re
 import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
+from itertools import groupby
 from typing import Callable, Dict, List, Optional, Set, Union
 
 import numpy as np
@@ -278,18 +279,18 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             punct_pattern = '|'.join([re.escape(p) for p in self.supported_punctuation])
             self.space_before_punct_pattern = re.compile(r'(\s)(' + punct_pattern + ')')
 
-        # Test if alignments are being preserved for RNNT
-        if not self._is_tdt and self.compute_timestamps is True and self.preserve_alignments is False:
-            raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
+        # # Test if alignments are being preserved for RNNT
+        # if not self._is_tdt and self.compute_timestamps is True and self.preserve_alignments is False:
+        #     raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
 
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
         if self._is_tdt:
-            if self.preserve_frame_confidence is True and self.preserve_alignments is False:
-                raise ValueError(
-                    "If `preserve_frame_confidence` flag is set, then `preserve_alignments` flag must also be set."
-                )
+            # if self.preserve_frame_confidence is True and self.preserve_alignments is False:
+            #     raise ValueError(
+            #         "If `preserve_frame_confidence` flag is set, then `preserve_alignments` flag must also be set."
+            #     )
             self.tdt_include_token_duration = self.tdt_include_token_duration or self.compute_timestamps
             self._compute_offsets = self._compute_offsets_tdt
             self._refine_timestamps = self._refine_timestamps_tdt
@@ -1015,6 +1016,15 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         Returns:
 
         """
+        if isinstance(hypothesis.timestamp, torch.Tensor):
+            hypothesis.timestamp = hypothesis.timestamp.cpu().tolist()
+
+        # Merge the results per token into a list of dictionaries
+        offsets = [
+            {"char": [t], "start_offset": s, "end_offset": s+1}
+            for t, s in zip(hypothesis.text[0], hypothesis.timestamp)
+        ]
+        
         start_index = 0
         # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
         # as the start index.
@@ -1034,14 +1044,30 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 alignment_labels[t][u] = alignment_labels[t][u][1]  # pick label from (logit, label) tuple
 
         # Merge the results per token into a list of dictionaries
-        offsets = [
+        gt_offsets = [
             {"char": a, "start_offset": s, "end_offset": e}
             for a, s, e in zip(alignment_labels, start_indices, end_indices)
         ]
 
         # Filter out RNNT token (blank at [t][0] position). This is because blank can only occur at end of a
         # time step for RNNT, so if 0th token is blank, then that timestep is skipped.
-        offsets = list(filter(lambda offsets: offsets["char"][0] != rnnt_token, offsets))
+        gt_offsets = list(filter(lambda offsets: offsets["char"][0] != rnnt_token, gt_offsets))
+        
+        
+        res_idx=0
+        for gt in gt_offsets:
+            # print(gt)
+            for c in gt["char"]:
+                if c != rnnt_token:
+                    x=offsets[res_idx]
+                    
+                    assert x["char"][0] == c, f'Not equal tokens: {x["char"][0]}, {c}'
+                    assert x["start_offset"] == int(gt["start_offset"]), f'Not equal start offsets: {x["start_offset"]}, {int(gt["start_offset"])}'
+                    assert x["end_offset"] == int(gt["end_offset"]), f'Not equal end offsets: {x["end_offset"]}, {int(gt["end_offset"])}'
+                    
+                    res_idx+=1
+        print("succesfully compared")            
+        
         return offsets
 
     @staticmethod
