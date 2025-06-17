@@ -17,7 +17,6 @@ import re
 import unicodedata
 from abc import abstractmethod
 from dataclasses import dataclass, field, is_dataclass
-from itertools import groupby
 from typing import Callable, Dict, List, Optional, Set, Union
 
 import numpy as np
@@ -666,6 +665,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             else:  # standard RNN-T
                 prediction = [p for p in prediction if p != self.blank_id]
 
+            # De-tokenize the integer tokens;
             hyp.text = self.decode_tokens_to_str_with_strip_punctuation(prediction)
 
             if self.compute_hypothesis_token_set:
@@ -975,7 +975,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         Args:
             hypothesis: A Hypothesis object that contains `text` field that holds the character / subword token
                 emitted at every time step after rnnt collapse.
-            is_tdt: Boolean flag indicating if this is a TDT model.
 
         Returns:
             List[Dict[str, Union[str, int]]]: A list of dictionaries, where each dictionary contains:
