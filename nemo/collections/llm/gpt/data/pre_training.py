@@ -16,7 +16,7 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union, Literal
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Type, Union
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
