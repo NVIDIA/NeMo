@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -180,7 +180,9 @@ class DoRA(PEFT, ModuleMatcher):
         """
         if (ans := self.match(m, name, prefix)) is not None:
             (match, full_name) = ans
-            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
+                get_adapter_attributes_from_linear(m)
+            )
             logging.info(f"Adding DoRA to: {full_name}")
             adapter = ParallelLinearDoRAAdapter(
                 in_features,
@@ -198,6 +200,7 @@ class DoRA(PEFT, ModuleMatcher):
                 model_parallel_config=getattr(m, "config", None),
                 alpha=self.alpha,
                 disable_sequence_parallel_comm=disable_sp_comm,
+                base_linear_is_parallel=base_linear_is_parallel,
             )
             return DoRALinear(m, adapter)
         return m

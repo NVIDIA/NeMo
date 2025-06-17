@@ -25,18 +25,13 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_b200_h8192_tp2_mbs1_seqlen8192,
     userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
 )
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_comm_overlap_callback_idx,
-    get_user_configs,
-    hf_tokenizer,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
 
 
 def override_recipe_configs(
@@ -75,6 +70,8 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
+        use_user_buffer_registration=args.use_user_buffer_registration,
+        use_sharp=args.use_sharp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
@@ -88,7 +85,13 @@ def override_recipe_configs(
     gpu_type = args.gpu.lower()
 
     # data module configs
-    recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-70B")
+    if args.use_hf_tokenizer:
+        recipe.data.tokenizer = hf_tokenizer("meta-llama/Meta-Llama-3-70B")
+    else:
+        recipe.data.tokenizer = run.Config(
+            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
+        )
+        recipe.model.tokenizer = recipe.data.tokenizer
 
     ub_cfg = {
         "h100": {
@@ -161,6 +164,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -173,6 +177,7 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
     )
 
     plugins = [
@@ -184,6 +189,9 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

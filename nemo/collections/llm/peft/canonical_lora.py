@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -230,7 +230,9 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                     m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
                 )
 
-            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
+                get_adapter_attributes_from_linear(m)
+            )
 
             adapter_kwargs = dict(
                 dim=self.dim,
@@ -247,6 +249,7 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                 alpha=self.alpha,
                 is_expert=is_expert_linear(full_name),
                 disable_sequence_parallel_comm=disable_sp_comm,
+                base_linear_is_parallel=base_linear_is_parallel,
             )
             if name in ['linear_proj', 'linear_fc2']:
                 adapter = ParallelLinearAdapter(in_features, out_features, **adapter_kwargs)

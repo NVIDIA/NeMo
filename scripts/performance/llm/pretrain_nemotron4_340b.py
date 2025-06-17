@@ -24,17 +24,12 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_b200_h18432_tp8_mbs1_seqlen4096,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_comm_overlap_callback_idx,
-    get_user_configs,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, logging, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import get_comm_overlap_callback_idx
 
 
 def override_recipe_configs(
@@ -77,6 +72,8 @@ def override_recipe_configs(
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        use_user_buffer_registration=args.use_user_buffer_registration,
+        use_sharp=args.use_sharp,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
@@ -86,6 +83,8 @@ def override_recipe_configs(
     gpu_type = args.gpu.lower()
 
     # data module configs
+    if args.use_hf_tokenizer:
+        logging.warning("HuggingFace tokenizer not supported for Nemotron4 340B. Using NullTokenizer.")
     recipe.data.tokenizer = run.Config(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
     )
@@ -152,6 +151,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -167,6 +167,7 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
     )
 
     plugins = [
@@ -178,6 +179,9 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

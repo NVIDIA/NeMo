@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,6 +51,7 @@ class LoRALinear(AdapterWrapper):
         # pylint: disable=C0115,C0116
         linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
         adapter_output = self.adapter(layernorm_output.contiguous())
+        adapter_output = adapter_output.reshape(linear_output.shape)
         return linear_output + adapter_output, bias
 
 
@@ -382,6 +383,9 @@ class LoRA(PEFT, ModuleMatcher):
         dropout_position (Literal['pre', 'post'], optional): Position for applying dropout.
             Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'pre'.
         a2a_experimental (bool): Enables the experimental All-to-All (A2A) communication strategy. Defaults to False.
+        dropout_recompute (bool): Enables dropout recompute using Thunder JIT compilation. When True,
+            applies thunder.jit() to the dropout layer for memory-efficient training by recomputing
+            dropout activations during backward pass instead of storing them.
         lora_dtype (torch.dtype): Parameter data type for LoRA weights. Default None (will use model's dtype).
 
     Example:
@@ -412,6 +416,7 @@ class LoRA(PEFT, ModuleMatcher):
     lora_B_init_method: str = "zero"
     a2a_experimental: bool = False
     lora_dtype: torch.dtype = None
+    dropout_recompute: bool = False
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
@@ -457,7 +462,9 @@ class LoRA(PEFT, ModuleMatcher):
                     lora_dtype=self.lora_dtype,
                 )
 
-            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
+                get_adapter_attributes_from_linear(m)
+            )
             logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
@@ -477,6 +484,8 @@ class LoRA(PEFT, ModuleMatcher):
                 is_expert=is_expert_linear(full_name),
                 a2a_experimental=self.a2a_experimental,
                 disable_sequence_parallel_comm=disable_sp_comm,
+                dropout_recompute=self.dropout_recompute,
+                base_linear_is_parallel=base_linear_is_parallel,
             )
             return LoRALinear(m, adapter)
         return m

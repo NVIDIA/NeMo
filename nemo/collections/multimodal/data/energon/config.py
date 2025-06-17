@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,6 +34,20 @@ class ImageToken(MultiModalToken):
     token_str: str = "<image>"
     token_id: int = -200
     media_type: str = "image"
+
+
+@dataclass
+class AudioToken(MultiModalToken):
+    token_str: str = "<audio>"
+    token_id: int = -300
+    media_type: str = "audio"
+
+
+@dataclass
+class VideoToken(MultiModalToken):
+    token_str: str = "<video>"
+    token_id: int = -400
+    media_type: str = "video"
 
 
 @dataclass

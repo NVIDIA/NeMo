@@ -28,7 +28,7 @@ jobs:
     uses: ./.github/workflows/_build_container.yml
     with:
       image-name: ${{ inputs.image-name }}
-      dockerfile: Dockerfile.ci
+      dockerfile: docker/Dockerfile.ci
 
   unit-tests:
     strategy:
@@ -52,6 +52,13 @@ jobs:
           - script: L0_Unit_Tests_CPU_Audio
             runner: self-hosted-azure-cpu
             cpu-only: true
+          - script: L0_Unit_Tests_GPU_SpeechLM2
+            runner: self-hosted-azure-gpus-1
+            timeout: 20
+          - script: L0_Unit_Tests_CPU_SpeechLM2
+            runner: self-hosted-azure-cpu
+            cpu-only: true
+            timeout: 20
     needs: [build]
     runs-on: ${{ matrix.runner }}
     name: ${{ matrix.script }}
@@ -70,6 +77,7 @@ jobs:
           image: ${{ inputs.image-name }}
           timeout: ${{ matrix.timeout || 10 }}
           cpu-only: ${{ matrix.cpu-only || false }}
+          is_optional: ${{ matrix.is-optional || false }}
 
   e2e-tests:
     strategy:
@@ -84,10 +92,10 @@ jobs:
             script: ASR_dev_run_Speech_Pre-training_-_CitriNet
           - runner: self-hosted-azure-gpus-1
             script: Optional_ASR_dev_run_Speech_To_Text_Finetuning
-            is_optional: true
+            is-optional: true
           - runner: self-hosted-azure-gpus-1
             script: Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning
-            is_optional: true
+            is-optional: true
           - runner: self-hosted-azure-gpus-1
             script: ASR_dev_run_Speech_to_Text_WPE_-_Conformer
           - runner: self-hosted-azure-gpus-1
@@ -112,7 +120,6 @@ jobs:
             script: L2_Speech_Batch_Size_OOMptimizer
           - runner: self-hosted-azure
             script: Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
-            is_optional: true
           - runner: self-hosted-azure
             script: L2_Speech_Transcription_Speech_to_Text_Transcribe
           - runner: self-hosted-azure
@@ -121,7 +128,6 @@ jobs:
             script: L2_Speech_Transcription_Canary_Transcribe_With_Prompt
           - runner: self-hosted-azure
             script: L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
-            IS_OPTIONAL: true
           - runner: self-hosted-azure
             script: L2_Longform_Speech_Transcription_Canary_Chunked_Infer_from_Audio_Dir
           - runner: self-hosted-azure
@@ -151,7 +157,6 @@ jobs:
             script: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
           - runner: self-hosted-azure
             script: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
-            is_optional: true
           - script: L2_HF_Transformer_SpeechLM_SFT_2gpu
             runner: self-hosted-azure
           - script: L2_SpeechLM_LoRA_TP1PP1_MBS2
@@ -168,9 +173,15 @@ jobs:
             script: L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
           - runner: self-hosted-azure
             script: L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
+          - runner: self-hosted-azure
+            script: SPEECHLM_HF_Training_DuplexS2S
+          - runner: self-hosted-azure
+            script: SPEECHLM_HF_Training_DuplexS2SSpeechDecoder
+          - runner: self-hosted-azure
+            script: SPEECHLM_HF_Training_SALM
     needs: [unit-tests]
     runs-on: ${{ matrix.runner }}
-    name: ${{ matrix.script }}
+    name: ${{ matrix.is-optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -183,4 +194,4 @@ jobs:
           script: ${{ matrix.script }}
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
-          is_optional: ${{ matrix.is_optional || false }}
+          is_optional: ${{ matrix.is-optional || false }}

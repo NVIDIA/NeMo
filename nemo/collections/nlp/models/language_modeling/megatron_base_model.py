@@ -1121,7 +1121,7 @@ class MegatronBaseModel(NLPModel):
             )
             if (
                 parallel_state.get_pipeline_model_parallel_world_size() > 1
-                and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+                and parallel_state.is_pipeline_last_stage()
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 word_embeddings_weight = (
@@ -1136,7 +1136,7 @@ class MegatronBaseModel(NLPModel):
             num_parameters_on_device = sum([p.nelement() for p in model.parameters()])
             if (
                 parallel_state.get_pipeline_model_parallel_world_size() > 1
-                and parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+                and parallel_state.is_pipeline_last_stage()
                 and self.cfg.get('share_embeddings_and_output_weights', True)
             ):
                 word_embeddings_weight = (
