@@ -108,16 +108,7 @@ def override_recipe_configs(
     )
 
     # data module configs
-    if args.use_hf_tokenizer:
-        recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    else:
-        recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
-        )
-        recipe.model.tokenizer = recipe.data.tokenizer
-    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
-        # flag is valid only for SquadDataModule
-        recipe.data.force_redownload = True
+    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
@@ -227,11 +218,7 @@ if __name__ == "__main__":
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
         if not SKIP_DATASET_DOWNLOAD:
-            exp.add(
-                *prepare_squad_dataset_experiment(
-                    executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home, vocab_size=128256
-                )
-            )
+            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home))
         exp.add(
             recipe,
             executor=executor,
