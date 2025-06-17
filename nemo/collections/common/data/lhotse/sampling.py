@@ -262,6 +262,34 @@ class DurationFilter:
         else:
             return True  # does not apply to text etc.
 
+class CERFilter:
+    """
+    Callable, returns ``True`` if a cut's CER is less than max_cer and ``False`` otherwise.
+    Acts as a pass-through for objects of other type than Cut.
+    """
+
+    def __init__(self, max_cer: float | None) -> None:
+        self.max_cer = ifnone(max_cer, float("inf"))
+
+    def __call__(self, example) -> bool:
+        if isinstance(example, Cut) and len(example.supervisions) > 0 and example.supervisions[0].has_custom("cer"):
+            return example.supervisions[0].cer <= self.max_cer
+        else:
+            return True
+
+class ContextSpeakerSimilarityFilter:
+    """
+    Callable, returns ``True`` if a cut's context speaker similarity is greater than min_context_speaker_similarity and ``False`` otherwise.
+    Acts as a pass-through for objects of other type than Cut.
+    """
+    def __init__(self, min_context_speaker_similarity: float | None) -> None:
+        self.min_context_speaker_similarity = ifnone(min_context_speaker_similarity, -1)
+
+    def __call__(self, example) -> bool:
+        if isinstance(example, Cut) and len(example.supervisions) > 0 and example.supervisions[0].has_custom("context_speaker_similarity"):
+            return example.supervisions[0].context_speaker_similarity >= self.min_context_speaker_similarity
+        else:
+            return True
 
 class TokenCountFilter:
     """
