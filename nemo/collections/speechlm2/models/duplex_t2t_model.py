@@ -15,6 +15,9 @@ import torch
 import torch.distributed as dist
 from lightning import LightningModule
 from omegaconf import DictConfig, OmegaConf
+from collections import defaultdict
+import os
+import json
 from peft import PeftModel
 from torch import Tensor
 from torch.distributed.fsdp import fully_shard
@@ -55,6 +58,10 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         self.save_hyperparameters()
         self.cfg = DictConfig(cfg)
 
+        # Add configuration for saving validation outputs
+        self.save_val_outputs = cfg.get("save_val_outputs", False)
+        self.val_output_dir = cfg.get("val_output_dir", "validation_outputs")
+        
         self.generate_speech = cfg.get("generate_speech", True)
         if self.generate_speech:
             setup_audio_codec(self)
@@ -428,6 +435,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         if self.generate_speech:
             self.asr_bleu = ASRBLEU(self.cfg.scoring_asr).reset()
         self.bleu = BLEU().reset()
+        self.val_results_to_save = defaultdict(list)
 
     def on_validation_epoch_end(self, prefix="val") -> None:
         if self.generate_speech:
@@ -435,8 +443,19 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             for k, m in asr_bleu.items():
                 self.log(f"{prefix}_{k}", m.to(self.device), on_epoch=True, sync_dist=True)
         bleu = self.bleu.compute()
-        for k, m in bleu.items():
-            self.log(f"{prefix}_{k}", m.to(self.device), on_epoch=True, sync_dist=True)
+        for name, score in bleu.items():
+            self.log(f"{prefix}_{name}", score.to(self.device), on_epoch=True, sync_dist=True)
+            # Save text BLEU score for this dataset
+            if self.save_val_outputs:
+                with open(os.path.join(self.val_output_dir, f"{prefix}_{name}.lst"), "w") as f:
+                    f.write(f"{score.item()}\n")
+
+        # Save validation outputs
+        if self.save_val_outputs:
+            for name, results in self.val_results_to_save.items():
+                with open(os.path.join(self.val_output_dir, f"{prefix}_{name}_outputs.jsonl"), "w") as f:
+                    for result in results:
+                        f.write(json.dumps(result) + "\n")
 
     def validation_step(self, batch: dict, batch_idx: int):
         for name, dataset_batch in batch.items():
@@ -453,6 +472,15 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
                     dataset_batch["source_tokens"],
                     dataset_batch["source_token_lens"],
                 )
+            if self.save_val_outputs:
+                for user, agent, pred, data_id in zip(dataset_batch["source_texts"], dataset_batch["target_texts"], results["text"], dataset_batch["data_id"]):
+                    self.val_results_to_save[name].append({
+                        "ref_user": user,
+                        "ref_agent": agent,
+                        "pred_agent": pred,
+                        "data_id": data_id,
+                    })
+            
             if self.generate_speech:
                 with fp32_precision():  # resample is fragile to bfloat16 default dtype
                     self.asr_bleu.update(
@@ -628,7 +656,6 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             # Generate next token
             ans = self(step_embeds, cache=ans["cache"])
             gen_tokens[:, t] = ans["text_logits"][:, -1].argmax(dim=-1)
-        
         return {
             "text": tokens_to_str(gen_tokens, source_lens, tokenizer=self.tokenizer, pad_id=self.text_pad_id),
             "tokens": gen_tokens,
@@ -763,3 +790,36 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             self.speech_generation = fully_shard(self.speech_generation, **fsdp_config)
             if self.concat_embeddings:
                 self.concat_projection = fully_shard(self.concat_projection, **fsdp_config)
+    
+def tokens_to_turn_str(tokens: torch.Tensor, lengths: torch.Tensor, tokenizer: AutoTokenizer, pad_id: int, delimiter: str = "|") -> list[str]:
+    """
+    [WIP] Convert tokens to turn-delimited text
+    """
+    ans = []
+    for hyp_ids, hyp_len in zip(tokens.cpu(), lengths.cpu()):
+        # Get tokens up to length
+        hyp_ids = hyp_ids[:hyp_len]
+        
+        # Find segments between pad tokens
+        segments = []
+        start_idx = 0
+        for i in range(len(hyp_ids)):
+            if hyp_ids[i] == pad_id:
+                # Convert segment before pad token to text
+                if i > start_idx:
+                    segment_tokens = hyp_ids[start_idx:i]
+                    segment_tokens = segment_tokens[segment_tokens != pad_id]
+                    if len(segment_tokens) > 0:
+                        segments.append(tokenizer.ids_to_text(segment_tokens))
+                start_idx = i + 1
+        
+        # Add final segment if any
+        if start_idx < len(hyp_ids):
+            segment_tokens = hyp_ids[start_idx:]
+            segment_tokens = segment_tokens[segment_tokens != pad_id]
+            if len(segment_tokens) > 0:
+                segments.append(tokenizer.ids_to_text(segment_tokens))
+        
+        # Join segments with delimiter
+        ans.append(delimiter.join(segments))
+    return ans
