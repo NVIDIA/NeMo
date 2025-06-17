@@ -40,7 +40,7 @@ from ..utils import (
 
 class CustomTrainingStartCallback(Callback):
     """Custom callback to log a message at the very beginning of training."""
-    
+
     def on_fit_start(self, trainer, pl_module):
         """Called when fit begins."""
         logging.info("GSW: 🚀 Nemotron4 15B pre-training initiated!")
@@ -98,7 +98,7 @@ def override_recipe_configs(
     # Add the callback to the trainer's callbacks
     if not hasattr(recipe.trainer, 'callbacks') or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
-    
+
     recipe.trainer.callbacks.append(run.Config(CustomTrainingStartCallback))
 
     gpu_type = args.gpu.lower()
