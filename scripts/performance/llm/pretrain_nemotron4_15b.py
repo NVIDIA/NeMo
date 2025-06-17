@@ -95,13 +95,8 @@ def override_recipe_configs(
     # Add the callback to the trainer's callbacks
     if not hasattr(recipe.trainer, 'callbacks') or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
-    
-    recipe.trainer.callbacks.append(
-        run.Config(
-            LambdaCallback,
-            on_fit_start=log_training_start
-        )
-    )
+
+    recipe.trainer.callbacks.append(run.Config(LambdaCallback, on_fit_start=log_training_start))
 
     gpu_type = args.gpu.lower()
 
