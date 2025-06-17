@@ -47,10 +47,8 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     +model.reference_free=true \
     +model.inference_cfg_prob=0.0 \
     +model.inference_cfg_scale=2.5 \
-    +model.cer_reward_weight=0.33 \
-    +model.ssim_reward_weight=0.33 \
-    +model.pesq_reward_weight=0.33 \
-    +model.use_pesq=true \
+    +model.cer_reward_weight=0.5 \
+    +model.ssim_reward_weight=0.5 \
     +model.reward_asr_model="whisper" \
     model.local_transformer_type="none" \
     model.cfg_unconditional_prob=0.0 \
