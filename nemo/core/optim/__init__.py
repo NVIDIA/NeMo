@@ -24,6 +24,8 @@ from nemo.core.optim.lr_scheduler import (
     SquareRootAnnealing,
     T5InverseSquareRootAnnealing,
     WarmupAnnealing,
+    WarmupHoldAnnealLinear,
+    WarmupHoldAnnealOneMinusSquareRoot,
     WarmupHoldPolicy,
     WarmupPolicy,
     prepare_lr_scheduler,
