@@ -45,7 +45,7 @@ Your  pull requests must pass all checks and peer-review before they can be merg
 1. **Sensible**: code should make sense. If you think a piece of code might be confusing, write comments.
 
 ## Class naming conventions
-* No “I”, “Interface”, “NM” nor “NeMo” pre/postfixes anywhere
+* No "I", "Interface", "NM" nor "NeMo" pre/postfixes anywhere
 * Core interfaces have simple names: Typing, Cloud, Serialization, FileIO*
 * Core classes have the simplest names ever: NeuralModule, Model, Graph, Dataset, Loss, Module*
 * Abstract classes in the Model hierarchy have Model postfix
@@ -72,6 +72,78 @@ We use ``black`` as our style guide. To check whether your code will pass style 
 1. Loggers are preferred to print. In NeMo, you can use logger from ``from nemo.utils import logging``
 1. Private functions (functions start with ``_``) shouldn't be called outside its host file.
 1. If a comment lasts multiple lines, use ``'''`` instead of ``#``.
+
+# Commit Message Guidelines
+
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification for our commit messages. This helps maintain a clear and consistent git history.
+
+## Format
+Each commit message consists of a **header**, a **body**, and a **footer**:
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+## Types
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation only changes
+- `style`: Changes that do not affect the meaning of the code (white-space, formatting, etc)
+- `refactor`: A code change that neither fixes a bug nor adds a feature
+- `perf`: A code change that improves performance
+- `test`: Adding missing tests or correcting existing tests
+- `chore`: Changes to the build process or auxiliary tools
+
+## Examples
+
+Good commit messages:
+```
+feat(asr): add support for streaming inference in QuartzNet
+
+- Implement chunked processing for real-time ASR
+- Add streaming buffer management
+- Update documentation with streaming examples
+
+Closes #123
+```
+
+```
+fix(nlp): resolve tokenizer memory leak in BERT models
+
+- Fix memory leak in tokenizer cache
+- Add cache size limit
+- Add memory usage monitoring
+
+Fixes #456
+```
+
+```
+docs(tts): update FastSpeech2 training guide
+
+- Add multi-GPU training instructions
+- Include example configs
+- Fix outdated command examples
+```
+
+Bad commit messages:
+```
+fixed stuff
+```
+updates
+```
+wip
+```
+
+## Tips
+1. Use the imperative, present tense: "change" not "changed" nor "changes"
+2. Don't capitalize the first letter
+3. No dot (.) at the end
+4. Keep the subject line under 50 characters
+5. Wrap the body at 72 characters
+6. Use the body to explain what and why vs. how
 
 # Collections
 Collection is a logical grouping of related Neural Modules. It is a grouping of modules that share a domain area or semantics.

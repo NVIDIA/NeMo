@@ -19,13 +19,13 @@ After :ref:`installing NeMo<installation>`, you can transcribe an audio file as 
 Obtain timestamps
 ^^^^^^^^^^^^^^^^^
 
-Obtaining char(token), word or segment timestamps is also possible with NeMo ASR Models. 
+Obtaining character (token), word, or segment timestamps is also possible with NeMo ASR Models. 
 
-Currently, timestamps are available for Parakeet Models with all types of decoders (CTC/RNNT/TDT). Support for AED models would be added soon.
+Currently, timestamps are available for Parakeet Models with all types of decoders (CTC/RNNT/TDT). Support for AED models will be added soon.
 
 There are two ways to obtain timestamps:
 1. By using the `timestamps=True` flag in the `transcribe` method.
-2. For more control over the timestamps, you can update the decoding config to mention type of timestamps (char, word, segment) and also specify the segment seperators or word seperator for segment and word level timestamps.
+2. For more control over the timestamps, you can update the decoding config to specify the type of timestamps (char, word, segment) and also specify the segment separators or word separator for segment and word level timestamps.
 
 With the `timestamps=True` flag, you can obtain timestamps for each character in the transcription as follows:
 
@@ -39,16 +39,18 @@ With the `timestamps=True` flag, you can obtain timestamps for each character in
     hypotheses = asr_model.transcribe(["path/to/audio_file.wav"], timestamps=True)
 
     # by default, timestamps are enabled for char, word and segment level
-    word_timestamps = hypotheses[0].timestamp['word'] # word level timestamps for first sample
-    segment_timestamps = hypotheses[0].timestamp['segment'] # segment level timestamps
-    char_timestamps = hypotheses[0].timestamp['char'] # char level timestamps
+    word_timestamps = hypotheses[0].timestamp['word']  # word level timestamps for first sample
+    segment_timestamps = hypotheses[0].timestamp['segment']  # segment level timestamps
+    char_timestamps = hypotheses[0].timestamp['char']  # char level timestamps
 
     for stamp in segment_timestamps:
         print(f"{stamp['start']}s - {stamp['end']}s : {stamp['segment']}")
 
-    # segment level timestamps (if model supports Punctuation and Capitalization, segment level timestamps are displayed based on punctuation otherwise complete transcription is considered as a single segment)
+    # segment level timestamps (if model supports Punctuation and Capitalization, 
+    # segment level timestamps are displayed based on punctuation; otherwise, 
+    # complete transcription is considered as a single segment)
     
-For more control over the timestamps, you can update the decoding config to mention type of timestamps (char, word, segment) and also specify the segment seperators or word seperator for segment and word level timestamps as follows:
+For more control over the timestamps, you can update the decoding config to specify the type of timestamps (char, word, segment) and also specify the segment separators or word separator for segment and word level timestamps as follows:
 
 .. code-block:: python
 
@@ -57,21 +59,21 @@ For more control over the timestamps, you can update the decoding config to ment
     asr_model = nemo_asr.models.ASRModel.from_pretrained("stt_en_fastconformer_transducer_large")
 
     # update decoding config to preserve alignments and compute timestamps
-    # if necessary also update the segment seperators or word seperator for segment and word level timestamps
+    # if necessary also update the segment separators or word separator for segment and word level timestamps
     from omegaconf import OmegaConf, open_dict
     decoding_cfg = asr_model.cfg.decoding
     with open_dict(decoding_cfg):
         decoding_cfg.preserve_alignments = True
         decoding_cfg.compute_timestamps = True
-        decoding_cfg.segment_seperators = [".", "?", "!"]
-        decoding_cfg.word_seperator = " "
+        decoding_cfg.segment_separators = [".", "?", "!"]
+        decoding_cfg.word_separator = " "
         asr_model.change_decoding_strategy(decoding_cfg)
 
-    # specify flag `return_hypotheses=True``
+    # specify flag `return_hypotheses=True`
     hypotheses = asr_model.transcribe(["path/to/audio_file.wav"], return_hypotheses=True)
 
-    timestamp_dict = hypotheses[0].timestamp # extract timestamps from hypothesis of first (and only) audio file
-    print("Hypothesis contains following timestamp information :", list(timestamp_dict.keys()))
+    timestamp_dict = hypotheses[0].timestamp  # extract timestamps from hypothesis of first (and only) audio file
+    print("Hypothesis contains following timestamp information:", list(timestamp_dict.keys()))
 
     # For a FastConformer model, you can display the word timestamps as follows:
     # 80ms is duration of a timestamp at output of the Conformer
@@ -85,14 +87,14 @@ For more control over the timestamps, you can update the decoding config to ment
         end = stamp['end_offset'] * time_stride
         word = stamp['char'] if 'char' in stamp else stamp['word']
 
-        print(f"Time : {start:0.2f} - {end:0.2f} - {word}")
+        print(f"Time: {start:0.2f} - {end:0.2f} - {word}")
 
     for stamp in segment_timestamps:
         start = stamp['start_offset'] * time_stride
         end = stamp['end_offset'] * time_stride
         segment = stamp['segment']
 
-        print(f"Time : {start:0.2f} - {end:0.2f} - {segment}")
+        print(f"Time: {start:0.2f} - {end:0.2f} - {segment}")
 
 Transcribe speech via command line
 ----------------------------------
@@ -100,9 +102,9 @@ You can also transcribe speech via the command line using the following `script 
 
 .. code-block:: bash
 
-    python <path_to_NeMo>/blob/main/examples/asr/transcribe_speech.py \
+    python <path_to_NeMo>/examples/asr/transcribe_speech.py \
         pretrained_name="stt_en_fastconformer_transducer_large" \
-        audio_dir=<path_to_audio_dir> # path to dir containing audio files to transcribe
+        audio_dir=<path_to_audio_dir>  # path to dir containing audio files to transcribe
 
 The script will save all transcriptions in a JSONL file where each line corresponds to an audio file in ``<audio_dir>``.
 This file will correspond to a format that NeMo commonly uses for saving model predictions, and also for storing
@@ -129,7 +131,7 @@ After :ref:`training <train-ngram-lm>` an N-gram LM, you can use it for transcri
 .. code-block:: bash
 
     python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
-        input_manifest=<path to the evaluation JSON manifest file \
+        input_manifest=<path to the evaluation JSON manifest file> \
         kenlm_model_file=<path to the binary KenLM model> \
         beam_width=[<list of the beam widths, separated with commas>] \
         beam_alpha=[<list of the beam alphas, separated with commas>] \
@@ -151,14 +153,14 @@ Try different ASR models
 
 NeMo offers a variety of open-sourced pretrained ASR models that vary by model architecture:
 
-* **encoder architecture** (FastConformer, Conformer, Citrinet, etc.),
-* **decoder architecture** (Transducer, CTC & hybrid of the two),
-* **size** of the model (small, medium, large, etc.).
+* **Encoder architecture** (FastConformer, Conformer, Citrinet, etc.)
+* **Decoder architecture** (Transducer, CTC & hybrid of the two)
+* **Size** of the model (small, medium, large, etc.)
 
 The pretrained models also vary by:
 
-* **language** (English, Spanish, etc., including some **multilingual** and **code-switching** models),
-* whether the output text contains **punctuation & capitalization** or not.
+* **Language** (English, Spanish, etc., including some **multilingual** and **code-switching** models)
+* Whether the output text contains **punctuation & capitalization** or not
 
 The NeMo ASR checkpoints can be found on `HuggingFace <https://huggingface.co/models?library=nemo&sort=downloads&search=nvidia>`_, or on `NGC <https://catalog.ngc.nvidia.com/models?query=nemo&orderBy=weightPopularDESC>`_. All models released by the NeMo team can be found on NGC, and some of those are also available on HuggingFace.
 
