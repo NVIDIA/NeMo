@@ -84,6 +84,7 @@ def bert_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) 
     and then calls the model's forward pass. if "cu_seqsens" are defined in the batch,
     then the packed sequence parameters are also passed to the model for forward pass efficiency.
     """
+    #print(batch.keys())
     forward_args = {
         "input_ids": batch["text"],
         "attention_mask": batch["padding_mask"],
