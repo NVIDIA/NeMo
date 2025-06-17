@@ -7,7 +7,7 @@
     },
     "transformer_engine": {
       "repo": "https://github.com/NVIDIA/TransformerEngine",
-      "ref": "bee4649c15a79ffcb9689ca7c0c963f5febaa28a"
+      "ref": "ddcda1ffd2e1d49e60aa84fadc08628697e70c4a"
     },
     "megatron-lm": {
       "repo": "https://github.com/NVIDIA/Megatron-LM",
@@ -15,7 +15,7 @@
     },
     "trt-llm": {
       "repo": "https://github.com/NVIDIA/TensorRT-LLM.git",
-      "ref": "v0.20.0rc3"
+      "ref": "bfa3b59bb696686b00132e8a5d9884ea02848f51"
     }
   },
   "pypi-dependencies": {}

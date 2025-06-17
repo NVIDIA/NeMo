@@ -167,7 +167,6 @@ te() {
   fi
   pushd $TE_DIR
   git checkout -f $TE_TAG
-  patch -p1 </$CURR/external/patches/nemo_2.3.0_te.patch
   popd
 
   build() {
@@ -307,11 +306,6 @@ extra() {
     DEPS+=(
       "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" # Compiling NvRX requires CUDA
     )
-  fi
-  if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
-    patch \
-      /usr/local/lib/python3.12/dist-packages/torch/accelerator/__init__.py \
-      /$CURR/external/patches/torch_accelerator_144567_fix.patch
   fi
 
   if [[ "$mode" == "install" ]]; then
