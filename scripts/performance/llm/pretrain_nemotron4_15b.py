@@ -38,6 +38,14 @@ from ..utils import (
 )
 
 
+def log_training_start(trainer, pl_module):
+    """Log custom message at the beginning of training."""
+    logging.info("GSW: 🚀 Nemotron4 15B pre-training initiated!")
+    logging.info(f"GSW: Training configuration - Nodes: {trainer.num_nodes}, Devices: {trainer.num_devices}")
+    logging.info(f"GSW: Model: Nemotron4 15B")
+    logging.info(f"GSW: Precision: {trainer.precision}")
+
+
 def override_recipe_configs(
     args: str,
     num_nodes: int,
@@ -84,14 +92,6 @@ def override_recipe_configs(
     )
 
     # Add custom training start callback that will log in the main NeMo training log
-    def log_training_start(trainer, pl_module):
-        logging.info("GSW: 🚀 Nemotron4 15B pre-training initiated!")
-        logging.info(f"GSW: Training configuration - Nodes: {trainer.num_nodes}, Devices: {trainer.num_devices}")
-        logging.info(f"GSW: Model: Nemotron4 15B")
-        logging.info(f"GSW: Precision: {trainer.precision}")
-        logging.info(f"GSW: Parallel config - TP: {tp_size}, PP: {pp_size}, CP: {cp_size}, VP: {vp_size}")
-        logging.info(f"GSW: Batch sizes - MBS: {mbs}, GBS: {gbs}")
-
     # Add the callback to the trainer's callbacks
     if not hasattr(recipe.trainer, 'callbacks') or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
