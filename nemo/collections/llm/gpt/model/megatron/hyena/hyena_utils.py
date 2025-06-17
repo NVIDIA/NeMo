@@ -809,7 +809,7 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias.partition_dim = 0
             self.conv_bias.stride = 1
 
-    def forward(self, x1, x2, v, _hyena_use_cp=True):
+    def forward(self, x1, x2, v, inference_params=None, _hyena_use_cp=True):
         """Shape specification for inputs and outputs.
 
         Input shapes: bs, (num_groups, group_size), seq_length
@@ -972,7 +972,7 @@ class ParallelShortHyenaOperator(nn.Module):
                 self.conv_bias.partition_dim = 0
                 self.conv_bias.stride = 1
 
-    def forward(self, x1, x2, v, _hyena_use_cp=True):
+    def forward(self, x1, x2, v, inference_params=None, _hyena_use_cp=True):
         """Shape specification for inputs and outputs.
 
         Input shapes: bs, (num_groups, group_size), seq_length
@@ -983,7 +983,7 @@ class ParallelShortHyenaOperator(nn.Module):
 
         z = x2 * v if self.pregate else v
         if not self.use_conv_bias:
-            z = self.short_conv(z, _use_cp=_hyena_use_cp)
+            z = self.short_conv(z, _use_cp=_hyena_use_cp, inference_params=inference_params)
         else:
             # maybe handle num_groups
             bias = self.conv_bias.repeat_interleave(self.group_dim, dim=0)
@@ -1142,7 +1142,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         )
 
 class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
-    def forward(self, features_BDL, inference_params, _use_cp=True):
+    def forward(self, features_BDL, inference_params=None, _use_cp=True):
         features_BLD = rearrange(features_BDL, "b d l -> b l d").contiguous()
         u = features_BLD
         weight = self.short_conv_weight
