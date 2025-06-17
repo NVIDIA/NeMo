@@ -274,11 +274,12 @@ def justnorm_fp32(x, idim: int = -1):
 
 class Block(nn.Module):
 
+
     def __init__(self, config, rotary_emb):
         super().__init__()
         self.config = config
-
         self.rotary_emb = rotary_emb
+        
         self.key = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.query = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
         self.value = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
@@ -451,6 +452,7 @@ class GPT(nn.Module):
             dict(
                 # wte=nn.Embedding(config.vocab_size, config.n_embd),
                 # drop=nn.Dropout(config.dropout),
+
                 h=nn.ModuleList([Block(config, rotary_emb=self.rotary_emb) for il in range(config.n_layer)])
             )
         )
