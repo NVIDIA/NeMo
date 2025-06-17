@@ -39,6 +39,11 @@ from torch.autograd.function import Function
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 
+with_state_p = True
+with_state_s = True
+with_state_m = True
+with_state_l = True
+
 
 try:
     from einops import rearrange
@@ -518,6 +523,11 @@ class ImplicitModalFilter(nn.Module):
 
         return t
 
+    def get_logp(self):
+        logp = -torch.exp(self.p.to(torch.float32))
+        glogp = logp * torch.exp(self.gamma.to(torch.float32))
+        return glogp
+
     def compute_filter(self, L, t):
         """Compute the filter for convolution."""
         assert (
@@ -763,7 +773,7 @@ class ParallelHyenaOperator(nn.Module):
 
         # TODO: Check which of these filters can be removed
         #       At the moment only "explicit_single_decay" and "implicit_modal" are used
-        if self.hyena_filter_cls == "explicit_single_decay":
+        if self.hyena_filter_cls == "explicit_single_decay": # medium
             self.filter = ExplicitSingleDecayFilter(
                 d_model=self.num_groups,
                 L_cache=self.hyena_medium_conv_len,
@@ -1069,7 +1079,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
                 # Call this on the module because it also modifies module attributes in addition to the data.
                 initialize_affine_weight_gpu(self.short_conv_weight, conv_init_method, partition_dim=0)
 
-    def forward(self, x, _use_cp=True):
+    def forward(self, x, _use_cp=True, inference_params=None):
         """Forward pass for the ParallelCausalDepthwiseConv1d."""
         assert x.ndim == 3, "Only 3D tensors supported."
 
@@ -1078,7 +1088,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         pad_size = self.kernel_size - 1
 
         if _use_cp and get_context_parallel_world_size() > 1:
-
+            assert False
             cp_group = get_context_parallel_group()
             cp_rank = get_context_parallel_rank()
 
@@ -1131,6 +1141,57 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
             sharded_offsets,
         )
 
+class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
+    def forward(self, features_BDL, inference_params, _use_cp=True):
+        features_BLD = rearrange(features_BDL, "b d l -> b l d").contiguous()
+        u = features_BLD
+        weight = self.short_conv_weight
+
+        if len(weight.shape) == 2:
+            weight = rearrange(weight, "hidden_size3 filter_len -> hidden_size3 1 filter_len")
+
+        weight = weight.repeat_interleave(self.group_dim, dim=0)
+
+        import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
+        def update_filter_state(filter_name, *, state):
+            if not inference_params: return
+            key = "{filter_name}_filter_state_dict"
+            filter_state_dict = getattr(inference_params, key, {})
+            filter_state_dict[id(self)] = state
+            setattr(inference_params, key, filter_state_dict)
+        def get_filter_state(filter_name):
+            key = "{filter_name}_filter_state_dict"
+            return getattr(inference_params, key, {}).get(id(self))
+
+        # u: [B, L, hidden_size*3]
+        L = u.shape[1]
+
+        # z_pre: [B, hidden_size*3, L])
+        fir_state = get_filter_state("fir")
+        if fir_state is None:
+            z_pre, fir_state = engine.parallel_fir(
+                u=u,
+                weight=torch.tensor(weight), # self.short_filter_weight,
+                bias=None,
+                L=L,
+                gated_bias=False,
+                fir_length=self.kernel_size, # self.short_filter_length,
+                compute_state=inference_params is not None,
+            )
+            # z_pre is [b d l]
+        else:
+            if len(u.shape) > 2:
+                u = u[:, -1]
+
+            z_pre, fir_state = engine.step_fir(
+                u=u,
+                fir_state=fir_state,
+                weight=weight,
+                bias=None,
+            )
+            z_pre = rearrange(z_pre, "b d -> b d 1")
+        update_filter_state("fir", state=fir_state)
+        return z_pre
 
 def make_upper_case(tokens, lowercase_start=97, lowercase_end=122, case_diff=32):
     """Replace lowercase ASCII characters with uppercase.

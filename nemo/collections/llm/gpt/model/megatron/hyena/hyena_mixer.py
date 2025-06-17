@@ -35,8 +35,11 @@ from megatron.core.transformer.utils import sharded_state_dict_default
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     ParallelCausalDepthwiseConv1d,
+    ParallelCausalDepthwiseConv1dWithState,
     ParallelHyenaOperator,
     ParallelShortHyenaOperator,
+    with_state_p,
+    with_state_s,
     divide,
 )
 
