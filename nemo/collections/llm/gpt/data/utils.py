@@ -625,16 +625,6 @@ def build_index_files(
         dataset_paths,
         workers=workers,
     )
-    # with ctx.Pool(workers) as p:
-    #     build_status = p.map(
-    #         partial(
-    #             _build_memmap_index_files,
-    #             newline_int,
-    #             build_index_fn,
-    #             index_mapping_dir=index_mapping_dir,
-    #         ),
-    #         dataset_paths,
-    #     )
 
     logger.info(
         f"Time building {sum(build_status)} / {len(build_status)} "
