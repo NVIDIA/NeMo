@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from lightning.pytorch.callbacks import Callback
 from nemo.utils import logging
 
@@ -32,10 +33,23 @@ class CustomTrainingStartCallback(Callback):
         self.model_size = model_size
         self.custom_prefix = custom_prefix
     
+    def _get_slurm_job_id(self):
+        """Extract SLURM job ID from environment variables."""
+        # Try different SLURM environment variables
+        slurm_vars = ['SLURM_JOB_ID', 'SLURM_JOBID', 'JOB_ID']
+        for var in slurm_vars:
+            job_id = os.environ.get(var)
+            if job_id:
+                return job_id
+        return "Unknown"
+    
     def on_train_start(self, trainer, pl_module):
         """Called when training starts."""
         full_model_name = f"{self.model_name} {self.model_size}".strip()
+        slurm_job_id = self._get_slurm_job_id()
+        
         logging.info(f"{self.custom_prefix}: 🚀 {full_model_name} pre-training initiated!")
+        logging.info(f"{self.custom_prefix}: SLURM Job ID: {slurm_job_id}")
         logging.info(f"{self.custom_prefix}: Training configuration - Nodes: {trainer.num_nodes}, Devices: {trainer.num_devices}")
         logging.info(f"{self.custom_prefix}: Model: {full_model_name}")
         logging.info(f"{self.custom_prefix}: Precision: {trainer.precision}")
