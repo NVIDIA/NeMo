@@ -322,6 +322,7 @@ class AudioTurn:
     cut: Cut
     role: str
     audio_locator_tag: str
+    text: str | None = None
 
     def to_dict(self):
         assert self.cut.has_recording and self.cut.recording.sources[0].type not in {
@@ -333,6 +334,7 @@ class AudioTurn:
             "from": self.role.title(),
             "duration": self.cut.duration,
             "value": self.cut.recording.sources[0].source,
+            "text": self.text,
         }
 
 
@@ -558,7 +560,8 @@ class NeMoMultimodalConversationJsonlAdapter:
                             )
                             if turn["type"] == "text"
                             else AudioTurn(
-                                cut=cuts.popleft(),
+                                cut=(c := cuts.popleft()),
+                                text=c.supervisions[0].text,
                                 role=turn[
                                     "from"
                                 ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
