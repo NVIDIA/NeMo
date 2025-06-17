@@ -40,10 +40,10 @@ from ..utils import (
 
 class CustomTrainingStartCallback(Callback):
     """Custom callback to log a message at the very beginning of training."""
-    
+
     def __init__(self, custom_message: str = "Training started!"):
         self.custom_message = custom_message
-    
+
     def on_fit_start(self, trainer, pl_module):
         """Called when fit begins."""
         logging.info(f"GSW: 🚀 {self.custom_message}")
