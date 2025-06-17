@@ -489,6 +489,10 @@ def set_exp_logging_configs(
                 model_name=model_name,
             )
         )
+        
+        # Add custom training start logging callback
+        from .callbacks import CustomTrainingStartCallback
+        recipe.trainer.callbacks.append(run.Config(CustomTrainingStartCallback))
 
     if not enable_tb:  # tensorboard adds performance overhead.
         recipe.log.tensorboard = None
