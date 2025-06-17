@@ -18,12 +18,10 @@ import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
 
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama3_70b import finetune_recipe, model
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
@@ -33,7 +31,6 @@ from ..utils import (
     get_comm_overlap_callback_idx,
     hf_tokenizer,
     import_ckpt_experiment,
-    isfile_train_pack_metadata,
     prepare_squad_dataset_experiment,
 )
 
