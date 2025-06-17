@@ -2592,3 +2592,99 @@ def test_dataloader_from_data_input_cfg_yaml_path_with_skipme(cutset_shar_path, 
     skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
 
     assert not any(skipme_s)
+
+
+def test_dataloader_from_nemo_manifest_with_ignore_skipme(nemo_manifest_with_skipme_path: Path):
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": nemo_manifest_with_skipme_path,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 1,
+            # lhotse specific
+            "use_bucketing": False,
+            "check_for_skipme": False,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+
+    # There should be 10 batches (since batch_size=1 and 10 items in manifest)
+    assert len(batches) == 10
+    # There should be at least one cut with _skipme == True
+    assert any(skipme_s)
+
+def test_dataloader_from_tarred_nemo_manifest_with_ignore_skipme(nemo_tarred_manifest_with_skipme_path: tuple[Path, str]):
+    json_mft, tar_mft = nemo_tarred_manifest_with_skipme_path
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 1,
+            # lhotse specific
+            "use_bucketing": False,
+            "force_finite": True,
+            "check_for_skipme": False,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+
+    # There should be 10 batches (since batch_size=1 and 10 items in manifest)
+    assert len(batches) == 10
+    # There should be at least one cut with _skipme == True
+    assert any(skipme_s)
+
+def test_dataloader_from_data_input_cfg_yaml_path_with_ignore_skipme(cutset_shar_path, nemo_tarred_manifest_with_skipme_path):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": nemo_tarred_manifest_with_skipme_path[0],
+                    "tarred_audio_filepaths": nemo_tarred_manifest_with_skipme_path[1],
+                    "weight": 0.5,
+                    "tags": {
+                        "language": "en",
+                        "modality": "audio",
+                        "dataset_name": "D1",
+                    },
+                },
+                {
+                    "type": "lhotse_shar",
+                    "shar_path": cutset_shar_path,
+                    "weight": 0.5,
+                    "tags": {
+                        "language": "en",
+                        "modality": "audio",
+                        "dataset_name": "D2",
+                    },
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+            "force_finite": True,
+            "check_for_skipme": False,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+
+    # There should be at least one cut with _skipme == True
+    assert any(skipme_s)

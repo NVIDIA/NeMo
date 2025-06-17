@@ -198,6 +198,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "max_open_streams": config.get("max_open_streams", None),
         "token_equivalent_duration": config.get("token_equivalent_duration", None),
         "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
+        "check_for_skipme": config.get("check_for_skipme", True),
         "force_map_dataset": config.get("force_map_dataset", False),
         "force_iterable_dataset": config.get("force_iterable_dataset", False),
     }

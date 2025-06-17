@@ -419,6 +419,7 @@ class LazyNeMoTarredIterator:
                         # filter out entries with valid "_skipme" values.
                         if self.check_for_skipme and data.get("_skipme", False):
                             continue
+
                         # Cut the recording into corresponding segment and discard audio data outside the segment.
                         cut = make_cut_with_subset_inmemory_recording(
                             recording, offset=data.get("offset", 0.0), duration=data.get("duration")
