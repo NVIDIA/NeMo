@@ -1111,9 +1111,8 @@ class GPTSFTChatDataset(GPTSFTDataset):
                         "Setting loss_mask to all ones."
                     )
                     loss_mask[i] = [1] * self.max_seq_length
-            if not self.use_hf_tokenizer_chat_template:
-                contexts = [x[: self.max_seq_length] for x in contexts]
-                answers = [x[: self.max_seq_length] for x in answers]
+            contexts = [x[: self.max_seq_length] for x in contexts]
+            answers = [x[: self.max_seq_length] for x in answers]
 
         # increase max length to nearest multiple of 4 or 8
         if self.pad_to_max_length:
