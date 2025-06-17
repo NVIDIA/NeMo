@@ -1,6 +1,8 @@
 NVIDIA NeMo Framework Developer Docs
 ====================================
 
+NeMo is an open-source framework by NVIDIA that enables researchers and developers to build, train, and fine-tune state-of-the-art models for NLP, ASR, and TTS using PyTorch.
+
 NVIDIA NeMo Framework is an end-to-end, cloud-native framework designed to build, customize, and deploy generative AI models anywhere.
 
 `NVIDIA NeMo Framework <https://github.com/NVIDIA/NeMo>`_ supports large-scale training features, including:
