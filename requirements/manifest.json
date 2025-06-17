@@ -11,11 +11,11 @@
     },
     "megatron-lm": {
       "repo": "https://github.com/NVIDIA/Megatron-LM",
-      "ref": "9eebd5173cbd6dea5e6a324d418b669ac000989e"
+      "ref": "c8869144ef8683bc481e78a7e5615eec9700827f"
     },
     "trt-llm": {
       "repo": "https://github.com/NVIDIA/TensorRT-LLM.git",
-      "ref": "v0.18.0"
+      "ref": "v0.20.0rc3"
     }
   },
   "pypi-dependencies": {}
