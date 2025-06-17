@@ -478,6 +478,8 @@ def set_exp_logging_configs(
     enable_wd: bool,
     wandb_prj_name: str,
     wandb_job_name: str,
+    model_size: str = "Unknown",
+    custom_prefix: str = "GSW",
 ):
     """Set experiment logging configs."""
     if task == "pre_train" and domain == "llm":
@@ -492,7 +494,14 @@ def set_exp_logging_configs(
         
         # Add custom training start logging callback
         from .callbacks import CustomTrainingStartCallback
-        recipe.trainer.callbacks.append(run.Config(CustomTrainingStartCallback))
+        recipe.trainer.callbacks.append(
+            run.Config(
+                CustomTrainingStartCallback,
+                model_name=model_name,
+                model_size=model_size,
+                custom_prefix=custom_prefix,
+            )
+        )
 
     if not enable_tb:  # tensorboard adds performance overhead.
         recipe.log.tensorboard = None
