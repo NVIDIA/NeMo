@@ -16,7 +16,6 @@ import math
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from rotary_embedding_torch import RotaryEmbedding
 import torch
 import torch.distributed
 import torch.nn as nn
@@ -254,15 +253,18 @@ class NGPTEncoder(NeuralModule, Exportable, AccessMixin):
         self.ngpt.normalize_matrices()
 
 
-def justnorm(x, fp32: bool = False, idim: int = -1,eps: float = 1e-10):
+def justnorm(x, fp32: bool = False, idim: int = -1):
+    orig_dtype = x.dtype
+    eps = torch.finfo(torch.float32 if fp32 else orig_dtype).eps
     
     if fp32:
-        dtype = x.dtype
         x = x.float()
-        res = (x / x.norm(p=2, dim=idim, keepdim=True)).to(dtype=dtype)
+        norm = x.norm(p=2, dim=idim, keepdim=True)
+        res = (x / (norm + eps)).to(dtype=orig_dtype)
     else:
         norm = x.norm(p=2, dim=idim, keepdim=True)
         res = x / (norm + eps)
+
     return res
 
 
