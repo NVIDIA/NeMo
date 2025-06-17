@@ -154,7 +154,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             test steps times global batch size.
         dataset_cls (Optional[Type[MegatronDataset]]): The dataset class to use for the data module.
         dataloader_type (Optional[Literal["single", "cyclic", "batch"]]): Data loading strategy.
-        init_consumed_samples: (Optional[int]): Number of samples already consumed at initialization
+        init_consumed_samples: (Optional[int]): Number of samples already consumed at initialization.
         init_global_step: (Optional[int]): Starting global training step count, used for resuming training.
         output_log: (Optional[bool]): Whether to print logging/debug output during sampling.
     """
