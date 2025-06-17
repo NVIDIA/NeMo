@@ -279,18 +279,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             punct_pattern = '|'.join([re.escape(p) for p in self.supported_punctuation])
             self.space_before_punct_pattern = re.compile(r'(\s)(' + punct_pattern + ')')
 
-        # # Test if alignments are being preserved for RNNT
-        # if not self._is_tdt and self.compute_timestamps is True and self.preserve_alignments is False:
-        #     raise ValueError("If `compute_timesteps` flag is set, then `preserve_alignments` flag must also be set.")
-
         # initialize confidence-related fields
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
         if self._is_tdt:
-            # if self.preserve_frame_confidence is True and self.preserve_alignments is False:
-            #     raise ValueError(
-            #         "If `preserve_frame_confidence` flag is set, then `preserve_alignments` flag must also be set."
-            #     )
+            if self.preserve_frame_confidence is True and self.preserve_alignments is False:
+                raise ValueError(
+                    "If `preserve_frame_confidence` flag is set, then `preserve_alignments` flag must also be set."
+                )
             self.tdt_include_token_duration = self.tdt_include_token_duration or self.compute_timestamps
             self._compute_offsets = self._compute_offsets_tdt
             self._refine_timestamps = self._refine_timestamps_tdt
@@ -653,9 +649,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         Returns:
             A list of strings.
         """
-        for ind in range(len(hypotheses_list)):
+        for hyp in hypotheses_list:
             # Extract the integer encoded hypothesis
-            prediction = hypotheses_list[ind].y_sequence
+            prediction = hyp.y_sequence
 
             if type(prediction) != list:
                 prediction = prediction.tolist()
@@ -671,23 +667,16 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 prediction = [p for p in prediction if p != self.blank_id]
 
             # De-tokenize the integer tokens; if not computing timestamps
-            if self.compute_timestamps is True and self._is_tdt:
+            if self.compute_timestamps is True:
                 hypothesis = (prediction, None, None)
-            elif self.compute_timestamps is True:
-                # keep the original predictions, wrap with the number of repetitions per token and alignments
-                # this is done so that `rnnt_decoder_predictions_tensor()` can process this hypothesis
-                # in order to compute exact time stamps.
-                alignments = copy.deepcopy(hypotheses_list[ind].alignments)
-                token_repetitions = [1] * len(alignments)  # preserve number of repetitions per token
-                hypothesis = (prediction, alignments, token_repetitions)
             else:
                 hypothesis = self.decode_tokens_to_str_with_strip_punctuation(prediction)
 
                 if self.compute_hypothesis_token_set:
-                    hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)
+                    hyp.tokens = self.decode_ids_to_tokens(prediction)
 
             # De-tokenize the integer tokens
-            hypotheses_list[ind].text = hypothesis
+            hyp.text = hypothesis
 
         return hypotheses_list
 
@@ -902,11 +891,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         assert timestamp_type in ['char', 'word', 'segment', 'all']
 
         # Unpack the temporary storage
-        decoded_prediction, alignments, token_repetitions = hypothesis.text
+        decoded_prediction, _, _ = hypothesis.text
 
         # Retrieve offsets
         char_offsets = word_offsets = None
-        char_offsets = self._compute_offsets(hypothesis, token_repetitions, self.blank_id)
+        char_offsets = self._compute_offsets(hypothesis)
 
         # finally, set the flattened decoded predictions to text field for later text decoding
         hypothesis.text = decoded_prediction
@@ -1001,20 +990,20 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         return hypothesis
 
     @staticmethod
-    def _compute_offsets(
-        hypothesis: Hypothesis, token_repetitions: List[int], rnnt_token: int
-    ) -> List[Dict[str, Union[str, int]]]:
+    def _compute_offsets(hypothesis: Hypothesis) -> List[Dict[str, Union[str, int]]]:
         """
         Utility method that calculates the indidual time indices where a token starts and ends.
 
         Args:
             hypothesis: A Hypothesis object that contains `text` field that holds the character / subword token
                 emitted at every time step after rnnt collapse.
-            token_repetitions: A list of ints representing the number of repetitions of each emitted token.
-            rnnt_token: The integer of the rnnt blank token used during rnnt collapse.
+            is_tdt: Boolean flag indicating if this is a TDT model.
 
         Returns:
-
+            List[Dict[str, Union[str, int]]]: A list of dictionaries, where each dictionary contains:
+                - "char": List[str] - The character/subword token
+                - "start_offset": int - The start time index of the token
+                - "end_offset": int - The end time index of the token
         """
         if isinstance(hypothesis.timestamp, torch.Tensor):
             hypothesis.timestamp = hypothesis.timestamp.cpu().tolist()
@@ -1024,49 +1013,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             {"char": [t], "start_offset": s, "end_offset": s+1}
             for t, s in zip(hypothesis.text[0], hypothesis.timestamp)
         ]
-        
-        start_index = 0
-        # If the exact timestep information is available, utilize the 1st non-rnnt blank token timestep
-        # as the start index.
-        if hypothesis.timestamp is not None and len(hypothesis.timestamp) > 0:
-            first_timestep = hypothesis.timestamp[0]
-            first_timestep = first_timestep if isinstance(first_timestep, int) else first_timestep.item()
-            start_index = max(0, first_timestep - 1)
-
-        # Construct the start and end indices brackets
-        end_indices = np.asarray(token_repetitions).cumsum()
-        start_indices = np.concatenate(([start_index], end_indices[:-1]))
-
-        # Process the TxU dangling alignment tensor, containing pairs of (logits, label)
-        alignment_labels = [al_logits_labels for al_logits_labels in hypothesis.text[1]]
-        for t in range(len(alignment_labels)):
-            for u in range(len(alignment_labels[t])):
-                alignment_labels[t][u] = alignment_labels[t][u][1]  # pick label from (logit, label) tuple
-
-        # Merge the results per token into a list of dictionaries
-        gt_offsets = [
-            {"char": a, "start_offset": s, "end_offset": e}
-            for a, s, e in zip(alignment_labels, start_indices, end_indices)
-        ]
-
-        # Filter out RNNT token (blank at [t][0] position). This is because blank can only occur at end of a
-        # time step for RNNT, so if 0th token is blank, then that timestep is skipped.
-        gt_offsets = list(filter(lambda offsets: offsets["char"][0] != rnnt_token, gt_offsets))
-        
-        
-        res_idx=0
-        for gt in gt_offsets:
-            # print(gt)
-            for c in gt["char"]:
-                if c != rnnt_token:
-                    x=offsets[res_idx]
-                    
-                    assert x["char"][0] == c, f'Not equal tokens: {x["char"][0]}, {c}'
-                    assert x["start_offset"] == int(gt["start_offset"]), f'Not equal start offsets: {x["start_offset"]}, {int(gt["start_offset"])}'
-                    assert x["end_offset"] == int(gt["end_offset"]), f'Not equal end offsets: {x["end_offset"]}, {int(gt["end_offset"])}'
-                    
-                    res_idx+=1
-        print("succesfully compared")            
         
         return offsets
 
@@ -1080,7 +1026,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 emitted at a specific time step considering predicted durations of the previous tokens.
 
         Returns:
-
+            List[Dict[str, Union[str, int]]]: A list of dictionaries, where each dictionary contains:
+                - "char": List[str] - The character/subword token
+                - "start_offset": int - The start time index of the token
+                - "end_offset": int - The end time index of the token
         """
         if isinstance(hypothesis.timestamp, torch.Tensor):
             hypothesis.token_duration = hypothesis.token_duration.cpu().tolist()
