@@ -561,7 +561,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                             if turn["type"] == "text"
                             else AudioTurn(
                                 cut=(c := cuts.popleft()),
-                                text=c.supervisions[0].text,
+                                text=c.supervisions[0].text if c.supervisions else None,
                                 role=turn[
                                     "from"
                                 ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
