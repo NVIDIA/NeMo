@@ -392,13 +392,9 @@ class ConvSubsampling(torch.nn.Module):
             repeat_num=self._sampling_num,
         )
 
-        # TODO(pzelasko): restore 1d conv support
-        # # Unsqueeze Channel Axis
-        # if self.conv2d_subsampling:
-        #     x = x.unsqueeze(1)
-        # # Transpose to Channel First mode
-        # else:
-        #     x = x.transpose(1, 2)
+        # Transpose to Channel First mode
+        if not self.conv2d_subsampling:
+            x = x.transpose(1, 2)
 
         # split inputs if chunking_factor is set
         if self.subsampling_conv_chunking_factor != -1 and self.conv2d_subsampling:
@@ -496,6 +492,9 @@ class ConvSubsampling(torch.nn.Module):
 
     def conv_split_by_channel(self, x):
         """For dw convs, tries to split input by time, run conv and concat results"""
+
+        # Note: this method doesn't use the convolution masking implemented in MaskedConvolutionSequential
+        x = x.unsqueeze(0)
         x = self.conv[0](x)  # full conv2D
         x = self.conv[1](x)  # activation
 
@@ -714,8 +713,6 @@ def apply_channel_mask(tensor, mask):
     # tensor: (batch, channels, time, features)
     # mask: (batch, time, features)
     batch_size, channels, time, features = tensor.shape
-
-    # Expand mask to match tensor dimensions
     expanded_mask = mask.unsqueeze(1).expand(batch_size, channels, time, features)
     return tensor * expanded_mask
 
@@ -727,17 +724,9 @@ def calculate_conv_output_size(input_size, kernel_size, stride, padding):
 
 class MaskedConvSequential(nn.Sequential):
     def forward(self, x, lengths):
-        current_lengths = lengths.clone().float()
-        # Input: (batch, time, features)
-        batch_size, time, features = x.shape
-
-        # Create initial mask
-        # mask = torch.arange(time, device=x.device).expand(batch_size, time) < lengths.unsqueeze(1)
-        # mask = mask.unsqueeze(-1).expand(batch_size, time, features).float()
-
-        # Convert input to conv format
+        # Convert input (batch, time, features) to conv format
         x = x.unsqueeze(1)  # (batch, 1, time, features)
-
+        current_lengths = lengths.clone().float()
         mask = self._create_mask(x, current_lengths.long())
 
         # Process through each layer with mask propagation
@@ -761,13 +750,10 @@ class MaskedConvSequential(nn.Sequential):
 
         # Final masking
         x = apply_channel_mask(x, mask)
-
         return x, current_lengths.long()
 
     def _create_mask(self, tensor, lengths):
         """Create mask matching tensor dimensions."""
         batch_size, channels, time, features = tensor.shape
-
         time_mask = torch.arange(time, device=tensor.device).expand(batch_size, time) < lengths.unsqueeze(1)
-
         return time_mask.unsqueeze(-1).expand(batch_size, time, features).to(tensor.dtype)
