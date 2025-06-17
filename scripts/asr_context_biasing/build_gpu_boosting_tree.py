@@ -22,9 +22,8 @@ from typing import List
 
 from omegaconf import MISSING
 
-from nemo.collections.asr.parts.context_biasing.gpu_boosting.context_graph import ContextGraph
-from nemo.collections.asr.parts.context_biasing.gpu_boosting.boosting_graph_batched import GPUBoostingTreeModel
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel, KenLMBatchedWrapper
+from nemo.collections.asr.parts.context_biasing.context_graph_universal import ContextGraph
+from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.common.tokenizers import AggregateTokenizer
 import torch
 from torch.nn.utils.rnn import pad_sequence
@@ -55,13 +54,13 @@ class BuildWordBoostingTreeConfig:
     use_triton: bool = False  # Whether to use Triton for inference.
     uniform_weights: bool = False # Whether to use uniform weights for the context-biasing tree as in Icefall
 
-    # alternative transcription generation 
+    # generation of alternative transcriptions (optional)
     use_bpe_dropout: bool = False # Whether to use BPE dropout for generating alternative transcriptions
     num_of_transcriptions: int = 5  # The number of alternative transcriptions to generate for each context-biasing phrase
     bpe_alpha: float = 0.3  # The alpha parameter for BPE dropout
 
     test_btree_model: bool = False  # Whether to test the GPU-accelerated word boosting graph after building it
-    test_sentences: List[str] = ["hello world", "nvlink", "nvlinz", "omniverse cloud now", "acupuncture"] # The phrases to test boosting graph
+    test_sentences: List[str] = field(default_factory=list) # The phrases to test boosting graph ["hello world","nvlink","nvlinz","omniverse cloud now","acupuncture"]
 
 
 @hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=BuildWordBoostingTreeConfig)
@@ -116,7 +115,7 @@ def main(cfg: BuildWordBoostingTreeConfig):
     context_graph = ContextGraph(context_score=cfg.context_score, depth_scaling=cfg.depth_scaling)
     context_graph.build(token_ids=contexts, scores=scores, phrases=phrases, uniform_weights=cfg.uniform_weights)
 
-    # 4. convert icefall context-biasing graph to gpu boosting tree
+    # 4. convert python context-biasing graph to gpu boosting tree
     vocab_size = len(asr_model.tokenizer.vocab)
     eos_id = None if not is_aggregate_tokenizer else asr_model.tokenizer.eos_id
 
@@ -134,7 +133,7 @@ def main(cfg: BuildWordBoostingTreeConfig):
 
     # 6. test gpu boosting tree model
     logging.info("testing gpu boosting tree model...")
-    if cfg.test_btree_model:
+    if cfg.test_btree_model and cfg.test_sentences:
         gpu_boosting_model_loaded = GPUBoostingTreeModel.from_nemo(cfg.path_to_save_btree, vocab_size=vocab_size, use_triton=cfg.use_triton)
         device = torch.device("cuda")
         gpu_boosting_model_loaded = gpu_boosting_model_loaded.cuda()
