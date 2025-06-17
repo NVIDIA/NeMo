@@ -22,11 +22,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import (
-    hf_tokenizer,
-    import_ckpt_experiment,
-    prepare_squad_dataset_experiment,
-)
+from ..utils import hf_tokenizer, import_ckpt_experiment, prepare_squad_dataset_experiment
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
 
@@ -155,7 +151,9 @@ if __name__ == "__main__":
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
         if not SKIP_DATASET_DOWNLOAD:
-            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home))
+            exp.add(
+                *prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home)
+            )
         exp.add(
             recipe,
             executor=executor,

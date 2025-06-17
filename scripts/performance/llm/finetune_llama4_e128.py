@@ -18,7 +18,7 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.run.plugins import MemoryProfilePlugin,PerfEnvPlugin, NsysPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -194,7 +194,9 @@ if __name__ == "__main__":
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
         if not SKIP_DATASET_DOWNLOAD:
-            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home))
+            exp.add(
+                *prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home)
+            )
         exp.add(
             recipe,
             executor=executor,
