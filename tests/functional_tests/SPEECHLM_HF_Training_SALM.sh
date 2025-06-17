@@ -33,10 +33,18 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
 
 # Run generation
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
-  examples/speechlm2/salm_eval.py \
+  examples/speechlm2/salm_generate.py \
   pretrained_name=test_salm_hf_model \
   inputs=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2-first10.jsonl.gz \
   batch_size=4 \
   output_manifest=generations.jsonl
-
 head generations.jsonl
+
+# Run generation + WER eval
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
+  examples/speechlm2/salm_eval.py \
+  pretrained_name=test_salm_hf_model \
+  inputs=/home/TestData/speechlm/lhotse/libri/librispeech_cuts_lower_dev-clean-2-first10.jsonl.gz \
+  batch_size=4 \
+  output_manifest=generations_wer.jsonl
+head generations_wer.jsonl
