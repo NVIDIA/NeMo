@@ -51,6 +51,7 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     +model.ssim_reward_weight=0.33 \
     +model.pesq_reward_weight=0.33 \
     +model.use_pesq=true \
+    +model.reward_asr_model="whisper" \
     model.local_transformer_type="none" \
     model.cfg_unconditional_prob=0.0 \
     model.model_type="multi_encoder_context_tts" \
