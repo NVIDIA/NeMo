@@ -18,10 +18,10 @@ from nemo.utils import logging
 
 class CustomTrainingStartCallback(Callback):
     """Custom callback to log a message at the very beginning of training."""
-    
+
     def on_train_start(self, trainer, pl_module):
         """Called when training starts."""
         logging.info("GSW: 🚀 Nemotron4 15B pre-training initiated!")
         logging.info(f"GSW: Training configuration - Nodes: {trainer.num_nodes}, Devices: {trainer.num_devices}")
         logging.info(f"GSW: Model: Nemotron4 15B")
-        logging.info(f"GSW: Precision: {trainer.precision}") 
+        logging.info(f"GSW: Precision: {trainer.precision}")
