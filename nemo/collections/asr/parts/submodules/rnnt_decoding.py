@@ -282,10 +282,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
         if self._is_tdt:
-            if self.preserve_frame_confidence is True and self.preserve_alignments is False:
-                raise ValueError(
-                    "If `preserve_frame_confidence` flag is set, then `preserve_alignments` flag must also be set."
-                )
             self.tdt_include_token_duration = self.tdt_include_token_duration or self.compute_timestamps
             self._compute_offsets = self._compute_offsets_tdt
             self._refine_timestamps = self._refine_timestamps_tdt
