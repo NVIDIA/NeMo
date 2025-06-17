@@ -36,6 +36,17 @@ from ..utils import (
 
 HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 
+# Set this to True if checkpoint is available at 'NEMO_HOME'. If set to False,
+# extra Slurm job will be scheduled. In this case, if checkpoint is available
+# at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
+# downloaded from HuggingFace
+SKIP_IMPORT = False
+
+# Set this to True if dataset is already downloaded. If set to False,
+# dataset will be downloaded from HuggingFace
+SKIP_DATASET_DOWNLOAD = False
+
+
 
 def override_recipe_configs(
     args: str,
@@ -180,19 +191,19 @@ if __name__ == "__main__":
     )
 
     with run.Experiment(exp_name) as exp:
-        if not args.skip_import_checkpoint:
+        if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
-        if not args.skip_dataset_download:    
+        if not SKIP_DATASET_DOWNLOAD:    
             exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096))
-        if not args.skip_finetuning:
-            exp.add(
-                recipe,
-                executor=executor,
-                name=exp_name,
-                plugins=plugins,
-            )
-            if not args.dryrun:
-                exp.run(sequential=True, detach=True)
-            else:
-                exp.dryrun()
+        
+        exp.add(
+            recipe,
+            executor=executor,
+            name=exp_name,
+            plugins=plugins,
+        )
+        if not args.dryrun:
+            exp.run(sequential=True, detach=True)
+        else:
+            exp.dryrun()
