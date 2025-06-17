@@ -425,12 +425,6 @@ def parse_cli_args():
         default=[],
     )
 
-    parser.add_argument(
-        "--use_hf_tokenizer",
-        help="Use HuggingFace tokenizer. Disabled by default. Null tokenizer will be used if not provided.",
-        action="store_true",
-        required=False,
-    )
 
     parser.add_argument(
         "-ev",

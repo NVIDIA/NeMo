@@ -550,7 +550,7 @@ def get_nemo_home(nemo_home=None):
 
 
 def prepare_squad_dataset(
-    model_name: str, seq_length: int = 2048, nemo_home=None, use_hf_tokenizer=True, vocab_size=None
+    model_name: str, seq_length: int = 2048, nemo_home=None
 ):
     """Prepare the SQuAD dataset for fine-tuning.
 
@@ -567,15 +567,11 @@ def prepare_squad_dataset(
     from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
     from nemo.collections.llm.gpt.data.squad import SquadDataModule
 
-    if not use_hf_tokenizer and vocab_size is None:
-        raise ValueError("vocab_size must be provided when use_hf_tokenizer is False")
-
     nemo_home_path = Path(get_nemo_home(nemo_home))
     dataset_root = nemo_home_path / "datasets" / "squad"
     dataset_root.mkdir(parents=True, exist_ok=True)
 
-    if use_hf_tokenizer:
-        tokenizer = AutoTokenizer(pretrained_model_name=model_name)
+    tokenizer = AutoTokenizer(pretrained_model_name=model_name)
     # Configure SquadDataModule with packing specs
     datamodule = SquadDataModule(
         dataset_root=dataset_root,
@@ -606,8 +602,6 @@ def prepare_squad_dataset_experiment(
     model_name: str,
     seq_length: int = 2048,
     nemo_home=None,
-    use_hf_tokenizer=True,
-    vocab_size=None,
 ):
     """
     Downloads and prepares the SQuAD dataset for fine-tuning.
@@ -624,7 +618,6 @@ def prepare_squad_dataset_experiment(
             model_name=model_name,
             seq_length=seq_length,
             nemo_home=nemo_home,
-            use_hf_tokenizer=use_hf_tokenizer,
         ),
         dataset_executor,
         "prepare_squad_dataset_exp",
