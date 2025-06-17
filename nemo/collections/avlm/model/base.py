@@ -33,13 +33,13 @@ from torch import nn
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.multimodal.data.energon.config import AudioToken, ImageToken, MultiModalSampleConfig
+from nemo.collections.speechlm.modules.asr_module import HFWrappedEncoder
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.collections.speechlm.modules.asr_module import HFWrappedEncoder
 
 MODEL_CONFIG_ATTR = [
     'num_layers',
@@ -328,8 +328,9 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 # model_parallel_size to 1 to load audio encoder, because
                 # audio encoder does not support model parallel
                 # and was saved with model_parallel_size=1
-                if (config.audio_model_from_pretrained and config.audio_model_from_pretrained.endswith(".nemo")) or \
-                    (audio_transformer_config.pretrained_model):
+                if (config.audio_model_from_pretrained and config.audio_model_from_pretrained.endswith(".nemo")) or (
+                    audio_transformer_config.pretrained_model
+                ):
                     with temporary_model_parallel_size(app_state, 1):
                         self.audio_model = audio_transformer_config.configure_model()
                         restore_model_weights(self.audio_model, config.audio_model_from_pretrained)
@@ -599,12 +600,12 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     #     f"image_embeddings.shape[0] ({image_embeddings.shape[0]}) * image_embeddings.shape[1] ({image_embeddings.shape[1]}) != encoded_image_seq_length.sum() ({encoded_image_seq_length.sum()})"
                     # )
                     # make sure the image embeddings have the expected sequence length
-                    assert image_embeddings.shape[0]*image_embeddings.shape[1] == encoded_image_seq_length.sum(), (
+                    assert image_embeddings.shape[0] * image_embeddings.shape[1] == encoded_image_seq_length.sum(), (
                         f"The image embeddings do not have the expected sequence length as the calculated length: "
                         f"image_embeddings.shape[0] ({image_embeddings.shape[0]}) * "
                         f"image_embeddings.shape[1] ({image_embeddings.shape[1]}) != "
                         f"encoded_image_seq_length.sum() ({encoded_image_seq_length.sum()})"
-                    )                     
+                    )
 
                     # map vision model output size to language model input size.
                     image_embeddings = self.vision_projection(image_embeddings)  # [img_seq_len, num_tiles, h_language]
@@ -649,7 +650,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                     #    padded to 30 seconds). Hence, we use the encoded_audio_seq_length as the audio_embedding_lens.
                     #  + for other cases, we need to check if the audio embeddings sequence length with "assert"
                     # if audio_transformer_config.use_hf_auto_model:
-                    
+
                     if isinstance(self.audio_model.encoder, HFWrappedEncoder):
                         audio_embedding_lens = encoded_audio_seq_length
                     else:

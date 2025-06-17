@@ -586,7 +586,7 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
                 loss_mask,
                 audios,
                 audio_lengths,
-                encoded_audio_seq_length_list, 
+                encoded_audio_seq_length_list,
                 videos,
                 video_lengths,
                 num_video_tiles,
