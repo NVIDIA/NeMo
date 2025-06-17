@@ -19,11 +19,11 @@ from nemo.utils import logging
 
 class CustomTrainingStartCallback(Callback):
     """Custom callback to log a message at the very beginning of training."""
-    
+
     def __init__(self, model_name: str = "Unknown", model_size: str = "Unknown", custom_prefix: str = "GSW"):
         """
         Initialize the callback with model information.
-        
+
         Args:
             model_name: Name of the model (e.g., "Nemotron4", "Llama3")
             model_size: Size of the model (e.g., "15B", "70B", "8B")
@@ -53,7 +53,7 @@ class CustomTrainingStartCallback(Callback):
         logging.info(f"{self.custom_prefix}: Training configuration - Nodes: {trainer.num_nodes}, Devices: {trainer.num_devices}")
         logging.info(f"{self.custom_prefix}: Model: {full_model_name}")
         logging.info(f"{self.custom_prefix}: Precision: {trainer.precision}")
-        
+
         # Log additional model information if available
         if hasattr(pl_module, 'cfg') and hasattr(pl_module.cfg, 'model'):
             model_cfg = pl_module.cfg.model
@@ -62,4 +62,4 @@ class CustomTrainingStartCallback(Callback):
             if hasattr(model_cfg, 'hidden_size'):
                 logging.info(f"{self.custom_prefix}: Hidden size: {model_cfg.hidden_size}")
             if hasattr(model_cfg, 'num_attention_heads'):
-                logging.info(f"{self.custom_prefix}: Attention heads: {model_cfg.num_attention_heads}") 
+                logging.info(f"{self.custom_prefix}: Attention heads: {model_cfg.num_attention_heads}")

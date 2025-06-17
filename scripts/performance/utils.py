@@ -494,6 +494,7 @@ def set_exp_logging_configs(
 
         # Add custom training start logging callback
         from .callbacks import CustomTrainingStartCallback
+
         recipe.trainer.callbacks.append(
             run.Config(
                 CustomTrainingStartCallback,
