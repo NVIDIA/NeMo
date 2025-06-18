@@ -20,7 +20,13 @@ from nemo.utils import logging
 class LLMBTrainingStartCallback(Callback):
     """Custom callback to log a message at the very beginning of training."""
 
-    def __init__(self, model_name: str = "Unknown", model_size: str = "Unknown", custom_prefix: str = "GSW", container_image: str = "Unknown"):
+    def __init__(
+        self,
+        model_name: str = "Unknown",
+        model_size: str = "Unknown",
+        custom_prefix: str = "GSW",
+        container_image: str = "Unknown",
+    ):
         """
         Initialize the callback with model information.
 
