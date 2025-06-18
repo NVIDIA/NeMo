@@ -549,9 +549,7 @@ def get_nemo_home(nemo_home=None):
     raise ValueError("Neither nemo_home argument nor NEMO_HOME environment variable is set")
 
 
-def prepare_squad_dataset(
-    model_name: str, seq_length: int = 2048, nemo_home=None
-):
+def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=None):
     """Prepare the SQuAD dataset for fine-tuning.
 
     Args:
@@ -622,6 +620,7 @@ def prepare_squad_dataset_experiment(
         dataset_executor,
         "prepare_squad_dataset_exp",
     )
+
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
     """
