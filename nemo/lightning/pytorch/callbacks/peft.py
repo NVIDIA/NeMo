@@ -174,6 +174,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
                 "parallel_save_within_dp",
                 "parallel_load",
                 "load_directly_on_device",
+                "ckpt_persistent_workers",
             ]
             ckpt_io_kwargs = {
                 arg: getattr(trainer.strategy, arg)
