@@ -20,7 +20,13 @@ from nemo.utils import logging
 class CustomTrainingStartCallback(Callback):
     """Custom callback to log a message at the very beginning of training."""
 
-    def __init__(self, model_name: str = "Unknown", model_size: str = "Unknown", custom_prefix: str = "GSW", container_image: str = "Unknown"):
+    def __init__(
+        self,
+        model_name: str = "Unknown",
+        model_size: str = "Unknown",
+        custom_prefix: str = "GSW",
+        container_image: str = "Unknown",
+    ):
         """
         Initialize the callback with model information.
 
@@ -50,7 +56,9 @@ class CustomTrainingStartCallback(Callback):
         full_model_name = f"{self.model_name} {self.model_size}".strip()
         slurm_job_id = self._get_slurm_job_id()
 
-        logging.info(f"{self.custom_prefix}: MODEL={full_model_name} FRAMEWORK=nemo2 MODEL_SIZE={self.model_size} JOB_NUM_NODES={trainer.num_nodes} GPUS_PER_NODE={trainer.num_devices} DTYPE={trainer.precision} SYNTHETIC_DATA=True GSW_VERSION=25.05.07 FW_VERSION=25.04 IMAGE='{self.container_image}' JOB_ID={slurm_job_id} JOB_MODE=pre_train OPTIMIZATION_NAME='' OPTIMIZATION_CODE='' BASE_CONFIG=''")
+        logging.info(
+            f"{self.custom_prefix}: MODEL={full_model_name} FRAMEWORK=nemo2 MODEL_SIZE={self.model_size} JOB_NUM_NODES={trainer.num_nodes} GPUS_PER_NODE={trainer.num_devices} DTYPE={trainer.precision} SYNTHETIC_DATA=True GSW_VERSION=25.05.07 FW_VERSION=25.04 IMAGE='{self.container_image}' JOB_ID={slurm_job_id} JOB_MODE=pre_train OPTIMIZATION_NAME='' OPTIMIZATION_CODE='' BASE_CONFIG=''"
+        )
 
         logging.info(f"{self.custom_prefix}: 🚀 {full_model_name} pre-training initiated!")
         logging.info(f"{self.custom_prefix}: SLURM Job ID: {slurm_job_id}")
