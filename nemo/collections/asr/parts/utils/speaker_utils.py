@@ -57,16 +57,24 @@ def get_uniq_id_with_dur(meta, decimals=3):
     """
     Return basename with offset and end time labels
     """
-    # bare_uniq_id = get_uniqname_from_filepath(meta['audio_filepath'])
-    bare_uniq_id = get_uniqname_from_filepath(meta['rttm_filepath'])
+    bare_uniq_id = get_uniqname_from_filepath(meta['audio_filepath'])
+    # bare_uniq_id = get_uniqname_from_filepath(meta['rttm_filepath'])
+
     if meta['offset'] is None and meta['duration'] is None:
         return bare_uniq_id
     if meta['offset']:
         offset = str(int(round(meta['offset'], decimals) * pow(10, decimals)))
     else:
         offset = 0
+
+    if meta['offset'] is None:
+        meta['offset'] = 0 
+
     if meta['duration']:
-        endtime = str(int(round(meta['offset'] + meta['duration'], decimals) * pow(10, decimals)))
+        try:
+            endtime = str(int(round(meta['offset'] + meta['duration'], decimals) * pow(10, decimals)))
+        except:
+            import ipdb; ipdb.set_trace()
     else:
         endtime = 'NULL'
     uniq_id = f"{bare_uniq_id}_{offset}_{endtime}"

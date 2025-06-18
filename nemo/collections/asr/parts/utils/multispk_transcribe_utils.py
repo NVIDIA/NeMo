@@ -69,6 +69,7 @@ import time
 from functools import wraps
 import math
 
+
 def setup_diarization_model(cfg: DictConfig, map_location: Optional[str] = None) -> SortformerEncLabelModel:
     """Setup model from cfg and return diarization model and model name for next step"""
     if cfg.diar_model_path.endswith(".ckpt"):
@@ -220,7 +221,10 @@ def get_word_dict_content_offline(
     
     # Get the speaker based on the frame-wise softmax probabilities.
     stt_p, end_p = max((frame_stt + cfg.left_frame_shift), 0), (frame_end + cfg.right_frame_shift)
-    speaker_sigmoid = diar_pred_out[stt_p:end_p, :].mean(dim=0)
+    try:
+        speaker_sigmoid = diar_pred_out[stt_p:end_p, :].mean(dim=0)
+    except:
+        import ipdb; ipdb.set_trace()
     speaker_softmax = get_simulated_softmax(cfg, speaker_sigmoid)
 
     speaker_softmax[cfg.limit_max_spks:] = 0.0
@@ -429,6 +433,7 @@ class SpeakerTaggedASR:
         cfg,
         asr_model,
         diar_model,
+        frame_hop_length: int = 0.08,
     ):
         # Required configs, models and datasets for inference
         self.cfg = cfg
@@ -446,7 +451,10 @@ class SpeakerTaggedASR:
         # self._stt_words = COMMON_SENTENCE_STARTS
         self._stt_words = []
         self._init_evaluator() 
-        self._frame_hop_length = self.asr_model.encoder.streaming_cfg.valid_out_len
+        if self.asr_model is not None:
+            self._frame_hop_length = self.asr_model.encoder.streaming_cfg.valid_out_len
+        else:
+            self._frame_hop_length = frame_hop_length
         self.seglst_dict_list = []
     
     def _init_evaluator(self):  
@@ -530,9 +538,9 @@ class SpeakerTaggedASR:
                 'text': ''}
         
     def text_post_processing(self, sentence):
-        if self.cfg.uppercase_first_letter and len(sentence['text']) > 1:
-            # sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
-            sentence['text'] = sentence['text'][:1].lower() + sentence['text'][1:]
+        # if self.cfg.uppercase_first_letter and len(sentence['text']) > 1:
+        #     # sentence['text'] = sentence['text'][:1].upper() + sentence['text'][1:]
+        #     sentence['text'] = sentence['text'][:1].lower() + sentence['text'][1:]
         if self.cfg.remove_pnc:
             # sentence['text'] = sentence['text'].lower().replace('.', '').replace(',', '').replace('!', '').replace('?', '').upper()
             sentence['text'] = sentence['text'].lower().replace('.', '').replace(',', '').replace('!', '').replace('?', '').lower()
@@ -592,24 +600,24 @@ class SpeakerTaggedASR:
         transcribed_speaker_texts = [None] * len(test_manifest_dict)
         
         for idx, (uniq_id, data_dict) in enumerate(test_manifest_dict.items()):
-            if not len( asr_hypotheses[idx].text) == 0:
-                # Get the word-level dictionaries for each word in the chunk
-                # diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
-                self._word_and_ts_seq[idx] = self.get_frame_and_words_offline(uniq_id=uniq_id,
-                                                                            diar_pred_out=diar_pred_out[idx].squeeze(0),
-                                                                            asr_hypothesis=asr_hypotheses[idx],
-                                                                            word_and_ts_seq=self._word_and_ts_seq[idx], 
-                                                                            )
-                if len(self._word_and_ts_seq[idx]["words"]) > 0:
-                    self._word_and_ts_seq[idx] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[idx], 
-                                                                            sentence_render_length=self._sentence_render_length)
-                    if self.cfg.generate_scripts:
-                        transcribed_speaker_texts[idx] = \
-                            print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], 
-                            color_palette=get_color_palette(), 
-                            params=self.cfg)
-                        write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), 
-                                    transcribed_speaker_texts[idx].strip()) 
+            # if not len( asr_hypotheses[idx].text) == 0:
+            # Get the word-level dictionaries for each word in the chunk
+            # diar_pred_out_stream=diar_pred_out_stream[idx, :, :],
+            self._word_and_ts_seq[idx] = self.get_frame_and_words_offline(uniq_id=uniq_id,
+                                                                        diar_pred_out=diar_pred_out[idx].squeeze(0),
+                                                                        asr_hypothesis=asr_hypotheses[idx],
+                                                                        word_and_ts_seq=self._word_and_ts_seq[idx], 
+                                                                        )
+            if len(self._word_and_ts_seq[idx]["words"]) > 0:
+                self._word_and_ts_seq[idx] = self.get_sentences_values(session_trans_dict=self._word_and_ts_seq[idx], 
+                                                                        sentence_render_length=self._sentence_render_length)
+                if self.cfg.generate_scripts:
+                    transcribed_speaker_texts[idx] = \
+                        print_sentences(sentences=self._word_and_ts_seq[idx]["sentences"], 
+                        color_palette=get_color_palette(), 
+                        params=self.cfg)
+                    write_txt(f'{self.cfg.print_path}'.replace(".sh", f"_{idx}.sh"), 
+                                transcribed_speaker_texts[idx].strip()) 
         return transcribed_speaker_texts, self._word_and_ts_seq
      
     def get_frame_and_words_offline(
@@ -620,8 +628,13 @@ class SpeakerTaggedASR:
         word_and_ts_seq,
     ):        
         word_and_ts_seq['uniq_id'] = uniq_id
-
-        for word_index, hyp_word_dict in enumerate(asr_hypothesis.timestep['word']):
+       
+        if type(asr_hypothesis) == list:
+            word_dict_list = asr_hypothesis
+        else:
+            word_dict_list = asr_hypothesis.timestep['word']
+        
+        for word_index, hyp_word_dict in enumerate(word_dict_list):
             time_stt_end_tuple=(hyp_word_dict['start_offset'], hyp_word_dict['end_offset'])
             word_dict = get_word_dict_content_offline(cfg=self.cfg, 
                                                         word=hyp_word_dict['word'],

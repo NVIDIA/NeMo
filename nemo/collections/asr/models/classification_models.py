@@ -914,6 +914,13 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         self.decoder.output_types = self.output_types
         self.decoder.output_types_for_export = self.output_types
 
+    def load_state_dict(self, state_dict, strict=True):
+        # Remove "loss.weight" if it's missing in the state_dict
+        if "loss.weight" not in state_dict:
+            print("Warning: 'loss.weight' not found in checkpoint. Ignoring this key.")
+            strict = False
+        super().load_state_dict(state_dict, strict=strict)
+
     @classmethod
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
         results = []

@@ -460,7 +460,6 @@ class SortformerModules(NeuralModule, Exportable):
             pop_out_len = self.fifo_len
         else:
             pop_out_len = min(max(self.spkcache_refresh_rate, chunk_len), self.fifo_len)
-
         # append chunk to fifo
         streaming_state.fifo = torch.cat([streaming_state.fifo, chunk], dim=1)
         streaming_state.fifo_preds = torch.cat([streaming_state.fifo_preds, chunk_preds], dim=1)

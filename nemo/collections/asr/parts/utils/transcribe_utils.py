@@ -145,7 +145,7 @@ def get_buffered_pred_feat(
         for l in tqdm(filepaths, desc="Sample:"):
             asr.reset()
             asr.read_audio_file(l, delay, model_stride_in_secs)
-            hyp = asr.transcribe(tokens_per_chunk, delay)
+            hyp = asr.transcribe(tokens_per_chunk, delay, timestamps=True)
             hyps.append(hyp)
     else:
         with open(manifest, "r", encoding='utf_8') as mfst_f:
@@ -157,7 +157,7 @@ def get_buffered_pred_feat(
                 audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
                 # do not support partial audio
                 asr.read_audio_file(audio_file, delay, model_stride_in_secs)
-                hyp = asr.transcribe(tokens_per_chunk, delay)
+                hyp = asr.transcribe(tokens_per_chunk, delay, timestamps=True)
                 hyps.append(hyp)
 
     if os.environ.get('DEBUG', '0') in ('1', 'y', 't'):
@@ -463,7 +463,6 @@ def write_transcription(
                         item[pred_text_attr_name] = best_hyps[idx]
                     else:  # transcription is Hypothesis
                         item[pred_text_attr_name] = best_hyps[idx].text
-
                         if timestamps:
                             timestamps = best_hyps[idx].timestep
                             if timestamps is not None and isinstance(timestamps, dict):

@@ -228,8 +228,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             filepaths,
         )
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
+        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=True
     )
+    import ipdb; ipdb.set_trace()
     logging.info(f"Finished writing predictions to {output_filename}!")
 
     if cfg.calculate_wer:

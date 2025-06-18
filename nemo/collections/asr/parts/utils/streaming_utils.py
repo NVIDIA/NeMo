@@ -821,12 +821,13 @@ class FrameBatchASR:
             del encoded_len
             del predictions
 
-    def transcribe(self, tokens_per_chunk: int, delay: int, keep_logits: bool = False):
+    def transcribe(self, tokens_per_chunk: int, delay: int, keep_logits: bool = False, timestamps: bool= False):
         self.infer_logits(keep_logits)
         self.unmerged = []
         for pred in self.all_preds:
             decoded = pred.tolist()
             self.unmerged += decoded[len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk]
+            import ipdb; ipdb.set_trace()
         hypothesis = self.greedy_merge(self.unmerged)
         if not keep_logits:
             return hypothesis
@@ -1483,7 +1484,6 @@ class CacheAwareStreamingAudioBuffer:
 
             added_len = cache_pre_encode.size(-1)
             audio_chunk = torch.cat((cache_pre_encode, audio_chunk), dim=-1)
-
             if self.online_normalization:
                 audio_chunk, x_mean, x_std = normalize_batch(
                     x=audio_chunk,
