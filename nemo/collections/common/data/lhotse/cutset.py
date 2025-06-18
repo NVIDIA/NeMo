@@ -478,6 +478,8 @@ def cut_to_conversation(
     ]
     if hasattr(cut, "context"):
         turns = [TextTurn(value=cut.context, role="user")] + turns
+    if hasattr(cut, "system_prompt"):
+        turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
     return NeMoMultimodalConversation(
         id=cut.id,
         turns=turns,
