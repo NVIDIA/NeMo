@@ -12,14 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from itertools import groupby
+from typing import Iterable, Union
 
+import numpy as np
 import torch
 import torch.utils.data
-from lhotse import CutSet
-from lhotse.dataset.collation import collate_audio, collate_vectors
+from lhotse import CutSet, fastcopy
+from torch.nn import CrossEntropyLoss
+from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
-from nemo.collections.common.data.lhotse.text_adapters import TextTurn
+from nemo.collections.common.data.lhotse.text_adapters import (
+    AudioTurn,
+    TextTurn,
+    collate_conversation_audio_fault_tolerant,
+)
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts import Llama2PromptFormatter, Llama3PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
@@ -62,24 +69,43 @@ class SALMDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
         self.pad_id = get_pad_id(tokenizer)
 
-    def __getitem__(self, conversations: CutSet) -> dict:
-        all_cuts = []
-        example_idx_to_audio_idxs = []
-        cntr = 0
-        for conversation in conversations:
-            assert isinstance(conversation, NeMoMultimodalConversation)
-            example_idx_to_audio_idxs.append([])
-            for cut in conversation.list_cuts():
-                all_cuts.append(cut)
-                example_idx_to_audio_idxs[-1].append(cntr)
-                cntr += 1
-        audios, audio_lens = collate_audio(CutSet(all_cuts))
+    def __getitem__(self, conversations: CutSet) -> dict | None:
+        # Note: the function call below may filter out some or all conversations due to audio loading issues.
+        # If all conversations are filtered out, we'll return None, and expect users to wrap this dataset
+        # in ``nemo.collections.common.data.fallback.FallbackDataset`` to use the previous mini-batch instead.
+        audios, audio_lens, conversations = collate_conversation_audio_fault_tolerant(conversations)
+        if not conversations:
+            return None
         return {
             "audios": audios,
             "audio_lens": audio_lens,
-            "input_ids": collate_vectors([c.input_ids for c in conversations], padding_value=self.pad_id),
-            "loss_mask": collate_vectors([c.mask for c in conversations], padding_value=0).to(torch.bool),
+            "input_ids": left_collate_vectors([c.input_ids for c in conversations], padding_value=self.pad_id),
+            "loss_mask": left_collate_vectors(
+                [getattr(c, "mask", torch.empty(0)) for c in conversations], padding_value=0
+            ).to(torch.bool),
+            "conversations": drop_in_memory_data(conversations),
         }
+
+
+def left_collate_vectors(
+    tensors: Iterable[Union[torch.Tensor, np.ndarray]],
+    padding_value: Union[int, float] = CrossEntropyLoss().ignore_index,
+) -> torch.Tensor:
+    tensors = [torch.as_tensor(t) for t in tensors]
+    assert all(len(t.shape) == 1 for t in tensors), "Expected only 1-D input tensors."
+    return pad_sequence(tensors, batch_first=True, padding_value=padding_value, padding_side="left")
+
+
+def drop_in_memory_data(conversations: CutSet) -> CutSet:
+    def _drop(conversation: NeMoMultimodalConversation) -> NeMoMultimodalConversation:
+        turns = []
+        for t in conversation.turns:
+            if isinstance(t, AudioTurn):
+                t = fastcopy(t, cut=t.cut.drop_in_memory_data())
+            turns.append(t)
+        return fastcopy(conversation, turns=turns)
+
+    return conversations.map(_drop, apply_fn=None)
 
 
 @registered_prompt_format_fn(NeMoMultimodalConversation, Llama3PromptFormatter)
@@ -97,6 +123,7 @@ def default_multimodal_conversation_prompt_format_fn(
         ],
         key=lambda turn: turn["role"],
     )
+    turns = list(turns)
     turns = [
         {"role": role, "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)}}
         for role, turn_grp in turns

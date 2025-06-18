@@ -11,19 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import math
 import random
 from collections import deque
 from dataclasses import dataclass
 from itertools import groupby
 from pathlib import Path
-from typing import Iterator, Literal, Optional, Union
+from typing import Iterator, Literal, Optional, Sequence, Union
 
 import numpy as np
 import torch
-from lhotse import Recording
+from lhotse import CutSet, Recording
+from lhotse.audio import AudioLoadingError
 from lhotse.custom import CustomFieldMixin
 from lhotse.cut import Cut
+from lhotse.dataset.collation import collate_matrices, collate_vectors
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.serialization import load_jsonl
 from lhotse.shar import AudioTarWriter, JsonlShardWriter, TarIterator
@@ -319,6 +322,7 @@ class AudioTurn:
     cut: Cut
     role: str
     audio_locator_tag: str
+    text: str | None = None
 
     def to_dict(self):
         assert self.cut.has_recording and self.cut.recording.sources[0].type not in {
@@ -330,6 +334,7 @@ class AudioTurn:
             "from": self.role.title(),
             "duration": self.cut.duration,
             "value": self.cut.recording.sources[0].source,
+            "text": self.text,
         }
 
 
@@ -369,11 +374,66 @@ class NeMoMultimodalConversation(Formattable, CustomFieldMixin):
     def has_text_turns(self) -> bool:
         return any(isinstance(t, TextTurn) for t in self.turns)
 
+    @property
+    def is_text_only(self) -> bool:
+        return all(isinstance(t, TextTurn) for t in self.turns)
+
     def to_dict(self):
         return {"id": self.id, "conversations": [t.to_dict() for t in self.turns]}
 
     def list_cuts(self) -> list[Cut]:
         return [turn.cut for turn in self.turns if isinstance(turn, AudioTurn)]
+
+
+def collate_conversation_audio_fault_tolerant(
+    conversations: Sequence[NeMoMultimodalConversation],
+) -> tuple[torch.Tensor, torch.Tensor, CutSet]:
+    """
+    Loads and collates audio data from a sequence of ``NeMoMultimodalConversation`` objects,
+    preserving the order of conversations and turns.
+
+    Fault tolerance skips over the conversations for which at least one audio turn failed to load
+    due to ``lhotse.utils.AudioLoadingError``. This typically indicates corrupted data.
+
+    Returns a tuple of:
+
+    * ``audio`` tensor fp32 (B, T) or (B, C, T) if multi-channel
+
+    * ``audio_lens`` tensor int64 (B)
+
+    * ``conversations`` CutSet of NeMoMultimodalConversations that were successfully loaded.
+    """
+
+    audios = []
+    all_cuts = []
+    ok = []
+    for conversation in conversations:
+        assert isinstance(conversation, NeMoMultimodalConversation)
+        try:
+            conv_audios = []
+            conv_cuts = []
+            for cut in conversation.list_cuts():
+                conv_audios.append(torch.as_tensor(cut.load_audio()).squeeze())
+                conv_cuts.append(cut)
+        except AudioLoadingError:
+            continue
+        else:
+            audios.extend(conv_audios)
+            all_cuts.extend(conv_cuts)
+            ok.append(conversation)
+
+    if not ok:
+        ids = [c.id for c in conversations]
+        logging.warning(f"An entire batch of conversations failed to load audios. Conversations ids: {ids}")
+        return torch.tensor([]), torch.tensor([]), CutSet()
+
+    audio_lens = torch.tensor([c.num_samples for c in all_cuts], dtype=torch.int64)
+    if len(audios[0].shape) == 1:
+        audios = collate_vectors(audios, padding_value=0.0)
+    else:
+        audios = collate_matrices([a.transpose(0, 1) for a in audios], padding_value=0.0).transpose(1, 2)
+
+    return audios, audio_lens, CutSet(ok)
 
 
 def _compute_num_audio_tokens(example: NeMoMultimodalConversation, mode: Literal["context", "answer", "all"]) -> int:
@@ -500,7 +560,8 @@ class NeMoMultimodalConversationJsonlAdapter:
                             )
                             if turn["type"] == "text"
                             else AudioTurn(
-                                cut=cuts.popleft(),
+                                cut=(c := cuts.popleft()),
+                                text=c.supervisions[0].text if c.supervisions else None,
                                 role=turn[
                                     "from"
                                 ].lower(),  # prompt formatter role's are typically lowercase: user/assistant

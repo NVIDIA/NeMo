@@ -56,10 +56,10 @@ def test_llama2_prompt_formatter_training_with_system(bpe_tokenizer):
     )
     assert set(ans) == {"input_ids", "context_ids", "answer_ids", "mask"}
     # fmt: off
-    assert bpe_tokenizer.ids_to_text(ans["input_ids"].tolist()[1:-1]) == '[INST] <<SYS>> TEST <</SYS>> TEST [/INST] TEST'
-    assert bpe_tokenizer.ids_to_text(ans["context_ids"].tolist()[1:]) == '[INST] <<SYS>> TEST <</SYS>> TEST [/INST]'
+    assert bpe_tokenizer.ids_to_text(ans["input_ids"].tolist()[1:-1]) == '[INST] <<SYS>>\nTEST\n<</SYS>>\n\nTEST [/INST] TEST'
+    assert bpe_tokenizer.ids_to_text(ans["context_ids"].tolist()[1:]) == '[INST] <<SYS>>\nTEST\n<</SYS>>\n\nTEST [/INST]'
     assert bpe_tokenizer.ids_to_text(ans["answer_ids"].tolist()[:-1]) == 'TEST'
-    assert ans["mask"].tolist() == [False] * 33 + [True] * 5
+    assert ans["mask"].tolist() == [False] * 36 + [True] * 5
     # fmt: on
 
 
@@ -73,5 +73,5 @@ def test_llama2_prompt_formatter_inference_with_system(bpe_tokenizer):
     assert set(ans) == {"input_ids", "context_ids"}
     # fmt: off
     assert ans["input_ids"].tolist() == ans["context_ids"].tolist()
-    assert bpe_tokenizer.ids_to_text(ans["input_ids"].tolist()[1:]) == '[INST] <<SYS>> TEST <</SYS>> TEST [/INST]'
+    assert bpe_tokenizer.ids_to_text(ans["input_ids"].tolist()[1:]) == '[INST] <<SYS>>\nTEST\n<</SYS>>\n\nTEST [/INST]'
     # fmt: on
