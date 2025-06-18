@@ -77,8 +77,13 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
         else:
             model_cfg.forced_context_audio_eos_id = num_audio_tokens_per_codebook - 1
             model_cfg.forced_context_audio_bos_id = num_audio_tokens_per_codebook - 2
-
-    return model_cfg
+    if hasattr(model_cfg, 'sample_rate'):
+        # This was removed from the config and is now in the model class
+        sample_rate = model_cfg.sample_rate
+        del model_cfg.sample_rate
+    else:
+        sample_rate = None
+    return model_cfg, sample_rate
 
 def update_ckpt(state_dict):
     new_state_dict = {}
@@ -127,7 +132,7 @@ def run_inference(
             model_cfg = model_cfg.cfg
 
         with open_dict(model_cfg):
-            model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
+            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
 
         model = MagpieTTSModel(cfg=model_cfg)
         model.use_kv_cache_for_inference = True
@@ -141,13 +146,16 @@ def run_inference(
     elif nemo_file is not None:
         model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
         with open_dict(model_cfg):
-            model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
+            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
         model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
     else:
         raise ValueError("Need a checkpoint")
 
+    if cfg_sample_rate is not None and cfg_sample_rate != model.sample_rate:
+        raise ValueError("Sample rate in config and model do not match")
+    
     print("Loaded weights.")
     model.cuda()
     model.eval()
@@ -192,7 +200,7 @@ def run_inference(
                 context_durration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
             test_dataset = MagpieTTSDataset(
                 dataset_meta=dataset_meta,
-                sample_rate=model_cfg.sample_rate,
+                sample_rate=model.sample_rate,
                 min_duration=0.5,
                 max_duration=20,
                 codec_model_samples_per_frame=model.codec_model_samples_per_frame,
@@ -268,7 +276,7 @@ def run_inference(
                     predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                     predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
                     audio_path = os.path.join(pred_audio_dir, f"predicted_audio_{item_idx}.wav")
-                    sf.write(audio_path, predicted_audio_np, model.cfg.sample_rate)
+                    sf.write(audio_path, predicted_audio_np, model.sample_rate)
                     codes_path = os.path.join(pred_audio_dir, f"predicted_codes_{item_idx}.pt")
                     torch.save(predicted_codes[idx][:predicted_codes_lens[idx]], codes_path)
                     codec_file_paths.append(codes_path)
@@ -332,6 +340,7 @@ def run_inference(
         with open(all_experiment_csv_with_ci, "a") as f:
             f.write(f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']},{metrics_mean_ci['frechet_codec_distance']}\n")
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
+        
 
         measurements = [m['ssim_pred_context_avg'] for m in metrics_n_repeated]
         ssim = np.mean(measurements)
@@ -341,7 +350,6 @@ def run_inference(
         if clean_up_disk:
             shutil.rmtree(out_dir)
         return cer, ssim
-
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
