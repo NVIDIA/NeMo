@@ -138,16 +138,6 @@ def main(cfg: BuildWordBoostingTreeConfig):
         device = torch.device("cuda")
         gpu_boosting_model_loaded = gpu_boosting_model_loaded.cuda()
 
-        sentences = [
-            "hello world",
-            "nvlink",
-            "nvlinks two",
-            "nvlinz",
-            "gpu boosting",
-            "lot of gpus",
-            "omniverse cloud now",
-            "acupuncture",
-        ]
         if not is_aggregate_tokenizer:
             sentences_ids = [asr_model.tokenizer.text_to_ids(sentence) for sentence in cfg.test_sentences]
             sentences_tokens = [asr_model.tokenizer.text_to_tokens(sentence) for sentence in cfg.test_sentences]

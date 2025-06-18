@@ -33,9 +33,9 @@ from nemo.core import ModelPT, PretrainedModelInfo
 from nemo.core.utils.optional_libs import TRITON_AVAILABLE, triton_required
 from nemo.utils import logging
 
-if TRITON_AVAILABLE:
-    import triton
-    from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm_triton import ngram_advance_triton_kernel
+# if TRITON_AVAILABLE:
+#     import triton
+#     from nemo.collections.asr.parts.submodules.ngram_lm.ngram_lm_triton import ngram_advance_triton_kernel
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.context_biasing.context_graph_universal import ContextGraph, ContextState
