@@ -87,7 +87,7 @@ class HyenaModel(GPTModel):
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=vocab_size,
-            inference_max_seq_length=mcore_model.config.seq_length,
+            inference_max_seq_length=inference_max_seq_length,
         )
 
         model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
