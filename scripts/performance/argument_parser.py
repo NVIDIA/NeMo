@@ -181,9 +181,9 @@ def parse_cli_args():
     parser.add_argument(
         "-f",
         "--finetuning",
-        choices=["sft", "lora"],
-        help="Finetuning scheme to use. Defaults to 'lora'",
-        default='lora',
+        help="Finetuning scheme. Only SFT (Supervised Fine-Tuning) is supported.",
+        default='sft',
+        const='sft',
     )
     parser.add_argument(
         "-hf",
@@ -440,6 +440,27 @@ def parse_cli_args():
         help="Enable CPU pinning to improve performance on some clusters by setting numbers of CPUs per task. Disabled by default",
         required=False,
         default=0,
+    )
+
+    parser.add_argument(
+        "--skip_import_checkpoint",
+        help="Skips checkpoint import, finetuning job and only downloads the dataset.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip_dataset_download",
+        help="Skips dataset download, finetuning job and only downloads the checkpoint.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip_finetuning",
+        help="Skips finetuning and only downloads the checkpoint and dataset.",
+        action="store_true",
+        required=False,
     )
 
     return parser
