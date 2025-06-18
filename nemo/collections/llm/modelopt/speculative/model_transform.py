@@ -22,11 +22,13 @@ from nemo.utils.model_utils import unwrap_model
 mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 mtsp, _ = safe_import("modelopt.torch.speculative")
 
-
-ALGORITHMS = {
-    "eagle3": mtsp.EAGLE3_DEFAULT_CFG,
-    # more TBD
-}
+try:
+    ALGORITHMS = {
+        "eagle3": mtsp.EAGLE3_DEFAULT_CFG,
+        # more TBD
+    }
+except:
+    pass
 
 
 def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> nn.Module:

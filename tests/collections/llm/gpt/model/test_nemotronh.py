@@ -38,12 +38,98 @@ from nemo.utils.exp_manager import TimingCallback
 torch._dynamo.config.suppress_errors = True
 
 model_options: dict[str, Type[llm.SSMConfig]] = {
-    "4B": llm.NemotronHConfig4B,
+    # "4B": llm.NemotronHConfig4B,
     "8B": llm.NemotronHConfig8B,
     "47B": llm.NemotronHConfig47B,
     "56B": llm.NemotronHConfig56B,
 }
 
+from collections import defaultdict
+from pathlib import Path
+from typing import Literal, Optional
+
+import yaml
+from pydantic import BaseModel, model_validator
+class NMHBlendedDatasetConfig(BaseModel):
+    """Configuration for blended dataset specifications.
+
+    Validates and constructs dataset paths, weights and splits configuration.
+    Ensures dataset paths exist and are properly resolved relative to base data path.
+
+    Attributes:
+        dataset_path: Base directory path for datasets. Used to resolve relative dataset prefixes.
+        dataset_prefix: Path prefix for dataset files. Can be absolute or relative to dataset_path.
+        dataset_weight: Weight factor for this dataset during blending (0-1).
+        dataset_split: Dataset partition - 'train', 'validation' or 'test'.
+
+    Raises:
+        ValueError: If dataset path doesn't exist or prefix can't be resolved.
+    """
+
+    dataset_path: str | None = None
+    dataset_prefix: str
+    dataset_weight: float
+    dataset_split: Literal["train", "validation", "test"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_dataset_prefix(cls, values: dict) -> dict:
+        """Ensure dataset_prefix paths exist and are properly resolved or are relative to base dataset_path if
+            provided.
+
+        Args:
+            values (dict): Dictionary containing dataset_path and dataset_prefix.
+
+        Returns:
+            dict: Dictionary containing validated dataset_path and dataset_prefix.
+        """
+        dataset_path = Path(values.get("dataset_path")) if values.get("dataset_path") else None
+        prefix = Path(values.get("dataset_prefix"))
+
+        if not prefix.is_absolute():
+            if dataset_path:
+                prefix = dataset_path / prefix
+            else:
+                prefix = Path(prefix).resolve()
+        parent = prefix.parent
+        stem = prefix.stem
+        if not parent.exists():
+            raise ValueError(f"dataset_prefix parent path does not exist: {parent}")
+        matching_files = list(parent.glob(f"{stem}.*"))
+        if not matching_files:
+            raise ValueError(f"dataset_prefix file does not exist: {prefix}")
+        values["dataset_prefix"] = str(prefix)
+        return values
+
+
+def parse_dataset_config(dataset_config_path: str, dataset_path: Optional[str] = None):
+    """Parse the blended training datasplit configuration and renormalize data split weights for training Hyena.
+
+    Args:
+        dataset_config_path (str): Path to the dataset configuration YAML file.
+        dataset_path (str): Path to the dataset directory. Defaults to None.
+
+    Returns:
+        defaultdict: A dictionary where keys are dataset splits and values are lists containing the normalized weight
+                     and dataset prefix for each split.
+    """
+    blended_dataset_config = defaultdict(list)
+    weight_sums = defaultdict(float)
+    with open(dataset_config_path, "r") as config_file:
+        dataset_config_batch = yaml.safe_load(config_file)
+        for dataset_config in dataset_config_batch:
+            # Validate.
+            config_model = NMHBlendedDatasetConfig(dataset_path=dataset_path, **dataset_config)
+            # Integrate the weights for renormalization.
+            weight_sums[config_model.dataset_split] += abs(config_model.dataset_weight)
+        for dataset_config in dataset_config_batch:
+            # Validate.
+            config_model = NMHBlendedDatasetConfig(dataset_path=dataset_path, **dataset_config)
+            # Add indexed dataset to split and associate with blended training weight.
+            blended_dataset_config[config_model.dataset_split].extend(
+                [config_model.dataset_weight / weight_sums[config_model.dataset_split], config_model.dataset_prefix]
+            )
+    return blended_dataset_config
 
 def parse_args():
     """Parse arguments for NMH model training."""
@@ -363,8 +449,9 @@ def main():
         )
     else:
         # Instantiate pre-training module.
+        blended_dataset_config = parse_dataset_config(args.dataset_config, args.dataset_dir)
         data = PreTrainingDataModule(
-            paths=args.dataset_dir,
+            paths=blended_dataset_config,
             seq_length=args.seq_length,
             micro_batch_size=args.micro_batch_size,
             global_batch_size=global_batch_size,
@@ -564,15 +651,15 @@ def main():
 if __name__ == "__main__":
     """ Example command to run the script, use --help for more options.:
     CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc-per-node=8 \
-        /opt/NeMo/tests/collections/llm/gpt/model/test_nemotronh.py \
+        /lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/NeMo/tests/collections/llm/gpt/model/test_nemotronh.py \
             --num-nodes=1 \
             --devices=8 \
-            --max-steps=500000 \
-            --val-check-interval=1000 \
-            --experiment-dir=<EXP_DIR> \
-            --vocab-file=<VOCAB_FILE> \
-            --mock-data \
+            --max-steps=10 \
+            --val-check-interval=5 \
+            --experiment-dir=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/tempdir_mamba_recipe \
+            --dataset-config=/lustre/fsw/coreai_dlalgo_genai/ataghibakhsh/toy_nmh_blend.yaml \
             --seq-length=8192 \
+            --sequence-parallel \
             --tensor-parallel-size=8 \
             --pipeline-model-parallel-size=1 \
             --context-parallel-size=1 \
@@ -582,8 +669,8 @@ if __name__ == "__main__":
             --fp8 \
             --clip-grad 1 \
             --lr=0.0003 \
-            --warmup-steps=2500 \
-            --wandb-project=nemotronh
+            --warmup-steps=5 \
+            --no-wandb
             
     """
     main()
