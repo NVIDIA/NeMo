@@ -29,7 +29,7 @@ from nemo.collections import llm
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import, safe_import_from
 
-from .loss import HiddenStateCosineLoss, LogitsAndIntermediatesLossBalancer, LogitsKLLoss, ProjectionLayer, MSELoss
+from .loss import HiddenStateCosineLoss, LogitsAndIntermediatesLossBalancer, LogitsKLLoss, MSELoss, ProjectionLayer
 
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -79,7 +79,7 @@ def load_distillation_config(
         criterion[tuple(logit_pair)] = LogitsKLLoss(student_cfg)
         # NOTE: Projection layer shared among intermediate layer pairs.
         projection_layer = ProjectionLayer(student_cfg, teacher_cfg)
-        #for student_layer, teacher_layer in intermediate_pairs:
+        # for student_layer, teacher_layer in intermediate_pairs:
         for entry in intermediate_pairs:
             if len(entry) == 2:
                 student_layer, teacher_layer = entry
@@ -104,9 +104,7 @@ def load_distillation_config(
                 )
             student_layer = _adjust_layer_index_for_pp(student_layer, student_cfg)
             teacher_layer = _adjust_layer_index_for_pp(teacher_layer, teacher_cfg)
-            criterion[(student_layer, teacher_layer)] = loss_fn(
-                student_cfg, projection_layer=projection_layer
-            )
+            criterion[(student_layer, teacher_layer)] = loss_fn(student_cfg, projection_layer=projection_layer)
 
     loss_balancer = LogitsAndIntermediatesLossBalancer(kd_loss_scale=loss_scale, skip_original_loss=skip_lm_loss)
 

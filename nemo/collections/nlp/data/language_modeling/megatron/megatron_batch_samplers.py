@@ -145,8 +145,8 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
     def __iter__(self):
         batch = []
         # Last batch will be dropped if drop_last is not set False
-        #num_available_samples = int(self.total_samples - self.consumed_samples % self.total_samples)
-        #for idx in range(num_available_samples):
+        # num_available_samples = int(self.total_samples - self.consumed_samples % self.total_samples)
+        # for idx in range(num_available_samples):
         for idx in range(self.consumed_samples % self.total_samples, self.total_samples):
             batch.append(idx)
             if len(batch) == self._global_batch_size:

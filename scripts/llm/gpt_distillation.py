@@ -104,20 +104,20 @@ if __name__ == "__main__":
     )
 
     ## Set up dataset
-    #data = llm.PreTrainingDataModule(
+    # data = llm.PreTrainingDataModule(
     #    paths=args.data_paths,
     #    seq_length=args.seq_length,
     #    global_batch_size=args.gbs,
     #    micro_batch_size=args.mbs,
     #    split=args.split,
     #    index_mapping_dir=args.index_mapping_dir,
-    #)
+    # )
 
-    #TODO sharath: match SFT2_LC exact config below
+    # TODO sharath: match SFT2_LC exact config below
     data = llm.gpt.data.fine_tuning.FineTuningDataModule(
         dataset_root=args.sft_data_paths,
-        #path=args.data_paths,
-        #tokenizer=tokenizer,
+        # path=args.data_paths,
+        # tokenizer=tokenizer,
         seq_length=args.seq_length,
         dataset_kwargs={
             "add_bos": False,
@@ -125,7 +125,7 @@ if __name__ == "__main__":
             "truncation_field": "output",
             "pad_to_max_length": True,
             "get_attention_mask_from_fusion": True,
-            #"special_tokens": {
+            # "special_tokens": {
             #        "system_turn_start": "<SPECIAL_10>",
             #            "turn_start": "<SPECIAL_11>",
             #                "label_start": "<SPECIAL_12>",
@@ -141,26 +141,26 @@ if __name__ == "__main__":
         # max_num_samples=1200,
     )
 
-#model.data.chat_prompt_tokens.system_turn_start=\'\<SPECIAL_10\>\' \
-#model.data.chat_prompt_tokens.turn_start=\'\<SPECIAL_11\>\' \
-#model.data.chat_prompt_tokens.label_start=\'\<SPECIAL_12\>\' \
-#model.data.chat_prompt_tokens.end_of_name="\\n" \
-#model.data.chat_prompt_tokens.end_of_turn="\\n" \
-#model.data.train_ds.add_bos=False \
-#model.data.validation_ds.add_bos=False \
-#model.data.train_ds.file_path="${train_file}" \
-#model.data.train_ds.global_batch_size=${GBS} \
-#model.data.train_ds.micro_batch_size=${mbs} \
-#model.data.validation_ds.file_path="${train_file}" \
-#model.data.train_ds.max_seq_length=${max_seq_length} \
-#model.data.validation_ds.max_seq_length=${max_seq_length} \
-#model.data.train_ds.truncation_field="output" \
-#model.data.validation_ds.global_batch_size=${GBS} \
-#model.data.validation_ds.micro_batch_size=${mbs} \
-#model.megatron_amp_O2=True \
-#model.activations_checkpoint_granularity=selective \
-#model.activations_checkpoint_method=uniform
-#'
+    # model.data.chat_prompt_tokens.system_turn_start=\'\<SPECIAL_10\>\' \
+    # model.data.chat_prompt_tokens.turn_start=\'\<SPECIAL_11\>\' \
+    # model.data.chat_prompt_tokens.label_start=\'\<SPECIAL_12\>\' \
+    # model.data.chat_prompt_tokens.end_of_name="\\n" \
+    # model.data.chat_prompt_tokens.end_of_turn="\\n" \
+    # model.data.train_ds.add_bos=False \
+    # model.data.validation_ds.add_bos=False \
+    # model.data.train_ds.file_path="${train_file}" \
+    # model.data.train_ds.global_batch_size=${GBS} \
+    # model.data.train_ds.micro_batch_size=${mbs} \
+    # model.data.validation_ds.file_path="${train_file}" \
+    # model.data.train_ds.max_seq_length=${max_seq_length} \
+    # model.data.validation_ds.max_seq_length=${max_seq_length} \
+    # model.data.train_ds.truncation_field="output" \
+    # model.data.validation_ds.global_batch_size=${GBS} \
+    # model.data.validation_ds.micro_batch_size=${mbs} \
+    # model.megatron_amp_O2=True \
+    # model.activations_checkpoint_granularity=selective \
+    # model.activations_checkpoint_method=uniform
+    #'
     ## Set up optimizer
     optim_config = OptimizerConfig(
         optimizer="adam",

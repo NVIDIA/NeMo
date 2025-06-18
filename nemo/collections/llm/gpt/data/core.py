@@ -221,15 +221,18 @@ class GPTSFTDataset(Dataset):
         self.truncation_fields = truncation_field.split(',') if truncation_field is not None else []
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
-        from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import get_prompt_template_example
+        from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import (
+            get_prompt_template_example,
+        )
+
         chat_prompt_tokens = {
-                                 "system_turn_start": "<SPECIAL_10>",
-                                 "turn_start": "<SPECIAL_11>",
-                                 "label_start": "<SPECIAL_12>",
-                                 "end_of_turn": "\n",
-                                 "end_of_name": "\n",
-                             } 
-        self.prompt_template = prompt_template#get_prompt_template_example(chat_prompt_tokens)#prompt_template
+            "system_turn_start": "<SPECIAL_10>",
+            "turn_start": "<SPECIAL_11>",
+            "label_start": "<SPECIAL_12>",
+            "end_of_turn": "\n",
+            "end_of_name": "\n",
+        }
+        self.prompt_template = prompt_template  # get_prompt_template_example(chat_prompt_tokens)#prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
         self.memmap_workers = memmap_workers
@@ -245,16 +248,20 @@ class GPTSFTDataset(Dataset):
         print("special tokens prior passed in {}".format(special_tokens))
         if special_tokens is None:
             self.special_tokens = {
-                "system_turn_start": "<SPECIAL_10>",#"<extra_id_0>",
-                "turn_start": "<SPECIAL_11>",#"<extra_id_1>",
-                "label_start": "<SPECIAL_12>",#"<extra_id_2>",
+                "system_turn_start": "<SPECIAL_10>",  # "<extra_id_0>",
+                "turn_start": "<SPECIAL_11>",  # "<extra_id_1>",
+                "label_start": "<SPECIAL_12>",  # "<extra_id_2>",
                 "end_of_turn": "\n",
                 "end_of_name": "\n",
             }
         else:
             self.special_tokens = special_tokens
         print("special tokens after {}".format(self.special_tokens))
-        print("setting pad_to_max_length {} get_attention_mask_from_fusion {}".format(pad_to_max_length, get_attention_mask_from_fusion))
+        print(
+            "setting pad_to_max_length {} get_attention_mask_from_fusion {}".format(
+                pad_to_max_length, get_attention_mask_from_fusion
+            )
+        )
 
         self._load_dataset()
 

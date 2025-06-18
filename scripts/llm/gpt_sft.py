@@ -102,20 +102,20 @@ if __name__ == "__main__":
     )
 
     ## Set up dataset
-    #data = llm.PreTrainingDataModule(
+    # data = llm.PreTrainingDataModule(
     #    paths=args.data_paths,
     #    seq_length=args.seq_length,
     #    global_batch_size=args.gbs,
     #    micro_batch_size=args.mbs,
     #    split=args.split,
     #    index_mapping_dir=args.index_mapping_dir,
-    #)
+    # )
 
-    #TODO sharath: match SFT2_LC exact config below
+    # TODO sharath: match SFT2_LC exact config below
     data = llm.gpt.data.fine_tuning.FineTuningDataModule(
         dataset_root=args.sft_data_paths,
-        #path=args.data_paths,
-        #tokenizer=tokenizer,
+        # path=args.data_paths,
+        # tokenizer=tokenizer,
         seq_length=args.seq_length,
         dataset_kwargs={
             "add_bos": False,
@@ -123,7 +123,7 @@ if __name__ == "__main__":
             "truncation_field": "output",
             "pad_to_max_length": True,
             "get_attention_mask_from_fusion": True,
-            #"special_tokens": {
+            # "special_tokens": {
             #        "system_turn_start": "<SPECIAL_10>",
             #            "turn_start": "<SPECIAL_11>",
             #                "label_start": "<SPECIAL_12>",
@@ -184,6 +184,6 @@ if __name__ == "__main__":
         log=logger,
         resume=resume,
         optim=optim,
-        tokenizer=None,#get_tokenizer(args.tokenizer) if args.tokenizer else None,
+        tokenizer=None,  # get_tokenizer(args.tokenizer) if args.tokenizer else None,
         seq_length=args.seq_length,
     )

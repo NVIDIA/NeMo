@@ -188,8 +188,8 @@ def finetune(
     resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     peft: Optional[Union[PEFT, ModelTransform, Callable]] = None,
-    tokenizer = None,
-    seq_length = None,
+    tokenizer=None,
+    seq_length=None,
 ) -> Path:
     """
     Finetunes a model using the specified data and trainer, with optional logging, resuming, and PEFT.
@@ -220,11 +220,11 @@ def finetune(
         PosixPath('/path/to/log_dir')
     """
 
-    #Added by Sharath
+    # Added by Sharath
     model = io.load_context(ckpt_to_context_subdir(model), subpath="model")
     if seq_length:
         model.config.seq_length = seq_length
-        
+
     if tokenizer is None:
         tokenizer = getattr(model, "tokenizer", None)
         assert tokenizer is not None, "Tokenizer not found in model."
