@@ -57,7 +57,7 @@ class LLMBTrainingStartCallback(Callback):
         if result:
             return result
         return "Unknown"
-    
+
     def _get_workload_type(self):
         """Extract WORKLOAD_TYPE from environment variables."""
         result = os.environ.get('WORKLOAD_TYPE')
@@ -71,14 +71,14 @@ class LLMBTrainingStartCallback(Callback):
         if result:
             return result
         return "Unknown"
-    
+
     def _get_fw_version(self):
         """Extract FW_VERSION from environment variables."""
         result = os.environ.get('FW_VERSION')
         if result:
             return result
         return "Unknown"
-    
+
     # must pull the name from environment variable MODEL_NAME because self.model_name is abbreviated for compatibility with other callbacks (e.g., FLOPsMeasurementCallback which is relying on a different convention)
     def _get_model_name(self):
         """Extract MODEL_NAME from environment variables."""
@@ -91,7 +91,9 @@ class LLMBTrainingStartCallback(Callback):
         """Called when training starts."""
         slurm_job_id = self._get_slurm_job_id()
 
-        logging.info(f"{self.custom_prefix}: MODEL={self._get_model_name} FRAMEWORK=nemo2 MODEL_SIZE={self.model_size} JOB_NUM_NODES={trainer.num_nodes} GPUS_PER_NODE={trainer.num_devices} DTYPE={self._get_precision()} SYNTHETIC_DATA=True GSW_VERSION={self._get_gsw_version()} FW_VERSION={self._get_fw_version()} IMAGE='{self.container_image}' JOB_ID={slurm_job_id} JOB_MODE={self._get_workload_type()} OPTIMIZATION_NAME='' OPTIMIZATION_CODE='' BASE_CONFIG=''")
+        logging.info(
+            f"{self.custom_prefix}: MODEL={self._get_model_name} FRAMEWORK=nemo2 MODEL_SIZE={self.model_size} JOB_NUM_NODES={trainer.num_nodes} GPUS_PER_NODE={trainer.num_devices} DTYPE={self._get_precision()} SYNTHETIC_DATA=True GSW_VERSION={self._get_gsw_version()} FW_VERSION={self._get_fw_version()} IMAGE='{self.container_image}' JOB_ID={slurm_job_id} JOB_MODE={self._get_workload_type()} OPTIMIZATION_NAME='' OPTIMIZATION_CODE='' BASE_CONFIG=''"
+        )
 
         # Log additional model information if available
         if hasattr(pl_module, 'cfg') and hasattr(pl_module.cfg, 'model'):
