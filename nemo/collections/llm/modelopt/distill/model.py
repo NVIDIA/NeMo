@@ -148,6 +148,8 @@ class DistillationGPTModel(llm.GPTModel):
                 "Student and Teacher configs should both inherit from llm.GPTConfig. "
                 "Configs may not work properly with DistillationGPTModel"
             )
+        if not isinstance(config, TransformerConfig) or not isinstance(teacher_config, TransformerConfig):
+            raise ValueError("Student {} and Teacher {} must both be subclasses of `TransformerConfig`".format(config, teacher_config))
         if self.config.virtual_pipeline_model_parallel_size is not None:
             raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
 

@@ -83,7 +83,7 @@ class MSELoss(BaseLoss):
         loss = F.mse_loss(predictions, targets, reduction="none")
         loss = loss.sum(dim=-1)
 
-        return self.post_forward(loss)
+        return self.post_forward(loss, is_sequence_parallel=self._config.sequence_parallel)
 
 
 class HiddenStateCosineLoss(BaseLoss):

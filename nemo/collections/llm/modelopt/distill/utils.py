@@ -29,7 +29,7 @@ from nemo.collections import llm
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import, safe_import_from
 
-from .loss import HiddenStateCosineLoss, LogitsAndIntermediatesLossBalancer, LogitsKLLoss, ProjectionLayer
+from .loss import HiddenStateCosineLoss, LogitsAndIntermediatesLossBalancer, LogitsKLLoss, ProjectionLayer, MSELoss
 
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -68,27 +68,43 @@ def load_distillation_config(
         with open(config_path) as f:
             cfg = yaml.safe_load(f)
 
-    intermediate_pairs = cfg["intermediate_layer_pairs"]
+    intermediate_pairs = cfg.get("intermediate_layer_pairs", [])
     logit_pair = cfg["logit_layers"]
     skip_lm_loss = cfg["skip_lm_loss"]
     loss_scale = cfg["kd_loss_scale"]
+    print("intermediate_pairs {}".format(intermediate_pairs))
 
     criterion = {}
     if student_cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage():
         criterion[tuple(logit_pair)] = LogitsKLLoss(student_cfg)
         # NOTE: Projection layer shared among intermediate layer pairs.
         projection_layer = ProjectionLayer(student_cfg, teacher_cfg)
+        #for student_layer, teacher_layer in intermediate_pairs:
+        for entry in intermediate_pairs:
+            if len(entry) == 2:
+                student_layer, teacher_layer = entry
+                loss = "hidden_cosine"
+            elif len(entry) == 3:
+                student_layer, teacher_layer, loss = entry
 
-        for student_layer, teacher_layer in intermediate_pairs:
+            loss_fn = None
+
+            if loss == "mse":
+                loss_fn = MSELoss
+            elif loss == "hidden_cosine":
+                loss_fn = HiddenStateCosineLoss
+            else:
+                assert False, f"loss passed was {loss=}"
+
             if parallel_state.get_tensor_and_context_parallel_rank() == 0:
                 print(
-                    "Distillation: Adding intermediate loss between"
+                    f" Distillation: Adding intermediate {loss} between"
                     f" `{student_layer}` of student (hidden size {student_cfg.hidden_size}) and"
                     f" `{teacher_layer}` of teacher (hidden size {teacher_cfg.hidden_size})."
                 )
             student_layer = _adjust_layer_index_for_pp(student_layer, student_cfg)
             teacher_layer = _adjust_layer_index_for_pp(teacher_layer, teacher_cfg)
-            criterion[(student_layer, teacher_layer)] = HiddenStateCosineLoss(
+            criterion[(student_layer, teacher_layer)] = loss_fn(
                 student_cfg, projection_layer=projection_layer
             )
 

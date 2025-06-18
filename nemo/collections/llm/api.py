@@ -188,6 +188,8 @@ def finetune(
     resume: Annotated[Optional[AutoResume], run.Config[AutoResume]] = None,
     optim: Optional[OptimizerModule] = None,
     peft: Optional[Union[PEFT, ModelTransform, Callable]] = None,
+    tokenizer = None,
+    seq_length = None,
 ) -> Path:
     """
     Finetunes a model using the specified data and trainer, with optional logging, resuming, and PEFT.
@@ -218,6 +220,15 @@ def finetune(
         PosixPath('/path/to/log_dir')
     """
 
+    #Added by Sharath
+    model = io.load_context(ckpt_to_context_subdir(model), subpath="model")
+    if seq_length:
+        model.config.seq_length = seq_length
+        
+    if tokenizer is None:
+        tokenizer = getattr(model, "tokenizer", None)
+        assert tokenizer is not None, "Tokenizer not found in model."
+
     _validate_config(model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft)
     return train(
         model=model,
@@ -226,7 +237,7 @@ def finetune(
         log=log,
         resume=resume,
         optim=optim,
-        tokenizer="model",
+        tokenizer=tokenizer,
         model_transform=peft,
     )
 
@@ -1191,7 +1202,9 @@ def _setup(
     if optim:
         optim.connect(model)
     if tokenizer:  # TODO: Improve this
+        print("tokenizer before setting {}".format(tokenizer))
         _use_tokenizer(model, data, tokenizer)
+        print("tokenizer after setting {}".format(tokenizer))
 
     if model_transform:
         _set_with_io(model, "model_transform", model_transform)
@@ -1307,6 +1320,7 @@ def _validate_config(
         if trainer.strategy.context_parallel_size > 1:
             if hasattr(model, "config"):
                 if model.config.seq_length is not None:
+                    print("model.config.seq_length {}".format(model.config.seq_length))
                     assert (
                         model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
                     ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'

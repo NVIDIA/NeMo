@@ -82,6 +82,7 @@ def create_sft_dataset(
     Create the dataset class (GPTSFTDataset, GPTSFTChatDataset or GPTSFTPackedDataset)
     """
 
+    print("tokenizer used is {}".format(tokenizer))
     gpt_sft_dataset_kwargs = {
         'file_path': str(path),
         'tokenizer': tokenizer,
@@ -103,6 +104,7 @@ def create_sft_dataset(
     }
 
     if chat:
+        print("calling GPTSFTChatDataset")
         return GPTSFTChatDataset(
             **gpt_sft_dataset_kwargs,
             **kwargs,
@@ -219,7 +221,15 @@ class GPTSFTDataset(Dataset):
         self.truncation_fields = truncation_field.split(',') if truncation_field is not None else []
         self.pad_to_max_length = pad_to_max_length
         self.index_mapping_dir = index_mapping_dir
-        self.prompt_template = prompt_template
+        from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import get_prompt_template_example
+        chat_prompt_tokens = {
+                                 "system_turn_start": "<SPECIAL_10>",
+                                 "turn_start": "<SPECIAL_11>",
+                                 "label_start": "<SPECIAL_12>",
+                                 "end_of_turn": "\n",
+                                 "end_of_name": "\n",
+                             } 
+        self.prompt_template = prompt_template#get_prompt_template_example(chat_prompt_tokens)#prompt_template
         self.virtual_tokens = virtual_tokens
         self.tokens_to_generate = tokens_to_generate
         self.memmap_workers = memmap_workers
@@ -232,16 +242,19 @@ class GPTSFTDataset(Dataset):
         self.get_attention_mask_from_fusion = get_attention_mask_from_fusion
         self.sanity_check_dist_workers = sanity_check_dist_workers
 
+        print("special tokens prior passed in {}".format(special_tokens))
         if special_tokens is None:
             self.special_tokens = {
-                "system_turn_start": "<extra_id_0>",
-                "turn_start": "<extra_id_1>",
-                "label_start": "<extra_id_2>",
+                "system_turn_start": "<SPECIAL_10>",#"<extra_id_0>",
+                "turn_start": "<SPECIAL_11>",#"<extra_id_1>",
+                "label_start": "<SPECIAL_12>",#"<extra_id_2>",
                 "end_of_turn": "\n",
                 "end_of_name": "\n",
             }
         else:
             self.special_tokens = special_tokens
+        print("special tokens after {}".format(self.special_tokens))
+        print("setting pad_to_max_length {} get_attention_mask_from_fusion {}".format(pad_to_max_length, get_attention_mask_from_fusion))
 
         self._load_dataset()
 
@@ -249,9 +262,12 @@ class GPTSFTDataset(Dataset):
         self._maybe_validate_prompt_template()
 
         # Will be None after this call if `max_num_samples` is None
+        print("building samples")
         self._build_samples_mapping()
+        print("built samples")
 
     def _load_dataset(self):
+        print("loading dataset")
         if self.hf_dataset:
             self.indexed_dataset = load_dataset(
                 'json',
@@ -268,6 +284,7 @@ class GPTSFTDataset(Dataset):
                 index_mapping_dir=self.index_mapping_dir,
                 workers=self.memmap_workers,
             )
+        print("loaded dataset")
 
     def _maybe_validate_prompt_template(self):
         assert (

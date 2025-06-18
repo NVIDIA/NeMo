@@ -463,15 +463,16 @@ def get_calib_data_iter(
     data: str = "cnn_dailymail", batch_size: int = 64, calib_size: int = 512, max_sequence_length: int = 512
 ):
     """Creates a sample data iterator for calibration."""
-    if data == "wikitext":
-        dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
-        text_column = "text"
-    elif data == "cnn_dailymail":
-        dataset = load_dataset("cnn_dailymail", name="3.0.0", split="train")
-        text_column = "article"
-    else:
+    #if data == "wikitext":
+    #    dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
+    #    text_column = "text"
+    #elif data == "cnn_dailymail":
+    #    dataset = load_dataset("cnn_dailymail", name="3.0.0", split="train")
+    #    text_column = "article"
+    if True:#else:
         # Assume a local JSON dataset with a column named "text"
-        dataset = load_dataset("json", data_files=data, split="train")
+        print("using custom data")
+        dataset = load_dataset("json", data_files="/lustre/fsw/portfolios/coreai/users/hseth/data/vagabond_spider_128k_to_512k_with_512k_cat_11k_sh_f_converted_final.json", split="train")
         text_column = "text"
     calib_size = max(min(len(dataset), calib_size), batch_size)
     for i in range(calib_size // batch_size):

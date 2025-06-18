@@ -36,9 +36,7 @@ def get_args():
     parser = ArgumentParser(description="""Run Knowledge Distillation from a teacher model to a student.""")
 
     parser.add_argument("--name", type=str, required=True, help="""Experiment name""")
-    parser.add_argument("--teacher_path", type=str, required=True, help="""Path to NeMo 2 checkpoint""")
     parser.add_argument("--student_path", type=str, required=True, help="""Path to NeMo 2 checkpoint""")
-    parser.add_argument("--kd_config", type=str, default=None, help="""Path to Knowledge-Distillation config file""")
     parser.add_argument("--tp_size", type=int, default=1, help="""Tensor parallel size""")
     parser.add_argument("--cp_size", type=int, default=1, help="""Context parallel size""")
     parser.add_argument("--pp_size", type=int, default=1, help="""Pipeline parallel size""")
@@ -141,26 +139,6 @@ if __name__ == "__main__":
         # max_num_samples=1200,
     )
 
-#model.data.chat_prompt_tokens.system_turn_start=\'\<SPECIAL_10\>\' \
-#model.data.chat_prompt_tokens.turn_start=\'\<SPECIAL_11\>\' \
-#model.data.chat_prompt_tokens.label_start=\'\<SPECIAL_12\>\' \
-#model.data.chat_prompt_tokens.end_of_name="\\n" \
-#model.data.chat_prompt_tokens.end_of_turn="\\n" \
-#model.data.train_ds.add_bos=False \
-#model.data.validation_ds.add_bos=False \
-#model.data.train_ds.file_path="${train_file}" \
-#model.data.train_ds.global_batch_size=${GBS} \
-#model.data.train_ds.micro_batch_size=${mbs} \
-#model.data.validation_ds.file_path="${train_file}" \
-#model.data.train_ds.max_seq_length=${max_seq_length} \
-#model.data.validation_ds.max_seq_length=${max_seq_length} \
-#model.data.train_ds.truncation_field="output" \
-#model.data.validation_ds.global_batch_size=${GBS} \
-#model.data.validation_ds.micro_batch_size=${mbs} \
-#model.megatron_amp_O2=True \
-#model.activations_checkpoint_granularity=selective \
-#model.activations_checkpoint_method=uniform
-#'
     ## Set up optimizer
     optim_config = OptimizerConfig(
         optimizer="adam",
@@ -199,14 +177,13 @@ if __name__ == "__main__":
         restore_config=nl.RestoreConfig(path=args.student_path),
     )
 
-    llm.distill(
-        student_model_path=args.student_path,
-        teacher_model_path=args.teacher_path,
-        distillation_config_path=args.kd_config,
+    llm.finetune(
+        model=args.student_path,
         data=data,
         trainer=trainer,
         log=logger,
         resume=resume,
         optim=optim,
-        tokenizer=get_tokenizer(args.tokenizer) if args.tokenizer else None,
+        tokenizer=None,#get_tokenizer(args.tokenizer) if args.tokenizer else None,
+        seq_length=args.seq_length,
     )
