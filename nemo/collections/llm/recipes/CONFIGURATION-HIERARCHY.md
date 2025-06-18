@@ -43,6 +43,8 @@
   sequence_parallel: bool = False # Parallelizes layer norms and dropout sequentially
   expert_model_parallel_size: int = 1 # Distributes Moe Experts across sub data parallel dimension
   pipeline_dtype: Optional[torch.dtype] = None # dtype used in p2p communication
+  nccl_communicator_config_path: Optional[str] = None # Path to nccl communicator config yaml file
+  high_priority_stream_groups: Optional[List[str]] = None # The communicator group names to use high priority streams.
   ```
   <details open><summary>ddp: Union[DDPLiteral, <a href="https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/distributed/distributed_data_parallel_config.py">DistributedDataParallelConfig</a>] = "megatron"</summary>
   <blockquote>
