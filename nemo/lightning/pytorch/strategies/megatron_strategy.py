@@ -990,12 +990,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @property
     def sharded_state_dict_metadata(self):
-        distrib_optim_sharding_type = (
-            "fully_sharded_model_space" if self.parallel_save_optim else "dp_zero_gather_scatter"
-        )
-        return {
-            'distrib_optim_sharding_type': distrib_optim_sharding_type,
-        }
+        metadata = {}
+        if (
+            isinstance(self.ddp_config, DistributedDataParallelConfig)
+            and self.ddp_config.use_distributed_optimizer
+        ):
+            if self.parallel_save_optim:
+                metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
+            else:
+                metadata["distrib_optim_sharding_type"] = "dp_zero_gather_scatter"
+        # This ensures correct sharding logic for ChainedOptimizer:
+        metadata['chained_optim_avoid_prefix'] = True
+        return metadata
 
     def selective_restore(self) -> None:
         """Implements selective restoration of checkpoint"""
