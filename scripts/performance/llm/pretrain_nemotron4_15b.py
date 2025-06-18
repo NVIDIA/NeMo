@@ -88,6 +88,7 @@ def override_recipe_configs(
         args.wandb_prj_name,
         args.wandb_job_name,
         model_size="15B",
+        container_image=args.container_image,
     )
 
     gpu_type = args.gpu.lower()

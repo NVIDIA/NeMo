@@ -480,6 +480,7 @@ def set_exp_logging_configs(
     wandb_job_name: str,
     model_size: str = "Unknown",
     custom_prefix: str = "GSW",
+    container_image: str = "Unknown",
 ):
     """Set experiment logging configs."""
     if task == "pre_train" and domain == "llm":
@@ -501,6 +502,7 @@ def set_exp_logging_configs(
                 model_name=model_name,
                 model_size=model_size,
                 custom_prefix=custom_prefix,
+                container_image=container_image,
             )
         )
 
