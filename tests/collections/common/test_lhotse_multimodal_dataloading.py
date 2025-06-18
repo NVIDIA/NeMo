@@ -15,11 +15,12 @@ import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse.testing.dummies import dummy_recording
+from lhotse.testing.dummies import dummy_cut, dummy_recording
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.data.lhotse.sampling import (
+    DurationFilter,
     MultimodalFixedBucketBatchSizeConstraint2D,
     MultimodalSamplingConstraint,
 )
@@ -440,3 +441,47 @@ def test_multimodal_conversation_tarred_format_sharding_works(multimodal_convers
     restored = list(loader)
     assert len(restored) == 30
     assert all(c == restored[0] for c in restored[1:])
+
+
+def test_multimodal_conversation_duration_filter():
+    fltr = DurationFilter(d_min=1.0, d_max=5.0)
+
+    # Passthrough for text-only.
+    conv_text_only = NeMoMultimodalConversation(
+        id="text",
+        turns=[
+            TextTurn("abc", role="user"),
+            TextTurn("def", role="assistant"),
+        ],
+    )
+    assert fltr(conv_text_only) is True
+
+    # 1 <= 3s <= 5 -> OK
+    conv_3s = NeMoMultimodalConversation(
+        "audio-3s",
+        turns=[
+            AudioTurn(dummy_cut(0, duration=3.0), role="user", audio_locator_tag="<|audio|>"),
+            TextTurn("def", role="assistant"),
+        ],
+    )
+    assert fltr(conv_3s) is True
+
+    # 1 <= 0.5s <= 5 -> reject
+    conv_05s = NeMoMultimodalConversation(
+        "audio-05s",
+        turns=[
+            AudioTurn(dummy_cut(0, duration=0.5), role="user", audio_locator_tag="<|audio|>"),
+            TextTurn("def", role="assistant"),
+        ],
+    )
+    assert fltr(conv_05s) is False
+
+    # 1 <= 3 + 4 <= 5 -> reject
+    conv_s2s_7s = NeMoMultimodalConversation(
+        "audio-audio-7s",
+        turns=[
+            AudioTurn(dummy_cut(0, duration=3.0), role="user", audio_locator_tag="<|audio|>"),
+            AudioTurn(dummy_cut(0, duration=4.0), role="assistant", audio_locator_tag="<|audio|>"),
+        ],
+    )
+    assert fltr(conv_s2s_7s) is False
