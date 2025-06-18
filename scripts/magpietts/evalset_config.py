@@ -27,6 +27,13 @@ dataset_meta_info = {
         'audio_dir' : '/Data/RivaData/riva',
         'feature_dir' : '/Data/RivaData/riva',
     },
+    'rough_qwen': {
+        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/rough.json',
+        'audio_dir' : '/Data/RivaData/riva',
+        'feature_dir' : '/Data/RivaData/riva',
+        'tokenizer_names': ['qwen'],
+        'load_cached_codes_if_available': False,
+    },
     'riva_challenging_nozeros': {
         # 'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_nozeros.json',
         'manifest_path': '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_filtered.json',
