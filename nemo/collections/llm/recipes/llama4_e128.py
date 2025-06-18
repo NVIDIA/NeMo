@@ -391,9 +391,10 @@ def finetune_performance_optimizations(
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
+            tp_comm_overlap=True,
         )
     )
+    recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
     recipe.trainer.callbacks.append(run.Config(TimingCallback))
     recipe.trainer.callbacks.append(
         run.Config(
