@@ -87,7 +87,7 @@ class LazyNeMoIterator:
         shuffle_shards: bool = False,
         shard_seed: int | Literal["randomized", "trng"] = "trng",
         extra_fields: list[dict[str, str]] | None = None,
-        check_for_skipme: bool = True
+        check_for_skipme: bool = True,
     ) -> None:
         self.path = path
         self.shuffle_shards = shuffle_shards

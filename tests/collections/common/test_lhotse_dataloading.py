@@ -2618,7 +2618,10 @@ def test_dataloader_from_nemo_manifest_with_ignore_skipme(nemo_manifest_with_ski
     # There should be at least one cut with _skipme == True
     assert any(skipme_s)
 
-def test_dataloader_from_tarred_nemo_manifest_with_ignore_skipme(nemo_tarred_manifest_with_skipme_path: tuple[Path, str]):
+
+def test_dataloader_from_tarred_nemo_manifest_with_ignore_skipme(
+    nemo_tarred_manifest_with_skipme_path: tuple[Path, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_with_skipme_path
     config = OmegaConf.create(
         {
@@ -2645,7 +2648,10 @@ def test_dataloader_from_tarred_nemo_manifest_with_ignore_skipme(nemo_tarred_man
     # There should be at least one cut with _skipme == True
     assert any(skipme_s)
 
-def test_dataloader_from_data_input_cfg_yaml_path_with_ignore_skipme(cutset_shar_path, nemo_tarred_manifest_with_skipme_path):
+
+def test_dataloader_from_data_input_cfg_yaml_path_with_ignore_skipme(
+    cutset_shar_path, nemo_tarred_manifest_with_skipme_path
+):
     config = OmegaConf.create(
         {
             "input_cfg": [
