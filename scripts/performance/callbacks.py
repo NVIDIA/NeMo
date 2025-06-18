@@ -57,7 +57,7 @@ class LLMBTrainingStartCallback(Callback):
         if result:
             return result
         return "Unknown"
-    
+
     def _get_workload_type(self):
         """Extract WORKLOAD_TYPE from environment variables."""
         result = os.environ.get('WORKLOAD_TYPE')
@@ -71,14 +71,14 @@ class LLMBTrainingStartCallback(Callback):
         if result:
             return result
         return "Unknown"
-    
+
     def _get_fw_version(self):
         """Extract FW_VERSION from environment variables."""
         result = os.environ.get('FW_VERSION')
         if result:
             return result
         return "Unknown"
-    
+
     # must pull the name from environment variable MODEL_NAME because self.model_name is abbreviated for compatibility with other callbacks (e.g., FLOPsMeasurementCallback which is relying on a different convention)
     def _get_model_name(self):
         """Extract MODEL_NAME from environment variables."""
