@@ -48,6 +48,12 @@ class CustomTrainingStartCallback(Callback):
         full_model_name = f"{self.model_name} {self.model_size}".strip()
         slurm_job_id = self._get_slurm_job_id()
 
+        # TODO: add more info
+        # TODO: switch to using our previous format
+        # export INFO_STR="GSW: MODEL=${MODEL} FRAMEWORK=nemo2 MODEL_SIZE=${MODEL_SIZE} JOB_NUM_NODES=${SLURM_JOB_NUM_NODES} GPUS_PER_NODE=${SLURM_NTASKS_PER_NODE} DTYPE=${DTYPE} SYNTHETIC_DATA=${SYNTHETIC_DATA_ENABLED^} GSW_VERSION=${GSW_VERSION} FW_VERSION=${FW_VERSION} IMAGE=\'${IMAGE}\' JOB_ID=${SLURM_JOB_ID} JOB_MODE=training OPTIMIZATION_NAME=\'${OPTIMIZATION_NAME}\' OPTIMIZATION_CODE=\'${OPTIMIZATION_CODE}\' BASE_CONFIG=\'${BASE_CONFIG}\'"
+
+        logging.info(f"{self.custom_prefix}: MODEL={full_model_name} FRAMEWORK=nemo2 MODEL_SIZE={self.model_size} JOB_NUM_NODES={trainer.num_nodes} GPUS_PER_NODE={trainer.num_devices} DTYPE={trainer.precision} SYNTHETIC_DATA=False GSW_VERSION=0.0.0 FW_VERSION=2.3.0 IMAGE=\'${IMAGE}\' JOB_ID={slurm_job_id} JOB_MODE=training OPTIMIZATION_NAME=\'${OPTIMIZATION_NAME}\' OPTIMIZATION_CODE=\'${OPTIMIZATION_CODE}\' BASE_CONFIG=\'${BASE_CONFIG}\'")
+
         logging.info(f"{self.custom_prefix}: 🚀 {full_model_name} pre-training initiated!")
         logging.info(f"{self.custom_prefix}: SLURM Job ID: {slurm_job_id}")
         logging.info(
