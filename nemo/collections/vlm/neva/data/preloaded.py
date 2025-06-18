@@ -176,7 +176,7 @@ def process_image(processor, image, image_process_mode="square"):  # this needs 
             shortest_edge = int(min(max_len / aspect_ratio, min_len))
             image = processor.preprocess(
                 image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-            )['pixel_values'][0]
+            )['pixel_values']
         elif image_process_mode == 'pad':
 
             def expand2square(pil_img, background_color):
@@ -196,7 +196,10 @@ def process_image(processor, image, image_process_mode="square"):  # this needs 
             image = processor.preprocess(image, return_tensors='pt')['pixel_values']
         else:
             image = processor.preprocess(image, return_tensors='pt')['pixel_values']
-
+    if isinstance(image, list):
+        image = image[0]
+    if isinstance(image, np.ndarray):
+        image = torch.from_numpy(image)
     return image
 
 
