@@ -66,9 +66,7 @@ class DirArtifact(Artifact[str]):
             return value
 
         relative_dir = relative_dir / value.name
-        os.makedirs(str(absolute_dir / relative_dir), exist_ok=True)
-        for file in value.iterdir():
-            copy_file(file, absolute_dir, relative_dir)
+        shutil.copytree(str(value), str(absolute_dir / relative_dir))
         return str(relative_dir)
 
     def load(self, path: str) -> str:
