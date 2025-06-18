@@ -273,15 +273,14 @@ class HyenaMixer(MegatronModule):
         # Handle padding for FP8 if enabled
         if self.transformer_config.vortex_style_fp8:
             def pad_to_multiple(x, multiple=16):
-                batch_size, seq_len, hidden_dim = x.size()  # [B, L, D] format
+                batch_size, seq_len, hidden_dim = x.size()
                 pad_len = (multiple - (seq_len % multiple)) % multiple
                 if pad_len == 0:
                     return x
                 from torch.nn.functional import pad
                 return pad(x, (0, 0, 0, pad_len))  # Pad sequence length dimension
-
-            L = x.shape[0]  # Store original sequence length
-            x = rearrange(x, "l b d -> b l d")  # Convert to [B, L, D] for padding
+            L = x.shape[0]
+            x = rearrange(x, "l b d -> b l d")
             x = pad_to_multiple(x)
             x = rearrange(x, "b l d -> l b d")  # Convert back to [L, B, D]
             features, _ = self._maybe_use_fp8(self.dense_projection, x)
@@ -290,16 +289,17 @@ class HyenaMixer(MegatronModule):
             if features.shape[0] > L:
                 features = features[:L, :, :]
         else:
-            features, _ = self._maybe_use_fp8(self.dense_projection, x)
-
-        features = rearrange(features, "l b d -> b d l").contiguous()
-        features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
-
-        x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
-            dim=2
-        )
-
-        z = self.mixer(x1, x2, v, inference_params=inference_context)
+            features, _ = self.dense_projection(x)
+        features = rearrange(features, "l b d -> b d l").contiguous() # b d l
+        features_L_last = features #.permute(0, 2, 1)
+        features_L_last = self.hyena_proj_conv(features_L_last, _use_cp=_proj_use_cp, inference_context=inference_context)
+        features_D_last = features_L_last.permute(0, 2, 1)
+        # features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
+        # features_D_last = features_L_last.permute(0, 2, 1)
+        x1, x2, v = rearrange(
+            features_D_last, "b l (g dg p) -> b l g p dg", p=3, g=self.num_groups_per_tp_rank
+        ).unbind(dim=3)
+        z = self.mixer(x1, x2, v, inference_context=inference_context)
         z = rearrange(z, "b d l -> l b d").contiguous()
 
         y, bias = self.dense(z)
