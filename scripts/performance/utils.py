@@ -494,11 +494,11 @@ def set_exp_logging_configs(
         )
 
         # Add custom training start logging callback
-        from .callbacks import CustomTrainingStartCallback
+        from .callbacks import LLMBTrainingStartCallback
 
         recipe.trainer.callbacks.append(
             run.Config(
-                CustomTrainingStartCallback,
+                LLMBTrainingStartCallback,
                 model_name=model_name,
                 model_size=model_size,
                 custom_prefix=custom_prefix,

@@ -17,7 +17,7 @@ from lightning.pytorch.callbacks import Callback
 from nemo.utils import logging
 
 
-class CustomTrainingStartCallback(Callback):
+class LLMBTrainingStartCallback(Callback):
     """Custom callback to log a message at the very beginning of training."""
 
     def __init__(self, model_name: str = "Unknown", model_size: str = "Unknown", custom_prefix: str = "GSW", container_image: str = "Unknown"):
@@ -45,21 +45,48 @@ class CustomTrainingStartCallback(Callback):
                 return job_id
         return "Unknown"
 
+    def _get_precision(self):
+        """Extract DTYPE from environment variables."""
+        result = os.environ.get('DTYPE')
+        if result:
+            return result
+        return "Unknown"
+    
+    def _get_workload_type(self):
+        """Extract WORKLOAD_TYPE from environment variables."""
+        result = os.environ.get('WORKLOAD_TYPE')
+        if result:
+            return result
+        return "Unknown"
+
+    def _get_gsw_version(self):
+        """Extract GSW_VERSION from environment variables."""
+        result = os.environ.get('GSW_VERSION')
+        if result:
+            return result
+        return "Unknown"
+    
+    def _get_fw_version(self):
+        """Extract FW_VERSION from environment variables."""
+        result = os.environ.get('FW_VERSION')
+        if result:
+            return result
+        return "Unknown"
+    
+    # must pull the name from environment variable MODEL_NAME because self.model_name is abbreviated for compatibility with other callbacks (e.g., FLOPsMeasurementCallback which is relying on a different convention)
+    def _get_model_name(self):
+        """Extract MODEL_NAME from environment variables."""
+        result = os.environ.get('MODEL_NAME')
+        if result:
+            return result
+        return "Unknown"
+
     def on_train_start(self, trainer, pl_module):
         """Called when training starts."""
         full_model_name = f"{self.model_name} {self.model_size}".strip()
         slurm_job_id = self._get_slurm_job_id()
 
-        logging.info(f"{self.custom_prefix}: MODEL={full_model_name} FRAMEWORK=nemo2 MODEL_SIZE={self.model_size} JOB_NUM_NODES={trainer.num_nodes} GPUS_PER_NODE={trainer.num_devices} DTYPE={trainer.precision} SYNTHETIC_DATA=True GSW_VERSION=25.05.07 FW_VERSION=25.04 IMAGE='{self.container_image}' JOB_ID={slurm_job_id} JOB_MODE=pre_train OPTIMIZATION_NAME='' OPTIMIZATION_CODE='' BASE_CONFIG=''")
-
-        logging.info(f"{self.custom_prefix}: 🚀 {full_model_name} pre-training initiated!")
-        logging.info(f"{self.custom_prefix}: SLURM Job ID: {slurm_job_id}")
-        logging.info(f"{self.custom_prefix}: Container Image: {self.container_image}")
-        logging.info(
-            f"{self.custom_prefix}: Training configuration - Nodes: {trainer.num_nodes}, Devices: {trainer.num_devices}"
-        )
-        logging.info(f"{self.custom_prefix}: Model: {full_model_name}")
-        logging.info(f"{self.custom_prefix}: Precision: {trainer.precision}")
+        logging.info(f"{self.custom_prefix}: MODEL={self._get_model_name} FRAMEWORK=nemo2 MODEL_SIZE={self.model_size} JOB_NUM_NODES={trainer.num_nodes} GPUS_PER_NODE={trainer.num_devices} DTYPE={self._get_precision()} SYNTHETIC_DATA=True GSW_VERSION={self._get_gsw_version()} FW_VERSION={self._get_fw_version()} IMAGE='{self.container_image}' JOB_ID={slurm_job_id} JOB_MODE={self._get_workload_type()} OPTIMIZATION_NAME='' OPTIMIZATION_CODE='' BASE_CONFIG=''")
 
         # Log additional model information if available
         if hasattr(pl_module, 'cfg') and hasattr(pl_module.cfg, 'model'):
