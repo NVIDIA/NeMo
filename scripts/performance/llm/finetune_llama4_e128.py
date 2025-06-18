@@ -36,17 +36,6 @@ from ..utils import (
 
 HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 
-# Set this to True if checkpoint is available at 'NEMO_HOME'. If set to False,
-# extra Slurm job will be scheduled. In this case, if checkpoint is available
-# at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
-# downloaded from HuggingFace
-SKIP_IMPORT = False
-
-# Set this to True if dataset is already downloaded. If set to False,
-# dataset will be downloaded from HuggingFace
-SKIP_DATASET_DOWNLOAD = False
-
-
 
 def override_recipe_configs(
     args: str,
@@ -72,8 +61,8 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
+    assert args.finetuning == "sft", "Only SFT (Supervised Fine-Tuning) is supported"
     finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
-    #assert finetuning_scheme != "lora"
 
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, packed_sequence=True)
 
@@ -191,19 +180,29 @@ if __name__ == "__main__":
     )
 
     with run.Experiment(exp_name) as exp:
-        if not SKIP_IMPORT:
+        if args.skip_import_checkpoint is not True:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
-        if not SKIP_DATASET_DOWNLOAD:    
-            exp.add(*prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096))
-        
-        exp.add(
-            recipe,
-            executor=executor,
-            name=exp_name,
-            plugins=plugins,
-        )
-        if not args.dryrun:
             exp.run(sequential=True, detach=True)
-        else:
-            exp.dryrun()
+
+        if args.skip_dataset_download is not True:
+            exp.add(
+                *prepare_squad_dataset_experiment(
+                    executor,
+                    HF_MODEL_URI,
+                    seq_length=4096,
+                )
+            )
+            exp.run(sequential=True, detach=True)
+
+        if args.skip_finetuning is not True:
+            exp.add(
+                recipe,
+                executor=executor,
+                name=exp_name,
+                plugins=plugins,
+            )
+            if not args.dryrun:
+                exp.run(sequential=True, detach=True)
+            else:
+                exp.dryrun()
