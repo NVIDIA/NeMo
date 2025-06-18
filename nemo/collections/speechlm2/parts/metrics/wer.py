@@ -13,16 +13,16 @@
 # limitations under the License.
 from collections import defaultdict
 
-import sacrebleu
 import torch
 from whisper_normalizer.english import EnglishTextNormalizer
 
+from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.utils import logging
 
 
-class BLEU:
+class WER:
     """
-    Computes BLEU scores on text predictions.
+    Computes WER on text predictions.
     By default, uses Whisper's EnglishTextNormalizer on hypotheses and references.
     """
 
@@ -48,16 +48,15 @@ class BLEU:
         for ref, hyp in zip(refs, hyps):
             self._refs[name].append(self.normalizer(ref))
             self._hyps[name].append(self.normalizer(hyp))
-            if self.verbose:
-                asrb = sacrebleu.sentence_bleu(hyp, [ref]).score
-                logging.info(f"[REF]\t{ref}\n[HYP]\t{hyp} [{asrb:.2f}]")
+        if self.verbose and refs and hyps:
+            logging.info(f"[REF]\t{refs[0]}\n[HYP]\t{hyps[0]}")
 
     def compute(self) -> dict[str, torch.Tensor]:
         corpus_metric = {}
         for name in self._refs.keys():
-            metric = torch.tensor(sacrebleu.corpus_bleu(self._hyps[name], [self._refs[name]]).score)
-            corpus_metric[f"txt_bleu_{name}"] = metric
-        corpus_metric["txt_bleu"] = torch.stack(list(corpus_metric.values())).mean()
+            metric = torch.tensor(word_error_rate(self._hyps[name], self._refs[name]))
+            corpus_metric[f"wer_{name}"] = metric
+        corpus_metric["wer"] = torch.stack(list(corpus_metric.values())).mean()
         self.reset()
         return corpus_metric
 
