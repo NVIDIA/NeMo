@@ -198,6 +198,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "max_open_streams": config.get("max_open_streams", None),
         "token_equivalent_duration": config.get("token_equivalent_duration", None),
         "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
+        "check_for_skipme": config.get("check_for_skipme", True),
         "force_map_dataset": config.get("force_map_dataset", False),
         "force_iterable_dataset": config.get("force_iterable_dataset", False),
     }
@@ -586,13 +587,21 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                     config.manifest_filepath,
                     tar_paths=config.tarred_audio_filepaths,
                     skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
+                    check_for_skipme=config.get("check_for_skipme", True),
                     **common_kwargs,
                 )
             )
             if not force_finite:
                 cuts = cuts.repeat()
         else:
-            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
+            cuts = CutSet(
+                LazyNeMoIterator(
+                    config.manifest_filepath,
+                    check_for_skipme=config.get("check_for_skipme", True),
+                    **notar_kwargs,
+                    **common_kwargs,
+                )
+            )
     else:
         # Format option 1:
         #   Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
@@ -629,11 +638,17 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                 nemo_iter = LazyNeMoTarredIterator(
                     manifest_path=manifest_path,
                     tar_paths=tar_path,
+                    check_for_skipme=config.get("check_for_skipme", True),
                     skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
                     **common_kwargs,
                 )
             else:
-                nemo_iter = LazyNeMoIterator(manifest_path, **notar_kwargs, **common_kwargs)
+                nemo_iter = LazyNeMoIterator(
+                    manifest_path,
+                    check_for_skipme=config.get("check_for_skipme", True),
+                    **notar_kwargs,
+                    **common_kwargs,
+                )
             # Then, determine the weight or use one provided
             if isinstance(manifest_info, str) or len(manifest_info) == 1:
                 weight = len(nemo_iter)
