@@ -25,6 +25,7 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.utils import logging
 
 from ..argument_parser import parse_cli_args
 from ..utils import (
@@ -85,7 +86,8 @@ def override_recipe_configs(
         load_checkpoint_path=args.checkpoint_load_path,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name,  model_size="340b",
+        container_image=args.container_image,
     )
 
     gpu_type = args.gpu.lower()

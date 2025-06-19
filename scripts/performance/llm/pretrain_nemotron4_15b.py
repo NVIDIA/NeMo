@@ -87,7 +87,7 @@ def override_recipe_configs(
         args.wandb,
         args.wandb_prj_name,
         args.wandb_job_name,
-        model_size="15B",
+        model_size="15b",
         container_image=args.container_image,
     )
 
