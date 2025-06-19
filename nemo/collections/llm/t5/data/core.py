@@ -19,8 +19,8 @@ from typing import Optional
 import numpy as np
 import torch
 from datasets import load_dataset
+from megatron.core.tokenizers import MegatronTokenizerBase
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import _JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
@@ -37,7 +37,7 @@ def get_dataset_root(name: str) -> Path:
 
 def create_sft_dataset(
     path: Path,
-    tokenizer: "TokenizerSpec",
+    tokenizer: "MegatronTokenizerBase",
     seq_length: int = 512,
     seq_length_dec: int = 128,
     add_bos: bool = True,
@@ -74,8 +74,8 @@ class T5SFTDataset(Dataset):
     def __init__(
         self,
         file_path: str,
-        src_tokenizer: TokenizerSpec,
-        tgt_tokenizer: TokenizerSpec,
+        src_tokenizer: MegatronTokenizerBase,
+        tgt_tokenizer: MegatronTokenizerBase,
         max_src_seq_length: int,
         max_tgt_seq_length: int,
         add_bos_to_input: bool = True,
@@ -94,7 +94,9 @@ class T5SFTDataset(Dataset):
         super().__init__()
         self.file_path = file_path
         self.src_tokenizer = src_tokenizer
+        self.legacy_src_tokenizer = not isinstance(self.src_tokenizer, MegatronTokenizerBase)
         self.tgt_tokenizer = tgt_tokenizer
+        self.legacy_tgt_tokenizer = not isinstance(self.tgt_tokenizer, MegatronTokenizerBase)
         self.max_src_seq_length = max_src_seq_length
         self.max_tgt_seq_length = max_tgt_seq_length
         self.add_bos_to_input = add_bos_to_input
@@ -121,7 +123,10 @@ class T5SFTDataset(Dataset):
             )
 
     def _process_src(self, src):
-        src = self.src_tokenizer.text_to_ids(src.strip())
+        if self.legacy_src_tokenizer:
+            src = self.src_tokenizer.text_to_ids(src.strip())
+        else:
+            src = self.src_tokenizer.tokenize(src.strip())
         if self.add_bos_to_input:
             src = [self.src_tokenizer.pad_id if self.replace_bos_with_pad else self.src_tokenizer.bos_id] + src
         if self.add_eos_to_input:
@@ -131,9 +136,13 @@ class T5SFTDataset(Dataset):
         return src
 
     def _process_tgt(self, tgt):
+        if self.legacy_tgt_tokenizer:
+            tokenized = self.tgt_tokenizer.text_to_ids(tgt.strip())
+        else:
+            tokenized = self.tgt_tokenizer.tokenize(tgt.strip())
         tgt = (
             [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
-            + self.tgt_tokenizer.text_to_ids(tgt.strip())
+            + tokenized
             + [self.tgt_tokenizer.eos_id]
         )
         if len(tgt) > self.max_tgt_seq_length:
@@ -172,7 +181,7 @@ class T5SFTDataset(Dataset):
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
         text_enc = [item + [self.src_tokenizer.pad_id] * (max_enc_input_length - len(item)) for item in text_enc]
         text_dec = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in text_dec]
-        labels = [item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
+        labels = [item + [self.tgt_tokenizer.pad]_id * (max_label_length - len(item)) for item in labels]
 
         text_enc = torch.LongTensor(text_enc)
         text_dec = torch.LongTensor(text_dec)

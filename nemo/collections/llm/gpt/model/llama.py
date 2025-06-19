@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, List, Optional
 import torch
 import torch.nn.functional as F
 import yaml
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
@@ -47,9 +48,6 @@ if TYPE_CHECKING:
     from peft import AutoPeftModelForCausalLM, PeftConfig
     from transformers import LlamaConfig as HFLlamaConfig
     from transformers import LlamaForCausalLM
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 # Note: these Llama configs are copied from the corresponding HF model. You may need to modify the parameter for
@@ -448,7 +446,7 @@ class LlamaModel(GPTModel):
         self,
         config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
         model_context_managers: Optional[List] = [],
     ):
@@ -475,7 +473,7 @@ class MLPerfLoRALlamaModel(LlamaModel):
         self,
         config: Annotated[Optional[LlamaConfig], Config[LlamaConfig]] = None,
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         # Apply context manager to reduce memory by avoiding unnecessary gradients
@@ -642,15 +640,19 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
-    def tokenizer(self) -> "AutoTokenizer":
-        """Get the tokenizer for the HF model.
+    def tokenizer(self) -> "MegatronTokenizerBase":
+        """
+        Get the tokenizer for the HF model.
 
         Returns:
-            AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
+            MegatronTokenizerBase: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from megatron.core.tokenizers import MegatronTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
+        return MegatronTokenizer.from_pretrained(
+            tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+            metadata_path={"library": "huggingface"},
+        )
 
     def _modify_llama4_source_state(self, source: nn.Module) -> _ModelState:
         """
@@ -932,11 +934,11 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
         )
 
     @property
-    def tokenizer(self) -> "TokenizerSpec":
+    def tokenizer(self) -> "MegatronTokenizerBase":
         """Get the tokenizer from the NeMo model.
 
         Returns:
-            TokenizerSpec: Tokenizer from the NeMo model
+            MegatronTokenizerBase: Tokenizer from the NeMo model
         """
         return io.load_context(str(self), subpath="model").tokenizer
 
