@@ -182,7 +182,10 @@ def run_inference(
         "".join([str(l) for l in fixed_schedule_n_unmasked]) if fixed_schedule_n_unmasked is not None else "None"
     )
     dataset_meta_info = evalset_config.dataset_meta_info
+    ssim_per_dataset = []
+    cer_per_dataset = []
     for dataset in datasets:
+        print(f"Evaluating dataset {dataset}")
         metrics_n_repeated = []
         manifest_records = read_manifest(dataset_meta_info[dataset]['manifest_path'])
         for repeat_idx in range(num_repeats):
@@ -353,13 +356,18 @@ def run_inference(
         
 
         measurements = [m['ssim_pred_context_avg'] for m in metrics_n_repeated]
-        ssim = np.mean(measurements)
+        ssim_current = np.mean(measurements)
+        ssim_per_dataset.append(ssim_current)
         measurements = [m['cer_cumulative'] for m in metrics_n_repeated]
-        cer = np.mean(measurements)
+        cer_current = np.mean(measurements)
+        cer_per_dataset.append(cer_current)
 
-        if clean_up_disk:
-            shutil.rmtree(out_dir)
-        return cer, ssim
+    # Average across datasets
+    ssim = np.mean(ssim_per_dataset)
+    cer = np.mean(cer_per_dataset)
+    if clean_up_disk:
+        shutil.rmtree(out_dir)
+    return cer, ssim
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
