@@ -81,11 +81,11 @@ trt() {
       bash docker/common/install_ccache.sh
 
       . docker/common/install_tensorrt.sh \
-        --TRT_VER="10.9.0.34" \
-        --CUDA_VER="12.8" \
-        --CUDNN_VER="9.8.0.87-1" \
-        --NCCL_VER="2.25.1-1+cuda12.8" \
-        --CUBLAS_VER="12.8.4.1-1"
+        --TRT_VER="10.10.0.31" \
+        --CUDA_VER="12.9" \
+        --CUDNN_VER="9.9.0.52-1" \
+        --NCCL_VER="2.26.5-1+cuda12.9" \
+        --CUBLAS_VER="12.9.0.13-1"
       set -u
     fi
   fi
@@ -167,7 +167,6 @@ te() {
   fi
   pushd $TE_DIR
   git checkout -f $TE_TAG
-  patch -p1 </$CURR/external/patches/nemo_2.3.0_te.patch
   popd
 
   build() {
@@ -175,7 +174,7 @@ te() {
       cd $TE_DIR
       git submodule init
       git submodule update
-      pip wheel --wheel-dir $WHEELS_DIR/ $TE_DIR
+      pip wheel --wheel-dir $WHEELS_DIR/  --no-build-isolation $TE_DIR
     fi
   }
 
@@ -307,11 +306,6 @@ extra() {
     DEPS+=(
       "git+https://github.com/NVIDIA/nvidia-resiliency-ext.git@b6eb61dbf9fe272b1a943b1b0d9efdde99df0737 ; platform_machine == 'x86_64'" # Compiling NvRX requires CUDA
     )
-  fi
-  if [[ "${NVIDIA_PYTORCH_VERSION}" != "" ]]; then
-    patch \
-      /usr/local/lib/python3.12/dist-packages/torch/accelerator/__init__.py \
-      /$CURR/external/patches/torch_accelerator_144567_fix.patch
   fi
 
   if [[ "$mode" == "install" ]]; then
