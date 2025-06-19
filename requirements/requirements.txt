@@ -1,4 +1,4 @@
-fsspec==2024.12.0
+fsspec
 huggingface_hub>=0.24
 numba
 numpy>=1.22
