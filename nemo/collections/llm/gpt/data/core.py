@@ -210,6 +210,7 @@ class GPTSFTDataset(Dataset):
         sanity_check_dist_workers (bool): if true, will run sanity check across workers when making mapping.
         """
         self.tokenizer = tokenizer
+        self.legacy_tokenizer = not isinstance(self.tokenizer, MegatronTokenizerBase)
         self.file_path = file_path
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -524,7 +525,10 @@ class GPTSFTDataset(Dataset):
                     raise e
 
         template_strings, template_strings_keys = self._separate_template(prompt_template_values)
-        template_ids = [self.tokenizer.tokenize(s) for s in template_strings]
+        if self.legacy_tokenizer:
+            template_ids = [self.tokenizer.text_to_ids(s) for s in template_strings]
+        else:
+            template_ids = [self.tokenizer.tokenize(s) for s in template_strings]
         context_ids, answer_ids = self._multiple_truncation(template_ids, template_strings_keys)
 
         if self.virtual_tokens:
@@ -534,7 +538,7 @@ class GPTSFTDataset(Dataset):
 
         # Adds bos token in the start
         if self.add_bos:
-            context_ids = [self.tokenizer.bos] + context_ids
+            context_ids = [self.tokenizer.bos_id] + context_ids
 
         # Adds sep token between text/prompt and answer
         if self.add_sep:
@@ -1021,16 +1025,28 @@ class GPTSFTChatDataset(GPTSFTDataset):
         LABEL_START = self.special_tokens['label_start']
         END_NAME_SIGNAL = self.special_tokens['end_of_name']
 
-        id1 = self.tokenizer.tokenize(PREFIX_STR)
-        id2 = self.tokenizer.tokenize(PREFIX_STR + LABEL_START)
+        if self.legacy_tokenizer:
+            id1 = self.tokenizer.text_to_ids(PREFIX_STR)
+            id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
+        else:
+            id1 = self.tokenizer.tokenize(PREFIX_STR)
+            id2 = self.tokenizer.tokenize(PREFIX_STR + LABEL_START)
         self.label_start_tokens = id2[len(id1) :]
 
-        id1 = self.tokenizer.tokenize(PREFIX_STR + END_NAME_SIGNAL)
-        id2 = self.tokenizer.tokenize(PREFIX_STR)
+        if self.legacy_tokenizer:
+            id1 = self.tokenizer.text_to_ids(PREFIX_STR + END_NAME_SIGNAL)
+            id2 = self.tokenizer.text_to_ids(PREFIX_STR)
+        else:
+            id1 = self.tokenizer.tokenize(PREFIX_STR + END_NAME_SIGNAL)
+            id2 = self.tokenizer.tokenize(PREFIX_STR)
         self.name_end_token_ids = id1[len(id2) :]
 
-        id1 = self.tokenizer.tokenize(PREFIX_STR + self.special_tokens['turn_start'])
-        id2 = self.tokenizer.tokenize(PREFIX_STR)
+        if self.legacy_tokenizer:
+            id1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
+            id2 = self.tokenizer.text_to_ids(PREFIX_STR)
+        else:
+            id1 = self.tokenizer.tokenize(PREFIX_STR + self.special_tokens['turn_start'])
+            id2 = self.tokenizer.tokenize(PREFIX_STR)
         self.num_turn_start_tokens = len(id1) - len(id2)
 
     def _process_example(self, example):

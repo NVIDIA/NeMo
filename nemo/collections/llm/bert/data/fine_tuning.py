@@ -73,6 +73,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.seed = seed
         self.dataset_root = Path(dataset_root)
         self.tokenizer = tokenizer
+        self.legacy_tokenizer = not isinstance(self.tokenizer, MegatronTokenizerBase)
         self.memmap_workers = memmap_workers
         self.num_workers = num_workers
         self.pin_memory = pin_memory

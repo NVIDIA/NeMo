@@ -94,7 +94,9 @@ class T5SFTDataset(Dataset):
         super().__init__()
         self.file_path = file_path
         self.src_tokenizer = src_tokenizer
+        self.legacy_src_tokenizer = not isinstance(self.src_tokenizer, MegatronTokenizerBase)
         self.tgt_tokenizer = tgt_tokenizer
+        self.legacy_tgt_tokenizer = not isinstance(self.tgt_tokenizer, MegatronTokenizerBase)
         self.max_src_seq_length = max_src_seq_length
         self.max_tgt_seq_length = max_tgt_seq_length
         self.add_bos_to_input = add_bos_to_input
@@ -121,9 +123,12 @@ class T5SFTDataset(Dataset):
             )
 
     def _process_src(self, src):
-        src = self.src_tokenizer.tokenize(src.strip())
+        if self.legacy_src_tokenizer:
+            src = self.src_tokenizer.text_to_ids(src.strip())
+        else:
+            src = self.src_tokenizer.tokenize(src.strip())
         if self.add_bos_to_input:
-            src = [self.src_tokenizer.pad if self.replace_bos_with_pad else self.src_tokenizer.bos] + src
+            src = [self.src_tokenizer.pad_id if self.replace_bos_with_pad else self.src_tokenizer.bos_id] + src
         if self.add_eos_to_input:
             src = src + [self.src_tokenizer.eos_id]
         if len(src) > self.max_src_seq_length:
@@ -131,9 +136,13 @@ class T5SFTDataset(Dataset):
         return src
 
     def _process_tgt(self, tgt):
+        if self.legacy_tgt_tokenizer:
+            tokenized = self.tgt_tokenizer.text_to_ids(tgt.strip())
+        else:
+            tokenized = self.tgt_tokenizer.tokenize(tgt.strip())
         tgt = (
-            [self.tgt_tokenizer.pad if self.replace_bos_with_pad else self.tgt_tokenizer.bos]
-            + self.tgt_tokenizer.tokenize(tgt.strip())
+            [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
+            + tokenized
             + [self.tgt_tokenizer.eos_id]
         )
         if len(tgt) > self.max_tgt_seq_length:
@@ -170,17 +179,17 @@ class T5SFTDataset(Dataset):
         max_label_length = max([len(item) for item in labels]) if labels else 0
 
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
-        text_enc = [item + [self.src_tokenizer.pad] * (max_enc_input_length - len(item)) for item in text_enc]
-        text_dec = [item + [self.tgt_tokenizer.pad] * (max_dec_input_length - len(item)) for item in text_dec]
-        labels = [item + [self.tgt_tokenizer.pad] * (max_label_length - len(item)) for item in labels]
+        text_enc = [item + [self.src_tokenizer.pad_id] * (max_enc_input_length - len(item)) for item in text_enc]
+        text_dec = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in text_dec]
+        labels = [item + [self.tgt_tokenizer.pad]_id * (max_label_length - len(item)) for item in labels]
 
         text_enc = torch.LongTensor(text_enc)
         text_dec = torch.LongTensor(text_dec)
         labels = torch.LongTensor(labels)
         loss_mask = torch.LongTensor(loss_mask)
 
-        enc_mask = (text_enc != self.src_tokenizer.pad).long()
-        dec_mask = (text_dec != self.tgt_tokenizer.pad).long()
+        enc_mask = (text_enc != self.src_tokenizer.pad_id).long()
+        dec_mask = (text_dec != self.tgt_tokenizer.pad_id).long()
 
         return {
             'text_enc': text_enc,

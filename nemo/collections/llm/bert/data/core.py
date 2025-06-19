@@ -119,6 +119,7 @@ class BertEmbeddingDataset(Dataset):
         """
         # TODO: lot of copy-paste from GPTSFDDataset, should refactor both to use a common base class (@adithyare)
         self.tokenizer = tokenizer
+        self.legacy_tokenizer = not isinstance(self.tokenizer, MegatronTokenizerBase)
         self.file_path = file_path
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -129,7 +130,7 @@ class BertEmbeddingDataset(Dataset):
         self.index_mapping_dir = index_mapping_dir
         self.virtual_tokens = virtual_tokens
         self.truncation_method = truncation_method
-        self.pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eos_id
+        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id else self.tokenizer.eos_id
         self.negative_sample_strategy = negative_sample_strategy
         assert (
             truncation_method == 'left' or truncation_method == 'right'
@@ -230,8 +231,12 @@ class BertEmbeddingDataset(Dataset):
 
         metadata = {k: v for k, v in example.items()}
         if self.data_type == 'train':
-            q = self.tokenizer.tokenize("query: " + example['query'].strip())
-            d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
+            if self.legacy_tokenizer:
+                q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+                d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            else:
+                q = self.tokenizer.tokenize("query: " + example['query'].strip())
+                d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
             # handle cases where the required number of hard negatives are not present
             if len(example['neg_doc']) < self.num_hard_negatives:
                 nd = example['neg_doc']
@@ -246,15 +251,24 @@ class BertEmbeddingDataset(Dataset):
                     # Choose the first self.num_hard_negatives samples
                     nd = example['neg_doc'][: self.num_hard_negatives]
             assert len(nd) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
-            nd = [self.tokenizer.tokenize("passage: " + ex.strip()) for ex in nd]
+            if self.legacy_tokenizer:
+                nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
+            else:
+                nd = [self.tokenizer.tokenize("passage: " + ex.strip()) for ex in nd]
 
         elif self.data_type == 'query':
-            q = self.tokenizer.tokenize("query: " + example['query'].strip())
+            if self.legacy_tokenizer:
+                q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+            else:
+                q = self.tokenizer.tokenize("query: " + example['query'].strip())
             d, nd = None, None
             assert "query_id" in example, "query_id is required for query dataset"
             assert "doc_id" in example, "doc_id is required for query dataset"
         elif self.data_type == 'doc':
-            d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
+            if self.legacy_tokenizer:
+                d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            else:
+                d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
             assert "doc_id" in example, "doc_id is required for doc dataset"
             q, nd = None, None
         else:
@@ -272,9 +286,9 @@ class BertEmbeddingDataset(Dataset):
             nd = [[self.tokenizer.eos_id] * self.virtual_tokens + n for n in nd]  # type: ignore
 
         if self.add_bos:
-            q = [self.tokenizer.bos] + q  # type: ignore
-            d = [self.tokenizer.bos] + d  # type: ignore
-            nd = [[self.tokenizer.bos] + n for n in nd]  # type: ignore
+            q = [self.tokenizer.bos_id] + q  # type: ignore
+            d = [self.tokenizer.bos_id] + d  # type: ignore
+            nd = [[self.tokenizer.bos_id] + n for n in nd]  # type: ignore
 
         # TODO: (@adithyare) should probably add a warning before truncation
         q = q[: self.max_seq_length - 1]
