@@ -81,7 +81,7 @@ def slurm_executor(
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
-    numa_bind_factor = int(num_gpus_per_node / 2)
+    numa_bind_factor = max(1, int(num_gpus_per_node / 2))  # Ensure at least 1 to avoid division by zero
     srun_args = [
         "--mpi=pmix",
     ]
