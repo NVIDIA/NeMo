@@ -133,15 +133,14 @@ if __name__ == "__main__":
         activation_offload_layers,
     ) = kwargs[0:15]
 
-    exp_config = (
-        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
-    )
-    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-
     # Only configure recipe if finetuning will actually run
     recipe = None
     custom_env_vars = {}
     if args.skip_finetuning is not True:
+        exp_config = (
+            f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
+        )
+        exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
         recipe = override_recipe_configs(
             args,
             num_nodes,
@@ -187,6 +186,17 @@ if __name__ == "__main__":
                 "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
                 "NCCL_DEBUG": "INFO",
             }
+    else:
+        # If finetuning is skipped, set exp_name based on what operations will be performed
+        exp_config = ""
+        if args.skip_dataset_download is not True:
+            exp_config = "dataset_download"
+        if args.skip_import_checkpoint is not True:
+            if exp_config:
+                exp_config += "_import_checkpoint"
+            else:
+                exp_config = "import_checkpoint"
+        exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
         args.account,
