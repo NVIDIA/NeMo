@@ -15,11 +15,12 @@
 from os.path import basename, splitext
 
 import nemo_run as run
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
-
+import os
 from ..argument_parser import parse_cli_args
 from ..utils import (
     args_sanity_check,
@@ -28,10 +29,10 @@ from ..utils import (
     hf_tokenizer,
     import_ckpt_experiment,
     isfile_train_pack_metadata,
+    prepare_squad_dataset_experiment,
     set_exp_logging_configs,
     set_primary_perf_configs,
     slurm_executor,
-    prepare_squad_dataset_experiment,
 )
 
 HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
@@ -91,13 +92,18 @@ def override_recipe_configs(
     )
 
     recipe = set_exp_logging_configs(
-        recipe, finetuning_scheme, "llm", "llama4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        finetuning_scheme,
+        "llm",
+        "llama4",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
 
-
     # data module configs
-    if args.use_hf_tokenizer:
-        recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
 
     # Compute dtype configs
     if args.compute_dtype.lower() == "fp8":
@@ -109,6 +115,7 @@ def override_recipe_configs(
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
     return recipe
+
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
@@ -137,9 +144,7 @@ if __name__ == "__main__":
     recipe = None
     custom_env_vars = {}
     if args.skip_finetuning is not True:
-        exp_config = (
-            f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
-        )
+        exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
         exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
         recipe = override_recipe_configs(
             args,
@@ -160,10 +165,10 @@ if __name__ == "__main__":
             activation_offload_layers,
         )
         plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            PerfEnvPlugin(
+                enable_vboost=True,
+                nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+                gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
             )
         ]
 
@@ -186,6 +191,21 @@ if __name__ == "__main__":
                 "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
                 "NCCL_DEBUG": "INFO",
             }
+        executor = slurm_executor(
+            args.account,
+            args.partition,
+            args.log_dir,
+            num_nodes,
+            args.gpus_per_node,
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars=custom_env_vars,
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+        )
+
     else:
         # If finetuning is skipped, set exp_name based on what operations will be performed
         exp_config = ""
@@ -197,21 +217,21 @@ if __name__ == "__main__":
             else:
                 exp_config = "import_checkpoint"
         exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-
-    executor = slurm_executor(
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars=custom_env_vars,
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-    )
+        
+        executor = slurm_executor(
+            args.account,
+            args.partition,
+            args.log_dir,
+            1,  # Single node for setup tasks
+            1,  # Single GPU for setup tasks  
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars=custom_env_vars,
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+        )
 
     with run.Experiment(exp_name) as exp:
         if args.skip_import_checkpoint is not True:
@@ -234,7 +254,7 @@ if __name__ == "__main__":
                 name=exp_name,
                 plugins=plugins,
             )
-
+        
         if not args.dryrun:
             exp.run(sequential=True, detach=True)
         else:
