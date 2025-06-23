@@ -62,7 +62,7 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     assert args.finetuning == "sft", "Only SFT (Supervised Fine-Tuning) is supported"
-    finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
+    finetuning_scheme = "sft" if args.finetuning == "sft" else args.finetuning
 
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, packed_sequence=True)
 
@@ -133,36 +133,60 @@ if __name__ == "__main__":
         activation_offload_layers,
     ) = kwargs[0:15]
 
-    recipe = override_recipe_configs(
-        args,
-        num_nodes,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-        num_layers,
-        hidden_size,
-        etp_size,
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
-    )
     exp_config = (
         f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    plugins = [
+    # Only configure recipe if finetuning will actually run
+    recipe = None
+    custom_env_vars = {}
+    if args.skip_finetuning is not True:
+        recipe = override_recipe_configs(
+            args,
+            num_nodes,
+            mbs,
+            gbs,
+            tp_size,
+            pp_size,
+            cp_size,
+            vp_size,
+            ep_size,
+            num_layers,
+            hidden_size,
+            etp_size,
+            enable_cuda_graphs,
+            use_mcore_fsdp,
+            recompute_layers,
+            activation_offload_layers,
+        )
+        plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        )
-    ]
+            )
+        ]
+
+        if args.gpu.lower() == 'gb200':
+            custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
+        if args.enable_nsys:
+            plugins.append(
+                NsysPlugin(
+                    start_step=args.profiling_start_step,
+                    end_step=args.profiling_stop_step,
+                    ranks=list(range(num_nodes * args.gpus_per_node)),
+                    nsys_gpu_metrics=args.profiling_gpu_metrics,
+                )
+            )
+            # nsys takes precedent over ncclttrace
+        elif args.enable_nccltrace:
+            exp_name = exp_name + "_nccltrace"
+            custom_env_vars |= {
+                "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+                "NCCL_DEBUG": "INFO",
+            }
 
     executor = slurm_executor(
         args.account,
@@ -173,7 +197,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=custom_env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
@@ -183,7 +207,6 @@ if __name__ == "__main__":
         if args.skip_import_checkpoint is not True:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
-            exp.run(sequential=True, detach=True)
 
         if args.skip_dataset_download is not True:
             exp.add(
@@ -193,7 +216,6 @@ if __name__ == "__main__":
                     seq_length=4096,
                 )
             )
-            exp.run(sequential=True, detach=True)
 
         if args.skip_finetuning is not True:
             exp.add(
@@ -202,7 +224,8 @@ if __name__ == "__main__":
                 name=exp_name,
                 plugins=plugins,
             )
-            if not args.dryrun:
-                exp.run(sequential=True, detach=True)
-            else:
-                exp.dryrun()
+
+        if not args.dryrun:
+            exp.run(sequential=True, detach=True)
+        else:
+            exp.dryrun()
