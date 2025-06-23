@@ -13,17 +13,17 @@
 # limitations under the License.
 
 import argparse
+import csv
+import io
 import json
+import os
 import random
 import tarfile
-import os
-import io
-import csv
+import urllib.request
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from datasets import load_dataset
-import urllib.request
-from pathlib import Path
 
 random.seed(42)
 
@@ -87,6 +87,7 @@ subcategories = {
     "world_religions": ["philosophy"],
 }
 
+
 def process_mmlu_dataset(split) -> List[Dict[str, Any]]:
     """Process the MMLU dataset and return a list of formatted entries."""
     data_url = "https://people.eecs.berkeley.edu/~hendrycks/data.tar"
@@ -97,7 +98,7 @@ def process_mmlu_dataset(split) -> List[Dict[str, Any]]:
 
     urllib.request.urlretrieve(data_url, data_file)
     result = {}
-    
+
     column_names = ["question", "A", "B", "C", "D", "expected_answer"]
 
     with tarfile.open(data_file, 'r') as tar:
@@ -105,8 +106,10 @@ def process_mmlu_dataset(split) -> List[Dict[str, Any]]:
         members = tar.getmembers()
 
         # Filter for CSV files in the 'data/test' directory
-        csv_files = [member for member in members if member.name.startswith(f'data/{split}/') and member.name.endswith('.csv')]
-        
+        csv_files = [
+            member for member in members if member.name.startswith(f'data/{split}/') and member.name.endswith('.csv')
+        ]
+
         for csv_file in csv_files:
             # Extract the file name without the path
             file_name = os.path.basename(csv_file.name)
@@ -130,16 +133,17 @@ def process_mmlu_dataset(split) -> List[Dict[str, Any]]:
 
                 # Add to result dictionary
                 result[file_name.rsplit('_', 1)[0]] = csv_data
-    
+
     # Define the allowed supercategories
     chosen_subcategories = {"math", "health", "physics", "biology", "chemistry", "computer science", "engineering"}
 
     # Filter the result dictionary
     filtered_result = {
-        k: v for k, v in result.items()
+        k: v
+        for k, v in result.items()
         if any(supercat in chosen_subcategories for supercat in subcategories.get(k, []))
     }
-    
+
     output_data = []
     skipped = 0
 
@@ -169,6 +173,7 @@ def process_mmlu_dataset(split) -> List[Dict[str, Any]]:
             output_data.append(entry)
 
     return output_data, skipped
+
 
 def process_gpqa_dataset() -> List[Dict[str, Any]]:
     """Process the GPQA dataset and return a list of formatted entries."""
