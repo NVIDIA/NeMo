@@ -30,6 +30,7 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
 
+
 NAME = "hf_auto_model_for_causal_lm"
 
 
@@ -185,6 +186,7 @@ def finetune_recipe(
     trust_remote_code: bool = False,
     attn_implementation: str = 'sdpa',
     use_linear_ce_loss: bool = True,
+    freeze_modules: Optional[dict] = None,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
@@ -215,6 +217,9 @@ def finetune_recipe(
     Note:
         This recipe uses the SQuAD dataset for fine-tuning.
     """
+    callback = [run.Config(TimingCallback)]
+    if freeze_modules is not None:
+        callbacks.append(run.Config(LayerFreezer, freeze_modules))
     recipe = run.Partial(
         finetune,
         model=model(
@@ -228,7 +233,7 @@ def finetune_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             max_steps=max_steps,
-            callbacks=[run.Config(TimingCallback)],
+            callbacks=callbacks,
         ),
         data=run.Config(
             SquadHFDataModule,
