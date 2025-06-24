@@ -991,10 +991,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     def sharded_state_dict_metadata(self):
         metadata = {}
-        if (
-            isinstance(self.ddp_config, DistributedDataParallelConfig)
-            and self.ddp_config.use_distributed_optimizer
-        ):
+        if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer:
             if self.parallel_save_optim:
                 metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
             else:
