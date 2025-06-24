@@ -22,7 +22,6 @@ from time import time
 from typing import List
 
 import tensorrt as trt
-import tensorrt_llm
 import torch
 import yaml
 from omegaconf import OmegaConf
