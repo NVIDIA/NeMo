@@ -81,7 +81,7 @@ class LoRALinearSplitQKV(AdapterWrapper):
         qkv_4d = torch.cat([query_4d, key_4d, value_4d], dim=2)
         adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
 
-        return linear_output + adapter_output, bias
+        return linear_output + adapter_output.reshape(linear_output.shape), bias
 
 
 class LoRALinearSplitFC1UpGate(AdapterWrapper):
