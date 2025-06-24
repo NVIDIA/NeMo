@@ -17,6 +17,7 @@ import math
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo.lightning.io.mixin import IOMixin
+ScheduleValue = Union[int, List[int], Tuple[int, int]]  # -1, N, [start, end], [start, -1]
 
 
 def _resolve_attr(root, path: str):
@@ -28,7 +29,7 @@ def _resolve_attr(root, path: str):
         m = getattr(m, part)
     return m
 
-def make_start_end(spec: Union[int, list[int]]):
+def make_start_end(name, spec: Union[int, list[int]]):
     start, end = 0, 0
     # Normalize to (start, end) where end==inf means “forever”
     if isinstance(spec, int):
@@ -86,7 +87,7 @@ class LayerFreezer(Callback, IOMixin):
         self.frozen_state: Dict[str, bool] = {}  # last applied state
 
         for name, spec in schedule.items():
-            self.schedule[name] = make_start_end(spec)
+            self.schedule[name] = make_start_end(name, spec)
 
     # --------------------------------------------------------------------- #
     # internal helpers
