@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
+import torch.nn as nn
 import torch.distributed as dist
 from lightning import LightningModule
+from lhotse.dataset.collation import collate_vectors
 from omegaconf import DictConfig, OmegaConf
 from collections import defaultdict
 import os
@@ -43,12 +45,42 @@ from nemo.collections.speechlm2.parts.metrics.asr_bleu import ASRBLEU
 from nemo.collections.speechlm2.parts.metrics.bleu import BLEU
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
 from nemo.collections.speechlm2.parts.precision import fp32_precision
-from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, setup_audio_codec, setup_speech_encoder
+from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, load_pretrained_nemo, setup_audio_codec, setup_speech_encoder
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
-
 class DuplexT2TModel(LightningModule, HFHubMixin):
+    """
+    Duplex text/token to text/speech model with frozen ASR.
+    With cfg.generate_speech=True and cfg.audio_loss_weight > 0, this model can be trained to generate speech.
+    
+    Text to text model:
+      speech → [ASR] → decoded text → [deterministic retokenization] → tokens from LLM’s vocabulary → 
+      [LLM’s embed and combine with agent channel] → continuous representation → [LLM]
+
+      CASE 1 input (oracle-EoU):
+        <BOS><turn 1 tokens><EOS><PAD tokens to fill user turn 1 duration><PAD tokens to fill agent turn 1>
+        <BOS><turn 2 tokens><EOS><PAD tokens to fill user turn 2 duration><PAD tokens to fill agent turn 2>
+        ...
+      CASE 2 input (oracle-aligned):
+        <turn 1 tokens word-aligned><PAD tokens to fill agent turn 1>
+        <turn 2 tokens word-aligned><PAD tokens to fill agent turn 2>
+        ...
+
+    Token to text model:
+      speech → [ASR] → frame-level output tokens → [ASR’s embed and combine with agent channel embed^] → 
+      continuous representation → [shallow transformer module*] → continuous representation → [LLM]
+    
+      Input:
+        <turn 1 tokens frame-aligned><PAD tokens to fill agent turn 1>
+        <turn 2 tokens frame-aligned><PAD tokens to fill agent turn 2>
+        ...
+
+    ^Agent channel can be embedded either via LLM’s tokenize+embedding or ASR’s tokenization+embedding. 
+
+    *transformer so that the self-attention can learn which tokens to combine/split etc to match LLM’s vocabulary space. 
+    """
+
     def __init__(self, cfg: dict) -> None:
         assert isinstance(cfg, dict), (
             "You must pass the config to DuplexS2SModel as a Python dict to support hyperparameter serialization "
@@ -63,6 +95,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         self.val_output_dir = cfg.get("val_output_dir", "validation_outputs")
         
         self.generate_speech = cfg.get("generate_speech", True)
+        self.train_retokenizer = cfg.get("train_retokenizer", False)
         if self.generate_speech:
             setup_audio_codec(self)
             self._codebook_size = self.audio_codec.vector_quantizer.codebook_size_per_group
@@ -82,8 +115,12 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         del self.llm.embed_tokens
         maybe_install_lora(self)
 
-        # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        setup_speech_encoder(self)
+        # # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
+        # setup_speech_encoder(self)
+        # if self.train_retokenizer:
+        #     with fp32_precision(), torch.no_grad():  # The streaming ASR model is not trained with bfloat16.
+        #         self.asr_model = load_pretrained_nemo(ASRModel, self.cfg.pretrained_asr).eval()
+        #         self.asr_model.eval()
 
         if self.generate_speech:
             self.speech_generation = TransformerARSpeechDecoder(
@@ -111,13 +148,33 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
 
         # Configuration for embedding combination mode
         self.concat_embeddings = cfg.get("concat_embeddings", False)
+        # Transform concatenated embeddings to LLM dimension
         if self.concat_embeddings:
-            # Linear layer to transform concatenated embeddings to LLM dimension
+            # Moved the commented out logic to the training script since
+            # self.asr_embed is not set when we initialize the model.
+            # if self.train_retokenizer:
+            #     num_transformer_layers = self.cfg.get("train_retokenizer_transformer_layers", 0)
+            #     if num_transformer_layers > 0:
+            #         use_transformer = True
+            #     else:
+            #         use_transformer = False # Linear layer only
+            #     concat_dim = self.embed_tokens.embedding_dim + self.asr_embed.embedding_dim
+            #     output_dim = self.embed_tokens.embedding_dim
+
+            #     self.concat_projection = Retokenizer(
+            #         input_dim=concat_dim,
+            #         output_dim=output_dim,
+            #         use_transformer=use_transformer,
+            #         num_layers=num_transformer_layers,
+            #         num_heads=4,
+            #     )
+            # else:
             self.concat_projection = torch.nn.Linear(
                 self.embed_tokens.embedding_dim * 2,  # 2x because we concatenate user and agent embeddings
                 self.embed_tokens.embedding_dim
             )
 
+    
     @property
     def speech_vocab_size(self):
         """Return the size of the audio codec codebook including extra speech BOS and EOS tokens."""
@@ -182,7 +239,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         """
         if self.concat_embeddings:
             # Concatenate embeddings and project to original dimension
-            concatenated = torch.cat([agent_embeds, user_embeds], dim=-1)  # (B, T, 2*H)
+            concatenated = torch.cat([agent_embeds, user_embeds], dim=-1)  # (B, T, H1+H2)
             return self.concat_projection(concatenated)  # (B, T, H)
         else:
             # Add embeddings (original behavior)
@@ -227,6 +284,16 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             ans["cache"] = out["past_key_values"]
 
         return ans
+
+    def get_asr_hyps(self, source_audio, source_audio_lens):
+        with fp32_precision(), torch.no_grad(): # The streaming ASR model is not trained with bfloat16.
+            asr_hyps = self._asr.transcribe(
+                [audio[:alen] for audio, alen in zip(source_audio, source_audio_lens)],
+                batch_size=source_audio.shape[0],
+                return_hypotheses=True,
+                verbose=False,
+            )
+        return asr_hyps
 
     def prepare_inputs(self, batch: dict):
         """
@@ -337,11 +404,44 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
                 - input_embeds: tensor of shape (B, T-1, H) containing embedded input tokens
                 - text_labels: tensor of shape (B, T-1) containing target text tokens for loss computation
                 - input_lens: tensor of shape (B,) containing sequence lengths
-        """
+        """        
         # Get source and target tokens from batch
-        source_tokens = batch["source_tokens"]  # (B, T)
+        if self.train_retokenizer:
+            asr_hyps = self.get_asr_hyps(batch["source_audio"], batch["source_audio_lens"])
+            source_tokens = collate_vectors(
+                [
+                    hyp.y_sequence.argmax(dim=-1).to(batch["source_audio"].device) for hyp in asr_hyps
+                ],
+                padding_value=self.text_pad_id
+                )
+            source_token_lens = torch.tensor([len(hyp.y_sequence) for hyp in asr_hyps])
+        else:
+            source_tokens = batch["source_tokens"]  # (B, T)
         target_tokens = batch["target_tokens"]  # (B, T)
-        
+
+        # Append padding to the shorter sequence
+        diff = target_tokens.shape[1] - source_tokens.shape[1]
+        if diff > 0:
+            source_tokens = torch.cat(
+                [
+                    source_tokens,
+                    (
+                        torch.ones(source_tokens.shape[0], abs(diff), device=source_tokens.device) * self.text_pad_id
+                    ).to(torch.long),
+                ],
+                dim=-1,
+            )
+        elif diff < 0:
+            target_tokens = torch.cat(
+                [
+                    target_tokens,
+                    (
+                        torch.ones(target_tokens.shape[0], abs(diff), device=target_tokens.device) * self.text_pad_id
+                    ).to(torch.long),
+                ],
+                dim=-1,
+            )
+
         # Verify lengths match
         assert source_tokens.shape[1] == target_tokens.shape[1], \
             f"Source and target sequences must have same length, got {source_tokens.shape[1]} and {target_tokens.shape[1]}"
@@ -361,10 +461,13 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         
         # Embed the input tokens
         input_embeds = self.embed_tokens(text_inputs)  # (B, T-1, H)
-        
+        if self.train_retokenizer:
+            source_embeds = self.asr_embed(source_tokens[:, :-1])  # (B, T-1, H)
+        else:
+            source_embeds = self.embed_tokens(source_tokens[:, :-1])  # (B, T-1, H)
+       
         # Add source token embeddings to input embeddings
         # This allows the model to condition on the source sequence
-        source_embeds = self.embed_tokens(source_tokens[:, :-1])  # (B, T-1, H)
         input_embeds = self._combine_embeddings(input_embeds, source_embeds)
         
         return {
@@ -468,10 +571,25 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
                     dataset_batch["source_audio_lens"],
                 )
             else:
+                # Handle ASR retokenization for text-to-text inference
+                if self.train_retokenizer and "source_audio" in dataset_batch:
+                    # Use ASR to get source tokens from audio
+                    asr_hyps = self.get_asr_hyps(dataset_batch["source_audio"], dataset_batch["source_audio_lens"])
+                    source_tokens = collate_vectors(
+                        [hyp.y_sequence.argmax(dim=-1).to(dataset_batch["source_audio"].device) for hyp in asr_hyps],
+                        padding_value=self.text_pad_id
+                    )
+                    source_lens = torch.tensor([len(hyp.y_sequence) for hyp in asr_hyps])
+                else:
+                    # Use provided source tokens
+                    source_tokens = dataset_batch["source_tokens"]
+                    source_lens = dataset_batch["source_token_lens"]
+                
                 results = self.offline_t2t_inference(
-                    dataset_batch["source_tokens"],
-                    dataset_batch["source_token_lens"],
+                    source_tokens,
+                    source_lens,
                 )
+            
             if self.save_val_outputs:
                 for user, agent, pred, data_id in zip(dataset_batch["source_texts"], dataset_batch["target_texts"], results["text"], dataset_batch["data_id"]):
                     self.val_results_to_save[name].append({
@@ -627,7 +745,10 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         B, T = source_tokens.shape
         
         # Embed source tokens
-        source_embeds = self.embed_tokens(source_tokens)  # (B, T, H)
+        if self.train_retokenizer:
+            source_embeds = self.asr_embed(source_tokens)  # (B, T, H)
+        else:
+            source_embeds = self.embed_tokens(source_tokens)  # (B, T, H)
         
         # Apply channel weight if specified (only for addition mode)
         if not self.concat_embeddings:
@@ -823,3 +944,30 @@ def tokens_to_turn_str(tokens: torch.Tensor, lengths: torch.Tensor, tokenizer: A
         # Join segments with delimiter
         ans.append(delimiter.join(segments))
     return ans
+
+class Retokenizer(nn.Module):
+    def __init__(self, input_dim, output_dim, use_transformer=False, num_layers=1, num_heads=4, dropout=0.1):
+        super().__init__()
+        self.use_transformer = use_transformer
+
+        # First projection to match transformer input size
+        self.linear = nn.Linear(input_dim, output_dim)
+
+        if use_transformer:
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=output_dim,
+                nhead=num_heads,
+                dim_feedforward=output_dim * 4,
+                dropout=dropout,
+                activation='gelu',
+                batch_first=True,
+            )
+            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        else:
+            self.transformer = None
+
+    def forward(self, x):
+        x = self.linear(x)  # [B, T, output_dim]
+        if self.transformer:
+            x = self.transformer(x)  # [B, T, output_dim]
+        return x
