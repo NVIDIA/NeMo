@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=missing-function-docstring,missing-class-docstring
 from lhotse.cut import Cut, MixedCut
 
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
