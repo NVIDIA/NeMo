@@ -990,6 +990,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @property
     def sharded_state_dict_metadata(self):
+        """Metadata used for sharded_state_dict generation during checkpoint save."""
         metadata = {}
         if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer:
             if self.parallel_save_optim:
