@@ -79,6 +79,7 @@ class LlamaConfig(GPTConfig):
     persist_layer_norm: bool = True
     bias_dropout_fusion: bool = True
     apply_rope_fusion: bool = True
+    use_transformer_engine_op_fuser: Optional[bool] = None
 
 
 @dataclass
@@ -292,6 +293,7 @@ class Llama32Config1B(Llama31Config):
     scale_factor: float = 32.0
     share_embeddings_and_output_weights: bool = True
     rotary_base: int = 500_000
+    seq_length: int = 131072
     num_layers: int = 16
     hidden_size: int = 2048
     ffn_hidden_size: int = 8192
@@ -311,6 +313,7 @@ class Llama32Config3B(Llama31Config):
     scale_factor: int = 32
     share_embeddings_and_output_weights: bool = True
     rotary_base: int = 500_000
+    seq_length: int = 131072
     num_layers: int = 28
     hidden_size: int = 3072
     ffn_hidden_size: int = 8192
