@@ -568,6 +568,7 @@ class ConfigContainer(Container):
             self.model_config.tensor_model_parallel_size
             * self.model_config.pipeline_model_parallel_size
             * self.model_config.context_parallel_size
+            * self.model_config.expert_model_parallel_size
         )
         total_model_size = encoder_model_size + decoder_model_size
         assert (

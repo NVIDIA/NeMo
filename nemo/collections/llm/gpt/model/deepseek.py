@@ -361,7 +361,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
         if not isinstance(target.module.decoder.layers[0].pre_mlp_layernorm, IdentityOp):
             del mapping["**.dense-post_attention_layernorm.weight"]
-            source = _ModelState(source.state_dict)
+            source = _ModelState(source.state_dict())
         else:
             source = self._modify_source_state(source)
 

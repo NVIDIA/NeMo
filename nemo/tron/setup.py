@@ -266,4 +266,5 @@ def _update_model_config_funcs(
         if len(model) == 1:
             model_config.param_sync_func = model_config.param_sync_func[0]
     model_config.finalize_model_grads_func = finalize_model_grads
-    model_config.grad_scale_func = optimizer.scale_loss
+    if optimizer is not None:
+        model_config.grad_scale_func = optimizer.scale_loss
