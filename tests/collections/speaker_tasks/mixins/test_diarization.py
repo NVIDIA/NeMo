@@ -22,7 +22,8 @@ import pytest
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.asr.parts.mixins.diarization import DiarizeConfig, SpkDiarizationMixin
+from nemo.collections.asr.parts.mixins.diarization import (DiarizeConfig,
+                                                           SpkDiarizationMixin)
 
 
 class DummyModel(torch.nn.Module):

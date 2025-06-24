@@ -25,19 +25,23 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
+from nemo.collections.asr.losses.rnnt import (RNNTLoss,
+                                              resolve_rnnt_default_loss_name)
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
+from nemo.collections.asr.parts.submodules.rnnt_decoding import (
+    RNNTDecoding, RNNTDecodingConfig)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, VideoSignal
+from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
+                                    NeuralType, VideoSignal)
 from nemo.utils import logging
 
 

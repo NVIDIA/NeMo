@@ -34,9 +34,7 @@ from tqdm import tqdm
 
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    BetaBinomialInterpolator,
-    beta_binomial_prior_distribution,
-)
+    BetaBinomialInterpolator, beta_binomial_prior_distribution)
 from nemo.utils import logging
 
 

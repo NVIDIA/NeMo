@@ -37,12 +37,8 @@ import torch
 
 from nemo.collections.asr.parts.utils.speaker_utils import write_rttm2manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
-    generate_overlap_vad_seq,
-    generate_vad_frame_pred,
-    generate_vad_segment_table,
-    init_vad_model,
-    prepare_manifest,
-)
+    generate_overlap_vad_seq, generate_vad_frame_pred,
+    generate_vad_segment_table, init_vad_model, prepare_manifest)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

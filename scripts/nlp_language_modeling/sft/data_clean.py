@@ -24,8 +24,11 @@ NeMo GPT:
 
 import argparse
 import json
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import \
+    GPTSFTChatDataset
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 
 
 def data_clean(

@@ -32,9 +32,12 @@ from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 
-from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import MegatronControlNet
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
+from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import \
+    MegatronControlNet
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import \
+    MegatronDiffusionEngine
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import \
+    MegatronLatentDiffusion
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed

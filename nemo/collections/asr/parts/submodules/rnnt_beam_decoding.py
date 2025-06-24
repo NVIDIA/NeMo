@@ -36,15 +36,14 @@ from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
-from nemo.collections.asr.parts.utils.rnnt_utils import (
-    HATJointOutput,
-    Hypothesis,
-    NBestHypotheses,
-    is_prefix,
-    select_k_expansions,
-)
+from nemo.collections.asr.parts.utils.rnnt_utils import (HATJointOutput,
+                                                         Hypothesis,
+                                                         NBestHypotheses,
+                                                         is_prefix,
+                                                         select_k_expansions)
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+from nemo.core.neural_types import (AcousticEncodedRepresentation,
+                                    HypothesisType, LengthsType, NeuralType)
 from nemo.utils import logging
 
 try:
@@ -866,7 +865,8 @@ class BeamRNNTInfer(Typing):
             nbest_hyps: N-best decoding results
         """
         # delay this import here instead of at the beginning to avoid circular imports.
-        from nemo.collections.asr.modules.rnnt import RNNTDecoder, StatelessTransducerDecoder
+        from nemo.collections.asr.modules.rnnt import (
+            RNNTDecoder, StatelessTransducerDecoder)
 
         if partial_hypotheses is not None:
             raise NotImplementedError("`partial_hypotheses` support is not supported")

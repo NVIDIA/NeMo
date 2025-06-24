@@ -14,6 +14,7 @@
 import torch
 import torch.nn as nn
 
+
 # TODO(ahmadki): make abstract
 class BaseRenderer(nn.Module):
     def __init__(self, bound, update_interval):

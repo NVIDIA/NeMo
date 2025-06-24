@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
+from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import \
+    SequenceToSequenceDataset

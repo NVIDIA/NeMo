@@ -28,11 +28,11 @@ from torch.utils.data import ChainDataset
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dali
 from nemo.collections.asr.data.huggingface.hf_audio_to_text_dataset import (
-    get_hf_audio_to_text_bpe_dataset,
-    get_hf_audio_to_text_char_dataset,
-)
-from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor, process_augmentations
-from nemo.collections.common.data.dataset import CodeSwitchedDataset, ConcatDataset
+    get_hf_audio_to_text_bpe_dataset, get_hf_audio_to_text_char_dataset)
+from nemo.collections.asr.parts.preprocessing.perturb import (
+    AudioAugmentor, process_augmentations)
+from nemo.collections.common.data.dataset import (CodeSwitchedDataset,
+                                                  ConcatDataset)
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.utils import logging
 

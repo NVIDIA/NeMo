@@ -18,7 +18,9 @@ import numpy as np
 import torch
 from torch import Tensor, nn
 
-from nemo.collections.diffusion.vae.blocks import Downsample, Normalize, ResnetBlock, Upsample, make_attn
+from nemo.collections.diffusion.vae.blocks import (Downsample, Normalize,
+                                                   ResnetBlock, Upsample,
+                                                   make_attn)
 
 
 # pylint: disable=C0116

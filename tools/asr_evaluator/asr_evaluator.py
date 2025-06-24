@@ -17,7 +17,8 @@ import git
 from omegaconf import OmegaConf, open_dict
 from utils import cal_target_metadata_wer, run_asr_inference
 
-from nemo.collections.asr.parts.utils.eval_utils import cal_write_text_metric, cal_write_wer
+from nemo.collections.asr.parts.utils.eval_utils import (cal_write_text_metric,
+                                                         cal_write_wer)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

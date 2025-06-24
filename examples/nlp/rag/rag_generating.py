@@ -14,7 +14,8 @@
 
 from llama_index.core import Settings, StorageContext, load_index_from_storage
 
-from nemo.collections.nlp.models.rag.custom_bert_embedder import NeMoBertEmbeddings
+from nemo.collections.nlp.models.rag.custom_bert_embedder import \
+    NeMoBertEmbeddings
 from nemo.collections.nlp.models.rag.custom_gpt_llm import NeMoGPTLLM
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

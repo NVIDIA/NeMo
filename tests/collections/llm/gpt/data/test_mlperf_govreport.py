@@ -21,7 +21,8 @@ import pytest
 import torch
 from datasets import Dataset, DatasetDict
 
-from nemo.collections.llm.gpt.data.mlperf_govreport import MLPerfGovReportDataModule
+from nemo.collections.llm.gpt.data.mlperf_govreport import \
+    MLPerfGovReportDataModule
 
 
 @pytest.fixture

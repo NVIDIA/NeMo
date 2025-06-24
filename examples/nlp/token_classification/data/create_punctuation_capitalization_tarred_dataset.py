@@ -17,16 +17,11 @@ import multiprocessing as mp
 from pathlib import Path
 
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_tarred_dataset import (
-    DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME,
-    DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME,
-    METADATA_CAPIT_LABEL_VOCAB_KEY,
-    METADATA_PUNCT_LABEL_VOCAB_KEY,
+    DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME, DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME,
+    METADATA_CAPIT_LABEL_VOCAB_KEY, METADATA_PUNCT_LABEL_VOCAB_KEY,
     build_label_ids_from_list_of_labels,
     check_labels_for_being_unique_before_building_label_ids,
-    check_tar_file_prefix,
-    create_tarred_dataset,
-)
-
+    check_tar_file_prefix, create_tarred_dataset)
 
 """
 A tarred dataset allows to train on large amounts without storing it all into memory simultaneously. In case of

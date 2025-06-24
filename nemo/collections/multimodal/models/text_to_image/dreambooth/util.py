@@ -18,10 +18,9 @@ import torch
 import torch.nn as nn
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
-    extract_into_tensor,
-    make_beta_schedule,
-)
-from nemo.collections.multimodal.parts.stable_diffusion.utils import default, exists
+    extract_into_tensor, make_beta_schedule)
+from nemo.collections.multimodal.parts.stable_diffusion.utils import (default,
+                                                                      exists)
 from nemo.core.classes.common import Serialization
 
 

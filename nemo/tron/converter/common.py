@@ -24,19 +24,23 @@ import torch
 import torch.distributed as dist
 import yaml
 from megatron.core import parallel_state
-from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShardedStrategy
+from megatron.core.dist_checkpointing.strategies.torch import \
+    TorchDistLoadShardedStrategy
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import (GPTConfig,
+                                                 torch_dtype_from_mcore_config)
 from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron.checkpointing import save_checkpoint
-from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig, TokenizerConfig
+from nemo.tron.config import (CheckpointConfig, ConfigContainer, LoggerConfig,
+                              TokenizerConfig)
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer
 from nemo.tron.utils.instantiate_utils import instantiate
 
 if TYPE_CHECKING:
-    from transformers import AutoModelForCausalLM, AutoTokenizer, PretrainedConfig
+    from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                              PretrainedConfig)
 
 
 logger = logging.getLogger(__name__)
@@ -156,7 +160,9 @@ def temporary_distributed_context():
 
         init_method = f"tcp://{addr}:{port}"
 
-    dist.init_process_group(backend="gloo", init_method=init_method, world_size=1, rank=0)
+    dist.init_process_group(
+        backend="gloo", init_method=init_method, world_size=1, rank=0
+    )
     parallel_state.initialize_model_parallel()
     try:
         yield
@@ -238,14 +244,20 @@ class _ModelState:
         # pylint: disable=C0115,C0116
         for k, v in self._state_dict.items():
             if v.dtype != dtype:
-                logger.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
+                logger.warning(
+                    f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)"
+                )
             self._state_dict[k] = v.to(dtype)
 
 
 class BaseImporter(ABC):
     def __init__(self, input_path: str | Path, output_path: str | Path):
-        self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
-        self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
+        self.input_path = (
+            Path(input_path) if isinstance(input_path, str) else input_path
+        )
+        self.output_path = (
+            Path(output_path) if isinstance(output_path, str) else output_path
+        )
         (self.output_path / HF_ASSETS_DIR).mkdir(parents=True, exist_ok=True)
         self._hf_config = None
         self._tron_config = None
@@ -260,7 +272,9 @@ class BaseImporter(ABC):
         """
 
         return _HuggingFaceTokenizer(
-            save_hf_tokenizer_assets(str(self.input_path), str(self.output_path / HF_ASSETS_DIR))
+            save_hf_tokenizer_assets(
+                str(self.input_path), str(self.output_path / HF_ASSETS_DIR)
+            )
         )
 
     def init_tron_model(self, cfg: GPTConfig | T5Config):
@@ -311,7 +325,10 @@ class BaseImporter(ABC):
                 logger_config=LoggerConfig(),
                 tokenizer_config=None,
                 checkpoint_config=CheckpointConfig(
-                    async_save=False, save=str(self.output_path), save_optim=False, ckpt_format="torch_dist"
+                    async_save=False,
+                    save=str(self.output_path),
+                    save_optim=False,
+                    ckpt_format="torch_dist",
                 ),
                 dist_config=None,
             )
@@ -329,9 +346,18 @@ class BaseImporter(ABC):
 
 
 class BaseExporter(ABC):
-    def __init__(self, input_path: str | Path, output_path: str | Path, hf_tokenizer_path: Optional[str] = None):
-        self.input_path = Path(input_path) if isinstance(input_path, str) else input_path
-        self.output_path = Path(output_path) if isinstance(output_path, str) else output_path
+    def __init__(
+        self,
+        input_path: str | Path,
+        output_path: str | Path,
+        hf_tokenizer_path: Optional[str] = None,
+    ):
+        self.input_path = (
+            Path(input_path) if isinstance(input_path, str) else input_path
+        )
+        self.output_path = (
+            Path(output_path) if isinstance(output_path, str) else output_path
+        )
         self._hf_config = None
         self._tron_config = None
         self._hf_tokenizer_path = hf_tokenizer_path
@@ -354,7 +380,9 @@ class BaseExporter(ABC):
             if self._hf_tokenizer_path is not None:
                 from transformers import AutoTokenizer
 
-                self._tokenizer = AutoTokenizer.from_pretrained(self._hf_tokenizer_path, trust_remote_code=True)
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    self._hf_tokenizer_path, trust_remote_code=True
+                )
 
         return self._tokenizer
 
@@ -399,7 +427,9 @@ class BaseExporter(ABC):
 
         if self._hf_tokenizer_path is None:
             # Try to build tokenizer from the NeMo checkpoint
-            tokenizer_config: TokenizerConfig | None = instantiate(_config["tokenizer_config"])
+            tokenizer_config: TokenizerConfig | None = instantiate(
+                _config["tokenizer_config"]
+            )
             if (
                 tokenizer_config is not None
                 and tokenizer_config.tokenizer_type == "HuggingFaceTokenizer"
@@ -408,7 +438,9 @@ class BaseExporter(ABC):
             ):
                 self._hf_tokenizer_path = tokenizer_config.tokenizer_model
             else:
-                logger.warning("Failed to find Huggingface tokenizer in the NeMo checkpoint")
+                logger.warning(
+                    "Failed to find Huggingface tokenizer in the NeMo checkpoint"
+                )
 
         state_dict = {}
         state_dict = get_full_mcore_state_dict(self.input_path, model_cfg=model_config)

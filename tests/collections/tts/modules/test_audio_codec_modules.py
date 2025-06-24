@@ -17,19 +17,11 @@ import torch
 
 from nemo.collections.common.parts.utils import mask_sequence_tensor
 from nemo.collections.tts.modules.audio_codec_modules import (
-    CodecActivation,
-    Conv1dNorm,
-    ConvTranspose1dNorm,
-    FiniteScalarQuantizer,
-    GroupFiniteScalarQuantizer,
-    HiFiGANDecoder,
-    MelSpectrogramProcessor,
-    MultiBandMelEncoder,
-    ResidualBlock,
-    ResNetEncoder,
-    get_down_sample_padding,
-)
-from nemo.collections.tts.modules.encodec_modules import GroupResidualVectorQuantizer, ResidualVectorQuantizer
+    CodecActivation, Conv1dNorm, ConvTranspose1dNorm, FiniteScalarQuantizer,
+    GroupFiniteScalarQuantizer, HiFiGANDecoder, MelSpectrogramProcessor,
+    MultiBandMelEncoder, ResidualBlock, ResNetEncoder, get_down_sample_padding)
+from nemo.collections.tts.modules.encodec_modules import (
+    GroupResidualVectorQuantizer, ResidualVectorQuantizer)
 
 
 class TestAudioCodecModules:

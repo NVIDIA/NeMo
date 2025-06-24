@@ -18,8 +18,10 @@ from typing import Literal
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.diffusion.models.dit import dit_embeddings
-from nemo.collections.diffusion.models.dit.dit_model import DiTCrossAttentionModel
-from nemo.collections.diffusion.models.dit_llama.dit_llama_layer_spec import get_dit_llama_spec
+from nemo.collections.diffusion.models.dit.dit_model import \
+    DiTCrossAttentionModel
+from nemo.collections.diffusion.models.dit_llama.dit_llama_layer_spec import \
+    get_dit_llama_spec
 
 
 class DiTLlamaModel(DiTCrossAttentionModel):

@@ -26,10 +26,13 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, InterCTCMixin
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
+from nemo.collections.asr.parts.submodules.ctc_decoding import (
+    CTCDecoding, CTCDecodingConfig)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.multimodal.speech_cv.models.visual_rnnt_models import VisualEncDecRNNTModel
+from nemo.collections.multimodal.speech_cv.models.visual_rnnt_models import \
+    VisualEncDecRNNTModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils

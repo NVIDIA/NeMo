@@ -19,10 +19,7 @@ from typing import Callable, Dict, Iterable, Optional, Tuple, Union
 
 import torch
 from apex.contrib.optimizers.distributed_fused_adam import (
-    DistributedFusedAdam,
-    _disable_pre_forward_hook,
-    _multi_tensor_copy,
-)
+    DistributedFusedAdam, _disable_pre_forward_hook, _multi_tensor_copy)
 
 try:
     import apex.contrib.nccl_allocator as nccl_allocator
@@ -32,7 +29,8 @@ except ImportError:
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
 from megatron.core.dist_checkpointing.mapping import ShardedTensor
-from megatron.core.dist_checkpointing.optimizer import get_param_id_to_sharded_param_map, optim_state_to_sharding_state
+from megatron.core.dist_checkpointing.optimizer import (
+    get_param_id_to_sharded_param_map, optim_state_to_sharding_state)
 
 from nemo.utils import logging, str_to_dtype
 from nemo.utils.te_utils import is_float8tensor, is_mxfp8tensor, te_version

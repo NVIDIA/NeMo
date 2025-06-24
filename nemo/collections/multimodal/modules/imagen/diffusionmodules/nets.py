@@ -15,22 +15,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.collections.multimodal.modules.imagen.diffusionmodules.attention import SelfAttentionPooling
+from nemo.collections.multimodal.modules.imagen.diffusionmodules.attention import \
+    SelfAttentionPooling
 from nemo.collections.multimodal.modules.imagen.diffusionmodules.blocks import (
-    ConditionalSequential,
-    DBlock,
-    FusedCrossAttentionBlock,
-    ResBlock,
-    StackedCrossAttentionBlock,
-    UBlock,
-)
+    ConditionalSequential, DBlock, FusedCrossAttentionBlock, ResBlock,
+    StackedCrossAttentionBlock, UBlock)
 from nemo.collections.multimodal.modules.imagen.diffusionmodules.embs import (
-    LearnedSinusoidalPosEmb,
-    UnLearnedSinusoidalPosEmb,
-)
-from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import Downsample
-from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import UpsampleLearnable as Upsample
-from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import linear, normalization, zero_module
+    LearnedSinusoidalPosEmb, UnLearnedSinusoidalPosEmb)
+from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import \
+    Downsample
+from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import \
+    UpsampleLearnable as Upsample
+from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import (
+    linear, normalization, zero_module)
 
 
 class UNetModel(nn.Module):

@@ -17,14 +17,18 @@ import os
 from pathlib import Path
 
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig as McoreDDPConfig
+from megatron.core.distributed import \
+    DistributedDataParallelConfig as McoreDDPConfig
 from megatron.core.transformer.enums import AttnBackend
 
-from nemo.collections.llm import MixtralConfig8x3B, MixtralModel, PreTrainingDataModule
+from nemo.collections.llm import (MixtralConfig8x3B, MixtralModel,
+                                  PreTrainingDataModule)
 from nemo.collections.llm.api import train
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning import MegatronStrategy, NeMoLogger, Trainer
-from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule as MegatronOptim
+from nemo.lightning.pytorch.optim.megatron import \
+    MegatronOptimizerModule as MegatronOptim
 from nemo.lightning.pytorch.optim.megatron import OptimizerConfig
 
 

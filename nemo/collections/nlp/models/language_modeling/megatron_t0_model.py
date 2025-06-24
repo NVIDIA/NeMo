@@ -15,15 +15,15 @@ import torch
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import \
+    get_datasets_weights_and_num_samples
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
+    MegatronPretrainingBatchSampler
 from nemo.collections.nlp.data.language_modeling.t0_dataset import T0Dataset
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import \
+    MegatronT5SFTModel
 from nemo.utils import AppState, logging
 
 try:
@@ -36,13 +36,14 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import \
+        reconfigure_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
 
 __all__ = ['MegatronT0Model']
 

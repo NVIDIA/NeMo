@@ -66,7 +66,8 @@ class AlignerWrapperModel(ASRModel):
         if self.alignment_type == "argmax" and not hasattr(self._model, "use_graph_lm"):
             return
 
-        from nemo.collections.asr.modules.graph_decoder import ViterbiDecoderWithGraph
+        from nemo.collections.asr.modules.graph_decoder import \
+            ViterbiDecoderWithGraph
 
         if self.alignment_type == "forced":
             if hasattr(self._model, "use_graph_lm"):
@@ -111,13 +112,15 @@ class AlignerWrapperModel(ASRModel):
         if self.alignment_type == "argmax":
             return
 
-        from nemo.collections.asr.modules.graph_decoder import ViterbiDecoderWithGraph
+        from nemo.collections.asr.modules.graph_decoder import \
+            ViterbiDecoderWithGraph
 
         if self.alignment_type == "forced":
             self.predictor_window_size = cfg.rnnt_cfg.get("predictor_window_size", 0)
             self.predictor_step_size = cfg.rnnt_cfg.get("predictor_step_size", 0)
 
-            from nemo.collections.asr.parts.k2.utils import apply_rnnt_prune_ranges, get_uniform_rnnt_prune_ranges
+            from nemo.collections.asr.parts.k2.utils import (
+                apply_rnnt_prune_ranges, get_uniform_rnnt_prune_ranges)
 
             self.prepare_pruned_outputs = lambda encoder_outputs, encoded_len, decoder_outputs, transcript_len: apply_rnnt_prune_ranges(
                 encoder_outputs,

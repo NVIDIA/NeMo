@@ -17,13 +17,8 @@
 """The default image and video tokenizer configs."""
 
 from nemo.collections.common.video_tokenizers.modules import (
-    ContinuousFormulation,
-    Decoder3DType,
-    DecoderType,
-    DiscreteQuantizer,
-    Encoder3DType,
-    EncoderType,
-)
+    ContinuousFormulation, Decoder3DType, DecoderType, DiscreteQuantizer,
+    Encoder3DType, EncoderType)
 
 continuous_image = dict(
     # The attention resolution for res blocks.

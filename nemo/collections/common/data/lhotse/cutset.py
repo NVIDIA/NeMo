@@ -26,17 +26,11 @@ from lhotse.cut import Cut, MixedCut, PaddingCut
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.nemo_adapters import (
-    LazyNeMoIterator,
-    LazyNeMoTarredIterator,
-    expand_sharded_filepaths,
-)
+    LazyNeMoIterator, LazyNeMoTarredIterator, expand_sharded_filepaths)
 from nemo.collections.common.data.lhotse.sampling import PlaceholderFilter
 from nemo.collections.common.data.lhotse.text_adapters import (
-    LhotseTextAdapter,
-    LhotseTextPairAdapter,
-    NeMoMultimodalConversationJsonlAdapter,
-    NeMoSFTJsonlAdapter,
-)
+    LhotseTextAdapter, LhotseTextPairAdapter,
+    NeMoMultimodalConversationJsonlAdapter, NeMoSFTJsonlAdapter)
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 
 
@@ -670,7 +664,8 @@ def guess_parse_cutset(inp: Union[str, dict, omegaconf.DictConfig]) -> CutSet:
 
     It's intended to be used in a generic context where we are not sure which way the user will specify the inputs.
     """
-    from nemo.collections.common.data.lhotse.dataloader import make_structured_with_schema_warnings
+    from nemo.collections.common.data.lhotse.dataloader import \
+        make_structured_with_schema_warnings
 
     if isinstance(inp, (dict, omegaconf.DictConfig)):
         try:

@@ -22,25 +22,23 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.data import audio_to_text_dataset, ssl_dataset
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
-from nemo.collections.asr.modules.ssl_modules.masking import ConvFeatureMaksingWrapper
+from nemo.collections.asr.data.audio_to_text_lhotse import \
+    LhotseSpeechToTextBpeDataset
+from nemo.collections.asr.modules.ssl_modules.masking import \
+    ConvFeatureMaksingWrapper
 from nemo.collections.asr.parts.mixins import ASRModuleMixin
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.asr.parts.preprocessing.perturb import \
+    process_augmentations
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin, set_access_cfg
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    AudioSignal,
-    LabelsType,
-    LengthsType,
-    LogprobsType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import (AcousticEncodedRepresentation, AudioSignal,
+                                    LabelsType, LengthsType, LogprobsType,
+                                    NeuralType, SpectrogramType)
 from nemo.utils import logging
 
 __all__ = ['SpeechEncDecSelfSupervisedModel', 'EncDecMaskedTokenPredModel', 'EncDecDenoiseMaskedTokenPredModel']

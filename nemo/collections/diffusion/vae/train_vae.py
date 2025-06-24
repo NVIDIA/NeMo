@@ -33,11 +33,13 @@ from torch import Tensor, nn
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.diffusion.data.diffusion_energon_datamodule import DiffusionDataModule
+from nemo.collections.diffusion.data.diffusion_energon_datamodule import \
+    DiffusionDataModule
 from nemo.collections.diffusion.train import pretrain
 from nemo.collections.llm.gpt.model.base import GPTModel
 from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
+from nemo.lightning.megatron_parallel import (DataT, MegatronLossReduction,
+                                              ReductionT)
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 

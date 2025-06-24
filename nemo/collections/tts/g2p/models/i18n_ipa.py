@@ -18,15 +18,15 @@ import re
 from collections import defaultdict
 from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
-from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import validate_locale
+from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import \
+    validate_locale
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
-    LATIN_CHARS_ALL,
-    any_locale_word_tokenize,
-    english_word_tokenize,
-    normalize_unicode_text,
-)
+    LATIN_CHARS_ALL, any_locale_word_tokenize, english_word_tokenize,
+    normalize_unicode_text)
 from nemo.collections.tts.g2p.models.base import BaseG2p
-from nemo.collections.tts.g2p.utils import GRAPHEME_CASE_MIXED, GRAPHEME_CASE_UPPER, set_grapheme_case
+from nemo.collections.tts.g2p.utils import (GRAPHEME_CASE_MIXED,
+                                            GRAPHEME_CASE_UPPER,
+                                            set_grapheme_case)
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 

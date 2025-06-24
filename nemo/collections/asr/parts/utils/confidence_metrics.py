@@ -19,15 +19,9 @@ from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.metrics import (
-    PrecisionRecallDisplay,
-    RocCurveDisplay,
-    average_precision_score,
-    log_loss,
-    precision_recall_curve,
-    roc_auc_score,
-    roc_curve,
-)
+from sklearn.metrics import (PrecisionRecallDisplay, RocCurveDisplay,
+                             average_precision_score, log_loss,
+                             precision_recall_curve, roc_auc_score, roc_curve)
 
 
 def auc_roc(y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]) -> float:

@@ -29,15 +29,13 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from transformers import Qwen2ForCausalLM, Qwen2Tokenizer
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
-from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper, torch_dtype_from_precision
+    GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy,
+    NLPSaveRestoreConnector, PipelineMixedPrecisionPlugin)
+from nemo.collections.nlp.parts.utils_funcs import (load_state_dict_helper,
+                                                    torch_dtype_from_precision)
 from nemo.utils import logging
 
 

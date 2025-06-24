@@ -13,49 +13,31 @@
 # limitations under the License.
 
 import os
+
 import numpy as np
 import pytest
 import torch
 from scipy.optimize import linear_sum_assignment as scipy_linear_sum_assignment
 
 from nemo.collections.asr.data.audio_to_label import repeat_signal
-from nemo.collections.asr.parts.utils.longform_clustering import LongFormSpeakerClustering
+from nemo.collections.asr.parts.utils.longform_clustering import \
+    LongFormSpeakerClustering
 from nemo.collections.asr.parts.utils.offline_clustering import (
-    SpeakerClustering,
-    get_scale_interpolated_embs,
-    getCosAffinityMatrix,
-    getKneighborsConnections,
-    split_input_data,
-)
+    SpeakerClustering, get_scale_interpolated_embs, getCosAffinityMatrix,
+    getKneighborsConnections, split_input_data)
 from nemo.collections.asr.parts.utils.online_clustering import (
-    OnlineSpeakerClustering,
-    get_closest_embeddings,
-    get_merge_quantity,
-    get_minimal_indices,
-    merge_vectors,
-    run_reducer,
-    stitch_cluster_labels,
-)
-from nemo.collections.asr.parts.utils.optimization_utils import LinearSumAssignmentSolver
-from nemo.collections.asr.parts.utils.optimization_utils import linear_sum_assignment as nemo_linear_sum_assignment
+    OnlineSpeakerClustering, get_closest_embeddings, get_merge_quantity,
+    get_minimal_indices, merge_vectors, run_reducer, stitch_cluster_labels)
+from nemo.collections.asr.parts.utils.optimization_utils import \
+    LinearSumAssignmentSolver
+from nemo.collections.asr.parts.utils.optimization_utils import \
+    linear_sum_assignment as nemo_linear_sum_assignment
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    OnlineSegmentor,
-    check_ranges,
-    fl2int,
-    get_new_cursor_for_update,
-    get_online_segments_from_slices,
-    get_online_subsegments_from_buffer,
-    get_speech_labels_for_update,
-    get_sub_range_list,
-    get_subsegments,
-    get_subsegments_scriptable,
-    get_target_sig,
-    int2fl,
-    is_overlap,
-    merge_float_intervals,
-    merge_int_intervals,
-    tensor_to_list,
-)
+    OnlineSegmentor, check_ranges, fl2int, get_new_cursor_for_update,
+    get_online_segments_from_slices, get_online_subsegments_from_buffer,
+    get_speech_labels_for_update, get_sub_range_list, get_subsegments,
+    get_subsegments_scriptable, get_target_sig, int2fl, is_overlap,
+    merge_float_intervals, merge_int_intervals, tensor_to_list)
 
 
 def check_range_values(target, source):

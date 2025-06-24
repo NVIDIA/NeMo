@@ -15,7 +15,8 @@
 import time
 from argparse import ArgumentParser
 
-from nemo.collections.asr.parts.utils.vad_utils import generate_overlap_vad_seq, generate_vad_segment_table
+from nemo.collections.asr.parts.utils.vad_utils import (
+    generate_overlap_vad_seq, generate_vad_segment_table)
 from nemo.utils import logging
 
 """

@@ -17,7 +17,8 @@ from typing import Optional
 
 from omegaconf import DictConfig
 
-from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
+from nemo.collections.asr.data.audio_to_text_dataset import (
+    convert_to_config_list, get_chain_dataset)
 from nemo.collections.multimodal.speech_cv.data import video_to_text
 from nemo.utils import logging
 

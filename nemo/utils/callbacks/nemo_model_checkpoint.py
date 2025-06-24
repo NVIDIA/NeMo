@@ -23,7 +23,8 @@ from typing import Any, Dict, Iterable, List, Optional, Union
 import torch
 from _weakref import proxy
 from lightning.fabric.utilities.cloud_io import get_filesystem
-from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
+from lightning.pytorch.callbacks.model_checkpoint import (
+    ModelCheckpoint, _is_local_file_protocol)
 from lightning.pytorch.trainer import call
 from lightning.pytorch.utilities import rank_zero_info
 
@@ -32,7 +33,8 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils.model_utils import (ckpt_to_dir, inject_model_parallel_rank,
+                                    uninject_model_parallel_rank)
 
 
 class NeMoModelCheckpoint(ModelCheckpoint):

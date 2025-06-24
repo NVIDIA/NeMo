@@ -14,7 +14,8 @@
 
 import pytest
 
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    SentencePieceTokenizer
 
 MODEL_SPECIAL_TOKENS = {
     'unk_token': '[UNK]',

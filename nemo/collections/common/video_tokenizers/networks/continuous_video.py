@@ -19,8 +19,10 @@ from collections import OrderedDict, namedtuple
 
 from torch import nn
 
-from nemo.collections.common.video_tokenizers.modules import ContinuousFormulation, Decoder3DType, Encoder3DType
-from nemo.collections.common.video_tokenizers.modules.layers3d import CausalConv3d
+from nemo.collections.common.video_tokenizers.modules import (
+    ContinuousFormulation, Decoder3DType, Encoder3DType)
+from nemo.collections.common.video_tokenizers.modules.layers3d import \
+    CausalConv3d
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "posteriors", "latent"])
 

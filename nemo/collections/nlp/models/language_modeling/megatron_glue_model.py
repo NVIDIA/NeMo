@@ -15,10 +15,9 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import (
-    TextToTextGLUEDataset,
-    TextToTextXNLIDataset,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
+    TextToTextGLUEDataset, TextToTextXNLIDataset)
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import \
+    MegatronT5SFTModel
 from nemo.utils import logging
 
 try:

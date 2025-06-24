@@ -14,6 +14,4 @@
 
 
 from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dataset import (
-    ZeroShotIntentInferenceDataset,
-    calc_class_weights_from_dataloader,
-)
+    ZeroShotIntentInferenceDataset, calc_class_weights_from_dataloader)

@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING, Any, Dict
 
 import torch
 from megatron.core import parallel_state
-from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
+from megatron.core.dist_checkpointing.validation import (StrictHandling,
+                                                         parse_strict_flag)
 
 from nemo import lightning as nl
 from nemo.collections import llm

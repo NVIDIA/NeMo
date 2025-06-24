@@ -16,9 +16,11 @@ from typing import Dict, Optional, Tuple
 import torch
 from einops import rearrange
 
-from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
+from nemo.collections.asr.parts.preprocessing.features import \
+    make_seq_mask_like
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (AudioSignal, LengthsType, NeuralType,
+                                    SpectrogramType)
 from nemo.utils import logging
 
 try:

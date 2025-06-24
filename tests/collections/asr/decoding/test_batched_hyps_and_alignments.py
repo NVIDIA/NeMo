@@ -18,7 +18,8 @@ from typing import List
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.rnnt_utils import BatchedAlignments, BatchedHyps, batched_hyps_to_hypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import (
+    BatchedAlignments, BatchedHyps, batched_hyps_to_hypotheses)
 
 
 @contextmanager

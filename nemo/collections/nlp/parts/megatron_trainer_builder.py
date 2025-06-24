@@ -21,23 +21,16 @@ from lightning.pytorch.callbacks import ModelSummary
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from omegaconf import DictConfig, open_dict
 
-from nemo.collections.common.metrics.perf_metrics import FLOPsMeasurementCallback
+from nemo.collections.common.metrics.perf_metrics import \
+    FLOPsMeasurementCallback
 from nemo.collections.nlp.parts.nlp_overrides import (
-    CustomProgressBar,
-    FSDPMixedPrecisionPlugin,
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPDDPStrategyNotebook,
-    NLPFSDPStrategy,
-    PipelineMixedPrecisionPlugin,
-)
+    CustomProgressBar, FSDPMixedPrecisionPlugin, GradScaler,
+    MegatronHalfPrecisionPlugin, NLPDDPStrategy, NLPDDPStrategyNotebook,
+    NLPFSDPStrategy, PipelineMixedPrecisionPlugin)
 from nemo.utils import logging
-from nemo.utils.callbacks.dist_ckpt_io import (
-    AsyncFinalizableCheckpointIO,
-    AsyncFinalizerCallback,
-    DistributedCheckpointIO,
-)
+from nemo.utils.callbacks.dist_ckpt_io import (AsyncFinalizableCheckpointIO,
+                                               AsyncFinalizerCallback,
+                                               DistributedCheckpointIO)
 
 
 class MegatronTrainerBuilder:

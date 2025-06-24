@@ -13,10 +13,13 @@
 # limitations under the License.
 
 import re
+
 import torch
 from modelopt.torch.quantization.nn import QuantLinear, QuantLinearConvBase
 
-from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+    LinearWrapper
+
 from .plugin_calib import PercentileCalibrator
 
 

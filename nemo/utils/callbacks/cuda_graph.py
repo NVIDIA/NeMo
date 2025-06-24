@@ -42,9 +42,11 @@ import torch
 from lightning.pytorch import LightningModule
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.loops.optimization.automatic import ClosureResult
-from lightning.pytorch.trainer.connectors.logger_connector.result import _ResultCollection, _ResultMetric
+from lightning.pytorch.trainer.connectors.logger_connector.result import (
+    _ResultCollection, _ResultMetric)
 from lightning.pytorch.utilities import CombinedLoader, rank_zero_info
-from lightning.pytorch.utilities.signature_utils import is_param_in_hook_signature
+from lightning.pytorch.utilities.signature_utils import \
+    is_param_in_hook_signature
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from torch.nn.parallel import DistributedDataParallel
 

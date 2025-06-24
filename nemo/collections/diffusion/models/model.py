@@ -29,11 +29,13 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 from typing_extensions import override
 
-from nemo.collections.diffusion.models.dit_llama.dit_llama_model import DiTLlamaModel
+from nemo.collections.diffusion.models.dit_llama.dit_llama_model import \
+    DiTLlamaModel
 from nemo.collections.diffusion.sampler.edm.edm_pipeline import EDMPipeline
 from nemo.collections.llm.gpt.model.base import GPTModel
 from nemo.lightning import io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReduction, MegatronLossReduction
+from nemo.lightning.megatron_parallel import (MaskedTokenLossReduction,
+                                              MegatronLossReduction)
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 from .dit.dit_model import DiTCrossAttentionModel

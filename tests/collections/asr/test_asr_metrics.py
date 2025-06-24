@@ -22,14 +22,13 @@ from unittest.mock import Mock, patch
 import pytest
 import torch
 
-from nemo.collections.asr.metrics.wer import WER, word_error_rate, word_error_rate_detail, word_error_rate_per_utt
+from nemo.collections.asr.metrics.wer import (WER, word_error_rate,
+                                              word_error_rate_detail,
+                                              word_error_rate_per_utt)
 from nemo.collections.asr.parts.submodules.ctc_decoding import (
-    CTCBPEDecoding,
-    CTCBPEDecodingConfig,
-    CTCDecoding,
-    CTCDecodingConfig,
-)
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding
+    CTCBPEDecoding, CTCBPEDecodingConfig, CTCDecoding, CTCDecodingConfig)
+from nemo.collections.asr.parts.submodules.rnnt_decoding import (
+    RNNTBPEDecoding, RNNTDecoding)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers import CharTokenizer
 from nemo.utils.config_utils import assert_dataclass_signature_match

@@ -22,21 +22,24 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
-from nemo.collections.asr.models.aed_multitask_models import parse_multitask_prompt
-from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
-from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.models import (EncDecCTCModel,
+                                         EncDecHybridRNNTCTCModel,
+                                         EncDecRNNTModel)
+from nemo.collections.asr.models.aed_multitask_models import \
+    parse_multitask_prompt
+from nemo.collections.asr.modules.conformer_encoder import \
+    ConformerChangeConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import \
+    CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.multitask_decoding import (
+    MultiTaskDecoding, MultiTaskDecodingConfig)
+from nemo.collections.asr.parts.submodules.rnnt_decoding import \
+    RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
-    compute_output_filename,
-    prepare_audio_data,
-    restore_transcription_order,
-    setup_model,
-    write_transcription,
-)
+    compute_output_filename, prepare_audio_data, restore_transcription_order,
+    setup_model, write_transcription)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.timers import SimpleTimer

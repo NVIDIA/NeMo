@@ -13,7 +13,8 @@
 # limitations under the License.
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Dict, Literal, Optional, Union
+from typing import (TYPE_CHECKING, Annotated, Callable, Dict, Literal,
+                    Optional, Union)
 
 import einops
 import lightning.pytorch as L
@@ -25,9 +26,12 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from torch import Tensor, nn
 
 import nemo.collections.llm.gpt.model.base as GPTBase
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativeRankingLoss
+from nemo.collections.llm.bert.loss import (
+    BERTInBatchExclusiveHardNegativesRankingLoss, HardNegativeRankingLoss)
 from nemo.collections.llm.gpt.model import GPTConfig
-from nemo.collections.llm.gpt.model.llama import HFLlamaImporter, Llama32Config1B, LlamaConfig, LlamaModel
+from nemo.collections.llm.gpt.model.llama import (HFLlamaImporter,
+                                                  Llama32Config1B, LlamaConfig,
+                                                  LlamaModel)
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io
 from nemo.lightning.io.state import TransformFns
@@ -39,7 +43,8 @@ if TYPE_CHECKING:
     from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-    from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
+    from nemo.collections.llm.gpt.model.hf_llama_embedding import \
+        LlamaBidirectionalModel
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -278,7 +283,8 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
     def init(self, dtype=torch.bfloat16) -> "LlamaBidirectionalModel":
         from transformers.modeling_utils import no_init_weights
 
-        from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalModel
+        from nemo.collections.llm.gpt.model.hf_llama_embedding import \
+            LlamaBidirectionalModel
 
         LlamaBidirectionalModel.register_for_auto_class("AutoModel")
         with no_init_weights(True):
@@ -309,7 +315,8 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
         """Get HF NV Embedding Llama Config."""
         source: LlamaConfig = io.load_context(str(self), subpath="model.config")
 
-        from nemo.collections.llm.gpt.model.hf_llama_embedding import LlamaBidirectionalConfig
+        from nemo.collections.llm.gpt.model.hf_llama_embedding import \
+            LlamaBidirectionalConfig
 
         LlamaBidirectionalConfig.register_for_auto_class("AutoConfig")
         return LlamaBidirectionalConfig(

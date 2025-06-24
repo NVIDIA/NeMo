@@ -20,34 +20,20 @@ from nemo.utils import logging
 
 try:
     from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import (
-        MCoreGPTEmbeddingMixin,
-        MCoreMLPMixin,
-        MCoreSelfAttentionMixin,
-        MCoreSequentialMLPMixin,
-        MCoreTransformerBlockMixin,
-        MCoreTransformerLayerMixin,
-    )
+        MCoreGPTEmbeddingMixin, MCoreMLPMixin, MCoreSelfAttentionMixin,
+        MCoreSequentialMLPMixin, MCoreTransformerBlockMixin,
+        MCoreTransformerLayerMixin)
 except (ImportError, ModuleNotFoundError):
     MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = MCoreMLPMixin = None
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    InfusedAdapterConfig,
-    Lora4HtoHAdapterConfig,
-    LoraDenseAttentionAdapterConfig,
-    LoraHto4HAdapterConfig,
-    LoraKQVAdapterConfig,
-    LoraKQVAdapterWeightTyingConfig,
-    LoraMoe4HtoHAdapterConfig,
-    LoraMoeHto4HAdapterConfig,
-    LoraUnfusedHto4HAdapterConfig,
-    LoraUnfusedKQVAdapterConfig,
-    MLPHeadAdapterConfig,
-    MLPInfusedAdapterConfig,
-    ParallelLinearAdapterConfig,
-    ParallelLinearAdapterWeightTyingConfig,
-    PromptEncoderAdapterConfig,
-)
+    AdapterName, InfusedAdapterConfig, Lora4HtoHAdapterConfig,
+    LoraDenseAttentionAdapterConfig, LoraHto4HAdapterConfig,
+    LoraKQVAdapterConfig, LoraKQVAdapterWeightTyingConfig,
+    LoraMoe4HtoHAdapterConfig, LoraMoeHto4HAdapterConfig,
+    LoraUnfusedHto4HAdapterConfig, LoraUnfusedKQVAdapterConfig,
+    MLPHeadAdapterConfig, MLPInfusedAdapterConfig, ParallelLinearAdapterConfig,
+    ParallelLinearAdapterWeightTyingConfig, PromptEncoderAdapterConfig)
 
 PEFT_MODULE_MAP = {
     "qkv_module": "attention_qkv",

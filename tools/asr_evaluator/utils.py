@@ -18,7 +18,9 @@ from pathlib import Path
 from typing import Tuple
 
 from omegaconf import DictConfig, OmegaConf, open_dict
-from nemo.collections.asr.parts.utils.eval_utils import get_hydra_override_from_config
+
+from nemo.collections.asr.parts.utils.eval_utils import \
+    get_hydra_override_from_config
 from nemo.utils import logging
 
 

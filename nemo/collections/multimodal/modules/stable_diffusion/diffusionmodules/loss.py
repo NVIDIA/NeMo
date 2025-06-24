@@ -18,7 +18,8 @@ import torch
 import torch.nn as nn
 from omegaconf import ListConfig
 
-from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims, instantiate_from_config
+from nemo.collections.multimodal.parts.stable_diffusion.utils import (
+    append_dims, instantiate_from_config)
 from nemo.collections.multimodal.parts.utils import randn_like
 
 

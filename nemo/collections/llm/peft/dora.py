@@ -17,12 +17,15 @@ from typing import List, Literal, Optional
 
 import torch
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-from megatron.core.tensor_parallel import gather_from_tensor_model_parallel_region
-from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_sharded_tensor_for_checkpoint
+from megatron.core.tensor_parallel import \
+    gather_from_tensor_model_parallel_region
+from megatron.core.utils import (make_sharded_tensor_for_checkpoint,
+                                 make_tp_sharded_tensor_for_checkpoint)
 from torch import nn
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
-from nemo.collections.llm.peft.utils import ParallelLinearAdapter, get_adapter_attributes_from_linear
+from nemo.collections.llm.peft.utils import (
+    ParallelLinearAdapter, get_adapter_attributes_from_linear)
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 

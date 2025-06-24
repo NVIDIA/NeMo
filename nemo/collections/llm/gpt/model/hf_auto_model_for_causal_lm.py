@@ -22,8 +22,10 @@ import torch.distributed as dist
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from nemo.automodel.loss import masked_cross_entropy
-from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.automodel.loss.linear_ce import (HAVE_LINEAR_LOSS_CE,
+                                           fused_linear_cross_entropy)
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.utils import logging
@@ -218,12 +220,14 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
             else:
                 raise e
         if self.use_liger_kernel:
-            from liger_kernel.transformers import _apply_liger_kernel_to_instance
+            from liger_kernel.transformers import \
+                _apply_liger_kernel_to_instance
 
             _apply_liger_kernel_to_instance(model=self.model)
 
         if self.model_accelerator is not None:
-            from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+            from nemo.lightning.pytorch.accelerate.transformer_engine import \
+                te_accelerate
 
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
 
@@ -298,7 +302,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # based on https://github.com/pytorch/torchtitan/blob/main/torchtitan/train.py#L336
         if context_parallel:
 
-            from nemo.lightning.pytorch.strategies.utils import create_context_parallel_ctx, get_train_context
+            from nemo.lightning.pytorch.strategies.utils import (
+                create_context_parallel_ctx, get_train_context)
 
             input_ids = batch["input_ids"].to(self.model.device)
             batch["position_ids"] = torch.arange(0, input_ids.shape[1]).unsqueeze(0).to(self.model.device)

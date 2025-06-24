@@ -21,7 +21,8 @@ import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple, TypedDict, TypeVar, Union
+from typing import (Any, Dict, Iterable, Iterator, List, Optional, Sequence,
+                    Tuple, TypedDict, TypeVar, Union)
 
 import lightning.pytorch as pl
 import megatron.core.num_microbatches_calculator
@@ -41,7 +42,8 @@ from torchvision.datasets import MNIST
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.lightning import NeMoLogger, io, resume
-from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
+from nemo.lightning.megatron_parallel import (DataT, MegatronLossReduction,
+                                              ReductionT)
 from nemo.lightning.pytorch import callbacks as nl_callbacks
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule
 from nemo.lightning.pytorch.plugins import MegatronDataSampler

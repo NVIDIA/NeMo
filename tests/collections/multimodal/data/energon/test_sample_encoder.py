@@ -16,19 +16,14 @@ import re
 import unittest
 
 import torch
-from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
+from megatron.energon import (InterleavedSample, SimilarityInterleavedSample,
+                              VQASample)
 from transformers import AutoProcessor
 
 from nemo.collections.multimodal.data.energon import (
-    BaseSampleEncoder,
-    ImageTextSample,
-    ImageToken,
-    InterleavedSampleEncoder,
-    LLaVATemplateConfig,
-    MultiModalSampleConfig,
-    SimilarityInterleavedEncoder,
-    VQASampleEncoder,
-)
+    BaseSampleEncoder, ImageTextSample, ImageToken, InterleavedSampleEncoder,
+    LLaVATemplateConfig, MultiModalSampleConfig, SimilarityInterleavedEncoder,
+    VQASampleEncoder)
 
 
 class TestBaseSampleEncoder(unittest.TestCase):

@@ -31,8 +31,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.collections.common.video_tokenizers.modules.patching import Patcher, UnPatcher
-from nemo.collections.common.video_tokenizers.modules.utils import Normalize, nonlinearity
+from nemo.collections.common.video_tokenizers.modules.patching import (
+    Patcher, UnPatcher)
+from nemo.collections.common.video_tokenizers.modules.utils import (
+    Normalize, nonlinearity)
 
 
 class Upsample(nn.Module):

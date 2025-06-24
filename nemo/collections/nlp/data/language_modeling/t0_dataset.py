@@ -15,8 +15,10 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, TextMemMapDataset
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import \
+    get_samples_mapping
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import (
+    JSONLMemMapDataset, TextMemMapDataset)
 from nemo.core.classes import Dataset
 
 

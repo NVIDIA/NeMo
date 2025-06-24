@@ -20,7 +20,8 @@ import torch
 import torch.nn as nn
 
 from nemo.core.classes import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType
+from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
+                                    NeuralType)
 
 
 class RandomBlockMasking(NeuralModule):

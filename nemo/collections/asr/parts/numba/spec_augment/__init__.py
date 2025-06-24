@@ -13,6 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.asr.parts.numba.spec_augment.spec_aug_numba import (
-    SpecAugmentNumba,
-    spec_augment_launch_heuristics,
-)
+    SpecAugmentNumba, spec_augment_launch_heuristics)

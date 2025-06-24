@@ -14,6 +14,7 @@
 
 import re
 from collections import namedtuple
+
 from tqdm import tqdm
 
 from nemo.utils import logging

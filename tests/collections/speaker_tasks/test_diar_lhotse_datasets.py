@@ -22,8 +22,10 @@ import torch
 import torch.cuda
 from omegaconf import DictConfig
 
-from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.asr.data.audio_to_diar_label_lhotse import \
+    LhotseAudioToSpeechE2ESpkDiarDataset
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 
 
 def get_train_ds_config(manifest_filepath, batch_size, num_workers) -> DictConfig:

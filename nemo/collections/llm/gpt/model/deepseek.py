@@ -16,7 +16,8 @@ import re
 from dataclasses import dataclass, field
 from functools import cached_property, partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple,
+                    Union)
 
 import torch
 import torch.nn.functional as F
@@ -27,14 +28,11 @@ from megatron.core.transformer.transformer_config import MLATransformerConfig
 from safetensors.torch import load_file
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import (
-    HAVE_TE,
-    GPTConfig,
-    GPTModel,
-    gpt_data_step,
-    torch_dtype_from_dict_config,
-)
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
+from nemo.collections.llm.gpt.model.base import (HAVE_TE, GPTConfig, GPTModel,
+                                                 gpt_data_step,
+                                                 torch_dtype_from_dict_config)
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import \
+    load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.lightning.pytorch.optim import OptimizerModule
@@ -45,7 +43,8 @@ if TYPE_CHECKING:
     from megatron.core.transformer import ModuleSpec
     from transformers import AutoModelForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -417,7 +416,8 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
     @cached_property
     def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), use_fast=True)
 

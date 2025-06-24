@@ -22,20 +22,21 @@ import torch
 from lightning.fabric.utilities.cloud_io import _load as pl_load
 from lightning.pytorch import Trainer
 from lightning.pytorch.core.saving import _load_state as ptl_load_state
-from lightning.pytorch.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from lightning.pytorch.core.saving import (load_hparams_from_tags_csv,
+                                           load_hparams_from_yaml)
 from lightning.pytorch.utilities import rank_zero_only
 from lightning.pytorch.utilities.migration import pl_legacy_patch
 from omegaconf import DictConfig, OmegaConf
 from transformers import TRANSFORMERS_CACHE
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.nlp.modules import BertModule
-from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import VOCAB_FILE_NAME
+from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import \
+    VOCAB_FILE_NAME
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.megatron.megatron_utils import (
-    MEGATRON_CONFIG_MAP,
-    get_megatron_pretrained_bert_models,
-)
+    MEGATRON_CONFIG_MAP, get_megatron_pretrained_bert_models)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes import ModelPT

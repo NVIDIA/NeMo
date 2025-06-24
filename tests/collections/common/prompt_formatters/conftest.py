@@ -14,8 +14,10 @@
 
 import pytest
 
-from nemo.collections.common.tokenizers import CanaryTokenizer, SentencePieceTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
+from nemo.collections.common.tokenizers import (CanaryTokenizer,
+                                                SentencePieceTokenizer)
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    create_spt_model
 
 # Note: We don't really define special tokens for this test so every 'special token'
 #       will be represented as a number of regular tokens.

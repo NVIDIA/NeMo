@@ -17,12 +17,14 @@
 import torch
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
 
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 from nemo.utils import logging
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import (ModelParallelConfig, parallel_state,
+                               tensor_parallel)
 
     HAVE_MEGATRON_CORE = True
 

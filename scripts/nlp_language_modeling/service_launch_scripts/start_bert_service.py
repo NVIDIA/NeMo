@@ -14,8 +14,10 @@
 """
 """
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.bert_service import start_sentence_bert_server
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.bert_service import \
+    start_sentence_bert_server
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.core.config import hydra_runner
 
 

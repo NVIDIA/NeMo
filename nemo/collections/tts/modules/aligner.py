@@ -18,7 +18,8 @@ from einops import rearrange
 from torch import nn
 
 from nemo.collections.tts.modules.submodules import ConditionalInput, ConvNorm
-from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel
+from nemo.collections.tts.parts.utils.helpers import \
+    binarize_attention_parallel
 
 
 class AlignmentEncoder(torch.nn.Module):

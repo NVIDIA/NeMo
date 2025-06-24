@@ -18,11 +18,14 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import torch
 import webdataset as wds
 
-from nemo.collections.asr.data.audio_to_text import cache_datastore_manifests, expand_sharded_filepaths
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
+from nemo.collections.asr.data.audio_to_text import (cache_datastore_manifests,
+                                                     expand_sharded_filepaths)
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
-from nemo.collections.multimodal.speech_cv.parts.preprocessing.features import VideoFeaturizer
+from nemo.collections.multimodal.speech_cv.parts.preprocessing.features import \
+    VideoFeaturizer
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging

@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
+from nemo.collections.nlp.data.dialogue.input_example.input_example import \
+    DialogueInputExample
 
 
 class DialogueDesignInputExample(DialogueInputExample):

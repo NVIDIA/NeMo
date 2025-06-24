@@ -21,8 +21,10 @@ from typing import List, Optional
 import numpy as np
 
 from nemo.collections.llm.api import pretrain
-from nemo.collections.llm.tools.auto_configurator.core.training_config import generate_grid_search_configs
-from nemo.collections.llm.tools.auto_configurator.core.utils import _calculate_model_size, generic_base_config
+from nemo.collections.llm.tools.auto_configurator.core.training_config import \
+    generate_grid_search_configs
+from nemo.collections.llm.tools.auto_configurator.core.utils import (
+    _calculate_model_size, generic_base_config)
 from nemo.collections.llm.utils import Config, Partial
 from nemo.utils import logging
 

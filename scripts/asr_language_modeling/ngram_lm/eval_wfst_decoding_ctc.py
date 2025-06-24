@@ -71,7 +71,8 @@ from tqdm.auto import tqdm
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.submodules import ctc_beam_decoding
-from nemo.collections.asr.parts.utils.transcribe_utils import PunctuationCapitalization, TextProcessingConfig
+from nemo.collections.asr.parts.utils.transcribe_utils import (
+    PunctuationCapitalization, TextProcessingConfig)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

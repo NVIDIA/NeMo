@@ -32,7 +32,8 @@ from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from lightning.pytorch.trainer.trainer import Trainer
 
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
+from nemo.collections.vision.models.megatron_vit_classification_models import \
+    MegatronVitClassificationModel
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 from nemo.utils.model_utils import inject_model_parallel_rank

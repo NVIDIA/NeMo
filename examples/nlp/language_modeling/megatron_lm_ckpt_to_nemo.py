@@ -44,18 +44,23 @@ from typing import Any, Optional
 import torch
 from lightning.fabric.utilities.cloud_io import _load as pl_load
 from lightning.pytorch.core.saving import _load_state as ptl_load_state
-from lightning.pytorch.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from lightning.pytorch.core.saving import (load_hparams_from_tags_csv,
+                                           load_hparams_from_yaml)
 from lightning.pytorch.trainer.trainer import Trainer
 from lightning.pytorch.utilities.migration import pl_legacy_patch
 from megatron.core import parallel_state
 
-from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
+    MegatronBertModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import \
+    initialize_model_parallel_for_nemo
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
-from nemo.utils.model_utils import inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils.model_utils import (inject_model_parallel_rank,
+                                    uninject_model_parallel_rank)
 
 # this enums code is copied from Megatron_LM
 enum_code = '''
@@ -470,7 +475,8 @@ def convert(local_rank, rank, world_size, args):
             )
         if mcore_output and not args.mcore_input:
             # convert from legacy Megatron-LM to MCore NeMo. Initialize an mcore translation dict
-            from scripts.checkpoint_converters.convert_gpt_nemo_to_mcore import build_key_mapping
+            from scripts.checkpoint_converters.convert_gpt_nemo_to_mcore import \
+                build_key_mapping
 
             mcore_translate = {}
             for k, v in build_key_mapping(model_cfg).items():

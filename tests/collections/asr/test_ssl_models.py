@@ -16,7 +16,8 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.models import EncDecDenoiseMaskedTokenPredModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models import (EncDecDenoiseMaskedTokenPredModel,
+                                         SpeechEncDecSelfSupervisedModel)
 from nemo.core.classes.common import typecheck
 
 

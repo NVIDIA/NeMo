@@ -17,12 +17,10 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers import Sampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers import \
+    Sampler
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
-    make_ddim_sampling_parameters,
-    make_ddim_timesteps,
-    noise_like,
-)
+    make_ddim_sampling_parameters, make_ddim_timesteps, noise_like)
 
 
 class AbstractBaseSampler(ABC):

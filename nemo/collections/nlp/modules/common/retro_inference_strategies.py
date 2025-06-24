@@ -21,8 +21,10 @@ import torch
 import torch.distributed as dist
 
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import ComboRetrievalService
-from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import \
+    ComboRetrievalService
+from nemo.collections.nlp.modules.common.text_generation_strategy import \
+    TextGenerationStrategy
 
 
 class RetroModelTextGenerationStrategy(TextGenerationStrategy):

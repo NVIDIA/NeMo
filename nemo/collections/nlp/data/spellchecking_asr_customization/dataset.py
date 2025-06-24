@@ -22,9 +22,11 @@ import numpy as np
 import torch
 import webdataset as wds
 
-from nemo.collections.nlp.data.spellchecking_asr_customization.bert_example import BertExampleBuilder
+from nemo.collections.nlp.data.spellchecking_asr_customization.bert_example import \
+    BertExampleBuilder
 from nemo.core.classes.dataset import Dataset, IterableDataset
-from nemo.core.neural_types import ChannelType, IntType, LabelsType, MaskType, NeuralType
+from nemo.core.neural_types import (ChannelType, IntType, LabelsType, MaskType,
+                                    NeuralType)
 from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
 

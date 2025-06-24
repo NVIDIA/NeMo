@@ -17,21 +17,20 @@ import datetime
 
 import torch
 import torchvision
-from examples.nlp.language_modeling.megatron_gpt_eval import (
-    RequestDataSet,
-    load_model_from_config,
-    remove_padded_prompts,
-    round_to_mult,
-)
 from omegaconf import OmegaConf
 from PIL import Image
 from pytorch_lightning.trainer.trainer import Trainer
 from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
 
+from examples.nlp.language_modeling.megatron_gpt_eval import (
+    RequestDataSet, load_model_from_config, remove_padded_prompts,
+    round_to_mult)
 # pylint: disable=line-too-long
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam, SamplingParam)
+from nemo.collections.nlp.parts.nlp_overrides import (CustomProgressBar,
+                                                      NLPDDPStrategy)
 from nemo.core.config import hydra_runner
 
 """

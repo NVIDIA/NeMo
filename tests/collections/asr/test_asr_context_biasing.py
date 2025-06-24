@@ -23,7 +23,8 @@ from lightning.pytorch import Trainer
 
 from nemo.collections.asr.models import EncDecCTCModelBPE
 from nemo.collections.asr.parts import context_biasing
-from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WSHyp
+from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import \
+    WSHyp
 from nemo.collections.asr.parts.utils import rnnt_utils
 
 

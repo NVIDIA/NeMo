@@ -15,7 +15,9 @@
 import pytest
 import torch
 
-from nemo.collections.tts.parts.utils.helpers import regulate_len, sort_tensor, unsort_tensor
+from nemo.collections.tts.parts.utils.helpers import (regulate_len,
+                                                      sort_tensor,
+                                                      unsort_tensor)
 
 
 def sample_duration_input(max_length=64, group_size=2, batch_size=3):

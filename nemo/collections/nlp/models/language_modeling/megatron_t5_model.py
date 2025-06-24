@@ -18,10 +18,10 @@ import math
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
 
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
-    MegatronLMEncoderDecoderModel,
-)
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import \
+    build_train_valid_test_datasets
+from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import \
+    MegatronLMEncoderDecoderModel
 from nemo.utils import logging
 
 __all__ = ["MegatronT5Model"]

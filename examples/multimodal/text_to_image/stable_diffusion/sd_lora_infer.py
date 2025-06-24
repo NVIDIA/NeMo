@@ -16,10 +16,14 @@ from lightning.pytorch import Trainer
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from omegaconf import open_dict
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
-from nemo.collections.multimodal.parts.stable_diffusion.pipeline import pipeline
-from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import \
+    MegatronLatentDiffusion
+from nemo.collections.multimodal.parts.stable_diffusion.pipeline import \
+    pipeline
+from nemo.collections.multimodal.parts.utils import \
+    setup_trainer_and_model_for_inference
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 

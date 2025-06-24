@@ -19,7 +19,8 @@ import torch
 from lhotse import MonoCut
 from lhotse.cut import Cut, MixedCut
 
-from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample
+from nemo.collections.common.data.lhotse.text_adapters import \
+    SourceTargetTextExample
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
 

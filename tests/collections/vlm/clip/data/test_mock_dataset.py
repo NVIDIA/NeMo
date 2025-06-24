@@ -18,7 +18,8 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 
-from nemo.collections.vlm.clip.data.mock import MockDataModule, _MockClipDataset
+from nemo.collections.vlm.clip.data.mock import (MockDataModule,
+                                                 _MockClipDataset)
 
 
 @pytest.fixture

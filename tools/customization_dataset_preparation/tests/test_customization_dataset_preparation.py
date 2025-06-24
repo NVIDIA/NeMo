@@ -14,26 +14,15 @@
 
 import pandas as pd
 import pytest
+
 from ..customization_dataset_preparation import (
-    convert_into_prompt_completion_only,
-    convert_into_template,
-    drop_duplicated_rows,
-    drop_unrequired_fields,
-    get_common_suffix,
-    get_prepared_filename,
-    parse_template,
-    recommend_hyperparameters,
-    show_first_example_in_df,
-    split_into_train_validation,
-    template_mapper,
-    validate_template,
-    warn_and_drop_long_samples,
-    warn_completion_is_not_empty,
-    warn_duplicated_rows,
-    warn_imbalanced_completion,
-    warn_low_n_samples,
-    warn_missing_suffix,
-)
+    convert_into_prompt_completion_only, convert_into_template,
+    drop_duplicated_rows, drop_unrequired_fields, get_common_suffix,
+    get_prepared_filename, parse_template, recommend_hyperparameters,
+    show_first_example_in_df, split_into_train_validation, template_mapper,
+    validate_template, warn_and_drop_long_samples,
+    warn_completion_is_not_empty, warn_duplicated_rows,
+    warn_imbalanced_completion, warn_low_n_samples, warn_missing_suffix)
 
 
 def test_recommend_hyperparameters():

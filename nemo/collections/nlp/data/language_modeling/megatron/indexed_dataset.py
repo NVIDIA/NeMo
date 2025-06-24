@@ -37,10 +37,9 @@ import numpy as np
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
-    MMapRetrievalIndexedDataset,
-    MMapRetrievalIndexedDatasetBuilder,
-)
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import CSVMemMapDataset, TextMemMapDataset
+    MMapRetrievalIndexedDataset, MMapRetrievalIndexedDatasetBuilder)
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import (
+    CSVMemMapDataset, TextMemMapDataset)
 from nemo.utils import logging
 
 

@@ -19,10 +19,7 @@ import string
 from typing import Dict
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
-    fill_class_weights,
-    get_freq_weights,
-    get_label_stats,
-)
+    fill_class_weights, get_freq_weights, get_label_stats)
 from nemo.utils import logging
 
 __all__ = ['get_label_ids', 'create_text_and_labels']

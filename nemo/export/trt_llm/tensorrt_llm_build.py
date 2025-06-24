@@ -14,13 +14,15 @@
 
 
 import logging
+
 import tensorrt_llm
 from tensorrt_llm._common import check_max_num_tokens
 from tensorrt_llm.builder import BuildConfig
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.logger import logger
 from tensorrt_llm.lora_manager import LoraConfig
-from tensorrt_llm.models.modeling_utils import optimize_model, preprocess_weights
+from tensorrt_llm.models.modeling_utils import (optimize_model,
+                                                preprocess_weights)
 from tensorrt_llm.plugin import PluginConfig
 
 MODEL_NAME = "NeMo"

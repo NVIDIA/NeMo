@@ -14,14 +14,17 @@
 
 import os
 
-from examples.nlp.language_modeling.megatron_gpt_eval import RequestDataSet
 from lightning.pytorch import Trainer
 from omegaconf.omegaconf import OmegaConf, open_dict
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from examples.nlp.language_modeling.megatron_gpt_eval import RequestDataSet
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import \
+    MegatronRetrievalModel
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam, SamplingParam)
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.core.config import hydra_runner
 
 try:

@@ -31,25 +31,15 @@ from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from megatron.core.transformer.transformer_layer import TransformerLayer
 from torch.distributed.checkpoint.state_dict import (  # get_state_dict,
-    StateDictOptions,
-    get_optimizer_state_dict,
-    set_state_dict,
-)
+    StateDictOptions, get_optimizer_state_dict, set_state_dict)
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
-    _destroy_dist_connection,
-    ckpt_to_dir,
-    create_checkpoint_io,
-    fix_progress_bar,
-    init_model_parallel,
-    mcore_to_pyt_sharded_state_dict,
-    pyt_to_mcore_state_dict,
-    setup_data_sampler,
-    setup_parallel_ranks,
-)
+    _destroy_dist_connection, ckpt_to_dir, create_checkpoint_io,
+    fix_progress_bar, init_model_parallel, mcore_to_pyt_sharded_state_dict,
+    pyt_to_mcore_state_dict, setup_data_sampler, setup_parallel_ranks)
 
 _logger = logging.getLogger(__name__)
 

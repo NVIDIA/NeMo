@@ -19,7 +19,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import exp_manager
 
-
 """
 python speech_to_text_hybrid.py \
     --config-path="conf/quartznet" \

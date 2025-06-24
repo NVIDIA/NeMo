@@ -21,7 +21,8 @@ import numpy as np
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import request_data
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import \
+    request_data
 
 log = logging.getLogger('retrieval')
 log.setLevel(logging.ERROR)

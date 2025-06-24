@@ -16,7 +16,6 @@ import json
 from argparse import ArgumentParser
 from collections import defaultdict
 
-
 """
 Converts Chinese Polyphones with Pinyin (CPP) data to .json manifest format for Chinese HeteronymClassificationModel training.
 Chinese dataset could be found here:
