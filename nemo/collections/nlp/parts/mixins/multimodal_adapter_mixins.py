@@ -124,7 +124,6 @@ class MultimodalAdapterModelMixin(NLPAdapterModelMixin):
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
-        # TODO: confirm this is NeMo 1
         if filepath.endswith('.nemo'):
             sharded_state_dict = None
             if getattr(self, "sharded_state_dict", None) is not None:
