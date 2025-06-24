@@ -2,7 +2,7 @@ braceexpand
 editdistance
 einops
 g2p_en
-jiwer
+jiwer>=3.1.0,<4.0.0
 kaldi-python-io
 kaldiio
 lhotse>=1.26.0
