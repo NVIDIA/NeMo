@@ -36,8 +36,13 @@ def test_preprocessor_invariant_to_padding(deterministic_rng, length):
     mels1, mels1l = f(a1, a1l)
     mels2, mels2l = f(a2, a2l)
 
-    # Strictly identical results.
-    torch.testing.assert_close(mels1[..., :mels1l], mels2[..., :mels1l], atol=0, rtol=0)
+    # Ideally, we'd have strictly identical results.
+    # However, we observed depending on PyTorch build and environment,
+    # Mel-spectrogram normalization tends to yield non-deterministic results;
+    # specifically, in the computation of numerator in
+    # nemo.collections.asr.parts.preprocessing.features.normalize_batch
+    # where identical inputs lead up to +/- 2e-3 numerical differences.
+    torch.testing.assert_close(mels1[..., :mels1l], mels2[..., :mels1l], atol=5e-2, rtol=0)
 
 
 @pytest.mark.parametrize("length", [16000])
@@ -95,7 +100,7 @@ def test_canary_encoder_invariant_to_padding(deterministic_rng, length):
     mels1, mels1l = preprocessor(input_signal=a1, length=a1l)
     mels2, mels2l = preprocessor(input_signal=a2, length=a2l)
 
-    torch.testing.assert_close(mels1[..., :mels1l], mels2[..., :mels1l])
+    torch.testing.assert_close(mels1[..., :mels1l], mels2[..., :mels1l], atol=5e-4, rtol=0)
 
     # SUBSAMPLING MODULE NOT MISMATCHING
     activation = {}
@@ -115,7 +120,7 @@ def test_canary_encoder_invariant_to_padding(deterministic_rng, length):
     h2, h2l = encoder.pre_encode(mels2.transpose(1, 2), mels2l)
     inner2 = activation
     for k in inner1:
-        torch.testing.assert_close(inner1[k], inner2[k][:, :, : inner1[k].shape[2]])
+        torch.testing.assert_close(inner1[k], inner2[k][:, :, : inner1[k].shape[2]], atol=5e-5, rtol=0)
 
     torch.testing.assert_close(h1[:, :h1l], h2[:, :h1l])
 
