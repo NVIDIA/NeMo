@@ -234,8 +234,8 @@ class MagpieTTSModel(ModelPT):
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
         elif self.model_type == 'decoder_ce':
-            # Similar to decoder_context_tts, but we don't use context encoder
-            # Decoder gets output from context encoder instead of raw context tokens
+            # Similar to decoder_context_tts, but we use context encoder
+            # Decoder gets output from context encoder instead of raw context tokens embeddings
             self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
             self.transcript_decoder_layers = [
                 idx for idx in range(cfg.decoder.n_layers)
