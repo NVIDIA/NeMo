@@ -81,34 +81,69 @@ class DuplexT2TDataset(torch.utils.data.Dataset):
           This is a segment-level alignment only, not word-level alignment.
         - If collate_source_interleaved is True, the source tokens are interleaved with pad
           tokens as per word level timestamps.
+    
+    Duplex text/token to text/speech model with frozen ASR.
+    With cfg.generate_speech=True and cfg.audio_loss_weight > 0, this model can be trained to generate speech.
+    
+    Text to text model:
+      speech → [ASR] → decoded text → [deterministic retokenization] → tokens from LLM’s vocabulary → 
+      [LLM’s embed and combine with agent channel] → continuous representation → [LLM]
+
+      CASE 1 input (oracle-EoU):
+        <BOS><turn 1 tokens><EOS><PAD tokens to fill user turn 1 duration><PAD tokens to fill agent turn 1>
+        <BOS><turn 2 tokens><EOS><PAD tokens to fill user turn 2 duration><PAD tokens to fill agent turn 2>
+        ...
+      CASE 2 input (oracle-aligned):
+        <turn 1 tokens word-aligned><PAD tokens to fill agent turn 1>
+        <turn 2 tokens word-aligned><PAD tokens to fill agent turn 2>
+        ...
+
+    Token to text model:
+      speech → [ASR] → frame-level output tokens → [ASR’s embed and combine with agent channel embed^] → 
+      continuous representation → [shallow transformer module*] → continuous representation → [LLM]
+    
+      Input:
+        <turn 1 tokens frame-aligned><PAD tokens to fill agent turn 1>
+        <turn 2 tokens frame-aligned><PAD tokens to fill agent turn 2>
+        ...
+
+    ^Agent channel can be embedded either via LLM’s tokenize+embedding or ASR’s tokenization+embedding. 
+
+    *transformer so that the self-attention can learn which tokens to combine/split etc to match LLM’s vocabulary space. 
     """
 
     def __init__(
         self,
         tokenizer: TokenizerSpec,
         frame_length: Seconds,
-        # source_sample_rate: int,
+        source_sample_rate: int,
         # target_sample_rate: int,
         input_roles: list[str] = None,
         output_roles: list[str] = None,
         collate_source_interleaved: bool = False,
+        train_retokenizer: bool = False,
     ):
         self.tokenizer = tokenizer
         self.frame_length = frame_length
-        # self.source_sample_rate = source_sample_rate
+        self.source_sample_rate = source_sample_rate
         # self.target_sample_rate = target_sample_rate
         self.input_roles = set(ifnone(input_roles, ["user"]))
         self.output_roles = set(ifnone(output_roles, ["agent"]))
+        
         self.collate_source_interleaved = collate_source_interleaved
+        self.train_retokenizer = train_retokenizer
+        
         assert tokenizer.bos is not None, "BOS support in the tokenizer is required for S2S models."
         assert tokenizer.eos is not None, "EOS support in the tokenizer is required for S2S models."
 
     def __getitem__(self, cuts: CutSet) -> dict:
         stripped_cuts = cuts.transform_text(_strip_timestamps)
-        # source_audio, source_audio_lens = collate_audio(cuts.resample(self.source_sample_rate))
+        
+        source_audio, source_audio_lens = collate_audio(cuts.resample(self.source_sample_rate))
         # target_audio, target_audio_lens = collate_audio(
         #     cuts.resample(self.target_sample_rate), recording_field="target_audio"
         # )
+
         if self.collate_source_interleaved:
             source_tokens, source_token_lens = collate_token_channel_interleaved(
                 cuts, self.tokenizer, self.frame_length, roles=self.input_roles
@@ -121,8 +156,8 @@ class DuplexT2TDataset(torch.utils.data.Dataset):
             stripped_cuts, self.tokenizer, self.frame_length, roles=self.output_roles
         )
         return {
-            # "source_audio": source_audio,
-            # "source_audio_lens": source_audio_lens,
+            "source_audio": source_audio,
+            "source_audio_lens": source_audio_lens,
             # "target_audio": target_audio,
             # "target_audio_lens": target_audio_lens,
             "target_tokens": target_tokens,
@@ -370,3 +405,4 @@ def build_token_channel_interleaved(
                     )
 
     return tokens
+
