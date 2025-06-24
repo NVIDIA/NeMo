@@ -28,7 +28,7 @@ from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEm
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer import ModuleSpec, TransformerConfig, TransformerLayer, TransformerLayerSubmodules
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.enums import AttnBackend, AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from torch import Tensor, nn
 
@@ -142,6 +142,8 @@ class Gemma3Config(GPTConfig):
     interleaved_attn_pattern: tuple = (5, 1)  # (local, global)
     attention_dropout: float = 0.0
     hidden_dropout: float = 0.0
+    # Disable cuDNN attention since TE 1.8 does not support head dim > 128
+    attention_backend: AttnBackend = AttnBackend.flash
 
     # mlp
     gated_linear_unit: bool = True
@@ -155,15 +157,25 @@ class Gemma3Config(GPTConfig):
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = gemma3_layer_spec
     scatter_embedding_sequence_parallel: bool = True
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+    def configure_model(
+        self,
+        tokenizer,
+        pre_process=None,
+        post_process=None,
+        vp_stage: Optional[int] = None,
+    ) -> "MCoreGPTModel":
         """Configure and instantiate a megatron-core Gemma3 model."""
         if self.context_parallel_size > 1:
             raise ValueError("Context Parallel is not supported for Gemma3 model.")
 
+        assert (
+            getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
+        ), "Virtual pipeline model parallel size is not yet supported for Gemma3 model."
+
         rotary_base_local, rotary_base_global = self.rotary_base
         # Trick megatron's RotaryEmbedding to initialize the model successfully
         self.rotary_base = rotary_base_global
-        model = super().configure_model(tokenizer, pre_process, post_process)
+        model = super().configure_model(tokenizer, pre_process, post_process, vp_stage=vp_stage)
         self.rotary_base = (rotary_base_local, rotary_base_global)
 
         # Replace model's embedding and rope with customized ones
