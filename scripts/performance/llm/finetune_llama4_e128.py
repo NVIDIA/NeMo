@@ -66,10 +66,11 @@ def override_recipe_configs(
     finetuning_scheme = "sft" if args.finetuning == "sft" else args.finetuning
 
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, packed_sequence=True)
+    finetuning_task = "sft"
 
     recipe = set_primary_perf_configs(
         recipe,
-        finetuning_scheme,
+        finetuning_task,
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -217,7 +218,7 @@ if __name__ == "__main__":
             else:
                 exp_config = "import_checkpoint"
         exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-        
+
         executor = slurm_executor(
             args.account,
             args.partition,

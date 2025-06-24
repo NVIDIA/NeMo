@@ -318,7 +318,7 @@ def finetune_recipe(
         num_gpus_per_node,
         packed_sequence,
     )
-    if peft_scheme is None or peft_scheme.lower() == 'none' or peft_scheme.lower() == 'sft':
+    if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
@@ -374,7 +374,7 @@ def finetune_performance_optimizations(
     if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
 
-    if peft_scheme is None or peft_scheme.lower() == 'none' or peft_scheme.lower() == 'sft':
+    if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.ddp = run.Config(
             DistributedDataParallelConfig,
             check_for_nan_in_grad=True,
