@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
+from typing import Dict, List, Tuple, Union
+import math
 
 from lightning.pytorch.callbacks.callback import Callback
 
@@ -27,6 +28,22 @@ def _resolve_attr(root, path: str):
         m = getattr(m, part)
     return m
 
+def make_start_end(spec: Union[int, list[int]]):
+    start, end = 0, 0
+    # Normalize to (start, end) where end==inf means “forever”
+    if isinstance(spec, int):
+        if spec == -1:                       # forever
+            start, end = 0, math.inf
+        else:                                # first N steps
+            start, end = 0, spec - 1
+    elif isinstance(spec, (list, tuple)) and len(spec) == 2:
+        start, end = spec
+        start = 0 if start == -1 else start
+        end = math.inf if end == -1 else end
+    else:
+        raise ValueError(f"Invalid schedule for '{name}': {spec}")
+    return start, end
+
 class LayerFreezer(Callback, IOMixin):
     """
     Freezes sub-modules of a LightningModule based on the list provided. The list of layers should
@@ -34,18 +51,55 @@ class LayerFreezer(Callback, IOMixin):
 
     Instantiate
     -----------
+    # to keep layers frozen for all training
     callback = LayerFreezer(['layer1', 'layer2',])
+    # for some steps
+    callback = LayerFreezer({'layer1': 10, 'layer2': (10, 100)})
+
     trainer  = pl.Trainer(callbacks=[callback], ...)
     """
-
-    def __init__(self, frozen_layers: List[str]):
+    def __init__(self, schedule: Union[List[str], Dict[str, ScheduleValue]]):
         """
         Args
         ----
-        frozen_layers: List[str] list of layers that are frozen
+        schedule: Union[list, dict]
+        - dict
+            key   = attribute path of sub-module inside LightningModule
+            value = one of
+                    : -1                -> frozen for entire run
+                    :  N (int>0)        -> frozen for first N steps (0..N-1)
+                    : [start, end]      -> frozen if start <= step <= end
+                    use -1 for "until end of training"
+        - list:
+            key   = attribute path of sub-module inside LightningModule
+            value = -1 (hardcoded; use a dict if you want to specify manually).
         """
         super().__init__()
-        self.frozen_layers = frozen_layers
+        assert isinstance(schedule, (list, dict)), type(schedule)
+        if isinstance(schedule, list):
+            schedule = {
+                item: -1
+                for item in schedule
+            }
+
+        self.schedule: Dict[str, Tuple[int, float]] = {}
+        self.frozen_state: Dict[str, bool] = {}  # last applied state
+
+        for name, spec in schedule.items():
+            self.schedule[name] = make_start_end(spec)
+
+    # --------------------------------------------------------------------- #
+    # internal helpers
+    # --------------------------------------------------------------------- #
+    @staticmethod
+    def _resolve_attr(root, path: str):
+        """
+        Traverse dotted attribute path (“encoder.layer1”) from root.
+        """
+        m = root
+        for part in path.split('.'):
+            m = getattr(m, part)
+        return m
 
     def _apply_freeze(self, module, freeze: bool):
         """
@@ -56,23 +110,32 @@ class LayerFreezer(Callback, IOMixin):
         # Optional: also flip training mode so dropout / BN are disabled.
         module.eval() if freeze else module.train()
 
+    # --------------------------------------------------------------------- #
+    # Lightning hooks
+    # --------------------------------------------------------------------- #
     def on_train_batch_start(self, trainer, pl_module, *_):
         """
         freezes layers listed on frozen_layers
-
         Args:
             trainer (Trainer): the trainer
             pl_module (LightningModule): model
         """
-        for name in self.frozen_layers:
-            submod = _resolve_attr(pl_module, name)
-            self._apply_freeze(submod, True)
+        step = trainer.global_step
+
+        for name, (start, end) in self.schedule.items():
+            should_be_frozen = (start <= step <= end)
+            # skip if status unchanged since last check
+            if self.frozen_state.get(name, None) == should_be_frozen:
+                continue
+
+            submod = self._resolve_attr(pl_module, name)
+            self._apply_freeze(submod, should_be_frozen)
+            self.frozen_state[name] = should_be_frozen
 
     def on_train_start(self, trainer, pl_module):
         """
         on_train_start
         In case we resume from checkpoint, re-establish correct state
-
         Args:
             trainer (Trainer): the trainer
             pl_module (LightningModule): model
