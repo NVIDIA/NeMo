@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Dict, List, Tuple, Union
 import math
+from typing import Dict, List, Tuple, Union
 
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo.lightning.io.mixin import IOMixin
+
 ScheduleValue = Union[int, List[int], Tuple[int, int]]  # -1, N, [start, end], [start, -1]
 
 
@@ -28,6 +29,7 @@ def _resolve_attr(root, path: str):
     for part in path.split('.'):
         m = getattr(m, part)
     return m
+
 
 def make_start_end(name: str, spec: Union[int, list[int]]):
     """Translates spec to start/end steps, for example,
@@ -48,9 +50,9 @@ def make_start_end(name: str, spec: Union[int, list[int]]):
     """
     # Normalize to (start, end) where end==inf means “forever”
     if isinstance(spec, int):
-        if spec == -1:                       # forever
+        if spec == -1:  # forever
             start, end = 0, math.inf
-        else:                                # first N steps
+        else:  # first N steps
             start, end = 0, spec - 1
     elif isinstance(spec, (list, tuple)) and len(spec) == 2:
         start, end = spec
@@ -59,6 +61,7 @@ def make_start_end(name: str, spec: Union[int, list[int]]):
     else:
         raise ValueError(f"Invalid schedule for '{name}': {spec}")
     return start, end
+
 
 class LayerFreezer(Callback, IOMixin):
     """
@@ -74,6 +77,7 @@ class LayerFreezer(Callback, IOMixin):
 
     trainer  = pl.Trainer(callbacks=[callback], ...)
     """
+
     def __init__(self, schedule: Union[List[str], Dict[str, ScheduleValue]]):
         """
         Args
@@ -93,10 +97,7 @@ class LayerFreezer(Callback, IOMixin):
         super().__init__()
         assert isinstance(schedule, (list, dict)), type(schedule)
         if isinstance(schedule, list):
-            schedule = {
-                item: -1
-                for item in schedule
-            }
+            schedule = {item: -1 for item in schedule}
 
         self.schedule: Dict[str, Tuple[int, float]] = {}
         self.frozen_state: Dict[str, bool] = {}  # last applied state
@@ -139,7 +140,7 @@ class LayerFreezer(Callback, IOMixin):
         step = trainer.global_step
 
         for name, (start, end) in self.schedule.items():
-            should_be_frozen = (start <= step <= end)
+            should_be_frozen = start <= step <= end
             # skip if status unchanged since last check
             if self.frozen_state.get(name, None) == should_be_frozen:
                 continue
