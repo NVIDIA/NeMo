@@ -219,6 +219,8 @@ def finetune_recipe(
     """
     callback = [run.Config(TimingCallback)]
     if freeze_modules is not None:
+        assert isinstance(freeze_modules, list), "Expected freeze_modules to be a list"
+        assert len(freeze_modules) > 0, "Expected freeze_modules to be non-empty"
         callbacks.append(run.Config(LayerFreezer, freeze_modules))
     recipe = run.Partial(
         finetune,
