@@ -31,7 +31,7 @@ from tensorrt_llm._common import check_max_num_tokens
 from tensorrt_llm.builder import BuildConfig, Builder
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.mapping import Mapping
-from tensorrt_llm.models import MLLaMAForCausalLM, LLaMAForCausalLM
+from tensorrt_llm.models import LLaMAForCausalLM, MLLaMAForCausalLM
 from tensorrt_llm.plugin import PluginConfig
 from transformers import AutoModel, AutoProcessor, AutoTokenizer, MllamaForConditionalGeneration
 
