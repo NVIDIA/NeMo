@@ -62,7 +62,6 @@ class LayerFreezer(Callback, IOMixin):
         for name in self.frozen_layers:
             submod = _resolve_attr(pl_module, name)
             self._apply_freeze(submod, should_be_frozen)
-            self.frozen_state[name] = should_be_frozen
 
     # In case we resume from checkpoint, re-establish correct state
     def on_train_start(self, trainer, pl_module):
