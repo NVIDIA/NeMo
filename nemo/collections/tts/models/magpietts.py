@@ -174,11 +174,6 @@ class MagpieTTSModel(ModelPT):
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
         
-        if cfg.decoder.xa_d_memory != cfg.encoder.d_model:
-            self.text_cond_adapter = nn.Linear(cfg.encoder.d_model, cfg.decoder.xa_d_memory)
-        else:
-            self.text_cond_adapter = nn.Identity()
-
         self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
 
         self.local_transformer_type = LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
@@ -208,7 +203,7 @@ class MagpieTTSModel(ModelPT):
         if cfg.get('use_alignment_encoder', False):
             self.alignment_encoder = AlignmentEncoder(
                 n_mel_channels=cfg.embedding_dim,
-                n_text_channels=cfg.decoder.xa_d_memory,
+                n_text_channels=cfg.embedding_dim,
                 dist_type="cosine",
                 temperature=15.0,
             )
@@ -909,7 +904,6 @@ class MagpieTTSModel(ModelPT):
             text_mask = get_mask_from_lengths(text_lens)  # (B, T)
             text_embedded = self.embed_text(text, text_mask)  # (B, T, E)
             text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
-            text_encoder_out = self.text_cond_adapter(text_encoder_out)  # (B, T, E)
             _attn_prior = batch.get('align_prior_matrix', None)
             _attn_prior = self.scale_prior(_attn_prior, self.global_step)
 
