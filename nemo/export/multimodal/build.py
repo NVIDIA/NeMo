@@ -31,6 +31,7 @@ from tensorrt_llm._common import check_max_num_tokens
 from tensorrt_llm.builder import BuildConfig, Builder
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.mapping import Mapping
+from tensorrt_llm.models import MLLaMAForCausalLM, LLaMAForCausalLM
 from tensorrt_llm.plugin import PluginConfig
 from transformers import AutoModel, AutoProcessor, AutoTokenizer, MllamaForConditionalGeneration
 
@@ -133,10 +134,10 @@ def build_trtllm_engine_from_hf(
     }
 
     if model_type == "mllama":
-        model_cls = tensorrt_llm.models.MLLaMAForCausalLM
+        model_cls = MLLaMAForCausalLM
         build_dict['max_encoder_input_len'] = max_multimodal_len
     elif model_type == "llama_nemotron":
-        model_cls = tensorrt_llm.models.LLaMAForCausalLM
+        model_cls = LLaMAForCausalLM
         build_dict['max_prompt_embedding_table_size'] = max_multimodal_len
 
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
