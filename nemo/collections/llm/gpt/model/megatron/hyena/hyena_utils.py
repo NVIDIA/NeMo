@@ -908,23 +908,16 @@ class ParallelHyenaOperator(nn.Module):
         return rearrange(y, "b l d -> b d l") # b l d
 
     def forward(self, x1, x2, v, _hyena_use_cp=True, inference_context=None):
-        # u = rearrange(torch.stack([x1, x2, v], dim=3), "b l g p dg -> b l (g dg p)")
         """Shape specification for inputs and outputs.
 
         Input shapes: bs, (num_groups, group_size), seq_length
         Output shapes: bs, (num_groups, group_size), seq_length
         """
-
         # CP control
         if _hyena_use_cp:
             cp_group = get_context_parallel_group()
         else:
             cp_group = None
-    
-
-        x1 = rearrange(x1, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
-        x2 = rearrange(x2, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
-        v = rearrange(v, "b l g dg -> b (g dg) l", g=self.num_groups, dg=self.group_dim)
         
         B, GDG, L = x1.shape
         
@@ -1103,18 +1096,8 @@ class ParallelShortHyenaOperator(nn.Module):
         Input shapes: bs, (num_groups, group_size), seq_length
         Output shapes: bs, (num_groups, group_size), seq_length
         """
-        x1 = rearrange(x1, "b l g dg -> b (g dg) l")
-        x2 = rearrange(x2, "b l g dg -> b (g dg) l")
-        v = rearrange(v, "b l g dg -> b (g dg) l")
         B, GDG, L = x1.shape
         x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
-
-
-        # x1 = rearrange(x1, "b l g dg -> b (g dg) l")
-        # x2 = rearrange(x2, "b l g dg -> b (g dg) l")
-        # v = rearrange(v, "b l g dg -> b (g dg) l")
-
-        # x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
         
         z = x2 * v if self.pregate else v
         if not self.use_conv_bias:
@@ -1297,12 +1280,7 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
             key = "{filter_name}_filter_state_dict"
             return getattr(inference_context, key, {}).get(id(self))
 
-        # u: [B, L, hidden_size*3]
-        # u = rearrange(u, "b l d -> b d l")
         L = u.shape[1]
-        # jared: fix u here
-
-        # z_pre: [B, hidden_size*3, L])
         fir_state = get_filter_state("fir")
         if fir_state is None:
             z_pre, fir_state = engine.parallel_fir(
@@ -1314,7 +1292,6 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
                 fir_length=self.kernel_size, # self.short_filter_length,
                 compute_state=inference_context is not None,
             )
-            # z_pre is [b d l]
         else:
             if len(u.shape) > 2:
                 u = u[:, -1]
