@@ -29,7 +29,23 @@ def _resolve_attr(root, path: str):
         m = getattr(m, part)
     return m
 
-def make_start_end(name, spec: Union[int, list[int]]):
+def make_start_end(name: str, spec: Union[int, list[int]]):
+    """Translates spec to start/end steps, for example,
+    spec = -1           -> (0, inf)
+    spec = N (int>0)    -> (N, int)
+    spec = [start, end] -> (start, end)
+
+
+    Args:
+        name (str): name layer
+        spec (Union[int, list[int]]): spec.
+
+    Raises:
+        ValueError: if spec is not int/list/tuple
+
+    Returns:
+        tuple(int, int): returns start/end
+    """
     start, end = 0, 0
     # Normalize to (start, end) where end==inf means “forever”
     if isinstance(spec, int):
