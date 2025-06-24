@@ -18,7 +18,7 @@ import socket
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Generator, Optional
 
 import torch
 import torch.distributed as dist
@@ -44,8 +44,59 @@ logger = logging.getLogger(__name__)
 HF_ASSETS_DIR = "hf_assets"
 
 
+def materialize_meta_tensors(obj: Any) -> Any:  # noqa: ANN401
+    """Recursively replace *meta* tensors with real CPU tensors.
+
+    This is handy when models are initialized on the *meta* device.
+    Such tensors lack storage and need to be converted before any real computation or serialization.
+
+    The function walks through common container types (``dict``, ``list``, ``tuple``)
+    and converts any tensor residing on the *meta* device to a freshly allocated
+    ``torch.empty`` tensor on the CPU that keeps the same ``shape`` and ``dtype``.
+
+    Args:
+        obj: Arbitrary python object that may contain ``torch.Tensor`` instances.
+
+    Returns
+    -------
+        The same object with all *meta* tensors materialised on CPU.  For immutable
+        containers like tuples a new instance is returned; mutable containers are
+        modified in-place for efficiency.
+    """
+
+    # Fast path: raw tensor
+    if isinstance(obj, torch.Tensor):
+        if obj.device.type == "meta":
+            return torch.empty(obj.size(), dtype=obj.dtype, device="cpu")
+        return obj
+
+    # Handle wrappers/Parameters holding a tensor in `.data`
+    if hasattr(obj, "data") and isinstance(obj.data, torch.Tensor):
+        if obj.data.device.type == "meta":
+            obj.data = torch.empty(obj.data.size(), dtype=obj.data.dtype, device="cpu")
+        return obj
+
+    # Mapping (dict-like)
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            obj[k] = materialize_meta_tensors(v)
+        return obj
+
+    # Sequence types
+    if isinstance(obj, list):
+        for i in range(len(obj)):
+            obj[i] = materialize_meta_tensors(obj[i])
+        return obj
+
+    if isinstance(obj, tuple):
+        return tuple(materialize_meta_tensors(v) for v in obj)
+
+    # Anything else is returned as-is
+    return obj
+
+
 @contextmanager
-def megatron_cpu_init_context(config):
+def megatron_cpu_init_context(config) -> Generator[None, None, None]:
     """ """
     _orig_use_cpu_initialization = config.use_cpu_initialization
 
@@ -53,6 +104,43 @@ def megatron_cpu_init_context(config):
 
     yield
 
+    config.use_cpu_initialization = _orig_use_cpu_initialization
+
+
+@contextmanager
+def megatron_lazy_init_context(config) -> Generator[None, None, None]:
+    """ """
+    try:
+        from megatron.core.extensions import transformer_engine as _te
+
+        original = _te._get_extra_te_kwargs  # noqa: SLF001
+
+        def _get_extra_te_kwargs_meta(c):
+            """Forces device to meta"""
+            kwargs = original(c)
+            kwargs["device"] = "meta"
+            return kwargs
+
+        _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
+    except ImportError:
+        pass
+
+    _orig_perform_initialization = config.perform_initialization
+    _orig_use_cpu_initialization = config.use_cpu_initialization
+
+    config.perform_initialization = False
+    config.use_cpu_initialization = True
+
+    yield
+
+    try:
+        from megatron.core.extensions import transformer_engine as _te
+
+        _te._get_extra_te_kwargs = original  # noqa: SLF001
+    except ImportError:
+        pass
+
+    config.perform_initialization = _orig_perform_initialization
     config.use_cpu_initialization = _orig_use_cpu_initialization
 
 
@@ -85,11 +173,13 @@ def get_full_mcore_state_dict(dist_ckpt_folder: Path, model_cfg):
             )
             model_cfg.params_dtype = torch_dtype_from_mcore_config(model_cfg)
 
-        with megatron_cpu_init_context(model_cfg):
+        with megatron_lazy_init_context(model_cfg):
             model = model_cfg.configure_model(None)
 
         strategy = TorchDistLoadShardedStrategy()
-        state_dict = strategy.load(model.sharded_state_dict(), Path(dist_ckpt_folder))
+        sharded_state_dict = model.sharded_state_dict()
+        sharded_state_dict = materialize_meta_tensors(sharded_state_dict)
+        state_dict = strategy.load(sharded_state_dict, Path(dist_ckpt_folder))
         del model
 
     return state_dict
@@ -174,7 +264,7 @@ class BaseImporter(ABC):
         )
 
     def init_tron_model(self, cfg: GPTConfig | T5Config):
-        with megatron_cpu_init_context(cfg):
+        with megatron_lazy_init_context(cfg):
             model = cfg.configure_model(tokenizer=self.tokenizer)
         return [model]
 
