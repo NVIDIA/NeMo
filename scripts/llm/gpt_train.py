@@ -23,8 +23,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.gpt.data.chat import ChatDataModule
-from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data import ChatDataModule, MockDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -58,7 +57,7 @@ def get_args():
         required=False,
         help="Path to NeMo 2 checkpoint to use as a distillation teacher. Will trigger distillation mode if provided.",
     )
-    parser.add_argument("--kd_config", type=str, default=None, help="""Path to Knowledge-Distillation config file""")
+    parser.add_argument("--kd_config", type=str, help="""Path to Knowledge-Distillation config file""")
     parser.add_argument("--tp_size", type=int, default=1, help="Tensor parallel size")
     parser.add_argument("--cp_size", type=int, default=1, help="Context parallel size")
     parser.add_argument("--pp_size", type=int, default=1, help="Pipeline parallel size")
@@ -75,14 +74,17 @@ def get_args():
         nargs="+",
         help="List of tokenized data paths to load from. If using chat data, provide a single path.",
     )
+    parser.add_argument("--split", type=str, default="99,1,0", help="Train,Val,Test ratios to split data")
+    parser.add_argument("--index_mapping_dir", type=str, help="Folder to write cached data indices")
     parser.add_argument("--use-chat-data", action="store_true", help="Use chat data for fine-tuning.")
     parser.add_argument(
         "--chat-template-path",
         type=str,
         help="Path to Chat template .txt file to use for chat data. Only provide if overriding default chat template in HuggingFace tokenizer.",
     )
-    parser.add_argument("--split", type=str, default="99,1,0", help="Train,Val,Test ratios to split data")
-    parser.add_argument("--index_mapping_dir", type=str, help="Folder to write cached data indices")
+    parser.add_argument(
+        "--use_mock_data", action="store_true", help="Use mock data instead of custom data in --data_paths"
+    )
     parser.add_argument("--seq_length", type=int, required=True, help="Number of tokens per input sample")
     parser.add_argument(
         "--tokenizer",
@@ -96,25 +98,15 @@ def get_args():
     parser.add_argument("--limit_val_batches", type=int, default=32, help="Number of batches per validation stage")
     parser.add_argument("--log_interval", type=int, default=10, help="Write to log every _ steps")
     parser.add_argument("--legacy_ckpt", action="store_true", help="Load ckpt saved with TE < 1.14")
-    parser.add_argument(
-        "--use_mock_data", action="store_true", help="Use mock data instead of custom data in --data_paths"
-    )
     return parser.parse_args()
 
 
-def read_chat_template(template_path):
-    """Read chat template from file if provided, otherwise return None.
-
-    Args:
-        template_path (str): Path to chat template file
-
-    Returns:
-        str or None: Chat template string if file exists, None otherwise
-    """
-    if template_path:
-        with open(template_path, 'r') as f:
-            return f.read().strip()
-    return None
+def _read_chat_template(template_path: str):
+    # pylint: disable=C0116
+    if not template_path:
+        return None
+    with open(template_path, 'r') as f:
+        return f.read().strip()
 
 
 if __name__ == "__main__":
@@ -153,7 +145,7 @@ if __name__ == "__main__":
         ),
     )
 
-    # Set up dataset
+    ## Set up dataset
     if not args.use_mock_data and not args.data_paths:
         raise ValueError("Must provide either custom dataset(s) in --data_paths or set --use_mock_data.")
 
@@ -164,9 +156,13 @@ if __name__ == "__main__":
         assert len(args.data_paths) == 1, "If using chat data, provide a single path."
         assert args.tokenizer is not None, "Tokenizer is required if using chat data."
 
-        chat_template = read_chat_template(args.chat_template_path)
+        chat_template = _read_chat_template(args.chat_template_path)
         tokenizer = get_tokenizer(args.tokenizer, chat_template=chat_template)
         if '{% generation %}' not in tokenizer.tokenizer.chat_template:
+            if not args.chat_template_path:
+                raise ValueError(
+                    "Tokenizer does not contain the '{% generation %}' keyword. Please provide a chat template path using --chat-template-path."
+                )
             raise ValueError(
                 "Please ensure the chat template includes a '{% generation %}' keyword for proper assistant mask during training. See https://github.com/huggingface/transformers/pull/30650"
             )
@@ -203,7 +199,7 @@ if __name__ == "__main__":
     )
     optim = nl.MegatronOptimizerModule(optim_config, sched)
 
-    # Set up checkpointing and logging
+    ## Set up checkpointing and logging
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss",
         save_top_k=1,
@@ -217,7 +213,7 @@ if __name__ == "__main__":
         update_logger_directory=False,
     )
 
-    # Set up resume and/or restore functionality
+    ## Set up resume and/or restore functionality
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
