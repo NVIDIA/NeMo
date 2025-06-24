@@ -30,7 +30,6 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
 
-
 NAME = "hf_auto_model_for_causal_lm"
 
 
