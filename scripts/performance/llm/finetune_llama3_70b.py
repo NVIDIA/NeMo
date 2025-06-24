@@ -117,11 +117,7 @@ def override_recipe_configs(
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
-    if (
-        finetuning_scheme == "lora"
-        and tp_size > 1
-        and args.compute_dtype.lower() == "fp8"
-    ):
+    if finetuning_scheme == "lora" and tp_size > 1 and args.compute_dtype.lower() == "fp8":
         tp_comm_overlap_cfg = userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora if tp_size == 2 else None
         if tp_comm_overlap_cfg:
             # Enable TP comm overlap with the given config
