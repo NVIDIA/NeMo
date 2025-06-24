@@ -20,6 +20,15 @@ from lightning.pytorch.callbacks.callback import Callback
 from nemo.lightning.io.mixin import IOMixin
 
 
+def _resolve_attr(root, path: str):
+    """
+    Traverse dotted attribute path (“encoder.layer1”) from root.
+    """
+    m = root
+    for part in path.split('.'):
+        m = getattr(m, part)
+    return m
+
 class LayerFreezer(Callback, IOMixin):
     """
     Freezes sub-modules of a LightningModule based on the list provided. The list of layers should
@@ -40,16 +49,6 @@ class LayerFreezer(Callback, IOMixin):
         super().__init__()
         self.frozen_layers = frozen_layers
 
-    @staticmethod
-    def _resolve_attr(root, path: str):
-        """
-        Traverse dotted attribute path (“encoder.layer1”) from root.
-        """
-        m = root
-        for part in path.split('.'):
-            m = getattr(m, part)
-        return m
-
     def _apply_freeze(self, module, freeze: bool):
         """
         Enable/disable gradients + switch (eval/train) mode.
@@ -61,7 +60,7 @@ class LayerFreezer(Callback, IOMixin):
 
     def on_train_batch_start(self, trainer, pl_module, *_):
         for name in self.frozen_layers:
-            submod = self._resolve_attr(pl_module, name)
+            submod = _resolve_attr(pl_module, name)
             self._apply_freeze(submod, should_be_frozen)
             self.frozen_state[name] = should_be_frozen
 
