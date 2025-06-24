@@ -114,7 +114,6 @@ def override_recipe_configs(
         finetuning_scheme == "lora"
         and tp_size > 1
         and args.compute_dtype.lower() == "fp8"
-        and args.fp8_recipe.lower() != "mxfp8"
     ):
         tp_comm_overlap_cfg = userbuffers_fp8_h100_h16384_tp4_mbs1_seqlen2048_lora if tp_size == 4 else None
         if tp_comm_overlap_cfg:
@@ -130,9 +129,6 @@ def override_recipe_configs(
             # (instead of wgrad GEMMs which are not done when using LoRA)
             recipe.model.config.tp_comm_bulk_dgrad = False
             recipe.model.config.tp_comm_overlap_rs_dgrad = True
-    if args.compute_dtype.lower() == "fp8" and args.fp8_recipe.lower() == "mxfp8":
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     recipe.optim.config.use_distributed_optimizer = True
     recipe.model.config.disable_parameter_transpose_cache = True
