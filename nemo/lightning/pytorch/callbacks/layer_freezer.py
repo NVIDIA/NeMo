@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import List
 
-import pytorch_lightning as pl
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo.lightning.io.mixin import IOMixin
@@ -58,10 +57,24 @@ class LayerFreezer(Callback, IOMixin):
         module.eval() if freeze else module.train()
 
     def on_train_batch_start(self, trainer, pl_module, *_):
+        """
+        freezes layers listed on frozen_layers
+
+        Args:
+            trainer (Trainer): the trainer
+            pl_module (LightningModule): model
+        """
         for name in self.frozen_layers:
             submod = _resolve_attr(pl_module, name)
-            self._apply_freeze(submod, should_be_frozen)
+            self._apply_freeze(submod, True)
 
-    # In case we resume from checkpoint, re-establish correct state
     def on_train_start(self, trainer, pl_module):
+        """
+        on_train_start
+        In case we resume from checkpoint, re-establish correct state
+
+        Args:
+            trainer (Trainer): the trainer
+            pl_module (LightningModule): model
+        """
         self.on_train_batch_start(trainer, pl_module, None, 0)
