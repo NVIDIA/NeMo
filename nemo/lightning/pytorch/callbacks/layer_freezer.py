@@ -46,7 +46,6 @@ def make_start_end(name: str, spec: Union[int, list[int]]):
     Returns:
         tuple(int, int): returns start/end
     """
-    start, end = 0, 0
     # Normalize to (start, end) where end==inf means “forever”
     if isinstance(spec, int):
         if spec == -1:                       # forever
@@ -55,8 +54,8 @@ def make_start_end(name: str, spec: Union[int, list[int]]):
             start, end = 0, spec - 1
     elif isinstance(spec, (list, tuple)) and len(spec) == 2:
         start, end = spec
-        start = 0 if start == -1 else start
-        end = math.inf if end == -1 else end
+        start = max(start, 0)
+        end = max(end, math.inf)
     else:
         raise ValueError(f"Invalid schedule for '{name}': {spec}")
     return start, end
