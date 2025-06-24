@@ -14,7 +14,7 @@
 
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import nemo_run as run
 import pandas as pd

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import List, Union
+from typing import List
 
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
