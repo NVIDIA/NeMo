@@ -57,7 +57,7 @@ def make_start_end(name: str, spec: Union[int, list[int]]):
     elif isinstance(spec, (list, tuple)) and len(spec) == 2:
         start, end = spec
         start = max(start, 0)
-        end = max(end, math.inf)
+        if end < 0: end = math.inf
     else:
         raise ValueError(f"Invalid schedule for '{name}': {spec}")
     return start, end
