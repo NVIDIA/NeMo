@@ -254,3 +254,7 @@ if __name__ == "__main__":
                     if not args.full_pass
                     else create_transcribed_manifests(args.prediction_filepaths)
                 )
+
+    # Remove the lock file after the FileLock context is exited
+    if os.path.exists(lock_file):
+        os.remove(lock_file)

@@ -128,6 +128,10 @@ def main():
                 inference_configs=args.inference_configs, p_cache=args.p_cache, num_gpus=args.num_gpus
             )
 
+    # Remove the lock file after the FileLock context is exited
+    if os.path.exists(lock_file):
+        os.remove(lock_file)
+
 
 if __name__ == "__main__":
     main()
