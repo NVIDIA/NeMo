@@ -141,7 +141,9 @@ def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_siz
     recipe.model.config.init_model_with_meta_device = True
     recipe.trainer.strategy.fsdp = "megatron"
     recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
-    recipe.trainer.strategy.ddp.average_in_collective = False
+    # At fp32 gradient, `recipe.trainer.strategy.ddp.gradient_reduce_div_fusion` is used for fusion
+    if recipe.trainer.strategy.ddp.grad_reduce_in_fp32:
+        recipe.trainer.strategy.ddp.average_in_collective = False
     recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
     recipe.model.config.gradient_accumulation_fusion = False
     if (
@@ -177,7 +179,8 @@ def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = N
             recipe.trainer.plugins.first_last_layers_bf16 = False
         elif fp8_recipe.lower() == "mxfp8":
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
