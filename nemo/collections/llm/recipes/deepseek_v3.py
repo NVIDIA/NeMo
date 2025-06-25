@@ -121,13 +121,13 @@ def pretrain_recipe(
     recipe.log.ckpt.train_time_interval = run.Config(timedelta, minutes=60)
 
     # recompute
-    recipe.model.config.recompute_granularity = "selective"
-    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm"]
+    recipe.model.config.recompute_granularity = None
+    recipe.model.config.recompute_modules = None #["mla_up_proj", "layernorm"]
 
     # DeepEP
-    recipe.model.config.moe_token_dispatcher_type = "flex"
-    recipe.model.config.moe_enable_deepep = True
-    recipe.model.config.moe_shared_expert_overlap = False
+    # recipe.model.config.moe_token_dispatcher_type = "flex"
+    # recipe.model.config.moe_enable_deepep = True
+    recipe.model.config.moe_shared_expert_overlap = True
 
     garbage_collection_callback = run.Config(
         GarbageCollectionCallback,

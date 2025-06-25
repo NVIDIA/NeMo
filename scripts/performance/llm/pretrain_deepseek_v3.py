@@ -27,6 +27,8 @@ from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
 from ..utils import hf_tokenizer
 
+# from megatron.core.config import set_experimental_flag
+
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 USE_TOKEN_DROP = True  # Use token drop callback
 
@@ -53,7 +55,7 @@ def override_recipe_configs(
     """
     recipe = pretrain_recipe(performance_mode=True)
     recipe.model.config.moe_permute_fusion = True
-    recipe.model.config.recompute_granularity = "selective"
+    recipe.model.config.recompute_granularity = None
     recipe.model.config.recompute_num_layers = None
     recipe.model.config.recompute_method = None
     recipe.model.config.cross_entropy_fusion_impl = "te"
@@ -65,10 +67,7 @@ def override_recipe_configs(
     recipe.trainer.strategy.num_layers_in_first_pipeline_stage = num_layers_in_middle_pipeline_stages - 1
     recipe.trainer.strategy.num_layers_in_last_pipeline_stage = num_layers_in_middle_pipeline_stages - 2
 
-    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
-        recipe.trainer.callbacks = []
-    if USE_TOKEN_DROP:
-        recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+    
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -114,9 +113,33 @@ def override_recipe_configs(
         )
     recipe.model.tokenizer = recipe.data.tokenizer
 
+    recipe.model.config.num_moe_experts = 16
+    recipe.model.config.num_layers=2
+    recipe.model.config.moe_layer_freq=[0,1]
+    recipe.model.config.apply_rope_fusion = True # enable rope fusion
+    recipe.model.config.moe_shared_expert_overlap = False
+
+
+    # set_experimental_flag(True)
+
+    test_deepep = False
+
+    if test_deepep:
+        global USE_TOKEN_DROP
+        USE_TOKEN_DROP = False
+        recipe.model.config.moe_token_dispatcher_type = "flex"
+        recipe.model.config.moe_enable_deepep = True
+        recipe.model.config.moe_shared_expert_overlap = False
+        recipe.model.config.moe_router_force_load_balancing = True
+
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
+    if USE_TOKEN_DROP:
+        recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+
     # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
+    # if args.compute_dtype.lower() == "fp8":
+    #     raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
 
     return recipe
 
@@ -125,23 +148,30 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "deepseek", "v3", args)
-    (
-        num_nodes,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-        etp_size,
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
-        recompute_modules,
-    ) = kwargs
+    # kwargs = get_user_configs(args.gpu.lower(), "pre_train", "deepseek", "v3", args)
+    # (
+    #     num_nodes,
+    #     mbs,
+    #     gbs,
+    #     tp_size,
+    #     pp_size,
+    #     cp_size,
+    #     vp_size,
+    #     ep_size,
+    #     etp_size,
+    #     enable_cuda_graphs,
+    #     use_mcore_fsdp,
+    #     recompute_layers,
+    #     activation_offload_layers,
+    #     recompute_modules,
+    # ) = kwargs
+
+    # override recipe configs
+    if args.run_local:
+        num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules = 1, 1, 32, 1, 1, 1, 1, 8, 1, False, False, 0, 0, None
+    else:
+        num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules = 64/4, 1, 64*8, 1, 1, 1, 1, 64, 1, False, False, 0, 0, None
+
 
     recipe = override_recipe_configs(
         args,
@@ -163,24 +193,25 @@ if __name__ == "__main__":
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-
-    executor = slurm_executor(
-        args.gpu.lower(),
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars={},
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-        network='sharp' if args.use_sharp else None,
-    )
-
+    if not args.run_local:
+        executor = slurm_executor(
+            args.gpu.lower(),
+            args.account,
+            args.partition,
+            args.log_dir,
+            num_nodes,
+            args.gpus_per_node,
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars={},
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
+        )
+    else:
+        executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
@@ -193,7 +224,10 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-
+    
+    if args.run_local:
+        run.run(recipe, executor=executor, plugins=plugins)
+        exit()
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,

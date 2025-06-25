@@ -104,6 +104,11 @@ def parse_cli_args():
         action="store_true",
     )
     parser.add_argument(
+        "--run_local",
+        help="Run local. Diabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
         "-em",
         "--enable_memory_profile",
         help="Enable memory usage profiling. Diabled by default",
