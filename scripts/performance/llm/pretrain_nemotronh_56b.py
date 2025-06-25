@@ -68,8 +68,6 @@ def override_recipe_configs(
         enable_cuda_graphs=enable_cuda_graphs,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
-        save_checkpoint=args.checkpoint_save,
-        load_checkpoint_path=args.checkpoint_load_path,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotronh", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
