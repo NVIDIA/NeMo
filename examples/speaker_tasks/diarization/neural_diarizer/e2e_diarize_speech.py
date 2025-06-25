@@ -97,6 +97,7 @@ class DiarizationConfig:
     # Eval Settings: (0.25, False) should be default setting for sortformer eval.
     collar: float = 0.25  # Collar in seconds for DER calculation
     ignore_overlap: bool = False  # If True, DER will be calculated only for non-overlapping segments
+    save_rowwise_der: bool = True  # If True, row-wise DER will be calculated and saved to manifest
 
     # Streaming diarization configs
     spkcache_len: int = 188
@@ -304,6 +305,158 @@ def convert_pred_mat_to_segments(
     return all_hypothesis, all_reference, all_uems
 
 
+def save_rowwise_der_to_manifest(
+    metric,
+    mapping_dict,
+    infer_audio_rttm_dict,
+    dataset_manifest,
+    collar: float = 0.25,
+    ignore_overlap: bool = False,
+):
+    """
+    Calculate row-wise DER for each audio file and save to a manifest file.
+    
+    Args:
+        metric: DiarizationErrorRate metric object from pyannote
+        mapping_dict: Dictionary containing speaker mapping for each audio file
+        infer_audio_rttm_dict: Dictionary containing audio file information
+        dataset_manifest: Path to the original dataset manifest
+        collar: Collar in seconds for DER calculation
+        ignore_overlap: If True, overlapping segments are ignored
+    """
+    import os
+    
+    # Extract row-wise DER results from the metric object
+    results = metric.results_
+    rowwise_der_results = {}
+    
+    logging.info("Calculating row-wise DER for each audio file...")
+    
+    for result in results:
+        key, score = result
+        
+        # Calculate DER components for this specific audio file
+        if score['total'] > 0:
+            der = (score['confusion'] + score['false alarm'] + score['missed detection']) / score['total']
+            cer = score['confusion'] / score['total']
+            fa = score['false alarm'] / score['total']
+            miss = score['missed detection'] / score['total']
+        else:
+            # Handle case where total evaluation time is 0
+            der = cer = fa = miss = 0.0
+        
+        rowwise_der_results[key] = {
+            'DER': round(der, 4),
+            'CER': round(cer, 4), 
+            'FA': round(fa, 4),
+            'MISS': round(miss, 4),
+            'total_time': score['total'],
+            'confusion_time': score['confusion'],
+            'false_alarm_time': score['false alarm'],
+            'missed_detection_time': score['missed detection'],
+            'collar': collar,
+            'ignore_overlap': ignore_overlap,
+            'speaker_mapping': mapping_dict.get(key, {})
+        }
+        
+        logging.info(f"Row-wise DER for {key}: DER={der:.4f}, CER={cer:.4f}, FA={fa:.4f}, MISS={miss:.4f}")
+    
+    # Create output manifest file with row-wise DER information
+    manifest_dir = os.path.dirname(dataset_manifest)
+    manifest_basename = os.path.basename(dataset_manifest)
+    manifest_name = os.path.splitext(manifest_basename)[0]
+    
+    rowwise_der_manifest = os.path.join("/nvllmops/NeMo/rowwise_der.json")
+    print(f"Row-wise DER manifest saved to: {rowwise_der_manifest}")
+    
+    # Read original manifest and add DER information
+    original_manifest_data = []
+    with open(dataset_manifest, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                entry = json.loads(line)
+                original_manifest_data.append(entry)
+    
+    # Add row-wise DER to each manifest entry
+    updated_manifest_data = []
+    for entry in original_manifest_data:
+        # Get the unique identifier for this entry
+        audio_filepath = entry.get('audio_filepath', '')
+        uniq_id = entry.get('uniq_id')
+        
+        if uniq_id is None:
+            # Extract unique ID from audio filepath if not provided
+            from nemo.collections.asr.parts.utils.speaker_utils import get_uniqname_from_filepath
+            uniq_id = get_uniqname_from_filepath(audio_filepath)
+        
+        # Add DER information if available
+        if uniq_id in rowwise_der_results:
+            entry['rowwise_der'] = rowwise_der_results[uniq_id]
+            logging.debug(f"Added row-wise DER for {uniq_id}: {rowwise_der_results[uniq_id]['DER']}")
+        else:
+            # Add empty DER information if not found
+            entry['rowwise_der'] = {
+                'DER': None,
+                'CER': None,
+                'FA': None,
+                'MISS': None,
+                'total_time': None,
+                'confusion_time': None,
+                'false_alarm_time': None,
+                'missed_detection_time': None,
+                'collar': collar,
+                'ignore_overlap': ignore_overlap,
+                'speaker_mapping': {},
+                'error': 'No DER calculation available for this entry'
+            }
+            logging.warning(f"No DER results found for {uniq_id}")
+        
+        updated_manifest_data.append(entry)
+    
+    # Write updated manifest with row-wise DER information
+    with open(rowwise_der_manifest, 'w') as f:
+        for entry in updated_manifest_data:
+            f.write(json.dumps(entry) + '\n')
+    
+    logging.info(f"Row-wise DER manifest saved to: {rowwise_der_manifest}")
+    logging.info(f"Added DER information for {len(rowwise_der_results)} audio files")
+    
+    # Also save a summary CSV file for easy analysis
+    csv_file = os.path.join(manifest_dir, f"{manifest_name}_rowwise_der_summary.csv")
+    
+    try:
+        import pandas as pd
+        
+        # Create DataFrame for CSV export
+        csv_data = []
+        for uniq_id, der_info in rowwise_der_results.items():
+            audio_info = infer_audio_rttm_dict.get(uniq_id, {})
+            csv_data.append({
+                'uniq_id': uniq_id,
+                'audio_filepath': audio_info.get('audio_filepath', ''),
+                'DER': der_info['DER'],
+                'CER': der_info['CER'],
+                'FA': der_info['FA'],
+                'MISS': der_info['MISS'],
+                'total_time': der_info['total_time'],
+                'confusion_time': der_info['confusion_time'],
+                'false_alarm_time': der_info['false_alarm_time'],
+                'missed_detection_time': der_info['missed_detection_time'],
+                'collar': der_info['collar'],
+                'ignore_overlap': der_info['ignore_overlap']
+            })
+        
+        df = pd.DataFrame(csv_data)
+        df.to_csv(csv_file, index=False)
+        logging.info(f"Row-wise DER summary CSV saved to: {csv_file}")
+        
+    except ImportError:
+        logging.warning("pandas not available, skipping CSV export")
+    except Exception as e:
+        logging.warning(f"Failed to create CSV summary: {str(e)}")
+
+
 @hydra_runner(config_name="DiarizationConfig", schema=DiarizationConfig)
 def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     """Main function for end-to-end speaker diarization inference."""
@@ -418,6 +571,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
 
     # Evaluation
     if not cfg.no_der:
+        
         if cfg.out_rttm_dir is not None and not os.path.exists(cfg.out_rttm_dir):
             os.mkdir(cfg.out_rttm_dir)
 
@@ -431,7 +585,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             out_rttm_dir=cfg.out_rttm_dir,
         )
         logging.info(f"Evaluating the model on the {len(diar_model_preds_total_list)} audio segments...")
-        score_labels(
+        metric, mapping_dict, itemized_errors = score_labels(
             AUDIO_RTTM_MAP=infer_audio_rttm_dict,
             all_reference=all_refs,
             all_hypothesis=all_hyps,
@@ -440,6 +594,15 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             ignore_overlap=cfg.ignore_overlap,
         )
         logging.info(f"PostProcessingParams: {postprocessing_cfg}")
+        
+        save_rowwise_der_to_manifest(
+                metric=metric,
+                mapping_dict=mapping_dict,
+                infer_audio_rttm_dict=infer_audio_rttm_dict,
+                dataset_manifest=cfg.dataset_manifest,
+                collar=cfg.collar,
+                ignore_overlap=cfg.ignore_overlap
+            )
 
     # clean-up
     if cfg.presort_manifest is not None:
