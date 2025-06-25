@@ -99,7 +99,7 @@ class LoRALinearSplitFC1UpGate(AdapterWrapper):
         adapter_output_gate = self.adapter.adapter_gate(layernorm_output)
         adapter_output_up = self.adapter.adapter_up(layernorm_output)
         adapter_output = torch.cat([adapter_output_gate, adapter_output_up], dim=2)
-        return linear_output + adapter_output, bias
+        return linear_output + adapter_output.reshape(linear_output.shape), bias
 
 
 @dataclass
