@@ -179,7 +179,8 @@ def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = N
             recipe.trainer.plugins.first_last_layers_bf16 = False
         elif fp8_recipe.lower() == "mxfp8":
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
