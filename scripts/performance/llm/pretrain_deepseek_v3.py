@@ -113,9 +113,11 @@ def override_recipe_configs(
         )
     recipe.model.tokenizer = recipe.data.tokenizer
 
-    recipe.model.config.num_moe_experts = 16
-    recipe.model.config.num_layers=2
-    recipe.model.config.moe_layer_freq=[0,1]
+    if args.run_local:
+        recipe.model.config.num_moe_experts = 16
+    recipe.model.config.num_layers=3
+    recipe.model.config.moe_layer_freq=[0,1,1]
+
     recipe.model.config.apply_rope_fusion = True # enable rope fusion
     recipe.model.config.moe_shared_expert_overlap = False
 
