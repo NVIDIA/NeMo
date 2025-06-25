@@ -7,11 +7,11 @@
     },
     "transformer_engine": {
       "repo": "https://github.com/NVIDIA/TransformerEngine",
-      "ref": "980c4342406bcd3d9d8b15538b67b9d13468d2e5"
+      "ref": "b894f69bffa93db24eb7819c14442189b89140f4"
     },
     "megatron-lm": {
       "repo": "https://github.com/NVIDIA/Megatron-LM",
-      "ref": "e0b2c60e0a5fb827af9167ff3d61609aad787336"
+      "ref": "6d95fe63658f967e56a3fda88a9c30a424fcb520"
     },
     "trt-llm": {
       "repo": "https://github.com/NVIDIA/TensorRT-LLM.git",
