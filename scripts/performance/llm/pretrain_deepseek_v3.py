@@ -67,8 +67,6 @@ def override_recipe_configs(
     recipe.trainer.strategy.num_layers_in_first_pipeline_stage = num_layers_in_middle_pipeline_stages - 1
     recipe.trainer.strategy.num_layers_in_last_pipeline_stage = num_layers_in_middle_pipeline_stages - 2
 
-    
-
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -115,12 +113,11 @@ def override_recipe_configs(
 
     if args.run_local:
         recipe.model.config.num_moe_experts = 16
-    recipe.model.config.num_layers=3
-    recipe.model.config.moe_layer_freq=[0,1,1]
+    recipe.model.config.num_layers = 3
+    recipe.model.config.moe_layer_freq = [0, 1, 1]
 
-    recipe.model.config.apply_rope_fusion = True # enable rope fusion
+    recipe.model.config.apply_rope_fusion = True  # enable rope fusion
     recipe.model.config.moe_shared_expert_overlap = False
-
 
     # set_experimental_flag(True)
 
@@ -170,10 +167,39 @@ if __name__ == "__main__":
 
     # override recipe configs
     if args.run_local:
-        num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules = 1, 1, 32, 1, 1, 1, 1, 8, 1, False, False, 0, 0, None
+        (
+            num_nodes,
+            mbs,
+            gbs,
+            tp_size,
+            pp_size,
+            cp_size,
+            vp_size,
+            ep_size,
+            etp_size,
+            enable_cuda_graphs,
+            use_mcore_fsdp,
+            recompute_layers,
+            activation_offload_layers,
+            recompute_modules,
+        ) = (1, 1, 32, 1, 1, 1, 1, 8, 1, False, False, 0, 0, None)
     else:
-        num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules = 64/4, 1, 64*8, 1, 1, 1, 1, 64, 1, False, False, 0, 0, None
-
+        (
+            num_nodes,
+            mbs,
+            gbs,
+            tp_size,
+            pp_size,
+            cp_size,
+            vp_size,
+            ep_size,
+            etp_size,
+            enable_cuda_graphs,
+            use_mcore_fsdp,
+            recompute_layers,
+            activation_offload_layers,
+            recompute_modules,
+        ) = (64 / 4, 1, 64 * 8, 1, 1, 1, 1, 64, 1, False, False, 0, 0, None)
 
     recipe = override_recipe_configs(
         args,
@@ -226,7 +252,7 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-    
+
     if args.run_local:
         run.run(recipe, executor=executor, plugins=plugins)
         exit()

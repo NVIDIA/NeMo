@@ -122,7 +122,7 @@ def pretrain_recipe(
 
     # recompute
     recipe.model.config.recompute_granularity = None
-    recipe.model.config.recompute_modules = None #["mla_up_proj", "layernorm"]
+    recipe.model.config.recompute_modules = None  # ["mla_up_proj", "layernorm"]
 
     # DeepEP
     # recipe.model.config.moe_token_dispatcher_type = "flex"
