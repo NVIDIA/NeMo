@@ -34,6 +34,10 @@ from .utils import get_comm_overlap_callback_idx
 
 
 def get_csv_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> pd.DataFrame:
+    """
+    Get recommended configs tuned for performance from a csv file.
+    User (command line) provided args override the recommended configs.
+    """
     script_dir = str(Path(__file__).parent.absolute())
     recommended_configs_csv = os.path.join(script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv")
     logging.info(f"Using {recommended_configs_csv} for loading default recommended model configs")
@@ -138,6 +142,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
 
 
 def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_size: int | None):
+    """
+    Set Mcore FSDP related configs.
+    """
     recipe.model.config.init_model_with_meta_device = True
     recipe.trainer.strategy.fsdp = "megatron"
     recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
@@ -155,6 +162,9 @@ def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_siz
 
 
 def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = None):
+    """
+    Set precision related configs.
+    """
     if compute_dtype is None:
         return recipe
 
@@ -195,7 +205,9 @@ def set_recompute_configs(
     activation_offload_layers: int,
     recompute_modules: Optional[List[str]],
 ):
-    # Recompute configs
+    """
+    Set activation recomputing and offloading related configs.
+    """
     if recompute_layers > 0:
         recipe.model.config.recompute_granularity = "full"
         recipe.model.config.recompute_method = "block"
@@ -221,6 +233,9 @@ def set_recompute_configs(
 
 
 def set_cuda_graph_configs(recipe, enable_cuda_graphs: bool, task: str):
+    """
+    Set CUDA graph related configs.
+    """
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
     if (
@@ -247,6 +262,9 @@ def set_perf_optimization_configs(
     use_sharp: bool,
     use_user_buffer_registration: bool,
 ):
+    """
+    Set performance optimization related configs.
+    """
     # enable cross entropy fusion with TE kernel
     recipe.model.config.cross_entropy_fusion_impl = "te"
 
