@@ -219,7 +219,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         nccl_communicator_config_path (Optional[str]): Path to the yaml file of NCCL communicator configurations.
             `min_ctas`, `max_ctas`, and `cga_cluster_size` can be set for each communicator.
         use_sharp (bool): Whether to use SHARP. Defaults to False.
-        pipeline_model_parallel_layout (Optional[Union[str, List[List[str]]]]): The layout of all layers among different PP and VP stages.
+        pipeline_model_parallel_layout (Optional[Union[str, List[List[str]]]]): The layout of all layers among
+            different PP and VP stages.
         **kwargs: Additional keyword arguments.
 
     Note:
