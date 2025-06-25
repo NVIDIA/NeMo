@@ -17,15 +17,16 @@ import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.transformer import TransformerConfig
 
+
 class DeepEPCallback(Callback):
     """
-        A PyTorch Lightning callback to enable DeepEP if the hardware is supported.
-        Per official documentation https://github.com/deepseek-ai/DeepEP,
-        DeepEP is supported for Ampere (SM80) and Hopper (SM90) GPUs.
+    A PyTorch Lightning callback to enable DeepEP if the hardware is supported.
+    Per official documentation https://github.com/deepseek-ai/DeepEP,
+    DeepEP is supported for Ampere (SM80) and Hopper (SM90) GPUs.
     """
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
-        """ Enable DeepEP if GPU is Ampere or Hopper """
+        """Enable DeepEP if GPU is Ampere or Hopper"""
         if torch.cuda.get_device_properties(0).major not in [8, 9]:
             return
 
