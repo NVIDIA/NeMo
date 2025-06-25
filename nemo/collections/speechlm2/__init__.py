@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from .data import DataModule, DuplexS2SDataset, SALMDataset, DuplexT2TDataset
-from .models import SALM, DuplexS2SModel, DuplexS2SSpeechDecoderModel, DuplexT2TModel, Retokenizer
+from .models import SALM, DuplexS2SModel, DuplexS2SSpeechDecoderModel, DuplexT2TModel, Retokenizer, SoftTokenMap, SoftEmbedMap
 
 __all__ = [
     'DataModule',
@@ -24,4 +24,6 @@ __all__ = [
     'SALM',
     'DuplexT2TModel',
     'Retokenizer',
+    'SoftTokenMap',
+    'SoftEmbedMap',
 ]

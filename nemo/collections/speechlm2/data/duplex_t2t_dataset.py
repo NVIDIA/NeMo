@@ -121,7 +121,6 @@ class DuplexT2TDataset(torch.utils.data.Dataset):
         input_roles: list[str] = None,
         output_roles: list[str] = None,
         collate_source_interleaved: bool = False,
-        train_retokenizer: bool = False,
     ):
         self.tokenizer = tokenizer
         self.frame_length = frame_length
@@ -131,7 +130,6 @@ class DuplexT2TDataset(torch.utils.data.Dataset):
         self.output_roles = set(ifnone(output_roles, ["agent"]))
         
         self.collate_source_interleaved = collate_source_interleaved
-        self.train_retokenizer = train_retokenizer
         
         assert tokenizer.bos is not None, "BOS support in the tokenizer is required for S2S models."
         assert tokenizer.eos is not None, "EOS support in the tokenizer is required for S2S models."

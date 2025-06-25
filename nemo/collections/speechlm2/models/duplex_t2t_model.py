@@ -13,6 +13,7 @@
 # limitations under the License.
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.distributed as dist
 from lightning import LightningModule
 from lhotse.dataset.collation import collate_vectors
@@ -148,6 +149,8 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
 
         # Configuration for embedding combination mode
         self.concat_embeddings = cfg.get("concat_embeddings", False)
+        self.retokenize_type = cfg.get("retokenize_type", "no_llm_embed")
+        self.retokenize_first = cfg.get("retokenize_first", False)
         # Transform concatenated embeddings to LLM dimension
         if self.concat_embeddings:
             # Moved the commented out logic to the training script since
@@ -161,7 +164,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             #     concat_dim = self.embed_tokens.embedding_dim + self.asr_embed.embedding_dim
             #     output_dim = self.embed_tokens.embedding_dim
 
-            #     self.concat_projection = Retokenizer(
+            #     self.map_projection = Retokenizer(
             #         input_dim=concat_dim,
             #         output_dim=output_dim,
             #         use_transformer=use_transformer,
@@ -169,7 +172,11 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             #         num_heads=4,
             #     )
             # else:
-            self.concat_projection = torch.nn.Linear(
+            self.map_projection = torch.nn.Linear(
+                self.embed_tokens.embedding_dim * 2,  # 2x because we concatenate user and agent embeddings
+                self.embed_tokens.embedding_dim
+            )
+            self.map_projection_retokenized = torch.nn.Linear(
                 self.embed_tokens.embedding_dim * 2,  # 2x because we concatenate user and agent embeddings
                 self.embed_tokens.embedding_dim
             )
@@ -179,6 +186,11 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
     def speech_vocab_size(self):
         """Return the size of the audio codec codebook including extra speech BOS and EOS tokens."""
         return self._codebook_size + 3
+
+    @property
+    def speech_pad_id(self) -> int:
+        """PAD ID based on streaming ASR vocabulary."""
+        return 1024
 
     @property
     def speech_bos_id(self) -> int:
@@ -226,7 +238,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         """
         return get_pad_id(self.tokenizer)
 
-    def _combine_embeddings(self, agent_embeds: Tensor, user_embeds: Tensor) -> Tensor:
+    def _combine_embeddings(self, agent_embeds: Tensor, user_embeds: Tensor, user_tokens: Tensor) -> Tensor:
         """
         Combine agent and user embeddings based on the configuration.
         
@@ -237,10 +249,18 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         Returns:
             Combined embeddings of shape (B, T, H)
         """
+        if self.train_retokenizer and self.retokenize_first:
+            if self.retokenize_type == "soft_token_map":
+                user_embeds = self.map_projection(user_tokens)
+            else:
+                user_embeds = self.map_projection(user_embeds)
         if self.concat_embeddings:
             # Concatenate embeddings and project to original dimension
             concatenated = torch.cat([agent_embeds, user_embeds], dim=-1)  # (B, T, H1+H2)
-            return self.concat_projection(concatenated)  # (B, T, H)
+            if not self.retokenize_first:
+                return self.map_projection(concatenated)  # (B, T, H)
+            else:
+                return self.map_projection_retokenized(concatenated)  # (B, T, H)
         else:
             # Add embeddings (original behavior)
             user_weighted = user_embeds * self.cfg.get("duplex_user_channel_weight", 1.0)
@@ -426,7 +446,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
                 [
                     source_tokens,
                     (
-                        torch.ones(source_tokens.shape[0], abs(diff), device=source_tokens.device) * self.text_pad_id
+                        torch.ones(source_tokens.shape[0], abs(diff), device=source_tokens.device) * self.speech_pad_id
                     ).to(torch.long),
                 ],
                 dim=-1,
@@ -468,7 +488,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
        
         # Add source token embeddings to input embeddings
         # This allows the model to condition on the source sequence
-        input_embeds = self._combine_embeddings(input_embeds, source_embeds)
+        input_embeds = self._combine_embeddings(input_embeds, source_embeds, source_tokens[:, :-1])
         
         return {
             "input_embeds": input_embeds,      # (B, T-1, H)
@@ -762,7 +782,8 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         
         # First step, use BOS token
         bos_embedding = self._get_bos_embedding().expand(B, 1, -1)  # (B, 1, H)
-        first_step_embeds = self._combine_embeddings(bos_embedding, source_embeds[:, :1])
+        # breakpoint()
+        first_step_embeds = self._combine_embeddings(bos_embedding, source_embeds[:, :1], source_tokens[:, :1])
         
         # Generate first token
         ans = self(first_step_embeds, cache=cache)
@@ -772,7 +793,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         for t in range(1, T):
             # Add embedding of previously generated token
             last_emb = self.embed_tokens(gen_tokens[:, t-1:t])  # (B, 1, H)
-            step_embeds = self._combine_embeddings(last_emb, source_embeds[:, t:t+1])
+            step_embeds = self._combine_embeddings(last_emb, source_embeds[:, t:t+1], source_tokens[:, t:t+1])
             
             # Generate next token
             ans = self(step_embeds, cache=ans["cache"])
@@ -887,7 +908,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
 
             if self.concat_embeddings:
                 parallelize_module(
-                    self.concat_projection,
+                    self.map_projection,
                     tp_mesh,
                     ColwiseParallel(
                         input_layouts=Shard(1),
@@ -910,7 +931,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
             self.perception = fully_shard(self.perception, **fsdp_config)
             self.speech_generation = fully_shard(self.speech_generation, **fsdp_config)
             if self.concat_embeddings:
-                self.concat_projection = fully_shard(self.concat_projection, **fsdp_config)
+                self.map_projection = fully_shard(self.map_projection, **fsdp_config)
     
 def tokens_to_turn_str(tokens: torch.Tensor, lengths: torch.Tensor, tokenizer: AutoTokenizer, pad_id: int, delimiter: str = "|") -> list[str]:
     """
@@ -971,3 +992,41 @@ class Retokenizer(nn.Module):
         if self.transformer:
             x = self.transformer(x)  # [B, T, output_dim]
         return x
+
+class SoftTokenMap(nn.Module):
+    def __init__(self, asr_vocab_size, llm_embed_map, temperature=1.0):
+        """
+        Map ASR tokens to LLM embeddings using a soft mapping.
+
+        Lower temperature (< 1) -> more deterministic mapping
+        """
+        super().__init__()
+        self.llm_vocab_size = llm_embed_map.weight.shape[0] # v2
+        self.mapping_logits = nn.Parameter(torch.randn(asr_vocab_size, self.llm_vocab_size)) # v1 -> v2
+        self.llm_embed_map = llm_embed_map # v2 x d2
+        self.temperature = temperature
+
+    def forward(self, token_ids):  # token_ids: [B, T]
+        weights = F.softmax(self.mapping_logits[token_ids] / self.temperature, dim=-1)  # [B, T, v2]
+        mapped_embed = torch.matmul(weights, self.llm_embed_map.weight)  # [B, T, d2]
+        return mapped_embed
+
+
+class SoftEmbedMap(nn.Module):
+    def __init__(self, asr_embed_dim, llm_embed_map, temperature=1.0):
+        """
+        Map ASR embeddings to LLM embeddings using a soft mapping.
+
+        Lower temperature (< 1) -> more deterministic mapping
+        """
+        super().__init__()
+        self.llm_vocab_size = llm_embed_map.weight.shape[0] # v2
+        self.proj = nn.Linear(asr_embed_dim, self.llm_vocab_size) # v2 x d1
+        self.llm_embed_map = llm_embed_map # v2 x d2
+        self.temperature = temperature
+
+    def forward(self, asr_embed):  # asr_embed:[B, T, D]
+        logits = self.proj(asr_embed) # [B, T, v2]
+        probs = F.softmax(logits / self.temperature, dim=-1) # [B, T, v2]
+        mapped_embed = torch.matmul(probs, self.llm_embed_map.weight)  # [B, T, d2]
+        return mapped_embed
