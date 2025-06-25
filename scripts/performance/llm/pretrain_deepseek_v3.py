@@ -85,12 +85,12 @@ def override_recipe_configs(
     # Pipeline parallelism configs. We infer PP layout from the provided PP and VP size
     map_pp_vp_to_layout = {
         (1, 1): None,
-        (4, 1): [['embedding'] + ['decoder']*16, ['decoder']*16, ['decoder']*16, ['decoder']*13 + ['loss']],
-        (8, 1): [['embedding'] + ['decoder']*8] + [['decoder']*8]*6 + [['decoder']*5 + ['loss']],
-        (4, 2): [['embedding'] + ['decoder']*8] + [['decoder']*8]*6 + [['decoder']*5 + ['loss']],
-        (16, 1): [['embedding'] + ['decoder']*4] + [['decoder']*4]*14 + [['decoder', 'loss']],
-        (8, 2): [['embedding'] + ['decoder']*4] + [['decoder']*4]*14 + [['decoder', 'loss']],
-        (4, 4): [['embedding'] + ['decoder']*4] + [['decoder']*4]*14 + [['decoder', 'loss']],
+        (4, 1): [['embedding'] + ['decoder'] * 16, ['decoder'] * 16, ['decoder'] * 16, ['decoder'] * 13 + ['loss']],
+        (8, 1): [['embedding'] + ['decoder'] * 8] + [['decoder'] * 8] * 6 + [['decoder'] * 5 + ['loss']],
+        (4, 2): [['embedding'] + ['decoder'] * 8] + [['decoder'] * 8] * 6 + [['decoder'] * 5 + ['loss']],
+        (16, 1): [['embedding'] + ['decoder'] * 4] + [['decoder'] * 4] * 14 + [['decoder', 'loss']],
+        (8, 2): [['embedding'] + ['decoder'] * 4] + [['decoder'] * 4] * 14 + [['decoder', 'loss']],
+        (4, 4): [['embedding'] + ['decoder'] * 4] + [['decoder'] * 4] * 14 + [['decoder', 'loss']],
     }
     pp_size = pp_size or 1
     vp_size = vp_size or 1
@@ -100,7 +100,7 @@ def override_recipe_configs(
             f"for DeepSeek V3. Known PP and VP combinations: {map_pp_vp_to_layout.keys()}"
         )
     layout = map_pp_vp_to_layout[(pp_size, vp_size)]
-    layout = list([list(x) for x in layout]) # materialize all elements
+    layout = list([list(x) for x in layout])  # materialize all elements
     recipe.trainer.strategy.pipeline_model_parallel_layout = layout
 
     # The following knobs are not needed if we specify layout
@@ -228,7 +228,7 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-    
+
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,

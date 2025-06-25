@@ -131,6 +131,7 @@ class ParallelismConfig:
     use_sharp: bool = False
     pipeline_model_parallel_layout: Optional[Union[str, List[List[str]]]] = None
 
+
 class MegatronStrategy(DDPStrategy, io.IOMixin):
     """Megatron plugin for Pytorch Lightning.
 

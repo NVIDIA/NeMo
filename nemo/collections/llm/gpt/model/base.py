@@ -219,7 +219,7 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
         return local_layer_spec(config)
 
 
-def mtp_block_spec(config: "GPTConfig", vp_stage = None) -> Optional[ModuleSpec]:
+def mtp_block_spec(config: "GPTConfig", vp_stage=None) -> Optional[ModuleSpec]:
     """Pass in the MTP block spec if model has MTP layers.
 
     Args:
@@ -334,11 +334,11 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             self, "account_for_loss_in_pipeline_split", False
         )
         is_pipeline_asymmetric |= (
-                getattr(self, "num_layers_in_first_pipeline_stage", None) or \
-                getattr(self, "num_layers_in_last_pipeline_stage", None)
+            getattr(self, "num_layers_in_first_pipeline_stage", None)
+            or getattr(self, "num_layers_in_last_pipeline_stage", None)
         ) is not None
-        is_flexible_pp_layout = (
-            is_pipeline_asymmetric or (getattr(self, "pipeline_model_parallel_layout", None) is not None)
+        is_flexible_pp_layout = is_pipeline_asymmetric or (
+            getattr(self, "pipeline_model_parallel_layout", None) is not None
         )
         if vp_size and not is_flexible_pp_layout:
             p_size = self.pipeline_model_parallel_size
