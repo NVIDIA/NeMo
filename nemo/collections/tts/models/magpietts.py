@@ -215,7 +215,7 @@ class MagpieTTSModel(ModelPT):
                 model_name='titanet_large'
             )
             self._speaker_verification_model.freeze()  #Lightning does requires_grad = False and self.eval()
-            self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.decoder.xa_d_memory)
+            self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
             self.transcript_decoder_layers = [
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
