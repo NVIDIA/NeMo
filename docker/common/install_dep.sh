@@ -154,8 +154,7 @@ trtllm() {
       build
     fi
 
-    pip install --no-cache-dir $WHEELS_DIR/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com &&
-      sed -i '57d' /usr/local/lib/python3.12/dist-packages/torch_tensorrt/dynamo/conversion/custom_ops_converters.py || true
+    pip install --no-cache-dir $WHEELS_DIR/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com
   fi
 }
 
