@@ -154,7 +154,7 @@ trtllm() {
       build
     fi
 
-    pip install --no-cache-dir $WHEELS_DIR/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com
+    pip install --no-cache-dir $WHEELS_DIR/tensorrt_llm*.whl --extra-index-url https://pypi.nvidia.com || true
   fi
 }
 
