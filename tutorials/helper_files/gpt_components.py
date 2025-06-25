@@ -18,13 +18,14 @@ This module contains the neural network components used in the tutorial 01_NeMo_
 """
 
 import math
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from typing import Optional
 
 from nemo.core import NeuralModule, typecheck
-from nemo.core.neural_types import NeuralType, Index, EmbeddedTextType, EncodedRepresentation, LogitsType
+from nemo.core.neural_types import EmbeddedTextType, EncodedRepresentation, Index, LogitsType, NeuralType
 from nemo.core.neural_types.elements import *
 
 
@@ -32,8 +33,10 @@ from nemo.core.neural_types.elements import *
 class AttentionType(EncodedRepresentation):
     """Basic Attention Element Type"""
 
+
 class SelfAttentionType(AttentionType):
     """Self Attention Element Type"""
+
 
 class CausalSelfAttentionType(SelfAttentionType):
     """Causal Self Attention Element Type"""
@@ -61,24 +64,23 @@ class CausalSelfAttention(nn.Module):
         # output projection
         self.proj = nn.Linear(n_embd, n_embd)
         # causal mask to ensure that attention is only applied to the left in the input sequence
-        self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size))
-                                     .view(1, 1, block_size, block_size))
+        self.register_buffer("mask", torch.tril(torch.ones(block_size, block_size)).view(1, 1, block_size, block_size))
 
     def forward(self, x, layer_past=None):
         B, T, C = x.size()
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
-        k = self.key(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        q = self.query(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
-        v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+        k = self.key(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        q = self.query(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
+        v = self.value(x).view(B, T, self.n_head, C // self.n_head).transpose(1, 2)  # (B, nh, T, hs)
 
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.mask[:,:,:T,:T] == 0, float('-inf'))
+        att = att.masked_fill(self.mask[:, :, :T, :T] == 0, float('-inf'))
         att = F.softmax(att, dim=-1)
         att = self.attn_drop(att)
-        y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
-        y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
+        y = att @ v  # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+        y = y.transpose(1, 2).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
 
         # output projection
         y = self.resid_drop(self.proj(y))
@@ -86,7 +88,7 @@ class CausalSelfAttention(nn.Module):
 
 
 class Block(nn.Module):
-    """ an unassuming Transformer block """
+    """an unassuming Transformer block"""
 
     def __init__(self, n_embd, block_size, n_head, attn_pdrop, resid_pdrop):
         super().__init__()
@@ -119,55 +121,56 @@ class GPTEmbedding(NeuralModule):
     @typecheck()
     def forward(self, idx):
         b, t = idx.size()
-        
+
         # forward the GPT model
-        token_embeddings = self.tok_emb(idx) # each index maps to a (learnable) vector
-        position_embeddings = self.pos_emb[:, :t, :] # each position maps to a (learnable) vector
+        token_embeddings = self.tok_emb(idx)  # each index maps to a (learnable) vector
+        position_embeddings = self.pos_emb[:, :t, :]  # each position maps to a (learnable) vector
         x = self.drop(token_embeddings + position_embeddings)
         return x
 
     @property
     def input_types(self):
-        return {
-            'idx': NeuralType(('B', 'T'), Index())
-        }
+        return {'idx': NeuralType(('B', 'T'), Index())}
 
     @property
     def output_types(self):
-        return {
-            'embeddings': NeuralType(('B', 'T', 'C'), EmbeddedTextType())
-        }
+        return {'embeddings': NeuralType(('B', 'T', 'C'), EmbeddedTextType())}
 
 
 class GPTTransformerEncoder(NeuralModule):
-    def __init__(self, n_embd: int, block_size: int, n_head: int, n_layer: int, attn_pdrop: float = 0.0, resid_pdrop: float = 0.0):
+    def __init__(
+        self,
+        n_embd: int,
+        block_size: int,
+        n_head: int,
+        n_layer: int,
+        attn_pdrop: float = 0.0,
+        resid_pdrop: float = 0.0,
+    ):
         super().__init__()
 
-        self.blocks = nn.Sequential(*[Block(n_embd, block_size, n_head, attn_pdrop, resid_pdrop) 
-                                      for _ in range(n_layer)])
-        
+        self.blocks = nn.Sequential(
+            *[Block(n_embd, block_size, n_head, attn_pdrop, resid_pdrop) for _ in range(n_layer)]
+        )
+
     @typecheck()
     def forward(self, embed):
         return self.blocks(embed)
 
     @property
     def input_types(self):
-        return {
-            'embed': NeuralType(('B', 'T', 'C'), EmbeddedTextType())
-        }
+        return {'embed': NeuralType(('B', 'T', 'C'), EmbeddedTextType())}
 
     @property
     def output_types(self):
-        return {
-            'encoding': NeuralType(('B', 'T', 'C'), CausalSelfAttentionType())
-        }
+        return {'encoding': NeuralType(('B', 'T', 'C'), CausalSelfAttentionType())}
 
 
 class GPTDecoder(NeuralModule):
     def __init__(self, n_embd: int, vocab_size: int):
         super().__init__()
         self.ln_f = nn.LayerNorm(n_embd)
-        self.head = nn.Linear(n_embd, vocab_size, bias=False) # no need for extra bias due to one in ln_f
+        self.head = nn.Linear(n_embd, vocab_size, bias=False)  # no need for extra bias due to one in ln_f
 
     @typecheck()
     def forward(self, encoding):
@@ -177,12 +180,8 @@ class GPTDecoder(NeuralModule):
 
     @property
     def input_types(self):
-        return {
-            'encoding': NeuralType(('B', 'T', 'C'), EncodedRepresentation())
-        }
+        return {'encoding': NeuralType(('B', 'T', 'C'), EncodedRepresentation())}
 
     @property
     def output_types(self):
-        return {
-            'logits': NeuralType(('B', 'T', 'C'), LogitsType())
-        } 
+        return {'logits': NeuralType(('B', 'T', 'C'), LogitsType())}
