@@ -54,6 +54,12 @@ def override_recipe_configs(
     """
     recipe = pretrain_recipe(performance_mode=True)
 
+    # reset recompute args in the default recipe
+    recipe.model.config.recompute_granularity = None
+    recipe.model.config.recompute_method = None
+    recipe.model.config.recompute_num_layers = None
+    recipe.model.config.recompute_modules = None
+
     if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
 
@@ -79,12 +85,12 @@ def override_recipe_configs(
     # Pipeline parallelism configs. We infer PP layout from the provided PP and VP size
     map_pp_vp_to_layout = {
         (1, 1): None,
-        (4, 1): "E(t)*16|(t)*16|(t)*16|(t)*13L",
-        (8, 1): "E(t)*8|(t)*8|(t)*8|(t)*8|(t)*8|(t)*8|(t)*8|(t)*5L",
-        (4, 2): "E(t)*8|(t)*8|(t)*8|(t)*8|(t)*8|(t)*8|(t)*8|(t)*5L",
-        (16, 1): "E(tttt|)*15tL",
-        (8, 2): "E(tttt|)*15tL",
-        (4, 4): "E(tttt|)*15tL",
+        (4, 1): [['embedding'] + ['decoder']*16, ['decoder']*16, ['decoder']*16, ['decoder']*13 + ['loss']],
+        (8, 1): [['embedding'] + ['decoder']*8] + [['decoder']*8]*6 + [['decoder']*5 + ['loss']],
+        (4, 2): [['embedding'] + ['decoder']*8] + [['decoder']*8]*6 + [['decoder']*5 + ['loss']],
+        (16, 1): [['embedding'] + ['decoder']*4] + [['decoder']*4]*14 + [['decoder', 'loss']],
+        (8, 2): [['embedding'] + ['decoder']*4] + [['decoder']*4]*14 + [['decoder', 'loss']],
+        (4, 4): [['embedding'] + ['decoder']*4] + [['decoder']*4]*14 + [['decoder', 'loss']],
     }
     pp_size = pp_size or 1
     vp_size = vp_size or 1
@@ -94,9 +100,10 @@ def override_recipe_configs(
             f"for DeepSeek V3. Known PP and VP combinations: {map_pp_vp_to_layout.keys()}"
         )
     layout = map_pp_vp_to_layout[(pp_size, vp_size)]
-    recipe.model.config.pipeline_model_parallel_layout = layout
+    layout = list([list(x) for x in layout]) # materialize all elements
+    recipe.trainer.strategy.pipeline_model_parallel_layout = layout
+
     # The following knobs are not needed if we specify layout
-    vp_size = 1
     recipe.trainer.strategy.account_for_embedding_in_pipeline_split = False
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = False
     recipe.trainer.strategy.num_layers_in_first_pipeline_stage = None
@@ -221,7 +228,7 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-
+    
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,

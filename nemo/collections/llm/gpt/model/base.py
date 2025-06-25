@@ -219,7 +219,7 @@ def default_layer_spec(config: "GPTConfig") -> ModuleSpec:
         return local_layer_spec(config)
 
 
-def mtp_block_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
+def mtp_block_spec(config: "GPTConfig", vp_stage = None) -> Optional[ModuleSpec]:
     """Pass in the MTP block spec if model has MTP layers.
 
     Args:
@@ -232,10 +232,10 @@ def mtp_block_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
         from megatron.core.models.gpt.gpt_layer_specs import get_gpt_mtp_block_spec
 
         if isinstance(config.transformer_layer_spec, Callable):
-            spec = config.transformer_layer_spec(config)
+            spec = config.transformer_layer_spec(config, vp_stage=vp_stage)
         else:
             spec = config.transformer_layer_spec
-        return get_gpt_mtp_block_spec(config, spec, use_transformer_engine=HAVE_TE)
+        return get_gpt_mtp_block_spec(config, spec, use_transformer_engine=HAVE_TE, vp_stage=vp_stage)
     else:
         return None
 
@@ -333,7 +333,14 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         is_pipeline_asymmetric = getattr(self, "account_for_embedding_in_pipeline_split", False) or getattr(
             self, "account_for_loss_in_pipeline_split", False
         )
-        if vp_size and not is_pipeline_asymmetric:
+        is_pipeline_asymmetric |= (
+                getattr(self, "num_layers_in_first_pipeline_stage", None) or \
+                getattr(self, "num_layers_in_last_pipeline_stage", None)
+        ) is not None
+        is_flexible_pp_layout = (
+            is_pipeline_asymmetric or (getattr(self, "pipeline_model_parallel_layout", None) is not None)
+        )
+        if vp_size and not is_flexible_pp_layout:
             p_size = self.pipeline_model_parallel_size
             assert (
                 self.num_layers // p_size
@@ -370,7 +377,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             model_init_device_context = partial(torch.device, device='meta')
 
         if 'mtp_block_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
-            kwargs = {"mtp_block_spec": mtp_block_spec(self)}
+            kwargs = {"mtp_block_spec": mtp_block_spec(self, vp_stage=vp_stage)}
         else:
             kwargs = {}
         with model_init_device_context():
