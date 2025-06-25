@@ -150,11 +150,6 @@ def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_siz
     ):
         logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
         recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
-        if tp_size is not None and tp_size > 1:
-            logging.warning(
-                "Currently, TP overlap performance is poor when FSDP is used because of jitters. A fix is in progress. Disabling TP overlap."
-            )
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     return recipe
 
