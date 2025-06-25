@@ -344,7 +344,8 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
             source = torch.load(str(self), map_location='cpu')
         if 'model' in source:
             source = source['model']
-
+        if 'distrib_optim_sharding_type' in source:
+            del source['distrib_optim_sharding_type']
         source = _ModelState(source)
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -571,6 +572,8 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
             nemotron_h_config = NemotronHConfig4B()
         elif "8B" in source._name_or_path:
             nemotron_h_config = NemotronHConfig8B()
+        elif "12B" in source._name_or_path:
+            nemotron_h_config = NemotronHConfig12B()
         elif "47B" in source._name_or_path:
             nemotron_h_config = NemotronHConfig47B()
         elif "56B" in source._name_or_path:
@@ -695,6 +698,9 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
             hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
         elif type(source) == NemotronHConfig8B:
             model_path = local_model_path if local_model_path else "nvidia/Nemotron-H-8B-Base-8K"
+            hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+        elif type(source) == NemotronHConfig12B:
+            model_path = local_model_path if local_model_path else "nvidia/Nemotron-H-12B-Base-128K"
             hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
         elif type(source) == NemotronHConfig47B:
             model_path = local_model_path if local_model_path else "nvidia/Nemotron-H-47B-Base-8K"
@@ -1009,6 +1015,21 @@ class NemotronHConfig8B(NemotronHConfigBase):
     ffn_hidden_size: int = 21504
     num_attention_heads: int = 32
 
+@dataclass
+class NemotronHConfig12B(NemotronHConfigBase):
+    """NemotronHConfig12B"""
+
+    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M*-M-M-M-M*-M-M-M-M*-M-M-M-M*-M-M-M-M*-M-M-M-M-"
+    num_layers: int = 62
+    hidden_size: int = 5120
+    mamba_state_dim: int = 128
+    ffn_hidden_size: int = 20480
+    num_attention_heads: int = 32
+    kv_channels: int = 128
+    mamba_num_heads: int = 128
+    mamba_head_dim: int = 80
+    num_attention_heads: int = 40
+
 
 @dataclass
 class NemotronHConfig47B(NemotronHConfigBase):
@@ -1051,6 +1072,7 @@ __all__ = [
     "NemotronHConfigBase",
     "NemotronHConfig4B",
     "NemotronHConfig8B",
+    "NemotronHConfig12B",
     "NemotronHConfig47B",
     "NemotronHConfig56B",
 ]

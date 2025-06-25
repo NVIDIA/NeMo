@@ -55,9 +55,13 @@ class _ModelState:
     def to(self, dtype):
         # pylint: disable=C0115,C0116
         for k, v in self._state_dict.items():
-            if v.dtype != dtype:
-                logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
-            self._state_dict[k] = v.to(dtype)
+            try:
+                if v.dtype != dtype:
+                    logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
+                self._state_dict[k] = v.to(dtype)
+            except:
+                print(f"v: {v} ***")
+            
 
 
 @torch.no_grad
