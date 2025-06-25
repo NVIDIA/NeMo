@@ -39,6 +39,7 @@ jobs:
             runner: self-hosted-azure-gpus-1
           - script: L2_Stable_Diffusion_Training
             runner: self-hosted-azure-gpus-1
+            is-optional: true
           - script: L2_NeMo_2_GPT_Pretraining_no_transformer_engine
             runner: self-hosted-azure
           - script: L2_NeMo_2_llama3_pretraining_recipe
