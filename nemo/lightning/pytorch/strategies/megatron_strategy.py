@@ -738,17 +738,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             )
 
             if self.log_memory_usage:
+                # maximum GPU memory that has been managed by the caching allocator
                 max_memory_reserved = torch.cuda.max_memory_reserved()
-                memory_allocated = torch.cuda.memory_allocated()
+                # maximum GPU memory that has been occupied by active tensors
+                max_memory_allocated = torch.cuda.max_memory_allocated()
                 self.lightning_module.log(
-                    "peak_memory_usage",
+                    "max_memory_reserved",
                     max_memory_reserved,
                     prog_bar=True,
                     batch_size=1,
                 )
                 self.lightning_module.log(
-                    "memory_allocated",
-                    memory_allocated,
+                    "max_memory_allocated",
+                    max_memory_allocated,
                     prog_bar=True,
                     batch_size=1,
                 )
