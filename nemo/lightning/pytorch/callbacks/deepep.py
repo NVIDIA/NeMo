@@ -22,6 +22,15 @@ class DeepEPCallback(Callback):
         A PyTorch Lightning callback to enable DeepEP if the hardware is supported.
         Per official documentation https://github.com/deepseek-ai/DeepEP,
         DeepEP is supported for Ampere (SM80) and Hopper (SM90) GPUs.
+
+        Adding this callback is equivalent to setting the following flags in the recipe function:
+
+        recipe.model.config.moe_token_dispatcher_type = "flex"
+        recipe.model.config.moe_enable_deepep = True
+        recipe.model.config.moe_shared_expert_overlap = False
+
+        Since the recipe function may be run on a different machine, this callback is needed so that
+        configs are set during run time.
     """
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
