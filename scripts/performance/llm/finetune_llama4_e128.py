@@ -63,14 +63,13 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     assert args.finetuning == "sft", "Only SFT (Supervised Fine-Tuning) is supported"
-    finetuning_scheme = "sft" if args.finetuning == "sft" else args.finetuning
+    finetuning_scheme = "none" if args.finetuning == "sft" else args.finetuning
 
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, packed_sequence=True)
-    finetuning_task = "sft"
 
     recipe = set_primary_perf_configs(
         recipe,
-        finetuning_task,
+        finetuning_scheme,
         num_nodes,
         args.gpus_per_node,
         mbs,
