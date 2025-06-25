@@ -156,12 +156,12 @@ def run_inference(
     else:
         raise ValueError("Need a checkpoint")
 
+    if cfg_sample_rate is not None and cfg_sample_rate != model.sample_rate:
+        raise ValueError("Sample rate in config and model do not match")
+    
     print("Loaded weights.")
     model.cuda()
     model.eval()
-
-    if cfg_sample_rate is not None and cfg_sample_rate != model.sample_rate:
-        raise ValueError("Sample rate in config and model do not match")
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
@@ -275,9 +275,6 @@ def run_inference(
                     fixed_schedule_n_unmasked=fixed_schedule_n_unmasked,
                     sampling_type=sampling_type
                 )
-                if predicted_audio.numel() == 0 or predicted_codes.numel() == 0:
-                    print("\n*** WARNING: Predicted audio or codes is empty. Skipping batch. ***\n")
-                    
 
                 all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
@@ -337,8 +334,8 @@ def run_inference(
                 f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']},{metrics['frechet_codec_distance']}\n")
                 print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
             # Clean up temporary codec files
-            for codes_file in codec_file_paths:
-                os.remove(codes_file)
+            # for codes_file in codec_file_paths:
+            #     os.remove(codes_file)
 
         metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative',
                        'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg',
@@ -353,7 +350,6 @@ def run_inference(
         with open(all_experiment_csv_with_ci, "a") as f:
             f.write(f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']},{metrics_mean_ci['frechet_codec_distance']}\n")
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
-        
 
         measurements = [m['ssim_pred_context_avg'] for m in metrics_n_repeated]
         ssim_current = np.mean(measurements)

@@ -184,16 +184,22 @@ class FrechetCodecDistance(Metric):
         embeddings = torch.cat(valid_frames, dim=0)  # total_valid_frames, E
         valid_frame_count = embeddings.shape[0]
 
-        # Update the state variables used to compute FCD
-        if is_real:
-            self.num_real_frames += valid_frame_count
-            self.real_sum += torch.sum(embeddings, dim=0)
-            self.real_cov_sum += torch.matmul(embeddings.T, embeddings)
-        else:
-            self.num_fake_frames += valid_frame_count
-            self.fake_sum += torch.sum(embeddings, dim=0)
-            self.fake_cov_sum += torch.matmul(embeddings.T, embeddings)
-
+        try:
+            # Update the state variables used to compute FCD
+            if is_real:
+                self.num_real_frames += valid_frame_count
+                self.real_sum += torch.sum(embeddings, dim=0)
+                self.real_cov_sum += torch.matmul(embeddings.T, embeddings)
+            else:
+                self.num_fake_frames += valid_frame_count
+                self.fake_sum += torch.sum(embeddings, dim=0)
+                self.fake_cov_sum += torch.matmul(embeddings.T, embeddings)
+        except Exception as e:
+            print(f"Error updating FCD metric: {e}")
+            print(f"codes: {codes.shape}")
+            print(f"codes_len: {codes_len.shape}")
+            print(f"embeddings: {embeddings.shape}")
+            raise e
         return self
 
     def compute(self) -> Tensor:
