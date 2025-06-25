@@ -73,7 +73,7 @@ def process_text(input_text):
 def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, language, device):
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
     # Set the language task (optional, improves performance for specific languages)
-    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language) if language else None
+    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
     inputs = whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
     inputs = inputs.to(device)
     # Generate transcription
@@ -186,7 +186,9 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
             pred_text = ""
             gt_audio_text = ""
 
-        if 'normalized_text' in record:
+        if "original_text" in record:
+            gt_text = process_text(record['original_text'])
+        elif 'normalized_text' in record:
             gt_text = process_text(record['normalized_text'])
         else:
             gt_text = process_text(record['text'])

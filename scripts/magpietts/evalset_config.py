@@ -27,6 +27,13 @@ dataset_meta_info = {
         'audio_dir' : '/Data/RivaData/riva',
         'feature_dir' : '/Data/RivaData/riva',
     },
+    'rough_qwen': {
+        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/rough.json',
+        'audio_dir' : '/Data/RivaData/riva',
+        'feature_dir' : '/Data/RivaData/riva',
+        'tokenizer_names': ['qwen'],
+        'load_cached_codes_if_available': False,
+    },
     'riva_challenging_nozeros': {
         # 'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_nozeros.json',
         'manifest_path': '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_filtered.json',
@@ -110,6 +117,12 @@ dataset_meta_info = {
     },
     'libri_unseen_test_shehzeen_shared_char': {
         'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/test_clean_withContextAudioPaths.json',
+        'audio_dir' : '/Data/LibriTTS',
+        'feature_dir' : '/Data/LibriTTS',
+        'tokenizer_names': ['chartokenizer'],
+    },
+    'libri_unseen_test_shehzeen_shared_char_ipa': {
+        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests_ipa/test_clean_withContextAudioPaths_ipa.json',
         'audio_dir' : '/Data/LibriTTS',
         'feature_dir' : '/Data/LibriTTS',
         'tokenizer_names': ['chartokenizer'],
@@ -285,6 +298,14 @@ dataset_meta_info = {
         'whisper_language': 'pt',
         'load_cached_codes_if_available': False
     },
+    'portuguese_cml_shared_char_ipa': {
+        'manifest_path' : '/Data/CML/manifests_with_codecs_ipa3/cml_tts_dataset_portuguese_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset_ipa.json',
+        'audio_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
+        'feature_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
+        'tokenizer_names': ['chartokenizer'],
+        'whisper_language': 'pt',
+        'load_cached_codes_if_available': False
+    },
     'polish_cml_sep_char': {
         'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_polish_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
         'audio_dir': '/Data/CML/cml_tts_dataset_polish_v0.1',
@@ -297,6 +318,22 @@ dataset_meta_info = {
         'manifest_path' : '/home/jasoli/data_prime/manifests/test_clean_withContextAudioPaths.json',
         'audio_dir' : '/mnt/drive1/data/LibriTTS/',
         'feature_dir' : None,
+    },
+    'hindi_indic_shared_char': {
+        'manifest_path' : '/Data/IndicDataset/manifests_ipa/hindi_100_test.json',
+        'audio_dir': '/',
+        'feature_dir': '/',
+        'tokenizer_names': ['chartokenizer'],
+        'whisper_language': 'hi',
+        'load_cached_codes_if_available': False
+    },
+    'bengali_indic_shared_char': {
+        'manifest_path' : '/Data/IndicDataset/manifests_ipa/bengali_100_test.json',
+        'audio_dir': '/',
+        'feature_dir': '/',
+        'tokenizer_names': ['chartokenizer'],
+        'whisper_language': 'bn',
+        'load_cached_codes_if_available': False
     },
     'an4_val_ci': {
         'manifest_path' : '/home/TestData/an4_dataset/an4_val_context_v1.json',
