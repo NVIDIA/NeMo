@@ -80,6 +80,8 @@ class MegatronCommOverlapCallback(Callback):
         defer_embedding_wgrad_compute (bool): Overlap wgrads with the pipeline drain bubble for the last pipeline stage
         wgrad_deferral_limit (int): Limit of how many outstanding wgrads may be overlapped with the pipeline drain
                                     bubble
+        force_megatron_user_cfg (bool): Force the use of the Megatron user configs
+                                        CAUTION: Setting to True can have undesirable results
 
     Example:
         >>> callback = MegatronCommOverlapCallback(tp_comm_overlap=True)
@@ -100,7 +102,7 @@ class MegatronCommOverlapCallback(Callback):
         bucket_size: int = None,
         defer_embedding_wgrad_compute: bool = None,
         wgrad_deferral_limit: int = None,
-        force_megatron_user_cfg: bool = False,
+        force_megatron_user_cfg: bool = False,  # CAUTION: Setting to True can have undesirable results
     ):
 
         self.user_comm_overlap_cfg = _CommOverlapConfig(
@@ -121,6 +123,7 @@ class MegatronCommOverlapCallback(Callback):
         self.tp_comm_overlap_cfg = None
         self.tp_comm_bootstrap_backend = None
         self.need_tp_overlap_ub_init = False
+        self.force_megatron_user_cfg = force_megatron_user_cfg
 
     def _get_model_comm_overlap_cfgs(
         self,
