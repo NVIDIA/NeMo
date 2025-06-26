@@ -33,6 +33,7 @@ __all__ = [
     "Qwen2VLConfig",
     "Qwen2VLConfig2B",
     "Qwen2VLConfig7B",
+    "Qwen2VLConfig72B",
     "Qwen2VLModel",
     "Qwen25VLVisionConfig",
     "Qwen25VLConfig3B",

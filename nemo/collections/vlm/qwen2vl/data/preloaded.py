@@ -65,7 +65,8 @@ def process_vision(processor, images, videos, fps=None, model_version="qwen2-vl"
                 second_per_grid_ts = [processor.temporal_patch_size / tmp for tmp in fps]
             else:
                 raise ValueError(
-                    f"The length of fps ({len(fps) if hasattr(fps, '__len__') else fps}) must be equal to the length of video_grid_thw ({len(video_grid_thw)}) or fps should be a single number."
+                    f"The length of fps ({len(fps) if hasattr(fps, '__len__') else fps}) must be equal to the length "
+                    f"of video_grid_thw ({len(video_grid_thw)}) or fps should be a single number."
                 )
             second_per_grid_ts = torch.tensor(
                 second_per_grid_ts,

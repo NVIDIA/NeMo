@@ -34,6 +34,10 @@ from torch import Tensor
 
 
 class Qwen25VLVisionTransformerBlock(TransformerBlock):
+    """
+    Qwen25-VL Vision Transformer block, with either window attention or full attention in each layer.
+    Window attention is achieved by specifying packed_seq_params.
+    """
     def __init__(
         self,
         config: TransformerConfig,
@@ -632,6 +636,7 @@ class Qwen25VisionModel(VisionModule):
         )
 
     def get_window_index(self, grid_thw):
+        # pylint: disable=C0115,C0116
         window_index: list = []
         cu_window_seqlens: list = [0]
         window_index_id = 0

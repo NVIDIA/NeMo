@@ -436,10 +436,16 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 Height: 2 patches, dividing each frame vertically.
                 Width: 2 patches, dividing each frame horizontally.
                 We also have some important parameters:
-                fps (Frames Per Second): The video's frame rate, set to 1. This means one frame is processed each second.
-                tokens_per_second: This is a crucial parameter. It dictates how many "time-steps" or "temporal tokens" are conceptually packed into a one-second interval of the video. In this case, we have 25 tokens per second. So each second of the video will be represented with 25 separate time points. It essentially defines the temporal granularity.
+                fps (Frames Per Second): The video's frame rate, set to 1. This means one frame is processed each 
+                    second.
+                tokens_per_second: This is a crucial parameter. It dictates how many "time-steps" or "temporal tokens" 
+                    are conceptually packed into a one-second interval of the video. In this case, we have 25 tokens 
+                    per second. So each second of the video will be represented with 25 separate time points. It 
+                    essentially defines the temporal granularity.
                 temporal_patch_size: The number of frames that compose one temporal patch. Here, it's 2 frames.
-                interval: The step size for the temporal position IDs, calculated as tokens_per_second * temporal_patch_size / fps. In this case, 25 * 2 / 1 = 50. This means that each temporal patch will be have a difference of 50 in the temporal position IDs.
+                interval: The step size for the temporal position IDs, calculated as 
+                    tokens_per_second * temporal_patch_size / fps. In this case, 25 * 2 / 1 = 50. This means that each 
+                    temporal patch will be have a difference of 50 in the temporal position IDs.
                 input_ids: [V V V V V V V V V V V V T T T T T], here V is for vision.
                 vision temporal position_ids: [0, 0, 0, 0, 50, 50, 50, 50, 100, 100, 100, 100]
                 vision height position_ids: [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]
@@ -451,8 +457,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         Args:
             input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
-                Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should you provide
-                it.
+                Indices of input sequence tokens in the vocabulary. Padding will be ignored by default should you 
+                provide it.
             image_grid_thw (`torch.LongTensor` of shape `(num_images, 3)`, *optional*):
                 The temporal, height and width of feature shape of each image in LLM.
             video_grid_thw (`torch.LongTensor` of shape `(num_videos, 3)`, *optional*):
