@@ -145,7 +145,8 @@ if __name__ == "__main__":
     custom_env_vars = {}
     if args.skip_finetuning is not True:
         exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
-        exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+        base_name = splitext(basename(__file__))[0].replace("finetune_", "sft_")
+        exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
         recipe = override_recipe_configs(
             args,
             num_nodes,
@@ -216,7 +217,8 @@ if __name__ == "__main__":
                 exp_config += "_import_checkpoint"
             else:
                 exp_config = "import_checkpoint"
-        exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+        base_name = splitext(basename(__file__))[0].replace("finetune_", "sft_")
+        exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
 
         executor = slurm_executor(
             args.account,
