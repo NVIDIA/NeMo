@@ -106,6 +106,7 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         Returns:
             dict: The sharded optimizer state dictionary.
         """
+        # TODO: confirm this is NeMo 1
         sharding_type = 'fully_sharded_model_space' if dist_ckpt_parallel_save else 'dp_zero_gather_scatter'
         return self.mcore_optimizer.sharded_state_dict(
             model_sharded_state_dict, is_loading=is_loading, sharding_type=sharding_type
