@@ -23,11 +23,8 @@ import torch.nn.functional as F
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
-
-from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import normalization
-
 try:
-    from megatron.core.transformer.custom_layers.transformer_engine import (
+    from megatron.core.extensions.transformer_engine import (
         TEColumnParallelLinear,
         TELayerNormColumnParallelLinear,
         TENorm,
