@@ -24,6 +24,7 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.precision.mixed_precision import (
     bf16_with_fp8_current_scaling_mixed,
     bf16_with_fp8_mixed,
+    bf16_with_fp8_subchannel_scaling_mixed,
     bf16_with_mxfp8_mixed,
 )
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
@@ -184,6 +185,8 @@ def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = N
             recipe.trainer.plugins.first_last_layers_bf16 = False
         elif fp8_recipe.lower() == "mxfp8":
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
+        elif fp8_recipe.lower() == "ss":
+            recipe.trainer.plugins = bf16_with_fp8_subchannel_scaling_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     # Enable reuse_grad_buf_for_mxfp8_param_ag for MXFP8 and disable AG overlap
