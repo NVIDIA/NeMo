@@ -1141,7 +1141,7 @@ def generate(
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
         enable_flash_decode=enable_flash_decode,
-        **kwargs
+        **kwargs,
     )
 
     max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)

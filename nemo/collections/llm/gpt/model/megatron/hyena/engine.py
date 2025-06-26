@@ -19,6 +19,7 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 
+
 def adjust_filter_shape_for_broadcast(u, h):
     h = h.squeeze()  # Standardize to [D, L] from [1, D, L] and [D, 1, L]
 
@@ -30,6 +31,7 @@ def adjust_filter_shape_for_broadcast(u, h):
     if len(u.shape) > 3:
         h = h.unsqueeze(1)
     return h
+
 
 def fftconv_func(*, u, k, D):
     seqlen = u.shape[-1]
@@ -45,8 +47,10 @@ def fftconv_func(*, u, k, D):
 
     return y + u * D.unsqueeze(-1)
 
-def parallel_fir(*,
-    u, # B L D
+
+def parallel_fir(
+    *,
+    u,  # B L D
     weight,
     bias,
     L,
@@ -87,6 +91,7 @@ def parallel_fir(*,
         fir_state = u[..., -fir_length + 1 :]
     return z, fir_state
 
+
 def parallel_iir(*, z_pre, h, D, L, poles, t, hidden_size, compute_state):
     """Compute the output state of the short convolutional filter."""
     fft_size = 2 * L
@@ -114,6 +119,7 @@ def parallel_iir(*, z_pre, h, D, L, poles, t, hidden_size, compute_state):
         )
 
     return y.permute(0, 2, 1), iir_state
+
 
 def step_fir(*, u, fir_state, weight, bias=None, gated_bias=False, flip_filter=False):
     """Steps forward FIR filters in the architecture.
@@ -158,6 +164,7 @@ def step_fir(*, u, fir_state, weight, bias=None, gated_bias=False, flip_filter=F
 
     return y.to(input_dtype), fir_state
 
+
 def step_iir(*, x2, x1, v, D, residues, poles, iir_state):
     x1v = x1 * v
     poles = torch.exp(poles)  # poles arg contains log_poles
@@ -168,6 +175,7 @@ def step_iir(*, x2, x1, v, D, residues, poles, iir_state):
     res_state = torch.sum(residues * iir_state, dim=-1)
     y = x2 * (res_state + D * x1v)
     return y, iir_state
+
 
 def prefill_via_modal_fft(*, x1v, L, poles, t, X_s):
     """
