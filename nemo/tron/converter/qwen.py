@@ -59,7 +59,7 @@ class HFQwen2Exporter(BaseExporter):
             rope_theta=source.rotary_base,
             vocab_size=getattr(source, "vocab_size", self.tokenizer.vocab_size),
             sliding_window=source.seq_length,
-            tie_word_embeddings=False,
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
         )
         return self._hf_config
 
