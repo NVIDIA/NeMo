@@ -89,9 +89,9 @@ def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
         required_host_keys.add("cu_seqlens_argmin")
         required_host_keys.add("max_seqlen")
 
-    if parallel_state.is_pipeline_first_stage(ignore_virtual=False) or use_mtp:
+    if parallel_state.is_pipeline_first_stage() or use_mtp:
         required_device_keys.update(("tokens", "position_ids"))
-    if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+    if parallel_state.is_pipeline_last_stage():
         required_device_keys.update(("labels", "loss_mask"))
 
     _batch_required_keys = {}
@@ -153,12 +153,15 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     """
     from megatron.core.models.gpt import gpt_layer_specs
 
-    return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(
-        num_experts=config.num_moe_experts,
-        moe_grouped_gemm=config.moe_grouped_gemm,
-        qk_layernorm=config.qk_layernorm,
-        fp8=bool(config.num_moe_experts and (config.fp8 is not None)),
-    )
+    kwargs = {
+        "num_experts": config.num_moe_experts,
+        "moe_grouped_gemm": config.moe_grouped_gemm,
+        "qk_layernorm": config.qk_layernorm,
+        "fp8": bool(config.num_moe_experts and (config.fp8 is not None)),
+    }
+    if getattr(config, "use_transformer_engine_op_fuser", None) is not None:
+        kwargs["use_te_op_fuser"] = config.use_transformer_engine_op_fuser
+    return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(**kwargs)
 
 
 def transformer_engine_full_layer_spec(config: "GPTConfig") -> ModuleSpec:
@@ -307,13 +310,14 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     vocab_size: Optional[int] = None
     tp_comm_overlap_cfg: Optional[Union[str, dict[str, Any]]] = None
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+    def configure_model(self, tokenizer, pre_process=None, post_process=None, vp_stage=None) -> "MCoreGPTModel":
         """Configure and instantiate a Megatron Core GPT model based on this configuration.
 
         Args:
             tokenizer: Tokenizer used with the model
             pre_process: Whether to include pre-processing in the model, defaults to first pipeline stage
             post_process: Whether to include post-processing in the model, defaults to last pipeline stage
+            vp_stage: Virtual pipeline stage
 
         Returns:
             MCoreGPTModel: Configured Megatron Core GPT model instance
@@ -335,11 +339,21 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 self.num_layers // p_size
             ) % vp_size == 0, "Make sure the number of model chunks is the same across all pipeline stages."
 
+        import inspect
+
         from megatron.core import parallel_state
+
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
 
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
-            transformer_layer_spec = transformer_layer_spec(self)
+            # Check if the transformer_layer_spec function accepts vp_stage parameter
+            if 'vp_stage' in inspect.signature(transformer_layer_spec).parameters:
+                transformer_layer_spec = transformer_layer_spec(self, vp_stage=vp_stage)
+            else:
+                transformer_layer_spec = transformer_layer_spec(self)
 
         if self.vocab_size is not None:
             vocab_size = self.vocab_size
@@ -350,13 +364,10 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 )
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
-
         # Initialize model as meta data instead of allocating data on a device
         model_init_device_context = contextlib.nullcontext
         if self.init_model_with_meta_device:
             model_init_device_context = partial(torch.device, device='meta')
-
-        import inspect
 
         if 'mtp_block_spec' in inspect.signature(MCoreGPTModel.__init__).parameters:
             kwargs = {"mtp_block_spec": mtp_block_spec(self)}
@@ -375,9 +386,12 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 rotary_percent=self.rotary_percent,
                 rotary_base=self.rotary_base,
                 seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-                pre_process=pre_process or parallel_state.is_pipeline_first_stage(ignore_virtual=False),
-                post_process=post_process or parallel_state.is_pipeline_last_stage(ignore_virtual=False),
+                pre_process=pre_process
+                or parallel_state.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage),
+                post_process=post_process
+                or parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage),
                 scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
+                vp_stage=vp_stage,
                 **kwargs,
             )
 
@@ -559,18 +573,26 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
-    def configure_model(self) -> None:
+    def configure_model(self, vp_stage: Optional[int] = None) -> None:
         """Configure the underlying model if not already configured.
 
         This method ensures the model is instantiated from the configuration.
         """
+        from nemo.collections.llm.modelopt.model_utils import restore_modelopt_state
+
         if not hasattr(self, "module"):
             with contextlib.ExitStack() as stack:
                 # Apply requested context managers for this block
                 for cm in self.model_context_managers:
                     stack.enter_context(cm)
 
-                self.module = self.config.configure_model(self.tokenizer)
+                self.module = self.config.configure_model(self.tokenizer, vp_stage=vp_stage)
+
+            # Restore ModelOpt state if it exists.
+            # NOTE: Also called in MegatronStrategy.load_checkpoint but we do it for GPTModel here first,
+            # for transformations which add new parameters to the model that need to be included in the optimizer.
+            # TODO: Add to other models when needed.
+            restore_modelopt_state(self.module, trainer=self._trainer)  # `self.trainer` throws exception if not set
 
     def forward(
         self,

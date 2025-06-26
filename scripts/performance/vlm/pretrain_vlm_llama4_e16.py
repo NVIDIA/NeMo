@@ -22,13 +22,8 @@ from nemo.collections.vlm.recipes.llama4_omni_e16 import pretrain_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
 
 
 def override_recipe_configs(
@@ -91,18 +86,14 @@ def override_recipe_configs(
     recipe.model.config.language_transformer_config.cross_entropy_loss_fusion = True
     recipe.model.config.language_transformer_config.apply_rope_fusion = True
     recipe.model.config.language_transformer_config.moe_permute_fusion = True
-
-    recipe.model.config.vision_transformer_config.apply_rope_fusion = True
     recipe.model.config.vision_transformer_config.gradient_accumulation_fusion = True
 
     # enable cudagraph
-    enable_cuda_graphs = True
-    recipe.model.config.vision_transformer_config.enable_cuda_graph = enable_cuda_graphs
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+    recipe.model.config.vision_transformer_config.enable_cuda_graph = True
+    recipe.model.config.enable_cuda_graph = True
+    recipe.trainer.strategy.use_te_rng_tracker = True
 
-    # # test sub configs
-    # recipe.model.config.language_transformer_config.num_layers = 1
+    recipe.model.config.language_transformer_config.enable_cuda_graph = enable_cuda_graphs
 
     return recipe
 
@@ -126,6 +117,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -140,6 +132,9 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
+    if args.gpu.lower() in ['gb200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+        del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
+
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
@@ -148,7 +143,7 @@ if __name__ == "__main__":
         )
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
+        plugins.append(NsysPlugin(start_step=5, end_step=6, gen_shape=True))
 
     with run.Experiment(exp_name) as exp:
         exp.add(
