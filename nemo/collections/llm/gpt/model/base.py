@@ -299,7 +299,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
     deallocate_pipeline_outputs: bool = True
     scatter_embedding_sequence_parallel: bool = True
     tp_only_amax_red: bool = False
-    rope_scaling: bool = False
 
     use_transformer_engine_full_layer_spec: bool = False
     transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = default_layer_spec
@@ -392,7 +391,6 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 post_process=post_process
                 or parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage),
                 scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
-                rope_scaling=self.rope_scaling,
                 vp_stage=vp_stage,
                 **kwargs,
             )

@@ -62,7 +62,7 @@ class LlamaNemotronVLConfig(LlavaConfig):
             hidden_size=4096,
             ffn_hidden_size=4096,
             normalization='LayerNorm',
-            projector_type="mcore_mlp",
+            projector_type="mcore_layernorm_mlp",
         )
     )
 
@@ -102,7 +102,7 @@ class LlamaNemotronNanoVLConfig2B(LlamaNemotronVLConfig):
             hidden_size=2304,
             ffn_hidden_size=3072,
             normalization='LayerNorm',
-            projector_type="mcore_mlp",
+            projector_type="mcore_layernorm_mlp",
         )
     )
 
@@ -286,7 +286,7 @@ class HFLlamaNemotronVLImporter(io.ModelConnector["AutoModelForCausalLM", LlamaN
             hidden_size=4096,
             ffn_hidden_size=4096,
             normalization='LayerNorm',
-            projector_type="mcore_mlp",
+            projector_type="mcore_layernorm_mlp",
             fp16=(param_dtype == torch.float16),
             bf16=(param_dtype == torch.bfloat16),
             params_dtype=param_dtype,

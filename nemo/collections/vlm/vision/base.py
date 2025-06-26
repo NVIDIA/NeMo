@@ -122,9 +122,9 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
         # pylint: disable=C0115,C0116
         if self.projector_type.startswith("mcore") and self.layer_spec is None:
             self.add_bias_linear = self.bias
-            if self.projector_type == "mcore_mlp":
+            if self.projector_type in ["mcore_mlp", "mcore_layernorm_mlp"]:
                 self.projector_type = "mlp"  # strip "mcore_" for mcore init
-                if normalization:
+                if self.projector_type == "mcore_layernorm_mlp":
                     self.layer_spec = ModuleSpec(
                         module=MLP,
                         submodules=MLPSubmodules(
