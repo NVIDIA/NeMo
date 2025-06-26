@@ -38,6 +38,7 @@ class Qwen25VLVisionTransformerBlock(TransformerBlock):
     Qwen25-VL Vision Transformer block, with either window attention or full attention in each layer.
     Window attention is achieved by specifying packed_seq_params.
     """
+
     def __init__(
         self,
         config: TransformerConfig,
