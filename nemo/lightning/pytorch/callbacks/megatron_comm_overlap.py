@@ -100,6 +100,7 @@ class MegatronCommOverlapCallback(Callback):
         bucket_size: int = None,
         defer_embedding_wgrad_compute: bool = None,
         wgrad_deferral_limit: int = None,
+        force_megatron_user_cfg: bool = False,
     ):
 
         self.user_comm_overlap_cfg = _CommOverlapConfig(
@@ -162,7 +163,7 @@ class MegatronCommOverlapCallback(Callback):
             comm_overlap_cfg.overlap_p2p_comm = False
             comm_overlap_cfg.batch_p2p_comm = False
 
-        comm_overlap_cfg = self._override_user_cfgs(comm_overlap_cfg)
+        comm_overlap_cfg = self._override_nemo_user_cfgs(comm_overlap_cfg)
         return comm_overlap_cfg
 
     def _get_optimizer_overlap_cfgs(self, parallelism_cfg: ParallelismConfig) -> _CommOverlapConfig:
@@ -176,13 +177,13 @@ class MegatronCommOverlapCallback(Callback):
             vp_size = 1
 
         comm_overlap_cfg = _CommOverlapConfig()
-        comm_overlap_cfg.bucket_size = None
-        comm_overlap_cfg.overlap_grad_reduce = False
-        comm_overlap_cfg.overlap_param_gather = False
-        comm_overlap_cfg.overlap_param_gather_with_optimizer_step = False
-        comm_overlap_cfg.align_param_gather = False
+        comm_overlap_cfg.bucket_size = None if not self.bucket_size else self.bucket_size
+        comm_overlap_cfg.overlap_grad_reduce = bool(self.overlap_grad_reduce)
+        comm_overlap_cfg.overlap_param_gather = bool(self.overlap_param_gather)
+        comm_overlap_cfg.overlap_param_gather_with_optimizer_step = bool(self.overlap_param_gather_with_optimizer_step)
+        comm_overlap_cfg.align_param_gather = bool(self.align_param_gather)
 
-        if data_parallel_size > 1:
+        if data_parallel_size > 1 and not self.force_megatron_user_cfg:
             comm_overlap_cfg.bucket_size = 128 * 1024 * 1024
             comm_overlap_cfg.overlap_grad_reduce = True
             comm_overlap_cfg.overlap_param_gather = True
@@ -191,7 +192,7 @@ class MegatronCommOverlapCallback(Callback):
                 # comm_overlap_cfg.overlap_param_gather_with_optimizer_step = True
                 comm_overlap_cfg.align_param_gather = True
 
-        comm_overlap_cfg = self._override_user_cfgs(comm_overlap_cfg)
+        comm_overlap_cfg = self._override_nemo_user_cfgs(comm_overlap_cfg)
         return comm_overlap_cfg
 
     def _apply_cfgs(self, src_cfg, dest_cfg):
@@ -200,7 +201,7 @@ class MegatronCommOverlapCallback(Callback):
             if hasattr(dest_cfg, field.name):
                 setattr(dest_cfg, field.name, getattr(src_cfg, field.name))
 
-    def _override_user_cfgs(self, comm_overlap_cfg):
+    def _override_nemo_user_cfgs(self, comm_overlap_cfg):
         # override default configs with any user provided configs
         if isinstance(self.user_comm_overlap_cfg, _CommOverlapConfig):
             for field in fields(self.user_comm_overlap_cfg):
