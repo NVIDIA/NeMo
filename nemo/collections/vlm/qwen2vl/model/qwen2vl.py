@@ -147,7 +147,7 @@ class Qwen25VLConfig32B(Qwen2VLConfig):
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Qwen25Config32B())
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: Qwen25VLVisionConfig(num_layers=32, num_attention_heads=16)
+        default_factory=lambda: Qwen25VLVisionConfig(num_layers=32, num_attention_heads=16, ffn_hidden_size=3456)
     )
     vision_projection_config: TransformerConfig = field(
         default_factory=lambda: MultimodalProjectorConfig(
@@ -164,7 +164,7 @@ class Qwen25VLConfig72B(Qwen2VLConfig):
 
     language_transformer_config: TransformerConfig = field(default_factory=lambda: Qwen25Config72B())
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: Qwen25VLVisionConfig(num_layers=32, num_attention_heads=16)
+        default_factory=lambda: Qwen25VLVisionConfig(num_layers=32, num_attention_heads=16, ffn_hidden_size=3456)
     )
     vision_projection_config: TransformerConfig = field(
         default_factory=lambda: MultimodalProjectorConfig(
@@ -333,6 +333,7 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
         vision_config = hf_config.vision_config
         if is_v2_5:
             vision_transformer_config = Qwen25VLVisionConfig(
+                ffn_hidden_size=vision_config.intermediate_size,
                 fp16=(dtype_from_hf(hf_config) == torch.float16),
                 bf16=(dtype_from_hf(hf_config) == torch.bfloat16),
                 params_dtype=dtype_from_hf(hf_config),
