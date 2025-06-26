@@ -284,7 +284,7 @@ class BaseExporter(ABC):
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return AutoModelForCausalLM.from_config(self.hf_config, torch_dtype=dtype)
 
     def init_tron_model(self) -> tuple[dict, dict]:
@@ -305,6 +305,7 @@ class BaseExporter(ABC):
         with open(tron_yaml, "r") as stream:
             _config = yaml.safe_load(stream)
         model_config = _config["model_config"]
+        model_config["pipeline_model_parallel_size"] = 1
         model_config = instantiate(model_config)
 
         if self._hf_tokenizer_path is None:

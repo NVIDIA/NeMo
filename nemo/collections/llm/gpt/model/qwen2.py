@@ -300,6 +300,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
 class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
     # pylint: disable=C0115,C0116
     def init(self, dtype=torch.bfloat16) -> "AutoModelForCausalLM":
+
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -355,12 +356,15 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
                 target_key="model.embed_tokens.weight",
                 fn=TransformFns.prune_padding,
             ),
-            io.state_transform(
-                source_key="output_layer.weight",
-                target_key="lm_head.weight",
-                fn=TransformFns.prune_padding,
-            ),
         ]
+        if not source.config.share_embeddings_and_output_weights:
+            transforms.append(
+                io.state_transform(
+                    source_key="output_layer.weight",
+                    target_key="lm_head.weight",
+                    fn=TransformFns.prune_padding,
+                )
+            )
         return io.apply_transforms(
             source,
             target,
@@ -395,7 +399,7 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
             rope_theta=source.rotary_base,
             vocab_size=getattr(source, 'vocab_size', self.tokenizer.vocab_size),
             sliding_window=source.seq_length,
-            tie_word_embeddings=False,
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
         )
 
 
