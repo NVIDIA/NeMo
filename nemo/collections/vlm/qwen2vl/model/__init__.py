@@ -21,8 +21,11 @@ from nemo.collections.vlm.qwen2vl.model.base import (
 from nemo.collections.vlm.qwen2vl.model.qwen2vl import (
     Qwen2VLConfig2B,
     Qwen2VLConfig7B,
+    Qwen2VLConfig72B,
     Qwen25VLConfig3B,
     Qwen25VLConfig7B,
+    Qwen25VLConfig32B,
+    Qwen25VLConfig72B,
 )
 
 __all__ = [
@@ -34,4 +37,6 @@ __all__ = [
     "Qwen25VLVisionConfig",
     "Qwen25VLConfig3B",
     "Qwen25VLConfig7B",
+    "Qwen25VLConfig32B",
+    "Qwen25VLConfig72B",
 ]

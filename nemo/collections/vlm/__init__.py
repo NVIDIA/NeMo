@@ -79,6 +79,8 @@ from nemo.collections.vlm.qwen2vl.model.qwen2vl import (
     Qwen2VLConfig7B,
     Qwen25VLConfig3B,
     Qwen25VLConfig7B,
+    Qwen25VLConfig32B,
+    Qwen25VLConfig72B,
 )
 
 # RECIPES
@@ -137,6 +139,8 @@ __all__ = [
     "Qwen25VLConfig",
     "Qwen25VLConfig3B",
     "Qwen25VLConfig7B",
+    "Qwen25VLConfig32B",
+    "Qwen25VLConfig72B",
     "Qwen25VLVisionConfig",
     "Qwen2VLDataConfig",
     "Gemma3VLConfig",

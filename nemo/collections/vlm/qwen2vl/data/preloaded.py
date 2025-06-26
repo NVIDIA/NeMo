@@ -45,7 +45,7 @@ from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
-def process_vision(processor, images, videos, fps, model_version):
+def process_vision(processor, images, videos, fps=None, model_version="qwen2-vl"):
     # pylint: disable=C0115,C0116
     assert isinstance(processor, Qwen2VLImageProcessor), "processor needs to be Qwen2VLImageProcessor"
     if images is not None:
@@ -583,7 +583,7 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
             # FIXME: implement support for more data formats
             super().__init__(None, data_config, tokenizer, image_processor, model_version, sequence_length)
             logging.warning("Loading image inputs from Dataset...")
-            if data_config.media_type == 'image':
+            if data_config.image_folder is not None:
                 image_folder = data_config.image_folder
                 for line in open(data_path, "r"):
                     record = json.loads(line)

@@ -23,7 +23,7 @@ from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor
 
 import nemo.lightning as nl
-from nemo.collections.vlm import Qwen2VLModel, Qwen25VLConfig3B
+from nemo.collections.vlm import Qwen2VLModel, Qwen25VLConfig3B, Qwen25VLConfig7B, Qwen25VLConfig32B, Qwen25VLConfig72B
 from nemo.utils import logging
 
 
@@ -49,7 +49,7 @@ def main(args) -> None:
     min_pixels = 16 * 28 * 28
     max_pixels = 64 * 28 * 28
     processor = AutoProcessor.from_pretrained(
-        "Qwen/Qwen2.5-VL-3B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels
+        f"Qwen/Qwen2.5-VL-{args.model_size}-Instruct", min_pixels=min_pixels, max_pixels=max_pixels
     )
 
     hf_tokenizer = processor.tokenizer
@@ -57,9 +57,15 @@ def main(args) -> None:
     fabric = trainer.to_fabric()
     # Decide whether to import or load the model based on the input arguments
     if args.load_from_hf:
-        model = fabric.import_model("hf://Qwen/Qwen2.5-VL-3B-Instruct", Qwen2VLModel)
+        model = fabric.import_model(f"hf://Qwen/Qwen2.5-VL-{args.model_size}-Instruct", Qwen2VLModel)
     else:
-        model = Qwen2VLModel(Qwen25VLConfig3B(), model_version="qwen25-vl", tokenizer=hf_tokenizer)
+        model_config = {
+            "3B": Qwen25VLConfig3B,
+            "7B": Qwen25VLConfig7B,
+            "32B": Qwen25VLConfig32B,
+            "72B": Qwen25VLConfig72B,
+        }[args.model_size]()
+        model = Qwen2VLModel(model_config, model_version="qwen25-vl", tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
     model = model.module.cuda()
     model.eval()
@@ -148,6 +154,7 @@ if __name__ == "__main__":
         default="https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen-VL/assets/demo.jpeg",
         help="URL of the image to use for inference.",
     )
+    parser.add_argument("--model_size", type=str, default="3B", choices=["3B", "7B", "32B", "72B"])
     parser.add_argument('--osl', type=int, default=30, help='output seq length')
     parser.add_argument('--tp_size', type=int, default=1, help='tensor parallel size')
     parser.add_argument('--pp_size', type=int, default=1, help='pipeline parallel size')

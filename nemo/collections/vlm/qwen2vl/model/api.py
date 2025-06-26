@@ -21,6 +21,7 @@ from nemo.collections.vlm.qwen2vl.model import (
     Qwen2VLModel,
     Qwen25VLConfig3B,
     Qwen25VLConfig7B,
+    Qwen25VLConfig32B,
     Qwen25VLConfig72B,
 )
 
@@ -49,10 +50,13 @@ def qwen25vl_7b() -> pl.LightningModule:
     # pylint: disable=C0115,C0116
     return Qwen2VLModel(Qwen25VLConfig7B(), model_version="qwen25-vl")
 
+def qwen25vl_32b() -> pl.LightningModule:
+    # pylint: disable=C0115,C0116
+    return Qwen2VLModel(Qwen25VLConfig32B(), model_version="qwen25-vl")
 
 def qwen25vl_72b() -> pl.LightningModule:
     # pylint: disable=C0115,C0116
     return Qwen2VLModel(Qwen25VLConfig72B(), model_version="qwen25-vl")
 
 
-__all__ = ["qwen2vl_2b", "qwen2vl_7b", "qwen2vl_72b", "qwen25vl_3b", "qwen25vl_7b", "qwen25vl_72b"]
+__all__ = ["qwen2vl_2b", "qwen2vl_7b", "qwen2vl_72b", "qwen25vl_3b", "qwen25vl_7b", "qwen25vl_32b", "qwen25vl_72b"]
