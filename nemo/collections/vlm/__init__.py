@@ -135,8 +135,6 @@ __all__ = [
     "Qwen2VLConfig7B",
     "Qwen2VLVisionConfig",
     "Qwen2VLModel",
-    "Qwen25VLModel",
-    "Qwen25VLConfig",
     "Qwen25VLConfig3B",
     "Qwen25VLConfig7B",
     "Qwen25VLConfig32B",

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import Callable, Dict, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Callable, Dict, Optional, Tuple, List
 
 import lightning.pytorch as L
 import torch
@@ -207,6 +207,7 @@ class Qwen25VLVisionConfig(TransformerConfig, io.IOMixin):
     apply_rope_fusion: bool = False
     layernorm_epsilon: float = 1e-6
     transformer_layer_spec: ModuleSpec = None
+    fullatt_block_indexes: List[int] = field(default_factory=lambda: [7, 15, 23, 31])
     model_version: str = "qwen25-vl"
 
     def configure_model(self) -> "Qwen25VisionModel":
@@ -272,8 +273,6 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
             # https://huggingface.co/Qwen/Qwen2-VL-7B-Instruct/blob/main/config.json
             # https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct/blob/main/config.json
             self.language_transformer_config.mrope_section = [16, 24, 24]
-            if self.vision_transformer_config.model_version == "qwen25-vl":
-                self.vision_transformer_config.fullatt_block_indexes = [7, 15, 23, 31]
 
     def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreQwen2VLModel":
         # pylint: disable=C0115,C0116

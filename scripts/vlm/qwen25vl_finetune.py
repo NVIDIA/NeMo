@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageP
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.vlm import Qwen2VLDataConfig
-from nemo.collections.vlm.qwen2vl.data import Qwen2VLMockDataModule
 from nemo.collections.vlm.qwen2vl.model import Qwen25VLVisionConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -50,8 +49,10 @@ def main(args):
     max_steps = args.max_steps
 
     SIZE_INFO_MAP = {
-        "7B": {"hf_model_name": "Qwen/Qwen2.5-VL-7B-Instruct", "llmconfig_class": llm.Qwen25Config7B},
         "3B": {"hf_model_name": "Qwen/Qwen2.5-VL-3B-Instruct", "llmconfig_class": llm.Qwen25Config3B},
+        "7B": {"hf_model_name": "Qwen/Qwen2.5-VL-7B-Instruct", "llmconfig_class": llm.Qwen25Config7B},
+        "32B": {"hf_model_name": "Qwen/Qwen2.5-VL-32B-Instruct", "llmconfig_class": llm.Qwen25Config32B},
+        "72B": {"hf_model_name": "Qwen/Qwen2.5-VL-72B-Instruct", "llmconfig_class": llm.Qwen25Config72B},
     }
 
     model_size = args.model_size

@@ -103,6 +103,7 @@ class Qwen25Config3B(Qwen2Config):
     num_query_groups: int = 2
     ffn_hidden_size: int = 11008
     vocab_size: int = 151936
+    share_embeddings_and_output_weights: bool = True
 
 
 @dataclass
