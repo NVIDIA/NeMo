@@ -28,8 +28,16 @@ from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import Qwen2_5_VLVi
 from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig as HFQwen2VLVisionConfig
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.llm import Qwen2Config, Qwen2Config1P5B, Qwen2Config7B, Qwen2Config72B, Qwen25Config3B, \
-    Qwen25Config7B, Qwen25Config32B, Qwen25Config72B
+from nemo.collections.llm import (
+    Qwen2Config,
+    Qwen2Config1P5B,
+    Qwen2Config7B,
+    Qwen2Config72B,
+    Qwen25Config3B,
+    Qwen25Config7B,
+    Qwen25Config32B,
+    Qwen25Config72B,
+)
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias
 from nemo.collections.vlm.qwen2vl.model.base import (
     Qwen2VLConfig,
@@ -129,6 +137,7 @@ class Qwen25VLConfig7B(Qwen2VLConfig):
             projector_type="mcore_mlp", input_size=5120, hidden_size=3584, ffn_hidden_size=5120
         )
     )
+
 
 @dataclass
 class Qwen25VLConfig32B(Qwen2VLConfig):

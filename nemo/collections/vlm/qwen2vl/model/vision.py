@@ -16,8 +16,7 @@ from typing import Optional, Union
 
 import torch
 import torch.nn.functional as F
-from megatron.core import tensor_parallel, parallel_state
-
+from megatron.core import parallel_state, tensor_parallel
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
 from megatron.core.enums import Fp8Recipe
 from megatron.core.extensions.transformer_engine import te_checkpoint
@@ -28,10 +27,11 @@ from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.process_groups_config import ModelCommProcessGroups
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, TransformerBlock
+from megatron.core.transformer.transformer_block import TransformerBlock, TransformerBlockSubmodules
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.utils import make_viewless_tensor, deprecate_inference_params, WrappedTensor
+from megatron.core.utils import WrappedTensor, deprecate_inference_params, make_viewless_tensor
 from torch import Tensor
+
 
 class Qwen25VLVisionTransformerBlock(TransformerBlock):
     def __init__(
@@ -45,7 +45,13 @@ class Qwen25VLVisionTransformerBlock(TransformerBlock):
         vp_stage: Optional[int] = None,
     ):
         super().__init__(
-            config, spec, post_layer_norm, pre_process, post_process, model_comm_pgs, vp_stage,
+            config,
+            spec,
+            post_layer_norm,
+            pre_process,
+            post_process,
+            model_comm_pgs,
+            vp_stage,
         )
 
     def forward(
@@ -190,9 +196,7 @@ class Qwen25VLVisionTransformerBlock(TransformerBlock):
             # TENorm produces a "viewed" tensor. This will result in schedule.py's
             # deallocate_output_tensor() throwing an error, so a viewless tensor is
             # created to prevent this.
-            hidden_states = make_viewless_tensor(
-                inp=hidden_states, requires_grad=True, keep_graph=True
-            )
+            hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
 
         return hidden_states
 
@@ -211,9 +215,7 @@ class Qwen25VLVisionTransformerBlock(TransformerBlock):
         """Forward method with activation checkpointing."""
 
         def custom(start: int, end: int):
-            def custom_forward(
-                hidden_states, attention_mask, context, context_mask, rotary_pos_emb
-            ):
+            def custom_forward(hidden_states, attention_mask, context, context_mask, rotary_pos_emb):
                 for index in range(start, end):
                     if self.config.fullatt_block_indexes is not None and index in self.config.fullatt_block_indexes:
                         packed_seq_params_now = packed_seq_params_full

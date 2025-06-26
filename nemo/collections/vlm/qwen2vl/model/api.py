@@ -50,9 +50,11 @@ def qwen25vl_7b() -> pl.LightningModule:
     # pylint: disable=C0115,C0116
     return Qwen2VLModel(Qwen25VLConfig7B(), model_version="qwen25-vl")
 
+
 def qwen25vl_32b() -> pl.LightningModule:
     # pylint: disable=C0115,C0116
     return Qwen2VLModel(Qwen25VLConfig32B(), model_version="qwen25-vl")
+
 
 def qwen25vl_72b() -> pl.LightningModule:
     # pylint: disable=C0115,C0116
