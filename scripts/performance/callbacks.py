@@ -94,4 +94,3 @@ class LLMBTrainingStartCallback(Callback):
         logging.info(
             f"{self.custom_prefix}: MODEL={self._get_model_name()} FRAMEWORK=nemo2 MODEL_SIZE={self.model_size} JOB_NUM_NODES={trainer.num_nodes} GPUS_PER_NODE={trainer.num_devices} DTYPE={self._get_precision()} SYNTHETIC_DATA=True GSW_VERSION={self._get_gsw_version()} FW_VERSION={self._get_fw_version()} IMAGE='{self.container_image}' JOB_ID={slurm_job_id} JOB_MODE={self._get_workload_type()} OPTIMIZATION_NAME='' OPTIMIZATION_CODE='' BASE_CONFIG=''"
         )
-

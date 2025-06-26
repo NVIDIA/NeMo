@@ -87,15 +87,15 @@ def override_recipe_configs(
         fp8_recipe=args.fp8_recipe,
     )
     recipe = set_exp_logging_configs(
-        recipe, 
-        "pre_train", 
-        "llm", 
-        "llama3", 
-        args.tensorboard, 
-        args.wandb, 
-        args.wandb_prj_name, 
-        args.wandb_job_name, 
-        model_size="405b", 
+        recipe,
+        "pre_train",
+        "llm",
+        "llama3",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
+        model_size="405b",
         container_image=args.container_image,
     )
 
