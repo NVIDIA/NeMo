@@ -23,6 +23,7 @@ import torch.nn.functional as F
 from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
+
 try:
     from megatron.core.extensions.transformer_engine import (
         TEColumnParallelLinear,
