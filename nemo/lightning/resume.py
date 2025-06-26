@@ -38,8 +38,9 @@ else:
 
 
 def _try_restore_tokenizer(model, ckpt_path):
-    from nemo.collections.common.tokenizers import TokenizerSpec
     from megatron.core.tokenizers import MegatronTokenizerBase
+
+    from nemo.collections.common.tokenizers import TokenizerSpec
     from nemo.lightning.io import load_context
 
     try:
