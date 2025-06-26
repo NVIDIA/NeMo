@@ -686,7 +686,8 @@ def _resolve_audios_in_prompt(
     if not paths:
         return None
     cuts = CutSet([Recording.from_file(p).to_cut() for p in paths])
-    audio, audio_lens = cuts.resample(sampling_rate).load_audio(collate=True)
+    with torch.device("cpu"):  # workaround for a Lhotse issue when default device is CUDA during collation
+        audio, audio_lens = cuts.resample(sampling_rate).load_audio(collate=True)
     return (
         torch.as_tensor(audio).to(device, non_blocking=True),
         torch.as_tensor(audio_lens).to(device, non_blocking=True),
