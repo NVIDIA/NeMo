@@ -230,7 +230,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             raise NotImplementedError(
                 "This script currently supports only `greedy_batch` strategy with Label-Looping algorithm"
             )
-        cfg.decoding.preserve_alignments = False
+        cfg.decoding.greedy.tdt_include_token_duration = True
+        cfg.decoding.greedy.preserve_alignments = False
         cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
         cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
 
