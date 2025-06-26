@@ -153,8 +153,19 @@ class FrechetCodecDistance(Metric):
         """
         Takes a path to an audio file, embeds it, and updates the FCD metric.
         """
-        codes, codes_len = self.model.encode_from_file(audio_path)
-        self.update(codes, codes_len, is_real)
+        try:
+            codes, codes_len = self.model.encode_from_file(audio_path)
+        except Exception as e:
+            print(f"update_from_audio_file: Error encoding audio file: {e}")
+            print(f"Audio path: {audio_path}")
+            raise e
+        try:
+            self.update(codes, codes_len, is_real)
+        except Exception as e:
+            print(f"update_from_audio_file: Error updating FCD metric: {e}")
+            print(f"Codes: {codes.shape}")
+            print(f"Codes len: {codes_len}")
+            raise e
 
     def update(self, codes: Tensor, codes_len: Tensor, is_real: bool):
         """
@@ -197,7 +208,7 @@ class FrechetCodecDistance(Metric):
         except Exception as e:
             print(f"Error updating FCD metric: {e}")
             print(f"codes: {codes.shape}")
-            print(f"codes_len: {codes_len.shape}")
+            print(f"codes_len: {codes_len}")
             print(f"embeddings: {embeddings.shape}")
             raise e
         return self

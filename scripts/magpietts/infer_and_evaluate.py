@@ -288,7 +288,13 @@ def run_inference(
                     audio_path = os.path.join(pred_audio_dir, f"predicted_audio_{item_idx}.wav")
                     sf.write(audio_path, predicted_audio_np, model.sample_rate)
                     codes_path = os.path.join(pred_audio_dir, f"predicted_codes_{item_idx}.pt")
-                    torch.save(predicted_codes[idx][:predicted_codes_lens[idx]], codes_path)
+                    codes = predicted_codes[idx][:predicted_codes_lens[idx]]
+                    if not codes.shape[0] == 8:
+                        print(f"Predicted codes batch shape: {codes.shape}")
+                        print(f"Index: {idx}")
+                        print(f"Predicted codes lens: {predicted_codes_lens[idx]}")
+                        raise ValueError("Predicted codes batch shape is not 8")
+                    torch.save(codes, codes_path)
                     codec_file_paths.append(codes_path)
                     context_audio_path = manifest_records[item_idx].get('context_audio_filepath', None)
                     target_audio_path = manifest_records[item_idx].get('audio_filepath', None)
