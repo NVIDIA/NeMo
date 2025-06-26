@@ -74,6 +74,7 @@ from nemo.collections.asr.parts.utils.streaming_utils import (
     SimpleAudioDataset,
     StreamingBatchedAudioBuffer,
 )
+from nemo.collections.asr.parts.utils.timestamp_utils import process_timestamp_outputs
 from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, setup_model, write_transcription
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -127,6 +128,8 @@ class TranscriptionConfig:
 
     # Decoding strategy for RNNT models
     decoding: RNNTDecodingConfig = field(default_factory=RNNTDecodingConfig)
+
+    timestamps: bool = False  # output timestamps
 
     # Config for word / character error rate calculation
     calculate_wer: bool = True
@@ -383,11 +386,19 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             all_hyps.extend(batched_hyps_to_hypotheses(current_batched_hyps, None, batch_size=batch_size))
 
     # convert text
-    for hyp in all_hyps:
+    for i, hyp in enumerate(all_hyps):
         hyp.text = asr_model.tokenizer.ids_to_text(hyp.y_sequence.tolist())
+        if cfg.timestamps:
+            hyp = asr_model.decoding.compute_rnnt_timestamps(hyp)
+            hyp = process_timestamp_outputs(
+                hyp,
+                subsampling_factor=asr_model.encoder.subsampling_factor,
+                window_stride=asr_model.cfg['preprocessor']['window_stride'],
+            )
+            all_hyps[i] = hyp
 
     output_filename, pred_text_attr_name = write_transcription(
-        all_hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
+        all_hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=cfg.timestamps
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 
