@@ -181,7 +181,7 @@ class T5SFTDataset(Dataset):
         loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
         text_enc = [item + [self.src_tokenizer.pad_id] * (max_enc_input_length - len(item)) for item in text_enc]
         text_dec = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in text_dec]
-        labels = [item + [self.tgt_tokenizer.pad]_id * (max_label_length - len(item)) for item in labels]
+        labels = [item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
 
         text_enc = torch.LongTensor(text_enc)
         text_dec = torch.LongTensor(text_dec)
