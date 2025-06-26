@@ -330,6 +330,8 @@ def override_recipe_configs(
         args.wandb,
         args.wandb_prj_name,
         args.wandb_job_name,
+        model_size="314b",
+        container_image=args.container_image,
     )
 
     # data module configs

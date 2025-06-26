@@ -86,7 +86,15 @@ def override_recipe_configs(
         load_checkpoint_path=args.checkpoint_load_path,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name,  model_size="340b",
+        recipe, 
+        "pre_train", 
+        "llm", 
+        "nemotron", 
+        args.tensorboard, 
+        args.wandb, 
+        args.wandb_prj_name, 
+        args.wandb_job_name,  
+        model_size="340b",
         container_image=args.container_image,
     )
 
