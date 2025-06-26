@@ -665,7 +665,6 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
                 batch['second_per_grid_ts'] = torch.cat(
                     [instance['second_per_grid_ts'] for instance in instances], dim=0
                 )
-                print("preloaded second_per_grid_ts", batch['second_per_grid_ts'])
             else:
                 batch['second_per_grid_ts'] = None
         else:
@@ -704,7 +703,6 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
 
         if packed_sequence:
             batch["cu_seqlens"] = cu_seqlens
-        print("preload batch", batch)
         return batch
 
 

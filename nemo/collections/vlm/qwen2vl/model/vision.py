@@ -715,8 +715,8 @@ class Qwen25VisionModel(VisionModule):
         # https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/models/common/embeddings/rotary_pos_embedding.py#L164
         rotary_pos_emb = rotary_pos_emb[:, None, None, :]
 
-        packed_seq_params = self.get_packed_seq_params(grid_thw)
-        packed_seq_params_full = self.get_packed_seq_params(None, cu_window_seqlens)
+        packed_seq_params_full = self.get_packed_seq_params(grid_thw)
+        packed_seq_params = self.get_packed_seq_params(None, cu_window_seqlens)
 
         x = self.decoder(
             x,

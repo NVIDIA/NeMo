@@ -365,7 +365,7 @@ class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
                 )
                 if not is_moe
                 else io.state_transform(
-                    source_key="**.mlp.linear_fc1.weight",
+                    source_key="**.mlp.experts.linear_fc1.weight*",
                     target_key=("**.mlp.experts.*.gate_proj.weight", "**.mlp.experts.*.up_proj.weight"),
                     fn=TransformFns.split_fc1,
                 )
@@ -401,7 +401,7 @@ class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
         from transformers import Qwen3Config as HFQwen3Config
         from transformers import Qwen3MoeConfig as HFQwen3MoeConfig
 
-        source: Qwen3Config = io.load_context(str(self)).model.config
+        source: Qwen3Config = io.load_context(str(self), subpath="model.config")
         is_moe = source.num_moe_experts is not None
         hf_config_cls = (
             partial(
@@ -410,6 +410,7 @@ class HFQwen3Exporter(io.ModelConnector[Qwen3Model, "AutoModelForCausalLM"]):
                 num_experts=source.num_moe_experts,
                 num_experts_per_tok=source.moe_router_topk,
                 router_aux_loss_coef=source.moe_aux_loss_coeff,
+                norm_topk_prob=True,
             )
             if is_moe
             else HFQwen3Config

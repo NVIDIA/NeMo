@@ -86,7 +86,6 @@ def main(args):
             num_workers=1,
         )
     elif args.data_type == "mock":
-        print(f'{args.data_type=}, {Qwen2VLMockDataModule=}')
         image_processor = Qwen2VLImageProcessor()
         data = vlm.Qwen2VLMockDataModule(
             seq_length=max_sequence_length,

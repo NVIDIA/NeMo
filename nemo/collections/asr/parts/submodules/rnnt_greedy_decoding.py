@@ -35,8 +35,11 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.submodules.rnnt_loop_labels_computer import GreedyBatchedRNNTLoopLabelsComputer
-from nemo.collections.asr.parts.submodules.tdt_loop_labels_computer import GreedyBatchedTDTLoopLabelsComputer
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.submodules.transducer_decoding import (
+    GreedyBatchedRNNTLabelLoopingComputer,
+    GreedyBatchedTDTLabelLoopingComputer,
+)
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
@@ -627,12 +630,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
-        self._decoding_computer = None
+        self.decoding_computer = None
         if self.decoder.blank_as_pad:
             if self.loop_labels:
                 # Label-Looping algorithm (default, faster)
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
-                self._decoding_computer = GreedyBatchedRNNTLoopLabelsComputer(
+                self.decoding_computer = GreedyBatchedRNNTLabelLoopingComputer(
                     decoder=self.decoder,
                     joint=self.joint,
                     blank_index=self._blank_index,
@@ -641,11 +644,19 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                     allow_cuda_graphs=self.use_cuda_graph_decoder,
-                    ngram_lm_model=ngram_lm_model,
+                    ngram_lm_model=(
+                        NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+                        if ngram_lm_model is not None
+                        else None
+                    ),
                     ngram_lm_alpha=ngram_lm_alpha,
                 )
             else:
                 # Frame-Looping algorithm
+                if ngram_lm_model is not None:
+                    raise NotImplementedError(
+                        "N-Gram Language Model fusion is not implemented with frame-looping algorithm"
+                    )
                 if not self.use_cuda_graph_decoder:
                     self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
                 else:
@@ -674,6 +685,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     else:
                         self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
+            if ngram_lm_model is not None:
+                raise NotImplementedError("N-Gram Language Model fusion is not implemented with `blank_as_pad=False`")
             self._greedy_decode = self._greedy_decode_masked
 
     def disable_cuda_graphs(self):
@@ -688,7 +701,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
         if self.loop_labels:
             # Label-Looping implementation
-            self._decoding_computer.disable_cuda_graphs()
+            self.decoding_computer.disable_cuda_graphs()
         else:
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
 
@@ -704,7 +717,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
         if self.loop_labels:
             # Label-Looping implementation
-            self._decoding_computer.maybe_enable_cuda_graphs()
+            self.decoding_computer.maybe_enable_cuda_graphs()
         else:
             from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import RNNTGreedyDecodeCudaGraph
 
@@ -760,20 +773,35 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         x: torch.Tensor,
         out_len: torch.Tensor,
         device: torch.device,
-        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis | None]] = None,
     ) -> list[rnnt_utils.Hypothesis]:
         """
         Optimized batched greedy decoding.
         The main idea: search for next labels for the whole batch (evaluating Joint)
         and thus always evaluate prediction network with maximum possible batch size
         """
-        if partial_hypotheses is not None:
-            raise NotImplementedError("`partial_hypotheses` support is not implemented")
-
-        batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
+        if partial_hypotheses is None or all(hyp is None for hyp in partial_hypotheses):
+            batched_state = None
+        else:
+            batched_state = self.decoding_computer.merge_to_batched_state(
+                [hyp.dec_state if hyp is not None else None for hyp in partial_hypotheses]
+            )
+        batched_hyps, alignments, batched_state = self.decoding_computer(
+            x=x,
+            out_len=out_len,
+            prev_batched_state=batched_state,
+        )
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
-        for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
-            hyp.dec_state = state
+        for hyp, state_item in zip(hyps, self.decoding_computer.split_batched_state(batched_state)):
+            hyp.dec_state = state_item
+
+        if partial_hypotheses:
+            for i, (hyp, hyp_continuation) in enumerate(zip(partial_hypotheses, hyps)):
+                if hyp is not None:
+                    hyp.merge_(hyp_continuation)
+                else:
+                    partial_hypotheses[i] = hyp_continuation
+            return partial_hypotheses
         return hyps
 
     def _greedy_decode_blank_as_pad_loop_frames(
@@ -2798,10 +2826,10 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
-        self._decoding_computer = None
+        self.decoding_computer = None
         if self.decoder.blank_as_pad:
             # batched "loop frames" is not implemented for TDT
-            self._decoding_computer = GreedyBatchedTDTLoopLabelsComputer(
+            self.decoding_computer = GreedyBatchedTDTLabelLoopingComputer(
                 decoder=self.decoder,
                 joint=self.joint,
                 blank_index=self._blank_index,
@@ -2813,11 +2841,17 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 include_duration_confidence=include_duration_confidence,
                 confidence_method_cfg=confidence_method_cfg,
                 allow_cuda_graphs=use_cuda_graph_decoder,
-                ngram_lm_model=ngram_lm_model,
+                ngram_lm_model=(
+                    NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+                    if ngram_lm_model is not None
+                    else None
+                ),
                 ngram_lm_alpha=ngram_lm_alpha,
             )
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
         else:
+            if ngram_lm_model is not None:
+                raise NotImplementedError("N-Gram Language Model fusion is not implemented with `blank_as_pad=False`")
             self._greedy_decode = self._greedy_decode_masked
 
     @typecheck()
@@ -2876,28 +2910,43 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         x: torch.Tensor,
         out_len: torch.Tensor,
         device: torch.device,
-        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis | None]] = None,
     ) -> list[rnnt_utils.Hypothesis]:
         """
         Optimized batched greedy decoding.
         The main idea: search for next labels for the whole batch (evaluating Joint)
         and thus always evaluate prediction network with maximum possible batch size
         """
-        if partial_hypotheses is not None:
-            raise NotImplementedError("`partial_hypotheses` support is not implemented")
-
-        batched_hyps, alignments, last_decoder_state = self._decoding_computer(x=x, out_len=out_len)
+        if partial_hypotheses is None or all(hyp is None for hyp in partial_hypotheses):
+            batched_state = None
+        else:
+            batched_state = self.decoding_computer.merge_to_batched_state(
+                [hyp.dec_state if hyp is not None else None for hyp in partial_hypotheses]
+            )
+        batched_hyps, alignments, batched_state = self.decoding_computer(
+            x=x,
+            out_len=out_len,
+            prev_batched_state=batched_state,
+        )
         hyps = rnnt_utils.batched_hyps_to_hypotheses(batched_hyps, alignments, batch_size=x.shape[0])
-        for hyp, state in zip(hyps, self.decoder.batch_split_states(last_decoder_state)):
-            hyp.dec_state = state
+        for hyp, state_item in zip(hyps, self.decoding_computer.split_batched_state(batched_state)):
+            hyp.dec_state = state_item
+
+        if partial_hypotheses:
+            for i, (hyp, hyp_continuation) in enumerate(zip(partial_hypotheses, hyps)):
+                if hyp is not None:
+                    hyp.merge_(hyp_continuation)
+                else:
+                    partial_hypotheses[i] = hyp_continuation
+            return partial_hypotheses
         return hyps
 
     def disable_cuda_graphs(self):
         """Disable CUDA graphs (e.g., for decoding in training)"""
-        if self._decoding_computer is not None:
-            self._decoding_computer.disable_cuda_graphs()
+        if self.decoding_computer is not None:
+            self.decoding_computer.disable_cuda_graphs()
 
     def maybe_enable_cuda_graphs(self):
         """Enable CUDA graphs (if allowed)"""
-        if self._decoding_computer is not None:
-            self._decoding_computer.maybe_enable_cuda_graphs()
+        if self.decoding_computer is not None:
+            self.decoding_computer.maybe_enable_cuda_graphs()

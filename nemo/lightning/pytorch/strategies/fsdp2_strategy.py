@@ -538,18 +538,31 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         assert self.lightning_module is not None
-        state_dict = self.lightning_module.state_dict()
-        is_adapter_only = getattr(self._checkpoint_io, 'adapter_only', False)
-        name_has_lora = lambda x: 'lora' in x.lower()
+        tmp_sd = self.lightning_module.state_dict()
+        # Get adapter_only value from checkpoint io. There's two cases:
+        # - nemo.lightning.pytorch.callbacks.peft.WrappedAdapterIO
+        #   In this case, the self._checkpoint_io object is a wrapper and holds a `checkpoint_io`
+        #   attribute which we query for the `adapter_only` attribute
+        # - otherwise, it's the base case which has the adapter_only attribute directly accesible.
+        is_adapter_only = getattr(
+            self._checkpoint_io,
+            'adapter_only',
+            getattr(getattr(self._checkpoint_io, 'checkpoint_io', {}), 'adapter_only', False),
+        )
 
-        module_names = list(state_dict.keys())
-        for name in module_names:
-            param = state_dict.pop(name)
-            # @akoumparouli: refactor this.
+        if is_adapter_only:
             # if any key has "lora" in FQN, then it will only move lora keys to cpu, since only
             # the adapter weights are saved.
-            if (is_adapter_only and name_has_lora(name)) or not is_adapter_only:
-                state_dict[name] = to_cpu(param)
+            name_has_lora = lambda x: 'lora' in x.lower()
+            module_names = list(filter(name_has_lora, tmp_sd.keys()))
+        else:
+            module_names = list(tmp_sd.keys())
+
+        state_dict = {}
+        for name in module_names:
+            param = tmp_sd.pop(name)
+            state_dict[name] = to_cpu(param)
+
         dist.barrier()
         return state_dict
 
