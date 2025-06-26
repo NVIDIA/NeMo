@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Optional, Tuple, List
+from typing import Callable, Dict, List, Optional, Tuple
 
 import lightning.pytorch as L
 import torch
