@@ -294,19 +294,22 @@ class HyenaMixer(MegatronModule):
         # Handle padding for FP8 if enabled
         if self.transformer_config.vortex_style_fp8:
             def pad_to_multiple(x, multiple=16):
-                batch_size, seq_len, hidden_dim = x.size()
-                pad_len = (multiple - (seq_len % multiple)) % multiple
-                if pad_len == 0:
+                """Pad tensor to make sequence length divisible by multiple."""
+                seq_len = x.size(0)
+                if seq_len % multiple == 0:
                     return x
-                from torch.nn.functional import pad
-                return pad(x, (0, 0, 0, pad_len))  # Pad sequence length dimension
+                
+                pad_len = multiple - (seq_len % multiple)
+                pad_tensor = torch.zeros(pad_len, *x.shape[1:], device=x.device, dtype=x.dtype)
+                return torch.cat([x, pad_tensor], dim=0)
+            
+            # Direct padding without rearrange
             L = x.shape[0]
-            x = rearrange(x, "l b d -> b l d")
             x = pad_to_multiple(x)
-            x = rearrange(x, "b l d -> l b d")
             features, _ = self._maybe_use_fp8(self.dense_projection, x)
 
             # Slice back to original sequence length if padding was added
+            
             if features.shape[0] > L:
                 features = features[:L, :, :]
         else:
