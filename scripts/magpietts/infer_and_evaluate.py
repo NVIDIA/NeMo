@@ -209,7 +209,7 @@ def run_inference(
 
         context_duration_min = model.cfg.get('context_duration_min', 5.0)
         context_duration_max = model.cfg.get('context_duration_max', 5.0)
-        if context_duration_min < 5.0 and context_durration_max > 5.0:
+        if context_duration_min < 5.0 and context_duration_max > 5.0:
             context_duration_min = 5.0
             context_duration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
 
