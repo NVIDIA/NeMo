@@ -256,6 +256,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
+    resume_path: str = "meta-llama/Llama-4-Maverick-17B-128E-Instruct",
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
@@ -310,7 +311,7 @@ def finetune_recipe(
 
     recipe = default_finetune_recipe(
         model(),
-        'meta-llama/Llama-4-Maverick-17B-16E-Instruct',
+        resume_path,
         dir,
         name,
         num_nodes,
@@ -390,9 +391,10 @@ def finetune_performance_optimizations(
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
+            tp_comm_overlap=True,
         )
     )
+    recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
     recipe.trainer.callbacks.append(run.Config(TimingCallback))
     recipe.trainer.callbacks.append(
         run.Config(
