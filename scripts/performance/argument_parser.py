@@ -181,8 +181,9 @@ def parse_cli_args():
     parser.add_argument(
         "-f",
         "--finetuning",
-       help="Finetuning scheme. Only SFT (Supervised Fine-Tuning) is supported.",
-       default='sft',
+        choices=["sft", "lora"],
+        help="Finetuning scheme to use. Defaults to 'lora'",
+        default='lora',
     )
     parser.add_argument(
         "-hf",
