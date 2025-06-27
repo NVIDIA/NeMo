@@ -27,7 +27,14 @@ from nemo.collections.common.parts.preprocessing.collections import (
     EndtoEndDiarizationSpeechLabel,
 )
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType, ProbsType
+from nemo.core.neural_types import (
+    AudioSignal,
+    EncodedRepresentation,
+    LengthsType,
+    NeuralType,
+    ProbsType,
+    SpectrogramType,
+)
 from nemo.utils import logging
 
 
