@@ -395,7 +395,12 @@ class BaseExporter(ABC):
         with open(tron_yaml, "r") as stream:
             _config = yaml.safe_load(stream)
         model_config = _config["model_config"]
+
+        # NOTE: when loading the config from a trained checkpoint, the parallelism gets inferred from the training config.
+        # This causes problems when we want to convert the model on a smaller number of GPUs than was used for training.
+        # A WAR for models trained using PP > 1 is to set the pipeline parallelism to 1 here.
         model_config["pipeline_model_parallel_size"] = 1
+
         model_config = instantiate(model_config)
 
         if self._hf_tokenizer_path is None:
