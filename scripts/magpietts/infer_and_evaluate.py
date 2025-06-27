@@ -127,6 +127,7 @@ def run_inference(
         fixed_schedule_n_unmasked=None,
         sampling_type=None,
         clean_up_disk=False,
+        log_exp_name=False
     ):
     # Load model
     if hparams_file is not None:
@@ -181,6 +182,11 @@ def run_inference(
         sampling_type,
         "".join([str(l) for l in fixed_schedule_n_unmasked]) if fixed_schedule_n_unmasked is not None else "None"
     )
+    if log_exp_name:
+        # the experiment name is the name of the directory two above the checkpoint path,
+        # since training produces directories of the form `exp_name/checkpoints/checkpoint_name.ckpt`.
+        exp_name = os.path.basename(os.path.dirname(os.path.dirname(checkpoint_file)))
+
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
     cer_per_dataset = []
@@ -335,8 +341,12 @@ def run_inference(
             all_experiment_csv = os.path.join(eval_dir, "all_experiment_metrics.csv")
             if not os.path.exists(all_experiment_csv):
                 with open(all_experiment_csv, "w") as f:
+                    if log_exp_name:
+                        f.write("exp_name,")
                     f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n")
             with open(all_experiment_csv, "a") as f:
+                if log_exp_name:
+                    f.write(f"{exp_name},")
                 f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']},{metrics['frechet_codec_distance']}\n")
                 print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
             # Clean up temporary codec files
@@ -352,8 +362,12 @@ def run_inference(
         all_experiment_csv_with_ci = os.path.join(out_dir, "all_experiment_metrics_with_ci.csv")
         if not os.path.exists(all_experiment_csv_with_ci):
             with open(all_experiment_csv_with_ci, "w") as f:
+                if log_exp_name:
+                    f.write("exp_name,")
                 f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n")
         with open(all_experiment_csv_with_ci, "a") as f:
+            if log_exp_name:
+                f.write(f"{exp_name},")
             f.write(f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']},{metrics_mean_ci['frechet_codec_distance']}\n")
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
         
@@ -410,6 +424,7 @@ def main():
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=None)
     parser.add_argument('--ssim_target', type=float, default=None)
+    parser.add_argument('--log_exp_name', action='store_true', help="Log the experiment name (deduced from the checkpoint path) in the output csv files.")
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -453,6 +468,7 @@ def main():
                 maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks,
                 clean_up_disk=args.clean_up_disk,
+                log_exp_name=args.log_exp_name,
                 fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
                 sampling_type=args.sampling_type
             )
@@ -487,6 +503,7 @@ def main():
             maskgit_noise_scale=args.maskgit_noise_scale,
             legacy_codebooks=args.legacy_codebooks,
             clean_up_disk=args.clean_up_disk,
+            log_exp_name=args.log_exp_name,
             fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
             sampling_type=args.sampling_type
         )
@@ -554,7 +571,8 @@ def main():
                 maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks,
                 sampling_type=args.sampling_type,
-                clean_up_disk=args.clean_up_disk
+                clean_up_disk=args.clean_up_disk,
+                log_exp_name=args.log_exp_name
             )
     if cer > float(args.cer_target):
         raise ValueError()
