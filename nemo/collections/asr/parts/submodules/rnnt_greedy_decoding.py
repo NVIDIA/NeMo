@@ -36,7 +36,6 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.transducer_decoding import (
     GreedyBatchedRNNTLabelLoopingComputer,
     GreedyBatchedTDTLabelLoopingComputer,
@@ -615,8 +614,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         use_cuda_graph_decoder: bool = True,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        boosting_tree_model: Optional[str | Path] = None,
-        boosting_tree_alpha: float = 0.0,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -636,19 +633,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         self.decoding_computer = None
         if self.decoder.blank_as_pad:
             if self.loop_labels:
-
-                # load fusion models from paths (ngram_lm_model and boosting_tree_model)
-                self.fusion_models, self.fusion_models_alphas = [], []
-                if ngram_lm_model is not None:
-                    self.fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
-                    self.fusion_models_alphas.append(ngram_lm_alpha)
-                if boosting_tree_model is not None:
-                    self.fusion_models.append(GPUBoostingTreeModel.from_file(lm_path=boosting_tree_model, vocab_size=self._blank_index))
-                    self.fusion_models_alphas.append(boosting_tree_alpha)
-                if not self.fusion_models:
-                    self.fusion_models = None
-                    self.fusion_models_alphas = None
-
                 # Label-Looping algorithm (default, faster)
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
                 self.decoding_computer = GreedyBatchedRNNTLabelLoopingComputer(
@@ -660,8 +644,12 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
                     allow_cuda_graphs=self.use_cuda_graph_decoder,
-                    fusion_models=self.fusion_models,
-                    fusion_models_alphas=self.fusion_models_alphas,
+                    ngram_lm_model=(
+                        NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+                        if ngram_lm_model is not None
+                        else None
+                    ),
+                    ngram_lm_alpha=ngram_lm_alpha,
                 )
             else:
                 # Frame-Looping algorithm
@@ -2456,8 +2444,6 @@ class GreedyBatchedRNNTInferConfig:
     use_cuda_graph_decoder: bool = True
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: float = 0.0
-    boosting_tree_model: Optional[str] = None
-    boosting_tree_alpha: float = 0.0
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed
