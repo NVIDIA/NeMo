@@ -140,10 +140,11 @@ if __name__ == "__main__":
         activation_offload_layers,
     ) = kwargs[0:15]
 
-    # Only configure recipe if finetuning will actually run
+    
     recipe = None
     custom_env_vars = {}
     if args.skip_finetuning is not True:
+        # Configure experiment setup for finetuning (recipe, plugins, executor, etc)
         exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_mbs{mbs}_gbs{gbs}"
         base_name = splitext(basename(__file__))[0].replace("finetune_", "sft_")
         exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
