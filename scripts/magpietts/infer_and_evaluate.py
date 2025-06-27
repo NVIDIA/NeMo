@@ -141,7 +141,8 @@ def run_inference(
         legacy_codebooks=False,
         clean_up_disk=False,
         hparams_file_from_wandb=False,
-        log_exp_name=False
+        log_exp_name=False,
+        compute_fcd=False,
     ):
     # Load model
     if hparams_file is not None and checkpoint_file is not None:
@@ -229,9 +230,11 @@ def run_inference(
 
         if not os.path.exists(all_experiment_csv):
             with open(all_experiment_csv, "w") as f:
-                f.write(
-                    "checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n"
-                )
+                header = "checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative"
+                if compute_fcd:
+                    header += ",frechet_codec_distance"
+                header += "\n"
+                f.write(header)
 
         context_duration_min = model.cfg.get('context_duration_min', 5.0)
         context_duration_max = model.cfg.get('context_duration_max', 5.0)
@@ -349,7 +352,7 @@ def run_inference(
                 language=language,
                 sv_model_type=sv_model,
                 asr_model_name=asr_model_name,
-                codecmodel_path=codecmodel_path
+                codecmodel_path=codecmodel_path if compute_fcd else None
             )
             metrics_n_repeated.append(metrics)
             with open(os.path.join(eval_dir, f"{dataset}_metrics_{repeat_idx}.json"), "w") as f:
@@ -363,7 +366,11 @@ def run_inference(
                 json.dump(mean_rtf_metrics, f, indent=4)
 
             with open(all_experiment_csv, "a") as f:
-                f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']},{metrics['frechet_codec_distance']}\n")
+                data = f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']}"
+                if compute_fcd:
+                    data += f",{metrics['frechet_codec_distance']}"
+                data += "\n"
+                f.write(data)
                 print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
 
             # Clean up temporary codec files
@@ -373,15 +380,25 @@ def run_inference(
         metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative',
                        'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg',
                        'ssim_pred_gt_avg_alternate', 'ssim_pred_context_avg_alternate', 'ssim_gt_context_avg_alternate',
-                       'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative', 'frechet_codec_distance'
+                       'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative'
                        ]
+        if compute_fcd:
+            metric_keys.append('frechet_codec_distance')
         metrics_mean_ci = compute_mean_and_confidence_interval(metrics_n_repeated, metric_keys, confidence=confidence_level)
         all_experiment_csv_with_ci = os.path.join(out_dir, "all_experiment_metrics_with_ci.csv")
         if not os.path.exists(all_experiment_csv_with_ci):
             with open(all_experiment_csv_with_ci, "w") as f:
-                f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n")
+                header = "checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative"
+                if compute_fcd:
+                    header += ",frechet_codec_distance"
+                header += "\n"
+                f.write(header)
         with open(all_experiment_csv_with_ci, "a") as f:
-            f.write(f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']},{metrics_mean_ci['frechet_codec_distance']}\n")
+            data = f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']}"
+            if compute_fcd:
+                data += f",{metrics_mean_ci['frechet_codec_distance']}"
+            data += "\n"
+            f.write(data)
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
         
 
@@ -436,6 +453,7 @@ def main():
     parser.add_argument('--cer_target', type=float, default=1.0)
     parser.add_argument('--ssim_target', type=float, default=0.)
     parser.add_argument('--log_exp_name', action='store_true', help="Include the experiment name (derived from the checkpoint path) in the output folder name.")
+    parser.add_argument('--compute_fcd', action='store_true', help="Compute Frechet Codec Distance (requires codecmodel_path)")
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -480,7 +498,8 @@ def main():
                 legacy_codebooks=args.legacy_codebooks,
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
-                log_exp_name=args.log_exp_name
+                log_exp_name=args.log_exp_name,
+                compute_fcd=args.compute_fcd
             )
         return
     # Mode 2: Run inference from a .nemo file
@@ -515,6 +534,7 @@ def main():
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
                 log_exp_name=args.log_exp_name
+                compute_fcd=args.compute_fcd,
             )
     # Mode 3: Discover and run experiments from a base directory
     #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
@@ -581,7 +601,8 @@ def main():
                 legacy_codebooks=args.legacy_codebooks,
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
-                log_exp_name=args.log_exp_name
+                log_exp_name=args.log_exp_name,
+                compute_fcd=args.compute_fcd
             )
     else:
         parser.error(
