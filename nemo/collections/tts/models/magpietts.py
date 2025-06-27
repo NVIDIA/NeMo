@@ -1757,7 +1757,7 @@ class MagpieTTSModel(ModelPT):
             attended_timestep_counter = [{} for _ in range(text.size(0))]
             last_attended_timesteps = [[1 for _ in range(text.size(0))]] # Maintain a list of attended timesteps as we predict audio for each batch item
             time_to_first_prediction = 0.0
-            for idx in range(max_decoder_steps):
+            for idx in range(max_decoder_steps // self.downsampling_factor):
                 if idx == 1:
                     time_to_first_prediction = time.time() - start_time
                 if idx % 20 == 0:
