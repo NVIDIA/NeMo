@@ -1908,19 +1908,12 @@ class MagpieTTSModel(ModelPT):
                 all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks, downsampling_factor)
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
-                    for ds_index in range(self.downsampling_factor):
-                        if item_idx not in end_indices:
-                            pred_token = all_codes_next_argmax[item_idx][0, ds_index].item()
-                            pred_token_multinomial = audio_codes_next[item_idx][0, ds_index].item()
-                            #any_eos = (audio_codes_next[item_idx]==self.audio_eos_id).any().item() or (all_codes_next_argmax[item_idx]==self.audio_eos_id).any().item() 
-                            first_eos = (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id)
-                            # if any_eos and not first_eos:
-                            #     print(audio_codes_next[item_idx])
-                            #     print(all_codes_next_argmax[item_idx])
-                            if first_eos:
-                                print("End detected for item {} at timestep {}".format(item_idx, idx))
-                                end_indices[item_idx] = idx
-                            # TODO @rfejgin - track which downsampling index each item ended at
+                    if item_idx not in end_indices:
+                        eos_in_pred_tokens_argmax = (all_codes_next_argmax[item_idx] == self.audio_eos_id).any().item()
+                        eos_in_pred_tokens_multinomial = (audio_codes_next[item_idx] == self.audio_eos_id).any().item()
+                        if eos_in_pred_tokens_argmax or eos_in_pred_tokens_multinomial:
+                            print("End detected for item {} at timestep {}".format(item_idx, idx))
+                            end_indices[item_idx] = idx
 
                 all_predictions.append(audio_codes_next)
                 audio_codes_input = torch.cat(
