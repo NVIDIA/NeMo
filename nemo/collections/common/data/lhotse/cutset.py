@@ -461,24 +461,47 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
     return cuts, is_tarred
 
 
+def cut_to_conversation(
+    cut: Cut, audio_locator_tag: str, token_equivalent_duration: float
+) -> NeMoMultimodalConversation:
+    """
+    Converts a lhotse Cut into a two-turn NeMoMultimodalConversation, where the user turn contains cut's audio,
+    and assistant turn contains text response from ``cut.supervisions[0].text``.
+
+    If ``cut`` has a custom field ``context``, it's pre-pended as an extra user text turn before the user's audio turn.
+    """
+    if isinstance(cut, NeMoMultimodalConversation):
+        return cut
+    turns = [
+        AudioTurn(cut=cut, role="user", audio_locator_tag=audio_locator_tag, text=cut.supervisions[0].text),
+        TextTurn(value=cut.supervisions[0].text, role="assistant"),
+    ]
+    if hasattr(cut, "context"):
+        turns = [TextTurn(value=cut.context, role="user")] + turns
+    if hasattr(cut, "system_prompt"):
+        turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
+    return NeMoMultimodalConversation(
+        id=cut.id,
+        turns=turns,
+        token_equivalent_duration=token_equivalent_duration,
+        custom=cut.custom,
+    )
+
+
 @data_type_parser(["lhotse_as_conversation"])
 def read_lhotse_as_conversation(config) -> tuple[CutSet, bool]:
-    def cut_to_conversation(cut: Cut) -> NeMoMultimodalConversation:
-        turns = [
-            AudioTurn(cut=cut, role="user", audio_locator_tag=config.audio_locator_tag),
-            TextTurn(value=cut.supervisions[0].text, role="assistant"),
-        ]
-        if hasattr(cut, "context"):
-            turns = [TextTurn(value=cut.context, role="user")] + turns
-        return NeMoMultimodalConversation(
-            id=cut.id,
-            turns=turns,
-            token_equivalent_duration=config.token_equivalent_duration,
-            custom=cut.custom,
-        )
-
     cuts, is_tarred = read_cutset_from_config(config)
-    cuts = cuts.map(cut_to_conversation)
+    # Attach extra tags to every utterance dynamically, if provided.
+    # We need to attach them before cuts are converted to conversations.
+    if (extra_tags := config.get("tags")) is not None:
+        cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
+    cuts = cuts.map(
+        partial(
+            cut_to_conversation,
+            audio_locator_tag=config.audio_locator_tag,
+            token_equivalent_duration=config.token_equivalent_duration,
+        )
+    )
     return cuts, is_tarred
 
 

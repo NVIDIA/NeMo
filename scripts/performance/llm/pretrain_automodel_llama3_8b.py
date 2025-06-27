@@ -22,7 +22,8 @@ from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import args_sanity_check, get_user_configs, slurm_executor
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs
 
 SEQ_LENGTH = 2048
 NUM_GPUS_PER_NODE = 8
@@ -88,6 +89,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
