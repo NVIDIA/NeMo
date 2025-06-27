@@ -18,6 +18,11 @@ from typing import TYPE_CHECKING
 from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Exporter as _NeMo2HFQwen2Exporter
 from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Importer as _NeMo2HFQwen2Importer
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
+
+from nemo.collections.llm.gpt.model.qwen3 import HFQwen3Exporter as _NeMo2HFQwen3Exporter
+from nemo.collections.llm.gpt.model.qwen3 import HFQwen3Importer as _NeMo2HFQwen3Importer
+from nemo.collections.llm.gpt.model.qwen3 import Qwen3Config
+
 from nemo.tron.converter.common import BaseExporter, BaseImporter
 
 if TYPE_CHECKING:
@@ -98,3 +103,45 @@ class HFQwen2Importer(BaseImporter):
 
         self._tron_config = _NeMo2HFQwen2Importer.config.fget(self.input_path)
         return self._tron_config
+
+
+class HFQwen3Importer(BaseImporter):
+    """Importer for converting Hugging Face Qwen3 models to NeMo Tron format."""
+
+    def init_hf_model(self):
+        from transformers import AutoModelForCausalLM
+
+        return AutoModelForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto", trust_remote_code=True)
+
+    convert_state = _NeMo2HFQwen3Importer.convert_state
+
+    @property
+    def hf_config(self) -> "HFQwen3Config":
+        from transformers import Qwen3Config as HFQwen3Config
+
+        if self._hf_config is not None:
+            return self._hf_config
+        self._hf_config = HFQwen3Config.from_pretrained(str(self.input_path), trust_remote_code=True)
+        return self._hf_config
+
+    @property
+    def tron_config(self) -> Qwen3Config:
+        """Create a NeMo Qwen3Config from the HF model config.
+
+        Translates the HF configuration parameters to the equivalent NeMo
+        configuration.
+
+        Returns:
+            Qwen3Config: NeMo configuration for Qwen2 models
+        """
+        if self._tron_config is not None:
+            return self._tron_config
+
+        self._tron_config = _NeMo2HFQwen3Importer.config.fget(self.input_path)
+        return self._tron_config
+
+
+    ## TODO: Why is this needed?
+    @property
+    def config(self) -> Qwen3Config:
+        return self.tron_config
