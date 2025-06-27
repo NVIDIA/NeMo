@@ -317,7 +317,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
 
         assert len(sou_time) == len(
             eou_time
-        ), f"Number of SOU time and EOU time do not match: SOU ({len(sou_time)}) vs EOU ({len(eou_time)})"
+        ), f"Number of SOU time and EOU time do not match: SOU ({sou_time}) vs EOU ({eou_time})"
 
         if cut.has_custom("is_backchannel"):
             is_backchannel = cut.custom["is_backchannel"]

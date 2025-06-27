@@ -23,9 +23,9 @@ python clean_manifest.py \
 
 """
 
-
 import argparse
 import re
+import unicodedata
 from pathlib import Path
 from string import punctuation
 
@@ -318,6 +318,23 @@ def add_auto_capitalization(text):
     return text
 
 
+def unicode_to_ascii(text: str) -> str:
+    """
+    Converts text with accented or special Latin characters (e.g., ó, ñ, ū, ō)
+    into their closest ASCII equivalents.
+    """
+    # Normalize the string to NFKD to separate base characters from diacritics
+    normalized = unicodedata.normalize('NFKD', text)
+
+    # Encode to ASCII bytes, ignoring characters that can't be converted
+    ascii_bytes = normalized.encode('ascii', 'ignore')
+
+    # Decode back to string
+    ascii_text = ascii_bytes.decode('ascii')
+
+    return ascii_text
+
+
 def main(args):
     text_field = args.text_field
     manifest_files = Path(args.input_manifest)
@@ -357,6 +374,7 @@ def main(args):
         for i, item in enumerate(manifest):
             text = str(item[text_field])
             manifest[i]["original_text"] = text
+            text = unicode_to_ascii(text)
             if args.normalize:
                 text = text_normalizer(text)
             if args.replace_numbers:
