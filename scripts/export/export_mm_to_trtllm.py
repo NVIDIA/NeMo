@@ -48,7 +48,7 @@ def parse_args():
         '--model_type',
         type=str,
         required=True,
-        choices=["neva", "video-neva", "lita", "vila", "vita", "salm"],
+        choices=["neva", "video-neva", "lita", "vila", "vita", "salm", "cosmos"],
         help="Type of the model that is supported.",
     )
 
