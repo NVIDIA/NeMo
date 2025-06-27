@@ -98,6 +98,16 @@ def update_ckpt(state_dict):
             new_state_dict[key] = state_dict[key]
     return new_state_dict
 
+
+def delete_old_generated_files(output_dir):
+    # Delete any leftover generated files from previous runs as these can confuse the evaluation
+    print(f"Deleting old generated files in: {output_dir} ...")
+    for f in glob.glob(f"{output_dir}/predicted_codes*.pt"):
+        os.remove(f)
+    for f in glob.glob(f"{output_dir}/predicted_audio*.wav"):
+        os.remove(f)
+
+
 def run_inference(
         hparams_file,
         checkpoint_file,
@@ -189,6 +199,7 @@ def run_inference(
             audio_dir = os.path.join(eval_dir, "audio")
             pred_audio_dir = os.path.join(audio_dir, f"repeat_{repeat_idx}")
             os.makedirs(pred_audio_dir, exist_ok=True)
+            delete_old_generated_files(pred_audio_dir)
             language = dataset_meta_info[dataset].get('whisper_language', 'en')
             dataset_meta_for_dl = copy.deepcopy(dataset_meta_info[dataset])
             for key in ["whisper_language", "load_cached_codes_if_available"]:
@@ -359,6 +370,7 @@ def run_inference(
     if clean_up_disk:
         shutil.rmtree(out_dir)
     return cer, ssim
+
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
