@@ -213,24 +213,32 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
 
         pred_context_ssim = 0.0
         gt_context_ssim = 0.0
+        pred_gt_ssim = 0.0
+        pred_gt_ssim_alternate = 0.0
+        pred_context_ssim_alternate = 0.0
+        gt_context_ssim_alternate = 0.0
         with torch.no_grad():
-            gt_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, gt_audio_filepath, device, sv_model_type)
-            pred_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, pred_audio_filepath, device, sv_model_type)
-            pred_gt_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, pred_speaker_embedding, dim=0).item()
+            try:
+                gt_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, gt_audio_filepath, device, sv_model_type)
+                pred_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, pred_audio_filepath, device, sv_model_type)
+                pred_gt_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, pred_speaker_embedding, dim=0).item()
 
-            gt_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(gt_audio_filepath).squeeze()
-            pred_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(pred_audio_filepath).squeeze()
-            pred_gt_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, pred_speaker_embedding_alternate, dim=0).item()
+                gt_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(gt_audio_filepath).squeeze()
+                pred_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(pred_audio_filepath).squeeze()
+                pred_gt_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, pred_speaker_embedding_alternate, dim=0).item()
 
-            if context_audio_filepath is not None:
-                context_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, context_audio_filepath, device, sv_model_type)
-                context_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(context_audio_filepath).squeeze()
+                if context_audio_filepath is not None:
+                    context_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, context_audio_filepath, device, sv_model_type)
+                    context_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(context_audio_filepath).squeeze()
 
-                pred_context_ssim = torch.nn.functional.cosine_similarity(pred_speaker_embedding, context_speaker_embedding, dim=0).item()
-                gt_context_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, context_speaker_embedding, dim=0).item()
+                    pred_context_ssim = torch.nn.functional.cosine_similarity(pred_speaker_embedding, context_speaker_embedding, dim=0).item()
+                    gt_context_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, context_speaker_embedding, dim=0).item()
 
-                pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
-                gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
+                    pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
+                    gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
+            except Exception as e:
+                print("Error during speaker similarity calculation: {}".format(e))
+
 
         filewise_metrics.append({
             'gt_text': gt_text,
