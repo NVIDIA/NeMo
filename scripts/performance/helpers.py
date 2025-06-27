@@ -391,7 +391,7 @@ def set_exp_logging_configs(
     wandb_job_name: str,
 ):
     """Set experiment logging configs."""
-    if task == "pre_train" and domain == "llm":
+    if (task == "pre_train" or task == "none") and domain == "llm":
         recipe.trainer.callbacks.append(
             run.Config(
                 FLOPsMeasurementCallback,
