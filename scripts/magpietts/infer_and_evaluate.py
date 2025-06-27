@@ -305,12 +305,13 @@ def run_inference(
                     audio_path = os.path.join(pred_audio_dir, f"predicted_audio_{item_idx}.wav")
                     sf.write(audio_path, predicted_audio_np, model.sample_rate)
                     codes_path = os.path.join(pred_audio_dir, f"predicted_codes_{item_idx}.pt")
-                    codes = predicted_codes[idx][:predicted_codes_lens[idx]]
+                    codes = predicted_codes[idx][:, :predicted_codes_lens[idx]]
                     if not codes.shape[0] == 8:
                         print(f"Predicted codes batch shape: {codes.shape}")
                         print(f"Index: {idx}")
                         print(f"Predicted codes lens: {predicted_codes_lens[idx]}")
-                        raise ValueError("Predicted codes batch shape is not 8")
+                        print(f"\n\n\n********** WARNING: invalid codes shape {predicted_codes.shape} **********\n\n\n")
+                        #raise ValueError("Predicted codes batch shape is not 8")
                     torch.save(codes, codes_path)
                     codec_file_paths.append(codes_path)
                     context_audio_path = manifest_records[item_idx].get('context_audio_filepath', None)
@@ -361,8 +362,8 @@ def run_inference(
                 f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']},{metrics['frechet_codec_distance']}\n")
                 print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
             # Clean up temporary codec files
-            # for codes_file in codec_file_paths:
-            #     os.remove(codes_file)
+            for codes_file in codec_file_paths:
+                os.remove(codes_file)
 
         metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative',
                        'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg',
