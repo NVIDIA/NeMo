@@ -187,7 +187,6 @@ def run_inference(
         sv_model
     )
 
-
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
     cer_per_dataset = []
