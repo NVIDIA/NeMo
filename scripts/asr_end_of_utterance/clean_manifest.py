@@ -24,11 +24,13 @@ python clean_manifest.py \
 """
 
 import argparse
+import datetime
 import re
 import unicodedata
 from pathlib import Path
 from string import punctuation
 
+import dateutil.parser as date_parser
 from num2words import num2words
 from whisper_normalizer.english import EnglishTextNormalizer
 
@@ -97,9 +99,173 @@ parser.add_argument(
     action="store_true",
     help="If set, will add auto capitalization and punctuation at the end of the text.",
 )
+parser.add_argument(
+    "--format",
+    default="asr",
+    choices=["asr", "conv"],
+    help="Format of the manifest. Default is 'asr'.",
+)
+parser.add_argument(
+    "--keep_name",
+    action="store_true",
+    help="If set, will keep the original name of the manifest file.",
+)
+
+# Spoken representations
+
+MONTHS = [
+    "",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
+
+ORDINALS = {
+    1: "first",
+    2: "second",
+    3: "third",
+    4: "fourth",
+    5: "fifth",
+    6: "sixth",
+    7: "seventh",
+    8: "eighth",
+    9: "ninth",
+    10: "tenth",
+    11: "eleventh",
+    12: "twelfth",
+    13: "thirteenth",
+    14: "fourteenth",
+    15: "fifteenth",
+    16: "sixteenth",
+    17: "seventeenth",
+    18: "eighteenth",
+    19: "nineteenth",
+    20: "twentieth",
+    21: "twenty first",
+    22: "twenty second",
+    23: "twenty third",
+    24: "twenty fourth",
+    25: "twenty fifth",
+    26: "twenty sixth",
+    27: "twenty seventh",
+    28: "twenty eighth",
+    29: "twenty ninth",
+    30: "thirtieth",
+    31: "thirty first",
+}
+
+
+def speak_year(year: int) -> str:
+    if 2000 <= year <= 2099:
+        return f"twenty {speak_number(year % 100)}"
+    elif 1900 <= year <= 1999:
+        return f"nineteen {speak_number(year % 100)}"
+    else:
+        return str(year)
+
+
+def speak_number(n: int) -> str:
+    num_words = {
+        0: "zero",
+        1: "one",
+        2: "two",
+        3: "three",
+        4: "four",
+        5: "five",
+        6: "six",
+        7: "seven",
+        8: "eight",
+        9: "nine",
+        10: "ten",
+        11: "eleven",
+        12: "twelve",
+        13: "thirteen",
+        14: "fourteen",
+        15: "fifteen",
+        16: "sixteen",
+        17: "seventeen",
+        18: "eighteen",
+        19: "nineteen",
+        20: "twenty",
+        30: "thirty",
+        40: "forty",
+        50: "fifty",
+        60: "sixty",
+        70: "seventy",
+        80: "eighty",
+        90: "ninety",
+    }
+    if n <= 20:
+        return num_words[n]
+    elif n < 100:
+        tens, ones = divmod(n, 10)
+        return f"{num_words[tens * 10]} {num_words[ones]}" if ones else num_words[tens * 10]
+    else:
+        return str(n)
+
+
+def parse_with_auto_dayfirst(date_str: str):
+    try:
+        # Try both ways
+        parsed_us = date_parser.parse(date_str, dayfirst=False)
+        parsed_eu = date_parser.parse(date_str, dayfirst=True)
+
+        # If one of the parses clearly makes more sense, return it
+        if parsed_us.month > 12:
+            return parsed_eu
+        if parsed_eu.month > 12:
+            return parsed_us
+
+        # If day is greater than 12, it's probably day-first
+        if parsed_us.day > 12 and parsed_eu.day <= 12:
+            return parsed_eu
+        elif parsed_eu.day > 12 and parsed_us.day <= 12:
+            return parsed_us
+
+        # Default fallback (assumes US style)
+        return parsed_us
+    except Exception:
+        return None
+
+
+def date_to_spoken_string(date_str: str) -> str:
+    parsed = parse_with_auto_dayfirst(date_str)
+    if not parsed:
+        return None
+
+    month = MONTHS[parsed.month]
+    day = ORDINALS[parsed.day]
+    spoken = f"{month} {day} {speak_year(parsed.year)}"
+
+    return spoken
+
+
+def replace_dates_in_text(text: str) -> str:
+    # Regex pattern to match common date formats like:
+    # 5/22, 05/22/2025, 22/05/2025, 2025-05-22
+    date_pattern = r'\b(?:\d{1,4}[-/])?\d{1,2}[-/]\d{1,4}\b'
+
+    def replace_match(match):
+        date_str = match.group(0)
+        spoken = date_to_spoken_string(date_str)
+        return spoken if spoken else date_str
+
+    return re.sub(date_pattern, replace_match, text)
 
 
 def convert_to_spoken(text: str) -> str:
+
+    text = replace_dates_in_text(text)  # Convert dates to spoken form
+
     # Mapping of metric units to spoken forms
     unit_map = {
         "kg": "kilograms",
@@ -235,7 +401,7 @@ def clean_label(_str: str) -> str:
     """
     # replace_with_space = [char for char in '/?*\",.:=?_{|}~¨«·»¡¿„…‧‹›≪≫!:;ː→']
     replace_with_blank = [char for char in '`¨´‘’“”`ʻ‘’“"‘”']
-    replace_with_apos = [char for char in '‘’ʻ‘’‘']
+    replace_with_apos = [char for char in '‘’ʻ‘’‘'] + ["\u2019"]
     _str = _str.strip()
     for i in replace_with_blank:
         _str = _str.replace(i, "")
@@ -335,6 +501,51 @@ def unicode_to_ascii(text: str) -> str:
     return ascii_text
 
 
+def clean_text(text: str, args) -> str:
+    """
+    Clean the text based on the provided arguments.
+    """
+    text = unicode_to_ascii(text)
+    if args.normalize:
+        text = text_normalizer(text)
+    if args.replace_numbers:
+        text = convert_to_spoken(text)
+        text = replace_numbers_with_words(text)
+    if args.lowercase:
+        text = text.lower()
+    if args.remove_punc:
+        text = text.translate(str.maketrans("", "", punctuations))
+        text = drop_punctuations(text)
+    if args.auto_pc:
+        text = add_auto_capitalization(text)
+    return clean_label(text)
+
+
+def clean_asr_manifest(manifest, text_field, args):
+    for i, item in enumerate(manifest):
+        text = str(item[text_field])
+        manifest[i]["origin_text"] = text
+        manifest[i]["text"] = clean_text(text, args)
+    return manifest
+
+
+def clean_conv_manifest(manifest, text_field, args):
+    new_manifest = []
+    for i, item in enumerate(manifest):
+        conversations = []
+        for turn in item["conversations"]:
+            conversations.append(
+                {
+                    "role": turn["role"],
+                    "value": clean_text(turn["value"], args),
+                    "type": turn.get("type", "text"),
+                }
+            )
+        item["conversations"] = conversations
+        new_manifest.append(item)
+    return manifest
+
+
 def main(args):
     text_field = args.text_field
     manifest_files = Path(args.input_manifest)
@@ -367,27 +578,19 @@ def main(args):
             else:
                 output_dir = Path(args.output)
                 output_dir.mkdir(parents=True, exist_ok=True)
-                output_manifest = output_dir / output_manifest.name
+                if args.keep_name:
+                    output_manifest = output_dir / manifest_file.name
+                else:
+                    output_manifest = output_dir / output_manifest.name
 
         manifest = read_manifest(str(manifest_file))
 
-        for i, item in enumerate(manifest):
-            text = str(item[text_field])
-            manifest[i]["original_text"] = text
-            text = unicode_to_ascii(text)
-            if args.normalize:
-                text = text_normalizer(text)
-            if args.replace_numbers:
-                text = convert_to_spoken(text)
-                text = replace_numbers_with_words(text)
-            if args.lowercase:
-                text = text.lower()
-            if args.remove_punc:
-                text = text.translate(str.maketrans("", "", punctuations))
-                text = drop_punctuations(text)
-            if args.auto_pc:
-                text = add_auto_capitalization(text)
-            manifest[i]["text"] = clean_label(text)
+        if args.format == "asr":
+            manifest = clean_asr_manifest(manifest, text_field, args)
+        elif args.format == "conv":
+            manifest = clean_conv_manifest(manifest, text_field, args)
+        else:
+            raise ValueError(f"Unsupported manifest format: {args.format}")
 
         write_manifest(str(output_manifest), manifest)
         print(f"Cleaned manifest saved to {output_manifest}")
