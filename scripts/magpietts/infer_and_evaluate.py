@@ -30,6 +30,7 @@ from PIL import Image
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
 from nemo.collections.tts.models import MagpieTTSModel
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer, IPATokenizer
 
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
@@ -160,7 +161,6 @@ def run_inference(
     model.cuda()
     model.eval()
 
-    checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps{}_sv_{}".format(
         checkpoint_name,
         temperature,
@@ -227,6 +227,14 @@ def run_inference(
             assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
 
             test_dataset.text_tokenizer = model.tokenizer
+            # Set phoneme prob = 1 for g2p
+            g2p = None
+            if isinstance(model.tokenizer, AggregatedTTSTokenizer):
+                g2p = model.tokenizer.tokenizers["english_phoneme"].g2p
+            elif isinstance(model.tokenizer, IPATokenizer):
+                g2p = model.tokenizer.g2p
+            if g2p is not None:
+                g2p.phoneme_probability = 1.0
             test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
 
             test_data_loader = torch.utils.data.DataLoader(
@@ -531,9 +539,9 @@ def main():
                 legacy_codebooks=args.legacy_codebooks,
                 clean_up_disk=args.clean_up_disk
             )
-    if cer > float(args.cer_target):
+    if args.cer_target is not None and cer > float(args.cer_target):
         raise ValueError()
-    if ssim < float(args.ssim_target):
+    if args.ssim_target is not None and ssim < float(args.ssim_target):
         raise ValueError()
 
 
