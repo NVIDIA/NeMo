@@ -371,4 +371,25 @@ def parse_cli_args():
         required=False,
     )
 
+    parser.add_argument(
+        "--skip_import_checkpoint",
+        help="Skips checkpoint import, finetuning job and only downloads the dataset.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip_dataset_download",
+        help="Skips dataset download, finetuning job and only downloads the checkpoint.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip_finetuning",
+        help="Skips finetuning and only downloads the checkpoint and dataset.",
+        action="store_true",
+        required=False,
+    )
+
     return parser
