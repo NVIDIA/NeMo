@@ -1098,11 +1098,11 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
 
     def __len__(self):
         return len(self.collection)
-    
+
     def get_frame_count_from_time_series_length(self, seq_len):
-        """ 
-        This function is used to get the sequence length of the audio signal. This is required to match 
-        the feature frame length with ASR (STT) models. This function is copied from 
+        """
+        This function is used to get the sequence length of the audio signal. This is required to match
+        the feature frame length with ASR (STT) models. This function is copied from
         NeMo/nemo/collections/asr/parts/preprocessing/features.py::FilterbankFeatures::get_seq_len.
 
         Args:
@@ -1115,7 +1115,7 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
         """
         pad_amount = self.stft_pad_amount * 2 if self.stft_pad_amount is not None else self.n_fft // 2 * 2
         seq_len = torch.floor_divide((seq_len + pad_amount - self.n_fft), self.hop_length).to(dtype=torch.long)
-        frame_count = int(np.ceil(seq_len/self.subsampling_factor))
+        frame_count = int(np.ceil(seq_len / self.subsampling_factor))
         return frame_count
 
     def get_uniq_id_with_range(self, sample, deci=3):
@@ -1268,7 +1268,7 @@ class _AudioToSpeechE2ESpkDiarDataset(Dataset):
         audio_signal_length = torch.tensor(audio_signal.shape[0]).long()
 
         # Target length should be following the ASR feature extraction convention: Use self.get_frame_count_from_time_series_length.
-        target_len = self.get_segment_timestamps(duration=session_len_sec, sample_rate=self.featurizer.sample_rate) 
+        target_len = self.get_segment_timestamps(duration=session_len_sec, sample_rate=self.featurizer.sample_rate)
         target_len = torch.clamp(target_len, max=self.get_frame_count_from_time_series_length(audio_signal.shape[0]))
 
         targets = self.parse_rttm_for_targets_and_lens(

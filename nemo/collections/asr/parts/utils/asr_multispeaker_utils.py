@@ -310,7 +310,7 @@ def get_hidden_length_from_sample_length(
     Returns:
         hidden_length (int): The calculated hidden length in terms of the number of frames.
     """
-    mel_frame_count = math.ceil(num_samples / num_sample_per_mel_frame) 
+    mel_frame_count = math.ceil(num_samples / num_sample_per_mel_frame)
     hidden_length = math.ceil(mel_frame_count / num_mel_frame_per_asr_frame)
     return int(hidden_length)
 
