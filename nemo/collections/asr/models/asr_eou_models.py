@@ -599,6 +599,13 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel, ASREOUModelMixin):
 
     def multi_inference_epoch_end(self, outputs, dataloader_idx: int = 0, mode: str = "val"):
         assert mode in ['val', 'test'], f"Invalid mode: {mode}. Must be 'val' or 'test'."
+
+        if not outputs:
+            logging.warning(
+                f"No outputs received for {mode} dataloader {dataloader_idx}. Skipping epoch end processing."
+            )
+            return {}
+
         self._maybe_save_predictions(outputs, mode=mode, dataloader_idx=dataloader_idx)
 
         # Aggregate WER metrics
