@@ -99,6 +99,16 @@ def update_ckpt(state_dict):
             new_state_dict[key] = state_dict[key]
     return new_state_dict
 
+
+def delete_old_generated_files(output_dir):
+    # Delete any leftover generated files from previous runs as these can confuse the evaluation
+    print(f"Deleting old generated files in: {output_dir} ...")
+    for f in glob.glob(f"{output_dir}/predicted_codes*.pt"):
+        os.remove(f)
+    for f in glob.glob(f"{output_dir}/predicted_audio*.wav"):
+        os.remove(f)
+
+
 def run_inference(
         hparams_file,
         checkpoint_file,
@@ -216,7 +226,8 @@ def run_inference(
         for repeat_idx in range(num_repeats):
             pred_audio_dir = os.path.join(audio_dir, f"repeat_{repeat_idx}")
             os.makedirs(pred_audio_dir, exist_ok=True)
-
+            delete_old_generated_files(pred_audio_dir)
+            
             test_dataset = MagpieTTSDataset(
                 dataset_meta=dataset_meta,
                 sample_rate=model.sample_rate,
@@ -370,6 +381,7 @@ def run_inference(
     if clean_up_disk:
         shutil.rmtree(out_dir)
     return cer, ssim
+
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
