@@ -132,8 +132,12 @@ def run_inference(
         confidence_level=0.95,
         use_local_transformer=False,
         maskgit_n_steps=3,
+        maskgit_noise_scale=0.0,
         legacy_codebooks=False,
+        fixed_schedule_n_unmasked=None,
+        sampling_type=None,
         clean_up_disk=False,
+        log_exp_name=False
     ):
     # Load model
     if hparams_file is not None:
@@ -170,23 +174,34 @@ def run_inference(
     model.cuda()
     model.eval()
 
+    if log_exp_name:
+        # the experiment name is the name of the directory two above the checkpoint path,
+        # since training produces directories of the form `exp_name/checkpoints/checkpoint_name.ckpt`.
+        exp_name = f"{os.path.basename(os.path.dirname(os.path.dirname(checkpoint_file)))}__"
+    else:
+        exp_name = ""
+
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps{}_sv_{}".format(
+    checkpoint_name = "{}{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
+        exp_name,
         checkpoint_name,
         temperature,
         topk,
         use_cfg,
         cfg_scale,
         apply_attention_prior,
-        attention_prior_epsilon,
-        attention_prior_lookahead_window,
-        start_prior_after_n_audio_steps,
-        "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
-        "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
+        # attention_prior_epsilon,
+        # attention_prior_lookahead_window,
+        # start_prior_after_n_audio_steps,
+        # "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
+        # "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
         use_local_transformer,
         maskgit_n_steps,
-        sv_model
+        sampling_type,
+        "".join([str(l) for l in fixed_schedule_n_unmasked]) if fixed_schedule_n_unmasked is not None else "None"
     )
+
+
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
     cer_per_dataset = []
@@ -277,7 +292,10 @@ def run_inference(
                     apply_prior_to_layers=apply_prior_to_layers,
                     start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
                     use_local_transformer_for_inference=use_local_transformer,
-                    maskgit_n_steps=maskgit_n_steps
+                    maskgit_n_steps=maskgit_n_steps,
+                    maskgit_noise_scale=maskgit_noise_scale,
+                    fixed_schedule_n_unmasked=fixed_schedule_n_unmasked,
+                    sampling_type=sampling_type
                 )
 
                 all_rtf_metrics.append(rtf_metrics)
@@ -292,7 +310,8 @@ def run_inference(
                     audio_path = os.path.join(pred_audio_dir, f"predicted_audio_{item_idx}.wav")
                     sf.write(audio_path, predicted_audio_np, model.sample_rate)
                     codes_path = os.path.join(pred_audio_dir, f"predicted_codes_{item_idx}.pt")
-                    torch.save(predicted_codes[idx][:predicted_codes_lens[idx]], codes_path)
+                    predicted_codes_current = predicted_codes[idx, :, :predicted_codes_lens[idx]] # C, T'
+                    torch.save(predicted_codes_current, codes_path)
                     codec_file_paths.append(codes_path)
                     context_audio_path = manifest_records[item_idx].get('context_audio_filepath', None)
                     target_audio_path = manifest_records[item_idx].get('audio_filepath', None)
@@ -388,6 +407,7 @@ def main():
     parser.add_argument('--use_cfg', action='store_true')
     parser.add_argument('--use_local_transformer', action='store_true', help="Enables use of local transformer for inference; applies to both Autoregressive and MaskGit sampling.")
     parser.add_argument('--maskgit_n_steps', type=int, default=3)
+    parser.add_argument('--maskgit_noise_scale', type=float, default=0.0)
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
     parser.add_argument('--attention_prior_epsilon', type=float, default=1e-3)
@@ -402,9 +422,13 @@ def main():
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
+    parser.add_argument('--fixed_schedule_n_unmasked', type=int, nargs='+', default=None)
+    parser.add_argument('--sampling_type', default=None, choices=["default", "alternate", "causal"])
+
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=None)
     parser.add_argument('--ssim_target', type=float, default=None)
+    parser.add_argument('--log_exp_name', action='store_true', help="Log the experiment name (deduced from the checkpoint path) in the output csv files.")
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -445,8 +469,12 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
+                maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk
+                clean_up_disk=args.clean_up_disk,
+                log_exp_name=args.log_exp_name,
+                fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
+                sampling_type=args.sampling_type
             )
         return
     elif (args.nemo_file is not None):
@@ -476,8 +504,12 @@ def main():
             confidence_level=args.confidence_level,
             use_local_transformer=args.use_local_transformer,
             maskgit_n_steps=args.maskgit_n_steps,
+            maskgit_noise_scale=args.maskgit_noise_scale,
             legacy_codebooks=args.legacy_codebooks,
-            clean_up_disk=args.clean_up_disk
+            clean_up_disk=args.clean_up_disk,
+            log_exp_name=args.log_exp_name,
+            fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
+            sampling_type=args.sampling_type
         )
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -540,8 +572,11 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
+                maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk
+                sampling_type=args.sampling_type,
+                clean_up_disk=args.clean_up_disk,
+                log_exp_name=args.log_exp_name
             )
     if cer > float(args.cer_target):
         raise ValueError()

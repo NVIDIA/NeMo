@@ -172,6 +172,10 @@ class FrechetCodecDistance(Metric):
             logging.warning(f"\nFCD metric received an empty batch of codes - skipping update\n")
             return
 
+        if codes.shape[1] != self.model.codec.num_codebooks:
+            logging.warning(f"\nFCD metric received a batch of codes of shape {codes.shape}, but the model has {self.model.codec.num_codebooks} codebooks - skipping update\n")
+            return
+        
         # Dequantize the codes to a continuous representation
         embeddings = self.model.codes_to_embedding(
             codes, codes_len
@@ -193,7 +197,6 @@ class FrechetCodecDistance(Metric):
             self.num_fake_frames += valid_frame_count
             self.fake_sum += torch.sum(embeddings, dim=0)
             self.fake_cov_sum += torch.matmul(embeddings.T, embeddings)
-
         return self
 
     def compute(self) -> Tensor:
