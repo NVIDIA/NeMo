@@ -134,6 +134,7 @@ def run_inference(
         maskgit_n_steps=3,
         legacy_codebooks=False,
         clean_up_disk=False,
+        log_exp_name=False
     ):
     # Load model
     if hparams_file is not None:
@@ -170,8 +171,16 @@ def run_inference(
     model.cuda()
     model.eval()
 
+    if log_exp_name:
+        # the experiment name is the name of the directory two above the checkpoint path,
+        # since training produces directories of the form `exp_name/checkpoints/checkpoint_name.ckpt`.
+        exp_name = f"{os.path.basename(os.path.dirname(os.path.dirname(checkpoint_file)))}__"
+    else:
+        exp_name = ""
+
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps{}_sv_{}".format(
+    checkpoint_name = "{}{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
+        exp_name,
         checkpoint_name,
         temperature,
         topk,
@@ -187,6 +196,7 @@ def run_inference(
         maskgit_n_steps,
         sv_model
     )
+
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
     cer_per_dataset = []
@@ -405,6 +415,7 @@ def main():
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=None)
     parser.add_argument('--ssim_target', type=float, default=None)
+    parser.add_argument('--log_exp_name', action='store_true', help="Include the experiment name (derived from the checkpoint path) in the output folder name.")
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -446,7 +457,8 @@ def main():
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
                 legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk
+                clean_up_disk=args.clean_up_disk,
+                log_exp_name=args.log_exp_name
             )
         return
     elif (args.nemo_file is not None):
@@ -477,7 +489,8 @@ def main():
             use_local_transformer=args.use_local_transformer,
             maskgit_n_steps=args.maskgit_n_steps,
             legacy_codebooks=args.legacy_codebooks,
-            clean_up_disk=args.clean_up_disk
+            clean_up_disk=args.clean_up_disk,
+            log_exp_name=args.log_exp_name
         )
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -541,7 +554,8 @@ def main():
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
                 legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk
+                clean_up_disk=args.clean_up_disk,
+                log_exp_name=args.log_exp_name
             )
     if cer > float(args.cer_target):
         raise ValueError()
