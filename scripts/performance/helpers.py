@@ -187,7 +187,8 @@ def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = N
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
         elif fp8_recipe.lower() == "ss":
             recipe.trainer.plugins = bf16_with_fp8_subchannel_scaling_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     # Enable reuse_grad_buf_for_mxfp8_param_ag for MXFP8 and disable AG overlap
     # because it is not supported with reuse_grad_buf_for_mxfp8_param_ag
