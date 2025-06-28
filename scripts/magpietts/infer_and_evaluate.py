@@ -136,6 +136,7 @@ def run_inference(
         legacy_codebooks=False,
         clean_up_disk=False,
         hparams_file_from_wandb=False,
+        log_exp_name=False
     ):
     # Load model
     if hparams_file is not None and checkpoint_file is not None:
@@ -175,7 +176,16 @@ def run_inference(
     model.cuda()
     model.eval()
 
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps{}_sv_{}".format(
+    if log_exp_name:
+        # the experiment name is the name of the directory two above the checkpoint path,
+        # since training produces directories of the form `exp_name/checkpoints/checkpoint_name.ckpt`.
+        exp_name = f"{os.path.basename(os.path.dirname(os.path.dirname(checkpoint_file)))}__"
+    else:
+        exp_name = ""
+
+    checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
+    checkpoint_name = "{}{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
+        exp_name,
         checkpoint_name,
         temperature,
         topk,
@@ -191,6 +201,7 @@ def run_inference(
         maskgit_n_steps,
         sv_model
     )
+
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
     cer_per_dataset = []
@@ -307,7 +318,8 @@ def run_inference(
                     audio_path = os.path.join(pred_audio_dir, f"predicted_audio_{item_idx}.wav")
                     sf.write(audio_path, predicted_audio_np, model.sample_rate)
                     codes_path = os.path.join(pred_audio_dir, f"predicted_codes_{item_idx}.pt")
-                    torch.save(predicted_codes[idx][:predicted_codes_lens[idx]], codes_path)
+                    predicted_codes_current = predicted_codes[idx, :, :predicted_codes_lens[idx]] # C, T'
+                    torch.save(predicted_codes_current, codes_path)
                     codec_file_paths.append(codes_path)
                     context_audio_path = manifest_records[item_idx].get('context_audio_filepath', None)
                     target_audio_path = manifest_records[item_idx].get('audio_filepath', None)
@@ -418,6 +430,7 @@ def main():
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=1.0)
     parser.add_argument('--ssim_target', type=float, default=0.)
+    parser.add_argument('--log_exp_name', action='store_true', help="Include the experiment name (derived from the checkpoint path) in the output folder name.")
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -462,6 +475,7 @@ def main():
                 legacy_codebooks=args.legacy_codebooks,
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
+                log_exp_name=args.log_exp_name
             )
         return
     # Mode 2: Run inference from a .nemo file
@@ -494,6 +508,7 @@ def main():
             legacy_codebooks=args.legacy_codebooks,
             clean_up_disk=args.clean_up_disk,
             hparams_file_from_wandb=args.hparams_file_from_wandb,
+            log_exp_name=args.log_exp_name
         )
     # Mode 3: Discover and run experiments from a base directory
     #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
@@ -560,6 +575,7 @@ def main():
                 legacy_codebooks=args.legacy_codebooks,
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
+                log_exp_name=args.log_exp_name
             )
     else:
         parser.error(
