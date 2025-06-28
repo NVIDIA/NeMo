@@ -60,6 +60,7 @@ jobs:
           runner: ${{ runner.name }}
           script: ${{ matrix.script }}
           is_unit_test: true
+          timeout: 20
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
           cpu-only: ${{ matrix.cpu-only || false }}
