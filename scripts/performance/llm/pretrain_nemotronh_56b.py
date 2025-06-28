@@ -80,6 +80,7 @@ def override_recipe_configs(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=131072
     )
 
+    recipe.model.config.attention_backend = "auto"
     return recipe
 
 
@@ -129,7 +130,7 @@ if __name__ == "__main__":
         )
     ]
 
-    custom_env_vars = {"NVTE_FUSED_ATTN": "0", "TRANSFORMERS_OFFLINE": "0"}
+    custom_env_vars = {"TRANSFORMERS_OFFLINE": "0"}
 
     if args.gpu.lower() == 'gb200':
         custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
