@@ -4,6 +4,7 @@ import glob
 import json
 import os
 import shutil
+import time
 
 import evalset_config
 import evaluate_generated_audio
@@ -103,13 +104,17 @@ def run_inference(
         start_prior_after_n_audio_steps=10,
         confidence_level=0.95,
         use_local_transformer=False,
-        legacy_codebooks=False
+        legacy_codebooks=False,
+        hparams_file_from_wandb=False,
     ):
     # Load model
-    if hparams_file is not None:
+    if hparams_file is not None and checkpoint_file is not None:
         model_cfg = OmegaConf.load(hparams_file)
         if "cfg" in model_cfg:
             model_cfg = model_cfg.cfg
+
+        if hparams_file_from_wandb:
+            model_cfg = model_cfg.value
 
         with open_dict(model_cfg):
             model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
@@ -131,7 +136,7 @@ def run_inference(
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
     else:
-        raise ValueError("Need a checkpoint")
+        raise ValueError("Need either a checkpoint and hparams file, or a nemo file.")
 
     print("Loaded weights.")
     model.cuda()
@@ -156,23 +161,35 @@ def run_inference(
     for dataset in datasets:
         metrics_n_repeated = []
         manifest_records = read_manifest(dataset_meta_info[dataset]['manifest_path'])
+        language = dataset_meta_info[dataset].get('whisper_language', 'en')
+        dataset_meta_for_dl = copy.deepcopy(dataset_meta_info[dataset])
+        for key in ["whisper_language", "load_cached_codes_if_available"]:
+            if key in dataset_meta_for_dl:
+                del dataset_meta_for_dl[key]
+
+        dataset_meta = {dataset: dataset_meta_for_dl}
+
+        eval_dir = os.path.join(out_dir, f"{checkpoint_name}_{dataset}")
+        audio_dir = os.path.join(eval_dir, "audio")
+        all_experiment_csv = os.path.join(eval_dir, "all_experiment_metrics.csv")
+        os.makedirs(eval_dir, exist_ok=True)
+
+        if not os.path.exists(all_experiment_csv):
+            with open(all_experiment_csv, "w") as f:
+                f.write(
+                    "checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n"
+                )
+
+        context_duration_min = model.cfg.get('context_duration_min', 5.0)
+        context_duration_max = model.cfg.get('context_duration_max', 5.0)
+        if context_duration_min < 5.0 and context_duration_max > 5.0:
+            context_duration_min = 5.0
+            context_duration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
+
         for repeat_idx in range(num_repeats):
-            eval_dir = os.path.join(out_dir, "{}_{}".format(checkpoint_name, dataset))
-            audio_dir = os.path.join(eval_dir, "audio")
             pred_audio_dir = os.path.join(audio_dir, f"repeat_{repeat_idx}")
             os.makedirs(pred_audio_dir, exist_ok=True)
-            language = dataset_meta_info[dataset].get('whisper_language', 'en')
-            dataset_meta_for_dl = copy.deepcopy(dataset_meta_info[dataset])
-            for key in ["whisper_language", "load_cached_codes_if_available"]:
-                if key in dataset_meta_for_dl:
-                    del dataset_meta_for_dl[key]
 
-            dataset_meta = {dataset: dataset_meta_for_dl}
-            context_durration_min = model.cfg.get('context_duration_min', 5.0)
-            context_durration_max = model.cfg.get('context_duration_max', 5.0)
-            if context_durration_min < 5.0 and context_durration_max > 5.0:
-                context_durration_min = 5.0
-                context_durration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
             test_dataset = MagpieTTSDataset(
                 dataset_meta=dataset_meta,
                 sample_rate=model.sample_rate,
@@ -193,10 +210,10 @@ def run_inference(
                 load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
                 use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
                 pad_context_text_to_max_duration=model.pad_context_text_to_max_duration,
-                context_duration_min=context_durration_min,
-                context_duration_max=context_durration_max,
+                context_duration_min=context_duration_min,
+                context_duration_max=context_duration_max,
             )
-            assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
+            assert len(test_dataset) == len(manifest_records), f"Dataset length and manifest length should be the same. Dataset length: {len(test_dataset)}, Manifest length: {len(manifest_records)}"
 
             test_dataset.text_tokenizer = model.tokenizer
             test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
@@ -206,21 +223,20 @@ def run_inference(
                 batch_size=batch_size,
                 collate_fn=test_dataset.collate_fn,
                 num_workers=2,
-                shuffle=False
+                shuffle=False,
             )
 
             item_idx = 0
             all_rtf_metrics = []
             for bidx, batch in enumerate(test_data_loader):
-                print("Processing batch {} out of {} of dataset {}".format(bidx, len(test_data_loader), dataset))
-                batch_cuda ={}
+                print(f"Processing batch {bidx} out of {len(test_data_loader)} of dataset {dataset}")
+                batch_cuda = {}
                 for key in batch:
                     if isinstance(batch[key], torch.Tensor):
                         batch_cuda[key] = batch[key].cuda()
                     else:
                         batch_cuda[key] = batch[key]
 
-                import time
                 st = time.time()
                 predicted_audio, predicted_audio_lens, _, _, rtf_metrics, cross_attention_maps, _  = model.infer_batch(
                     batch_cuda,
@@ -236,7 +252,7 @@ def run_inference(
                     estimate_alignment_from_layers=estimate_alignment_from_layers,
                     apply_prior_to_layers=apply_prior_to_layers,
                     start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
-                    use_local_transformer_for_inference=use_local_transformer
+                    use_local_transformer_for_inference=use_local_transformer,
                 )
                 all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
@@ -309,6 +325,7 @@ def run_inference(
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
     parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
+    parser.add_argument('--hparams_file_from_wandb', action='store_true')
     parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
     parser.add_argument('--nemo_file', type=str, default=None)
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo")
@@ -345,6 +362,7 @@ def main():
     if args.apply_prior_to_layers is not None:
         apply_prior_to_layers = [int(l.strip()) for l in args.apply_prior_to_layers.split(",")]
 
+    # Mode 1: Run inference from provided hparams and checkpoint files
     if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null") and (args.checkpoint_files != "null"):
         hparam_files = args.hparams_files.split(",")
         checkpoint_files = args.checkpoint_files.split(",")
@@ -375,16 +393,17 @@ def main():
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
-                legacy_codebooks=args.legacy_codebooks
+                legacy_codebooks=args.legacy_codebooks,
+                hparams_file_from_wandb=args.hparams_file_from_wandb,
             )
         return
-    elif (args.nemo_file is not None):
-        nemo_file = args.nemo_file
-        print("Running inference for nemo file: ", nemo_file)
-        run_inference(
+    # Mode 2: Run inference from a .nemo file
+    elif args.nemo_file:
+        print(f"Running inference for nemo file: {args.nemo_file}")
+        cer, ssim = run_inference(
             hparams_file=None,
             checkpoint_file=None,
-            nemo_file=nemo_file,
+            nemo_file=args.nemo_file,
             datasets=args.datasets.split(","),
             out_dir=args.out_dir,
             temperature=args.temperature,
@@ -404,13 +423,15 @@ def main():
             start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
             confidence_level=args.confidence_level,
             use_local_transformer=args.use_local_transformer,
-            legacy_codebooks=args.legacy_codebooks
+            legacy_codebooks=args.legacy_codebooks,
+            hparams_file_from_wandb=args.hparams_file_from_wandb,
         )
-    else:
+    # Mode 3: Discover and run experiments from a base directory
+    #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
+    #   sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
+    elif args.base_exp_dir:
         BASE_EXP_DIR = args.base_exp_dir
         DRACO_EXP_DIR = args.draco_exp_dir
-        # Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
-        # sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
         if args.exp_names is None:
             exp_names = os.listdir(BASE_EXP_DIR)
         else:
@@ -466,8 +487,16 @@ def main():
                 start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
-                legacy_codebooks=args.legacy_codebooks
+                legacy_codebooks=args.legacy_codebooks,
+                hparams_file_from_wandb=args.hparams_file_from_wandb,
             )
+    else:
+        parser.error(
+            "You must provide a model to run. Please specify either:\n"
+            "1. --hparams_files and --checkpoint_files\n"
+            "2. --nemo_file\n"
+            "3. --base_exp_dir to discover experiments"
+        )
 
 
 if __name__ == '__main__':
