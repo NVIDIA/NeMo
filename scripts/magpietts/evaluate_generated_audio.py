@@ -17,6 +17,7 @@ import os
 import pprint
 import string
 
+import numpy as np
 import torch
 
 import nemo.collections.asr as nemo_asr
@@ -85,9 +86,27 @@ def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, langua
     result = transcription[0]
     return result
 
+def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_seconds: float) -> np.ndarray:
+    """
+    Pad audio to make it at least `min_seconds` long by adding silence at the end if needed.
+    """
+    if audio_np.ndim != 1:
+        raise ValueError("Audio array must be 1D")
+
+    n_samples = len(audio_np)
+    min_samples = round(min_seconds * sampling_rate)
+    
+    if n_samples < min_samples:
+        print(f"Padding audio from {n_samples/sampling_rate} seconds to {min_samples/sampling_rate} seconds")
+        padding_needed = min_samples - n_samples
+        audio_np = np.pad(audio_np, (0, padding_needed), mode='constant', constant_values=0)
+    return audio_np
+
+
 def extract_embedding(model, extractor, audio_path, device, sv_model_type):
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
-
+    # pad to 0.5 seconds as the extractor may not be able to handle very short signals
+    speech_array = pad_audio_to_min_length(speech_array, int(sampling_rate), min_seconds=0.5)
     if sv_model_type == "wavlm":
         inputs = extractor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_values.to(device)
         with torch.no_grad():
