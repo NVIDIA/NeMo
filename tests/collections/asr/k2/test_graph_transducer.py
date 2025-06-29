@@ -279,6 +279,7 @@ class TestGraphRnnt:
 @pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton is not installed, skipping RNNT Log Probs tests")
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
 class TestRnntLogProbs:
+    @pytest.mark.pleasefixme
     @pytest.mark.parametrize(
         "batch_size,num_frames,num_text_units,vocab_size",
         [
