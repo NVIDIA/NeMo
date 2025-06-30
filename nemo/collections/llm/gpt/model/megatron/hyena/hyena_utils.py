@@ -39,11 +39,6 @@ from torch.autograd.function import Function
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 
-with_state_p = True
-with_state_s = True
-with_state_m = True
-with_state_l = True
-
 
 try:
     from einops import rearrange
@@ -943,10 +938,7 @@ class ParallelHyenaOperator(nn.Module):
         # The kernel length must be adjusted in CP settings
         _L_kernel = L if cp_group is None else L * len(torch.distributed.get_process_group_ranks(cp_group))
         if self.use_medium_hyena:
-            if with_state_m:
-                h = self.filter(self.hyena_medium_conv_len)
-            else:
-                h = self.filter(min(self.hyena_medium_conv_len, _L_kernel))
+            h = self.filter(self.hyena_medium_conv_len)
         else:
             h = self.filter(_L_kernel)
 
@@ -979,14 +971,9 @@ class ParallelHyenaOperator(nn.Module):
 
         h = h.repeat_interleave(self.group_dim, dim=-2)
 
-        if with_state_m and self.operator_type == "hyena_medium_conv":
-            # conv_bias: torch.Size([1920])
-            # h: torch.Size([1920, 16])
-            # u: torch.Size([1, 16, 5760])
-            # x1.shape, x2.shape, v.shape == (torch.Size([1, 1920, 16]), torch.Size([1, 1920, 16]), torch.Size([1, 1920, 16]))
-            # h: torch.Size([1920, 16])
+        if self.operator_type == "hyena_medium_conv":
             return self.forward_medium(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
-        elif with_state_l and self.operator_type == "hyena":
+        elif self.operator_type == "hyena":
             return self.forward_long(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
         else:
             pass

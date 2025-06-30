@@ -231,7 +231,6 @@ def setup_model_and_tokenizer(
                 params_dtype,
             )
     for key, value in kwargs.items():
-        print(f"jared: Setting {key} to {value}")
         if hasattr(model.config, key):
             setattr(model.config, key, value)
         else:

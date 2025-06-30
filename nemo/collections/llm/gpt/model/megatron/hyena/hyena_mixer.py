@@ -40,8 +40,6 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     ParallelHyenaOperator,
     ParallelShortHyenaOperator,
     divide,
-    with_state_p,
-    with_state_s,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,13 +160,11 @@ class HyenaMixer(MegatronModule):
 
         hyena_proj_groups = self.proj_groups if not self.grouped_attention else 1
         grouped_proj_size = self.hidden_size_per_partition // hyena_proj_groups
-        hyena_proj_conv_class = ParallelCausalDepthwiseConv1d
-        if with_state_p:
-            hyena_proj_conv_class = ParallelCausalDepthwiseConv1dWithState
 
-        short_conv_class = ParallelCausalDepthwiseConv1d
-        if with_state_s:
-            short_conv_class = ParallelCausalDepthwiseConv1dWithState
+        hyena_proj_conv_class = ParallelCausalDepthwiseConv1dWithState
+
+
+        short_conv_class = ParallelCausalDepthwiseConv1dWithState
 
         self.hyena_proj_conv = hyena_proj_conv_class(
             self.hidden_size_per_partition + 2 * grouped_proj_size,
