@@ -205,11 +205,10 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         audio_lengths = torch.tensor([seq_len])
         transcript = torch.randint(0, 10, (batch_size, 10))
         transcript_lengths = torch.tensor([10])
-        sample_ids = torch.tensor([0])
         prompt = torch.zeros(batch_size, hidden_len, num_prompts)
         prompt[0, :, 0] = 1  # Set first prompt to 1
 
-        batch = (audio_signal, audio_lengths, transcript, transcript_lengths, sample_ids, prompt)
+        batch = (audio_signal, audio_lengths, transcript, transcript_lengths, prompt)
 
         outputs = hybrid_asr_model_with_prompt.predict_step(batch, 0)
         assert len(outputs) == 1
@@ -472,4 +471,4 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         
         # Should not crash and should produce valid output
         assert encoded.shape[0] == 1
-        assert encoded_len.shape[0] == 1 
+        assert encoded_len.shape[0] == 1
