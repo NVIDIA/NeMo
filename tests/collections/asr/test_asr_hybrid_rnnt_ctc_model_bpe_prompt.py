@@ -26,7 +26,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompt import LhotseSpeechTo
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models_prompt import EncDecHybridRNNTCTCBPEModelWithPrompt
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig, CTCDecoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
 from nemo.core.utils import numba_utils
@@ -42,7 +42,7 @@ def hybrid_asr_model_with_prompt(test_data_dir):
     preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
 
     model_defaults = {
-        'enc_hidden': 1024, 
+        'enc_hidden': 1024,
         'pred_hidden': 640,
         'initialize_prompt_feature': True,  # Enable prompt feature initialization
         'prompt_dictionary': {
@@ -50,7 +50,7 @@ def hybrid_asr_model_with_prompt(test_data_dir):
             'es_ES': 1,
             'fr_FR': 2,
             'de_DE': 3,
-        }
+        },
     }
 
     encoder = {
@@ -158,7 +158,7 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
 
         input_signal = torch.randn(size=(4, 512))
         length = torch.randint(low=161, high=500, size=[4])
-        
+
         # Create dummy prompt tensor
         prompt_timesteps = 64
         prompt = torch.randn(size=(4, prompt_timesteps, hybrid_asr_model_with_prompt.num_prompts))
@@ -168,18 +168,16 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
             logprobs_instance = []
             for i in range(input_signal.size(0)):
                 logprobs_ins, _ = hybrid_asr_model_with_prompt.forward(
-                    input_signal=input_signal[i : i + 1], 
+                    input_signal=input_signal[i : i + 1],
                     input_signal_length=length[i : i + 1],
-                    prompt=prompt[i : i + 1]
+                    prompt=prompt[i : i + 1],
                 )
                 logprobs_instance.append(logprobs_ins)
             logits_instance = torch.cat(logprobs_instance, 0)
 
             # batch size 4
             logprobs_batch, _ = hybrid_asr_model_with_prompt.forward(
-                input_signal=input_signal, 
-                input_signal_length=length,
-                prompt=prompt
+                input_signal=input_signal, input_signal_length=length, prompt=prompt
             )
 
         assert logits_instance.shape == logprobs_batch.shape
@@ -290,7 +288,9 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
             shutil.copy2(old_tokenizer_dir, new_tokenizer_dir)
 
             nw1 = hybrid_asr_model_with_prompt.num_weights
-            hybrid_asr_model_with_prompt.change_vocabulary(new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type='wpe')
+            hybrid_asr_model_with_prompt.change_vocabulary(
+                new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type='wpe'
+            )
             # No change
             assert nw1 == hybrid_asr_model_with_prompt.num_weights
 
@@ -299,7 +299,9 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
                 f.write('$\n')
                 f.write('@\n')
 
-            hybrid_asr_model_with_prompt.change_vocabulary(new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type='wpe')
+            hybrid_asr_model_with_prompt.change_vocabulary(
+                new_tokenizer_dir=new_tokenizer_dir, new_tokenizer_type='wpe'
+            )
 
             # rnn embedding + joint + bias
             pred_embedding = 3 * (hybrid_asr_model_with_prompt.decoder.pred_hidden)
@@ -390,17 +392,17 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         """Test that input/output types include prompt-specific types."""
         input_types = hybrid_asr_model_with_prompt.input_types
         output_types = hybrid_asr_model_with_prompt.output_types
-        
+
         # Check that prompt is included in input types
         assert 'prompt' in input_types
         # Check axes - neural types use tuples with symbolic names
         prompt_axes = input_types['prompt'].axes
         assert len(prompt_axes) == 3  # Should be 3D tensor
-        
+
         # Check standard input types are present
         assert 'input_signal' in input_types
         assert 'input_signal_length' in input_types
-        
+
         # Check output types
         assert 'outputs' in output_types
         assert 'encoded_lengths' in output_types
@@ -412,14 +414,16 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         assert hasattr(hybrid_asr_model_with_prompt, 'concat')
         assert hasattr(hybrid_asr_model_with_prompt, 'num_prompts')
         assert hasattr(hybrid_asr_model_with_prompt, 'prompt_kernel')
-        
+
         # Test that concat is enabled
         assert hybrid_asr_model_with_prompt.concat == True
-        
+
         # Test prompt kernel dimensions
-        expected_input_size = hybrid_asr_model_with_prompt.num_prompts + hybrid_asr_model_with_prompt._cfg.model_defaults.enc_hidden
+        expected_input_size = (
+            hybrid_asr_model_with_prompt.num_prompts + hybrid_asr_model_with_prompt._cfg.model_defaults.enc_hidden
+        )
         expected_output_size = hybrid_asr_model_with_prompt._cfg.model_defaults.enc_hidden
-        
+
         # Check first layer of prompt kernel
         first_layer = hybrid_asr_model_with_prompt.prompt_kernel[0]
         assert first_layer.in_features == expected_input_size
@@ -430,17 +434,15 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         """Test forward pass when concat is disabled (no prompt processing)."""
         hybrid_asr_model_with_prompt.eval()
         hybrid_asr_model_with_prompt.concat = False  # Disable prompt concatenation
-        
+
         input_signal = torch.randn(size=(2, 512))
         length = torch.randint(low=161, high=500, size=[2])
-        
+
         with torch.no_grad():
             encoded, encoded_len = hybrid_asr_model_with_prompt.forward(
-                input_signal=input_signal, 
-                input_signal_length=length,
-                prompt=None  # No prompt provided
+                input_signal=input_signal, input_signal_length=length, prompt=None  # No prompt provided
             )
-        
+
         assert encoded.shape[0] == 2  # Batch size
         assert encoded_len.shape[0] == 2
 
@@ -448,20 +450,18 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
     def test_prompt_truncation(self, hybrid_asr_model_with_prompt):
         """Test that prompts are properly truncated when longer than encoded sequence."""
         hybrid_asr_model_with_prompt.eval()
-        
+
         input_signal = torch.randn(size=(1, 512))  # Short signal
         length = torch.tensor([512])
-        
+
         # Create a very long prompt (longer than expected encoded length)
         long_prompt = torch.randn(size=(1, 1000, hybrid_asr_model_with_prompt.num_prompts))
-        
+
         with torch.no_grad():
             encoded, encoded_len = hybrid_asr_model_with_prompt.forward(
-                input_signal=input_signal, 
-                input_signal_length=length,
-                prompt=long_prompt
+                input_signal=input_signal, input_signal_length=length, prompt=long_prompt
             )
-        
+
         # Should not crash and should produce valid output
         assert encoded.shape[0] == 1
         assert encoded_len.shape[0] == 1
