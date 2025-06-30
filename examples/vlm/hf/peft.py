@@ -62,6 +62,7 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
         labels[torch.isin(labels, skipped_tokens)] = -100
         batch["labels"] = labels[:, 1:]
         batch["input_ids"] = batch["input_ids"][:, :-1]
+        batch["attention_mask"] = batch["attention_mask"][:, :-1]
         return batch
 
     return vlm.HFDatasetDataModule(
