@@ -242,6 +242,7 @@ def set_perf_optimization_configs(
     recompute_modules: Optional[List[str]],
     use_sharp: bool,
     use_user_buffer_registration: bool,
+    high_priority_stream_groups: Optional[List[str]] = None,
 ):
     # enable cross entropy fusion with TE kernel
     recipe.model.config.cross_entropy_fusion_impl = "te"
@@ -270,6 +271,9 @@ def set_perf_optimization_configs(
         recipe.trainer.strategy.ddp.check_for_large_grads = False
         recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
 
+    if high_priority_stream_groups is not None:
+        recipe.trainer.strategy.high_priority_stream_groups = high_priority_stream_groups
+
     return recipe
 
 
@@ -297,6 +301,7 @@ def set_primary_perf_configs(
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
+    high_priority_stream_groups: Optional[List[str]] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -346,6 +351,7 @@ def set_primary_perf_configs(
         recompute_modules,
         use_sharp,
         use_user_buffer_registration,
+        high_priority_stream_groups,
     )
 
     return recipe
