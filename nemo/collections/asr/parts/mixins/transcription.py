@@ -16,6 +16,7 @@ import json
 import os
 import tempfile
 from abc import ABC, abstractmethod
+from lhotse import CutSet
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -32,6 +33,7 @@ from nemo.collections.asr.parts.utils import manifest_utils
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.utils import logging, logging_mode
+from utils.data_prep import get_lhotse_dataloader
 
 TranscriptionReturnType = Union[List[str], List[Hypothesis], Tuple[List[str]], Tuple[List[Hypothesis]]]
 GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
@@ -352,7 +354,9 @@ class TranscriptionMixin(ABC):
                 transcribe_cfg._internal.temp_dir = tmpdir
 
                 # Create a DataLoader if not already present
-                if not isinstance(audio, DataLoader):
+                if isinstance(audio, CutSet):
+                    dataloader  = get_lhotse_dataloader(audio, transcribe_cfg.batch_size)
+                elif not isinstance(audio, DataLoader):
                     dataloader = self._transcribe_input_processing(audio, transcribe_cfg)
                 else:
                     dataloader = audio

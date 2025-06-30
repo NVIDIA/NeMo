@@ -26,8 +26,10 @@ from utils.data_prep import (
     get_batch_starts_ends,
     get_batch_variables,
     get_manifest_lines_batch,
+    get_lhotse_dataloader,
     is_entry_in_all_lines,
     is_entry_in_any_lines,
+    load_nemo_tarred_from_dir,
 )
 from utils.make_ass_files import make_ass_files
 from utils.make_ctm_files import make_ctm_files
@@ -94,6 +96,7 @@ Arguments:
     save_output_file_formats: List of strings specifying what type of output files to save (default: ["ctm", "ass"])
     ctm_file_config: CTMFileConfig to specify the configuration of the output CTM files
     ass_file_config: ASSFileConfig to specify the configuration of the output ASS files
+    tar_path: Optional[str] = None
 """
 
 
@@ -151,6 +154,12 @@ class AlignmentConfig:
     save_output_file_formats: List[str] = field(default_factory=lambda: ["ctm", "ass"])
     ctm_file_config: CTMFileConfig = field(default_factory=lambda: CTMFileConfig())
     ass_file_config: ASSFileConfig = field(default_factory=lambda: ASSFileConfig())
+
+    # load lhotse tarred dataset
+    load_lhotse_tarred: Optional[bool] = False
+
+    # New field
+    tar_path: Optional[str] = None
 
 
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
@@ -299,8 +308,7 @@ def main(cfg: AlignmentConfig):
             "model_stride_in_secs": model_stride_in_secs,
             "tokens_per_chunk": tokens_per_chunk,
         }
-    # get start and end line IDs of batches
-    starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
+
 
     # init output_timestep_duration = None and we will calculate and update it during the first batch
     output_timestep_duration = None
@@ -311,39 +319,81 @@ def main(cfg: AlignmentConfig):
     tgt_manifest_filepath = str(Path(cfg.output_dir) / tgt_manifest_name)
     f_manifest_out = open(tgt_manifest_filepath, 'w')
 
-    # get alignment and save in CTM batch-by-batch
-    for start, end in zip(starts, ends):
-        manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
+    if cfg.load_lhotse_tarred:
+        print(f"load_lhotse_tarred: {cfg.load_lhotse_tarred}")
+        if cfg.tar_path is None:
+            # check if tar_path is provided
+            raise ValueError("When load_lhotse_tarred is True, tar_path must be provided.")
+        # create cuts from tarred dataset
+        cuts = load_nemo_tarred_from_dir(cfg.manifest_filepath, cfg.tar_path)
 
-        (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
-            manifest_lines_batch,
-            model,
-            cfg.additional_segment_grouping_separator,
-            cfg.align_using_pred_text,
-            cfg.audio_filepath_parts_in_utt_id,
-            output_timestep_duration,
-            cfg.simulate_cache_aware_streaming,
-            cfg.use_buffered_chunked_streaming,
-            buffered_chunk_params,
-        )
+        for i in range(0, len(cuts), cfg.batch_size):
+            batch_cuts = cuts[i:i + cfg.batch_size] if i + cfg.batch_size < len(cuts) else cuts[i:]
+            (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
+                batch_cuts,
+                model,
+                cfg.additional_segment_grouping_separator,
+                cfg.align_using_pred_text,
+                cfg.audio_filepath_parts_in_utt_id,
+                output_timestep_duration,
+                cfg.simulate_cache_aware_streaming,
+                cfg.use_buffered_chunked_streaming,
+                buffered_chunk_params,
+                cfg.load_lhotse_tarred,
+            )
+            alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
 
-        alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
+            for utt_obj, alignment_utt in zip(utt_obj_batch, alignments_batch):
 
-        for utt_obj, alignment_utt in zip(utt_obj_batch, alignments_batch):
+                utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 
-            utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
+                if "ctm" in cfg.save_output_file_formats:
+                    utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
 
-            if "ctm" in cfg.save_output_file_formats:
-                utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
+                if "ass" in cfg.save_output_file_formats:
+                    utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
 
-            if "ass" in cfg.save_output_file_formats:
-                utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
+                write_manifest_out_line(
+                    f_manifest_out, utt_obj,
+                )
+        f_manifest_out.close()
 
-            write_manifest_out_line(
-                f_manifest_out, utt_obj,
+    # get start and end line IDs of batches
+    else:
+        starts, ends = get_batch_starts_ends(cfg.manifest_filepath, cfg.batch_size)
+        # get alignment and save in CTM batch-by-batch
+        for start, end in zip(starts, ends):
+            manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
+
+            (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
+                manifest_lines_batch,
+                model,
+                cfg.additional_segment_grouping_separator,
+                cfg.align_using_pred_text,
+                cfg.audio_filepath_parts_in_utt_id,
+                output_timestep_duration,
+                cfg.simulate_cache_aware_streaming,
+                cfg.use_buffered_chunked_streaming,
+                buffered_chunk_params,
             )
 
-    f_manifest_out.close()
+            alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
+
+            for utt_obj, alignment_utt in zip(utt_obj_batch, alignments_batch):
+
+                utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
+
+                if "ctm" in cfg.save_output_file_formats:
+                    utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
+
+                if "ass" in cfg.save_output_file_formats:
+                    utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
+
+                write_manifest_out_line(
+                    f_manifest_out, utt_obj,
+                )
+
+        f_manifest_out.close()
 
     return None
 
