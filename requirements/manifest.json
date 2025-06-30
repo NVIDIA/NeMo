@@ -1,5 +1,5 @@
 {
-  "ngc-pytorch": "nvcr.io/nvidia/pytorch:25.03-py3",
+  "ngc-pytorch": "nvcr.io/nvidia/pytorch:25.05-py3",
   "vcs-dependencies": {
     "apex": {
       "repo": "https://github.com/NVIDIA/Apex",
@@ -7,15 +7,15 @@
     },
     "transformer_engine": {
       "repo": "https://github.com/NVIDIA/TransformerEngine",
-      "ref": "bee4649c15a79ffcb9689ca7c0c963f5febaa28a"
+      "ref": "b894f69bffa93db24eb7819c14442189b89140f4"
     },
     "megatron-lm": {
       "repo": "https://github.com/NVIDIA/Megatron-LM",
-      "ref": "9eebd5173cbd6dea5e6a324d418b669ac000989e"
+      "ref": "6d95fe63658f967e56a3fda88a9c30a424fcb520"
     },
     "trt-llm": {
       "repo": "https://github.com/NVIDIA/TensorRT-LLM.git",
-      "ref": "v0.18.0"
+      "ref": "bfa3b59bb696686b00132e8a5d9884ea02848f51"
     }
   },
   "pypi-dependencies": {}
