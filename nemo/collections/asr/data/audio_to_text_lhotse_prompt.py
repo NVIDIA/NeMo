@@ -46,19 +46,19 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.cfg = cfg
-        
+
         # Calculate num_sample_per_mel_frame from config
         sample_rate = cfg.get('sample_rate', 16000)
         window_stride = cfg.get('window_stride', 0.01)
         self.num_sample_per_mel_frame = int(sample_rate * window_stride)
-        
+
         self.subsampling_factor = cfg.get('subsampling_factor', 8)
 
         # Load prompt dictionary from config if provided
         self.prompt_dict = cfg.get('prompt_dictionary')
         if self.prompt_dict:
-        # Set num_prompts based on the length of prompt_dictionary or a minimum value
-        # This ensures we have enough dimensions in our embedding space
+            # Set num_prompts based on the length of prompt_dictionary or a minimum value
+            # This ensures we have enough dimensions in our embedding space
             self.num_prompts = cfg.get('num_prompts', 128)
 
         # Field to use for prompt key (default to 'language')

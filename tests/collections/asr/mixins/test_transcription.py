@@ -515,10 +515,7 @@ class TestTranscriptionMixin:
 
         # Transcribe audio with prompt parameters
         hypotheses = hybrid_rnnt_ctc_bpe_model_with_prompt.transcribe(
-            [audio1, audio2], 
-            batch_size=2,
-            return_hypotheses=True,
-            target_lang="en-US"
+            [audio1, audio2], batch_size=2, return_hypotheses=True, target_lang="en-US"
         )
 
         # Check results
