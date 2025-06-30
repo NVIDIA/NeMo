@@ -28,8 +28,10 @@ import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecMultiTaskModel
 from nemo.collections.asr.parts.utils import manifest_utils, rnnt_utils
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR, FrameBatchMultiTaskAED
-from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate
+from nemo.collections.asr.parts.utils.streaming_utils import (
+    FrameBatchASR, FrameBatchMultiTaskAED)
+from nemo.collections.common.metrics.punct_er import \
+    OccurancePunctuationErrorRate
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging, model_utils
 

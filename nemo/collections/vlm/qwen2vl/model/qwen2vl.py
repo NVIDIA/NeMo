@@ -19,13 +19,17 @@ from typing import TYPE_CHECKING, Union
 import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
 
-from nemo.collections.llm import Qwen2Config, Qwen2Config1P5B, Qwen2Config7B, Qwen2Config72B
-from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
+from nemo.collections.llm import (Qwen2Config, Qwen2Config1P5B, Qwen2Config7B,
+                                  Qwen2Config72B)
+from nemo.collections.vlm.qwen2vl.model.base import (Qwen2VLConfig,
+                                                     Qwen2VLModel,
+                                                     Qwen2VLVisionConfig)
 from nemo.collections.vlm.vision import MultimodalProjectorConfig
 from nemo.lightning import io, teardown
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
 
 
 # Note: these Qwen2VL configs are copied from the corresponding HF model. You may need to modify the parameter for
@@ -165,7 +169,8 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
     @property
     def tokenizer(self) -> "AutoTokenizer":
         # pylint: disable=C0115,C0116
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(str(self))
 

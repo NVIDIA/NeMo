@@ -20,7 +20,8 @@ See "examples/nlp/spellchecking_asr_customization/run_infer.sh" for the whole in
 
 from argparse import ArgumentParser
 
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import get_index, load_ngram_mappings
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
+    get_index, load_ngram_mappings)
 
 parser = ArgumentParser(description="Create an index of custom vocabulary and save it to file")
 

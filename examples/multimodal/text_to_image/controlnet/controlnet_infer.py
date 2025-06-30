@@ -20,10 +20,14 @@ import einops
 import torch
 from PIL import Image
 
-from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import MegatronControlNet
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import DDIMSampler
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.plms import PLMSSampler
-from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
+from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import \
+    MegatronControlNet
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import \
+    DDIMSampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.plms import \
+    PLMSSampler
+from nemo.collections.multimodal.parts.utils import \
+    setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
 
 

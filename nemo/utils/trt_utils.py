@@ -14,7 +14,9 @@
 
 try:
     import tensorrt as trt
-    from polygraphy.backend.trt import CreateConfig, Profile, engine_from_network, network_from_onnx_path, save_engine
+    from polygraphy.backend.trt import (CreateConfig, Profile,
+                                        engine_from_network,
+                                        network_from_onnx_path, save_engine)
 
     HAVE_TRT = True
 

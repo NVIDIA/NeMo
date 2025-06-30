@@ -21,7 +21,8 @@ import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import LengthsType, LogprobsType, NeuralType, PredictionsType
+from nemo.core.neural_types import (LengthsType, LogprobsType, NeuralType,
+                                    PredictionsType)
 
 
 class _TokensWrapper:
@@ -110,16 +111,12 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
     ):
 
         try:
-            from flashlight.lib.text.decoder import (
-                LM,
-                CriterionType,
-                KenLM,
-                LexiconDecoder,
-                LexiconDecoderOptions,
-                SmearingMode,
-                Trie,
-            )
-            from flashlight.lib.text.dictionary import create_word_dict, load_words
+            from flashlight.lib.text.decoder import (LM, CriterionType, KenLM,
+                                                     LexiconDecoder,
+                                                     LexiconDecoderOptions,
+                                                     SmearingMode, Trie)
+            from flashlight.lib.text.dictionary import (create_word_dict,
+                                                        load_words)
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
                 "FlashLightKenLMBeamSearchDecoder requires the installation of flashlight python bindings "
@@ -199,7 +196,8 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 self.decoder_opts, self.trie, self.lm, self.silence, self.blank, self.unk_word, [], False,
             )
         else:
-            from flashlight.lib.text.decoder import LexiconFreeDecoder, LexiconFreeDecoderOptions
+            from flashlight.lib.text.decoder import (LexiconFreeDecoder,
+                                                     LexiconFreeDecoderOptions)
 
             d = {
                 w: [[w]]

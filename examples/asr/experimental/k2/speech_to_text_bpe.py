@@ -77,7 +77,8 @@ python speech_to_text_ctc_bpe.py \
 import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.configs.k2_sequence_models_config import EncDecK2SeqModelConfig
+from nemo.collections.asr.models.configs.k2_sequence_models_config import \
+    EncDecK2SeqModelConfig
 from nemo.collections.asr.models.k2_sequence_models import EncDecK2SeqModelBPE
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

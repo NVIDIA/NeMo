@@ -20,40 +20,29 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
+    MegatronPretrainingRandomSampler, MegatronPretrainingSampler)
 from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset_legacy import (
-    build_mock_train_valid_test_datasets,
-    build_train_valid_test_datasets,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+    build_mock_train_valid_test_datasets, build_train_valid_test_datasets)
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.mup.init import normal_
-from nemo.collections.nlp.modules.common.megatron.mup.shape import set_base_shapes
-from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import (
-    MegatronRetrievalTokenLevelEncoderDecoderModule,
-)
+from nemo.collections.nlp.modules.common.megatron.mup.shape import \
+    set_base_shapes
+from nemo.collections.nlp.modules.common.megatron.retrieval_token_level_encoder_decoder import \
+    MegatronRetrievalTokenLevelEncoderDecoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    build_position_ids,
-    get_params_for_weight_decay_optimization,
-)
-from nemo.collections.nlp.modules.common.text_generation_strategy import model_inference_strategy_dispatcher
+    average_losses_across_data_parallel_group, build_position_ids,
+    get_params_for_weight_decay_optimization)
+from nemo.collections.nlp.modules.common.text_generation_strategy import \
+    model_inference_strategy_dispatcher
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate,
-    get_computeprob_response,
-    get_default_length_params,
-    get_default_sampling_params,
-    megatron_gpt_generate,
-)
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    generate, get_computeprob_response, get_default_length_params,
+    get_default_sampling_params, megatron_gpt_generate)
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-    TextGeneration,
-)
+    LengthParam, OutputType, SamplingParam, TextGeneration)
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 

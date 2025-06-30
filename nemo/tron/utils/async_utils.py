@@ -19,7 +19,8 @@ the async checkpoint save calls.
 
 import logging
 
-from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, AsyncRequest
+from megatron.core.dist_checkpointing.strategies.async_utils import (
+    AsyncCallsQueue, AsyncRequest)
 
 from nemo.tron.config import CheckpointConfig
 from nemo.tron.utils.common_utils import print_rank_0

@@ -34,8 +34,10 @@ import numba
 import torch
 from numba import cuda
 
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
-from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt_kernel, reduce
+from nemo.collections.asr.parts.numba.rnnt_loss.utils import (global_constants,
+                                                              rnnt_helper)
+from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import (
+    gpu_rnnt_kernel, reduce)
 
 
 class GPURNNT:

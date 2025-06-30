@@ -13,6 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.multimodal.speech_llm.models.modular_models import (
-    CrossAttendModularAudioGPTModel,
-    ModularAudioGPTModel,
-)
+    CrossAttendModularAudioGPTModel, ModularAudioGPTModel)

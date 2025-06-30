@@ -17,13 +17,15 @@ import pytest
 import torch
 from numba import cuda
 
-from nemo.collections.asr.losses.rnnt_pytorch import MultiblankRNNTLossPytorch, TDTLossPytorch
+from nemo.collections.asr.losses.rnnt_pytorch import (
+    MultiblankRNNTLossPytorch, TDTLossPytorch)
 from nemo.collections.asr.parts.numba.rnnt_loss import rnnt_numpy
-from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import certify_inputs
-from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import gpu_rnnt_kernel, reduce
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import \
+    certify_inputs
+from nemo.collections.asr.parts.numba.rnnt_loss.utils.cuda_utils import (
+    gpu_rnnt_kernel, reduce)
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
-
 
 DTYPES = [torch.float32]
 if numba_utils.is_numba_cuda_fp16_supported():

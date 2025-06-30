@@ -18,10 +18,13 @@ import torch
 from lightning.pytorch import Trainer
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import \
+    MegatronRetrievalModel
+from nemo.collections.nlp.modules.common.text_generation_server import \
+    MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.core.config import hydra_runner
 
 try:

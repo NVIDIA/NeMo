@@ -19,7 +19,6 @@ from typing import Dict
 
 from syllabify import syllabify
 
-
 """
 Usage:
     cd NeMo/scripts && python dataset_processing/g2p/convert_cmu_arpabet_to_ipa.py

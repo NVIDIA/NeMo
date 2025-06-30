@@ -17,14 +17,12 @@ from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.modules.common.megatron.mup.shape import make_base_shapes
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import \
+    MegatronRetrievalModel
+from nemo.collections.nlp.modules.common.megatron.mup.shape import \
+    make_base_shapes
 from nemo.collections.nlp.parts.nlp_overrides import (
-    CustomProgressBar,
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-)
+    CustomProgressBar, GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

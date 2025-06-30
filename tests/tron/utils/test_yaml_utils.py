@@ -21,12 +21,10 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from nemo.tron.utils.yaml_utils import (
-    _function_representer,
-    _safe_object_representer,
-    _torch_dtype_representer,
-    safe_yaml_representers,
-)
+from nemo.tron.utils.yaml_utils import (_function_representer,
+                                        _safe_object_representer,
+                                        _torch_dtype_representer,
+                                        safe_yaml_representers)
 
 
 # Test fixtures

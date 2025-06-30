@@ -14,6 +14,4 @@
 
 
 from nemo.collections.nlp.data.text_normalization_as_tagging.thutmose_tagger_dataset import (
-    ThutmoseTaggerDataset,
-    ThutmoseTaggerTestDataset,
-)
+    ThutmoseTaggerDataset, ThutmoseTaggerTestDataset)

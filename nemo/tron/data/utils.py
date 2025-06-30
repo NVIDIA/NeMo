@@ -16,11 +16,14 @@ from dataclasses import fields
 from typing import Callable
 
 from megatron.core import mpu
-from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-from megatron.core.datasets.blended_megatron_dataset_config import BlendedMegatronDatasetConfig
+from megatron.core.datasets.blended_megatron_dataset_builder import \
+    BlendedMegatronDatasetBuilder
+from megatron.core.datasets.blended_megatron_dataset_config import \
+    BlendedMegatronDatasetConfig
 from megatron.core.datasets.gpt_dataset import GPTDataset, MockGPTDataset
 
-from nemo.tron.config import DataloaderConfig, FinetuningDatasetConfig, GPTDatasetConfig
+from nemo.tron.config import (DataloaderConfig, FinetuningDatasetConfig,
+                              GPTDatasetConfig)
 from nemo.tron.data.finetuning_dataset import FinetuningDatasetBuilder
 from nemo.tron.data.hf_dataset import HFDatasetBuilder, HFDatasetConfig
 from nemo.tron.tokenizers.tokenizer import MegatronTokenizer

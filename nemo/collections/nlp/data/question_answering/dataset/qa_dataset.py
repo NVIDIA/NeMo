@@ -22,10 +22,7 @@ import torch
 
 from nemo.collections.nlp.data.data_utils import is_whitespace
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
-    EVALUATION_MODE,
-    INFERENCE_MODE,
-    TRAINING_MODE,
-)
+    EVALUATION_MODE, INFERENCE_MODE, TRAINING_MODE)
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning

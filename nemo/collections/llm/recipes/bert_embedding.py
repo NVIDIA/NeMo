@@ -21,8 +21,10 @@ from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
-from nemo.collections.llm import BertEmbeddingLargeConfig, BertEmbeddingMiniConfig, BertEmbeddingModel
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
+from nemo.collections.llm import (BertEmbeddingLargeConfig,
+                                  BertEmbeddingMiniConfig, BertEmbeddingModel)
+from nemo.collections.llm.recipes.precision.mixed_precision import (bf16_mixed,
+                                                                    fp16_mixed)
 
 
 def bert_embedding_model(version: str) -> run.Config[pl.LightningModule]:

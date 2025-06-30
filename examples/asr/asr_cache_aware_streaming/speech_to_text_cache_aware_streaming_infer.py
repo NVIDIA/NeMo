@@ -93,7 +93,8 @@ from omegaconf import open_dict
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
+from nemo.collections.asr.parts.utils.streaming_utils import \
+    CacheAwareStreamingAudioBuffer
 from nemo.utils import logging
 
 

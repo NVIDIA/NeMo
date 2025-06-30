@@ -15,8 +15,10 @@
 import logging
 from typing import TYPE_CHECKING
 
-from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Exporter as _NeMo2HFQwen2Exporter
-from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Importer as _NeMo2HFQwen2Importer
+from nemo.collections.llm.gpt.model.qwen2 import \
+    HFQwen2Exporter as _NeMo2HFQwen2Exporter
+from nemo.collections.llm.gpt.model.qwen2 import \
+    HFQwen2Importer as _NeMo2HFQwen2Importer
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
 from nemo.tron.converter.common import BaseExporter, BaseImporter
 

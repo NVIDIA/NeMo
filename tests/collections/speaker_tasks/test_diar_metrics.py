@@ -18,11 +18,8 @@ import pytest
 import torch
 
 from nemo.collections.asr.metrics.der import (
-    calculate_session_cpWER,
-    calculate_session_cpWER_bruteforce,
-    get_online_DER_stats,
-    get_partial_ref_labels,
-)
+    calculate_session_cpWER, calculate_session_cpWER_bruteforce,
+    get_online_DER_stats, get_partial_ref_labels)
 
 
 def word_count(spk_transcript):

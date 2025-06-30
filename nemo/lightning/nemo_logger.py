@@ -20,7 +20,8 @@ from typing import List, Optional, Union
 
 import lightning.fabric as fl
 import lightning.pytorch as pl
-from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
+from lightning.pytorch.callbacks.model_checkpoint import \
+    ModelCheckpoint as PTLModelCheckpoint
 from lightning.pytorch.loggers import Logger, TensorBoardLogger, WandbLogger
 
 from nemo.lightning.io.mixin import IOMixin

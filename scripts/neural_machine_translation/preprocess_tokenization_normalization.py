@@ -15,7 +15,8 @@
 import logging
 from argparse import ArgumentParser
 
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import \
+    MTEncDecModel
 
 """
 python preprocess_tokenization_normalization.py --input-src train.en \

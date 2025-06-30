@@ -90,8 +90,10 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
             )
 
         # Collect imports to prevent circular imports
-        from nemo.collections.asr.modules.transformer import transformer_modules as transformer_mha
-        from nemo.collections.asr.parts.submodules import multi_head_attention as conformer_mha
+        from nemo.collections.asr.modules.transformer import \
+            transformer_modules as transformer_mha
+        from nemo.collections.asr.parts.submodules import \
+            multi_head_attention as conformer_mha
 
         # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
         x = input['x']

@@ -20,14 +20,19 @@ import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
 
 from nemo import lightning as nl
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import \
+    HFAutoModelForCausalLM
 from nemo.collections.llm.peft.lora import LoRA
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.log.default import (default_log,
+                                                      default_resume,
+                                                      tensorboard_logger)
+from nemo.collections.llm.recipes.optim.adam import \
+    pytorch_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "hf_auto_model_for_causal_lm"

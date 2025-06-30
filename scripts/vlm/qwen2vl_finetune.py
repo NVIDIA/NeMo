@@ -39,7 +39,8 @@ import argparse
 import torch
 from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
-from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageProcessor
+from transformers.models.qwen2_vl.image_processing_qwen2_vl import \
+    Qwen2VLImageProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
@@ -93,7 +94,8 @@ def main(args):
             num_workers=1,
         )
     elif args.data_type == "energon":
-        from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
+        from nemo.collections.multimodal.data.energon import \
+            EnergonMultiModalDataModule
 
         # Initialize the data module
         use_packed_sequence = False

@@ -16,7 +16,6 @@ import glob
 import os
 from typing import List
 
-
 from nemo.utils import logging
 
 LLM_VOCAB_SIZE_MAP = {

@@ -16,7 +16,8 @@ from typing import Tuple
 
 import numpy as np
 
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 from nemo.utils import logging
 
 try:

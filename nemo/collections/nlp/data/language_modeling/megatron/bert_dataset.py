@@ -21,13 +21,10 @@ import numpy as np
 import torch
 
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
-    create_masked_lm_predictions,
-    create_tokens_and_tokentypes,
-    get_a_and_b_segments,
-    get_samples_mapping,
-    truncate_segments,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import MMapIndexedDataset
+    create_masked_lm_predictions, create_tokens_and_tokentypes,
+    get_a_and_b_segments, get_samples_mapping, truncate_segments)
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import \
+    MMapIndexedDataset
 
 
 class BertDataset(torch.utils.data.Dataset):

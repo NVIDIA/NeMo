@@ -25,7 +25,8 @@ from einops import rearrange, repeat
 from lightning.fabric.utilities.cloud_io import _load as pl_load
 from lightning.pytorch import Trainer
 from lightning.pytorch.core.saving import _load_state as ptl_load_state
-from lightning.pytorch.core.saving import load_hparams_from_tags_csv, load_hparams_from_yaml
+from lightning.pytorch.core.saving import (load_hparams_from_tags_csv,
+                                           load_hparams_from_yaml)
 from lightning.pytorch.utilities.migration import pl_legacy_patch
 from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from omegaconf import DictConfig, open_dict
@@ -35,40 +36,28 @@ from tqdm import tqdm
 
 from nemo.collections.multimodal.data.common.utils import get_collate_fn
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
-    build_train_valid_datasets,
-    build_train_valid_precached_clip_datasets,
-    build_train_valid_precached_datasets,
-)
+    build_train_valid_datasets, build_train_valid_precached_clip_datasets,
+    build_train_valid_precached_datasets)
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder import (
-    AutoencoderKL,
-    IdentityFirstStage,
-    VQModelInterface,
-)
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import DDIMSampler
-from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+    AutoencoderKL, IdentityFirstStage, VQModelInterface)
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import \
+    DDIMSampler
+from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+    LinearWrapper
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
-    extract_into_tensor,
-    make_beta_schedule,
-    noise_like,
-)
+    extract_into_tensor, make_beta_schedule, noise_like)
 from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
-    DiagonalGaussianDistribution,
-    normal_kl,
-)
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import LoraWrapper
+    DiagonalGaussianDistribution, normal_kl)
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import \
+    LoraWrapper
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
-    count_params,
-    default,
-    exists,
-    isimage,
-    ismap,
-    log_txt_as_img,
-    mean_flat,
-)
+    count_params, default, exists, isimage, ismap, log_txt_as_img, mean_flat)
 from nemo.collections.multimodal.parts.utils import randn_like
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import \
+    NLPAdapterModelMixin
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
@@ -77,7 +66,8 @@ from nemo.utils import logging, model_utils
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 

@@ -27,44 +27,39 @@ from lightning.pytorch.accelerators import CPUAccelerator
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
 
-from nemo.collections.common.parts.utils import apply_rope_scaling, extend_instance
+from nemo.collections.common.parts.utils import (apply_rope_scaling,
+                                                 extend_instance)
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronCorePretrainingSampler,
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import GPTFIMDataset, GPTFIMDatasetConfig
-from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import get_falcon_layer_spec
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
-    get_gpt_full_te_layer_autocast_spec,
-)
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
+    MegatronCorePretrainingSampler, MegatronPretrainingRandomSampler,
+    MegatronPretrainingSampler)
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import \
+    build_train_valid_test_datasets
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_fim_dataset import (
+    GPTFIMDataset, GPTFIMDatasetConfig)
+from nemo.collections.nlp.models.language_modeling.megatron.falcon.falcon_spec import \
+    get_falcon_layer_spec
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import \
+    get_gpt_full_te_layer_autocast_spec
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import \
+    get_gpt_layer_modelopt_spec
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import \
+    GPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.build_model import \
+    build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    average_losses_across_data_parallel_group,
+    ApexGuardDefaults, average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
-    get_ltor_masks_and_position_ids,
-    get_params_for_weight_decay_optimization,
-)
-from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
+    get_ltor_masks_and_position_ids, get_params_for_weight_decay_optimization)
+from nemo.collections.nlp.modules.common.text_generation_strategy import \
+    TextGenerationStrategy
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate,
-    get_computeprob_response,
-    get_default_length_params,
-    get_default_sampling_params,
-    megatron_gpt_generate,
-)
+    generate, get_computeprob_response, get_default_length_params,
+    get_default_sampling_params, megatron_gpt_generate)
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-    TextGeneration,
-)
+    LengthParam, OutputType, SamplingParam, TextGeneration)
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
@@ -76,26 +71,32 @@ from nemo.utils.te_utils import is_float8tensor, te_version
 
 try:
     from megatron.core import InferenceParams, parallel_state
-    from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
-    from megatron.core.datasets.gpt_dataset import GPTDataset, GPTDatasetConfig, MockGPTDataset
+    from megatron.core.datasets.blended_megatron_dataset_builder import \
+        BlendedMegatronDatasetBuilder
+    from megatron.core.datasets.gpt_dataset import (GPTDataset,
+                                                    GPTDatasetConfig,
+                                                    MockGPTDataset)
     from megatron.core.datasets.utils import get_blend_from_list
-    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
-    from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
+    from megatron.core.dist_checkpointing.dict_utils import \
+        dict_list_map_inplace
+    from megatron.core.dist_checkpointing.mapping import (
+        LocalNonpersistentObject, ShardedObject)
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
-    from megatron.core.distributed import DistributedDataParallelConfig, finalize_model_grads
-
+    from megatron.core.distributed import (DistributedDataParallelConfig,
+                                           finalize_model_grads)
     # NeMo's implementation of the get_gpt_layer_ammo_spec function is temporarily used
     # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import (
-        get_gpt_decoder_block_spec,
-        get_gpt_layer_local_spec,
-        get_gpt_layer_with_transformer_engine_spec,
-    )
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+        get_gpt_decoder_block_spec, get_gpt_layer_local_spec,
+        get_gpt_layer_with_transformer_engine_spec)
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.utils import drain_embedding_wgrad_compute, get_model_config, is_te_min_version
+    from megatron.core.utils import (drain_embedding_wgrad_compute,
+                                     get_model_config, is_te_min_version)
 
     HAVE_MEGATRON_CORE = True
 
@@ -107,18 +108,14 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
-        get_current_global_batch_size,
-        get_num_microbatches,
-        update_num_microbatches,
-    )
+        get_current_global_batch_size, get_num_microbatches,
+        update_num_microbatches)
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
     from apex.transformer.pipeline_parallel.utils import (
-        get_current_global_batch_size,
-        get_num_microbatches,
-        update_num_microbatches,
-    )
+        get_current_global_batch_size, get_num_microbatches,
+        update_num_microbatches)
 
 transformer_engine, HAVE_TE = safe_import("transformer_engine")
 te_module, HAVE_TE_MODULE = safe_import_from("transformer_engine.pytorch", "module")
@@ -134,7 +131,8 @@ def mcore_supports_moe() -> bool:
     if not HAVE_MEGATRON_CORE:
         return False
     try:
-        from megatron.core.transformer.moe.router import TopKRouter  # noqa: F401
+        from megatron.core.transformer.moe.router import \
+            TopKRouter  # noqa: F401
 
         return True
     except ImportError:
@@ -143,7 +141,8 @@ def mcore_supports_moe() -> bool:
 
 # TODO: This function will not work if TE is not installed
 def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict = None, fp8=False):
-    from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import get_gemma2_layer_spec
+    from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_spec import \
+        get_gemma2_layer_spec
 
     # else cases for backwards compatibility with neva
     num_experts = transformer_config.num_moe_experts if transformer_config else None
@@ -200,7 +199,8 @@ def mcore_model_customize(cfg, model):
             old_context_len=cfg.get('old_context_len', 8192),
         )
     if cfg.get("mcore_customization_config", {}).get("final_logit_softcapping", 0):
-        from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import Gemma2OutputLayer
+        from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import \
+            Gemma2OutputLayer
 
         extend_instance(model.output_layer, Gemma2OutputLayer)
     if cfg.get("drop_layers"):
@@ -1333,7 +1333,8 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     else:
                         cu_seqlens_unpadded = cu_seqlens_unpadded[: torch.argmin(cu_seqlens_unpadded)]
                     try:
-                        from megatron.core.packed_seq_params import PackedSeqParams
+                        from megatron.core.packed_seq_params import \
+                            PackedSeqParams
                     except (ImportError, ModuleNotFoundError) as e:
                         mcore_version = packaging.version.Version(version('megatron-core'))
                         logging.error(

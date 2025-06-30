@@ -20,10 +20,14 @@ import pytest
 import soundfile as sf
 import torch
 
-from nemo.collections.asr.data.audio_to_label import AudioToMultiLabelDataset, TarredAudioToClassificationLabelDataset
-from nemo.collections.asr.data.feature_to_label import FeatureToLabelDataset, FeatureToSeqSpeakerLabelDataset
-from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.data.audio_to_label import (
+    AudioToMultiLabelDataset, TarredAudioToClassificationLabelDataset)
+from nemo.collections.asr.data.feature_to_label import (
+    FeatureToLabelDataset, FeatureToSeqSpeakerLabelDataset)
+from nemo.collections.asr.parts.preprocessing.feature_loader import \
+    ExternalFeatureLoader
+from nemo.collections.asr.parts.preprocessing.features import \
+    WaveformFeaturizer
 
 
 class TestASRDatasets:

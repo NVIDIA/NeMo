@@ -22,7 +22,8 @@ from megatron.core import dist_checkpointing
 from megatron.core import parallel_state as ps
 from megatron.core.enums import ModelType
 from megatron.core.inference_params import InferenceParams
-from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
+from megatron.core.models.multimodal.llava_model import \
+    LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel import scatter_to_sequence_parallel_region
 from megatron.core.transformer.spec_utils import ModuleSpec
@@ -32,17 +33,22 @@ from torch import nn
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.fn.activation import quick_gelu
-from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+from nemo.collections.llm.gpt.model.base import (
+    get_batch_on_this_context_parallel_rank, get_packed_seq_params)
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
 from nemo.collections.vlm.layer_specs import get_layer_spec_te
-from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, restore_model_weights
-from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, VIDEO_TOKEN_INDEX
+from nemo.collections.vlm.neva.model.base import (MODEL_CONFIG_ATTR,
+                                                  restore_model_weights)
+from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
+    IGNORE_INDEX, IMAGE_TOKEN_INDEX, VIDEO_TOKEN_INDEX)
 from nemo.collections.vlm.qwen2vl.model.vision import Qwen2VisionModel
 from nemo.collections.vlm.vision import MultimodalProjectorConfig
 from nemo.collections.vlm.vision.base import get_image_sequence_length
 from nemo.lightning import io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.megatron_parallel import \
+    MaskedTokenLossReductionWithLossMask
+from nemo.lightning.pytorch.optim import (MegatronOptimizerModule,
+                                          OptimizerModule)
 from nemo.utils import logging
 
 

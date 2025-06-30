@@ -25,31 +25,24 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
-from nemo.collections.tts.losses.fastpitchloss import DurationLoss, EnergyLoss, MelLoss, PitchLoss
+from nemo.collections.tts.losses.fastpitchloss import (DurationLoss,
+                                                       EnergyLoss, MelLoss,
+                                                       PitchLoss)
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.modules.fastpitch import FastPitchModule
 from nemo.collections.tts.parts.mixins import FastPitchAdapterModelMixin
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
 from nemo.collections.tts.parts.utils.helpers import (
-    batch_from_ragged,
-    g2p_backward_compatible_support,
-    plot_alignment_to_numpy,
-    plot_spectrogram_to_numpy,
-    process_batch,
-    sample_tts_input,
-)
+    batch_from_ragged, g2p_backward_compatible_support,
+    plot_alignment_to_numpy, plot_spectrogram_to_numpy, process_batch,
+    sample_tts_input)
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    Index,
-    LengthsType,
-    MelSpectrogramType,
-    ProbsType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenIndex,
-    TokenLogDurationType,
-)
+from nemo.core.neural_types.elements import (Index, LengthsType,
+                                             MelSpectrogramType, ProbsType,
+                                             RegressionValuesType,
+                                             TokenDurationType, TokenIndex,
+                                             TokenLogDurationType)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 

@@ -24,9 +24,7 @@ from tensorrt_llm.layers import MoeConfig
 from tensorrt_llm.models.modeling_utils import PretrainedConfig
 
 from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
-    convert_model_to_trt_llm_ckpt,
-    dist_model_to_trt_llm_ckpt,
-)
+    convert_model_to_trt_llm_ckpt, dist_model_to_trt_llm_ckpt)
 from nemo.export.trt_llm.converter.utils import DECODER_MODEL_TYPE, split
 
 LOGGER = logging.getLogger("NeMo")

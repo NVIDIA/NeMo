@@ -23,11 +23,13 @@ import torch
 
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
-from nemo.collections.asr.parts.submodules.wfst_decoder import RivaDecoderConfig, WfstNbestHypothesis
+from nemo.collections.asr.parts.submodules.wfst_decoder import (
+    RivaDecoderConfig, WfstNbestHypothesis)
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
+from nemo.core.neural_types import (HypothesisType, LengthsType, LogprobsType,
+                                    NeuralType)
 from nemo.utils import logging
 
 
@@ -363,7 +365,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 vocab = self.vocab
 
             # Must import at runtime to avoid circular dependency due to module level import.
-            from nemo.collections.asr.modules.beam_search_decoder import BeamSearchDecoderWithLM
+            from nemo.collections.asr.modules.beam_search_decoder import \
+                BeamSearchDecoderWithLM
 
             self.default_beam_scorer = BeamSearchDecoderWithLM(
                 vocab=vocab,
@@ -547,7 +550,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             #    vocab = self.vocab
 
             # Must import at runtime to avoid circular dependency due to module level import.
-            from nemo.collections.asr.modules.flashlight_decoder import FlashLightKenLMBeamSearchDecoder
+            from nemo.collections.asr.modules.flashlight_decoder import \
+                FlashLightKenLMBeamSearchDecoder
 
             self.flashlight_beam_scorer = FlashLightKenLMBeamSearchDecoder(
                 lm_path=self.kenlm_path,
@@ -770,7 +774,8 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
             ctc_topology = "default"  # there is no way to indicate the need of other topologies
             target = "kaldi" if self.search_type == "riva" else "k2"
 
-            from nemo.collections.asr.parts.utils.wfst_utils import mkgraph_ctc_ov
+            from nemo.collections.asr.parts.utils.wfst_utils import \
+                mkgraph_ctc_ov
 
             lm_fst, tokenword_disambig_id = mkgraph_ctc_ov(
                 tokenizer=self.tokenizer,
@@ -803,7 +808,8 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 # trying to extract tokenword_disambig_id from the lm_fst
                 if isinstance(lm_fst, str):
                     # use importer instead of direct import to possibly get an installation message
-                    from nemo.collections.asr.parts.utils.wfst_utils import kaldifst_importer
+                    from nemo.collections.asr.parts.utils.wfst_utils import \
+                        kaldifst_importer
 
                     kaldifst = kaldifst_importer()
                     lm_fst = kaldifst.StdVectorFst.read(self.wfst_lm_path)
@@ -817,7 +823,8 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
             if not self.device.startswith("cuda"):
                 raise ValueError(f"Riva decoder does not support non-cuda device. Provided: `{self.device}`")
 
-            from nemo.collections.asr.parts.submodules.wfst_decoder import RivaGpuWfstDecoder
+            from nemo.collections.asr.parts.submodules.wfst_decoder import \
+                RivaGpuWfstDecoder
 
             self.riva_decoder = RivaGpuWfstDecoder(
                 lm_fst=lm_fst,
@@ -861,7 +868,8 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                         "which is required if `open_vocabulary_decoding` == True"
                     )
 
-            from nemo.collections.asr.parts.k2.graph_decoders import K2WfstDecoder
+            from nemo.collections.asr.parts.k2.graph_decoders import \
+                K2WfstDecoder
 
             self.k2_decoder = K2WfstDecoder(
                 lm_fst=lm_fst,

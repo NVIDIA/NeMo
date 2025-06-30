@@ -19,15 +19,20 @@ import torch
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 from torch import nn
-from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification
+from transformers import (AutoModelForTokenClassification, AutoTokenizer,
+                          DataCollatorForTokenClassification)
 from transformers.tokenization_utils_base import BatchEncoding
 
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset, constants
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
+from nemo.collections.nlp.data.text_normalization import (
+    TextNormalizationTaggerDataset, constants)
+from nemo.collections.nlp.metrics.classification_report import \
+    ClassificationReport
+from nemo.collections.nlp.models.duplex_text_normalization.utils import \
+    has_numbers
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
+from nemo.core.neural_types import (ChannelType, LogitsType, MaskType,
+                                    NeuralType)
 from nemo.utils import logging
 
 __all__ = ['DuplexTaggerModel']

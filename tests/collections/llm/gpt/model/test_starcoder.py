@@ -14,7 +14,8 @@
 
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig, StarcoderConfig15B
+from nemo.collections.llm.gpt.model.starcoder import (StarcoderConfig,
+                                                      StarcoderConfig15B)
 
 
 def test_starcoder_config():

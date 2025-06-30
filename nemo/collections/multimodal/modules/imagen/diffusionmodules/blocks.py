@@ -24,15 +24,13 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 from einops import rearrange
 
-from nemo.collections.multimodal.modules.imagen.diffusionmodules import attention_alt
+from nemo.collections.multimodal.modules.imagen.diffusionmodules import \
+    attention_alt
 
 if attention_alt.USE_ALT:
     from nemo.collections.multimodal.modules.imagen.diffusionmodules.attention_alt import (
-        QKVAttention,
-        QKVMaskedAttention,
-        QKVStableAttention,
-        QKVStableMaskedAttention,
-    )
+        QKVAttention, QKVMaskedAttention, QKVStableAttention,
+        QKVStableMaskedAttention)
 else:
     from nemo.collections.multimodal.modules.imagen.diffusionmodules.attention import (
         QKVAttention,
@@ -40,15 +38,10 @@ else:
         QKVStableAttention,
         QKVStableMaskedAttention,
     )
+
 from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import (
-    Downsample,
-    Upsample,
-    UpsampleLearnable,
-    conv_nd,
-    linear,
-    normalization,
-    zero_module,
-)
+    Downsample, Upsample, UpsampleLearnable, conv_nd, linear, normalization,
+    zero_module)
 
 
 def check_cuda():
@@ -64,7 +57,8 @@ def check_cuda():
 
 
 try:
-    from flash_attn import flash_attn_varlen_func, flash_attn_varlen_kvpacked_func
+    from flash_attn import (flash_attn_varlen_func,
+                            flash_attn_varlen_kvpacked_func)
 
     flash_attn_installed = check_cuda()
 except ImportError:

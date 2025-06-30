@@ -22,14 +22,17 @@ from typing import Any, Dict, List, Optional, Sequence
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from torch.utils import data
 from torch.utils.data import DataLoader, default_collate
 
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_ltor_masks_and_position_ids
 from nemo.collections.vlm.mllama.model.utils import create_vision_mask_tensor
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
-from nemo.collections.vlm.neva.data.preloaded import IGNORE_INDEX, LazySupervisedDataset
+from nemo.collections.vlm.neva.data.preloaded import (IGNORE_INDEX,
+                                                      LazySupervisedDataset)
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
@@ -296,9 +299,11 @@ class MLlamaPreloadedDataModule(pl.LightningDataModule):
 
         """
         try:
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from apex.transformer.pipeline_parallel.utils import \
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         except ModuleNotFoundError:
-            from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from nemo.lightning.apex_utils import \
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples

@@ -16,8 +16,10 @@ import torch
 from einops import rearrange
 from tqdm import tqdm
 
-from nemo.collections.multimodal.modules.imagen.sampler.batch_ops import batch_div, batch_mul
-from nemo.collections.multimodal.modules.imagen.sampler.continuous_ddpm import GaussianDiffusionContinuousTimes
+from nemo.collections.multimodal.modules.imagen.sampler.batch_ops import (
+    batch_div, batch_mul)
+from nemo.collections.multimodal.modules.imagen.sampler.continuous_ddpm import \
+    GaussianDiffusionContinuousTimes
 
 
 def right_pad_dims_to(x, t):

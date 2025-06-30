@@ -16,7 +16,8 @@ import torch
 from torchmetrics.audio.snr import SignalNoiseRatio
 
 from nemo.collections.audio.metrics.audio import AudioMetricWrapper
-from nemo.collections.audio.metrics.squim import SquimMOSMetric, SquimObjectiveMetric
+from nemo.collections.audio.metrics.squim import (SquimMOSMetric,
+                                                  SquimObjectiveMetric)
 
 try:
     import torchaudio

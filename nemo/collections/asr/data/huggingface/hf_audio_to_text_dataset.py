@@ -15,11 +15,8 @@
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data.huggingface.hf_audio_to_text import (
-    HFAudioToBPEDataset,
-    HFAudioToCharDataset,
-    HFIterableAudioToBPEDataset,
-    HFIterableAudioToCharDataset,
-)
+    HFAudioToBPEDataset, HFAudioToCharDataset, HFIterableAudioToBPEDataset,
+    HFIterableAudioToCharDataset)
 
 
 def get_hf_audio_to_text_bpe_dataset(

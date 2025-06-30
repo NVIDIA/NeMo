@@ -22,16 +22,9 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo.collections import llm
 from nemo.tron.api import megatron_pretrain
-from nemo.tron.config import (
-    CheckpointConfig,
-    ConfigContainer,
-    GPTDatasetConfig,
-    LoggerConfig,
-    RNGConfig,
-    SchedulerConfig,
-    TokenizerConfig,
-    TrainingConfig,
-)
+from nemo.tron.config import (CheckpointConfig, ConfigContainer,
+                              GPTDatasetConfig, LoggerConfig, RNGConfig,
+                              SchedulerConfig, TokenizerConfig, TrainingConfig)
 from nemo.tron.llm.gpt import forward_step
 
 

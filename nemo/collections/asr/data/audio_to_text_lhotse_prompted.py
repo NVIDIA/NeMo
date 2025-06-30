@@ -21,7 +21,8 @@ from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
 from nemo.collections.common.data import apply_prompt_format_fn
-from nemo.collections.common.prompts import CanaryPromptFormatter, PromptFormatter
+from nemo.collections.common.prompts import (CanaryPromptFormatter,
+                                             PromptFormatter)
 from nemo.collections.common.tokenizers import TokenizerSpec
 
 

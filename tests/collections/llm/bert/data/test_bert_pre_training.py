@@ -18,7 +18,8 @@ import tempfile
 import pytest
 from lightning.pytorch.utilities.exceptions import MisconfigurationException
 
-from nemo.collections.llm.bert.data.pre_training import BERTPreTrainingDataModule
+from nemo.collections.llm.bert.data.pre_training import \
+    BERTPreTrainingDataModule
 
 
 # Helper function to create temporary dataset files

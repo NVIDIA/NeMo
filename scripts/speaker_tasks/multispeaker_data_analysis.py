@@ -28,10 +28,8 @@ from scipy.stats import expon
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.vad_utils import (
-    get_nonspeech_segments,
-    load_speech_overlap_segments_from_rttm,
-    plot_sample_from_rttm,
-)
+    get_nonspeech_segments, load_speech_overlap_segments_from_rttm,
+    plot_sample_from_rttm)
 
 """
 This script analyzes multi-speaker speech dataset and generates statistics.

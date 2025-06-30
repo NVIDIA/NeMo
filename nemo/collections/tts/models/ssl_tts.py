@@ -26,7 +26,8 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.collections.asr.losses.angularloss import AngularSoftmaxLoss
 from nemo.collections.tts.data.dataset import TTSDataset
 from nemo.collections.tts.modules.ssl_tts import GreedyCTCDecoder
-from nemo.collections.tts.torch.tts_tokenizers import BaseTokenizer, EnglishCharsTokenizer
+from nemo.collections.tts.torch.tts_tokenizers import (BaseTokenizer,
+                                                       EnglishCharsTokenizer)
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.optim.lr_scheduler import WarmupPolicy

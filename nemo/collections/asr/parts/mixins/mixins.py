@@ -25,7 +25,8 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import Tensor
 
 import nemo.collections.asr.models as asr_models
-from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASRAdapterModelMixin
+from nemo.collections.asr.parts.mixins.asr_adapter_mixins import \
+    ASRAdapterModelMixin
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.utils import asr_module_utils
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
@@ -853,7 +854,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         Returns:
             a new batch streaming buffer
         """
-        from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
+        from nemo.collections.asr.parts.utils.streaming_utils import \
+            CacheAwareStreamingAudioBuffer
 
         streaming_buffer = CacheAwareStreamingAudioBuffer(model=self, online_normalization=online_normalization)
         for sample_idx, sample in enumerate(paths2audio_files):

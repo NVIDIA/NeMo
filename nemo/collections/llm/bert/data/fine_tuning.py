@@ -123,11 +123,13 @@ class FineTuningDataModule(pl.LightningDataModule):
 
         """
         try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                update_num_microbatches
         consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples

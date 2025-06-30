@@ -19,8 +19,8 @@ from typing import Dict, List, Union
 
 import torch.cuda
 
-from nemo.collections.nlp.models import PunctuationCapitalizationLexicalAudioModel, PunctuationCapitalizationModel
-
+from nemo.collections.nlp.models import (
+    PunctuationCapitalizationLexicalAudioModel, PunctuationCapitalizationModel)
 
 """
 This script is for restoring punctuation and capitalization.

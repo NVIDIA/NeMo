@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.duplex_text_normalization.duplex_decoder import DuplexDecoderModel
-from nemo.collections.nlp.models.duplex_text_normalization.duplex_tagger import DuplexTaggerModel
-from nemo.collections.nlp.models.duplex_text_normalization.duplex_tn import DuplexTextNormalizationModel
+from nemo.collections.nlp.models.duplex_text_normalization.duplex_decoder import \
+    DuplexDecoderModel
+from nemo.collections.nlp.models.duplex_text_normalization.duplex_tagger import \
+    DuplexTaggerModel
+from nemo.collections.nlp.models.duplex_text_normalization.duplex_tn import \
+    DuplexTextNormalizationModel

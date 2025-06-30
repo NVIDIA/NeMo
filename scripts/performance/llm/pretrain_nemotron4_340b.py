@@ -19,23 +19,19 @@ import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
 
 from nemo.collections.llm.recipes.nemotron4_340b import pretrain_recipe
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+from nemo.collections.llm.recipes.precision.mixed_precision import \
+    bf16_with_fp8_mixed
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_bf16_b200_h18432_tp8_mbs1_seqlen4096,
-    userbuffers_fp8_b200_h18432_tp8_mbs1_seqlen4096,
-)
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    userbuffers_fp8_b200_h18432_tp8_mbs1_seqlen4096)
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_comm_overlap_callback_idx,
-    get_user_configs,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..utils import (args_sanity_check, get_comm_overlap_callback_idx,
+                     get_user_configs, set_exp_logging_configs,
+                     set_primary_perf_configs, slurm_executor)
 
 
 def override_recipe_configs(

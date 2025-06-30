@@ -17,9 +17,11 @@ from typing import Dict, List, Optional
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    build_position_ids
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import ChannelType, EncodedRepresentation, MaskType, NeuralType
+from nemo.core.neural_types import (ChannelType, EncodedRepresentation,
+                                    MaskType, NeuralType)
 
 __all__ = ["TokensHeadEmb", "DecEmb", "EncEmb"]
 

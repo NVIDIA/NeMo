@@ -14,6 +14,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Optional
+
 from nemo.utils import logging
 
 
@@ -60,7 +61,8 @@ class BaseG2p(ABC):
         """
 
         try:
-            from nemo.collections.tts.g2p.models.heteronym_classification import HeteronymClassificationModel
+            from nemo.collections.tts.g2p.models.heteronym_classification import \
+                HeteronymClassificationModel
 
             self.heteronym_model = heteronym_model
             self.heteronym_model.set_wordid_to_phonemes(wordid_to_phonemes_file)

@@ -17,8 +17,10 @@ from typing import Optional, Union
 
 from omegaconf.dictconfig import DictConfig
 
-from nemo.collections.asr.modules.transformer.transformer import TransformerDecoderNM, TransformerEncoderNM
-from nemo.collections.asr.modules.transformer.transformer_bottleneck import TransformerBottleneckEncoderNM
+from nemo.collections.asr.modules.transformer.transformer import (
+    TransformerDecoderNM, TransformerEncoderNM)
+from nemo.collections.asr.modules.transformer.transformer_bottleneck import \
+    TransformerBottleneckEncoderNM
 
 __all__ = ['get_nemo_transformer']
 

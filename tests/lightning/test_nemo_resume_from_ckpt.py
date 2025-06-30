@@ -32,7 +32,8 @@ from megatron.core.transformer.enums import AttnBackend
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data import PreTrainingDataModule
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -248,7 +249,8 @@ class TestCkptStateRestoration:
             data_path = [DATA_PATH]
             data = setup_data(log_dir, n_steps, data_path, gbs=2, mbs=1)
             # Other tests might have different configs, so need to configure explicitly.
-            from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
+            from tests.lightning.mcore_microbatch_utils import \
+                reconfigure_num_microbatches_calculator_manager
 
             with reconfigure_num_microbatches_calculator_manager(
                 0,

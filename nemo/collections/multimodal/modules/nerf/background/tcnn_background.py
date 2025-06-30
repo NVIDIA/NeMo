@@ -17,7 +17,8 @@ import numpy as np
 import tinycudann as tcnn
 import torch
 
-from nemo.collections.multimodal.modules.nerf.background.nerf_background_base import NeRFBackgroundBase
+from nemo.collections.multimodal.modules.nerf.background.nerf_background_base import \
+    NeRFBackgroundBase
 
 
 class TCNNBackground(NeRFBackgroundBase):

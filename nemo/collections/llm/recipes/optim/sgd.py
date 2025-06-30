@@ -16,7 +16,8 @@ from typing import Optional
 
 import nemo_run as run
 
-from nemo.lightning.pytorch.optim import CosineAnnealingScheduler, PytorchOptimizerModule
+from nemo.lightning.pytorch.optim import (CosineAnnealingScheduler,
+                                          PytorchOptimizerModule)
 
 
 @run.cli.factory

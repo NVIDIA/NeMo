@@ -21,7 +21,8 @@ import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, compute_num_samples
+from lhotse import (CutSet, MonoCut, NumpyFilesWriter, Recording,
+                    compute_num_samples)
 from lhotse.audio import AudioLoadingError
 from lhotse.cut import Cut, MixedCut, PaddingCut
 from lhotse.dataset import RoundRobinSampler, ZipSampler
@@ -30,9 +31,12 @@ from lhotse.testing.dummies import dummy_recording
 from lhotse.testing.random import deterministic_rng
 from omegaconf import OmegaConf
 
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample, TextExample
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.text_adapters import (
+    SourceTargetTextExample, TextExample)
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+    SentencePieceTokenizer, create_spt_model)
 
 
 @pytest.fixture(scope="session")
@@ -995,7 +999,8 @@ def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
     import numpy as np
     import soundfile as sf
 
-    from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
+    from nemo.collections.common.data.lhotse.nemo_adapters import \
+        LazyNeMoIterator
 
     # Have to generate as INT16 to avoid quantization error after saving to 16-bit WAV
     INT16MAX = 2**15
@@ -1043,7 +1048,8 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     import numpy as np
     import soundfile as sf
 
-    from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
+    from nemo.collections.common.data.lhotse.nemo_adapters import \
+        LazyNeMoIterator
 
     # Have to generate as INT16 to avoid quantization error after saving to 16-bit WAV
     INT16MAX = 2**15

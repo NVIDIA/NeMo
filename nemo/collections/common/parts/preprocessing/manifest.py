@@ -20,7 +20,8 @@ from os.path import expanduser
 from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from nemo.utils import logging
-from nemo.utils.data_utils import DataStoreObject, get_datastore_object, is_datastore_path
+from nemo.utils.data_utils import (DataStoreObject, get_datastore_object,
+                                   is_datastore_path)
 from nemo.utils.nemo_logging import LogMode
 
 

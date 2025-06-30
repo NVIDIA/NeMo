@@ -22,11 +22,14 @@ from lhotse import CutSet, MonoCut
 from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig
 
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+from nemo.collections.asr.data.audio_to_text_lhotse import \
+    LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.submodules import \
+    rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import \
+    rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
 from nemo.core.utils import numba_utils

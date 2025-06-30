@@ -23,7 +23,8 @@ from omegaconf import DictConfig, OmegaConf
 from torch.optim import adadelta, adagrad, adamax, rmsprop, rprop
 from torch.optim.optimizer import Optimizer
 
-from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
+from nemo.core.config import (OptimizerParams, get_optimizer_config,
+                              register_optimizer_params)
 from nemo.core.optim.adafactor import Adafactor
 from nemo.core.optim.adan import Adan
 from nemo.core.optim.novograd import Novograd
@@ -58,7 +59,8 @@ HAVE_APEX_DISTRIBUTED_ADAM = False
 if HAVE_APEX:
     try:
         # Try importing wrapper for Apex distributed Adam optimizer
-        from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
+        from nemo.core.optim.distributed_adam import \
+            MegatronDistributedFusedAdam
 
         HAVE_APEX_DISTRIBUTED_ADAM = True
 

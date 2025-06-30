@@ -27,24 +27,22 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text import (
-    DataStoreObject,
-    TarredAudioToBPEDataset,
-    TarredAudioToCharDataset,
-    cache_datastore_manifests,
-)
+from nemo.collections.asr.data.audio_to_text import (DataStoreObject,
+                                                     TarredAudioToBPEDataset,
+                                                     TarredAudioToCharDataset,
+                                                     cache_datastore_manifests)
 from nemo.collections.asr.data.audio_to_text_dali import (
-    __DALI_MINIMUM_VERSION__,
-    AudioToBPEDALIDataset,
-    AudioToCharDALIDataset,
-    is_dali_supported,
-)
-from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
-from nemo.collections.asr.data.feature_to_text import FeatureToBPEDataset, FeatureToCharDataset
+    __DALI_MINIMUM_VERSION__, AudioToBPEDALIDataset, AudioToCharDALIDataset,
+    is_dali_supported)
+from nemo.collections.asr.data.audio_to_text_dataset import \
+    inject_dataloader_value_from_model_config
+from nemo.collections.asr.data.feature_to_text import (FeatureToBPEDataset,
+                                                       FeatureToCharDataset)
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.parts.utils.manifest_utils import write_manifest
 from nemo.collections.common import tokenizers
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.utils import logging
 
 try:

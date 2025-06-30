@@ -16,7 +16,6 @@ import math
 from abc import ABC
 from typing import List, Optional, Tuple, Union
 
-
 import numpy as np
 import torch
 

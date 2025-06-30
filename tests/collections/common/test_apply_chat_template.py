@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import pytest
+
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 
 

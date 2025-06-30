@@ -30,9 +30,7 @@ import wrapt
 
 from nemo.utils import AppState, logging
 from nemo.utils.data_utils import (  # imported for compatibility: model_utils.resolve_cache_dir()  # noqa: F401  # pylint: disable=unused-import,line-too-long
-    is_datastore_path,
-    resolve_cache_dir,
-)
+    is_datastore_path, resolve_cache_dir)
 
 # TODO @blisc: Perhaps refactor instead of import guarding
 

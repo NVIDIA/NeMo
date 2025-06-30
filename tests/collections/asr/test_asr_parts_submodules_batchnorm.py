@@ -19,10 +19,7 @@ import torch
 import torch.nn as nn
 
 from nemo.collections.asr.parts.submodules.batchnorm import (
-    FusedBatchNorm1d,
-    replace_bn_with_fused_bn,
-    replace_bn_with_fused_bn_all,
-)
+    FusedBatchNorm1d, replace_bn_with_fused_bn, replace_bn_with_fused_bn_all)
 
 
 class TestFusedBatchNorm1d:

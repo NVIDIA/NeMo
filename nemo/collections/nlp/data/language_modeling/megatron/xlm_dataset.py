@@ -20,14 +20,15 @@ import numpy as np
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
-    TextMemmapSequenceToSequenceDataset,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import (
-    build_training_sample as build_training_sample_bert,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
+    TextMemmapSequenceToSequenceDataset)
+from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import \
+    build_training_sample as build_training_sample_bert
+from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import \
+    LengthDistribution
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import \
+    T5Dataset
+from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import \
+    UL2Dataset
 
 
 class CrossLingualBERTDataset(BinarizedMemmapSequenceToSequenceDataset):

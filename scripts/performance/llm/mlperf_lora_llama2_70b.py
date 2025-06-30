@@ -22,7 +22,8 @@ from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data import MLPerfGovReportDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.llama import *
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
@@ -170,11 +171,8 @@ def mlperf_lora_llama2_70b_recipe(
     ub_tp_comm_overlap = tp_size > 1
     if ub_tp_comm_overlap:
         from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-            BulkOverlapCfg,
-            PipelineOverlapCfg,
-            RingExchangeOverlapCfg,
-            TransformerLayerTPOverlapCfg,
-        )
+            BulkOverlapCfg, PipelineOverlapCfg, RingExchangeOverlapCfg,
+            TransformerLayerTPOverlapCfg)
 
         tp_comm_overlap_cfg = TransformerLayerTPOverlapCfg(
             qkv_fprop=RingExchangeOverlapCfg(),
@@ -202,7 +200,8 @@ def mlperf_lora_llama2_70b_recipe(
     )
 
     # Disable garbage collection
-    from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+    from nemo.lightning.pytorch.callbacks.garbage_collection import \
+        GarbageCollectionCallback
 
     gc_callback = run.Config(
         GarbageCollectionCallback,

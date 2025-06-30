@@ -50,11 +50,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 
 from nemo.collections.common.parts.utils import mask_sequence_tensor
 from nemo.collections.tts.losses.spectrogram_enhancer_losses import (
-    ConsistencyLoss,
-    GeneratorLoss,
-    GradientPenaltyLoss,
-    HingeLoss,
-)
+    ConsistencyLoss, GeneratorLoss, GradientPenaltyLoss, HingeLoss)
 from nemo.collections.tts.parts.utils.helpers import to_device_recursive
 from nemo.core import Exportable, ModelPT, PretrainedModelInfo, typecheck
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType

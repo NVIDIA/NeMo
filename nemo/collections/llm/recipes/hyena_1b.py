@@ -20,8 +20,9 @@ import nemo_run as run
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.llm.recipes.hyena_base import model_recipe, pretrain_recipe_creater, tokenizer_recipe
-
+from nemo.collections.llm.recipes.hyena_base import (model_recipe,
+                                                     pretrain_recipe_creater,
+                                                     tokenizer_recipe)
 
 NAME = "hyena_1b"
 

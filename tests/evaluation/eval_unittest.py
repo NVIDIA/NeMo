@@ -15,7 +15,8 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from nemo.collections.llm.api import evaluate  # Replace 'your_module' with the actual module name
+from nemo.collections.llm.api import \
+    evaluate  # Replace 'your_module' with the actual module name
 
 
 class TestEvaluateFunction(unittest.TestCase):

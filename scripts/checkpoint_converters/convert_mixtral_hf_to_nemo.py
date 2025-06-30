@@ -36,14 +36,11 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+    GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy,
+    NLPSaveRestoreConnector, PipelineMixedPrecisionPlugin)
 from nemo.utils import logging
 
 torch.set_grad_enabled(False)

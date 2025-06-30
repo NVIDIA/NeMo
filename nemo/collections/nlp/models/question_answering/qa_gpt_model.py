@@ -20,11 +20,15 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 from transformers import AutoModelForCausalLM
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import QAProcessor
-from nemo.collections.nlp.data.question_answering.dataset.qa_gpt_dataset import GPTQADataset
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import \
+    QAProcessor
+from nemo.collections.nlp.data.question_answering.dataset.qa_gpt_dataset import \
+    GPTQADataset
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.models.question_answering.qa_base_model import \
+    BaseQAModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning

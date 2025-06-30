@@ -19,7 +19,8 @@ import torch
 
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import ChannelType, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (ChannelType, LengthsType, NeuralType,
+                                    SpectrogramType)
 from nemo.utils import logging
 
 __all__ = ['SpectrogramConformer']

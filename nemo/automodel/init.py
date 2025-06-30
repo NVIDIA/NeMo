@@ -19,13 +19,12 @@ import signal
 import torch
 import torch.distributed
 from megatron.core.num_microbatches_calculator import (
-    destroy_num_microbatches_calculator,
-    init_num_microbatches_calculator,
-)
+    destroy_num_microbatches_calculator, init_num_microbatches_calculator)
 
 from nemo.automodel.config import DistributedInitConfig
 from nemo.tron.config import TrainingConfig
-from nemo.tron.utils.common_utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
+from nemo.tron.utils.common_utils import (get_local_rank_preinit,
+                                          get_rank_safe, get_world_size_safe)
 
 
 def initialize_automodel(

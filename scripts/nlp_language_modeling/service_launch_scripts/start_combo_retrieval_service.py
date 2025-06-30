@@ -14,8 +14,10 @@
 """
 """
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.combo_retrieval_server import ComboRetrievalServer
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.combo_retrieval_server import \
+    ComboRetrievalServer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.core.config import hydra_runner
 
 

@@ -15,20 +15,14 @@
 import copy
 from typing import Literal, Optional
 
-from megatron.core.transformer.attention import (
-    CrossAttention,
-    CrossAttentionSubmodules,
-    SelfAttention,
-    SelfAttentionSubmodules,
-)
+from megatron.core.transformer.attention import (CrossAttention,
+                                                 CrossAttentionSubmodules,
+                                                 SelfAttention,
+                                                 SelfAttentionSubmodules)
 from megatron.core.transformer.custom_layers.transformer_engine import (
-    TEColumnParallelGroupedLinear,
-    TEColumnParallelLinear,
-    TEDotProductAttention,
-    TENorm,
-    TERowParallelGroupedLinear,
-    TERowParallelLinear,
-)
+    TEColumnParallelGroupedLinear, TEColumnParallelLinear,
+    TEDotProductAttention, TENorm, TERowParallelGroupedLinear,
+    TERowParallelLinear)
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -37,7 +31,8 @@ from megatron.core.transformer.moe.shared_experts import SharedExpertMLP
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_block import TransformerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.transformer_layer import (
+    TransformerLayer, TransformerLayerSubmodules)
 from megatron.core.utils import make_viewless_tensor
 
 from nemo.collections.diffusion.models.dit.dit_layer_spec import AdaLN

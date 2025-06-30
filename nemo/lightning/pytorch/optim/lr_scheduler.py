@@ -14,19 +14,14 @@
 
 from typing import Optional
 
-from nemo.core.optim.lr_scheduler import (
-    InverseSquareRootAnnealing,
-    NoamAnnealing,
-    NoamHoldAnnealing,
-    PolynomialDecayAnnealing,
-    PolynomialHoldDecayAnnealing,
-    SquareAnnealing,
-    SquareRootAnnealing,
-    T5InverseSquareRootAnnealing,
-    WarmupAnnealing,
-    WarmupHoldPolicy,
-    WarmupPolicy,
-)
+from nemo.core.optim.lr_scheduler import (InverseSquareRootAnnealing,
+                                          NoamAnnealing, NoamHoldAnnealing,
+                                          PolynomialDecayAnnealing,
+                                          PolynomialHoldDecayAnnealing,
+                                          SquareAnnealing, SquareRootAnnealing,
+                                          T5InverseSquareRootAnnealing,
+                                          WarmupAnnealing, WarmupHoldPolicy,
+                                          WarmupPolicy)
 from nemo.lightning.pytorch.optim.base import LRSchedulerModule
 
 

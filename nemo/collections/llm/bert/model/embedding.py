@@ -22,9 +22,11 @@ from megatron.core import parallel_state
 from torch import Tensor, nn
 
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
+from nemo.collections.llm.bert.loss import \
+    BERTInBatchExclusiveHardNegativesRankingLoss
 from nemo.collections.llm.bert.model import BertConfig, BertModel
-from nemo.collections.llm.bert.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+from nemo.collections.llm.bert.model.base import (
+    get_batch_on_this_context_parallel_rank, get_packed_seq_params)
 from nemo.collections.llm.bert.model.bert import HuggingFaceBertImporter
 from nemo.lightning import io
 from nemo.lightning.pytorch.optim import OptimizerModule

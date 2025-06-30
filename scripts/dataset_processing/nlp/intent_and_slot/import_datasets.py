@@ -20,13 +20,8 @@ from os.path import exists
 from assistant_utils import process_assistant
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
-    DATABASE_EXISTS_TMP,
-    MODE_EXISTS_TMP,
-    create_dataset,
-    get_dataset,
-    get_vocab,
-    if_exist,
-)
+    DATABASE_EXISTS_TMP, MODE_EXISTS_TMP, create_dataset, get_dataset,
+    get_vocab, if_exist)
 from nemo.utils import logging
 
 

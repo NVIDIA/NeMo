@@ -25,10 +25,7 @@ from collections import OrderedDict, defaultdict
 from typing import Dict, List, Optional
 
 from nemo.collections.nlp.data.dialogue.input_example.sgd_input_example import (
-    STATUS_ACTIVE,
-    STATUS_DONTCARE,
-    STR_DONTCARE,
-)
+    STATUS_ACTIVE, STATUS_DONTCARE, STR_DONTCARE)
 from nemo.utils import logging
 
 REQ_SLOT_THRESHOLD = 0.5

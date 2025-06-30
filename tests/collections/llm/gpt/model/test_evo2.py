@@ -19,19 +19,10 @@ import pytest
 
 from nemo.collections import llm
 from nemo.collections.llm.gpt.model.hyena import (
-    HuggingFaceSavannaHyenaImporter,
-    Hyena1bConfig,
-    Hyena7bARCLongContextConfig,
-    Hyena7bConfig,
-    Hyena40bARCLongContextConfig,
-    Hyena40bConfig,
-    HyenaConfig,
-    HyenaNV1bConfig,
-    HyenaNV7bConfig,
-    HyenaNV40bConfig,
-    HyenaNVTestConfig,
-    HyenaTestConfig,
-)
+    HuggingFaceSavannaHyenaImporter, Hyena1bConfig,
+    Hyena7bARCLongContextConfig, Hyena7bConfig, Hyena40bARCLongContextConfig,
+    Hyena40bConfig, HyenaConfig, HyenaNV1bConfig, HyenaNV7bConfig,
+    HyenaNV40bConfig, HyenaNVTestConfig, HyenaTestConfig)
 
 
 def test_hyena_base_config():

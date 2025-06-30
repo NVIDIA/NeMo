@@ -102,8 +102,10 @@ import time
 import ftfy
 import torch
 
-from nemo.collections.nlp.data.language_modeling.megatron import indexed_dataset
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.data.language_modeling.megatron import \
+    indexed_dataset
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 
 try:
     import nltk

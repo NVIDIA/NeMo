@@ -63,10 +63,12 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
 from nemo.collections.tts.models import FastPitchModel
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.parts.utils.helpers import process_batch, to_device_recursive
+from nemo.collections.tts.parts.utils.helpers import (process_batch,
+                                                      to_device_recursive)
 
 
 def chunks(iterable: Iterable, size: int) -> Iterator[List]:

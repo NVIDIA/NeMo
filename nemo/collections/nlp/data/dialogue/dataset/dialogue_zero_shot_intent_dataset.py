@@ -19,9 +19,12 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.glue_benchmark.data_processors import InputExample
-from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUEDataset
-from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType
+from nemo.collections.nlp.data.glue_benchmark.data_processors import \
+    InputExample
+from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import \
+    GLUEDataset
+from nemo.core.neural_types import (CategoricalValuesType, ChannelType,
+                                    MaskType, NeuralType)
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 

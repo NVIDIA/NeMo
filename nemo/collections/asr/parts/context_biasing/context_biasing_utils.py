@@ -19,7 +19,8 @@ from typing import List, Union
 import numpy as np
 import texterrors
 
-from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import WSHyp
+from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import \
+    WSHyp
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.utils import logging

@@ -23,22 +23,28 @@ import torch
 from megatron.core import parallel_state
 from megatron.core.num_microbatches_calculator import update_num_microbatches
 from omegaconf.omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from pytorch_lightning.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from torch.utils.data import DataLoader
 
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import \
+    process_augmentations
 from nemo.collections.common.data.dataset import ConcatMapDataset
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import get_text_processor_from_cfg
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import \
+    get_text_processor_from_cfg
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
 from nemo.collections.speechlm.data.data_sampler import SpeechLMDataSampler
 from nemo.collections.speechlm.data.dataset.audio_text_dataset import (
     get_audio_text_dataset_from_config,
-    get_tarred_audio_text_dataset_from_config,
-)
-from nemo.collections.speechlm.data.dataset.audio_text_lhotse_dataset import MultimodalConversationDataset
-from nemo.collections.speechlm.data.text_processing import MultimodalConversationTextProcessor
+    get_tarred_audio_text_dataset_from_config)
+from nemo.collections.speechlm.data.dataset.audio_text_lhotse_dataset import \
+    MultimodalConversationDataset
+from nemo.collections.speechlm.data.text_processing import \
+    MultimodalConversationTextProcessor
 from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging

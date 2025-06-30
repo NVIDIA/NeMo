@@ -23,7 +23,8 @@ from omegaconf import ListConfig
 from PIL import Image
 from torch import autocast
 
-from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims
+from nemo.collections.multimodal.parts.stable_diffusion.utils import \
+    append_dims
 from nemo.collections.multimodal.parts.utils import randn_like
 
 

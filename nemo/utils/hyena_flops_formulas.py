@@ -19,7 +19,8 @@ import math
 from typing import Optional
 
 # TODO(@cye): Merge MCore HyenaConfig with NeMo HyenaConfig to have all model params in 1 config.
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import \
+    HyenaConfig
 from nemo.utils.flops_formulas import FLOPSConfig
 
 

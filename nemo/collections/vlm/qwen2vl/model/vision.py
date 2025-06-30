@@ -16,9 +16,10 @@ from typing import Optional
 
 import torch
 import torch.nn.functional as F
-
-from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
-from megatron.core.models.common.vision_module.vision_module import VisionModule
+from megatron.core.config_logger import (has_config_logger_enabled,
+                                         log_config_to_disk)
+from megatron.core.models.common.vision_module.vision_module import \
+    VisionModule
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import TransformerBlock

@@ -17,7 +17,8 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 import lightning.pytorch as pl
 import numpy as np
 import torch
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
@@ -69,7 +70,8 @@ class BERTMockDataModule(pl.LightningDataModule):
         self.global_batch_size = global_batch_size
         self.micro_batch_size = micro_batch_size
         if tokenizer is None:
-            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+            from nemo.collections.nlp.modules.common.tokenizer_utils import \
+                get_nmt_tokenizer
 
             self.tokenizer = get_nmt_tokenizer("megatron", "BertWordPieceLowerCase")
         else:

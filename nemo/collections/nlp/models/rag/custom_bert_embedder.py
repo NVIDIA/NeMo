@@ -20,7 +20,8 @@ from llama_index.core.bridge.pydantic import PrivateAttr
 from llama_index.core.embeddings import BaseEmbedding
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.models.information_retrieval.megatron_bert_embedding_model import MegatronBertEmbeddingModel
+from nemo.collections.nlp.models.information_retrieval.megatron_bert_embedding_model import \
+    MegatronBertEmbeddingModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 

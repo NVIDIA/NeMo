@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.question_answering.input_example.qa_bert_input_example import BERTQAInputExample
-from nemo.collections.nlp.data.question_answering.input_example.qa_gpt_input_example import GPTQAInputExample
-from nemo.collections.nlp.data.question_answering.input_example.qa_input_example import QAExample
-from nemo.collections.nlp.data.question_answering.input_example.qa_s2s_input_example import S2SQAInputExample
+from nemo.collections.nlp.data.question_answering.input_example.qa_bert_input_example import \
+    BERTQAInputExample
+from nemo.collections.nlp.data.question_answering.input_example.qa_gpt_input_example import \
+    GPTQAInputExample
+from nemo.collections.nlp.data.question_answering.input_example.qa_input_example import \
+    QAExample
+from nemo.collections.nlp.data.question_answering.input_example.qa_s2s_input_example import \
+    S2SQAInputExample

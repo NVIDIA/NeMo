@@ -15,7 +15,8 @@
 import pytorch_lightning as pl
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.tts.models import MagpieTTS_Model, MagpieTTS_ModelDPO, MagpieTTS_ModelInference
+from nemo.collections.tts.models import (MagpieTTS_Model, MagpieTTS_ModelDPO,
+                                         MagpieTTS_ModelInference)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

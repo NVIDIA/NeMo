@@ -24,15 +24,9 @@ import torch.nn as nn
 
 try:
     import torchvision.transforms.functional as F
-    from torchvision.transforms import (
-        CenterCrop,
-        Compose,
-        InterpolationMode,
-        Normalize,
-        RandomResizedCrop,
-        Resize,
-        ToTensor,
-    )
+    from torchvision.transforms import (CenterCrop, Compose, InterpolationMode,
+                                        Normalize, RandomResizedCrop, Resize,
+                                        ToTensor)
 
     TORCHVISION_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -124,7 +118,8 @@ def image_transform(
         aug_cfg_dict = {k: v for k, v in asdict(aug_cfg).items() if v is not None}
         use_timm = aug_cfg_dict.pop('use_timm', False)
         if use_timm:
-            from timm.data import create_transform  # timm can still be optional
+            from timm.data import \
+                create_transform  # timm can still be optional
 
             if isinstance(image_size, (tuple, list)):
                 assert len(image_size) >= 2

@@ -18,19 +18,14 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 
-from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
+from nemo.collections.asr.parts.preprocessing.features import \
+    FilterbankFeatures
 from nemo.collections.common.parts.utils import mask_sequence_tensor
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types import (
-    AudioSignal,
-    LengthsType,
-    LossType,
-    NeuralType,
-    PredictionsType,
-    RegressionValuesType,
-    VoidType,
-)
+from nemo.core.neural_types import (AudioSignal, LengthsType, LossType,
+                                    NeuralType, PredictionsType,
+                                    RegressionValuesType, VoidType)
 
 
 class MaskedLoss(Loss):

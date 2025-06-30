@@ -12,21 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
+from nemo.lightning.pytorch.optim.base import (LRSchedulerModule,
+                                               OptimizerModule)
 from nemo.lightning.pytorch.optim.lr_scheduler import (
-    CosineAnnealingScheduler,
-    InverseSquareRootAnnealingScheduler,
-    NoamAnnealingScheduler,
-    NoamHoldAnnealingScheduler,
-    PolynomialDecayAnnealingScheduler,
-    PolynomialHoldDecayAnnealingScheduler,
-    SquareAnnealingScheduler,
-    SquareRootAnnealingScheduler,
-    T5InverseSquareRootAnnealingScheduler,
-    WarmupAnnealingScheduler,
-    WarmupHoldPolicyScheduler,
-    WarmupPolicyScheduler,
-)
+    CosineAnnealingScheduler, InverseSquareRootAnnealingScheduler,
+    NoamAnnealingScheduler, NoamHoldAnnealingScheduler,
+    PolynomialDecayAnnealingScheduler, PolynomialHoldDecayAnnealingScheduler,
+    SquareAnnealingScheduler, SquareRootAnnealingScheduler,
+    T5InverseSquareRootAnnealingScheduler, WarmupAnnealingScheduler,
+    WarmupHoldPolicyScheduler, WarmupPolicyScheduler)
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.optim.pytorch import PytorchOptimizerModule
 

@@ -19,10 +19,13 @@ from collections import OrderedDict
 import torch
 from omegaconf import open_dict
 from pytorch_lightning import Trainer
-from transformers import AutoModelForCausalLM, GemmaTokenizer, GemmaTokenizerFast, convert_slow_tokenizer
+from transformers import (AutoModelForCausalLM, GemmaTokenizer,
+                          GemmaTokenizerFast, convert_slow_tokenizer)
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_ltor_masks_and_position_ids
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 

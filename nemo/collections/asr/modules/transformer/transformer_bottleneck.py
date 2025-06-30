@@ -15,14 +15,14 @@
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from nemo.collections.asr.modules.transformer.bridge_encoders import BridgeEncoder
-from nemo.collections.asr.modules.transformer.perceiver_encoders import PerceiverEncoder
-from nemo.collections.asr.modules.transformer.reduction_encoders import PoolingEncoder
+from nemo.collections.asr.modules.transformer.bridge_encoders import \
+    BridgeEncoder
+from nemo.collections.asr.modules.transformer.perceiver_encoders import \
+    PerceiverEncoder
+from nemo.collections.asr.modules.transformer.reduction_encoders import \
+    PoolingEncoder
 from nemo.collections.asr.modules.transformer.transformer import (
-    NeMoTransformerConfig,
-    TransformerDecoderNM,
-    TransformerEncoderNM,
-)
+    NeMoTransformerConfig, TransformerDecoderNM, TransformerEncoderNM)
 from nemo.core.classes.common import typecheck
 from nemo.core.neural_types import MaskType, NeuralType
 from nemo.core.neural_types.elements import BoolType

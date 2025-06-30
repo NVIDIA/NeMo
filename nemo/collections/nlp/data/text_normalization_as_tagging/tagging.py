@@ -25,7 +25,6 @@ from typing import List, Tuple
 
 import nemo.collections.nlp.data.text_normalization_as_tagging.utils as utils
 
-
 """Classes representing a tag and a text editing task.
 
 Tag corresponds to an edit operation, while EditingTask is a container for the

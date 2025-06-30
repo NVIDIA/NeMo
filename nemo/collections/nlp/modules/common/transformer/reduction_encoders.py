@@ -16,7 +16,8 @@ import copy
 
 import torch
 
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
+from nemo.collections.nlp.modules.common.transformer.transformer_encoders import \
+    TransformerEncoder
 
 __all__ = ["PoolingEncoder"]
 

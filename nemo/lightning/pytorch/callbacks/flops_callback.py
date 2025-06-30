@@ -24,7 +24,6 @@ from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.utils import flops_formulas, logging
 from nemo.utils.hyena_flops_formulas import hyena
 
-
 __all__ = ["FLOPsMeasurementCallback", "MM_FLOPsMeasurementCallback"]
 
 _model_flops_map = {

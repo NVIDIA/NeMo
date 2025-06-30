@@ -68,19 +68,16 @@ import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.models import (EncDecHybridRNNTCTCModel,
+                                         EncDecRNNTModel)
+from nemo.collections.asr.parts.submodules.rnnt_decoding import \
+    RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import (
-    BatchedFrameASRRNNT,
-    LongestCommonSubsequenceBatchedFrameASRRNNT,
-)
+    BatchedFrameASRRNNT, LongestCommonSubsequenceBatchedFrameASRRNNT)
 from nemo.collections.asr.parts.utils.transcribe_utils import (
-    compute_output_filename,
-    get_buffered_pred_feat_rnnt,
-    setup_model,
-    write_transcription,
-)
+    compute_output_filename, get_buffered_pred_feat_rnnt, setup_model,
+    write_transcription)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

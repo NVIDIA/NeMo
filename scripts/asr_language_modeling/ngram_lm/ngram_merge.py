@@ -51,7 +51,8 @@ import torch
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.modules.rnnt import RNNTDecoder
-from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET, kenlm_utils
+from nemo.collections.asr.parts.submodules.ngram_lm import (
+    DEFAULT_TOKEN_OFFSET, kenlm_utils)
 from nemo.utils import logging
 
 

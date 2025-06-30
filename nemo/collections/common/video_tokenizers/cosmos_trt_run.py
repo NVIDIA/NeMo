@@ -18,7 +18,8 @@ import shutil
 
 import torch
 
-from nemo.collections.common.video_tokenizers.cosmos_tokenizer import CausalVideoTokenizer
+from nemo.collections.common.video_tokenizers.cosmos_tokenizer import \
+    CausalVideoTokenizer
 from nemo.export.tensorrt_lazy_compiler import trt_compile
 
 parser = argparse.ArgumentParser(description="Export and run tokenizer in TensorRT")

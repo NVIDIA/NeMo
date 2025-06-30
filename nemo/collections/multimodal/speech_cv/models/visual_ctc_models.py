@@ -27,14 +27,18 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.models.asr_model import (ASRModel,
+                                                   ExportableEncDecModel)
 from nemo.collections.asr.parts.mixins import ASRModuleMixin, InterCTCMixin
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
+from nemo.collections.asr.parts.submodules.ctc_decoding import (
+    CTCDecoding, CTCDecodingConfig)
 from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, NeuralType, VideoSignal
+from nemo.core.neural_types import (LabelsType, LengthsType, LogprobsType,
+                                    NeuralType, VideoSignal)
 from nemo.utils import logging
 
 __all__ = ['VisualEncDecCTCModel']

@@ -33,7 +33,8 @@ class EnJaProcessor:
     """
 
     def __init__(self, lang_id: str):
-        from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+        from sacremoses import (MosesDetokenizer, MosesPunctNormalizer,
+                                MosesTokenizer)
 
         self.lang_id = lang_id
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)

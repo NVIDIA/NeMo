@@ -20,13 +20,11 @@ from datasets import Dataset, DatasetDict
 from torch.utils.data import DataLoader
 
 from nemo.collections import llm
-from nemo.collections.llm.gpt.data.hf_dataset import (
-    SquadHFDataModule,
-    batchify,
-    extract_key_from_dicts,
-    make_dataset_splits,
-    pad_within_micro,
-)
+from nemo.collections.llm.gpt.data.hf_dataset import (SquadHFDataModule,
+                                                      batchify,
+                                                      extract_key_from_dicts,
+                                                      make_dataset_splits,
+                                                      pad_within_micro)
 
 SQUAD_HF_CACHE = "/home/TestData/lite/hf_cache/squad/"
 SQUAD_NEMO_CACHE = "/home/TestData/lite/nemo_cache/squad"

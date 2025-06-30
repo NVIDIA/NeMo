@@ -18,9 +18,7 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.utils.asr_confidence_utils import (
-    get_confidence_aggregation_bank,
-    get_confidence_measure_bank,
-)
+    get_confidence_aggregation_bank, get_confidence_measure_bank)
 
 # Initialize probability vectors
 VOCAB_SIZES = (100, 1000, 10000)

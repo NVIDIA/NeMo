@@ -15,7 +15,8 @@
 import pytest
 import yaml
 
-from nemo.collections.common.metrics.perf_metrics import FLOPsMeasurementCallback
+from nemo.collections.common.metrics.perf_metrics import \
+    FLOPsMeasurementCallback
 
 LLAMA2_CFG_STR = """
     run:

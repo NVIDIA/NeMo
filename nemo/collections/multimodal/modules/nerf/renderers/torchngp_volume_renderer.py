@@ -17,8 +17,10 @@ import torch
 import torch.nn.functional as F
 
 import nemo.collections.multimodal.modules.nerf.utils.torch_ngp.raymarching as raymarching
-from nemo.collections.multimodal.modules.nerf.materials.materials_base import ShadingEnum
-from nemo.collections.multimodal.modules.nerf.renderers.base_renderer import BaseRenderer
+from nemo.collections.multimodal.modules.nerf.materials.materials_base import \
+    ShadingEnum
+from nemo.collections.multimodal.modules.nerf.renderers.base_renderer import \
+    BaseRenderer
 
 
 class TorchNGPVolumeRenderer(BaseRenderer):

@@ -21,10 +21,10 @@ from torch.nn import functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from nemo.core.classes import NeuralModule, adapter_mixins
-from nemo.core.neural_types.elements import EncodedRepresentation, Index, LengthsType, MelSpectrogramType
+from nemo.core.neural_types.elements import (EncodedRepresentation, Index,
+                                             LengthsType, MelSpectrogramType)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
-
 
 SUPPORTED_CONDITION_TYPES = ["add", "concat", "layernorm"]
 

@@ -18,9 +18,12 @@ from lhotse.testing.dummies import dummy_recording
 from torch import tensor
 
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
-from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    create_spt_model
+from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import \
+    LhotseAudioQuestionAnswerDataset
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import \
+    PromptFormatterTextProcessing
 
 
 @pytest.fixture

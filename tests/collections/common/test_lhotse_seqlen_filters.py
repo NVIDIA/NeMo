@@ -18,13 +18,12 @@ import pytest
 from lhotse import SupervisionSegment
 from lhotse.testing.dummies import dummy_cut
 
-from nemo.collections.common.data.lhotse.sampling import (
-    DurationFilter,
-    TokenCountFilter,
-    TokenPerSecondFilter,
-    TokenPerTokenFilter,
-)
-from nemo.collections.common.data.lhotse.text_adapters import NeMoSFTExample, SourceTargetTextExample, TextExample
+from nemo.collections.common.data.lhotse.sampling import (DurationFilter,
+                                                          TokenCountFilter,
+                                                          TokenPerSecondFilter,
+                                                          TokenPerTokenFilter)
+from nemo.collections.common.data.lhotse.text_adapters import (
+    NeMoSFTExample, SourceTargetTextExample, TextExample)
 
 
 @pytest.fixture

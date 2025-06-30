@@ -24,13 +24,8 @@ import pytest
 import torch
 
 from nemo.lightning.pytorch.callbacks.jit_transform import (
-    JitConfig,
-    JitTransform,
-    compile_module,
-    extract_module_attr_name,
-    get_modules_from_selector,
-    listify,
-)
+    JitConfig, JitTransform, compile_module, extract_module_attr_name,
+    get_modules_from_selector, listify)
 
 
 def test_extract_module_attr_name_with_module():

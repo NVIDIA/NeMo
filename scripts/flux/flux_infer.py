@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import argparse
-
 import os
+
 import torch
 
-from nemo.collections.diffusion.models.flux.pipeline import FluxInferencePipeline
+from nemo.collections.diffusion.models.flux.pipeline import \
+    FluxInferencePipeline
 from nemo.collections.diffusion.utils.flux_pipeline_utils import configs
 from nemo.collections.diffusion.utils.mcore_parallel_utils import Utils
 

@@ -24,7 +24,8 @@ import torch
 from torch import Tensor
 
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
-from nemo.collections.tts.parts.utils.tts_dataset_utils import get_audio_filepaths, normalize_volume, stack_tensors
+from nemo.collections.tts.parts.utils.tts_dataset_utils import (
+    get_audio_filepaths, normalize_volume, stack_tensors)
 from nemo.utils.decorators import experimental
 
 

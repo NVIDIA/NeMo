@@ -20,13 +20,17 @@ import numpy as np
 import torch.nn as nn
 from tqdm import tqdm
 
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
-from nemo.collections.nlp.data.text_normalization.utils import input_preprocessing
-from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
+from nemo.collections.nlp.data.text_normalization import (
+    TextNormalizationTestDataset, constants)
+from nemo.collections.nlp.data.text_normalization.utils import \
+    input_preprocessing
+from nemo.collections.nlp.models.duplex_text_normalization.utils import \
+    get_formatted_string
 from nemo.utils import logging
 
 try:
-    from nemo_text_processing.text_normalization.data_loader_utils import post_process_punct
+    from nemo_text_processing.text_normalization.data_loader_utils import \
+        post_process_punct
 
     PYNINI_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

@@ -18,7 +18,8 @@
 import argparse
 import glob
 
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import build_index_files
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import \
+    build_index_files
 
 
 def main():

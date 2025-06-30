@@ -46,11 +46,13 @@ class BlendableDataset(torch.utils.data.Dataset):
         app_state = AppState()
         try:
             if app_state.local_rank == 0:
-                from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import compile_helper
+                from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import \
+                    compile_helper
 
                 compile_helper()
             torch.distributed.barrier()
-            from nemo.collections.nlp.data.language_modeling.megatron import helpers
+            from nemo.collections.nlp.data.language_modeling.megatron import \
+                helpers
         except ImportError:
             raise ImportError(
                 f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'

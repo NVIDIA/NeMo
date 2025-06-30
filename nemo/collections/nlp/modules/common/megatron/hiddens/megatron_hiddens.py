@@ -27,9 +27,12 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_loss import MegatronBaseHiddenLoss
-from nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_transform import MegatronBaseHiddenTransform
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_loss import \
+    MegatronBaseHiddenLoss
+from nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_transform import \
+    MegatronBaseHiddenTransform
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 from nemo.utils import logging
 from nemo.utils.model_utils import import_class_by_path
 

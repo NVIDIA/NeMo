@@ -14,7 +14,9 @@
 
 import lightning.pytorch as pl
 
-from nemo.collections.vlm.qwen2vl.model import Qwen2VLConfig2B, Qwen2VLConfig7B, Qwen2VLConfig72B, Qwen2VLModel
+from nemo.collections.vlm.qwen2vl.model import (Qwen2VLConfig2B,
+                                                Qwen2VLConfig7B,
+                                                Qwen2VLConfig72B, Qwen2VLModel)
 
 
 def qwen2vl_2b() -> pl.LightningModule:

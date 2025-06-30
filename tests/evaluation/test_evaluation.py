@@ -16,7 +16,9 @@ import argparse
 import subprocess
 
 from nemo.collections.llm import evaluate
-from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
+from nemo.collections.llm.evaluation.api import (ApiEndpoint, ConfigParams,
+                                                 EvaluationConfig,
+                                                 EvaluationTarget)
 from nemo.collections.llm.evaluation.base import wait_for_server_ready
 from nemo.utils import logging
 

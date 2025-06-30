@@ -14,7 +14,9 @@
 
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.mistral import MistralConfig7B, MistralNeMoConfig12B, MistralNeMoConfig123B
+from nemo.collections.llm.gpt.model.mistral import (MistralConfig7B,
+                                                    MistralNeMoConfig12B,
+                                                    MistralNeMoConfig123B)
 
 
 def test_mistral_config7b():

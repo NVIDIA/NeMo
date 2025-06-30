@@ -26,17 +26,25 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechE2ESpkDiarDataset
-from nemo.collections.asr.data.audio_to_diar_label_lhotse import LhotseAudioToSpeechE2ESpkDiarDataset
+from nemo.collections.asr.data.audio_to_diar_label import \
+    AudioToSpeechE2ESpkDiarDataset
+from nemo.collections.asr.data.audio_to_diar_label_lhotse import \
+    LhotseAudioToSpeechE2ESpkDiarDataset
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
-from nemo.collections.asr.parts.mixins.diarization import DiarizeConfig, SpkDiarizationMixin
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_ats_targets, get_pil_targets
-from nemo.collections.asr.parts.utils.speaker_utils import generate_diarization_output_lines
+from nemo.collections.asr.parts.mixins.diarization import (DiarizeConfig,
+                                                           SpkDiarizationMixin)
+from nemo.collections.asr.parts.preprocessing.features import \
+    WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.perturb import \
+    process_augmentations
+from nemo.collections.asr.parts.utils.asr_multispeaker_utils import (
+    get_ats_targets, get_pil_targets)
+from nemo.collections.asr.parts.utils.speaker_utils import \
+    generate_diarization_output_lines
 from nemo.collections.asr.parts.utils.vad_utils import ts_vad_post_processing
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType

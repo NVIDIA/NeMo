@@ -16,7 +16,8 @@ from abc import ABC
 from typing import Any, Dict, Optional
 
 from nemo.core.classes import NeuralModule
-from nemo.core.neural_types import ChannelType, EncodedRepresentation, MaskType, NeuralType
+from nemo.core.neural_types import (ChannelType, EncodedRepresentation,
+                                    MaskType, NeuralType)
 
 __all__ = ['DecoderModule']
 

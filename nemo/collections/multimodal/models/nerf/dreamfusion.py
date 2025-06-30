@@ -20,9 +20,12 @@ import numpy as np
 import torch
 
 from nemo.collections.multimodal.models.nerf.txt2nerf_base import Txt2NerfBase
-from nemo.collections.multimodal.modules.nerf.loss.laplacian_smooth_loss import LaplacianSmoothLoss
-from nemo.collections.multimodal.modules.nerf.loss.normal_consistency_loss import NormalConsistencyLoss
-from nemo.collections.multimodal.modules.nerf.materials.materials_base import ShadingEnum
+from nemo.collections.multimodal.modules.nerf.loss.laplacian_smooth_loss import \
+    LaplacianSmoothLoss
+from nemo.collections.multimodal.modules.nerf.loss.normal_consistency_loss import \
+    NormalConsistencyLoss
+from nemo.collections.multimodal.modules.nerf.materials.materials_base import \
+    ShadingEnum
 from nemo.core import optim
 
 

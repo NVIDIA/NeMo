@@ -24,7 +24,8 @@ import wrapt
 from transformers import AutoModel, AutoTokenizer
 
 from nemo.deploy import ITritonDeployable
-from nemo.export.utils import get_example_inputs, get_model_device_type, is_nemo2_checkpoint, validate_fp8_network
+from nemo.export.utils import (get_example_inputs, get_model_device_type,
+                               is_nemo2_checkpoint, validate_fp8_network)
 from nemo.utils import logging
 
 

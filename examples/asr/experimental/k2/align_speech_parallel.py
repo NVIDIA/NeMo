@@ -81,10 +81,13 @@ import lightning.pytorch as ptl
 import torch
 from omegaconf import MISSING, OmegaConf
 
-from nemo.collections.asr.data.audio_to_ctm_dataset import ASRCTMPredictionWriter
+from nemo.collections.asr.data.audio_to_ctm_dataset import \
+    ASRCTMPredictionWriter
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.models.configs.aligner_config import K2AlignerWrapperModelConfig
-from nemo.collections.asr.models.configs.asr_models_config import ASRDatasetConfig
+from nemo.collections.asr.models.configs.aligner_config import \
+    K2AlignerWrapperModelConfig
+from nemo.collections.asr.models.configs.asr_models_config import \
+    ASRDatasetConfig
 from nemo.collections.asr.models.k2_aligner_model import AlignerWrapperModel
 from nemo.core.config import TrainerConfig, hydra_runner
 from nemo.utils import logging

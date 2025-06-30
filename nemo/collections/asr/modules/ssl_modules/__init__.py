@@ -13,13 +13,13 @@
 # limitations under the License.
 
 from nemo.collections.asr.modules.ssl_modules.augmentation import (
-    MultiSpeakerNoiseAugmentation,
-    SpeakerNoiseAugmentation,
-)
-from nemo.collections.asr.modules.ssl_modules.masking import ConvFeatureMaksingWrapper, RandomBlockMasking
+    MultiSpeakerNoiseAugmentation, SpeakerNoiseAugmentation)
+from nemo.collections.asr.modules.ssl_modules.masking import (
+    ConvFeatureMaksingWrapper, RandomBlockMasking)
 from nemo.collections.asr.modules.ssl_modules.multi_layer_feat import (
     ConformerMultiLayerFeatureExtractor,
-    ConformerMultiLayerFeaturePreprocessor,
-)
-from nemo.collections.asr.modules.ssl_modules.multi_softmax_decoder import MultiSoftmaxDecoder
-from nemo.collections.asr.modules.ssl_modules.quantizers import RandomProjectionVectorQuantizer
+    ConformerMultiLayerFeaturePreprocessor)
+from nemo.collections.asr.modules.ssl_modules.multi_softmax_decoder import \
+    MultiSoftmaxDecoder
+from nemo.collections.asr.modules.ssl_modules.quantizers import \
+    RandomProjectionVectorQuantizer

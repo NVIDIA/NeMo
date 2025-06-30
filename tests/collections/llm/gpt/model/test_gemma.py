@@ -13,13 +13,10 @@
 # limitations under the License.
 
 from nemo.collections.llm.fn.activation import openai_gelu
-from nemo.collections.llm.gpt.model.gemma import (
-    CodeGemmaConfig2B,
-    CodeGemmaConfig7B,
-    GemmaConfig,
-    GemmaConfig2B,
-    GemmaConfig7B,
-)
+from nemo.collections.llm.gpt.model.gemma import (CodeGemmaConfig2B,
+                                                  CodeGemmaConfig7B,
+                                                  GemmaConfig, GemmaConfig2B,
+                                                  GemmaConfig7B)
 
 
 def test_gemma_config():

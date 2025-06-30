@@ -23,16 +23,22 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+from nemo.collections.asr.data.audio_to_text_lhotse import \
+    LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import \
+    EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTBPEDecodingConfig
-from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.asr.parts.submodules.ctc_decoding import (
+    CTCBPEDecoding, CTCBPEDecodingConfig)
+from nemo.collections.asr.parts.submodules.rnnt_decoding import (
+    RNNTBPEDecoding, RNNTBPEDecodingConfig)
+from nemo.collections.asr.parts.utils.asr_batching import \
+    get_semi_sorted_batch_sampler
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 

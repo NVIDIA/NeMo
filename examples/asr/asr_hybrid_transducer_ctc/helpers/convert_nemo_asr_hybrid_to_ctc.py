@@ -32,13 +32,9 @@ from copy import deepcopy
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import (
-    ASRModel,
-    EncDecCTCModel,
-    EncDecCTCModelBPE,
-    EncDecRNNTBPEModel,
-    EncDecRNNTModel,
-)
+from nemo.collections.asr.models import (ASRModel, EncDecCTCModel,
+                                         EncDecCTCModelBPE, EncDecRNNTBPEModel,
+                                         EncDecRNNTModel)
 from nemo.utils import logging
 
 

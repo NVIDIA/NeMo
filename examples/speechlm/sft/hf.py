@@ -19,8 +19,10 @@ from omegaconf import OmegaConf
 
 from nemo import lightning as nl
 from nemo.collections import speechlm
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.speechlm.models import HFAutoModelForSpeechSeq2Seq
 
 torch.set_float32_matmul_precision("medium")

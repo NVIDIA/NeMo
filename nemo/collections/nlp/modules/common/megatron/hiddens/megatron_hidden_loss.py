@@ -14,6 +14,7 @@
 
 
 import math
+
 import torch
 
 __all__ = ["MegatronBaseHiddenLoss", "MegatronAMIMHiddenLoss", "MegatronVAEHiddenLoss"]

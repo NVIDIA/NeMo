@@ -17,8 +17,10 @@ from random import sample
 import numpy as np
 import torch
 
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import \
+    get_samples_mapping
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import \
+    JSONLMemMapDataset
 from nemo.core import Dataset
 from nemo.utils import logging
 

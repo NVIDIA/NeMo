@@ -21,13 +21,13 @@ import timeit
 from collections import OrderedDict
 from typing import Tuple
 
-
 import pytest
 import torch
 from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
 from megatron.core.datasets.utils import Split
 
-from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import Evo2Dataset, Evo2DatasetPadEodLossMask
+from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import (
+    Evo2Dataset, Evo2DatasetPadEodLossMask)
 
 """
 The tag token is constructed as follows: So note that one way to know you have a tag is if you look at the first
@@ -1066,7 +1066,9 @@ if __name__ == "__main__":
 def test_evo2_dataset_getitem(monkeypatch):
     """Test Evo2Dataset.__getitem__ method."""
     import numpy as np
-    from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+
+    from nemo.collections.nlp.modules.common.tokenizer_utils import \
+        get_nmt_tokenizer
 
     tokenizer = get_nmt_tokenizer("byte-level")
     eod_token_id = tokenizer.eod

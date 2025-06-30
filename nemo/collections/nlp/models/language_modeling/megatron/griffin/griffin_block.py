@@ -15,14 +15,16 @@ from torch import Tensor, nn
 
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_layer_spec import (
     griffin_mqa_layer_with_transformer_engine_spec,
-    griffin_recurrent_layer_with_transformer_engine_spec,
-)
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+    griffin_recurrent_layer_with_transformer_engine_spec)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 
 try:
     from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.extensions.transformer_engine import TENorm, te_checkpoint
-    from megatron.core.models.common.language_module.language_module import LanguageModule
+    from megatron.core.extensions.transformer_engine import (TENorm,
+                                                             te_checkpoint)
+    from megatron.core.models.common.language_module.language_module import \
+        LanguageModule
     from megatron.core.packed_seq_params import PackedSeqParams
     from megatron.core.transformer.spec_utils import build_module
     from megatron.core.transformer.transformer_config import TransformerConfig

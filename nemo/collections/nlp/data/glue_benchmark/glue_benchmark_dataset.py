@@ -26,20 +26,12 @@ import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.glue_benchmark.data_processors import (
-    ColaProcessor,
-    MnliMismatchedProcessor,
-    MnliProcessor,
-    MrpcProcessor,
-    QnliProcessor,
-    QqpProcessor,
-    RteProcessor,
-    Sst2Processor,
-    StsbProcessor,
-    WnliProcessor,
-    XNLIProcessor,
-)
+    ColaProcessor, MnliMismatchedProcessor, MnliProcessor, MrpcProcessor,
+    QnliProcessor, QqpProcessor, RteProcessor, Sst2Processor, StsbProcessor,
+    WnliProcessor, XNLIProcessor)
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType, RegressionValuesType
+from nemo.core.neural_types import (CategoricalValuesType, ChannelType,
+                                    MaskType, NeuralType, RegressionValuesType)
 from nemo.utils import logging
 
 __all__ = ['GLUEDataset', 'TextToTextGLUEDataset', 'TextToTextXNLIDataset']

@@ -20,7 +20,8 @@ import torch
 from omegaconf import open_dict
 
 from nemo.collections.asr.models import ASRModel
-from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
+from nemo.core.utils.cuda_python_utils import \
+    skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 
 
 @pytest.fixture(scope="module")

@@ -21,7 +21,8 @@ import torch.nn.functional as F
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import EncodedRepresentation, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (EncodedRepresentation, LengthsType,
+                                    NeuralType, SpectrogramType)
 from nemo.core.neural_types.elements import ProbsType
 
 __all__ = ['MSDD_module']

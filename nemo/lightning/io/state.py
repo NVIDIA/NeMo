@@ -15,7 +15,8 @@
 import inspect
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union, overload
+from typing import (Any, Callable, Dict, Generic, List, Optional, Tuple,
+                    TypeVar, Union, overload)
 
 import numpy as np
 import torch

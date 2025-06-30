@@ -34,7 +34,8 @@ from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts.submodules.ngram_lm.constants import DEFAULT_TOKEN_OFFSET
+from nemo.collections.asr.parts.submodules.ngram_lm.constants import \
+    DEFAULT_TOKEN_OFFSET
 from nemo.collections.common.tokenizers import AggregateTokenizer
 from nemo.utils import logging
 

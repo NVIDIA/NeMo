@@ -25,37 +25,30 @@ from scipy.signal import convolve
 from scipy.signal.windows import cosine, hamming, hann
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import \
+    process_augmentations
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
-    DataAnnotator,
-    SpeechSampler,
-    build_speaker_samples_map,
-    get_background_noise,
-    get_cleaned_base_path,
-    get_random_offset_index,
-    get_speaker_ids,
-    get_speaker_samples,
-    get_split_points_in_alignments,
-    load_speaker_sample,
-    normalize_audio,
-    per_speaker_normalize,
-    perturb_audio,
-    read_audio_from_buffer,
-    read_noise_manifest,
-)
+    DataAnnotator, SpeechSampler, build_speaker_samples_map,
+    get_background_noise, get_cleaned_base_path, get_random_offset_index,
+    get_speaker_ids, get_speaker_samples, get_split_points_in_alignments,
+    load_speaker_sample, normalize_audio, per_speaker_normalize, perturb_audio,
+    read_audio_from_buffer, read_noise_manifest)
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.utils.speaker_utils import get_overlap_range, is_overlap, merge_float_intervals
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    get_overlap_range, is_overlap, merge_float_intervals)
 from nemo.utils import logging
 
 try:
     import pyroomacoustics as pra
-    from pyroomacoustics.directivities import CardioidFamily, DirectionVector, DirectivityPattern
+    from pyroomacoustics.directivities import (CardioidFamily, DirectionVector,
+                                               DirectivityPattern)
 
     PRA = True
 except ImportError:
     PRA = False
 try:
-    from gpuRIR import att2t_SabineEstimator, beta_SabineEstimation, simulateRIR, t2n
+    from gpuRIR import (att2t_SabineEstimator, beta_SabineEstimation,
+                        simulateRIR, t2n)
 
     GPURIR = True
 except ImportError:

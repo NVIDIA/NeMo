@@ -13,4 +13,5 @@
 # limitations under the License.
 
 
-from nemo.collections.nlp.models.text_normalization_as_tagging.thutmose_tagger import ThutmoseTaggerModel
+from nemo.collections.nlp.models.text_normalization_as_tagging.thutmose_tagger import \
+    ThutmoseTaggerModel

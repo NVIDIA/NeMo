@@ -26,12 +26,16 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.asr.data.audio_to_text_dataset import inject_dataloader_value_from_model_config
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
+from nemo.collections.asr.data.audio_to_text_dataset import \
+    inject_dataloader_value_from_model_config
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
 from nemo.collections.audio.data import audio_to_audio_dataset
-from nemo.collections.audio.data.audio_to_audio_lhotse import LhotseAudioToTargetDataset
+from nemo.collections.audio.data.audio_to_audio_lhotse import \
+    LhotseAudioToTargetDataset
 from nemo.collections.audio.metrics.audio import AudioMetricWrapper
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
@@ -512,7 +516,8 @@ class AudioToAudioModel(ModelPT, ABC):
             return []
 
         log_callbacks = []
-        from nemo.collections.audio.parts.utils.callbacks import SpeechEnhancementLoggingCallback
+        from nemo.collections.audio.parts.utils.callbacks import \
+            SpeechEnhancementLoggingCallback
 
         if isinstance(self._validation_dl, List):
             data_loaders = self._validation_dl

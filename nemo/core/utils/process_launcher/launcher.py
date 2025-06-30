@@ -28,7 +28,8 @@ from hydra.core.config_store import ConfigStore
 from hydra.core.hydra_config import HydraConfig
 from hydra.core.plugins import Plugins
 from hydra.core.singleton import Singleton
-from hydra.core.utils import JobReturn, JobStatus, configure_log, filter_overrides, setup_globals
+from hydra.core.utils import (JobReturn, JobStatus, configure_log,
+                              filter_overrides, setup_globals)
 from hydra.plugins.launcher import Launcher
 from hydra.types import HydraContext, TaskFunction
 from omegaconf import DictConfig, OmegaConf, open_dict

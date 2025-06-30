@@ -15,7 +15,8 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.llm.gpt.model.nemotron import Nemotron3Config4B, NemotronModel
+from nemo.collections.llm.gpt.model.nemotron import (Nemotron3Config4B,
+                                                     NemotronModel)
 from nemo.collections.llm.recipes import nemotron
 from nemo.lightning import Trainer
 

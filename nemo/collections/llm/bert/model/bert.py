@@ -130,7 +130,9 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         return HuggingFaceBertModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
-        from transformers import BertForMaskedLM, BertForNextSentencePrediction, BertForPreTraining, BertModel
+        from transformers import (BertForMaskedLM,
+                                  BertForNextSentencePrediction,
+                                  BertForPreTraining, BertModel)
 
         source = BertForPreTraining.from_pretrained(str(self), torch_dtype='auto')
         # Depending on add_lm_head, bert_binary_head, we initialize the bert model differently:
@@ -222,7 +224,8 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         """Retrieve Tokenizer from HF"""
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 

@@ -21,7 +21,9 @@ import numpy as np
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.utils import logging
-from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
+from nemo.utils.sequence_packing_utils import (create_hist,
+                                               create_packing_strategy,
+                                               fill_packing_strategy)
 
 
 def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int):

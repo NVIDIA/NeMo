@@ -19,16 +19,20 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 from torch._inductor import config as inductor_config
 
-from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import DreamBoothDataset
-from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
-    DiagonalGaussianDistribution,
-)
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import LoraWrapper
+from nemo.collections.multimodal.data.dreambooth.dreambooth_dataset import \
+    DreamBoothDataset
+from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import \
+    DiagonalGaussianDistribution
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.modules import \
+    LoraWrapper
 from nemo.collections.multimodal.parts.utils import randn_like
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import \
+    MegatronPretrainingRandomSampler
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import \
+    NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
@@ -44,7 +48,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -663,7 +668,8 @@ class MegatronDreamBooth(NLPAdapterModelMixin, MegatronBaseModel):
         return checkpoint
 
     def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
-        from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+        from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+            LinearWrapper
 
         if isinstance(module, AdapterModuleMixin):
             if isinstance(module, LinearWrapper):

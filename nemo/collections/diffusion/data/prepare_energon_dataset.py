@@ -25,8 +25,10 @@ import webdataset as wds
 from einops import rearrange
 from transformers import T5EncoderModel, T5TokenizerFast
 
-from nemo.collections.common.video_tokenizers.cosmos_tokenizer import CausalVideoTokenizer
-from nemo.collections.common.video_tokenizers.utils import read_image, resize_video
+from nemo.collections.common.video_tokenizers.cosmos_tokenizer import \
+    CausalVideoTokenizer
+from nemo.collections.common.video_tokenizers.utils import (read_image,
+                                                            resize_video)
 
 
 def initialize_text_encoder(t5_cache_dir):

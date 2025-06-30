@@ -26,22 +26,21 @@ import copy
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from qwen_vl_utils import fetch_image, fetch_video
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 from transformers import CLIPImageProcessor, Qwen2VLImageProcessor
 
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_ltor_masks_and_position_ids
 from nemo.collections.vlm.qwen2vl.data.config import Qwen2VLDataConfig
-from nemo.collections.vlm.qwen2vl.data.conversation import conv_templates as supported_conv_templates
+from nemo.collections.vlm.qwen2vl.data.conversation import \
+    conv_templates as supported_conv_templates
 from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-    SPECIAL_TOKEN_MAP,
-    VIDEO_TOKEN_INDEX,
-    VISION_END_TOKEN_INDEX,
-)
+    IGNORE_INDEX, IMAGE_TOKEN_INDEX, SPECIAL_TOKEN_MAP, VIDEO_TOKEN_INDEX,
+    VISION_END_TOKEN_INDEX)
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
@@ -334,7 +333,8 @@ class PreloadedSupervisedDataset(Dataset):
         logging.warning("Formatting inputs...Skip in preloaded mode")
         self.data_config = data_config
         self.tokenizer = tokenizer
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         if isinstance(self.tokenizer, AutoTokenizer):
             self.tokenizer = self.tokenizer.tokenizer
@@ -793,9 +793,11 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
 
         """
         try:
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from apex.transformer.pipeline_parallel.utils import \
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         except ModuleNotFoundError:
-            from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from nemo.lightning.apex_utils import \
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples

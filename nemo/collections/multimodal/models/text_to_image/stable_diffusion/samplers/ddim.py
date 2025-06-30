@@ -17,9 +17,12 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers import Sampler
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.base_sampler import AbstractBaseSampler
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import extract_into_tensor
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers import \
+    Sampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.base_sampler import \
+    AbstractBaseSampler
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import \
+    extract_into_tensor
 from nemo.collections.multimodal.parts.utils import randn_like
 
 

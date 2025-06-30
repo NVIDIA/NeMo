@@ -34,7 +34,8 @@ from nemo.utils.import_utils import safe_import_from
 te, HAVE_TE = safe_import_from("transformer_engine", "pytorch")
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
+from nemo.collections.llm.peft.utils import (
+    get_adapter_attributes_from_linear, is_expert_linear)
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 

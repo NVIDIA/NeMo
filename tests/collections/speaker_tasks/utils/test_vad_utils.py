@@ -17,15 +17,10 @@ import pytest
 from pyannote.core import Annotation, Segment
 
 from nemo.collections.asr.parts.utils.vad_utils import (
-    align_labels_to_frames,
-    convert_labels_to_speech_segments,
-    frame_vad_construct_pyannote_object_per_file,
-    get_frame_labels,
-    get_nonspeech_segments,
-    load_speech_overlap_segments_from_rttm,
-    load_speech_segments_from_rttm,
-    read_rttm_as_pyannote_object,
-)
+    align_labels_to_frames, convert_labels_to_speech_segments,
+    frame_vad_construct_pyannote_object_per_file, get_frame_labels,
+    get_nonspeech_segments, load_speech_overlap_segments_from_rttm,
+    load_speech_segments_from_rttm, read_rttm_as_pyannote_object)
 
 
 def get_simple_rttm_without_overlap(rttm_file="test1.rttm"):

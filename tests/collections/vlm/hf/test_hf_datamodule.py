@@ -16,14 +16,11 @@ import pytest
 import torch
 from datasets import Dataset, DatasetDict
 
-from nemo.collections.vlm.hf.data.hf_dataset import (
-    HFDatasetDataModule,
-    batchify,
-    clean_split,
-    extract_key_from_dicts,
-    make_dataset_splits,
-    pad_within_micro,
-)
+from nemo.collections.vlm.hf.data.hf_dataset import (HFDatasetDataModule,
+                                                     batchify, clean_split,
+                                                     extract_key_from_dicts,
+                                                     make_dataset_splits,
+                                                     pad_within_micro)
 
 
 @pytest.fixture

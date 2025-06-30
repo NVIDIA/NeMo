@@ -22,15 +22,12 @@ import torch
 from lightning.pytorch import Trainer
 from omegaconf import open_dict
 
-from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
+from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import \
+    MegatronMambaModel
 from nemo.collections.nlp.parts.nlp_overrides import (
-    NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+    NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler,
+    MegatronHalfPrecisionPlugin, NLPDDPStrategy, NLPSaveRestoreConnector,
+    PipelineMixedPrecisionPlugin)
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 

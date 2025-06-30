@@ -21,14 +21,16 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
-from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import \
+    DialogueAssistantDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset.dialogue_bert_dataset import (
-    DialogueBERTDataset,
-    DialogueIntentSlotInferenceDataset,
-)
-from nemo.collections.nlp.data.intent_slot_classification import IntentSlotDataDesc
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
+    DialogueBERTDataset, DialogueIntentSlotInferenceDataset)
+from nemo.collections.nlp.data.intent_slot_classification import \
+    IntentSlotDataDesc
+from nemo.collections.nlp.metrics.classification_report import \
+    ClassificationReport
+from nemo.collections.nlp.metrics.dialogue_metrics import \
+    DialogueClassificationMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list

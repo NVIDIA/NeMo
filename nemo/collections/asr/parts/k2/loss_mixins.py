@@ -18,14 +18,12 @@ from typing import List, Optional, Tuple
 import torch
 
 from nemo.collections.asr.parts.k2.grad_utils import GradExpNormalize
-from nemo.collections.asr.parts.k2.utils import (
-    create_supervision,
-    get_arc_weights,
-    get_uniform_rnnt_prune_ranges,
-    make_non_pad_mask,
-    make_non_pad_mask_3d,
-    prep_padded_densefsavec,
-)
+from nemo.collections.asr.parts.k2.utils import (create_supervision,
+                                                 get_arc_weights,
+                                                 get_uniform_rnnt_prune_ranges,
+                                                 make_non_pad_mask,
+                                                 make_non_pad_mask_3d,
+                                                 prep_padded_densefsavec)
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 
 

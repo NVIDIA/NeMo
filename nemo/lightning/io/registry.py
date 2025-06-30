@@ -21,7 +21,8 @@ try:
     # Track HF tokenizers
     from transformers import AutoTokenizer as HfAutoTokenizer
     from transformers.models.llama.tokenization_llama import LlamaTokenizer
-    from transformers.models.llama.tokenization_llama_fast import LlamaTokenizerFast
+    from transformers.models.llama.tokenization_llama_fast import \
+        LlamaTokenizerFast
 
     for cls in [HfAutoTokenizer, LlamaTokenizer, LlamaTokenizerFast]:
         track_io(
@@ -48,7 +49,9 @@ except ImportError:
 
 
 try:
-    from nemo.collections.common.tokenizers import ByteLevelTokenizer, SentencePieceTokenizer, TiktokenTokenizer
+    from nemo.collections.common.tokenizers import (ByteLevelTokenizer,
+                                                    SentencePieceTokenizer,
+                                                    TiktokenTokenizer)
 
     track_io(SentencePieceTokenizer, artifacts=[FileArtifact("model_path")])
     track_io(TiktokenTokenizer, artifacts=[FileArtifact("vocab_file")])

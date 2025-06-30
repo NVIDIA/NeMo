@@ -14,7 +14,8 @@
 
 
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig
-from nemo.collections.vlm.llava_next.model.llava_next import LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel
+from nemo.collections.vlm.llava_next.model.llava_next import (
+    LlavaNextConfig7B, LlavaNextConfig13B, LlavaNextModel)
 
 __all__ = [
     "LlavaNextConfig",

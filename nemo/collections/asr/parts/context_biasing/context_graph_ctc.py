@@ -34,7 +34,6 @@
 from collections import deque
 from typing import Dict, List, Optional
 
-
 try:
     import graphviz
 

@@ -17,14 +17,9 @@ import pytest
 import torch
 
 from nemo.collections.llm.gpt.model.hf_llama_embedding import (
-    LlamaBidirectionalConfig,
-    LlamaBidirectionalForSequenceClassification,
-    LlamaBidirectionalHFAdapter,
-    LlamaBidirectionalModel,
-    Pooling,
-    get_llama_bidirectional_hf_model,
-    pool,
-)
+    LlamaBidirectionalConfig, LlamaBidirectionalForSequenceClassification,
+    LlamaBidirectionalHFAdapter, LlamaBidirectionalModel, Pooling,
+    get_llama_bidirectional_hf_model, pool)
 
 
 @pytest.fixture

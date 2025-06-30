@@ -19,8 +19,10 @@ import torch
 from omegaconf.omegaconf import OmegaConf
 from transformers import AutoModelForCausalLM
 
-from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
+from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import \
+    MegatronGriffinModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 

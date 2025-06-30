@@ -24,15 +24,13 @@ from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
 from nemo.collections.nlp.modules.common.huggingface.huggingface_utils import (
-    get_huggingface_lm_model,
-    get_huggingface_pretrained_lm_models_list,
-)
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import get_megatron_pretrained_bert_models
-from nemo.collections.nlp.modules.common.transformer.transformer import NeMoTransformerConfig
+    get_huggingface_lm_model, get_huggingface_pretrained_lm_models_list)
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import \
+    get_megatron_pretrained_bert_models
+from nemo.collections.nlp.modules.common.transformer.transformer import \
+    NeMoTransformerConfig
 from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
-    get_huggingface_transformer,
-    get_nemo_transformer,
-)
+    get_huggingface_transformer, get_nemo_transformer)
 from nemo.utils import AppState, logging
 
 __all__ = ['get_pretrained_lm_models_list', 'get_lm_model', 'pad_batch']
@@ -103,7 +101,8 @@ def get_lm_model(
     if cfg.get('language_model') and cfg.language_model.get('pretrained_model_name', ''):
         pretrain_model_name = cfg.language_model.get('pretrained_model_name', '')
 
-    from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+    from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
+        MegatronBertModel
 
     def get_megatron_pretrained_bert_models() -> List[str]:
 
@@ -120,7 +119,8 @@ def get_lm_model(
     ) or pretrain_model_name in all_pretrained_megatron_bert_models:
         import torch
 
-        from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+        from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
+            MegatronBertModel
 
         class Identity(torch.nn.Module):
             def __init__(self):

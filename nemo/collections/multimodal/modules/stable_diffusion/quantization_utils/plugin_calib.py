@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import torch
-
 from modelopt.torch.quantization import utils as quant_utils
 from modelopt.torch.quantization.calib.max import MaxCalibrator
 

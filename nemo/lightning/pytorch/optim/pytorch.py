@@ -20,7 +20,8 @@ from torch.optim import Optimizer
 from torch.optim.optimizer import ParamsT
 
 from nemo.lightning.megatron_parallel import MegatronParallel
-from nemo.lightning.pytorch.optim.base import LRSchedulerModule, OptimizerModule
+from nemo.lightning.pytorch.optim.base import (LRSchedulerModule,
+                                               OptimizerModule)
 
 
 def _param_does_not_have_wd(param_name, param):

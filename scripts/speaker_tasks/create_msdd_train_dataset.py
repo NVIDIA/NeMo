@@ -35,17 +35,11 @@ import random
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.utils.manifest_utils import (
-    get_input_manifest_dict,
-    get_subsegment_dict,
-    rreplace,
-    write_truncated_subsegments,
-)
+    get_input_manifest_dict, get_subsegment_dict, rreplace,
+    write_truncated_subsegments)
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    audio_rttm_map,
-    rttm_to_labels,
-    segments_manifest_to_subsegments_manifest,
-    write_rttm2manifest,
-)
+    audio_rttm_map, rttm_to_labels, segments_manifest_to_subsegments_manifest,
+    write_rttm2manifest)
 from nemo.utils import logging
 
 random.seed(42)

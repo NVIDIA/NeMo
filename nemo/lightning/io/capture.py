@@ -14,7 +14,8 @@
 
 import functools
 import logging
-from typing import Callable, Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import (Callable, Generic, Optional, Protocol, TypeVar,
+                    runtime_checkable)
 
 import fiddle as fdl
 

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pytest
-
 from utils.data_prep import restore_token_case
 
 

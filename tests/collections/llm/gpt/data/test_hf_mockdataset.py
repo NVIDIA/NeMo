@@ -18,7 +18,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 
-from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule, _MockGPTDataset
+from nemo.collections.llm.gpt.data.hf_dataset import (HFMockDataModule,
+                                                      _MockGPTDataset)
 
 
 @pytest.fixture

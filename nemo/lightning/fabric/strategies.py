@@ -14,29 +14,21 @@
 
 from contextlib import ExitStack, contextmanager
 from datetime import timedelta
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    ContextManager,
-    Dict,
-    Generator,
-    Iterator,
-    List,
-    Literal,
-    Optional,
-    Union,
-)
+from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
+                    Generator, Iterator, List, Literal, Optional, Union)
 
 import torch
 from lightning.fabric.accelerators import CPUAccelerator
 from lightning.fabric.accelerators.accelerator import Accelerator
-from lightning.fabric.plugins.collectives.torch_collective import default_pg_timeout
-from lightning.fabric.plugins.environments.cluster_environment import ClusterEnvironment
+from lightning.fabric.plugins.collectives.torch_collective import \
+    default_pg_timeout
+from lightning.fabric.plugins.environments.cluster_environment import \
+    ClusterEnvironment
 from lightning.fabric.plugins.io.checkpoint_io import CheckpointIO
 from lightning.fabric.plugins.precision import Precision
 from lightning.fabric.strategies import DDPStrategy
-from lightning.fabric.strategies.strategy import _validate_keys_for_strict_loading
+from lightning.fabric.strategies.strategy import \
+    _validate_keys_for_strict_loading
 from lightning.fabric.utilities.types import _PATH, _Stateful
 from lightning.pytorch import LightningDataModule
 from lightning.pytorch.loops.fetchers import _DataFetcher
@@ -45,7 +37,8 @@ from lightning.pytorch.utilities.combined_loader import CombinedLoader
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from torch import Tensor, nn
-from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import \
+    noop_hook
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
@@ -54,7 +47,8 @@ from typing_extensions import override
 from nemo.lightning import _strategy_lib
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.io.pl import MegatronCheckpointIO
-from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
+from nemo.lightning.megatron_parallel import (CallbackConnector,
+                                              MegatronParallel)
 from nemo.lightning.pytorch.strategies import MegatronStrategy
 
 if TYPE_CHECKING:
@@ -447,7 +441,8 @@ class FabricMegatronStrategy(DDPStrategy):
         """
         Get the parallelism config.
         """
-        from nemo.lightning.pytorch.strategies.megatron_strategy import ParallelismConfig
+        from nemo.lightning.pytorch.strategies.megatron_strategy import \
+            ParallelismConfig
 
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,

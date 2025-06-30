@@ -17,7 +17,8 @@ from typing import Dict, List, Optional
 import lightning.pytorch as pl
 import numpy as np
 import torch
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
@@ -60,7 +61,9 @@ class MockDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             logging.warning(f"Processor or tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
-            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+                AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
             self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")

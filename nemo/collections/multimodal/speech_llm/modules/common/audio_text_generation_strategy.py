@@ -17,8 +17,10 @@ from typing import List, Optional, Tuple
 import torch
 
 import nemo.collections.nlp.modules.common.text_generation_strategy as text_generation_strategy
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import \
+    shift_tokens_by_multi_audios
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    build_position_ids
 
 # the text representation of eos_id, it applies for all tokenizers
 END_OF_SEQ = '<|endoftext|>'
@@ -274,9 +276,7 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
 
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.multimodal.speech_llm.models.modular_models import (
-        CrossAttendModularAudioGPTModel,
-        ModularAudioGPTModel,
-    )
+        CrossAttendModularAudioGPTModel, ModularAudioGPTModel)
 
     if isinstance(model, CrossAttendModularAudioGPTModel):
         return CrossAttendAudioToTextGenerationStrategy(model, **args)

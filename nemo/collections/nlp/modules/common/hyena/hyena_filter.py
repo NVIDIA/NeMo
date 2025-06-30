@@ -18,7 +18,6 @@ from typing import Union
 
 import torch
 import torch.nn as nn
-
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 

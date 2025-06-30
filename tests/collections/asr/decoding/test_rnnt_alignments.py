@@ -18,13 +18,15 @@ from typing import Union
 
 import pytest
 import torch.cuda
-from examples.asr.transcribe_speech import TranscriptionConfig
 from omegaconf import OmegaConf
 
+from examples.asr.transcribe_speech import TranscriptionConfig
 from nemo.collections.asr.models import EncDecRNNTBPEModel
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data
+from nemo.collections.asr.parts.utils.transcribe_utils import \
+    prepare_audio_data
 
 DEVICES = []
 

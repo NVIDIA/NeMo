@@ -22,9 +22,12 @@ from lightning.pytorch.trainer.trainer import Trainer
 from megatron.core import dist_checkpointing
 from omegaconf import OmegaConf
 
-from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.multimodal.speech_llm.modules.perception_modules import \
+    AudioPerceptionModule
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper
 from nemo.utils import logging
 from nemo.utils.model_utils import inject_model_parallel_rank

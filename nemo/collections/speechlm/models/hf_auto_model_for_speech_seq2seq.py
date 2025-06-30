@@ -17,9 +17,11 @@ import torch
 from torch.distributed._composable.fsdp import MixedPrecisionPolicy
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm import fn
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import \
+    masked_cross_entropy
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import fsdp2_strategy_parallelize
 from nemo.utils import logging

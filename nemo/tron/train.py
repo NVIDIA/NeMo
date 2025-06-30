@@ -22,14 +22,12 @@ import torch
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as DDP
 from megatron.core.num_microbatches_calculator import (
-    get_current_global_batch_size,
-    get_current_running_global_batch_size,
-    get_num_microbatches,
-    update_num_microbatches,
-)
+    get_current_global_batch_size, get_current_running_global_batch_size,
+    get_num_microbatches, update_num_microbatches)
 from megatron.core.pipeline_parallel import get_forward_backward_func
 from megatron.core.rerun_state_machine import get_rerun_state_machine
-from megatron.core.utils import check_param_hashes_across_dp_replicas, get_model_config
+from megatron.core.utils import (check_param_hashes_across_dp_replicas,
+                                 get_model_config)
 
 from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import save_checkpoint
@@ -39,15 +37,13 @@ from nemo.tron.init import destroy_global_state
 from nemo.tron.state import GlobalState
 from nemo.tron.utils import flop_utils
 from nemo.tron.utils.async_utils import maybe_finalize_async_save
-from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, get_world_size_safe, print_rank_0
+from nemo.tron.utils.common_utils import (append_to_progress_log,
+                                          barrier_and_log, get_world_size_safe,
+                                          print_rank_0)
 from nemo.tron.utils.train_utils import (
-    calc_params_l2_norm,
-    check_forward_step_func_num_args,
-    logical_and_across_model_parallel_group,
-    maybe_inject_state,
-    reduce_max_stat_across_model_parallel_group,
-    training_log,
-)
+    calc_params_l2_norm, check_forward_step_func_num_args,
+    logical_and_across_model_parallel_group, maybe_inject_state,
+    reduce_max_stat_across_model_parallel_group, training_log)
 
 
 def train(

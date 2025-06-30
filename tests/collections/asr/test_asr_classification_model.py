@@ -20,7 +20,9 @@ import torch
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.asr.data import audio_to_label
-from nemo.collections.asr.models import EncDecClassificationModel, EncDecFrameClassificationModel, configs
+from nemo.collections.asr.models import (EncDecClassificationModel,
+                                         EncDecFrameClassificationModel,
+                                         configs)
 from nemo.utils.config_utils import assert_dataclass_signature_match
 
 

@@ -23,10 +23,7 @@ import pytest
 import yaml
 
 from nemo.collections.llm.gpt.data.megatron.hyena.config import (
-    Evo2BlendedDatasetConfig,
-    infer_global_batch_size,
-    parse_dataset_config,
-)
+    Evo2BlendedDatasetConfig, infer_global_batch_size, parse_dataset_config)
 
 
 @contextmanager

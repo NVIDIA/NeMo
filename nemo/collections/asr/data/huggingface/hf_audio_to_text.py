@@ -22,11 +22,13 @@ from omegaconf import DictConfig, ListConfig, open_dict
 
 from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 from nemo.collections.asr.parts.preprocessing.perturb import AudioAugmentor
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import (
+    AudioSegment, ChannelSelectorType)
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.core.classes import Dataset, IterableDataset
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import (AudioSignal, LabelsType, LengthsType,
+                                    NeuralType)
 from nemo.utils import logging
 
 

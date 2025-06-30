@@ -21,8 +21,10 @@ from nemo.collections.vlm import NevaModel
 from nemo.collections.vlm.recipes import neva_llama3_8b
 from nemo.collections.vlm.recipes.neva_llama3_8b import NevaConfig8B
 from nemo.lightning import Trainer
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.garbage_collection import \
+    GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 
 
 class TestNevaLlama38B:

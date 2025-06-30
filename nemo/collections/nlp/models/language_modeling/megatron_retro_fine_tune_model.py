@@ -20,19 +20,22 @@ from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
-from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
+from nemo.collections.common.metrics.classification_accuracy import \
+    ExactStringPerCategoryMatchMetric
+from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import \
+    SequenceToSequenceDataset
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-    get_train_valid_test_split_,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_dataset import RetroQAFineTuneDataset
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
+    get_datasets_weights_and_num_samples, get_train_valid_test_split_)
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
+    MegatronPretrainingBatchSampler
+from nemo.collections.nlp.data.language_modeling.megatron.retro_fine_tune_dataset import \
+    RetroQAFineTuneDataset
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import \
+    MegatronRetrievalModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import (
+    MegatronT5Model, T5Sentinel)
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.utils import AppState, logging
 

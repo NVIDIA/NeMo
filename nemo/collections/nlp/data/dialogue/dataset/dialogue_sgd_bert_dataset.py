@@ -24,8 +24,10 @@ from typing import List
 
 import numpy as np
 
-from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import DialogueDataset
-from nemo.collections.nlp.data.dialogue.input_example.sgd_input_example import SGDInputExample
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import \
+    DialogueDataset
+from nemo.collections.nlp.data.dialogue.input_example.sgd_input_example import \
+    SGDInputExample
 
 __all__ = ['DialogueSGDBERTDataset']
 

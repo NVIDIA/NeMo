@@ -18,14 +18,10 @@ from unittest import mock
 import pytest
 
 from nemo import __version__ as NEMO_VERSION
-from nemo.utils.data_utils import (
-    ais_binary,
-    ais_endpoint_to_dir,
-    bucket_and_object_from_uri,
-    datastore_path_to_webdataset_url,
-    is_datastore_path,
-    resolve_cache_dir,
-)
+from nemo.utils.data_utils import (ais_binary, ais_endpoint_to_dir,
+                                   bucket_and_object_from_uri,
+                                   datastore_path_to_webdataset_url,
+                                   is_datastore_path, resolve_cache_dir)
 
 
 class TestDataUtils:

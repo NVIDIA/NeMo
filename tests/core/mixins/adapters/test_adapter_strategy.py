@@ -16,7 +16,8 @@ import pytest
 import torch
 
 from nemo.core import NeuralModule
-from nemo.core.classes.mixins import AdapterModuleMixin, access_mixins, adapter_mixin_strategies, adapter_mixins
+from nemo.core.classes.mixins import (AdapterModuleMixin, access_mixins,
+                                      adapter_mixin_strategies, adapter_mixins)
 from nemo.utils import config_utils
 
 

@@ -14,6 +14,7 @@
 import torch
 import torch.nn as nn
 
+
 # TODO(ahmadki): abstract class
 class NeRFBackgroundBase(nn.Module):
     def __init__(self):

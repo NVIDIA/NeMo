@@ -19,7 +19,8 @@ from nemo.utils.model_utils import param_is_not_shared
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+    from megatron.core.tensor_parallel.layers import \
+        param_is_not_tensor_parallel_duplicate
 
     HAVE_MEGATRON_CORE = True
 

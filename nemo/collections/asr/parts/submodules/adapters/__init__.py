@@ -13,22 +13,17 @@
 # limitations under the License.
 
 # fmt: off
-from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
+from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import \
+    AttentionAdapterModuleMixin
 from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
-    MHAResidualAddAdapterStrategy,
-    MHAResidualAddAdapterStrategyConfig,
-    MultiHeadAttentionAdapter,
-    MultiHeadAttentionAdapterConfig,
-    PositionalEncodingAdapter,
-    PositionalEncodingAdapterConfig,
-    RelPositionalEncodingAdapter,
-    RelPositionalEncodingAdapterConfig,
+    MHAResidualAddAdapterStrategy, MHAResidualAddAdapterStrategyConfig,
+    MultiHeadAttentionAdapter, MultiHeadAttentionAdapterConfig,
+    PositionalEncodingAdapter, PositionalEncodingAdapterConfig,
+    RelPositionalEncodingAdapter, RelPositionalEncodingAdapterConfig,
     RelPositionMultiHeadAttentionAdapter,
-    RelPositionMultiHeadAttentionAdapterConfig,
-)
+    RelPositionMultiHeadAttentionAdapterConfig)
 from nemo.collections.asr.parts.submodules.adapters.transformer_multi_head_attention_adapter_module import (
     TransformerMultiHeadAttentionAdapter,
-    TransformerMultiHeadAttentionAdapterConfig,
-)
+    TransformerMultiHeadAttentionAdapterConfig)
 
 # fmt: on

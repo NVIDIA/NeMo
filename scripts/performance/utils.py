@@ -29,7 +29,8 @@ from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel
 from nemo.collections.llm.recipes.llama3_8b import MegatronCommOverlapCallback
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
-from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
+from nemo.lightning.pytorch.callbacks.flops_callback import \
+    FLOPsMeasurementCallback
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)

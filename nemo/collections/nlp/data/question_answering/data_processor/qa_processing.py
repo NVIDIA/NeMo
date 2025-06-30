@@ -17,7 +17,8 @@ import ijson
 import numpy as np
 
 from nemo.collections.nlp.data.data_utils import DataProcessor
-from nemo.collections.nlp.data.question_answering.input_example.qa_input_example import QAExample
+from nemo.collections.nlp.data.question_answering.input_example.qa_input_example import \
+    QAExample
 from nemo.utils import logging
 
 TRAINING_MODE = "train"

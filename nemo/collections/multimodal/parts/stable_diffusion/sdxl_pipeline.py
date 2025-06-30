@@ -17,18 +17,10 @@ from typing import Optional
 from omegaconf import OmegaConf
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling import (
-    DPMPP2MSampler,
-    DPMPP2SAncestralSampler,
-    EulerAncestralSampler,
-    EulerEDMSampler,
-    HeunEDMSampler,
-    LinearMultistepSampler,
-)
+    DPMPP2MSampler, DPMPP2SAncestralSampler, EulerAncestralSampler,
+    EulerEDMSampler, HeunEDMSampler, LinearMultistepSampler)
 from nemo.collections.multimodal.parts.stable_diffusion.sdxl_helpers import (
-    Img2ImgDiscretizationWrapper,
-    do_img2img,
-    do_sample,
-)
+    Img2ImgDiscretizationWrapper, do_img2img, do_sample)
 
 
 class SamplingPipeline:

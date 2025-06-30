@@ -16,11 +16,9 @@ from typing import Callable, Optional
 
 import torch
 from megatron.core import parallel_state, tensor_parallel
-from megatron.core.distributed import (
-    DistributedDataParallel,
-    DistributedDataParallelConfig,
-    TorchFullyShardedDataParallel,
-)
+from megatron.core.distributed import (DistributedDataParallel,
+                                       DistributedDataParallelConfig,
+                                       TorchFullyShardedDataParallel)
 from megatron.core.enums import ModelType
 from megatron.core.fp8_utils import is_float8tensor
 from megatron.core.transformer.module import Float16Module

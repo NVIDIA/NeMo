@@ -24,7 +24,8 @@ from transformers.cache_utils import Cache
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 from transformers.modeling_outputs import SequenceClassifierOutputWithPast
 from transformers.models.llama.configuration_llama import LlamaConfig
-from transformers.models.llama.modeling_llama import LlamaForSequenceClassification, LlamaModel
+from transformers.models.llama.modeling_llama import (
+    LlamaForSequenceClassification, LlamaModel)
 from transformers.utils import logging
 
 logger = logging.get_logger(__name__)

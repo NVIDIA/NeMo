@@ -14,14 +14,16 @@
 
 import json
 import os
+
 import torch
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
+from nemo.collections.multimodal.parts.utils import \
+    create_neva_model_and_processor
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam, SamplingParam)
 from nemo.core.config import hydra_runner
 from nemo.utils.get_rank import is_global_rank_zero
-
 
 try:
     import modelopt.torch.quantization as mtq

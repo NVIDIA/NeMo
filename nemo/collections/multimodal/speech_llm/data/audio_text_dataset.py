@@ -21,27 +21,24 @@ import torch
 import webdataset as wds
 from omegaconf import DictConfig, ListConfig, open_dict
 
-from nemo.collections.asr.data.audio_to_text import (
-    VALID_FILE_FORMATS,
-    cache_datastore_manifests,
-    expand_sharded_filepaths,
-    shard_manifests_if_needed,
-)
-from nemo.collections.asr.data.audio_to_text_dataset import ConcatDataset, convert_to_config_list, get_chain_dataset
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
+from nemo.collections.asr.data.audio_to_text import (VALID_FILE_FORMATS,
+                                                     cache_datastore_manifests,
+                                                     expand_sharded_filepaths,
+                                                     shard_manifests_if_needed)
+from nemo.collections.asr.data.audio_to_text_dataset import (
+    ConcatDataset, convert_to_config_list, get_chain_dataset)
+from nemo.collections.asr.parts.preprocessing.features import \
+    WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
-    TextProcessing,
-    build_loss_mask,
-    ceil_to_nearest,
-    get_num_samples_from_files,
-    maybe_cast_to_list,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+    TextProcessing, build_loss_mask, ceil_to_nearest,
+    get_num_samples_from_files, maybe_cast_to_list)
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import \
+    get_datasets_weights_and_num_samples
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers

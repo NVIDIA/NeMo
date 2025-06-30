@@ -22,20 +22,12 @@ from typing import List, Optional, Union
 from transformers import PreTrainedTokenizerBase
 
 from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
-    get_grapheme_character_set,
-    get_ipa_punctuation_list,
-    validate_locale,
-)
+    get_grapheme_character_set, get_ipa_punctuation_list, validate_locale)
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
-    any_locale_text_preprocessing,
-    chinese_text_preprocessing,
-    english_text_preprocessing,
-    french_text_preprocessing,
-    italian_text_preprocessing,
-    japanese_text_preprocessing,
-    spanish_text_preprocessing,
-    vietnamese_text_preprocessing,
-)
+    any_locale_text_preprocessing, chinese_text_preprocessing,
+    english_text_preprocessing, french_text_preprocessing,
+    italian_text_preprocessing, japanese_text_preprocessing,
+    spanish_text_preprocessing, vietnamese_text_preprocessing)
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
 

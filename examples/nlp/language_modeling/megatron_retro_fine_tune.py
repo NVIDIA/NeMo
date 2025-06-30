@@ -19,17 +19,15 @@ from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks.timer import Timer
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
-from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
+from lightning.pytorch.trainer.connectors.checkpoint_connector import \
+    _CheckpointConnector
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.language_modeling.megatron_retro_fine_tune_model import MegatronRetroFinetuneModel
+from nemo.collections.nlp.models.language_modeling.megatron_retro_fine_tune_model import \
+    MegatronRetroFinetuneModel
 from nemo.collections.nlp.parts.nlp_overrides import (
-    CustomProgressBar,
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-)
+    CustomProgressBar, GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy,
+    NLPSaveRestoreConnector)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import StatelessTimer, exp_manager

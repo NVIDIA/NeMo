@@ -18,7 +18,8 @@ from utils import get_torch_version_str
 
 import nemo.lightning as nl
 from nemo.collections import llm
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
 DATA_PATH = '/lustre/fsw/coreai_dlalgo_llm/boxiangw/squad'

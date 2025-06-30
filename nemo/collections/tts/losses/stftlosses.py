@@ -46,7 +46,8 @@ import torch
 import torch.nn.functional as F
 
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types.elements import AudioSignal, LengthsType, LossType, SpectrogramType
+from nemo.core.neural_types.elements import (AudioSignal, LengthsType,
+                                             LossType, SpectrogramType)
 from nemo.core.neural_types.neural_type import NeuralType
 
 

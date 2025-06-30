@@ -34,7 +34,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_DLLOGGER = False
 
 try:
-    from lightning.fabric.utilities.logger import _convert_params, _flatten_dict, _sanitize_callable_params
+    from lightning.fabric.utilities.logger import (_convert_params,
+                                                   _flatten_dict,
+                                                   _sanitize_callable_params)
 
     PL_LOGGER_UTILITIES = True
 except (ImportError, ModuleNotFoundError):

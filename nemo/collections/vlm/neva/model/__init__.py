@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
-from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
+from nemo.collections.vlm.neva.model.llava import (Llava15Config7B,
+                                                   Llava15Config13B,
+                                                   LlavaConfig, LlavaModel)
 
 __all__ = [
     "NevaConfig",

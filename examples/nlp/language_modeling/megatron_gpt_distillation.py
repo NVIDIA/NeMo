@@ -25,7 +25,8 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
 except ImportError:
     raise AssertionError("ModelOpt only supports Megatron-Core.")
 import types
@@ -44,13 +45,12 @@ from torch.nn.modules.loss import _Loss
 
 from nemo.collections.common.parts.utils import extend_instance
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
-    EmbeddingScalingMixin,
-    MegatronGPTModel,
-    get_specs,
-)
+    EmbeddingScalingMixin, MegatronGPTModel, get_specs)
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    average_losses_across_data_parallel_group
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

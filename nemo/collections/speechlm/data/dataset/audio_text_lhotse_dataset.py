@@ -19,9 +19,11 @@ from lhotse.cut import Cut, CutSet
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors as collate_vectors_lhotse
 
-from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, NeMoMultimodalConversation, TextTurn
+from nemo.collections.common.data.lhotse.text_adapters import (
+    AudioTurn, NeMoMultimodalConversation, TextTurn)
 from nemo.collections.speechlm.data.dataset.data_utils import build_loss_mask
-from nemo.collections.speechlm.data.text_processing import MultimodalConversationTextProcessor, TextProcessorOutput
+from nemo.collections.speechlm.data.text_processing import (
+    MultimodalConversationTextProcessor, TextProcessorOutput)
 
 
 def collate_vectors(items, max_length: int, padding_value):

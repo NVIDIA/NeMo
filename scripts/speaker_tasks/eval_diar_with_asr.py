@@ -18,14 +18,11 @@ import json
 import os
 
 from nemo.collections.asr.metrics.der import evaluate_der
-from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR
+from nemo.collections.asr.parts.utils.diarization_utils import \
+    OfflineDiarWithASR
 from nemo.collections.asr.parts.utils.manifest_utils import read_file
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    get_uniqname_from_filepath,
-    labels_to_pyannote_object,
-    rttm_to_labels,
-)
-
+    get_uniqname_from_filepath, labels_to_pyannote_object, rttm_to_labels)
 
 """
 Evaluation script for diarization with ASR.

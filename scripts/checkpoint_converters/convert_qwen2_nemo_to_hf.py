@@ -18,9 +18,11 @@ from collections import OrderedDict
 
 import torch
 from lightning.pytorch import Trainer
-from transformers import Qwen2ForCausalLM, Qwen2Tokenizer, Qwen2TokenizerFast, convert_slow_tokenizer
+from transformers import (Qwen2ForCausalLM, Qwen2Tokenizer, Qwen2TokenizerFast,
+                          convert_slow_tokenizer)
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 

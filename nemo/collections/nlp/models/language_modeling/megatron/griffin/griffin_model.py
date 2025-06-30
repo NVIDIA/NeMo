@@ -13,15 +13,21 @@
 # limitations under the License.
 
 import math
+
 import torch
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 
 try:
     from megatron.core import tensor_parallel
     from megatron.core.jit import jit_fuser
-    from megatron.core.models.common.embeddings.language_model_embedding import LanguageModelEmbedding
-    from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
-    from megatron.core.models.common.language_module.language_module import LanguageModule
+    from megatron.core.models.common.embeddings.language_model_embedding import \
+        LanguageModelEmbedding
+    from megatron.core.models.common.embeddings.rotary_pos_embedding import \
+        RotaryEmbedding
+    from megatron.core.models.common.language_module.language_module import \
+        LanguageModule
     from megatron.core.transformer.transformer_config import TransformerConfig
     from torch import Tensor, nn
 
@@ -31,7 +37,8 @@ except (ImportError, ModuleNotFoundError):
     TransformerConfig = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False
 
-from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_block import GriffinStack
+from nemo.collections.nlp.models.language_modeling.megatron.griffin.griffin_block import \
+    GriffinStack
 
 
 class GriffinModel(LanguageModule):

@@ -26,22 +26,21 @@ import webdataset as wds
 from torch.utils.data import ChainDataset
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
+from nemo.collections.asr.parts.preprocessing.features import \
+    WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import \
+    available_formats as valid_sf_formats
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.core.neural_types import *
 from nemo.utils import logging
-from nemo.utils.data_utils import (
-    DataStoreObject,
-    datastore_object_get,
-    datastore_path_to_webdataset_url,
-    is_datastore_cache_shared,
-    is_datastore_path,
-    is_tarred_path,
-)
+from nemo.utils.data_utils import (DataStoreObject, datastore_object_get,
+                                   datastore_path_to_webdataset_url,
+                                   is_datastore_cache_shared,
+                                   is_datastore_path, is_tarred_path)
 from nemo.utils.decorators import deprecated
 from nemo.utils.distributed import webdataset_split_by_workers
 from nemo.utils.get_rank import is_global_rank_zero

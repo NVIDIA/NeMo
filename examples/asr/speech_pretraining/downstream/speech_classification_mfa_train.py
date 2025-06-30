@@ -18,7 +18,8 @@ import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import EncDecSpeakerLabelModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models import (EncDecSpeakerLabelModel,
+                                         SpeechEncDecSelfSupervisedModel)
 from nemo.core.classes.common import typecheck
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

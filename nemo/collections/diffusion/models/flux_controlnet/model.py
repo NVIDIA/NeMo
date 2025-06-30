@@ -17,20 +17,24 @@ from typing import Callable
 
 import torch
 import torch.nn as nn
-from megatron.core.models.common.vision_module.vision_module import VisionModule
+from megatron.core.models.common.vision_module.vision_module import \
+    VisionModule
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch.nn import functional as F
 
 from nemo.collections.diffusion.models.dit.dit_layer_spec import (
-    FluxSingleTransformerBlock,
-    MMDiTLayer,
+    FluxSingleTransformerBlock, MMDiTLayer,
     get_flux_double_transformer_engine_spec,
-    get_flux_single_transformer_engine_spec,
-)
-from nemo.collections.diffusion.models.flux.layers import EmbedND, MLPEmbedder, TimeStepEmbedder
-from nemo.collections.diffusion.models.flux.model import FluxConfig, FluxModelParams, MegatronFluxModel
-from nemo.collections.diffusion.models.flux_controlnet.layers import ControlNetConditioningEmbedding
+    get_flux_single_transformer_engine_spec)
+from nemo.collections.diffusion.models.flux.layers import (EmbedND,
+                                                           MLPEmbedder,
+                                                           TimeStepEmbedder)
+from nemo.collections.diffusion.models.flux.model import (FluxConfig,
+                                                          FluxModelParams,
+                                                          MegatronFluxModel)
+from nemo.collections.diffusion.models.flux_controlnet.layers import \
+    ControlNetConditioningEmbedding
 from nemo.lightning import io
 from nemo.utils import logging
 
@@ -523,7 +527,8 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
         Saves the inference results together with the hint image to log folder.
         '''
         logging.info("Start validation step")
-        from nemo.collections.diffusion.models.flux.pipeline import FluxControlNetInferencePipeline
+        from nemo.collections.diffusion.models.flux.pipeline import \
+            FluxControlNetInferencePipeline
 
         pipe = FluxControlNetInferencePipeline(
             params=self.params,

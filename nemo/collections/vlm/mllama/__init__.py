@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from transformers import PreTrainedTokenizerFast
+
 from nemo.lightning.io import track_io
 
 track_io(PreTrainedTokenizerFast)

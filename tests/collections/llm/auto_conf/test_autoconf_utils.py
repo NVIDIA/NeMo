@@ -17,13 +17,12 @@ from functools import partial
 
 import numpy as np
 
-from nemo.collections.llm.tools.auto_configurator.core.base_config import _estimate_training_time, calculate_model_size
+from nemo.collections.llm.tools.auto_configurator.core.base_config import (
+    _estimate_training_time, calculate_model_size)
 from nemo.collections.llm.tools.auto_configurator.core.training_config import (
-    BertGridSearch,
-    GPT3GridSearch,
-    T5GridSearch,
-)
-from nemo.collections.llm.tools.auto_configurator.core.utils import ModelSizeParams, _calculate_model_size, modify_cfg
+    BertGridSearch, GPT3GridSearch, T5GridSearch)
+from nemo.collections.llm.tools.auto_configurator.core.utils import (
+    ModelSizeParams, _calculate_model_size, modify_cfg)
 
 GPT_PARAMS = OrderedDict(
     [

@@ -22,7 +22,8 @@ from diffusers.models.embeddings import Timesteps
 from einops import rearrange, repeat
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-from megatron.core.models.common.vision_module.vision_module import VisionModule
+from megatron.core.models.common.vision_module.vision_module import \
+    VisionModule
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.transformer_block import TransformerBlock
@@ -31,10 +32,10 @@ from megatron.core.utils import make_sharded_tensor_for_checkpoint
 from torch import Tensor
 
 from nemo.collections.diffusion.models.dit import dit_embeddings
-from nemo.collections.diffusion.models.dit.dit_embeddings import ParallelTimestepEmbedding
-from nemo.collections.diffusion.models.dit.dit_layer_spec import (
-    get_dit_adaln_block_with_transformer_engine_spec as DiTLayerWithAdaLNspec,
-)
+from nemo.collections.diffusion.models.dit.dit_embeddings import \
+    ParallelTimestepEmbedding
+from nemo.collections.diffusion.models.dit.dit_layer_spec import \
+    get_dit_adaln_block_with_transformer_engine_spec as DiTLayerWithAdaLNspec
 
 
 def modulate(x, shift, scale):

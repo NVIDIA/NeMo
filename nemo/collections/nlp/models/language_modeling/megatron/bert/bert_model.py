@@ -21,24 +21,21 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor
 
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
+from nemo.collections.nlp.modules.common.megatron.language_model import \
+    get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.transformer import \
+    get_layer_norm
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    build_position_ids,
-    erf_gelu,
-    get_linear_layer,
-    init_method_normal,
-    openai_gelu,
-    parallel_lm_logits,
-    scaled_init_method_normal,
-)
+    ApexGuardDefaults, build_position_ids, erf_gelu, get_linear_layer,
+    init_method_normal, openai_gelu, parallel_lm_logits,
+    scaled_init_method_normal)
 from nemo.utils.decorators import deprecated_warning
 
 try:
     from apex.transformer.enums import AttnMaskType
-    from apex.transformer.tensor_parallel.layers import set_tensor_model_parallel_attributes
+    from apex.transformer.tensor_parallel.layers import \
+        set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 except (ImportError, ModuleNotFoundError):
@@ -49,16 +46,20 @@ except (ImportError, ModuleNotFoundError):
     AttnMaskType = ApexGuardDefaults()
 
 try:
-    from megatron.core import InferenceParams, ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import (InferenceParams, ModelParallelConfig,
+                               parallel_state, tensor_parallel)
     from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-    from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
+    from megatron.core.models.bert.bert_lm_head import \
+        BertLMHead as MCoreBertLMHead
     from megatron.core.models.bert.bert_model import BertModel as MCoreBert
     from megatron.core.models.bert.pooler import Pooler
     from megatron.core.packed_seq_params import PackedSeqParams
     from megatron.core.transformer.spec_utils import build_module
     from megatron.core.transformer.transformer_block import TransformerBlock
-    from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-    from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
+    from megatron.core.transformer.transformer_layer import (
+        TransformerLayer, TransformerLayerSubmodules)
+    from megatron.core.transformer.utils import \
+        get_linear_layer as mcore_get_linear_layer
     from megatron.core.utils import make_viewless_tensor
 
     HAVE_MEGATRON_CORE = True
