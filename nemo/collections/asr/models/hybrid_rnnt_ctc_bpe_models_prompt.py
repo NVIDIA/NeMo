@@ -28,7 +28,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpe
 from nemo.collections.asr.data.audio_to_text_lhotse_prompt import LhotseSpeechToTextBpeDatasetWithPrompt
 from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRTranscriptionMixin, TranscribeConfig
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionReturnType
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
@@ -59,7 +59,7 @@ class HybridRNNTCTCPromptTranscribeConfig(TranscribeConfig):
     prompt_field: str = "lang"
 
 
-class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixin, ASRTranscriptionMixin):
+class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCBPEModel, ASRTranscriptionMixin):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss, subword tokenization, and prompt conditioning."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):

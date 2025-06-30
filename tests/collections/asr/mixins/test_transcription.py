@@ -528,3 +528,22 @@ class TestTranscriptionMixin:
 
         # Restore original decoding config
         hybrid_rnnt_ctc_bpe_model_with_prompt.change_decoding_strategy(orig_decoding_config)
+
+    @pytest.mark.unit
+    def test_timestamps_with_transcribe_hybrid_prompt(self, audio_files, hybrid_rnnt_ctc_bpe_model_with_prompt):
+        audio1, audio2 = audio_files
+
+        output = hybrid_rnnt_ctc_bpe_model_with_prompt.transcribe([audio1, audio2], timestamps=True)
+
+        # check len of output
+        assert len(output) == 2
+
+        # check hypothesis object
+        assert isinstance(output[0], Hypothesis)
+        # check transcript
+        assert output[0].text == 'Stop'
+        assert output[1].text == 'Start'
+
+        # check timestamp
+        assert output[0].timestamp['segment'][0]['start'] == pytest.approx(0.16)
+        assert output[0].timestamp['segment'][0]['end'] == pytest.approx(0.56)
