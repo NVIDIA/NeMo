@@ -456,11 +456,13 @@ def modify_cfg(
         # Valid config
         new_cfg["name"] = (
             f"{model_name}_{str(model_size)}b_{num_nodes}nodes_"
-            f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_vp_{virtual_pipelines}"
+            f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_vp_{virtual_pipelines}_seq_{seq_len}_gbs_{gbs}"
         )
+        
         print(
             f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, "
             f"VP={virtual_pipelines}. Adding to directory."
         )
         return new_cfg
     return None
+    
