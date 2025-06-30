@@ -95,6 +95,11 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     use_mcore_fsdp = config.get("use_mcore_fsdp") if args.use_mcore_fsdp is None else args.use_mcore_fsdp
     use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
 
+    use_fsdp_double_buffer = config.get("use_fsdp_double_buffer") if args.use_fsdp_double_buffer is None else args.use_fsdp_double_buffer
+    use_fsdp_double_buffer = False if use_fsdp_double_buffer is None else bool(int(use_fsdp_double_buffer))
+    if use_fsdp_double_buffer:
+        assert use_mcore_fsdp == True, "use_fsdp_double_buffer requires use_mcore_fsdp to be True"  
+
     recompute_layers = config.get("recompute_layers") if args.recompute_layers is None else args.recompute_layers
     recompute_layers = 0 if recompute_layers is None else int(recompute_layers)
     activation_offload_layers = (
@@ -130,6 +135,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     logging.info(f"{etp_size=}")
     logging.info(f"{enable_cuda_graphs=}")
     logging.info(f"{use_mcore_fsdp=}")
+    logging.info(f"{use_fsdp_double_buffer=}")
     logging.info(f"{recompute_layers=}")
     logging.info(f"{activation_offload_layers=}")
     logging.info(f"{recompute_modules=}")
@@ -240,11 +246,15 @@ def set_perf_optimization_configs(
     recompute_layers: int,
     activation_offload_layers: int,
     recompute_modules: Optional[List[str]],
-    use_sharp: bool,
+    use_fsdp_double_buffer: bool,
     use_user_buffer_registration: bool,
+    use_sharp: bool,
 ):
     # enable cross entropy fusion with TE kernel
     recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    if use_fsdp_double_buffer:
+        assert use_mcore_fsdp == True, "use_fsdp_double_buffer requires use_mcore_fsdp to be True"
 
     if use_mcore_fsdp and enable_cuda_graphs:
         logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
@@ -269,6 +279,7 @@ def set_perf_optimization_configs(
         recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
         recipe.trainer.strategy.ddp.check_for_large_grads = False
         recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
+        recipe.trainer.strategy.ddp.fsdp_double_buffer = bool(use_fsdp_double_buffer)
 
     return recipe
 
@@ -289,6 +300,7 @@ def set_primary_perf_configs(
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
+    use_fsdp_double_buffer: bool = False,
     use_user_buffer_registration: bool = False,
     use_sharp: bool = False,
     recompute_layers: int = 0,
