@@ -82,17 +82,18 @@ class TestBuild(unittest.TestCase):
     @pytest.mark.run_only_on('GPU')
     @patch('nemo.export.multimodal.build.MLLaMAForCausalLM')
     @patch('nemo.export.multimodal.build.build_trtllm')
-    def test_build_mllama_trtllm_engine(self, mock_build_trtllm, mock_mllama):
+    def test_build_trtllm_engine_from_hf(self, mock_build_trtllm, mock_mllama):
         # Test basic functionality
         mock_model = MagicMock()
         mock_mllama.from_hugging_face.return_value = mock_model
         mock_build_trtllm.return_value = MagicMock()
 
-        from nemo.export.multimodal.build import build_mllama_trtllm_engine
+        from nemo.export.multimodal.build import build_trtllm_engine_from_hf
 
-        build_mllama_trtllm_engine(
+        build_trtllm_engine_from_hf(
             model_dir=self.temp_dir,
             hf_model_path="test_path",
+            model_type="mllama",
             tensor_parallelism_size=1,
             max_input_len=256,
             max_output_len=256,

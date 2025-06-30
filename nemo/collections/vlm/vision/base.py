@@ -25,8 +25,9 @@ from megatron.core.models.vision.multimodal_projector import MultimodalProjector
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 
 try:
-    from megatron.core.transformer.custom_layers.transformer_engine import (
+    from megatron.core.extensions.transformer_engine import (
         TEColumnParallelLinear,
+        TELayerNormColumnParallelLinear,
         TENorm,
         TERowParallelLinear,
     )
@@ -119,15 +120,23 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
         # pylint: disable=C0115,C0116
         if self.projector_type.startswith("mcore") and self.layer_spec is None:
             self.add_bias_linear = self.bias
-            if self.projector_type == "mcore_mlp":
+            if self.projector_type in ["mcore_mlp", "mcore_layernorm_mlp"]:
                 self.projector_type = "mlp"  # strip "mcore_" for mcore init
-                self.layer_spec = ModuleSpec(
-                    module=MLP,
-                    submodules=MLPSubmodules(
-                        linear_fc1=TEColumnParallelLinear,
-                        linear_fc2=TERowParallelLinear,
-                    ),
-                )
+                if self.projector_type == "mcore_layernorm_mlp":
+                    self.layer_spec = ModuleSpec(
+                        module=MLP,
+                        submodules=MLPSubmodules(
+                            linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
+                        ),
+                    )
+                else:
+                    self.layer_spec = ModuleSpec(
+                        module=MLP,
+                        submodules=MLPSubmodules(
+                            linear_fc1=TEColumnParallelLinear,
+                            linear_fc2=TERowParallelLinear,
+                        ),
+                    )
                 self.layer_spec = self.layer_spec.submodules
             elif self.projector_type == "mcore_affine":
                 self.projector_type = "affine"  # strip "mcore_" for mcore init
@@ -250,14 +259,14 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
             class_token_len=self.class_token_len,
         )
 
-    def configure_model(self) -> "BaseCLIPViTModel":
+    def configure_model(self) -> "CLIPViTModelWrapper":
         # pylint: disable=C0115,C0116
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
 
             transformer_layer_spec = get_layer_spec_te(is_vit=True)
-        return BaseCLIPViTModel(
+        return CLIPViTModelWrapper(
             self,
             transformer_layer_spec,
             ln_pre_impl=self.ln_pre_impl,
@@ -271,7 +280,7 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
         )
 
 
-class BaseCLIPViTModel(MCoreCLIPViTModel):
+class CLIPViTModelWrapper(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
     def forward(
