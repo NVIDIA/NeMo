@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import math
 import os
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from math import ceil
+from typing import Dict, List, Optional, Union
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
@@ -31,6 +34,7 @@ from nemo.collections.asr.parts.mixins.transcription import TranscriptionReturnT
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -43,6 +47,16 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging, model_utils
+
+
+@dataclass
+class HybridRNNTCTCPromptTranscribeConfig(TranscribeConfig):
+    """
+    Configuration for Hybrid RNNT-CTC BPE Model with Prompt Transcription
+    """
+
+    target_lang: str = "en-US"
+    prompt_field: str = "lang"
 
 
 class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixin, ASRTranscriptionMixin):
@@ -192,6 +206,7 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
                 global_rank=self.global_rank,
                 world_size=self.world_size,
                 dataset=dataset,
+                tokenizer=self.tokenizer,
             )
 
         dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
@@ -245,6 +260,7 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
                 Bigger will result in better throughput performance but would use more memory.
             temp_dir: (str) A temporary directory where the audio manifest is temporarily
                 stored.
+            target_lang: (str) target language ID for transcription
 
         Returns:
             A pytorch DataLoader for the given audio file(s).
@@ -255,6 +271,9 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
         else:
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
             batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+
+        # Get target language from config
+        target_lang = config.get('target_lang', 'en-US')
 
         dl_config = {
             'manifest_filepath': manifest_filepath,
@@ -268,11 +287,13 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
             'use_lhotse': True,
             'use_bucketing': False,
             'drop_last': False,
-            'prompt_field': config.get('prompt_field', 'language'),
+            'prompt_field': config.get('prompt_field', 'target_lang'),
             'initialize_prompt_feature': True,
-            'prompt_dictionary': self.cfg.model_defaults.get('prompt_dictionary', {}),
-            'num_prompts': self.cfg.get('num_prompts', 128),
-            'subsampling_factor': getattr(self, 'subsampling_factor', 8),
+            'prompt_dictionary': self.cfg.model_defaults.get('prompt_dictionary'),
+            'num_prompts': self.cfg.model_defaults.get('num_prompts', 128),
+            'subsampling_factor': self.cfg.get('subsampling_factor', 8),
+            'default_lang': target_lang,
+            'window_stride': self.cfg.preprocessor.get('window_stride', 0.01),
         }
 
         if config.get("augmentor"):
@@ -281,11 +302,74 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
-        # Forward pass with prompt
-        encoded, encoded_len = self.forward(
-            input_signal=input_signal, input_signal_length=input_signal_length, prompt=prompt
-        )
+    def _transcribe_forward(self, batch: tuple[torch.Tensor, ...], trcfg: HybridRNNTCTCPromptTranscribeConfig) -> dict:
+        """
+        Internal function to perform the model's custom forward pass to return outputs that are processed by
+        `_transcribe_output_processing()`.
+        This function is called by `transcribe()` and `transcribe_generator()` to perform the model's forward pass.
+
+        Args:
+            batch: A batch of input data from the data loader that is used to perform the model's forward pass.
+                Expected structure: (audio, audio_lens, tokens, token_lens, prompt_targets)
+                For transcription, we may only have (audio, audio_lens) or (audio, audio_lens, ..., prompt_targets)
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            The model's outputs that are processed by `_transcribe_output_processing()`.
+        """
+        # Handling DataLoader batch - should be a tuple of tensors
+        # Expected structure: (audio, audio_lens, tokens, token_lens, prompt_targets)
+        # For transcription, we may only have (audio, audio_lens) or (audio, audio_lens, ..., prompt_targets)
+        audio, audio_lens = batch[0], batch[1]
+        if len(batch) >= 5:
+            # Prompt provided by the dataloader (one-hot vectors)
+            prompt = batch[4]  # This should be the prompt_targets from dataset
+        else:
+            # Prompt to be built dynamically.
+            prompt = None
+
+        batch_size = audio.shape[0]
+
+        if prompt is None:
+            # The dataloader provided only audio + audio_lens, so we need to construct
+            # the prompt as one-hot vectors dynamically using TranscribeConfig.
+            target_lang = trcfg.target_lang
+
+            # Get prompt dictionary and num_prompts from model config
+            prompt_dict = self.cfg.model_defaults.get('prompt_dictionary')
+            num_prompts = self.cfg.model_defaults.get('num_prompts', 128)
+
+            if not prompt_dict:
+                raise ValueError("Prompt dictionary is empty. Cannot create dynamic prompts.")
+
+            # Get the prompt index for the target language
+            if target_lang not in prompt_dict:
+                available_keys = list(prompt_dict.keys())
+                raise ValueError(
+                    f"Unknown target language: '{target_lang}'. Available languages: {available_keys[:10]}{'...' if len(available_keys) > 10 else ''}"
+                )
+
+            prompt_id = prompt_dict[target_lang]
+
+            # Preprocess audio to get the actual feature dimensions (like streaming does)
+            processed_signal, processed_signal_length = self.preprocessor(input_signal=audio, length=audio_lens)
+
+            # Calculate exact hidden length using the same approach as streaming
+            time_length = processed_signal.shape[2]  # Feature time dimension
+            subsampling_factor = self.cfg.get('subsampling_factor', 8)
+            hidden_length = math.ceil(time_length / subsampling_factor)
+
+            # Create one-hot prompt tensor: (batch_size, time_steps, num_prompts)
+            prompt = torch.zeros(batch_size, hidden_length, num_prompts, dtype=torch.float32, device=audio.device)
+            prompt[:, :, prompt_id] = 1.0  # Set the target language prompt to 1
+
+            # Now call forward with preprocessed signal and prompt
+            encoded, encoded_len = self.forward(
+                processed_signal=processed_signal, processed_signal_length=processed_signal_length, prompt=prompt
+            )
+        else:
+            # Prompt was provided, use normal forward path
+            encoded, encoded_len = self.forward(input_signal=audio, input_signal_length=audio_lens, prompt=prompt)
 
         # Prepare output dictionary based on decoder type
         if self.cur_decoder == "rnnt":
@@ -311,9 +395,8 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
         augmentor: DictConfig = None,
         verbose: bool = True,
         timestamps: Optional[bool] = None,
-        override_config: Optional[TranscribeConfig] = None,
-        target_lang: str = None,
-        **config_kwargs,
+        override_config: Optional[HybridRNNTCTCPromptTranscribeConfig] = None,
+        **prompt,
     ) -> TranscriptionReturnType:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
@@ -335,9 +418,11 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
             augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
             verbose: (bool) whether to display tqdm progress bar
             timestamps: (Optional[bool]) timestamps will be returned if set to True as part of hypothesis object
-            override_config: (Optional[TranscribeConfig]) override transcription config pre-defined by the user.
-            target_lang: (str) Target language code (e.g., "en-US", "de-DE") for transcription/translation
-            **config_kwargs: additional arguments to override the default TranscribeConfig
+            override_config: (Optional[HybridRNNTCTCPromptTranscribeConfig]) override transcription config pre-defined by the user.
+            **prompt: Optional input to construct the prompts for the model. Accepted formats include:
+                target_lang: (str) target language ID for transcription (e.g., "en-US", "de-DE")
+                prompt_field: (str) field name to use for prompt extraction from manifest
+                Additional prompt parameters can be passed and will be forwarded to the transcription config.
 
         Returns:
             Returns a tuple of 2 items -
@@ -349,18 +434,67 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
                 f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
             )
 
+        if timestamps is not None:
+            if self.cur_decoder not in ["ctc", "rnnt"]:
+                raise ValueError(
+                    f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
+                )
+            decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
+            if timestamps or (override_config is not None and override_config.timestamps):
+                logging.info(
+                    "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
+                        with output[idx].timestep['word'/'segment'/'char']"
+                )
+                return_hypotheses = True
+                with open_dict(decoding_cfg):
+                    decoding_cfg.compute_timestamps = True
+                    decoding_cfg.preserve_alignments = True
+            else:
+                with open_dict(decoding_cfg):
+                    decoding_cfg.compute_timestamps = False
+                    decoding_cfg.preserve_alignments = False
+            self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
+
+        # Create transcription config if not provided
+        if override_config is None:
+            # Extract target_lang from prompt or use default
+            target_lang = prompt.get('target_lang', 'en-US')
+            prompt_field = prompt.get('prompt_field', 'target_lang')
+
+            trcfg = HybridRNNTCTCPromptTranscribeConfig(
+                batch_size=batch_size,
+                return_hypotheses=return_hypotheses,
+                num_workers=num_workers,
+                channel_selector=channel_selector,
+                augmentor=augmentor,
+                verbose=verbose,
+                timestamps=timestamps,
+                target_lang=target_lang,
+                prompt_field=prompt_field,
+            )
+
+        else:
+            if not isinstance(override_config, HybridRNNTCTCPromptTranscribeConfig):
+                raise ValueError(
+                    f"override_config must be of type {HybridRNNTCTCPromptTranscribeConfig}, "
+                    f"but got {type(override_config)}"
+                )
+            trcfg = override_config
+
+        # Call parent class transcribe method with proper parameters
         return super().transcribe(
             audio=audio,
             batch_size=batch_size,
             return_hypotheses=return_hypotheses,
+            partial_hypothesis=partial_hypothesis,
             num_workers=num_workers,
             channel_selector=channel_selector,
             augmentor=augmentor,
             verbose=verbose,
             timestamps=timestamps,
-            override_config=override_config,
-            **config_kwargs,
+            override_config=trcfg,
         )
+
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if hasattr(self.preprocessor, '_sample_rate'):
@@ -373,9 +507,9 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
             "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
             "prompt": NeuralType(('B', 'T', 'D'), LabelsType()),
         }
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
@@ -587,7 +721,7 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
         return {'loss': loss_value}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, transcript, transcript_len, sample_id, prompt = batch
+        signal, signal_len, transcript, transcript_len, prompt = batch
 
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
@@ -598,18 +732,19 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
 
         if self.cur_decoder == 'rnnt':
             best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-                encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=True
+                encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
             )
         else:
             logits = self.ctc_decoder(encoder_output=encoded)
             best_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
                 decoder_outputs=logits,
                 decoder_lengths=encoded_len,
-                return_hypotheses=True,
+                return_hypotheses=False,
             )
 
-        if isinstance(sample_id, torch.Tensor):
-            sample_id = sample_id.cpu().detach().numpy()
+        batch_size = signal_len.shape[0]
+        sample_id = torch.arange(batch_idx * batch_size, (batch_idx + 1) * batch_size).cpu().detach().numpy()
+
         return list(zip(sample_id, best_hyp))
 
     def validation_pass(self, batch, batch_idx, dataloader_idx):
@@ -800,3 +935,75 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCModel, ASRBPEMixi
     @bleu.setter
     def bleu(self, bleu):
         self._bleu = bleu
+
+    @classmethod
+    def get_transcribe_config(cls) -> HybridRNNTCTCPromptTranscribeConfig:
+        """
+        Get the default transcribe config for this model.
+        """
+        return HybridRNNTCTCPromptTranscribeConfig()
+
+    def setup_training_data(self, train_data_config: Optional[DictConfig]):
+        """
+        Sets up the training data loader via a Dict-like object.
+        Args:
+            train_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text_lhotse_prompt.LhotseSpeechToTextBpeDatasetWithPrompt`
+        """
+        # create audio-only data loader
+        self._update_dataset_config(dataset_name='train', config=train_data_config)
+        self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
+
+        # Need to set this because if using an IterableDataset, the length of the
+        # dataloader is the total number of samples rather than the number of batches,
+        # and this messes up the tqdm progress bar. So we set the number of steps manually
+        # (to the correct number) to fix this.
+        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane,
+            # i.e. <= # training batches, and don't change it. Otherwise, adjust
+            # batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches
+                    * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
+    def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the validation data loader via a Dict-like object.
+        Args:
+            val_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text_lhotse_prompt.LhotseSpeechToTextBpeDatasetWithPrompt`
+        """
+        if 'shuffle' not in val_data_config:
+            val_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+        self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
+
+    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]]):
+        """
+        Sets up the test data loader via a Dict-like object.
+        Args:
+            test_data_config: A config that contains the information regarding construction
+                of an ASR Training dataset.
+        Supported Datasets:
+            -   :class:`~nemo.collections.asr.data.audio_to_text_lhotse_prompt.LhotseSpeechToTextBpeDatasetWithPrompt`
+        """
+        if 'shuffle' not in test_data_config:
+            test_data_config['shuffle'] = False
+
+        # preserve config
+        self._update_dataset_config(dataset_name='test', config=test_data_config)
+        self._test_dl = self._setup_dataloader_from_config(config=test_data_config)

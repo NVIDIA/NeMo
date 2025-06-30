@@ -87,7 +87,7 @@ def get_buffered_pred_feat_rnnt(
     with torch.inference_mode():
         with torch.amp.autocast('cpu' if accelerator == 'cpu' else 'cuda'):
             batch = []
-            batch_lang_ids = []  # Initialize here instead of clearing
+            batch_lang_ids = []
             asr.sample_offset = 0
             for idx in tqdm(range(len(filepaths)), desc='Sample:', total=len(filepaths)):
                 batch.append(filepaths[idx])
