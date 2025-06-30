@@ -198,7 +198,6 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "max_open_streams": config.get("max_open_streams", None),
         "token_equivalent_duration": config.get("token_equivalent_duration", None),
         "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
-        "check_for_skipme": config.get("check_for_skipme", True),
         "force_map_dataset": config.get("force_map_dataset", False),
         "force_iterable_dataset": config.get("force_iterable_dataset", False),
     }
@@ -560,7 +559,7 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
 def read_nemo_manifest(config) -> tuple[CutSet, bool]:
     """Read NeMo manifest and return a Lhotse CutSet."""
     common_kwargs = {}
-    for key in ("text_field", "lang_field", "shuffle", "shard_seed", "extra_fields"):
+    for key in ("text_field", "lang_field", "shuffle", "shard_seed", "extra_fields", "check_for_skipme"):
         if key in config:
             if key == "shuffle":
                 common_kwargs["shuffle_shards"] = config[key]
@@ -587,7 +586,6 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                     config.manifest_filepath,
                     tar_paths=config.tarred_audio_filepaths,
                     skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
-                    check_for_skipme=config.get("check_for_skipme", True),
                     **common_kwargs,
                 )
             )
@@ -597,7 +595,6 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
             cuts = CutSet(
                 LazyNeMoIterator(
                     config.manifest_filepath,
-                    check_for_skipme=config.get("check_for_skipme", True),
                     **notar_kwargs,
                     **common_kwargs,
                 )
@@ -638,14 +635,12 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                 nemo_iter = LazyNeMoTarredIterator(
                     manifest_path=manifest_path,
                     tar_paths=tar_path,
-                    check_for_skipme=config.get("check_for_skipme", True),
                     skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
                     **common_kwargs,
                 )
             else:
                 nemo_iter = LazyNeMoIterator(
                     manifest_path,
-                    check_for_skipme=config.get("check_for_skipme", True),
                     **notar_kwargs,
                     **common_kwargs,
                 )
