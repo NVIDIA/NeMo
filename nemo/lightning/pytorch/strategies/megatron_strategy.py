@@ -616,7 +616,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             # set calculate_per_token_loss to True for context parallel to solve the issue of
             # nan loss on ranks with all tokens masked (only happens in SFT)
             self.model.config.calculate_per_token_loss = True
-            assert not self.ddp_config.average_in_collective, "average_in_collective needs to be False when calculate_per_token_loss is True"
+            assert (
+                not self.ddp_config.average_in_collective
+            ), "average_in_collective needs to be False when calculate_per_token_loss is True"
 
         self.megatron_parallel = MegatronParallel(
             self.model,
