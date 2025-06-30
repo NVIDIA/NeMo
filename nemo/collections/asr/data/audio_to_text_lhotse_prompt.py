@@ -38,7 +38,6 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
             'audio_signal_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
             'prompt': NeuralType(('B', 'T', 'D'), LabelsType()),
         }
 
@@ -140,16 +139,12 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=0)
         prompt_targets = collate_matrices(prompt_targets)
-        
-        # Create sample_id tensor from cut IDs
-        sample_ids = torch.tensor([hash(c.id) % (2**31) for c in cuts], dtype=torch.long)
 
         return (
             audio,  # Audio signal
             audio_lens,  # Audio lengths
             tokens,  # Text tokens
             token_lens,  # Token lengths
-            sample_ids,  # Sample IDs
             prompt_targets,  # Prompt targets
         )
 

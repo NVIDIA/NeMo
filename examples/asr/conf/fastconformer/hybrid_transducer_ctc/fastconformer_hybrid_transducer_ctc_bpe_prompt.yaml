@@ -110,8 +110,10 @@ model:
   train_ds:
     manifest_filepath: null
     sample_rate: ${model.sample_rate}
-    batch_size: 16 # you may increase batch_size if your memory allows
+    use_lhotse: true
+    shard_manifests: true
     batch_duration: 800
+    quadratic_duration: 15
     num_buckets: 24
     shuffle: true
     num_workers: 8
@@ -122,13 +124,16 @@ model:
     is_tarred: true
     tarred_audio_filepaths: null
     shuffle_n: 2048
-    use_lhotse: true
     # bucketing params
     bucketing_strategy: "fully_randomized"
     bucketing_batch_size: null
-    #prompt 
-    prompt_dict: ${model.model_defaults.prompt_dictionary}
+    bucket_buffer_size: 10000
+    shuffle_buffer_size: 10000
+    #prompt configs
     prompt_field: target_lang
+    prompt_dictionary: ${model.model_defaults.prompt_dictionary}
+    num_prompts: ${model.model_defaults.num_prompts}
+    subsampling_factor: ${model.encoder.subsampling_factor}
 
   validation_ds:
     manifest_filepath: ???
@@ -140,15 +145,30 @@ model:
     pin_memory: true
     batch_duration: null
     use_lhotse: true
+    use_bucketing: false
+    max_cuts: 8
+    
+    # prompt configurations for validation
+    prompt_field: target_lang
+    prompt_dictionary: ${model.model_defaults.prompt_dictionary}
+    num_prompts: ${model.model_defaults.num_prompts}
+    subsampling_factor: ${model.encoder.subsampling_factor}
 
   test_ds:
-    manifest_filepath: null
+    manifest_filepath: ???
     sample_rate: ${model.sample_rate}
     batch_size: 16
     shuffle: false
     use_start_end_token: false
     num_workers: 8
     pin_memory: true
+    use_lhotse: true
+    use_bucketing: false
+    # prompt configurations for testing
+    prompt_field: target_lang
+    prompt_dictionary: ${model.model_defaults.prompt_dictionary}
+    num_prompts: ${model.model_defaults.num_prompts}
+    subsampling_factor: ${model.encoder.subsampling_factor}
 
   # You may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   # We recommend to use vocab size of 1024 with SPE Unigram for most languages
@@ -321,15 +341,15 @@ trainer:
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
   precision: bf16 # 16, 32, or bf16
-  log_every_n_steps: 10  # Interval of logging.
+  log_every_n_steps: 100  # Interval of logging.
   enable_progress_bar: True
   num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
-  check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
   sync_batchnorm: true
   enable_checkpointing: False  # Provided by exp_manager
   logger: false  # Provided by exp_manager
   benchmark: false # needs to be false for models with variable-length speech input as it slows down training
   use_distributed_sampler: false
+  limit_train_batches: 1000
 
 
 exp_manager:
