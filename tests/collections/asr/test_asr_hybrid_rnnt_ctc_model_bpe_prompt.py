@@ -135,7 +135,6 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',
     )
-    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_constructor(self, hybrid_asr_model_with_prompt):
         hybrid_asr_model_with_prompt.train()
@@ -144,7 +143,6 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         instance2 = EncDecHybridRNNTCTCBPEModelWithPrompt.from_config_dict(confdict)
         assert isinstance(instance2, EncDecHybridRNNTCTCBPEModelWithPrompt)
 
-    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -215,7 +213,6 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         assert len(outputs[0]) == 2
         assert isinstance(outputs[0][1], Hypothesis)
 
-    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -234,7 +231,6 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 128
 
-    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -258,7 +254,6 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
             assert new_model.vocab_path.endswith('_vocab.txt')
             assert new_model.spe_vocab_path.endswith('_tokenizer.vocab')
 
-    @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_save_restore_artifact_agg(self, hybrid_asr_model_with_prompt, test_data_dir):
         tokenizer_dir = os.path.join(test_data_dir, "asr", "tokenizers", "an4_spe_128")
@@ -281,7 +276,6 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
             assert new_model.tokenizer.tokenizer.vocab_size == 254
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 254
 
-    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -313,7 +307,6 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
             ctc_decoder = 3 * (hybrid_asr_model_with_prompt.ctc_decoder._feat_in + 1)
             assert hybrid_asr_model_with_prompt.num_weights == (nw1 + (pred_embedding + joint_joint) + ctc_decoder)
 
-    @pytest.mark.with_downloads()
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
         reason='RNNTLoss has not been compiled with appropriate numba version.',
@@ -385,7 +378,7 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         assert hybrid_asr_model_with_prompt.cur_decoder == 'rnnt'
 
         hybrid_asr_model_with_prompt.change_decoding_strategy(decoding_cfg=new_strategy, decoder_type='ctc')
-        assert isinstance(hybrid_asr_model_with_prompt.ctc_decoding, CTCDecoding)
+        assert isinstance(hybrid_asr_model_with_prompt.ctc_decoding, CTCBPEDecoding)
         assert hybrid_asr_model_with_prompt.cur_decoder == 'ctc'
 
         hybrid_asr_model_with_prompt.change_decoding_strategy(decoding_cfg=new_strategy, decoder_type='rnnt')
