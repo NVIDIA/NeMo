@@ -391,7 +391,7 @@ class Qwen2VisionModel(VisionModule):
         # TODO: Make pre_process and post_process configurable.
         # NOTE: a final layer norm and/or linear layer in some implementations are omitted here.
         # They can be added separately where needed.
-        self.decoder = Qwen25VLVisionTransformerBlock(
+        self.decoder = TransformerBlock(
             config=transformer_config,
             spec=transformer_layer_spec,
             pre_process=True,
