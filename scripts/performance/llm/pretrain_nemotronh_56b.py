@@ -81,6 +81,7 @@ def override_recipe_configs(
         )
         recipe.model.tokenizer = recipe.data.tokenizer
 
+    recipe.model.config.attention_backend = "auto"
     return recipe
 
 
@@ -123,6 +124,35 @@ if __name__ == "__main__":
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
+
+    custom_env_vars = {"TRANSFORMERS_OFFLINE": "0"}
+
+    if args.gpu.lower() == 'gb200':
+        custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
+    if args.enable_nsys:
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+                nsys_gpu_metrics=args.profiling_gpu_metrics,
+            )
+        )
+    elif args.enable_nccltrace:  # nsys takes precedent over nccltrace
+        exp_name = exp_name + "_nccltrace"
+        custom_env_vars |= {
+            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+            "NCCL_DEBUG": "INFO",
+        }
 
     executor = slurm_executor(
         args.gpu.lower(),
