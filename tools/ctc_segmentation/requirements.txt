@@ -1,2 +1,2 @@
-num2words
+num2words>=0.5.5 # older set use_2to3=True
 numpy<2.0.0
