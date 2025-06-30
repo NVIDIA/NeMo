@@ -85,7 +85,7 @@ def get_results(
         "Samples per Second",
         "Model TFLOPS / GPU",
         "Model TFLOPS Aggregate",
-        "Full Configuration Name"
+        "Full Configuration Name",
     ]
     error_columns = [
         "Model Name",
@@ -109,12 +109,11 @@ def get_results(
     errors = []
 
     performance_dict = {}
-    
+
     training_logs = os.path.abspath(training_logs)
     error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
-
 
     for error_file, tb_file, candidate_dir in zip(error_files, tb_files, dirs):
         try:
@@ -179,7 +178,7 @@ def get_results(
                 mbs=mbs,
                 vp=vp,
                 seq_length=seq_length,
-                global_batch_size=global_batch_size
+                global_batch_size=global_batch_size,
             )
 
             result.append(
@@ -207,18 +206,16 @@ def get_results(
                 ]
             )
 
-            
-
             performance_dict[descriptive_name] = {
                 "m_tflops_gpu": m_tflops_gpu,
                 "time_per_global_step": avg_global_step_time,
                 "samples_per_s": samples_per_s,
-                "m_tflops": m_tflops
+                "m_tflops": m_tflops,
             }
 
         finally:
             continue
-    
+
     print("results first element")
     print(result[0])
     result.sort(key=lambda x: x[15])
@@ -351,7 +348,7 @@ def get_config(run_name: str) -> tuple:
     Returns:
         tuple: model parallelism parameters.
     """
-    
+
     pattern = r'_(tp|pp|cp|ep|mbs|vp)_([^_]+)'
 
     # Find all matches in the input string
@@ -391,6 +388,7 @@ def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
 
     return tb_files
 
+
 def create_descriptive_model_name(
     model_name: str,
     model_size: float,
@@ -402,11 +400,11 @@ def create_descriptive_model_name(
     mbs: str,
     vp: str,
     seq_length: int,
-    global_batch_size: int
+    global_batch_size: int,
 ) -> str:
     """
     Create a descriptive model name from configuration parameters.
-    
+
     Args:
         model_name: Name of the model
         model_size: Model size in billions
@@ -414,7 +412,7 @@ def create_descriptive_model_name(
         tp, pp, cp, ep, mbs, vp: Parallelism parameters
         seq_length: Sequence length
         global_batch_size: Global batch size
-        
+
     Returns:
         str: Descriptive model name
     """
@@ -429,8 +427,7 @@ def create_descriptive_model_name(
     except (ValueError, AttributeError):
         # Fallback to string representation if conversion fails
         tp_int, pp_int, cp_int, ep_int, mbs_int, vp_str = tp, pp, cp, ep, mbs, vp
-    
-    
+
     descriptive_name = (
         f"{model_name}_"
         f"{model_size}b_"
@@ -441,5 +438,5 @@ def create_descriptive_model_name(
         f"seq_{seq_length}_"
         f"gbs_{global_batch_size}"
     )
-    
+
     return descriptive_name
