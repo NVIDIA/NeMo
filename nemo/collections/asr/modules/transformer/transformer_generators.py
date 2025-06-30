@@ -525,12 +525,6 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
         """
 
         super().__init__(embedding, decoder, log_softmax, beam_size=beam_size, len_pen=len_pen, **kwargs)
-        # # ngram lm
-        # self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.num_tokens)
-        # self.ngram_lm_alpha = ngram_lm_alpha
-
-        self.ngram_lm_batch = fusion_models[0]
-        self.ngram_lm_alpha = fusion_models_alpha[0]
 
         self.fusion_models = fusion_models
         self.fusion_models_alpha = fusion_models_alpha
@@ -540,16 +534,13 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
         device = encoder_hidden_states.device
-        # force ngram lm to use the same device as encoder_hidden_states, since current class is not nn.Module instance
+        # force fusion models to use the same device as encoder_hidden_states, since current class is not nn.Module instance
         for fusion_model in self.fusion_models:
             fusion_model.to(device)
-        
-        self.ngram_lm_batch.to(device)
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
-        batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
         
-        batch_fusion_states = [fusion_model.get_init_states(batch_size=batch_size, bos=True) for fusion_model in self.fusion_models]
+        batch_fusion_states_list = [fusion_model.get_init_states(batch_size=batch_size, bos=True) for fusion_model in self.fusion_models]
         batch_fusion_states_candidates_list = []
 
         # generate initial buffer of beam_size prefixes-hypotheses
@@ -557,23 +548,17 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
         # get fusion models scores
         for fusion_model_idx, fusion_model in enumerate(self.fusion_models):
             fusion_scores, batch_fusion_states_candidates = fusion_model.advance(
-                states=batch_fusion_states[fusion_model_idx], eos_id=self.eos
+                states=batch_fusion_states_list[fusion_model_idx], eos_id=self.eos
             )
             batch_fusion_states_candidates_list.append(batch_fusion_states_candidates)
-            # log_probs += self.fusion_models_alpha[fusion_model_idx] * fusion_scores[:, None, :]
-
-        lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states, eos_id=self.eos)
-        log_probs += self.ngram_lm_alpha * lm_scores[:, None, :]
+            log_probs += self.fusion_models_alpha[fusion_model_idx] * fusion_scores[:, None, :]
 
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)  # [Batch, Beam, 1]
-        # for fusion_model_idx, batch_fusion_states_candidate in enumerate(batch_fusion_states_candidates_list):
-        #     batch_fusion_states[fusion_model_idx] = batch_fusion_states_candidate.gather(dim=1, index=prefixes.squeeze(-1)).view(
-        #         -1
-        #     )  # [Batch, Beam] -> [Batch*Beam]
+        for fusion_model_idx, batch_fusion_states_candidates in enumerate(batch_fusion_states_candidates_list):
+            batch_fusion_states_list[fusion_model_idx] = batch_fusion_states_candidates.gather(dim=1, index=prefixes.squeeze(-1)).view(
+                -1
+            )  # [Batch, Beam] -> [Batch*Beam]
 
-        batch_lm_states = batch_lm_states_candidates.gather(dim=1, index=prefixes.squeeze(-1)).view(
-            -1
-        )  # [Batch, Beam] -> [Batch*Beam]
         scores, prefixes = scores.view(-1, 1), prefixes.view(-1, 1)  # [Batch*Beam, 1]
 
         # repeat init target prefixes and cached memory states beam_size times
@@ -609,24 +594,17 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
             log_probs, decoder_mems_list = self._one_step_forward(
                 prefixes[:, -1:], encoder_hidden_states, encoder_input_mask, decoder_mems_list, i
             )
-            # for fusion_model_idx, fusion_model in enumerate(self.fusion_models):
-            #     fusion_scores, batch_fusion_states_candidates = fusion_model.advance(
-            #         states=batch_fusion_states[fusion_model_idx], eos_id=self.eos
-            #     )
-            #     log_probs += self.fusion_models_alpha[fusion_model_idx] * fusion_scores[:, None, :]
-            #     batch_fusion_states_candidates_list[fusion_model_idx] = batch_fusion_states_candidates
-
-            lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
-                states=batch_lm_states, eos_id=self.eos
-            )
-            log_probs += self.ngram_lm_alpha * lm_scores[:, None, :]
+            for fusion_model_idx, fusion_model in enumerate(self.fusion_models):
+                fusion_scores, batch_fusion_states_candidates = fusion_model.advance(
+                    states=batch_fusion_states_list[fusion_model_idx], eos_id=self.eos
+                )
+                log_probs += self.fusion_models_alpha[fusion_model_idx] * fusion_scores[:, None, :]
+                batch_fusion_states_candidates_list[fusion_model_idx] = batch_fusion_states_candidates
 
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)  # [Batch*Beam, Beam]
 
-            # for fusion_model_idx, batch_fusion_states_candidates in enumerate(batch_fusion_states_candidates_list):
-            #     batch_fusion_states[fusion_model_idx] = batch_fusion_states_candidates.gather(dim=1, index=prefixes_i)
-
-            batch_lm_states = batch_lm_states_candidates.gather(dim=1, index=prefixes_i)  # [Batch*Beam, Beam]
+            for fusion_model_idx, batch_fusion_states_candidates in enumerate(batch_fusion_states_candidates_list):
+                batch_fusion_states_list[fusion_model_idx] = batch_fusion_states_candidates.gather(dim=1, index=prefixes_i)
 
             # for all prefixes ending with <eos> or <pad> replace generated
             # continuations with <pad>
@@ -643,13 +621,9 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
             scores = scores / len_penalties
             scores, indices_i = torch.topk(scores.view(-1, self.beam_size**2), self.beam_size, dim=1)  # [Batch, Beam]
 
-            # for fusion_model_idx, batch_fusion_states in enumerate(batch_fusion_states):
-            #     logging.warning(f"batch_fusion_states[fusion_model_idx].shape: {batch_fusion_states.shape}")
-            #     logging.warning(f"indices_i.shape: {indices_i.shape}")
-            #     batch_fusion_states[fusion_model_idx] = batch_fusion_states.view(-1, self.beam_size**2).gather(dim=1, index=indices_i).view(-1)
-            batch_lm_states = (
-                batch_lm_states.view(-1, self.beam_size**2).gather(dim=1, index=indices_i).view(-1)
-            )  # [Batch, Beam] -> [Batch*Beam]
+            for fusion_model_idx, batch_fusion_states in enumerate(batch_fusion_states_list):
+                batch_fusion_states_list[fusion_model_idx] = batch_fusion_states.view(-1, self.beam_size**2).gather(dim=1, index=indices_i).view(-1)
+            
             scores = scores.view(-1, 1) * len_penalties  # [Batch*Beam, 1]
 
             # select prefixes which correspond to the chosen hypotheses
