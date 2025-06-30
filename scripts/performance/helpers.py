@@ -246,9 +246,9 @@ def set_perf_optimization_configs(
     recompute_layers: int,
     activation_offload_layers: int,
     recompute_modules: Optional[List[str]],
-    use_fsdp_double_buffer: bool,
-    use_user_buffer_registration: bool,
-    use_sharp: bool,
+    use_fsdp_double_buffer: Optional[bool],
+    use_user_buffer_registration: Optional[bool],
+    use_sharp: Optional[bool],
 ):
     # enable cross entropy fusion with TE kernel
     recipe.model.config.cross_entropy_fusion_impl = "te"
@@ -346,18 +346,19 @@ def set_primary_perf_configs(
         )
 
     recipe = set_perf_optimization_configs(
-        recipe,
-        use_mcore_fsdp,
-        enable_cuda_graphs,
-        task,
-        tp_size,
-        compute_dtype,
-        fp8_recipe,
-        recompute_layers,
-        activation_offload_layers,
-        recompute_modules,
-        use_sharp,
-        use_user_buffer_registration,
+        recipe = recipe,
+        use_mcore_fsdp = use_mcore_fsdp,
+        enable_cuda_graphs = enable_cuda_graphs,
+        task = task,
+        tp_size = tp_size,
+        compute_dtype = compute_dtype,
+        fp8_recipe = fp8_recipe,
+        recompute_layers = recompute_layers,
+        activation_offload_layers = activation_offload_layers,
+        recompute_modules = recompute_modules,
+        use_fsdp_double_buffer = use_fsdp_double_buffer,
+        use_user_buffer_registration = use_user_buffer_registration,
+        use_sharp = use_sharp,
     )
 
     return recipe
