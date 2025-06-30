@@ -48,6 +48,7 @@ class BuildWordBoostingTreeConfig:
     context_score: float = 1.0  # The score for each arc transition in the context graph
     depth_scaling: float = 1.0  # The scaling factor for the depth of the context graph
     unk_score: float = 0.0  # The score for unknown tokens (tokens that are not in the beginning of context-biasing phrases)
+    final_eos_score: float = 1.0  # The score for eos token after detected end of context phrase to prevent hallucination
     score_per_phrase: float = 0.0  # Custom score for each phrase in the context graph
     source_lang: str = "en"  # The source language of the context-biasing phrases
 
@@ -117,13 +118,12 @@ def main(cfg: BuildWordBoostingTreeConfig):
 
     # 4. convert python context-biasing graph to gpu boosting tree
     vocab_size = len(asr_model.tokenizer.vocab)
-    eos_id = None if not is_aggregate_tokenizer else asr_model.tokenizer.eos_id
 
     gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(
         context_graph,
         vocab_size=vocab_size,
         unk_score=cfg.unk_score,
-        eos_id=eos_id,
+        final_eos_score=cfg.final_eos_score,
         use_triton=cfg.use_triton,
         uniform_weights=cfg.uniform_weights
     )
@@ -143,14 +143,13 @@ def main(cfg: BuildWordBoostingTreeConfig):
             sentences_tokens = [asr_model.tokenizer.text_to_tokens(sentence) for sentence in cfg.test_sentences]
         else:
             sentences_ids = [asr_model.tokenizer.text_to_ids(sentence, cfg.source_lang) for sentence in cfg.test_sentences]
-            sentences_ids.append([eos_id])
             sentences_tokens = [] # aggregate tokenizer does not support text_to_tokens
 
         boosting_scores = gpu_boosting_model_loaded(
             labels=pad_sequence([torch.LongTensor(sentence) for sentence in sentences_ids], batch_first=True).to(device),
             labels_lengths=torch.LongTensor([len(sentence) for sentence in sentences_ids]).to(device),
             bos=False,
-            eos=False,
+            eos=False if not is_aggregate_tokenizer else True,
         )
 
         logging.info(f"[info]: boosting_scores: {boosting_scores}")
