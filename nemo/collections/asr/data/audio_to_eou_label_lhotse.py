@@ -170,7 +170,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         self.return_cuts = return_cuts
         self.eou_string = self.cfg.get('eou_string', EOU_STRING)
         self.eob_string = self.cfg.get('eob_string', EOB_STRING)
-        self.drop_pnc = self.cfg.get('drop_pnc', True)
+        self.drop_pnc = self.cfg.get('drop_pnc', False)
         if cfg.get('check_tokenizer', True):
             self._check_special_tokens(tokenizer)
 

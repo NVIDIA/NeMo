@@ -357,6 +357,9 @@ def replace_numbers_with_words(text):
         if num_str.startswith('$'):
             is_dollar = True
             num_str = num_str[1:]
+        elif num_str.endswith('$'):
+            is_dollar = True
+            num_str = num_str[:-1]
 
         # Remove commas
         num_str = num_str.replace(',', '')
@@ -377,7 +380,7 @@ def replace_numbers_with_words(text):
     # Pattern matches: $3,000 or 3,000.45 or 1234
     pattern = re.compile(r'\$?\d{1,3}(?:,\d{3})*(?:\.\d+)?|\$?\d+(?:\.\d+)?')
     result = pattern.sub(convert_number, text)
-
+    result = result.replace("$", " dollars ")  # Handle dollar sign separately
     result = " ".join(result.split())  # Remove extra spaces
     return result
 
