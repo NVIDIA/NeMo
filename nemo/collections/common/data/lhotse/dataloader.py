@@ -129,6 +129,8 @@ class LhotseDataLoadingConfig:
     measure_total_length: bool = True
     min_tpt: int = -1  # allowed tokens per token (text-only)
     max_tpt: Any = float("inf")  # float | list[float]
+    # Determines if Lhotse should consider `_skipme` keys.
+    check_for_skipme: bool = True
 
     # 3. Supported existing NeMo options.
     shuffle: bool = False
