@@ -839,11 +839,11 @@ class ParallelHyenaOperator(nn.Module):
         conv_bias = self.conv_bias
         local_size = None
 
+        z = x2 * v
+
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
 
-            x1, x2, v = [
-                AllToAllSingleFunction.apply(tensor, cp_group, "split_to_full", True) for tensor in [x1, x2, v]
-            ]
+            z = AllToAllSingleFunction.apply(z, cp_group, "split_to_full", True)
             # the tensors are now split across channels, but have full length.
             # [ B, H // num_ranks, L]
 
@@ -862,7 +862,6 @@ class ParallelHyenaOperator(nn.Module):
 
         h = h.repeat_interleave(self.group_dim, dim=-2)
 
-        z = x2 * v
         # with torch.autocast("cuda"):
         z = fftconv_func(
             u=z.to(torch.float32),
@@ -873,11 +872,12 @@ class ParallelHyenaOperator(nn.Module):
             bidirectional=self.bidirectional,
         )
         z = z.to(v.dtype)
-        z = x1 * z
 
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
             z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
             # [ B, H, L // num_ranks]
+
+        z = x1 * z
         return z  # [B, (G, DG), L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
