@@ -163,7 +163,6 @@ class HyenaMixer(MegatronModule):
 
         hyena_proj_conv_class = ParallelCausalDepthwiseConv1dWithState
 
-
         short_conv_class = ParallelCausalDepthwiseConv1dWithState
 
         self.hyena_proj_conv = hyena_proj_conv_class(
