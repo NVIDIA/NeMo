@@ -29,7 +29,7 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompt import LhotseSpeechTo
 from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRTranscriptionMixin, TranscribeConfig
+from nemo.collections.asr.parts.mixins import ASRTranscriptionMixin, TranscribeConfig
 from nemo.collections.asr.parts.mixins.transcription import TranscriptionReturnType
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
@@ -634,11 +634,6 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCBPEModel, ASRTran
             # Add auxiliary losses, if registered
             loss_value = self.add_auxiliary_losses(loss_value)
 
-            # Reset access registry
-            # from RNNT training
-            # if AccessMixin.is_access_enabled():
-            #     AccessMixin.reset_registry(self)
-
             tensorboard_logs = {
                 'learning_rate': self._optimizer.param_groups[0]['lr'],
                 'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
@@ -668,11 +663,6 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCBPEModel, ASRTran
 
             # Add auxiliary losses, if registered
             loss_value = self.add_auxiliary_losses(loss_value)
-
-            # Reset access registry
-            # from RNNT training
-            # if AccessMixin.is_access_enabled():
-            #     AccessMixin.reset_registry(self)
 
             tensorboard_logs = {
                 'learning_rate': self._optimizer.param_groups[0]['lr'],
