@@ -14,18 +14,18 @@
 
 
 from nemo.collections.nlp.modules.common import (
-    AlbertEncoder,
-    BertEncoder,
-    BertModule,
-    CamembertEncoder,
-    DistilBertEncoder,
-    PromptEncoder,
-    RobertaEncoder,
-    SequenceClassifier,
-    SequenceRegression,
-    SequenceTokenClassifier,
-    get_lm_model,
-    get_pretrained_lm_models_list,
-    get_tokenizer,
-    get_tokenizer_list,
-) # noqa: F401
+    AlbertEncoder, # noqa: F401
+    BertEncoder, # noqa: F401
+    BertModule, # noqa: F401
+    CamembertEncoder, # noqa: F401
+    DistilBertEncoder, # noqa: F401
+    PromptEncoder, # noqa: F401
+    RobertaEncoder, # noqa: F401
+    SequenceClassifier, # noqa: F401
+    SequenceRegression, # noqa: F401
+    SequenceTokenClassifier, # noqa: F401
+    get_lm_model, # noqa: F401
+    get_pretrained_lm_models_list, # noqa: F401
+    get_tokenizer, # noqa: F401
+    get_tokenizer_list, # noqa: F401
+)
