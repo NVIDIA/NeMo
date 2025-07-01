@@ -426,6 +426,10 @@ class Quantizer:
                 not is_automodel
             ), "NeMo export format can only be used with native NeMo checkpoints, not HuggingFace models"
             assert trainer is not None, "Trainer required for NeMo export."
+            trainer.strategy.connect(model)
+            trainer.strategy.setup_environment()
+            trainer.strategy.setup_megatron_parallel(trainer=trainer)
+            trainer.strategy.trainer = trainer
             trainer.save_checkpoint(export_dir)
             barrier()
             if is_global_rank_zero():

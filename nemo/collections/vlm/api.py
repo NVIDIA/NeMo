@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import importlib
-import json
-import warnings
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -26,9 +23,10 @@ from nemo.collections.llm.modelopt import (
     ExportConfig,
     QuantizationConfig,
     Quantizer,
-    setup_trainer_and_restore_model_with_modelopt_spec,
 )
 from nemo.collections.vlm import HFAutoModelForImageTextToText
+from nemo.collections.vlm.modelopt import setup_trainer_and_restore_model_with_modelopt_spec
+
 from nemo.utils.get_rank import is_global_rank_zero
 
 
@@ -44,29 +42,29 @@ def ptq(
     num_nodes: int | None = None,
     quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
     forward_loop: Callable | None = None,
-    tokenizer_path: str | None = None,
     legacy_ckpt: bool = False,
     trust_remote_code: bool = False,
 ) -> Path:
     """
-    Applies Post-Training Quantization (PTQ) for a vision-language model using the specified quantization and export configs.
-    It runs calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
+    Applies Post-Training Quantization (PTQ) for a vision-language model using the
+    specified quantization and export configs.
+    It runs calibration for a small dataset to collect scaling factors low-precision
+    GEMMs used by desired quantization method.
     By default, this function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy
     modules or directly using TensorRT-LLM library.
 
     Args:
         model_path (str): The path to model to be quantized.
+        export_config (ExportConfig): Export configuration for output checkpoint.
         calibration_tp (int): Calibration tensor parallelism.
         calibration_pp (int): Calibration pipeline parallelism.
         num_layers_in_first_pipeline_stage (int): Number of layers in the first pipeline stage.
         num_layers_in_last_pipeline_stage (int): Number of layers in the last pipeline stage.
-        export_config (ExportConfig): Export configuration for output checkpoint.
         devices (int): Number of devices to use for calibration. Default: calibration_tp.
         num_nodes (int): Number of nodes to use for calibration. Default: calibration_pp.
         quantization_config (QuantizationConfig): Configuration for quantization algorithm.
         forward_loop (Callable): Forward loop to use for calibration.
             If not provided, a forward loop will be created using the calibration dataset.
-        tokenizer_path (str): Path to the tokenizer if not using model's tokenizer.
         legacy_ckpt (bool): If True, allow loading ckpt saved with older version of TE.
         trust_remote_code (bool): Trust remote code when loading HuggingFace models.
 
@@ -102,7 +100,6 @@ def ptq(
             devices=devices,
             num_nodes=num_nodes,
             inference_only=True,
-            tokenizer_path=tokenizer_path,
             legacy_ckpt=legacy_ckpt,
             strategy_kwargs={"sequence_parallel": False, "lazy_init": True},
             trainer_kwargs={},

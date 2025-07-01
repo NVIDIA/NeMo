@@ -16,7 +16,6 @@ import argparse
 
 import requests
 import torch
-from megatron.core import parallel_state
 from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 from PIL import Image
 from transformers import AutoProcessor
@@ -72,9 +71,6 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="NeMo PTQ argument parser"
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint")
-    parser.add_argument(
-        "--tokenizer", type=str, help="Tokenizer to use. If not provided, model tokenizer will be used"
-    )
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
     parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
@@ -149,6 +145,12 @@ def get_args():
         "--trust_remote_code", help="Trust remote code when loading HuggingFace models", action="store_true"
     )
     parser.add_argument("--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true")
+    parser.add_argument(
+        "--model_id",
+        type=str,
+        default="meta-llama/Llama-4-Scout-17B-16E-Instruct",
+        help="Model HuggingFace ID to use.",
+    )
 
     args = parser.parse_args()
 
@@ -209,7 +211,7 @@ def main():
     def forward_loop(model):
         """Forward loop for quantization calibration."""
         # Initialize processor and tokenizer
-        model_id = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
+        model_id = args.model_id
         processor = AutoProcessor.from_pretrained(model_id)
 
         for img_url in quantization_images_url:
@@ -286,7 +288,6 @@ def main():
         devices=args.devices,
         num_nodes=args.num_nodes,
         quantization_config=quantization_config,
-        tokenizer_path=args.tokenizer,
         legacy_ckpt=args.legacy_ckpt,
         trust_remote_code=args.trust_remote_code,
         forward_loop=forward_loop,

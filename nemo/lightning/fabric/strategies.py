@@ -47,6 +47,7 @@ from megatron.core.optimizer import OptimizerConfig
 from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
+from torch.nn.parallel import DistributedDataParallel
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from typing_extensions import override
@@ -366,7 +367,6 @@ class FabricMegatronStrategy(DDPStrategy):
         if isinstance(state, Optimizer):
             raise NotImplementedError("Optimizer loading is not supported, pass it as a dict including the model")
         unwrapped_model = unwrap_model(state["state_dict"])
-        from modelopt.torch.utils import print_rank_0
 
         from nemo.collections.vlm.llama4.model.base import Llama4OmniBaseModel
 
@@ -387,6 +387,8 @@ class FabricMegatronStrategy(DDPStrategy):
         if isinstance(state, Module):
             sharded_state_dict["state_dict"] = state.sharded_state_dict()
         elif strict:
+            if isinstance(state['state_dict'], DistributedDataParallel):
+                state["state_dict"] = state['state_dict'].module
             sharded_state_dict["state_dict"] = state["state_dict"].sharded_state_dict()
             if "optimizer" in state:
                 sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(
