@@ -309,7 +309,6 @@ def main(cfg: AlignmentConfig):
             "tokens_per_chunk": tokens_per_chunk,
         }
 
-
     # init output_timestep_duration = None and we will calculate and update it during the first batch
     output_timestep_duration = None
 
@@ -328,8 +327,15 @@ def main(cfg: AlignmentConfig):
         cuts = load_nemo_tarred_from_dir(cfg.manifest_filepath, cfg.tar_path)
 
         for i in range(0, len(cuts), cfg.batch_size):
-            batch_cuts = cuts[i:i + cfg.batch_size] if i + cfg.batch_size < len(cuts) else cuts[i:]
-            (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
+            batch_cuts = cuts[i : i + cfg.batch_size] if i + cfg.batch_size < len(cuts) else cuts[i:]
+            (
+                log_probs_batch,
+                y_batch,
+                T_batch,
+                U_batch,
+                utt_obj_batch,
+                output_timestep_duration,
+            ) = get_batch_variables(
                 batch_cuts,
                 model,
                 cfg.additional_segment_grouping_separator,
@@ -348,13 +354,18 @@ def main(cfg: AlignmentConfig):
                 utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 
                 if "ctm" in cfg.save_output_file_formats:
-                    utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
+                    utt_obj = make_ctm_files(
+                        utt_obj,
+                        cfg.output_dir,
+                        cfg.ctm_file_config,
+                    )
 
                 if "ass" in cfg.save_output_file_formats:
                     utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
 
                 write_manifest_out_line(
-                    f_manifest_out, utt_obj,
+                    f_manifest_out,
+                    utt_obj,
                 )
         f_manifest_out.close()
 
@@ -365,7 +376,14 @@ def main(cfg: AlignmentConfig):
         for start, end in zip(starts, ends):
             manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
 
-            (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
+            (
+                log_probs_batch,
+                y_batch,
+                T_batch,
+                U_batch,
+                utt_obj_batch,
+                output_timestep_duration,
+            ) = get_batch_variables(
                 manifest_lines_batch,
                 model,
                 cfg.additional_segment_grouping_separator,
@@ -384,13 +402,18 @@ def main(cfg: AlignmentConfig):
                 utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 
                 if "ctm" in cfg.save_output_file_formats:
-                    utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
+                    utt_obj = make_ctm_files(
+                        utt_obj,
+                        cfg.output_dir,
+                        cfg.ctm_file_config,
+                    )
 
                 if "ass" in cfg.save_output_file_formats:
                     utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
 
                 write_manifest_out_line(
-                    f_manifest_out, utt_obj,
+                    f_manifest_out,
+                    utt_obj,
                 )
 
         f_manifest_out.close()
