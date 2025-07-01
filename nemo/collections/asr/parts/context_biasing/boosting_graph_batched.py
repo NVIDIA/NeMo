@@ -437,3 +437,31 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         """
 
         return self.final_weights[states]
+
+
+    @classmethod
+    def dummy_boosting_tree(
+        cls,
+        vocab_size: int,
+        use_triton: bool | None = None,
+    ) -> "GPUBoostingTreeModel":
+        """
+        Constructs a trivial boosting tree with only one context phrase without scores.
+        Useful for testing purposes (e.g., decoding).
+
+        Returns:
+            NGramGPULanguageModel instance
+        """
+        
+        context_graph_trivial = ContextGraph(context_score=0.0, depth_scaling=0.0)
+        context_graph_trivial.build(token_ids=[[1]], phrases=["c"], scores=[0.0], uniform_weights=False)
+
+        boosting_tree_trivial = GPUBoostingTreeModel.from_cb_tree(
+            cb_tree=context_graph_trivial,
+            vocab_size=vocab_size,
+            unk_score=0.0,
+            final_eos_score=0.0,
+            use_triton=use_triton,
+            uniform_weights=False
+        )
+        return boosting_tree_trivial
