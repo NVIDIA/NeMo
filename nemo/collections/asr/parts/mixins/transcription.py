@@ -355,7 +355,7 @@ class TranscriptionMixin(ABC):
 
                 # Create a DataLoader if not already present
                 if isinstance(audio, CutSet):
-                    dataloader  = get_lhotse_dataloader(audio, transcribe_cfg.batch_size)
+                    dataloader = get_lhotse_dataloader(audio, transcribe_cfg.batch_size)
                 elif not isinstance(audio, DataLoader):
                     dataloader = self._transcribe_input_processing(audio, transcribe_cfg)
                 else:
