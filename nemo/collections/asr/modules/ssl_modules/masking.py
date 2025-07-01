@@ -15,7 +15,6 @@
 
 from typing import Optional, Union
 
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -99,29 +98,42 @@ class RandomBlockMasking(NeuralModule):
             masks (Tensor): the generated masks, shape=(batch, features, time)
         """
         batch_size = input_feats.size(0)
-        mask_value = self.mask_embedding.unsqueeze(-1)
         masks = torch.zeros_like(input_feats)
-        maksed_feats = input_feats.clone()
+        masked_feats = input_feats
+        indices = []
         for i in range(batch_size):
             if self.block_size >= input_lengths[i] * self.max_mask_ratio:
                 # handle case where audio is too short
                 block_size = 8
                 num_patches = 1
-                patch_idx = [0]
+                patch_indices = torch.tensor([0])
+                offset = 0
             else:
                 num_patches = torch.ceil(input_lengths[i] * self.mask_prob / self.block_size).int()
-                offset = torch.randint(0, self.block_size, (1,), device=input_feats.device)[0]
+                offset = torch.randint(0, self.block_size, (1,))[0]
                 block_size = self.block_size
                 if (num_patches + 1) * self.block_size > input_lengths[i]:
                     block_size = torch.div(input_lengths[i], (num_patches + 1), rounding_mode='trunc')
                 max_num_patches = torch.div(input_lengths[i], block_size, rounding_mode='trunc')
-                patch_idx = torch.randperm(max_num_patches - 1, device=input_feats.device)[:num_patches]
-            for j in range(num_patches):
-                start = patch_idx[j] * block_size + offset
-                end = start + block_size
-                masks[i, :, start:end] = 1.0
-                maksed_feats[i, :, start:end] = mask_value
-        return maksed_feats, masks
+                patch_indices = torch.randperm(max_num_patches - 1)[:num_patches]
+
+            if num_patches:
+                starts = patch_indices * block_size + offset
+                ends = starts + block_size
+                positions = torch.cat([torch.arange(s, e) for s, e in zip(starts, ends)]).reshape(-1, 1)
+                batch_index = torch.full((positions.shape[0], 1), i, dtype=positions.dtype)
+                positions = torch.cat([batch_index, positions], dim=1)
+                indices.append(positions.unique(dim=0))
+
+        if indices:
+            indices = torch.cat(indices, dim=0).unbind(1)
+            masks = masks.permute(0, 2, 1)
+            masked_feats = masked_feats.permute(0, 2, 1)
+
+            masks = masks.index_put(indices, values=torch.tensor(1.0)).permute(0, 2, 1)
+            masked_feats = masked_feats.index_put(indices, values=self.mask_embedding).permute(0, 2, 1)
+
+        return masked_feats, masks
 
     def forward_with_overlap(self, input_feats: torch.Tensor, input_lengths: torch.Tensor):
         """
@@ -133,27 +145,39 @@ class RandomBlockMasking(NeuralModule):
             masks (Tensor): the generated masks, shape=(batch, features, time)
         """
         batch_size = input_feats.size(0)
-        mask_value = self.mask_embedding.unsqueeze(-1)
         masks = torch.zeros_like(input_feats)
-        maksed_feats = input_feats.clone()
+        masked_feats = input_feats
+        mask_prob = torch.tensor(self.mask_prob)
+        indices = []
         for i in range(batch_size):
-            if self.block_size >= input_lengths[i] * self.max_mask_ratio:
+            input_length = input_lengths[i].item()
+            if self.block_size >= input_length * self.max_mask_ratio:
                 # handle case where audio is too short
-                curr_block_size = 8
+                block_size = 8
                 num_patches = 1
-                patch_idices = [0]
+                patch_indices = torch.tensor([0])
             else:
-                curr_block_size = self.block_size
-                curr_len = input_lengths[i].detach().cpu().numpy()
-                num_patches = np.random.binomial(max(0, curr_len - self.block_size), self.mask_prob)
-                patch_idices = torch.randperm(max(0, curr_len - self.block_size), device=input_feats.device)
-                patch_idices = patch_idices[:num_patches]
-            for j in range(num_patches):
-                start = patch_idices[j]
-                end = min(start + curr_block_size, input_lengths[i])
-                masks[i, :, start:end] = 1.0
-                maksed_feats[i, :, start:end] = mask_value
-        return maksed_feats, masks
+                block_size = self.block_size
+                count = max(0, input_length - self.block_size)
+                num_patches = torch.binomial(torch.tensor(count).float(), mask_prob).long()
+                patch_indices = torch.randperm(count)
+                patch_indices = patch_indices[:num_patches]
+            if num_patches:
+                ends = torch.clamp(patch_indices + block_size, max=input_length)
+                positions = torch.cat([torch.arange(s, e) for s, e in zip(patch_indices, ends)]).reshape(-1, 1)
+                batch_index = torch.full((positions.shape[0], 1), i, dtype=positions.dtype)
+                positions = torch.cat([batch_index, positions], dim=1)
+                indices.append(positions.unique(dim=0))
+
+        if indices:
+            indices = torch.cat(indices, dim=0).unbind(1)
+            masks = masks.permute(0, 2, 1)
+            masked_feats = masked_feats.permute(0, 2, 1)
+
+            masks = masks.index_put(indices, values=torch.tensor(1.0)).permute(0, 2, 1)
+            masked_feats = masked_feats.index_put(indices, values=self.mask_embedding).permute(0, 2, 1)
+
+        return masked_feats, masks
 
 
 class ConvFeatureMaksingWrapper(NeuralModule):
