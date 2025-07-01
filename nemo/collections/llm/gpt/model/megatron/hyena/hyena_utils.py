@@ -971,30 +971,29 @@ class ParallelHyenaOperator(nn.Module):
 
         h = h.repeat_interleave(self.group_dim, dim=-2)
 
-        if self.operator_type == "hyena_medium_conv":
-            return self.forward_medium(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
-        elif self.operator_type == "hyena":
-            return self.forward_long(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
+        if inference_context is not None:
+            if self.operator_type == "hyena_medium_conv":
+                return self.forward_medium(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
+            elif self.operator_type == "hyena":
+                return self.forward_long(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
         else:
-            pass
+            z = x2 * v
+            # with torch.autocast("cuda"):
+            z = fftconv_func(
+                u=z.to(torch.float32),
+                k=h.to(torch.float32),
+                D=conv_bias.to(torch.float32),
+                dropout_mask=None,
+                gelu=False,
+                bidirectional=self.bidirectional,
+            )
+            z = z.to(v.dtype)
+            z = x1 * z
 
-        z = x2 * v
-        # with torch.autocast("cuda"):
-        z = fftconv_func(
-            u=z.to(torch.float32),
-            k=h.to(torch.float32),
-            D=conv_bias.to(torch.float32),
-            dropout_mask=None,
-            gelu=False,
-            bidirectional=self.bidirectional,
-        )
-        z = z.to(v.dtype)
-        z = x1 * z
-
-        if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
-            z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
-            # [ B, H, L // num_ranks]
-        return z  # [B, (G, DG), L]
+            if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
+                z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
+                # [ B, H, L // num_ranks]
+            return z  # [B, (G, DG), L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the ParallelHyenaOperator."""
