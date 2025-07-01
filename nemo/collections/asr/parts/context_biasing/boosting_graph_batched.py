@@ -153,7 +153,7 @@ class BoostingTreeStorage:
 
             # TODO: do we need to increase arc weigth in the case of the final node (end of phrase)?
             if tbranch.next_node.is_end and not self.uniform_weights:
-                backoff_weight = tbranch.next_node.fail.node_score
+                backoff_weight = 0.0
             else:
                 backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
             
