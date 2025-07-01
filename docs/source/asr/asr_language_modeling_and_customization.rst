@@ -9,6 +9,10 @@ Language models have shown to help the accuracy of ASR models. NeMo supports the
 
 It is possible to use both approaches on the same ASR model.
 
+.. note::
+
+    NeMo now supports GPU-based decoding and customization methods with significant speed improvements. 
+    For more details, see the `GPU decoding and customization guide <https://github.com/NVIDIA/NeMo/blob/main/docs/source/asr/asr_ngpulm_language_modeling_and_customization>`__.
 
 .. _ngram_modeling:
 
