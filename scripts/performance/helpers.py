@@ -95,10 +95,12 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     use_mcore_fsdp = config.get("use_mcore_fsdp") if args.use_mcore_fsdp is None else args.use_mcore_fsdp
     use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
 
-    use_fsdp_double_buffer = config.get("use_fsdp_double_buffer") if args.use_fsdp_double_buffer is None else args.use_fsdp_double_buffer
+    use_fsdp_double_buffer = (
+        config.get("use_fsdp_double_buffer") if args.use_fsdp_double_buffer is None else args.use_fsdp_double_buffer
+    )
     use_fsdp_double_buffer = False if use_fsdp_double_buffer is None else bool(int(use_fsdp_double_buffer))
     if use_fsdp_double_buffer:
-        assert use_mcore_fsdp == True, "use_fsdp_double_buffer requires use_mcore_fsdp to be True"  
+        assert use_mcore_fsdp == True, "use_fsdp_double_buffer requires use_mcore_fsdp to be True"
 
     recompute_layers = config.get("recompute_layers") if args.recompute_layers is None else args.recompute_layers
     recompute_layers = 0 if recompute_layers is None else int(recompute_layers)
@@ -346,19 +348,19 @@ def set_primary_perf_configs(
         )
 
     recipe = set_perf_optimization_configs(
-        recipe = recipe,
-        use_mcore_fsdp = use_mcore_fsdp,
-        enable_cuda_graphs = enable_cuda_graphs,
-        task = task,
-        tp_size = tp_size,
-        compute_dtype = compute_dtype,
-        fp8_recipe = fp8_recipe,
-        recompute_layers = recompute_layers,
-        activation_offload_layers = activation_offload_layers,
-        recompute_modules = recompute_modules,
-        use_fsdp_double_buffer = use_fsdp_double_buffer,
-        use_user_buffer_registration = use_user_buffer_registration,
-        use_sharp = use_sharp,
+        recipe=recipe,
+        use_mcore_fsdp=use_mcore_fsdp,
+        enable_cuda_graphs=enable_cuda_graphs,
+        task=task,
+        tp_size=tp_size,
+        compute_dtype=compute_dtype,
+        fp8_recipe=fp8_recipe,
+        recompute_layers=recompute_layers,
+        activation_offload_layers=activation_offload_layers,
+        recompute_modules=recompute_modules,
+        use_fsdp_double_buffer=use_fsdp_double_buffer,
+        use_user_buffer_registration=use_user_buffer_registration,
+        use_sharp=use_sharp,
     )
 
     return recipe
