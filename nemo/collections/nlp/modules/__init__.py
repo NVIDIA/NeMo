@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nemo.collections.nlp.modules.common import (
+from nemo.collections.nlp.modules.common import (  # noqa: F401
     AlbertEncoder,
     BertEncoder,
     BertModule,
@@ -28,4 +28,4 @@ from nemo.collections.nlp.modules.common import (
     get_pretrained_lm_models_list,
     get_tokenizer,
     get_tokenizer_list,
-) # noqa: F401
+)
