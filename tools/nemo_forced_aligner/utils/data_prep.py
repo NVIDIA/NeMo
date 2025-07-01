@@ -16,17 +16,16 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Union
-from lhotse import CutSet
 
+import lhotse.dataset
 import soundfile as sf
 import torch
+from lhotse import CutSet
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
-import lhotse.dataset
-import torch
+
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoTarredIterator
 from nemo.utils import logging
-
 
 
 class ToAudio(torch.utils.data.Dataset):
