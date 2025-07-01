@@ -55,10 +55,11 @@ def override_recipe_configs(
     recipe = pretrain_recipe(performance_mode=True)
 
     # reset recompute args in the default recipe
-    recipe.model.config.recompute_granularity = None
-    recipe.model.config.recompute_method = None
-    recipe.model.config.recompute_num_layers = None
-    recipe.model.config.recompute_modules = None
+    if args.recompute_modules is None:
+        recipe.model.config.recompute_granularity = None
+        recipe.model.config.recompute_method = None
+        recipe.model.config.recompute_num_layers = None
+        recipe.model.config.recompute_modules = None
 
     if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
@@ -100,7 +101,9 @@ def override_recipe_configs(
             f"for DeepSeek V3. Known PP and VP combinations: {map_pp_vp_to_layout.keys()}"
         )
     layout = map_pp_vp_to_layout[(pp_size, vp_size)]
-    layout = list([list(x) for x in layout])  # materialize all elements
+
+    if layout is not None:
+        layout = list([list(x) for x in layout])  # yield all the elements
     recipe.trainer.strategy.pipeline_model_parallel_layout = layout
 
     # The following knobs are not needed if we specify layout
