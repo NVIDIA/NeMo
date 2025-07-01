@@ -21,14 +21,15 @@ def test_replace_placeholders():
     PAD = 0
     AUDIO = 100
     input_ids = torch.tensor([
-        [7, AUDIO, 1    , 2, AUDIO, 1  ],
-        [3, 4    , AUDIO, 5, PAD,   PAD]
+        [7  , AUDIO, 1, 2    , AUDIO, 1],
+        [PAD,   PAD, 3, AUDIO, 4    , 5]  # note: left padding required
     ])
     loss_mask = torch.tensor([
         [False, False, False, False, False, True],  # predict last token
-        [False, False, False, True , False, False]  # predict token 3, the rest is padding
+        [False, False, False, False, True , True]  # predict last two tokens
     ])
     embeds = torch.ones(2, 6, 2)
+    embeds[1, :2] = 0  # note: indicate left padding
     # 3 embedding sequences with varying shapes, corresponding to 3 AUDIO tokens
     replacements = [
         torch.full((4, 2), fill_value=2.0),
@@ -53,17 +54,17 @@ def test_replace_placeholders():
     assert (embeds_r[0, 7:10] == 3.0).all()  # 3=repl
     assert (embeds_r[0, 10]   == 1.0).all()  # 1=orig
     # batch item 1
-    assert (embeds_r[1, 0:2]  == 1.0).all()  # 1=orig
-    assert (embeds_r[1, 2:4]  == 4.0).all()  # 4=repl
-    assert (embeds_r[1, 4:7]  == 1.0).all()  # 1=orig
-    assert (embeds_r[1, 7:]   == 0.0).all()  # 0=pad
+    assert (embeds_r[1, :6]   == 0.0).all()  # 0=pad
+    assert (embeds_r[1, 6:7]  == 1.0).all()  # 1=orig
+    assert (embeds_r[1, 7:9]  == 4.0).all()  # 4=repl
+    assert (embeds_r[1, 9:]   == 1.0).all()  # 1=orig
 
     assert targets_r.shape == (2, 11)
     torch.testing.assert_close(
         targets_r,
         torch.tensor([
-            [-100, -100, -100, -100, -100, -100, -100, -100, -100, -100,    1],
-            [-100, -100, -100, -100,    5, -100, -100, -100, -100, -100, -100],
+            [-100, -100, -100, -100, -100, -100, -100, -100, -100, -100, 1],
+            [-100, -100, -100, -100, -100, -100, -100, -100, -100, 4   , 5],
         ])
     )
 
@@ -72,7 +73,7 @@ def test_replace_placeholders():
         attention_mask_r,
         torch.tensor([
             [True, True, True, True, True,  True,  True,  True,  True,  True,  True],
-            [True, True, True, True, True, False, False, False, False, False, False],
+            [False, False, False, False, False, False, True, True, True, True, True],
         ])
     )
     # fmt: on

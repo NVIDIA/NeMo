@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import os.path
 import re
 from functools import cached_property
 from typing import Any
@@ -29,7 +29,11 @@ class BaseTimestampsTest:
 
     @cached_property
     def bpe_tokenizer(self):
-        model = ASRModel.restore_from("/home/TestData/asr/stt_en_conformer_transducer_small.nemo", map_location="cpu")
+        model_path = "/home/TestData/asr/stt_en_conformer_transducer_small.nemo"
+        if os.path.exists(model_path):
+            model = ASRModel.restore_from(model_path, map_location="cpu")
+        else:
+            model = ASRModel.from_pretrained("stt_en_conformer_transducer_small", map_location="cpu")
         return model.tokenizer
 
     @property

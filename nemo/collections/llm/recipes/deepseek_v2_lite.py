@@ -27,6 +27,7 @@ from nemo.collections.llm.recipes.deepseek import trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "deepseek_v2_lite"
@@ -103,11 +104,8 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
-    # Use DeepEP
-    recipe.model.config.moe_token_dispatcher_type = "flex"
-    recipe.model.config.moe_enable_deepep = True
-    recipe.model.config.moe_shared_expert_overlap = False
-
+    deepep_callback = run.Config(DeepEPCallback)
+    recipe.trainer.callbacks.append(deepep_callback)
     return recipe
 
 
