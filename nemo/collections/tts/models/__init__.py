@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,49 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from nemo.collections.tts.models.aligner import AlignerModel
-    from nemo.collections.tts.models.degli import DegliModel
-    from nemo.collections.tts.models.ed_mel2spec import EDMel2SpecModel
-    from nemo.collections.tts.models.fastpitch import FastPitchModel
-    from nemo.collections.tts.models.fastpitch_hifigan_e2e import FastPitchHifiGanE2EModel
-    from nemo.collections.tts.models.fastspeech2 import FastSpeech2Model
-    from nemo.collections.tts.models.fastspeech2_hifigan_e2e import FastSpeech2HifiGanE2EModel
-    from nemo.collections.tts.models.glow_tts import GlowTTSModel
-    from nemo.collections.tts.models.hifigan import HifiGanModel
-    from nemo.collections.tts.models.melgan import MelGanModel
-    from nemo.collections.tts.models.mixer_tts import MixerTTSModel
-    from nemo.collections.tts.models.squeezewave import SqueezeWaveModel
-    from nemo.collections.tts.models.tacotron2 import Tacotron2Model
-    from nemo.collections.tts.models.talknet import TalkNetDursModel, TalkNetPitchModel, TalkNetSpectModel
-    from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
-    from nemo.collections.tts.models.uniglow import UniGlowModel
-    from nemo.collections.tts.models.univnet import UnivNetModel
-    from nemo.collections.tts.models.waveglow import WaveGlowModel
-except ModuleNotFoundError:
-    pass
+from nemo.collections.tts.models.aligner import AlignerModel
+from nemo.collections.tts.models.audio_codec import AudioCodecModel
+from nemo.collections.tts.models.fastpitch import FastPitchModel
+from nemo.collections.tts.models.fastpitch_ssl import FastPitchModel_SSL
+from nemo.collections.tts.models.hifigan import HifiGanModel
+from nemo.collections.tts.models.magpietts import MagpieTTS_Model, MagpieTTS_ModelDPO, MagpieTTS_ModelInference
+from nemo.collections.tts.models.mixer_tts import MixerTTSModel
+from nemo.collections.tts.models.radtts import RadTTSModel
+from nemo.collections.tts.models.spectrogram_enhancer import SpectrogramEnhancerModel
+from nemo.collections.tts.models.ssl_tts import SSLDisentangler
+from nemo.collections.tts.models.tacotron2 import Tacotron2Model
+from nemo.collections.tts.models.two_stages import GriffinLimModel, MelPsuedoInverseModel, TwoStagesModel
+from nemo.collections.tts.models.univnet import UnivNetModel
+from nemo.collections.tts.models.vits import VitsModel
+from nemo.collections.tts.models.waveglow import WaveGlowModel
 
 __all__ = [
-    "GlowTTSModel",
-    "SqueezeWaveModel",
-    "Tacotron2Model",
-    "WaveGlowModel",
-    "DegliModel",
-    "EDMel2SpecModel",
-    "TwoStagesModel",
-    "GriffinLimModel",
-    "MelPsuedoInverseModel",
-    "TalkNetDursModel",
-    "TalkNetPitchModel",
-    "TalkNetSpectModel",
-    "UniGlowModel",
-    "MelGanModel",
-    "HifiGanModel",
-    "FastPitchModel",
-    "FastSpeech2Model",
-    "FastPitchHifiGanE2EModel",
-    "FastSpeech2HifiGanE2EModel",
     "AlignerModel",
+    "AudioCodecModel",
+    "FastPitchModel",
+    "FastPitchModel_SSL",
+    "SSLDisentangler",
+    "GriffinLimModel",
+    "HifiGanModel",
+    "MelPsuedoInverseModel",
     "MixerTTSModel",
+    "RadTTSModel",
+    "MagpieTTS_Model",
+    "MagpieTTS_ModelInference",
+    "MagpieTTS_ModelDPO",
+    "Tacotron2Model",
+    "TwoStagesModel",
     "UnivNetModel",
+    "VitsModel",
+    "WaveGlowModel",
+    "SpectrogramEnhancerModel",
 ]

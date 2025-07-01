@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.core.optim.adafactor import Adafactor
+from nemo.core.optim.adan import Adan
 from nemo.core.optim.lr_scheduler import (
     CosineAnnealing,
     InverseSquareRootAnnealing,
@@ -27,6 +28,7 @@ from nemo.core.optim.lr_scheduler import (
     WarmupPolicy,
     prepare_lr_scheduler,
 )
+from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.core.optim.novograd import Novograd
 from nemo.core.optim.optimizer_with_main_params import MainParamsOptimizerWrapper
 from nemo.core.optim.optimizers import get_optimizer, parse_optimizer_args, register_optimizer

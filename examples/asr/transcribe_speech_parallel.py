@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,6 +32,15 @@ python transcribe_speech_parallel.py \
     predict_ds.batch_size=16 \
     output_path=/tmp/
 
+Example for Hybrid-CTC/RNNT models with non-tarred datasets:
+
+python transcribe_speech_parallel.py \
+    model=stt_en_fastconformer_hybrid_large \
+    decoder_type=ctc \
+    predict_ds.manifest_filepath=/dataset/manifest_file.json \
+    predict_ds.batch_size=16 \
+    output_path=/tmp/
+
 Example for tarred datasets:
 
 python transcribe_speech_parallel.py \
@@ -59,22 +68,24 @@ python transcribe_speech_parallel.py \
 
 """
 
-
 import itertools
 import json
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Optional
 
-import pytorch_lightning as ptl
+import lightning.pytorch as ptl
 import torch
 from omegaconf import MISSING, OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
-from nemo.collections.asr.metrics.rnnt_wer import RNNTDecodingConfig
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.models.configs.asr_models_config import ASRDatasetConfig
+from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskModel
+from nemo.collections.asr.models.configs import ASRDatasetConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInferConfig
 from nemo.core.config import TrainerConfig, hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -83,7 +94,9 @@ from nemo.utils.get_rank import is_global_rank_zero
 @dataclass
 class ParallelTranscriptionConfig:
     model: Optional[str] = None  # name
-    predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True, num_workers=4)
+    predict_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(return_sample_id=True, num_workers=4, min_duration=0, max_duration=40)
+    )
     output_path: str = MISSING
 
     # when return_predictions is enabled, the prediction call would keep all the predictions in memory and return them when prediction is done
@@ -91,8 +104,20 @@ class ParallelTranscriptionConfig:
     use_cer: bool = False
 
     # decoding strategy for RNNT models
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig()
-    trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
+    # Double check whether fused_batch_size=-1 is right
+    rnnt_decoding: RNNTDecodingConfig = field(default_factory=lambda: RNNTDecodingConfig(fused_batch_size=-1))
+
+    # Decoding strategy for CTC models
+    ctc_decoding: CTCDecodingConfig = field(default_factory=CTCDecodingConfig)
+
+    # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
+    decoder_type: Optional[str] = None
+    # att_context_size can be set for cache-aware streaming models with multiple look-aheads
+    att_context_size: Optional[list] = None
+
+    trainer: TrainerConfig = field(
+        default_factory=lambda: TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
+    )
 
 
 def match_train_config(predict_ds, train_ds):
@@ -137,15 +162,52 @@ def main(cfg: ParallelTranscriptionConfig):
         )
         model = ASRModel.from_pretrained(model_name=cfg.model, map_location="cpu")
 
-    trainer = ptl.Trainer(**cfg.trainer)
+    # Setup decoding strategy
+    if hasattr(model, 'change_decoding_strategy') and hasattr(model, 'decoding'):
+        if cfg.decoder_type is not None:
+            decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
+            if hasattr(model, 'cur_decoder'):
+                model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+            else:
+                model.change_decoding_strategy(decoding_cfg)
+
+        # Check if ctc or rnnt model
+        elif hasattr(model, 'joint'):  # RNNT model
+            model.change_decoding_strategy(cfg.rnnt_decoding)
+        else:
+            model.change_decoding_strategy(cfg.ctc_decoding)
 
     cfg.predict_ds.return_sample_id = True
     cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
+
+    if cfg.predict_ds.use_lhotse:
+        OmegaConf.set_struct(cfg.predict_ds, False)
+        cfg.trainer.use_distributed_sampler = False
+        cfg.predict_ds.force_finite = True
+        cfg.predict_ds.force_map_dataset = True
+        cfg.predict_ds.do_transcribe = True
+        OmegaConf.set_struct(cfg.predict_ds, True)
+
+    if isinstance(model, EncDecMultiTaskModel):
+        cfg.trainer.use_distributed_sampler = False
+        OmegaConf.set_struct(cfg.predict_ds, False)
+        cfg.predict_ds.use_lhotse = True
+        cfg.predict_ds.lang_field = "target_lang"
+        OmegaConf.set_struct(cfg.predict_ds, True)
+
+    trainer = ptl.Trainer(**cfg.trainer)
+
+    if cfg.predict_ds.use_lhotse:
+        OmegaConf.set_struct(cfg.predict_ds, False)
+        cfg.predict_ds.global_rank = trainer.global_rank
+        cfg.predict_ds.world_size = trainer.world_size
+        OmegaConf.set_struct(cfg.predict_ds, True)
+
     data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
-    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
     output_file = os.path.join(cfg.output_path, f"predictions_{global_rank}.json")
     predictor_writer = ASRPredictionWriter(dataset=data_loader.dataset, output_file=output_file)
     trainer.callbacks.extend([predictor_writer])

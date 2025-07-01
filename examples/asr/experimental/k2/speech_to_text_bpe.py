@@ -50,7 +50,7 @@ python speech_to_text_ctc_bpe.py \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
     model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
     model.tokenizer.type=<either `bpe` or `wpe`> \
-    trainer.gpus=-1 \
+    trainer.devices=-1 \
     trainer.accelerator="ddp" \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
@@ -61,7 +61,8 @@ python speech_to_text_ctc_bpe.py \
     exp_manager.create_wandb_logger=True \
     exp_manager.wandb_logger_kwargs.name="<Name of experiment>" \
     exp_manager.wandb_logger_kwargs.project="<Name of project>" \
-    model.graph_module_cfg.criterion_type=<either `mle` or `map`> \
+    model.graph_module_cfg.criterion_type=<either `ml` or `map`> \
+    model.graph_module_cfg.loss_type=<either `ctc` or `mmi`> \
     model.graph_module_cfg.transcribe_training=False \
     model.graph_module_cfg.split_batch_size=0 \
     model.graph_module_cfg.background_cfg.topo_type=<`default` or `compact` or `shared_blank` or `minimal`> \
@@ -70,11 +71,10 @@ python speech_to_text_ctc_bpe.py \
 
 # If graph_module_cfg.criterion_type=`map`, you can set the following parameters:
     model.graph_module_cfg.background_cfg.token_lm=<path to the token LM> \
-    model.graph_module_cfg.background_cfg.loss_type=mmi \
     model.graph_module_cfg.background_cfg.intersect_pruned=False \
     model.graph_module_cfg.background_cfg.boost_coeff=0.0
 """
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.configs.k2_sequence_models_config import EncDecK2SeqModelConfig

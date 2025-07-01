@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import math
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -22,7 +22,9 @@ from torch import Tensor
 from torch.nn.init import _calculate_correct_fan
 from torch.nn.modules.utils import _single
 
-from nemo.collections.asr.parts.utils.activations import Swish
+from nemo.collections.common.parts.utils import activation_registry
+from nemo.core.classes.mixins import AccessMixin
+from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging
 
 try:
@@ -35,14 +37,7 @@ try:
 except ImportError:
     PYTORCH_QUANTIZATION_AVAILABLE = False
 
-jasper_activations = {
-    "hardtanh": nn.Hardtanh,
-    "relu": nn.ReLU,
-    "selu": nn.SELU,
-    "swish": Swish,
-    "silu": nn.SiLU,
-    "gelu": nn.GELU,
-}
+jasper_activations = activation_registry
 
 
 def tds_uniform_(tensor, mode='fan_in'):
@@ -380,7 +375,7 @@ class MaskedConv1d(nn.Module):
             self.lens = self.lens.to(device)
         else:
             self.lens = seq_range
-            self.max_len = max_len
+            self.max_len = torch.tensor(max_len)
 
     def mask_input(self, x, lens):
         max_len = x.size(2)
@@ -478,12 +473,12 @@ class SqueezeExcite(nn.Module):
             self.set_max_len(max_len)
         dtype = x.dtype
         # Computes in float32 to avoid instabilities during training with AMP.
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(x.device.type, enabled=False):
             # Create sample mask - 1 represents value, 0 represents pad
             mask = self.make_pad_mask(lengths, max_audio_length=max_len, device=x.device)
             mask = ~mask  # 0 represents value, 1 represents pad
             x = x.float()  # For stable AMP, SE must be computed at fp32.
-            x.masked_fill_(mask, 0.0)  # mask padded values explicitly to 0
+            x = x.masked_fill(mask, 0.0)  # mask padded values explicitly to 0
             y = self._se_pool_step(x, mask)  # [B, C, 1]
             y = y.transpose(1, -1)  # [B, 1, C]
             y = self.fc(y)  # [B, 1, C]
@@ -515,8 +510,8 @@ class SqueezeExcite(nn.Module):
         return y
 
     def set_max_len(self, max_len, seq_range=None):
-        """ Sets maximum input length.
-            Pre-calculates internal seq_range mask.
+        """Sets maximum input length.
+        Pre-calculates internal seq_range mask.
         """
         self.max_len = max_len
         if seq_range is None:
@@ -563,7 +558,7 @@ class SqueezeExcite(nn.Module):
         self.context_window = context_window
 
 
-class JasperBlock(nn.Module):
+class JasperBlock(nn.Module, AdapterModuleMixin, AccessMixin):
     """
     Constructs a single "Jasper" block. With modified parameters, also constructs other blocks for models
     such as `QuartzNet` and `Citrinet`.
@@ -674,6 +669,7 @@ class JasperBlock(nn.Module):
             5, K=25, S=2, FC=1, GC= 1 * (2^3) = 8 * 0.01 ms  (note that symmetric pad here uses 14 FC frames!)
             6, K=29, S=1, FC=1, GC= 1 * (2^3) = 8 * 0.01 ms ...
         quantize: Bool flag whether to quantize the Convolutional blocks.
+        layer_idx (int, optional): can be specified to allow layer output capture for InterCTC loss. Defaults to -1.
     """
 
     __constants__ = ["conv_mask", "separable", "residual_mode", "res", "mconv"]
@@ -706,6 +702,7 @@ class JasperBlock(nn.Module):
         stride_last=False,
         future_context: int = -1,
         quantize=False,
+        layer_idx: int = -1,  # only used for capturing tensors for interctc loss
     ):
         super(JasperBlock, self).__init__()
 
@@ -713,21 +710,26 @@ class JasperBlock(nn.Module):
             raise ValueError("currently only 'same' padding is supported")
 
         kernel_size_factor = float(kernel_size_factor)
-        if type(kernel_size) in (list, tuple):
+        if isinstance(kernel_size, Iterable):
             kernel_size = [compute_new_kernel_size(k, kernel_size_factor) for k in kernel_size]
         else:
-            kernel_size = compute_new_kernel_size(kernel_size, kernel_size_factor)
+            kernel_size = [compute_new_kernel_size(kernel_size, kernel_size_factor)]
 
         if future_context < 0:
             padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
         else:
             padding_val = get_asymtric_padding(kernel_size[0], stride[0], dilation[0], future_context)
 
+        self.inplanes = inplanes
+        self.planes = planes
         self.conv_mask = conv_mask
         self.separable = separable
         self.residual_mode = residual_mode
         self.se = se
         self.quantize = quantize
+        self.layer_idx = layer_idx
+        # will be set in self.forward() if defined in AccessMixin config
+        self.interctc_should_capture = None
 
         inplanes_loop = inplanes
         conv = nn.ModuleList()
@@ -974,7 +976,7 @@ class JasperBlock(nn.Module):
         layers = [activation, nn.Dropout(p=drop_prob)]
         return layers
 
-    def forward(self, input_: Tuple[List[Tensor], Optional[Tensor]]):
+    def forward(self, input_: Tuple[List[Tensor], Optional[Tensor]]) -> Tuple[List[Tensor], Optional[Tensor]]:
         """
         Forward pass of the module.
 
@@ -987,7 +989,6 @@ class JasperBlock(nn.Module):
             The output of the block after processing the input through `repeat` number of sub-blocks,
             as well as the lengths of the encoded audio after padding/striding.
         """
-        # type: (Tuple[List[Tensor], Optional[Tensor]]) -> Tuple[List[Tensor], Optional[Tensor]] # nopep8
         lens_orig = None
         xs = input_[0]
         if len(input_) == 2:
@@ -1031,6 +1032,35 @@ class JasperBlock(nn.Module):
 
         # compute the output
         out = self.mout(out)
+
+        # Support ASR Adapters
+        if self.is_adapter_available():
+            # Check for all available and enabled adapters
+            adapter_names = self.get_enabled_adapters()
+
+            if len(adapter_names) > 0:
+                out = out.transpose(1, 2)  # (B, T, C)
+
+                # Call the adapters
+                out = self.forward_enabled_adapters(out)
+
+                out = out.transpose(1, 2)  # (B, C, T)
+
+        if self.is_access_enabled(getattr(self, "model_guid", None)):
+            # for adapters
+            if self.access_cfg.get('save_encoder_tensors', False):
+                self.register_accessible_tensor(name='encoder', tensor=out)
+            # for interctc - even though in some cases it's the same, we
+            # want to register separate key to be able to modify it later
+            # during interctc processing, if required
+            if self.interctc_should_capture is None:
+                capture_layers = self.access_cfg.get('interctc', {}).get('capture_layers', [])
+                self.interctc_should_capture = self.layer_idx in capture_layers
+            if self.interctc_should_capture:
+                # shape is the same as the shape of audio_signal output, i.e. [B, D, T]
+                self.register_accessible_tensor(name=f'interctc/layer_output_{self.layer_idx}', tensor=out)
+                self.register_accessible_tensor(name=f'interctc/layer_length_{self.layer_idx}', tensor=lens)
+
         if self.res is not None and self.dense_residual:
             return xs + [out], lens
 

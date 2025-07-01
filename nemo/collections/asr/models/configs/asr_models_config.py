@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from omegaconf import MISSING
@@ -23,6 +23,7 @@ from nemo.collections.asr.modules.audio_preprocessing import (
     SpectrogramAugmentationConfig,
 )
 from nemo.collections.asr.modules.conv_asr import ConvASRDecoderConfig, ConvASREncoderConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.core.config import modelPT as model_cfg
 
 
@@ -37,7 +38,19 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     is_tarred: bool = False
     tarred_audio_filepaths: Optional[Any] = None
     tarred_shard_strategy: str = "scatter"
+    shard_manifests: bool = False
     shuffle_n: int = 0
+
+    # lhotse support
+    use_lhotse: bool = False
+    tarred_random_access: bool = False
+    use_bucketing: bool = False
+    batch_duration: Optional[int] = None
+    quadratic_duration: Optional[int] = None
+    bucket_batch_size: Optional[int] = None
+    bucket_duration_bins: Optional[list] = None
+    num_buckets: Optional[int] = 0
+    pin_memory: bool = False
 
     # Optional
     int_values: Optional[int] = None
@@ -59,6 +72,10 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     # bucketing params
     bucketing_strategy: str = "synced_randomized"
     bucketing_batch_size: Optional[Any] = None
+    bucketing_weights: Optional[List[int]] = None
+
+    # Optional callable function to parse manifest file
+    manifest_parse_func: Optional[Any] = (None,)
 
 
 @dataclass
@@ -71,20 +88,54 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     labels: List[str] = MISSING
 
     # Dataset configs
-    train_ds: ASRDatasetConfig = ASRDatasetConfig(manifest_filepath=None, shuffle=True)
-    validation_ds: ASRDatasetConfig = ASRDatasetConfig(manifest_filepath=None, shuffle=False)
-    test_ds: ASRDatasetConfig = ASRDatasetConfig(manifest_filepath=None, shuffle=False)
+    train_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=True))
+    validation_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=False)
+    )
+    test_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=False))
 
     # Optimizer / Scheduler config
-    optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
+    optim: Optional[model_cfg.OptimConfig] = field(
+        default_factory=lambda: model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
+    )
 
     # Model component configs
-    preprocessor: AudioToMelSpectrogramPreprocessorConfig = AudioToMelSpectrogramPreprocessorConfig()
-    spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
-    encoder: ConvASREncoderConfig = ConvASREncoderConfig()
-    decoder: ConvASRDecoderConfig = ConvASRDecoderConfig()
+    preprocessor: AudioToMelSpectrogramPreprocessorConfig = field(
+        default_factory=lambda: AudioToMelSpectrogramPreprocessorConfig()
+    )
+    spec_augment: Optional[SpectrogramAugmentationConfig] = field(
+        default_factory=lambda: SpectrogramAugmentationConfig()
+    )
+    encoder: ConvASREncoderConfig = field(default_factory=lambda: ConvASREncoderConfig())
+    decoder: ConvASRDecoderConfig = field(default_factory=lambda: ConvASRDecoderConfig())
+    decoding: CTCDecodingConfig = field(default_factory=lambda: CTCDecodingConfig())
 
 
 @dataclass
 class EncDecCTCModelConfig(model_cfg.NemoConfig):
-    model: EncDecCTCConfig = EncDecCTCConfig()
+    model: EncDecCTCConfig = field(default_factory=lambda: EncDecCTCConfig())
+
+
+@dataclass
+class CacheAwareStreamingConfig:
+    chunk_size: int = (
+        0  # the size of each chunk at each step, it can be a list of two integers to specify different chunk sizes for the first step and others
+    )
+    shift_size: int = (
+        0  # the size of the shift in each step, it can be a list of two integers to specify different shift sizes for the first step and others
+    )
+
+    cache_drop_size: int = 0  # the number of steps to drop from the cache
+    last_channel_cache_size: int = 0  # the size of the needed cache for last channel layers
+
+    valid_out_len: int = (
+        0  # the number of the steps in the final output which are valid (have the same value as in the offline mode)
+    )
+
+    pre_encode_cache_size: int = (
+        0  # the size of the needed cache for the pre-encoding part of the model to avoid caching inside the pre-encoding layers
+    )
+    drop_extra_pre_encoded: int = 0  # the number of steps to get dropped after the pre-encoding layer
+
+    last_channel_num: int = 0  # number of the last channel layers (like MHA layers) which need caching in the model
+    last_time_num: int = 0  # number of the last time layers (like convolutions) which need caching in the model

@@ -21,11 +21,19 @@ import torch.nn as nn
 from tqdm import tqdm
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset, constants
-from nemo.collections.nlp.data.text_normalization.utils import input_preprocessing, post_process_punct
+from nemo.collections.nlp.data.text_normalization.utils import input_preprocessing
 from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
 from nemo.utils import logging
 
-__all__ = ['DuplexTextNormalizationModel', 'post_process_punct']
+try:
+    from nemo_text_processing.text_normalization.data_loader_utils import post_process_punct
+
+    PYNINI_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    PYNINI_AVAILABLE = False
+
+
+__all__ = ['DuplexTextNormalizationModel']
 
 
 class DuplexTextNormalizationModel(nn.Module):
@@ -275,7 +283,14 @@ class DuplexTextNormalizationModel(nn.Module):
                     # detokenize the output with Moses and fix punctuation marks to match the input
                     # for interactive inference or inference from a file
                     cur_output_str = self.decoder.processor.detokenize(cur_words)
-                    cur_output_str = post_process_punct(input=original_sents[ix], normalized_text=cur_output_str)
+                    if PYNINI_AVAILABLE:
+                        cur_output_str = post_process_punct(input=original_sents[ix], normalized_text=cur_output_str)
+                    else:
+                        logging.warning(
+                            " `nemo_text_processing` is not installed in this environment. Please refer to"
+                            " https://github.com/NVIDIA/NeMo-text-processing and install this package before using "
+                            " this script: `pip install nemo_text_processing`"
+                        )
                 final_outputs.append(cur_output_str)
             except IndexError:
                 logging.warning(f"Input sent is too long and will be skipped - {original_sents[ix]}")

@@ -27,6 +27,8 @@ from tqdm import tqdm
 from utils import get_segments
 
 import nemo.collections.asr as nemo_asr
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 
 parser = argparse.ArgumentParser(description="CTC Segmentation")
 parser.add_argument("--output_dir", default="output", type=str, help="Path to output directory")
@@ -72,18 +74,19 @@ if __name__ == "__main__":
     logging.basicConfig(handlers=handlers, level=level)
 
     if os.path.exists(args.model):
-        asr_model = nemo_asr.models.EncDecCTCModel.restore_from(args.model)
-    elif args.model in nemo_asr.models.EncDecCTCModel.get_available_model_names():
-        asr_model = nemo_asr.models.EncDecCTCModel.from_pretrained(args.model, strict=False)
+        asr_model = nemo_asr.models.ASRModel.restore_from(args.model)
     else:
-        try:
-            asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(args.model)
-        except:
-            raise ValueError(
-                f"Provide path to the pretrained checkpoint or choose from {nemo_asr.models.EncDecCTCModel.get_available_model_names()}"
-            )
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(args.model, strict=False)
 
-    bpe_model = isinstance(asr_model, nemo_asr.models.EncDecCTCModelBPE)
+    if not (isinstance(asr_model, EncDecCTCModel) or isinstance(asr_model, EncDecHybridRNNTCTCModel)):
+        raise NotImplementedError(
+            f"Model is not an instance of NeMo EncDecCTCModel or ENCDecHybridRNNTCTCModel."
+            " Currently only instances of these models are supported"
+        )
+
+    bpe_model = isinstance(asr_model, nemo_asr.models.EncDecCTCModelBPE) or isinstance(
+        asr_model, nemo_asr.models.EncDecHybridRNNTCTCBPEModel
+    )
 
     # get tokenizer used during training, None for char based models
     if bpe_model:
@@ -91,8 +94,18 @@ if __name__ == "__main__":
     else:
         tokenizer = None
 
+    if isinstance(asr_model, EncDecHybridRNNTCTCModel):
+        asr_model.change_decoding_strategy(decoder_type="ctc")
+
     # extract ASR vocabulary and add blank symbol
-    vocabulary = ["ε"] + list(asr_model.cfg.decoder.vocabulary)
+    if hasattr(asr_model, 'tokenizer'):  # i.e. tokenization is BPE-based
+        vocabulary = asr_model.tokenizer.vocab
+    elif hasattr(asr_model.decoder, "vocabulary"):  # i.e. tokenization is character-based
+        vocabulary = asr_model.cfg.decoder.vocabulary
+    else:
+        raise ValueError("Unexpected model type. Vocabulary list not found.")
+
+    vocabulary = ["ε"] + list(vocabulary)
     logging.debug(f"ASR Model vocabulary: {vocabulary}")
 
     data = Path(args.data)
@@ -111,14 +124,23 @@ if __name__ == "__main__":
     all_wav_paths = []
     segments_dir = os.path.join(args.output_dir, "segments")
     os.makedirs(segments_dir, exist_ok=True)
+
+    index_duration = None
     for path_audio in audio_paths:
         logging.info(f"Processing {path_audio.name}...")
         transcript_file = os.path.join(data_dir, path_audio.name.replace(".wav", ".txt"))
         segment_file = os.path.join(
             segments_dir, f"{args.window_len}_" + path_audio.name.replace(".wav", "_segments.txt")
         )
+        if not os.path.exists(transcript_file):
+            logging.info(f"{transcript_file} not found. Skipping {path_audio.name}")
+            continue
         try:
             sample_rate, signal = wav.read(path_audio)
+            if len(signal) == 0:
+                logging.error(f"Skipping {path_audio.name}")
+                continue
+
             assert (
                 sample_rate == args.sample_rate
             ), f"Sampling rate of the audio file {path_audio} doesn't match --sample_rate={args.sample_rate}"
@@ -127,7 +149,14 @@ if __name__ == "__main__":
             logging.debug(f"len(signal): {len(signal)}, sr: {sample_rate}")
             logging.debug(f"Duration: {original_duration}s, file_name: {path_audio}")
 
-            log_probs = asr_model.transcribe(paths2audio_files=[str(path_audio)], batch_size=1, logprobs=True)[0]
+            hypotheses = asr_model.transcribe([str(path_audio)], batch_size=1, return_hypotheses=True)
+            # if hypotheses form a tuple (from Hybrid model), extract just "best" hypothesis
+            if type(hypotheses) == tuple and len(hypotheses) == 2:
+                hypotheses = hypotheses[0]
+            log_probs = hypotheses[
+                0
+            ].alignments  # note: "[0]" is for batch dimension unpacking (and here batch size=1)
+
             # move blank values to the first column (ctc-package compatibility)
             blank_col = log_probs[:, -1].reshape((log_probs.shape[0], 1))
             log_probs = np.concatenate((blank_col, log_probs[:, :-1]), axis=1)
@@ -136,6 +165,10 @@ if __name__ == "__main__":
             all_segment_file.append(str(segment_file))
             all_transcript_file.append(str(transcript_file))
             all_wav_paths.append(path_audio)
+
+            if index_duration is None:
+                index_duration = len(signal) / log_probs.shape[0] / sample_rate
+
         except Exception as e:
             logging.error(e)
             logging.error(f"Skipping {path_audio.name}")
@@ -147,7 +180,7 @@ if __name__ == "__main__":
 
     if len(all_log_probs) > 0:
         start_time = time.time()
-        index_duration = len(signal) / log_probs.shape[0] / sample_rate
+
         normalized_lines = Parallel(n_jobs=args.num_jobs)(
             delayed(get_segments)(
                 all_log_probs[i],

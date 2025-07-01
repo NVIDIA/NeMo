@@ -15,12 +15,12 @@
 
 import torch
 from hydra.utils import instantiate
+from lightning.pytorch.loggers import TensorBoardLogger
 from omegaconf import DictConfig, open_dict
-from pytorch_lightning.loggers import LoggerCollection, TensorBoardLogger
 
-from nemo.collections.tts.helpers.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import GlowVocoder
+from nemo.collections.tts.parts.utils.helpers import OperationMode, waveglow_log_to_tb_func
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import (
@@ -88,9 +88,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
     ) -> torch.Tensor:
         with self.nemo_infer():
             self.waveglow.remove_weightnorm()
-            audio = self.waveglow(
-                spec=spec.to(self.waveglow.upsample.weight.dtype), run_inverse=True, audio=None, sigma=sigma
-            )
+            audio = self.waveglow(spec=spec.to(self.waveglow.upsample.weight.dtype), sigma=sigma)
             if denoise:
                 audio = self.denoise(audio=audio, strength=denoiser_strength)
 
@@ -116,30 +114,32 @@ class WaveGlowModel(GlowVocoder, Exportable):
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)
         )
         loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
-        return {
+        loss = {
             "val_loss": loss,
             "audio_pred": audio_pred,
             "mel_target": spec,
             "mel_len": spec_len,
         }
+        self.validation_step_outputs.append(loss)
+        return loss
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         if self.logger is not None and self.logger.experiment is not None:
             tb_logger = self.logger.experiment
-            if isinstance(self.logger, LoggerCollection):
-                for logger in self.logger:
-                    if isinstance(logger, TensorBoardLogger):
-                        tb_logger = logger.experiment
-                        break
+            for logger in self.trainer.loggers:
+                if isinstance(logger, TensorBoardLogger):
+                    tb_logger = logger.experiment
+                    break
             waveglow_log_to_tb_func(
                 tb_logger,
-                outputs[0].values(),
+                self.validation_step_outputs[0].values(),
                 self.global_step,
                 tag="eval",
                 mel_fb=self.audio_to_melspec_precessor.fb,
             )
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
         self.log('val_loss', avg_loss)
+        self.validation_step_outputs.clear()  # free memory
 
     def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
@@ -177,14 +177,7 @@ class WaveGlowModel(GlowVocoder, Exportable):
         """
         list_of_models = []
         model = PretrainedModelInfo(
-            pretrained_model_name="tts_waveglow_268m",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_268m/versions/1.0.0rc1/files/tts_waveglow_268m.nemo",
-            description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent and Mandarin voices.",
-            class_=cls,
-        )
-        list_of_models.append(model)
-        model = PretrainedModelInfo(
-            pretrained_model_name="tts_waveglow_88m",
+            pretrained_model_name="tts_en_waveglow_88m",
             location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/tts_waveglow_88m/versions/1.0.0/files/tts_waveglow.nemo",
             description="This model is trained on LJSpeech sampled at 22050Hz, and has been tested on generating female English voices with an American accent and Mandarin voices.",
             class_=cls,

@@ -13,9 +13,9 @@
 # limitations under the License.
 
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
+from lightning.pytorch.strategies import DDPStrategy
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning.plugins import DDPPlugin
 
 from nemo.collections.nlp.models.language_modeling import BERTLMModel
 from nemo.core.config import hydra_runner
@@ -26,7 +26,7 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf", config_name="bert_pretraining_from_text_config")
 def main(cfg: DictConfig) -> None:
     logging.info(f'Config:\n {OmegaConf.to_yaml(cfg)}')
-    trainer = pl.Trainer(plugins=[DDPPlugin(find_unused_parameters=True)], **cfg.trainer)
+    trainer = pl.Trainer(strategy=DDPStrategy(find_unused_parameters=True), **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     bert_model = BERTLMModel(cfg.model, trainer=trainer)
     trainer.fit(bert_model)

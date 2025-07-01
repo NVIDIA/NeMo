@@ -17,8 +17,8 @@ import pathlib
 from typing import Dict, List, Optional
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
@@ -38,8 +38,7 @@ from nemo.utils import logging
 
 class IntentSlotClassificationModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        """ Initializes BERT Joint Intent and Slot model.
-        """
+        """Initializes BERT Joint Intent and Slot model."""
         self.max_seq_length = cfg.language_model.max_seq_length
         # init superclass
         # Check the presence of data_dir.
@@ -75,7 +74,7 @@ class IntentSlotClassificationModel(NLPModel):
             OmegaConf.set_struct(cfg, True)
 
     def _set_data_desc_to_cfg(self, cfg, data_dir, train_ds, validation_ds):
-        """ Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc. """
+        """Method creates IntentSlotDataDesc and copies generated values to cfg.data_desc."""
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
         data_desc = IntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
         OmegaConf.set_struct(cfg, False)
@@ -109,7 +108,7 @@ class IntentSlotClassificationModel(NLPModel):
         OmegaConf.set_struct(cfg, True)
 
     def _save_label_ids(self, label_ids: Dict[str, int], filename: str) -> None:
-        """ Saves label ids map to a file """
+        """Saves label ids map to a file"""
         with open(filename, 'w') as out:
             labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
             out.write('\n'.join(labels))
@@ -117,7 +116,7 @@ class IntentSlotClassificationModel(NLPModel):
             logging.info(f'Labels mapping saved to : {out.name}')
 
     def _reconfigure_classifier(self):
-        """ Method reconfigures the classifier depending on the settings of model cfg.data_desc """
+        """Method reconfigures the classifier depending on the settings of model cfg.data_desc"""
 
         self.classifier = SequenceTokenClassifier(
             hidden_size=self.hidden_size,
@@ -193,7 +192,7 @@ class IntentSlotClassificationModel(NLPModel):
             hidden_states = hidden_states[0]
 
         intent_logits, slot_logits = self.classifier(hidden_states=hidden_states)
-        return intent_logits, slot_logits
+        return intent_logits.float(), slot_logits.float()
 
     def training_step(self, batch, batch_idx):
         """
@@ -245,7 +244,7 @@ class IntentSlotClassificationModel(NLPModel):
         slot_labels = slot_labels[subtokens_mask]
         self.slot_classification_report.update(preds, slot_labels)
 
-        return {
+        loss = {
             'val_loss': val_loss,
             'intent_tp': self.intent_classification_report.tp,
             'intent_fn': self.intent_classification_report.fn,
@@ -254,12 +253,19 @@ class IntentSlotClassificationModel(NLPModel):
             'slot_fn': self.slot_classification_report.fn,
             'slot_fp': self.slot_classification_report.fp,
         }
+        self.validation_step_outputs.append(loss)
+        return loss
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
+        prefix = "test" if self.trainer.testing else "val"
+        if prefix == "val":
+            outputs = self.validation_step_outputs
+        else:
+            outputs = self.test_step_outputs
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
 
         # calculate metrics and log classification report (separately for intents and slots)
@@ -269,7 +275,7 @@ class IntentSlotClassificationModel(NLPModel):
         slot_precision, slot_recall, slot_f1, slot_report = self.slot_classification_report.compute()
         logging.info(f'Slot report: {slot_report}')
 
-        self.log('val_loss', avg_loss)
+        self.log(f'{prefix}_loss', avg_loss)
         self.log('intent_precision', intent_precision)
         self.log('intent_recall', intent_recall)
         self.log('intent_f1', intent_f1)
@@ -279,9 +285,10 @@ class IntentSlotClassificationModel(NLPModel):
 
         self.intent_classification_report.reset()
         self.slot_classification_report.reset()
+        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear()
 
         return {
-            'val_loss': avg_loss,
+            f'{prefix}_loss': avg_loss,
             'intent_precision': intent_precision,
             'intent_recall': intent_recall,
             'intent_f1': intent_f1,
@@ -295,14 +302,16 @@ class IntentSlotClassificationModel(NLPModel):
         Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
-        return self.validation_step(batch, batch_idx)
+        loss = self.validation_step(batch, batch_idx)
+        self.test_step_outputs.append(loss)
+        return loss
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self):
         """
         Called at the end of test to aggregate outputs.
         :param outputs: list of individual outputs of each test step.
         """
-        return self.validation_epoch_end(outputs)
+        return self.on_validation_epoch_end()
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)

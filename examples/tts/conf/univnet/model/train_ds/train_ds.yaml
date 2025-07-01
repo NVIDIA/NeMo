@@ -1,5 +1,5 @@
 dataset:
-  _target_: "nemo.collections.tts.torch.data.VocoderDataset"
+  _target_: "nemo.collections.tts.data.dataset.VocoderDataset"
   manifest_filepath: ${train_dataset}
   sample_rate: ${sample_rate}
   n_segments: ${train_n_segments}
@@ -10,3 +10,4 @@ dataloader_params:
   shuffle: true
   batch_size: 32
   num_workers: 4
+  pin_memory: true

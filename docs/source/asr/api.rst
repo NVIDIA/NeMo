@@ -1,5 +1,5 @@
-NeMo ASR collection API
-=======================
+NeMo ASR API
+============
 
 
 Model Classes
@@ -35,6 +35,18 @@ Model Classes
     :members: setup_training_data, setup_optimization, setup_validation_data, setup_test_data, register_artifact
 
 
+.. autoclass:: nemo.collections.asr.models.hybrid_asr_tts_models.ASRWithTTSModel
+    :show-inheritance:
+    :members: from_asr_config, from_pretrained_models, save_asr_model_to, setup_training_data
+
+.. _confidence-ensembles-api:
+
+.. autoclass:: nemo.collections.asr.models.confidence_ensemble.ConfidenceEnsembleModel
+    :show-inheritance:
+    :members: transcribe
+
+.. _asr-api-modules:
+
 Modules
 -------
 
@@ -54,9 +66,44 @@ Modules
     :show-inheritance:
     :members:
 
+.. _conformer-encoder-api:
+
 .. autoclass:: nemo.collections.asr.modules.ConformerEncoder
     :show-inheritance:
     :members:
+
+.. _squeezeformer-encoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.SqueezeformerEncoder
+    :show-inheritance:
+    :members:
+
+.. _rnn-encoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNEncoder
+    :show-inheritance:
+    :members:
+
+.. _rnnt-decoder-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNTDecoder
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.StatelessTransducerDecoder
+    :show-inheritance:
+    :members:
+
+.. _rnnt-joint-api:
+
+.. autoclass:: nemo.collections.asr.modules.RNNTJoint
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.modules.SampledRNNTJoint
+    :show-inheritance:
+    :members:
+
 
 
 Parts
@@ -78,6 +125,20 @@ Mixins
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.mixins.transcription.TranscriptionMixin
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.mixins.transcription.TranscribeConfig
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.mixins.interctc_mixin.InterCTCMixin
+    :show-inheritance:
+    :members:
+
+.. _asr-api-datasets:
+
 Datasets
 --------
 
@@ -92,9 +153,18 @@ Character Encoding Datasets
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.data.audio_to_text.AudioToCharWithDursF0Dataset
+
+Text-to-Text Datasets for Hybrid ASR-TTS models
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.data.text_to_text.TextToTextDataset
     :show-inheritance:
     :members:
+
+.. autoclass:: nemo.collections.asr.data.text_to_text.TextToTextIterableDataset
+    :show-inheritance:
+    :members:
+
 
 Subword Encoding Datasets
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -107,6 +177,8 @@ Subword Encoding Datasets
     :show-inheritance:
     :members:
 
+.. _asr-audio-preprocessors:
+
 Audio Preprocessors
 -------------------
 
@@ -117,6 +189,8 @@ Audio Preprocessors
 .. autoclass:: nemo.collections.asr.modules.AudioToMFCCPreprocessor
     :show-inheritance:
     :members:
+
+.. _asr-api-audio-augmentors:
 
 Audio Augmentors
 ----------------
@@ -168,14 +242,33 @@ Audio Augmentors
 Miscellaneous Classes
 ---------------------
 
-RNNT Decoding
-~~~~~~~~~~~~~
+CTC Decoding
+~~~~~~~~~~~~
 
-.. autoclass:: nemo.collections.asr.metrics.rnnt_wer.RNNTDecoding
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_decoding.CTCDecoding
     :show-inheritance:
     :members:
 
-.. autoclass:: nemo.collections.asr.metrics.rnnt_wer_bpe.RNNTBPEDecoding
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_decoding.CTCBPEDecoding
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_greedy_decoding.GreedyCTCInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.ctc_beam_decoding.BeamCTCInfer
+    :show-inheritance:
+    :members:
+
+RNNT Decoding
+~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_decoding.RNNTDecoding
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_decoding.RNNTBPEDecoding
     :show-inheritance:
     :members:
 
@@ -191,6 +284,29 @@ RNNT Decoding
     :show-inheritance:
     :members:
 
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_beam_decoding.BeamBatchedRNNTInfer
+    :show-inheritance:
+    :members:
+
+TDT Decoding
+~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_greedy_decoding.GreedyTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.rnnt_greedy_decoding.GreedyBatchedTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.tdt_beam_decoding.BeamTDTInfer
+    :show-inheritance:
+    :members:
+
+.. autoclass:: nemo.collections.asr.parts.submodules.tdt_beam_decoding.BeamBatchedTDTInfer
+    :show-inheritance:
+    :members:
+
 Hypotheses
 ~~~~~~~~~~
 
@@ -201,3 +317,37 @@ Hypotheses
 .. autoclass:: nemo.collections.asr.parts.utils.rnnt_utils.NBestHypotheses
     :show-inheritance:
     :no-members:
+
+Adapter Networks
+~~~~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.MultiHeadAttentionAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionMultiHeadAttentionAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.PositionalEncodingAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.RelPositionalEncodingAdapter
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+
+
+Adapter Strategies
+~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module.MHAResidualAddAdapterStrategy
+    :show-inheritance:
+    :members:
+    :member-order: bysource
+    :undoc-members: adapter_module_names
+

@@ -1,19 +1,48 @@
 Speaker Diarization
-==================================
+===================
 
-Speaker Diarization (SD) is the task of segmenting audio recordings by speaker labels, which is figuring out "Who spoke when?".
+Speaker Diarization Overview
+----------------------------
+Speaker diarization is the process of segmenting audio recordings by speaker labels and aims to answer the question “who spoke when?”. Speaker diarization makes a clear distinction when it is compared with speech recognition. As shown in the figure below, before we perform speaker diarization, we know “what is spoken” yet we do not know “who spoke it”. Therefore, speaker diarization is an essential feature for a speech recognition system to enrich the transcription with speaker labels. 
 
-.. image:: images/sd_pipeline.png
+.. image:: images/asr_sd_diagram.png
         :align: center
-        :scale: 75%
-        :alt: Speaker Diarization pipeline [todo]
+        :width: 800px
+        :alt: Speaker diarization pipeline- VAD, segmentation, speaker embedding extraction, clustering
+ 
+To figure out "who spoke when", speaker diarization systems need to capture the characteristics of unseen speakers and tell apart which regions in the audio recording belong to which speaker. To achieve this, speaker diarization systems extract voice characteristics, count the number of speakers, then assign the audio segments to the corresponding speaker index.
 
+Types of Speaker Diarization Systems 
+------------------------------------
 
-A speaker diarization system consists of a **Voice Activity Detection (VAD)** model to get the timestamps of audio where speech is being spoken while ignoring the background noise and 
-a **Speaker Embedding extractor** model to get speaker embeddings on speech segments obtained from VAD time stamps. 
-These speaker embeddings would then be clustered into clusters based on the number of speakers present in the audio recording.
+.. image:: images/e2e_and_cascaded_diar_systems.png
+        :align: center
+        :width: 800px
+        :alt: End-to-End and Cascaded Diar Systems
 
-In NeMo we support both **oracle VAD** and **non-oracle VAD** diarization. 
+1. End-to-End Speaker Diarization System:
+
+End-to-end speaker diarization systems pursue a much more simplified version of a system where a single neural network model accepts raw audio signals and outputs speaker activity for each audio frame. Therefore, end-to-end diarization models have an advantage in ease of optimization and depoloyments.
+
+Curently, NeMo Speech AI provides the following end-to-end speaker diarization models:
+
+- **Sortformer Diarizer** : A transformer-based model that estimates speaker labels from the given audio input giving the speaker indexes in arrival-time order.
+
+2. Cascaded Speaker Diarization System:
+
+Traditional cascaded (also referred to as modular or pipelined) speaker diarization systems consist of multiple modules such as a speaker activity detection (SAD) module and a speaker embedding extractor module. 
+On top of the clustering diarizer, target-speaker voice activity detection (VAD) is performed to generate the final speaker labels. Cascaded speaker diarization systems are more challenging to optimize all together and deploy but still has advantage of having less restriction on the number of speakers and session length.
+
+Cascaded NeMo Speech AI speaker diarization system consists of the following modules:   
+
+- **Voice Activity Detector (VAD)**: A trainable model which detects the presence or absence of speech to generate timestamps for speech activity from the given audio recording.  
+
+- **Speaker Embedding Extractor**: A trainable model that extracts speaker embedding vectors containing voice characteristics from raw audio signal.   
+
+- **Clustering Module**: A non-trainable module that groups speaker embedding vectors into a number of clusters.   
+
+- **Neural Diarizer (TS-VAD)**: A trainable model that estimates speaker labels from the given features. In general, this module is performing target-speaker VAD task to generate the final speaker labels.  
+
 
 
 The full documentation tree is as follows:
@@ -26,27 +55,6 @@ The full documentation tree is as follows:
    results
    configs
    api
+   resources
 
-Resource and Documentation Guide
---------------------------------
-
-Hands-on speaker diarization tutorial notebooks can be found under ``<NeMo_git_root>/tutorials/speaker_tasks/``.
-
-There are tutorials for performing inference using :ref:`MarbleNet_model` and :ref:`TitaNet_model`, 
-and how one can get ASR transcriptions combined with Speaker labels along with voice activity time stamps with NeMo asr collections.
-
-Most of the tutorials can be run on Google Colab by specifying the link to the notebooks' GitHub pages on Colab.
-
-If you are looking for information about a particular model used for speaker diarization inference, or would like to find out more about the model
-architectures available in the `nemo_asr` collection, check out the :doc:`Models <./models>` page.
-
-Documentation on dataset preprocessing can be found on the :doc:`Datasets <./datasets>` page.
-NeMo includes preprocessing scripts for several common ASR datasets, and this page contains instructions on running
-those scripts.
-It also includes guidance for creating your own NeMo-compatible dataset, if you have your own data.
-
-Information about how to load model checkpoints (either local files or pretrained ones from NGC), perform inference, as well as a list
-of the checkpoints available on NGC are located on the :doc:`Checkpoints <./results>` page.
-
-Documentation for configuration files specific to the ``nemo_asr`` models can be found on the
-:doc:`Configuration Files <./configs>` page.
+.. include:: resources.rst

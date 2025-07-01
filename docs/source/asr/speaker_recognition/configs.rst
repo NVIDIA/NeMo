@@ -1,11 +1,11 @@
-NeMo ASR Configuration Files
-============================
+NeMo Speaker Recognition Configuration Files
+============================================
 
 This page covers NeMo configuration file setup that is specific to speaker recognition models.
 For general information about how to set up and run experiments that is common to all NeMo models (e.g.
 experiment manager and PyTorch Lightning trainer parameters), see the :doc:`../../core/core` page.
 
-The model section of NeMo ASR configuration files will generally require information about the dataset(s) being
+The model section of NeMo speaker recognition configuration files will generally require information about the dataset(s) being
 used, the preprocessor for audio files, parameters for any augmentation being performed, as well as the
 model architecture specification.
 The sections on this page cover each of these in more detail.
@@ -47,13 +47,13 @@ An example TitaNet train and validation configuration could look like (``{NEMO_R
       shuffle: False    # No need to shuffle the validation data
 
       
-If you would like to use tarred dataset, have a look at `Datasets Configuration <../configs.html#dataset-configuration>`__.
+If you would like to use tarred dataset, have a look at the ASR :ref:`Tarred Datasets <Tarred_Datasets>` section.
 
 
 Preprocessor Configuration
 --------------------------
 Preprocessor helps to compute MFCC or mel spectrogram features that are given as inputs to model. 
-For details on how to write this section, refer to `Preprocessor Configuration <../configs.html#preprocessor-configuration>`__
+For details on how to write this section, refer to :ref:`Preprocessor Configuration <asr-configs-preprocessor-configuration>`.
 
 
 Augmentation Configurations

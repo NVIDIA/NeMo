@@ -25,6 +25,7 @@ from omegaconf import open_dict
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.utils import logging
 
 try:
@@ -37,23 +38,17 @@ except ImportError:
     )
 
 
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
-
 can_gpu = torch.cuda.is_available()
 
 
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
+        "--asr_model",
+        type=str,
+        default="QuartzNet15x5Base-En",
+        required=True,
+        help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
@@ -113,7 +108,9 @@ def main():
                         module.disable()
 
     labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
-    wer = WER(vocabulary=asr_model.decoder.vocabulary, use_cer=args.use_cer)
+    decoding_cfg = CTCDecodingConfig()
+    char_decoding = CTCDecoding(decoding_cfg, vocabulary=labels_map)
+    wer = WER(char_decoding, use_cer=args.use_cer)
     wer_quant = evaluate(asr_model, labels_map, wer)
     logging.info(f'Got WER of {wer_quant}. Tolerance was {args.wer_tolerance}')
 
@@ -196,11 +193,11 @@ def evaluate(asr_model, labels_map, wer):
     for test_batch in asr_model.test_dataloader():
         if can_gpu:
             test_batch = [x.cuda() for x in test_batch]
-        with autocast():
+        with torch.amp.autocast(asr_model.device.type):
             log_probs, encoded_len, greedy_predictions = asr_model(
                 input_signal=test_batch[0], input_signal_length=test_batch[1]
             )
-        hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
+        hypotheses += wer.decoding.ctc_decoder_predictions_tensor(greedy_predictions)[0]
         for batch_ind in range(greedy_predictions.shape[0]):
             seq_len = test_batch[3][batch_ind].cpu().detach().numpy()
             seq_ids = test_batch[2][batch_ind].cpu().detach().numpy()

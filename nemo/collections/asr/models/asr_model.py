@@ -12,44 +12,80 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from abc import ABC
+from typing import List, Optional
 
 import torch
 
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import ModelPT
+from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
-from nemo.utils import model_utils
+from nemo.core.classes.mixins import AccessMixin
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.utils.neural_type_utils import get_io_names
+from nemo.utils import logging, model_utils
+from nemo.utils.cast_utils import cast_all
 
 __all__ = ['ASRModel']
 
 
 class ASRModel(ModelPT, ABC):
-    @abstractmethod
-    def transcribe(self, paths2audio_files: List[str], batch_size: int = 4) -> List[str]:
-        """
-        Takes paths to audio files and returns text transcription
-        Args:
-            paths2audio_files: paths to audio fragment to be transcribed
-
-        Returns:
-            transcription texts
-        """
-        pass
-
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-        wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {'val_loss': val_loss_mean, 'val_wer': wer_num / wer_denom}
-        return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
+        val_loss = {}
+        tensorboard_logs = {}
+
+        if 'val_loss' in outputs[0]:
+            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+            val_loss = {'val_loss': val_loss_mean}
+
+            tensorboard_logs.update(val_loss)
+
+        if "val_wer_num" in outputs[0]:
+            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            val_wer = {'val_wer': wer_num / wer_denom}
+
+            tensorboard_logs.update(val_wer)
+
+        if "val_bleu_num" in outputs[0]:
+            bleu_pred_len = torch.stack([x["val_bleu_pred_len"] for x in outputs]).sum()
+            bleu_target_len = torch.stack([x["val_bleu_target_len"] for x in outputs]).sum()
+            bleu_num = torch.stack([x["val_bleu_num"] for x in outputs]).sum(dim=0)
+            bleu_denom = torch.stack([x["val_bleu_denom"] for x in outputs]).sum(dim=0)
+            val_bleu = {"val_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+
+            tensorboard_logs.update(val_bleu)
+
+        return {**val_loss, 'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-        wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {'test_loss': val_loss_mean, 'test_wer': wer_num / wer_denom}
-        return {'test_loss': val_loss_mean, 'log': tensorboard_logs}
+        val_loss = {}
+        tensorboard_logs = {}
+
+        if 'test_loss' in outputs[0]:
+            val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+            val_loss = {'test_loss': val_loss_mean}
+
+            tensorboard_logs.update(val_loss)
+
+        if "test_wer_num" in outputs[0]:
+            wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
+            wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
+            val_wer = {'test_wer': wer_num / wer_denom}
+
+            tensorboard_logs.update(val_wer)
+
+        if "test_bleu_num" in outputs[0]:
+            bleu_pred_len = torch.stack([x["test_bleu_pred_len"] for x in outputs]).sum()
+            bleu_target_len = torch.stack([x["test_bleu_target_len"] for x in outputs]).sum()
+            bleu_num = torch.stack([x["test_bleu_num"] for x in outputs]).sum(dim=0)
+            bleu_denom = torch.stack([x["test_bleu_denom"] for x in outputs]).sum(dim=0)
+            val_bleu = {"test_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+
+            tensorboard_logs.update(val_bleu)
+
+        return {**val_loss, 'log': tensorboard_logs}
 
     @classmethod
     def list_available_models(cls) -> 'List[PretrainedModelInfo]':
@@ -61,6 +97,44 @@ class ASRModel(ModelPT, ABC):
         # recursively walk the subclasses to generate pretrained model info
         list_of_models = model_utils.resolve_subclass_pretrained_model_info(cls)
         return list_of_models
+
+    def add_auxiliary_losses(self, loss: torch.Tensor, reset_registry: bool = False) -> torch.Tensor:
+        """
+        Utility method to enable calculation of auxiliary losses for ASR training.
+
+        Args:
+            loss: The output loss value prior to addition with auxiliary losses.
+            reset_registry: Bool, whether to reset the AccessMixin registry after adding auxiliary losses.
+
+        Returns:
+            Loss tensor used for back propagation.
+        """
+        # Add adapter auxiliary losses, if registered
+        if AccessMixin.is_access_enabled(self.model_guid):
+            registry = AccessMixin.get_module_registry(self)
+            log_dict = {}
+
+            for loss_key, loss_registry in registry.items():
+                # Add auxiliary loss to total loss
+                if 'adapter_loss' in loss_registry:
+                    loss_list = loss_registry['adapter_loss']
+                    loss_value = sum(loss_list)
+                    loss += loss_value
+
+                    # Log current loss name and value
+                    keys = loss_key.split(".")
+                    key = "/".join(keys)
+                    key = "adapter_loss/" + key
+                    log_dict[key] = loss_value.detach()
+
+            if len(log_dict) > 0:
+                self.log_dict(log_dict)
+
+        if reset_registry:
+            AccessMixin.reset_registry(self)
+
+        # return total loss
+        return loss
 
     def setup_optimization_flags(self):
         """
@@ -96,13 +170,79 @@ class ASRModel(ModelPT, ABC):
                 torch.distributed.all_reduce(valid_gradients, op=torch.distributed.ReduceOp.MIN)
 
             if valid_gradients < 1:
-                logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
+                logging.warning('detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()
+
+    def on_train_epoch_start(self) -> None:
+        """
+        Decoder with CUDA graphs does not release memory, thus we disable it for training epoch.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_train_epoch_end(self) -> None:
+        """
+        After training, we can enable the decoder with CUDA graphs.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_validation_epoch_start(self) -> None:
+        """
+        For validation, we enable CUDA graphs to speedup validation.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_validation_epoch_end(self) -> Optional[dict[str, dict[str, torch.Tensor]]]:
+        """
+        After validation, we disable CUDA graphs, since `validation` can be called in training loop, and
+        training will continue after validation
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        return super().on_validation_epoch_end(sync_metrics=True)
+
+    def on_test_epoch_start(self) -> None:
+        """
+        For testing, we enable CUDA graphs to speedup validation.
+        We do not need to disable CUDA graphs after testing, since `test` cannot be called in training loop.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    def on_predict_epoch_start(self) -> None:
+        """
+        For predicting, we enable CUDA graphs to speedup validation.
+        We do not need to disable CUDA graphs after predicting, since `predict` cannot be called in training loop.
+        EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
+        """
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": tuple,
+            "inputs": [
+                {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
+            ],
+        }
 
 
 class ExportableEncDecModel(Exportable):
     """
-    Simple utiliy mix-in to export models that consist of encoder/decoder pair 
+    Simple utiliy mix-in to export models that consist of encoder/decoder pair
     plus pre/post processor, but have to be exported as encoder/decoder pair only
     (covers most ASR classes)
     """
@@ -115,16 +255,68 @@ class ExportableEncDecModel(Exportable):
     def output_module(self):
         return self.decoder
 
-    def forward_for_export(self, input, length=None):
-        if hasattr(self.input_module, 'forward_for_export'):
-            encoder_output = self.input_module.forward_for_export(input, length)
+    @property
+    def output_names(self):
+        otypes = self.output_module.output_types
+        if getattr(self.input_module, 'export_cache_support', False):
+            in_types = self.input_module.output_types
+            otypes = {n: t for (n, t) in list(otypes.items())[:1]}
+            for n, t in list(in_types.items())[1:]:
+                otypes[n] = t
+        return get_io_names(otypes, self.disabled_deployment_output_names)
+
+    def forward_for_export(
+        self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+    ):
+        """
+        This forward is used when we need to export the model to ONNX format.
+        Inputs cache_last_channel and cache_last_time are needed to be passed for exporting streaming models.
+
+        Args:
+            input: Tensor that represents a batch of raw audio signals of shape [B, T]. T here represents timesteps.
+            length: Vector of length B, that contains the individual lengths of the audio sequences.
+            cache_last_channel: Tensor of shape [N, B, T, H] which contains the cache for last channel layers
+            cache_last_time: Tensor of shape [N, B, H, T] which contains the cache for last time layers
+                N is the number of such layers which need caching, B is batch size, H is the hidden size of activations,
+                and T is the length of the cache
+
+        Returns:
+            the output of the model
+        """
+        enc_fun = getattr(self.input_module, 'forward_for_export', self.input_module.forward)
+        if cache_last_channel is None:
+            encoder_output = enc_fun(audio_signal=audio_signal, length=length)
+            if isinstance(encoder_output, tuple):
+                encoder_output = encoder_output[0]
         else:
-            encoder_output = self.input_module(input, length)
-        if isinstance(encoder_output, tuple):
-            decoder_input = encoder_output[0]
-        else:
-            decoder_input = encoder_output
-        if hasattr(self.output_module, 'forward_for_export'):
-            return self.output_module.forward_for_export(decoder_input)
-        else:
-            return self.output_module(decoder_input)
+            encoder_output, length, cache_last_channel, cache_last_time, cache_last_channel_len = enc_fun(
+                audio_signal=audio_signal,
+                length=length,
+                cache_last_channel=cache_last_channel,
+                cache_last_time=cache_last_time,
+                cache_last_channel_len=cache_last_channel_len,
+            )
+
+        dec_fun = getattr(self.output_module, 'forward_for_export', self.output_module.forward)
+        ret = dec_fun(encoder_output=encoder_output)
+        if isinstance(ret, tuple):
+            ret = ret[0]
+        if cache_last_channel is not None:
+            ret = (ret, length, cache_last_channel, cache_last_time, cache_last_channel_len)
+        return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float32)
+
+    @property
+    def disabled_deployment_input_names(self):
+        return self.encoder.disabled_deployment_input_names
+
+    @property
+    def disabled_deployment_output_names(self):
+        return self.encoder.disabled_deployment_output_names
+
+    def set_export_config(self, args):
+        if 'cache_support' in args:
+            enable = bool(args['cache_support'])
+            self.encoder.export_cache_support = enable
+            logging.info(f"Caching support enabled: {enable}")
+            self.encoder.setup_streaming_params()
+        super().set_export_config(args)

@@ -19,8 +19,8 @@ from typing import Dict, Optional, Union
 
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
+from omegaconf import DictConfig
 
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUE_TASKS_NUM_LABELS, GLUEDataset
@@ -31,6 +31,7 @@ from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['GLUEModel']
 
@@ -78,6 +79,8 @@ class GLUEModel(NLPModel):
         """
         Initializes model to use BERT model for GLUE tasks.
         """
+        # deprecation warning
+        deprecated_warning("GLUEModel")
 
         if cfg.task_name not in cfg.supported_tasks:
             raise ValueError(f'{cfg.task_name} not in supported task. Choose from {cfg.supported_tasks}')
@@ -173,16 +176,18 @@ class GLUEModel(NLPModel):
             model_output = torch.argmax(model_output, 1)
 
         eval_tensors = {'preds': model_output, 'labels': labels}
-        return {'val_loss': val_loss, 'eval_tensors': eval_tensors}
+        output = {'val_loss': val_loss, 'eval_tensors': eval_tensors}
+        self.validation_step_outputs.append(output)
+        return output
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         """
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        preds = torch.cat([x['eval_tensors']['preds'] for x in outputs])
-        labels = torch.cat([x['eval_tensors']['labels'] for x in outputs])
+        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
+        preds = torch.cat([x['eval_tensors']['preds'] for x in self.validation_step_outputs])
+        labels = torch.cat([x['eval_tensors']['labels'] for x in self.validation_step_outputs])
 
         all_preds = []
         all_labels = []

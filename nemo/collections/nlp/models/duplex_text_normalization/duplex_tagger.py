@@ -16,8 +16,8 @@ from time import perf_counter
 from typing import Dict, List, Optional
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 from torch import nn
 from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCollatorForTokenClassification
 from transformers.tokenization_utils_base import BatchEncoding
@@ -120,7 +120,7 @@ class DuplexTaggerModel(NLPModel):
                 torch.tensor(cur_preds).to(self.device), torch.tensor(cur_labels).to(self.device)
             )
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
@@ -141,17 +141,17 @@ class DuplexTaggerModel(NLPModel):
         """
         return self.validation_step(batch, batch_idx)
 
-    def test_epoch_end(self, outputs):
+    def on_test_epoch_end(self):
         """
         Called at the end of test to aggregate outputs.
         :param outputs: list of individual outputs of each test step.
         """
-        return self.validation_epoch_end(outputs)
+        return self.on_validation_epoch_end()
 
     # Functions for inference
     @torch.no_grad()
     def _infer(self, sents: List[List[str]], inst_directions: List[str]):
-        """ Main function for Inference
+        """Main function for Inference
 
         Args:
             sents: A list of inputs tokenized by a basic tokenizer.
@@ -248,7 +248,7 @@ class DuplexTaggerModel(NLPModel):
         return all_tag_preds, nb_spans, span_starts, span_ends
 
     def _postprocess_tag_preds(self, words: List[str], inst_dir: str, preds: List[str]):
-        """ Function for postprocessing the raw tag predictions of the model. It
+        """Function for postprocessing the raw tag predictions of the model. It
         corrects obvious mistakes in the tag predictions such as a TRANSFORM span
         starts with I_TRANSFORM_TAG (instead of B_TRANSFORM_TAG).
 
@@ -280,7 +280,7 @@ class DuplexTaggerModel(NLPModel):
         return final_preds
 
     def decode_tag_preds(self, tag_preds: List[List[str]]):
-        """ Decoding the raw tag predictions to locate the semiotic spans in the
+        """Decoding the raw tag predictions to locate the semiotic spans in the
         input texts.
 
         Args:
@@ -385,6 +385,13 @@ class DuplexTaggerModel(NLPModel):
                 pretrained_model_name="neural_text_normalization_t5",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/neural_text_normalization_t5/versions/1.5.0/files/neural_text_normalization_t5_tagger.nemo",
                 description="Text Normalization model's tagger model.",
+            )
+        )
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="itn_en_t5",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/itn_en_t5/versions/1.11.0/files/itn_en_t5_tagger.nemo",
+                description="English Inverse Text Normalization model's tagger model.",
             )
         )
         return result

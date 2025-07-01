@@ -18,8 +18,8 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dataset import (
     ZeroShotIntentDataset,
@@ -155,7 +155,6 @@ class ZeroShotIntentModel(TextClassificationModel):
         entailment_idx=1,
         contradiction_idx=0,
     ) -> List[Dict]:
-
         """
         Given a list of queries and a list of candidate labels, return a ranked list of labels and scores for each query.
 
@@ -262,7 +261,7 @@ class ZeroShotIntentModel(TextClassificationModel):
         return result
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained models which can be instantiated directly from NVIDIA's NGC cloud.
 

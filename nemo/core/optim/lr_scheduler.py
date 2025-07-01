@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: disable=C0115,C0116
+# pylint: disable=C0301
 import copy
 import dataclasses
+import inspect
 import math
 import warnings
 from functools import partial
@@ -71,7 +74,7 @@ class WarmupPolicy(_LRScheduler):
         if step <= self.warmup_steps and self.warmup_steps > 0:
             return self._get_warmup_lr(step)
 
-        if step > self.max_steps:
+        if (self.max_steps is not None) and (step > self.max_steps):
             return [self.min_lr for _ in self.base_lrs]
 
         return self._get_lr(step)
@@ -96,7 +99,14 @@ class SquareRootConstantPolicy(_LRScheduler):
     """
 
     def __init__(
-        self, optimizer, *, constant_steps=None, constant_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
+        self,
+        optimizer,
+        *,
+        constant_steps=None,
+        constant_ratio=None,
+        max_steps=None,
+        min_lr=0.0,
+        last_epoch=-1,
     ):
         assert not (
             constant_steps is not None and constant_ratio is not None
@@ -113,7 +123,7 @@ class SquareRootConstantPolicy(_LRScheduler):
         else:
             self.constant_steps = 0
 
-        self.constant_lr = 1 / (constant_steps ** 0.5)
+        self.constant_lr = 1 / (constant_steps**0.5)
         self.min_lr = min_lr
         super().__init__(optimizer, last_epoch)
 
@@ -279,6 +289,16 @@ class WarmupAnnealHoldPolicy(_LRScheduler):
 
         step = self.last_epoch
 
+        # Reset learning rate
+        if len(self.optimizer.param_groups) > 0 and 'reset_lr' in self.optimizer.param_groups[0].keys():
+            reset_lr = self.optimizer.param_groups[0]['reset_lr']
+            num_steps = reset_lr['num_steps']
+            step -= num_steps
+            if reset_lr['if_init_step'] and reset_lr['reset_lr_steps']:
+                self.decay_steps -= num_steps
+                self.max_steps -= num_steps
+                self.optimizer.param_groups[0]['reset_lr']['if_init_step'] = False
+
         # Warmup steps
         if self.warmup_steps > 0 and step <= self.warmup_steps:
             return self._get_warmup_lr(step)
@@ -358,6 +378,15 @@ def _poly_decay(initial_lr, step, decay_steps, power, min_lr, cycle):
     p = step / decay_steps
     lr = (initial_lr - min_lr) * math.pow(1.0 - p, power)
     lr += min_lr
+    return lr
+
+
+def _noam_hold_annealing(initial_lr, step, warmup_steps, hold_steps, decay_rate, min_lr):
+    # hold_steps = total number of steps to hold the LR, not the warmup + hold steps.
+    T_warmup_decay = max(1, warmup_steps**decay_rate)
+    T_hold_decay = max(1, (step - hold_steps) ** decay_rate)
+    lr = (initial_lr * T_warmup_decay) / T_hold_decay
+    lr = max(lr, min_lr)
     return lr
 
 
@@ -443,7 +472,15 @@ class CosineAnnealing(WarmupAnnealHoldPolicy):
 
 class NoamAnnealing(_LRScheduler):
     def __init__(
-        self, optimizer, *, d_model, warmup_steps=None, warmup_ratio=None, max_steps=None, min_lr=0.0, last_epoch=-1
+        self,
+        optimizer,
+        *,
+        d_model,
+        warmup_steps=None,
+        warmup_ratio=None,
+        max_steps=None,
+        min_lr=0.0,
+        last_epoch=-1,
     ):
         self._normalize = d_model ** (-0.5)
         assert not (
@@ -472,9 +509,6 @@ class NoamAnnealing(_LRScheduler):
 
         step = max(1, self.last_epoch)
 
-        if step > self.max_steps:
-            return [self.min_lr for _ in self.base_lrs]
-
         for initial_lr in self.base_lrs:
             if initial_lr < self.min_lr:
                 raise ValueError(
@@ -485,11 +519,79 @@ class NoamAnnealing(_LRScheduler):
         return new_lrs
 
     def _noam_annealing(self, initial_lr, step):
-        mult = self._normalize * min(step ** (-0.5), step * (self.warmup_steps ** (-1.5)))
+        if self.warmup_steps > 0:
+            mult = self._normalize * min(step ** (-0.5), step * (self.warmup_steps ** (-1.5)))
+        else:
+            mult = self._normalize * step ** (-0.5)
+
         out_lr = initial_lr * mult
         if step > self.warmup_steps:
             out_lr = max(out_lr, self.min_lr)
         return out_lr
+
+
+class NoamHoldAnnealing(WarmupHoldPolicy):
+    def __init__(self, optimizer, *, max_steps, decay_rate=0.5, min_lr=0.0, last_epoch=-1, **kwargs):
+        """
+        Implementation of the Noam Hold Annealing policy from the SqueezeFormer paper.
+
+        Unlike NoamAnnealing, the peak learning rate can be explicitly set for this scheduler.
+        The schedule first performs linear warmup, then holds the peak LR, then decays with some schedule for
+        the remainder of the steps. Therefore the min-lr is still dependent on the hyper parameters selected.
+
+        It's schedule is determined by three factors-
+
+        Warmup Steps: Initial stage, where linear warmup occurs uptil the peak LR is reached. Unlike NoamAnnealing,
+            the peak LR is explicitly stated here instead of a scaling factor.
+
+        Hold Steps: Intermediate stage, where the peak LR is maintained for some number of steps. In this region,
+            the high peak LR allows the model to converge faster if training is stable. However the high LR
+            may also cause instability during training. Should usually be a significant fraction of training
+            steps (around 30-40% of the entire training steps).
+
+        Decay Steps: Final stage, where the LR rapidly decays with some scaling rate (set by decay rate).
+            To attain Noam decay, use 0.5, for Squeezeformer recommended decay, use 1.0. The fast decay after
+            prolonged high LR during hold phase allows for rapid convergence.
+
+        References:
+            - [Squeezeformer: An Efficient Transformer for Automatic Speech Recognition](https://arxiv.org/abs/2206.00888)
+
+        Args:
+            optimizer: Pytorch compatible Optimizer object.
+            warmup_steps: Number of training steps in warmup stage
+            warmup_ratio: Ratio of warmup steps to total steps
+            hold_steps: Number of training steps to hold the learning rate after warm up
+            hold_ratio: Ratio of hold steps to total steps
+            max_steps: Total number of steps while training or `None` for
+                infinite training
+            decay_rate: Float value describing the polynomial decay after the hold period. Default value
+                of 0.5 corresponds to Noam decay.
+            min_lr: Minimum learning rate.
+        """
+        self.decay_rate = decay_rate
+        super().__init__(optimizer=optimizer, max_steps=max_steps, last_epoch=last_epoch, min_lr=min_lr, **kwargs)
+
+    def _get_lr(self, step):
+        if self.warmup_steps is None or self.warmup_steps == 0:
+            raise ValueError("Noam scheduler cannot be used without warmup steps")
+
+        if self.hold_steps > 0:
+            hold_steps = self.hold_steps - self.warmup_steps
+        else:
+            hold_steps = 0
+
+        new_lrs = [
+            _noam_hold_annealing(
+                initial_lr,
+                step=step,
+                warmup_steps=self.warmup_steps,
+                hold_steps=hold_steps,
+                decay_rate=self.decay_rate,
+                min_lr=self.min_lr,
+            )
+            for initial_lr in self.base_lrs
+        ]
+        return new_lrs
 
 
 class WarmupAnnealing(WarmupPolicy):
@@ -518,7 +620,7 @@ class T5InverseSquareRootAnnealing(SquareRootConstantPolicy):
         super().__init__(optimizer=optimizer, max_steps=max_steps, **kwargs, last_epoch=last_epoch, min_lr=min_lr)
 
     def _get_lr(self, step):
-        return [1 / (step ** 0.5) for _ in self.base_lrs]
+        return [1 / (step**0.5) for _ in self.base_lrs]
 
 
 class PolynomialDecayAnnealing(WarmupPolicy):
@@ -602,6 +704,9 @@ def get_scheduler(name: str, **kwargs: Optional[Dict[str, Any]]) -> _LRScheduler
         )
 
     scheduler_cls = AVAILABLE_SCHEDULERS[name]
+    # Pop 'max_steps' if it's not required by the scheduler
+    if 'max_steps' in kwargs and 'max_steps' not in inspect.signature(scheduler_cls).parameters:
+        kwargs.pop('max_steps')
     scheduler = partial(scheduler_cls, **kwargs)
     return scheduler
 
@@ -630,7 +735,7 @@ def prepare_lr_scheduler(
       sched:
         name: <name of scheduler>
         iters_per_batch: null # computed at runtime; mandatory to have
-        max_steps: null # computed at runtime or explicitly set here; mandatory to have
+        max_steps: -1 # computed at runtime or explicitly set here; mandatory to have
 
         # pytorch lightning args <mandatory>
         monitor: val_loss
@@ -669,8 +774,6 @@ def prepare_lr_scheduler(
         scheduler_config = OmegaConf.to_container(scheduler_config, resolve=True)
 
     # Test to see if config follows above schema
-
-    add_max_args_flag = True
     interval = 'step'
     if scheduler_config is not None:
         if 'args' in scheduler_config:
@@ -680,11 +783,6 @@ def prepare_lr_scheduler(
 
             # Remove extra parameters from scheduler_args nest
             # Assume all other parameters are to be passed into scheduler constructor
-
-            if 'name' in scheduler_args and scheduler_args['name'] == 'ReduceLROnPlateau':
-                add_max_args_flag = False
-                interval = 'epoch'
-
             scheduler_args.pop('name', None)
             scheduler_args.pop('t_max_epochs', None)
             scheduler_args.pop('t_accumulate_grad_batches', None)
@@ -692,6 +790,9 @@ def prepare_lr_scheduler(
             scheduler_args.pop('t_num_workers', None)
             scheduler_args.pop('monitor', None)
             scheduler_args.pop('reduce_on_plateau', None)
+
+        if 'name' in scheduler_config and scheduler_config['name'] in EPOCH_SCHEDULERS:
+            interval = 'epoch'
 
     else:
         # Return gracefully in case `sched` was not supplied; inform user
@@ -758,8 +859,13 @@ def prepare_lr_scheduler(
         monitor = 'loss'
 
     # Store exact max_steps if it is provided
-    if 'max_steps' in scheduler_config and scheduler_config['max_steps'] is not None:
-        max_steps = scheduler_config['max_steps']
+    max_steps_from_cfg = scheduler_config.get('max_steps')
+    if max_steps_from_cfg is not None:
+        if max_steps_from_cfg == -1:
+            logging.warning('`max_steps` is set to -1 in the scheduler config, scheduler will not be instantiated')
+            return None
+        assert max_steps_from_cfg >= 0, "`max_steps` must be a non-negative integer"
+        max_steps = max_steps_from_cfg
 
     elif 't_max_epochs' in scheduler_config:
         # Compute effective max_steps if t_max_epochs is provided
@@ -798,6 +904,14 @@ def prepare_lr_scheduler(
                 batch_size = train_dataloader.batch_sampler.micro_batch_size
             else:
                 raise ValueError(f'Could not find batch_size from batch_sampler: {train_dataloader.batch_sampler}')
+        elif hasattr(train_dataloader, 'sampler') and train_dataloader.sampler is not None:
+            if (
+                hasattr(train_dataloader.sampler, 'micro_batch_size')
+                and train_dataloader.sampler.micro_batch_size is not None
+            ):
+                batch_size = train_dataloader.sampler.micro_batch_size
+            else:
+                raise ValueError(f'Could not find batch_size from sampler: {train_dataloader.sampler}')
         else:
             raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
         drop_last = train_dataloader.drop_last
@@ -821,11 +935,14 @@ def prepare_lr_scheduler(
         return None
 
     # Inject max_steps (effective or provided) into the scheduler config
-    if add_max_args_flag and scheduler_config.get('name', '') != "ExponentialLR":
-        scheduler_args['max_steps'] = max_steps
+    scheduler_args['max_steps'] = max_steps
 
     # Get the scheduler class from the config
     scheduler_cls = get_scheduler(scheduler_name, **scheduler_args)
+
+    # Pop 'max_steps' if it's not required by the scheduler
+    if 'max_steps' not in inspect.signature(scheduler_cls).parameters:
+        scheduler_args.pop('max_steps')
 
     # Instantiate the LR schedule
     schedule = scheduler_cls(optimizer, **scheduler_args)
@@ -865,7 +982,7 @@ def compute_max_steps(
         logging.warning(
             "Please note that drop_last is broken in pytorch 1.6.0. We will fix when pytorch 1.7.0 is released"
         )
-        # TODO: Master verion, not in pytorch 1.6.0
+        # TODO: Master version, not in pytorch 1.6.0
         # sampler_num_samples = math.ceil((num_samples - num_workers)/ num_workers)
 
     steps_per_epoch = _round(sampler_num_samples / batch_size)
@@ -884,6 +1001,7 @@ AVAILABLE_SCHEDULERS = {
     'SquareAnnealing': SquareAnnealing,
     'CosineAnnealing': CosineAnnealing,
     'NoamAnnealing': NoamAnnealing,
+    'NoamHoldAnnealing': NoamHoldAnnealing,
     'WarmupAnnealing': WarmupAnnealing,
     'InverseSquareRootAnnealing': InverseSquareRootAnnealing,
     'T5InverseSquareRootAnnealing': T5InverseSquareRootAnnealing,
@@ -894,4 +1012,9 @@ AVAILABLE_SCHEDULERS = {
     'ExponentialLR': pt_scheduler.ExponentialLR,
     'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
     'CyclicLR': pt_scheduler.CyclicLR,
+}
+
+EPOCH_SCHEDULERS = {
+    'ExponentialLR': pt_scheduler.ExponentialLR,
+    'ReduceLROnPlateau': pt_scheduler.ReduceLROnPlateau,
 }

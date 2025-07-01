@@ -14,10 +14,15 @@
 import re
 from typing import List
 
-import ipadic
-import MeCab
-from pangu import spacing
-from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+try:
+    import ipadic
+    import MeCab
+
+    HAVE_MECAB = True
+    HAVE_IPADIC = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_MECAB = False
+    HAVE_IPADIC = False
 
 
 class EnJaProcessor:
@@ -28,6 +33,8 @@ class EnJaProcessor:
     """
 
     def __init__(self, lang_id: str):
+        from sacremoses import MosesDetokenizer, MosesPunctNormalizer, MosesTokenizer
+
         self.lang_id = lang_id
         self.moses_tokenizer = MosesTokenizer(lang=lang_id)
         self.moses_detokenizer = MosesDetokenizer(lang=lang_id)
@@ -67,9 +74,14 @@ class JaMecabProcessor:
     """
 
     def __init__(self):
+        if not HAVE_MECAB or not HAVE_IPADIC:
+            raise ImportError("Please ensure that you have installed `MeCab` and `ipadic` to use JaMecabProcessor")
+
         self.mecab_tokenizer = MeCab.Tagger(ipadic.MECAB_ARGS + " -Owakati")
 
     def detokenize(self, text: List[str]) -> str:
+        from pangu import spacing
+
         RE_WS_IN_FW = re.compile(
             r'([\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])\s+(?=[\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])'
         )

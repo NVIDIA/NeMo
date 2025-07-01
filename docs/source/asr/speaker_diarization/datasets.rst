@@ -1,46 +1,160 @@
 Datasets
 ========
 
-This page is about preparing input dataset for diarization inference. To train or fine-tune the speaker diarization system, the speaker embedding extractor should be trained or fine-tuned separately. Check out page :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recognition Datasets <../speaker_recognition/datasets>` 
-for preparing datasets for training and validating VAD and speaker embedding models respectively. 
+Data Preparation for Speaker Diarization Training (For End-to-End Diarization)  
+------------------------------------------------------------------------------
+
+Speaker diarization training and inference both require the same type of manifest files. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathfiles_to_diarize_manifest.py``. The following example shows how to run ``pathfiles_to_diarize_manifest.py`` by providing path list files.
+
+.. code-block:: bash
+  
+  python NeMo/scripts/speaker_tasks/pathfiles_to_diarize_manifest.py \
+    --add_duration \
+    --paths2audio_files="/path/to/audio_file_path_list.txt" \
+    --paths2rttm_files="/path/to/rttm_file_list.txt" \
+    --manifest_filepath="/path/to/manifest_filepath/train_manifest.json"
 
 
-Preparation of Input Data
--------------------------
+All three arguments are required. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd01.wav``, the rttm file should be named as ``abcd01.rttm`` and the transcription file should be named as ``abcd01.txt``. 
 
-Diarization inference is based on Hydra configurations which are fulfilled by ``.yaml`` files. See `NeMo Speaker Diarization Configuration Files <../configs>`_ for setting up the input Hydra configuration file for speaker diarization. Input data should be provided in line delimited JSON format as below:
+- Example audio file path list ``audio_file_path_list.txt``
+
+.. code-block:: bash
+
+  /path/to/abcd01.wav
+  /path/to/abcd02.wav
+  
+
+To train a diarization model, one needs to provide Rich Transcription Time Marked (RTTM) files as ground truth label files. Here is one line from a RTTM file as an example:
+
+.. code-block:: bash
+
+  SPEAKER TS3012d.Mix-Headset 1 32.679 0.671 <NA> <NA> MTD046ID <NA> <NA>
+
+
+Make a list of RTTM files for the audio files you have in ``audio_file_path_list.txt``.
+
+- Example RTTM file path list ``rttm_file_path_list.txt``
+
+.. code-block:: bash
+  
+  /path/to/abcd01.rttm
+  /path/to/abcd02.rttm
+
+.. note::
+  We expect all the provided files (e.g. audio, rttm, text) to have the same base name and the name should be unique (uniq-id).
+
+As an output file, ``train_manifest.json`` will have the following line for each audio file:
+
+.. code-block:: bash
+
+  {"audio_filepath": "/path/to/abcd01.wav", "offset": 0, "duration": 90, "label": "infer", "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/rttm/abcd01.rttm"}
+
+
+For end-to-end speaker diarization training, the manifest file described in this section fullfils the requirements for the input manifest file. 
+For cascaded speaker diarization training (TS-VAD style), the manifest file should be further processed to generate session-wise manifest files.
+
+
+Manifest JSON files for MSDD (TS-VAD style model) Training
+----------------------------------------------------------
+
+This section is about formatting a dataset for cascaded diarization training (e.g., TS-VAD, MSDD, etc.). To train or fine-tune the speaker diarization system, you could either train/fine-tune speaker embedding extractor model separately or you can train/fine-tune speaker embedding extractor and neural diarizer at the same time.
+
+* To train or fine-tune a speaker embedding extractor model separately, please go check out these pages: :doc:`Speech Classification Datasets <../speech_classification/datasets>` and :doc:`Speaker Recognition Datasets <../speaker_recognition/datasets>` for preparing datasets for training and validating VAD and speaker embedding models respectively.   
+
+
+.. image:: images/msdd_train_and_infer.png
+        :align: center
+        :width: 800px
+        :alt: MSDD training and inference 
+
+As shown in the above figure, a full-fledged speaker diarization process through speaker embedding extractor, clustering algorithm and neural diarizer. Note that only speaker embedding extractor and neural diarizer are trainable models and they can be train/fine-tune together on diarization datasets. We recommend to use a speaker embedding extractor model that is trained on large amount of single-speaker dataset and use it for training a neural diarizer model. 
+
+For training MSDD, we need one more step of trucating the source manifest into even shorter chunks. After generating a session-wise manifest file, we need to break down each session-wise manifest file into a split manifest file containing start time and duration of the split samples due to memory capacity. More importantly, since MSDD only uses pairwise (two-speaker) model and data samples, we need to split RTTM files if there are more than two speakers.
+
+Note that you should specify window length and shift length of the base scale of your MSDD model when you generate the manifest file for training samples. More importantly, ``step_count`` determines how many steps (i.e., base-scale segments) are in a split data sample. If ``step_count`` is too long, you might not be able to load a single sample in a batch.
+
+.. code-block:: bash
+
+  python NeMo/scripts/speaker_tasks/create_msdd_train_dataset.py \ 
+    --input_manifest_path='path/to/train_manifest.json' \
+    --output_manifest_path='path/to/train_manifest.50step.json' \
+    --pairwise_rttm_output_folder='path/to/rttm_output_folder' \
+    --window=0.5 \
+    --shift=0.25 \
+    --step_count=50 
+
+All arguments are required to generate a new manifest file. Specify a session-wise diarization manifest file to ``--input_manifest_path`` and specify an output file name in ``--output_manifest_path``. In the folder that is specified for ``--pairwise_rttm_output_folder``, the script will create multiple two-speaker RTTM files from the given RTTM file and create manifest file that only contains two speakers in the specified RTTM range. 
+
+For example, if ``abcd01.wav`` has three speakers (``1911,1988,192``), the three RTTM files will be created: ``abcd01.1911_1988.rttm``, ``abcd01.1911_192.rttm`` and ``abcd01.1988_192.rttm``. Subsequently, the segments will be only generated from the newly generated two-speaker RTTM files.
+
+Specify ``window`` and ``shift`` of the base-scale in your MSDD model. In this example, we use default setting of ``window=0.5`` and ``shift=0.25`` and ``step_count=50``. Here are example lines in the output file ``/path/to/train_manifest.50step.json``.
+
+- Example manifest file ``train_manifest.50step.json``.
+
+.. code-block:: bash
+    
+    {"audio_filepath": "/path/to/abcd01.wav", "offset": 0.007, "duration": 14.046, "label": "infer", "text": "-", "num_speakers": 2, "rttm_filepath": "simulated_train/abcd01.1919_1988.rttm"}
+    {"audio_filepath": "/path/to/abcd01.wav", "offset": 13.553, "duration": 16.429, "label": "infer", "text": "-", "num_speakers": 2, "rttm_filepath": "simulated_train/abcd01.1919_1988.rttm"}
+    {"audio_filepath": "/path/to/abcd02.wav", "offset": 0.246, "duration": 15.732, "label": "infer", "text": "-", "num_speakers": 2, "rttm_filepath": "path/to/rttm_output_folder/abcd02.777_5694.rttm"}
+    {"audio_filepath": "/path/to/abcd02.wav", "offset": 15.478, "duration": 14.47, "label": "infer", "text": "-", "num_speakers": 2, "rttm_filepath": "path/to/rttm_output_folder/abcd02.777_5694.rttm"}
+
+
+Prepare the msdd training dataset for both train and validation. After the training dataset is prepared, you can train an MSDD model with the following script:
+
+.. code-block:: bash
+
+  python ./multiscale_diar_decoder.py --config-path='../conf/neural_diarizer' --config-name='msdd_5scl_15_05_50Povl_256x3x32x2.yaml' \ 
+    trainer.devices=1 \ 
+    trainer.max_epochs=20  \ 
+    model.base.diarizer.speaker_embeddings.model_path="titanet_large" \ 
+    model.train_ds.manifest_filepath="<train_manifest_path>" \ 
+    model.validation_ds.manifest_filepath="<dev_manifest_path>" \ 
+    model.train_ds.emb_dir="<train_temp_dir>" \ 
+    model.validation_ds.emb_dir="<dev_temp_dir>" \ 
+    exp_manager.name='sample_train' \ 
+    exp_manager.exp_dir='./msdd_exp' \
+
+In the above example training session, we use ``titanet_large`` model as a pretrained speaker embedding model.
+
+Data Preparation for Diarization Inference: for Both End-to-end and Cascaded Systems
+------------------------------------------------------------------------------------
+
+As in dataset preparation for diarization trainiing, diarization inference is based on Hydra configurations which are fulfilled by ``.yaml`` files. See :doc:`NeMo Speaker Diarization Configuration Files <./configs>` for setting up the input Hydra configuration file for speaker diarization inference. Input data should be provided in line delimited JSON format as below:
 	
 .. code-block:: bash
 
   {"audio_filepath": "/path/to/abcd.wav", "offset": 0, "duration": null, "label": "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/abcd.rttm", "uem_filepath": "/path/to/uem/abcd.uem"}
 
-In each line of the input manifest file, ``audio_filepath`` item is mandatory while the rest of the items are optional and can be passed for desired diarization setting. We refer to this file as a manifest file. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``. The following example shows how to run ``pathsfiles_to_manifest.py`` by providing path list files.
+In each line of the input manifest file, ``audio_filepath`` item is mandatory while the rest of the items are optional and can be passed for desired diarization setting. We refer to this file as a manifest file. This manifest file can be created by using the script in ``<NeMo_git_root>/scripts/speaker_tasks/pathfiles_to_diarize_manifest.py``. The following example shows how to run ``pathfiles_to_diarize_manifest.py`` by providing path list files.
 
 .. code-block:: bash
    
-    python pathsfiles_to_manifest.py --paths2audio_files /path/to/audio_file_path_list.txt \
-                                     --paths2txt_files /path/to/transcript_file_path_list.txt \
-                                     --paths2rttm_files /path/to/rttm_file_path_list.txt \
-                                     --paths2uem_files /path/to/uem_file_path_list.txt \
-                                     --paths2ctm_files /path/to/ctm_file_path_list.txt \
-                                     --manifest_filepath /path/to/manifest_output/input_manifest.json 
+    python pathfiles_to_diarize_manifest.py --paths2audio_files /path/to/audio_file_path_list.txt \ 
+                                            --paths2txt_files /path/to/transcript_file_path_list.txt \ 
+                                            --paths2rttm_files /path/to/rttm_file_path_list.txt \ 
+                                            --paths2uem_files /path/to/uem_file_path_list.txt \  
+                                            --paths2ctm_files /path/to/ctm_file_path_list.txt \ 
+                                            --manifest_filepath /path/to/manifest_output/input_manifest.json 
 
 The ``--paths2audio_files`` and ``--manifest_filepath`` are required arguments. Note that we need to maintain consistency on unique filenames for every field (key) by only changing the filename extensions. For example, if there is an audio file named ``abcd.wav``, the rttm file should be named as ``abcd.rttm`` and the transcription file should be named as ``abcd.txt``. 
 
 - Example audio file path list ``audio_file_path_list.txt``
+
 .. code-block:: bash
 
   /path/to/abcd01.wav
   /path/to/abcd02.wav
 
 - Example RTTM file path list ``rttm_file_path_list.txt``
+
 .. code-block:: bash
   
   /path/to/abcd01.rttm
   /path/to/abcd02.rttm
    
 
-The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM and UEM files should be provided as in the above example. ``pathsfiles_to_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configuration as shown below:
+The path list files containing the absolute paths to these WAV, RTTM, TXT, CTM and UEM files should be provided as in the above example. ``pathsfiles_to_diarize_manifest.py`` script will match each file using the unique filename (e.g. ``abcd``). Finally, the absolute path of the created manifest file should be provided through Hydra configuration as shown below:
 
 .. code-block:: yaml
    
@@ -89,70 +203,11 @@ The following are descriptions about each field in an input manifest JSON file.
 
 ``ctm_filepath`` (Optional):
     
-  CTM file is used for the evaluation of word-level diarization results and word-timestamp alignment. CTM file follows the following convention: ``<uniq-id> <speaker ID> <word start time> <word end time> <word> <confidence>`` Since confidence is not required for evaluating diarization results, it can have any value. Note that the ``<speaker_id>`` should be exactly matched with speaker IDs in RTTM. 
+  The CTM file is used for the evaluation of word-level diarization results and word-timestamp alignment. The CTM file follows this convention: ``<session name> <channel ID> <start time> <duration> <word> <confidence> <type of token> <speaker>``. Note that the ``<speaker>`` should exactly match speaker IDs in RTTM. Since confidence is not required for evaluating diarization results, we assign ``<confidence>`` the value ``NA``. If the type of token is words, we assign ``<type of token>`` as ``lex``.  
 
   Example lines of CTM file:
 
 .. code-block:: bash
   
-   TS3012d.Mix-Headset MTD046ID 12.879 0.32 okay 0
-   TS3012d.Mix-Headset MTD046ID 13.203 0.24 yeah 0
-
-
-Evaluation on Benchmark Datasets
---------------------------------
-
-The following instructions can help one to reproduce the expected diarization performance on two benchmark English dialogue datasets. The following results are evaluations based on 0.25 second collar without evaluating overlapped speech. The evaluation is based on oracle VAD results from RTTM files. Therefore, diarization error rate (DER) is equal to confusion error rate since oracle VAD has no miss detection or false alarm.
-
-AMI Meeting Corpus
-~~~~~~~~~~~~~~~~~~
-
-The following are the suggested parameters for reproducing the diarization performance for AMI test set.
-
-.. code-block:: bash
-
-  diarizer.manifest_filepath="/path/to/AMItest_input_manifest.json"
-  diarizer.oracle_num_speakers=null # Performing unknown number of speaker case 
-  diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
-  diarizer.collar=0.25
-  diarizer.ignore_overlap=True 
-  diarizer.speaker_embeddings.model_path="titanet_large"
-  diarizer.speaker_embeddings.window_length_in_sec=[3,1.5,1.0,0.5] # Multiscale setting
-  diarizer.speaker_embeddings.shift_length_in_sec=[1.5,0.75,0.5,0.25] # Multiscale setting 
-  diarizer.speaker_embeddings.parameters.multiscale_weights=[0.4,0.3,0.2,0.1] # More weights on the longer scales
-
-This setup is expected to reproduce a confusion error rate of 1.17% on AMI test set.
-
-To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
-  - Download AMI Meeting Corpus from `AMI website <https://groups.inf.ed.ac.uk/ami/corpus/>`_. Choose ``Headset mix`` which has a mono wav file for each session.
-  - Download the test set (whitelist) from `Pyannotate AMI test set whitelist <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.lst>`_.
-  - The merged RTTM file for AMI test set can be downloaded from `Pyannotate AMI test set RTTM file <https://raw.githubusercontent.com/pyannote/pyannote-audio/master/tutorials/data_preparation/AMI/MixHeadset.test.rttm>`_. Note that this file should be split into individual rttm files. Download split rttm files for AMI test set from `AMI test set split RTTM files <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/AMI_corpus/test/split_rttms.tar.gz>`_.
-  - Generate an input manifest file using ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``
-
-
-CallHome American English Speech (CHAES), LDC97S42
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-We use the CH109 set which is a subset of the CHAES dataset which has only two speakers in one session. 
-The following are the suggested parameters for reproducing the diarization performance for the CH109 set.
-
-.. code-block:: bash
-
-  diarizer.manifest_filepath="/path/to/ch109_input_manifest.json"
-  diarizer.oracle_num_speakers=2 # Since there are exactly 2 speakers per each CH109 session
-  diarizer.oracle_vad=True # Use oracle VAD extracted from RTTM files.
-  diarizer.collar=0.25
-  diarizer.ignore_overlap=True 
-  diarizer.speaker_embeddings.model_path="titanet_large"
-  diarizer.speaker_embeddings.window_length_in_sec=[1.5,1.0,0.5] # Multiscale setting
-  diarizer.speaker_embeddings.shift_length_in_sec=[0.75,0.5,0.25] # Multiscale setting
-  diarizer.speaker_embeddings.parameters.multiscale_weights=[0.33,0.33,0.33] # Equal weights
-
-This setup is expected to reproduce a confusion error rate of 0.94% on CH109 set.
-
-To evaluate the performance on AMI Meeting Corpus, the following instructions can help.
-  - Download CHAES Meeting Corpus at LDC website `LDC97S42 <https://catalog.ldc.upenn.edu/LDC97S42>`_ (CHAES is not publicly available).
-  - Download the CH109 filename list (whitelist) from `CH109 whitelist <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/CH109/ch109_whitelist.txt>`_.
-  - Download RTTM files for CH109 set from `CH109 RTTM files <https://raw.githubusercontent.com/tango4j/diarization_annotation/main/CH109/split_rttms.tar.gz>`_.
-  - Generate an input manifest file using ``<NeMo_git_root>/scripts/speaker_tasks/pathsfiles_to_manifest.py``
-
+   TS3012d.Mix-Headset 1 12.879 0.32 okay NA lex MTD046ID
+   TS3012d.Mix-Headset 1 13.203 0.24 yeah NA lex MTD046ID

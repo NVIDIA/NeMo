@@ -16,11 +16,11 @@
 # limitations under the License.
 
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
 from transformers import AutoModel, BartForConditionalGeneration, EncoderDecoderModel
 
 from nemo.collections.common.metrics import Perplexity
@@ -28,7 +28,7 @@ from nemo.collections.nlp.data.text2sparql import Text2SparqlDataset
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.modelPT import ModelPT
-from nemo.core.neural_types import ChannelType, LossType, MaskType, NeuralType
+from nemo.core.neural_types import ChannelType, MaskType, NeuralType
 from nemo.utils import logging
 
 __all__ = ["Text2SparqlModel"]
@@ -100,7 +100,7 @@ class Text2SparqlModel(ModelPT):
                 decoder=cfg.language_model.pretrained_decoder_model_name,
             )
 
-        self.validation_perplexity = Perplexity(compute_on_step=False)
+        self.validation_perplexity = Perplexity()
 
         self.setup_optimization(cfg.optim)
 
@@ -145,7 +145,10 @@ class Text2SparqlModel(ModelPT):
         """
         input_ids, input_mask, decoder_input_ids, labels = batch
         loss = self.forward(
-            input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels,
+            input_ids=input_ids,
+            attention_mask=input_mask,
+            decoder_input_ids=decoder_input_ids,
+            labels=labels,
         )[0]
 
         tensorboard_logs = {"train_loss": loss, "lr": self._optimizer.param_groups[0]["lr"]}
@@ -159,7 +162,10 @@ class Text2SparqlModel(ModelPT):
         """
         input_ids, input_mask, decoder_input_ids, labels = batch
         loss, logits = self.forward(
-            input_ids=input_ids, attention_mask=input_mask, decoder_input_ids=decoder_input_ids, labels=labels,
+            input_ids=input_ids,
+            attention_mask=input_mask,
+            decoder_input_ids=decoder_input_ids,
+            labels=labels,
         )[:2]
 
         self.validation_perplexity(logits=logits)
@@ -168,7 +174,7 @@ class Text2SparqlModel(ModelPT):
 
         return {"val_loss": loss, "log": tensorboard_logs}
 
-    def validation_epoch_end(self, outputs: List[Dict]) -> Dict:
+    def on_validation_epoch_end(self, outputs: List[Dict]) -> Dict:
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
@@ -188,7 +194,7 @@ class Text2SparqlModel(ModelPT):
         return sequences
 
     @typecheck.disable_checks()
-    def test_epoch_end(self, outputs: List[torch.Tensor]) -> Dict[str, List[str]]:
+    def on_test_epoch_end(self, outputs: List[torch.Tensor]) -> Dict[str, List[str]]:
         """Called at the end of test to aggregate outputs and decode them."""
         texts = [self.encoder_tokenizer.ids_to_text(seq) for batch in outputs for seq in batch]
         self.test_output = [{"texts": texts}]

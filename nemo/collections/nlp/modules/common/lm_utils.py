@@ -17,8 +17,8 @@ import os
 from typing import List, Optional, Union
 
 from attr import asdict
-from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
+from lightning.pytorch import Trainer
+from omegaconf import DictConfig
 
 from nemo.collections.nlp.modules.common.bert_module import BertModule
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
@@ -35,7 +35,18 @@ from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
 )
 from nemo.utils import AppState, logging
 
-__all__ = ['get_pretrained_lm_models_list', 'get_lm_model']
+__all__ = ['get_pretrained_lm_models_list', 'get_lm_model', 'pad_batch']
+
+
+def pad_batch(batch, pad_id, max_len):
+    context_lengths = []
+    max_context_length = max([len(tokens) for tokens in batch])
+    for tokens in batch:
+        context_length = len(tokens)
+        if context_length < max_context_length + max_len:
+            tokens.extend([pad_id] * (max_context_length + max_len - context_length))
+        context_lengths.append(context_length)
+    return batch, context_lengths
 
 
 def get_pretrained_lm_models_list(include_external: bool = False) -> List[str]:
@@ -91,6 +102,16 @@ def get_lm_model(
     pretrain_model_name = ''
     if cfg.get('language_model') and cfg.language_model.get('pretrained_model_name', ''):
         pretrain_model_name = cfg.language_model.get('pretrained_model_name', '')
+
+    from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+
+    def get_megatron_pretrained_bert_models() -> List[str]:
+
+        all_pretrained_megatron_bert_models = [
+            model.pretrained_model_name for model in MegatronBertModel.list_available_models()
+        ]
+        return all_pretrained_megatron_bert_models
+
     all_pretrained_megatron_bert_models = get_megatron_pretrained_bert_models()
     if (
         cfg.tokenizer is not None
@@ -150,7 +171,8 @@ def get_transformer(
     config_dict: Optional[dict] = None,
     checkpoint_file: Optional[str] = None,
     encoder: bool = True,
-    pre_ln_final_layer_norm=True,
+    pre_ln_final_layer_norm: bool = True,
+    padding_idx: int = 0,
 ) -> Union[EncoderModule, DecoderModule]:
     """Gets Transformer based model to be used as an Encoder or Decoder in NeMo NLP.
        First choose the library to get the transformer from. This can be huggingface,
@@ -163,13 +185,13 @@ def get_transformer(
                                  config_dict={
                                      '_target_': 'transformers.BertConfig',
                                      'hidden_size': 1536
-                                 }) 
+                                 })
 
 
     Args:
         library (str, optional): Can be 'nemo', 'huggingface', or 'megatron'. Defaults to 'nemo'.
         model_name (Optional[str], optional): Named model architecture from the chosen library. Defaults to None.
-        pretrained (bool, optional): Use True to get pretrained weights. 
+        pretrained (bool, optional): Use True to get pretrained weights.
                                      False will use the same architecture but with randomly initialized weights.
                                      Defaults to False.
         config_dict (Optional[dict], optional): Use for custom configuration of transformer. Defaults to None.
@@ -191,6 +213,7 @@ def get_transformer(
             config_dict=config_dict,
             encoder=encoder,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
+            padding_idx=padding_idx,
         )
 
         if checkpoint_file is not None:

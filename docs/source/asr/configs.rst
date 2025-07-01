@@ -1,28 +1,29 @@
 NeMo ASR Configuration Files
 ============================
 
-This section describes the NeMo configuration file setup that is specific to models in the ASR collection. For general information 
-about how to set up and run experiments that is common to all NeMo models (e.g. Experiment Manager and PyTorch Lightning trainer 
+This section describes the NeMo configuration file setup that is specific to models in the ASR collection. For general information
+about how to set up and run experiments that is common to all NeMo models (e.g. Experiment Manager and PyTorch Lightning trainer
 parameters), see the :doc:`../core/core` section.
 
-The model section of the NeMo ASR configuration files generally requires information about the dataset(s) being used, the preprocessor 
-for audio files, parameters for any augmentation being performed, as well as the model architecture specification. The sections on 
+The model section of the NeMo ASR configuration files generally requires information about the dataset(s) being used, the preprocessor
+for audio files, parameters for any augmentation being performed, as well as the model architecture specification. The sections on
 this page cover each of these in more detail.
 
 Example configuration files for all of the NeMo ASR scripts can be found in the
-`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples/asr/conf>`_.
+`config directory of the examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/conf>`_.
 
+.. _asr-configs-dataset-configuration:
 
 Dataset Configuration
 ---------------------
 
 Training, validation, and test parameters are specified using the ``train_ds``, ``validation_ds``, and
-``test_ds`` sections in the configuration file, respectively. Depending on the task, there may be arguments specifying the sample rate 
-of the audio files, the vocabulary of the dataset (for character prediction), whether or not to shuffle the dataset, and so on. You may 
+``test_ds`` sections in the configuration file, respectively. Depending on the task, there may be arguments specifying the sample rate
+of the audio files, the vocabulary of the dataset (for character prediction), whether or not to shuffle the dataset, and so on. You may
 also decide to leave fields such as the ``manifest_filepath`` blank, to be specified via the command-line at runtime.
 
 Any initialization parameter that is accepted for the Dataset class used in the experiment can be set in the config file.
-Refer to the `Datasets <./api.html#Datasets>`__ section of the API for a list of Datasets and their respective parameters.
+Refer to the :ref:`Datasets <asr-api-datasets>` section of the API for a list of Datasets and their respective parameters.
 
 An example ASR train and validation configuration should look similar to the following:
 
@@ -50,6 +51,7 @@ An example ASR train and validation configuration should look similar to the fol
       # bucketing params
       bucketing_strategy: "synced_randomized"
       bucketing_batch_size: null
+      bucketing_weights: null
 
     validation_ds:
       manifest_filepath: ???
@@ -60,12 +62,142 @@ An example ASR train and validation configuration should look similar to the fol
       num_workers: 8
       pin_memory: true
 
+There are two ways to test/validate on more than one manifest:
+
+- Specify a list in the `manifest_filepath` field. Results will be reported for each, the first one being used for overall loss / WER (specify `val_dl_idx` if you wish to change that). In this case, all manifests will share configuration parameters.
+- Use the ds_item key and pass a list of config objects to it. This allows you to use differently configured datasets for validation, e.g.
+
+.. code-block:: yaml
+
+  model:
+    validation_ds:
+      ds_item:
+      - name: dataset1
+        manifest_filepath: ???
+        # Config parameters for dataset1
+        ...
+      - name: dataset2
+        manifest_filepath: ???
+        # Config parameters for dataset2
+        ...
+
+By default, dataloaders are set up when the model is instantiated. However, dataloader setup can be deferred to
+model's `setup()` method by setting ``defer_setup`` in the configuration.
+
+For example, training data setup can be deferred as follows:
+
+.. code-block:: yaml
+
+  model:
+    train_ds:
+      # Configure training data as usual
+      ...
+      # Defer train dataloader setup from `__init__` to `setup`
+      defer_setup: true
+
+
+.. _asr-configs-metric-configuration:
+
+Metric Configurations
+---------------------
+
+NeMo ASR models supports WER and BLEU metric logging during training and validation. All metrics are based on the TorchMetrics backend, allowing for distributed training without additional code.
+
+Word Error Rate (WER)
+~~~~~~~~~~~~~~~~~~~~~
+
+WER is the default metric for all ASR models and measures transcription accuracy at the word or character level.
+
+.. code-block:: yaml
+
+  model:
+    use_cer: false                  # Set to true for Character Error Rate instead (default: false)
+    log_prediction: true            # Whether to log a sample prediction during training (default: true)
+    batch_dim_index: 0              # Index of batch dimension in prediction tensors output. Set to 1 for RNNT models.
+
+BLEU Score
+~~~~~~~~~~
+
+BLEU score can be used for ASR models to evaluate translation quality. NeMo's BLEU implementation is based on SacreBLEU for standardized, reproducible scoring:
+
+.. code-block:: yaml
+
+  model:
+    bleu_tokenizer: "13a"        # SacreBLEU tokenizer type (see below). (default: "13a")
+    n_gram: 4                    # Maximum n-gram order for BLEU calculation. (default: 4)
+    lowercase: false             # Whether to lowercase before computing BLEU. (default: False)
+    weights: null                # Optional custom weights for n-gram orders. (default: null)
+    smooth: false                # Whether to apply smoothing to BLEU calculation. (default: False)
+    check_cuts_for_bleu_tokenizers: false  # Enable per-sample tokenizer selection. (See below for more details.) (default: False)
+    log_prediction: true         # Whether to log sample predictions. (default: True)
+    batch_dim_index: 0           # Index of batch dimension in prediction tensors output. Set to 1 for RNNT models. (default: 0)
+
+BLEU score relies on TorchMetrics' SacreBLEU implementation and supports all SacreBLEU tokenization options. Valid strings may be passed to ``bleu_tokenizer`` parameter to configure base tokenizer behavior during BLEU calculation. Available options are:
+
+* ``"13a"`` - Default WMT tokenizer (mteval-v13a script compatible)
+* ``"none"`` - No tokenization applied
+* ``"intl"`` - International tokenization (mteval-v14 script compatible)  
+* ``"char"`` - Character-level tokenization (language-agnostic)
+* ``"zh"`` - Chinese tokenization (separates Chinese characters, uses 13a for non-Chinese)
+* ``"ja-mecab"`` - Japanese tokenization using MeCab morphological analyzer
+* ``"ko-mecab"`` - Korean tokenization using MeCab-ko morphological analyzer
+* ``"flores101"`` / ``"flores200"`` - SentencePiece models from Flores datasets
+
+**Note** Due to their unique orthographies, it is highly recommended to use ``zh``, ``ja-mecab``, or ``ko-mecab`` tokenizers for Chinese, Japanese, and Korean target evaluations, respectively. For more information on SacreBLEU tokenizers, please refer to the `SacreBLEU documentation <https://github.com/mjpost/sacrebleu>`__.
+
+**Dynamic Tokenizer Selection**
+
+In multilingual training scenarios, it is somtimes desireable to configure the BLEU tokenizer per sample to avoid sub-optimal parsing (e.g. tokenizing Chinese characters as English words). This can be toggled with ``check_cuts_for_bleu_tokenizers: true``. When enabled with Lhotse dataloading, BLEU will check individual ``cuts`` in a batch's Lhotse ``CutSet`` for the ``bleu_tokenizer`` attribute. If found, the tokenizer will be used for that sample. If not, the default ``bleu_tokenizer`` from config will be used.
+
+MultiTask Metrics
+~~~~~~~~~~~~~~~~~
+
+Multiple metrics can be configured simultaneously using a ``MultiTaskMetric`` config. This is done by specifying in the config each desired metric as a DictConfig entry with a custom key name and ``_target_`` path, along with desired properties. All properties specified within a metric config will be passed only to the metric class. All properties specified at the top level of the config will be inherited by all submetrics.
+
+.. code-block:: yaml
+
+  model:
+    multitask_metrics_config:
+      log_prediction: true
+      metrics:
+        wer:
+          _target_: nemo.collections.asr.metrics.wer.WER
+          use_cer: true
+          constraint: ".task==transcribe"  # Only apply WER to transcription samples
+        bleu:
+          _target_: nemo.collections.asr.metrics.bleu.BLEU
+          bleu_tokenizer: flores101
+          lowercase: true
+          check_cuts_for_bleu_tokenizers: true
+          constraint: ".task==translate"   # Only apply BLEU to translation samples
+
+**Metric Constraints**
+
+Each metric within ``MultiTaskMetric`` can be configured with an optional boolean ``constraint`` pattern that filters batch samples before metric computation. This allows validation to be limited to only applicable samples in a batch (e.g. only apply WER to transcription samples, only apply BLEU to translation samples). Constraint patterns match against property keywords in the batch's Lhotse CutSet.
+
+.. code-block:: yaml
+
+  model:
+    multitask_metrics_config:
+      metrics:
+        pnc_wer:
+          _target_: nemo.collections.asr.metrics.wer.WER
+          constraint: ".task==transcribe and .pnc==true"
+
+        multilingual_bleu:
+          _target_: nemo.collections.asr.metrics.bleu.BLEU
+          constraint: "(.source_lang!=.target_lang) or .task==translate"
+
+**Note:** MultiTaskMetric is currently only supported for AED multitask models.
+
+
+.. _asr-configs-preprocessor-configuration:
 
 Preprocessor Configuration
 --------------------------
 
 If you are loading audio files for your experiment, you will likely want to use a preprocessor to convert from the
-raw audio signal to features (e.g. mel-spectrogram or MFCC). The ``preprocessor`` section of the config specifies the audio 
+raw audio signal to features (e.g. mel-spectrogram or MFCC). The ``preprocessor`` section of the config specifies the audio
 preprocessor to be used via the ``_target_`` field, as well as any initialization parameters for that preprocessor.
 
 An example of specifying a preprocessor is as follows:
@@ -82,8 +214,10 @@ An example of specifying a preprocessor is as follows:
       ...
       # Other parameters for the preprocessor
 
-Refer to the `Audio Preprocessors <./api.html#Audio Preprocessors>`__ API section for the preprocessor options, expected arguments, 
+Refer to the :ref:`Audio Preprocessors <asr-audio-preprocessors>` API section for the preprocessor options, expected arguments,
 and defaults.
+
+.. _asr-configs-augmentation-configurations:
 
 Augmentation Configurations
 ---------------------------
@@ -137,7 +271,7 @@ picked from the manifest file provided for ``impulse`` augmentation in the confi
                 prob: 0.3
                 manifest_path: /path/to/impulse_manifest.json
 
-Refer to the `Audio Augmentors <./api.html#Audio Augmentors>`__ API section for more details.
+Refer to the :ref:`Audio Augmentors <asr-api-audio-augmentors>` API section for more details.
 
 Tokenizer Configurations
 ------------------------
@@ -164,7 +298,7 @@ The following example sets up a ``SentencePiece Tokenizer`` at a path specified 
       dir: "<path to the directory that contains the custom tokenizer files>"
       type: "bpe"  # can be "bpe" or "wpe"
 
-The Aggregate (``agg``) tokenizer feature makes it possible to combine tokenizers in order to train multilingual 
+The Aggregate (``agg``) tokenizer feature makes it possible to combine tokenizers in order to train multilingual
 models. The config file would look like this:
 
 .. code-block:: yaml
@@ -173,21 +307,21 @@ models. The config file would look like this:
     ...
     tokenizer:
       type: "agg"  # aggregate tokenizer
-      langs: 
+      langs:
         en:
           dir: "<path to the directory that contains the tokenizer files>"
           type: "bpe"  # can be "bpe" or "wpe"
         es:
           dir: "<path to the directory that contains the tokenizer files>"
-          type: "bpe"  # can be "bpe" or "wpe"  
+          type: "bpe"  # can be "bpe" or "wpe"
 
-In the above config file, each language is associated with its own pre-trained tokenizer, which gets assigned 
-a token id range in the order the tokenizers are listed. To train a multilingual model, one needs to populate the 
+In the above config file, each language is associated with its own pre-trained tokenizer, which gets assigned
+a token id range in the order the tokenizers are listed. To train a multilingual model, one needs to populate the
 ``lang`` field in the manifest file, allowing the routing of each sample to the correct tokenizer. At inference time,
 the routing is done based on the inferred token id range.
 
-For models which utilize sub-word tokenization, we share the decoder module (``ConvASRDecoder``) with character tokenization models. 
-All parameters are shared, but for models which utilize sub-word encoding, there are minor differences when setting up the config. For 
+For models which utilize sub-word tokenization, we share the decoder module (``ConvASRDecoder``) with character tokenization models.
+All parameters are shared, but for models which utilize sub-word encoding, there are minor differences when setting up the config. For
 such models, the tokenizer is utilized to fill in the missing information when the model is constructed automatically.
 
 For example, a decoder config corresponding to a sub-word tokenization model should look similar to the following:
@@ -203,10 +337,49 @@ For example, a decoder config corresponding to a sub-word tokenization model sho
       vocabulary: []  # filled with vocabulary from tokenizer at runtime
 
 
+On-the-fly Code Switching
+-------------------------
+
+Nemo supports creating code-switched synthetic utterances on-the-fly during training/validation/testing. This allows you to create ASR models which
+support intra-utterance code switching. If you have Nemo formatted audio data on disk (either JSON manifests or tarred audio data), you
+can easily mix as many of these audio sources together as desired by adding some extra parameters to your `train_ds`, `validation_ds`, and `test_ds`.
+
+Please note that this allows you to mix any kind of audio sources together to create synthetic utterances which sample from all sources. The most
+common use case for this is blending different languages together to create a multilingual code-switched model, but you can also blend
+together different audio sources from the same languages (or language families), to create noise robust data, or mix fast and slow speech from the
+same language.
+
+For multilingual code-switched models, we recommend using AggTokenizer for your Tokenizer if mixing different languages.
+
+The following example shows how to mix 3 different languages: English (en), German (de), and Japanese (ja) added to the `train_ds` model block, however
+you can add similar logic to your `validation_ds` and `test_ds` blocks for on-the-fly code-switched validation and test data too. This example mixes
+together 3 languages, but you can use as many as you want. However, be advised that the more languages you add, the higher your `min_duration` and `max_duration`
+need to be set to ensure all languages are sampled into each synthetic utterance, and setting these hyperparameters higher will use more VRAM per mini-batch during
+training and evaluation.
+
+.. code-block:: yaml
+
+  model:
+    train_ds:
+      manifest_filepath: [/path/to/EN/tarred_manifest.json, /path/to/DE/tarred_manifest.json, /path/to/JA/tarred_manifest.json]
+      tarred_audio_filepaths: ['/path/to/EN/tars/audio__OP_0..511_CL_.tar', '/path/to/DE/tars/audio__OP_0..1023_CL_.tar', '/path/to/JA/tars/audio__OP_0..2047_CL_.tar']
+      is_code_switched: true
+      is_tarred: true
+      shuffle: true
+        code_switched:              # add this block for code-switching
+          min_duration: 12          # the minimum number of seconds for each synthetic code-switched utterance
+          max_duration: 20          # the maximum number of seconds for each synthetic code-switched utterance
+          min_monolingual: 0.3      # the minimum percentage of utterances which will be pure monolingual (0.3 = 30%)
+          probs: [0.25, 0.5, 0.25]  # the probability to sample each language (matches order of `language` above) if not provided, assumes uniform distribution
+          force_monochannel: true   # if your source data is multi-channel, then setting this to True will force the synthetic utterances to be mono-channel
+          sampling_scales: 0.75     # allows you to down/up sample individual languages. Can set this as an array for individual languages, or a scalar for all languages
+          seed: 123                 # add a seed for replicability in future runs (highly useful for `validation_ds` and `test_ds`)
+
+
 Model Architecture Configurations
 ---------------------------------
 
-Each configuration file should describe the model architecture being used for the experiment. Models in the NeMo ASR collection need 
+Each configuration file should describe the model architecture being used for the experiment. Models in the NeMo ASR collection need
 an ``encoder`` section and a ``decoder`` section, with the ``_target_`` field specifying the module to use for each.
 
 Here is the list of the parameters in the model section which are shared among most of the ASR models:
@@ -228,7 +401,7 @@ For more information about the ASR models, refer to the :doc:`Models <./models>`
 Jasper and QuartzNet
 ~~~~~~~~~~~~~~~~~~~~
 
-The `Jasper <./models.html#Jasper>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their
+The :ref:`Jasper <Jasper_model>` and :ref:`QuartzNet <Quartznet_model>` models are very similar, and as such the components in their
 configs are very similar as well.
 
 Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed in the table below. The encoder parameters
@@ -358,7 +531,7 @@ For example, a decoder config corresponding to the encoder above should look sim
 Citrinet
 ~~~~~~~~
 
-The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the
+The :ref:`Citrinet <Citrinet_model>` and :ref:`QuartzNet <Quartznet_model>` models are very similar, and as such the
 components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in
 contrast to QuartzNet. Depending on the dataset, we utilize different tokenizers. For Librispeech, we utilize the HuggingFace WordPiece
 tokenizer, and for all other datasets we utilize the Google Sentencepiece tokenizer - usually the ``unigram`` tokenizer type.
@@ -370,7 +543,7 @@ not be changed.
 
 To use Citrinet instead of QuartzNet, refer to the ``citrinet_512.yaml`` configuration found inside the ``examples/asr/conf/citrinet``
 directory. Citrinet is primarily comprised of the same :class:`~nemo.collections.asr.parts.submodules.jasper.JasperBlock` as ``Jasper`` or
-``QuartzNet`.
+``QuartzNet``.
 
 While the configs for Citrinet and QuartzNet are similar, we note the additional flags used for Citrinet below. Refer to the
 ``JasperBlock`` documentation for the meaning of these arguments.
@@ -463,11 +636,11 @@ A Citrinet-512 config should look similar to the following:
         se: ${model.model_defaults.se}
         se_context_size: ${model.model_defaults.se_context_size}
 
-As mentioned above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be 
+As mentioned above, Citrinet uses the ``ConvASRDecoder`` as the decoder layer similar to QuartzNet. Only the configuration must be
 changed slightly as Citrinet utilizes sub-word tokenization.
 
 .. note::
-    The following information is relevant to any of the above models that implements its encoder as an :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder`, and utilizes the ``SqueezeExcite`` mechanism.
+    The following information is relevant to any of the above models that implements its encoder as an :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder`, and utilized the ``SqueezeExcite`` mechanism.
 
 The ``SqueezeExcite`` block within a :class:`~nemo.collections.asr.modules.conv_asr.ConvASREncoder` network can be modified to utilize a different context window after the model has been instantiated (even after the model has been trained) so as to evaluate the model with limited context. This can be achieved using the :meth:`~nemo.collections.asr.parts.mixins.mixins.ASRModuleMixin.change_conv_asr_se_context_window`
 
@@ -481,12 +654,15 @@ The ``SqueezeExcite`` block within a :class:`~nemo.collections.asr.modules.conv_
     # This is equivalent to 128 * 0.01s context window for `SqueezeExcite`
     model.change_conv_asr_se_context_window(context_window=128, update_config=True)
 
+
+.. _asr-configs-conformer-ctc:
+
 Conformer-CTC
 ~~~~~~~~~~~~~
 
-The config files for Conformer-CTC model contain character-based encoding and sub-word encoding at 
-``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` 
-respectively. Some components of the configs of `Conformer-CTC <./models.html#Conformer-CTC>`__ include the following datasets:
+The config files for Conformer-CTC model contain character-based encoding and sub-word encoding at
+``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml``
+respectively. Some components of the configs of :ref:`Conformer-CTC <Conformer-CTC_model>` include the following datasets:
 
 * ``train_ds``, ``validation_ds``, and ``test_ds``
 * opimizer (``optim``)
@@ -495,21 +671,37 @@ respectively. Some components of the configs of `Conformer-CTC <./models.html#Co
 * ``trainer``
 * ``exp_manager``
 
-These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can  
+These datasets are similar to other ASR models like :ref:`QuartzNet <Quartznet_model>`. There should be a tokenizer section where you can
 specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
 
-The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the 
-config files and also :doc:`nemo.collections.asr.modules.ConformerEncoder<./api.html#nemo.collections.asr.modules.ConformerEncoder>`.
+
+The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the
+config files and also :ref:`nemo.collections.asr.modules.ConformerEncoder <conformer-encoder-api>`.
+
+.. _asr-configs-squeezeformer-ctc:
+
+Squeezeformer-CTC
+~~~~~~~~~~~~~~~~~
+
+The config files for Squeezeformer-CTC model contain character-based encoding and sub-word encoding at
+``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_bpe.yaml``
+respectively. Components of the configs of :ref:`Squeezeformer-CTC <Squeezeformer-CTC_model>` are similar to :ref:`Conformer config <asr-configs-conformer-ctc>`.
+
+The encoder section includes the details about the Squeezeformer-CTC encoder architecture. You may find more information in the
+config files and also :ref:`nemo.collections.asr.modules.SqueezeformerEncoder <squeezeformer-encoder-api>`.
+
 
 ContextNet
 ~~~~~~~~~~
 
-Please refer to the model page of `ContextNet <./models.html#ContextNet>`__ for more information on this model.
+Please refer to the model page of :ref:`ContextNet <ContextNet_model>` for more information on this model.
 
 Conformer-Transducer
 ~~~~~~~~~~~~~~~~~~~~
 
-Please refer to the model page of `Conformer-Transducer <./models.html#Conformer-Transducer>`__ for more information on this model.
+Please refer to the model page of :ref:`Conformer-Transducer <Conformer-Transducer_model>` for more information on this model.
+
+.. _asr-configs-lstm-transducer-and-ctc:
 
 LSTM-Transducer and LSTM-CTC
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -517,7 +709,59 @@ LSTM-Transducer and LSTM-CTC
 The config files for LSTM-Transducer and LSTM-CTC models can be found at ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_transducer_bpe.yaml`` and ``<NeMo_git_root>/examples/asr/conf/lstm/lstm_ctc_bpe.yaml`` respectively.
 Most of the of the configs of are similar to other ctc or transducer models. The main difference is the encoder part.
 The encoder section includes the details about the RNN-based encoder architecture. You may find more information in the
-config files and also :doc:`nemo.collections.asr.modules.RNNEncoder<./api.html#nemo.collections.asr.modules.RNNEncoder>`.
+config files and also :ref:`nemo.collections.asr.modules.RNNEncoder <rnn-encoder-api>`.
+
+
+InterCTC Config
+---------------
+
+All CTC-based models also support `InterCTC loss <https://arxiv.org/abs/2102.03216>`_. To use it, you need to specify
+2 parameters as in example below
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      interctc:
+        loss_weights: [0.3]
+        apply_at_layers: [8]
+
+which can be used to reproduce the default setup from the paper (assuming the total number of layers is 18).
+You can also specify multiple CTC losses from different layers, e.g., to get 2 losses from layers 3 and 8 with
+weights 0.1 and 0.3, specify:
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      interctc:
+        loss_weights: [0.1, 0.3]
+        apply_at_layers: [3, 8]
+
+Note that the final-layer CTC loss weight is automatically computed to normalize
+all weight to 1 (0.6 in the example above).
+
+
+Stochastic Depth Config
+-----------------------
+
+`Stochastic Depth <https://arxiv.org/abs/2102.03216>`_ is a useful technique for regularizing ASR model training.
+Currently it's only supported for :ref:`nemo.collections.asr.modules.ConformerEncoder <conformer-encoder-api>`. To
+use it, specify the following parameters in the encoder config file to reproduce the default setup from the paper:
+
+.. code-block:: yaml
+
+   model:
+      # ...
+      encoder:
+        # ...
+        stochastic_depth_drop_prob: 0.3
+        stochastic_depth_mode: linear  # linear or uniform
+        stochastic_depth_start_layer: 1
+
+See :ref:`documentation of ConformerEncoder <conformer-encoder-api>` for more details. Note that stochastic depth
+is supported for both CTC and Transducer model variations (or any other kind of model/loss that's using
+conformer as encoder).
 
 
 Transducer Configurations
@@ -562,7 +806,7 @@ The only condition that needs to be met is that **the final layer of the acousti
 Decoder / Prediction Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The Prediction model is generally an autoregressive, causal model that consumes text tokens and returns embeddings that will be used by the Joint model. The base config for an LSTM based Prediction network can be found in the the ``decoder`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+The Prediction model is generally an autoregressive, causal model that consumes text tokens and returns embeddings that will be used by the Joint model. The base config for an LSTM based Prediction network can be found in the the ``decoder`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -589,7 +833,7 @@ Let us discuss some of the important arguments:
 Joint Model
 ~~~~~~~~~~~
 
-The Joint model is a simple feed-forward Multi-Layer Perceptron network. This MLP accepts the output of the Acoustic and Prediction models and computes a joint probability distribution over the entire vocabulary space. The base config for the Joint network can be found in the the ``joint`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+The Joint model is a simple feed-forward Multi-Layer Perceptron network. This MLP accepts the output of the Acoustic and Prediction models and computes a joint probability distribution over the entire vocabulary space. The base config for the Joint network can be found in the the ``joint`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -620,9 +864,34 @@ The Joint model config has several essential components which we discuss below :
       activation: "relu"
       dropout: 0.0
 
+Sampled Softmax Joint Model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are some situations where a large vocabulary with a Transducer model - such as for multilingual models with a large
+number of languages. In this setting, we need to consider the cost of memory of training Transducer networks which does
+not allow large vocabulary.
+
+For such cases, one can instead utilize the ``SampledRNNTJoint`` module instead of the usual ``RNNTJoint`` module, in order
+to compute the loss using a sampled subset of the vocabulary rather than the full vocabulary file.
+
+It adds only one additional parameter :
+
+* ``n_samples``: Specifies the minimum number of tokens to sample from the vocabulary space,
+  excluding the RNNT blank token. If a given value is larger than the entire vocabulary size,
+  then the full vocabulary will be used.
+
+The only difference in config required is to replace ``nemo.collections.asr.modules.RNNTJoint`` with ``nemo.collections.asr.modules.SampledRNNTJoint``
+
+.. code-block:: yaml
+
+  joint:
+    _target_: nemo.collections.asr.modules.SampledRNNTJoint
+    n_samples: 500
+    ...  # All other arguments from RNNTJoint can be used after this.
+
 
 Effect of Batch Splitting / Fused Batch step
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The following information below explain why memory is an issue when training Transducer models and how NeMo tackles the issue with its Fused Batch step. The material can be read for a thorough understanding, otherwise, it can be skipped. You can also follow these steps in the "ASR_with_Transducers" tutorial.
 
@@ -680,7 +949,7 @@ The fused operation goes as follows :
 Transducer Decoding
 ~~~~~~~~~~~~~~~~~~~
 
-Models which have been trained with CTC can transcribe text simply by performing a regular argmax over the output of their decoder. For transducer-based models, the three networks must operate in a synchronized manner in order to transcribe the acoustic features. The base config for the Transducer decoding step can be found in the the ``decoding`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+Models which have been trained with CTC can transcribe text simply by performing a regular argmax over the output of their decoder. For transducer-based models, the three networks must operate in a synchronized manner in order to transcribe the acoustic features. The base config for the Transducer decoding step can be found in the the ``decoding`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -729,7 +998,7 @@ The most important component at the top level is the ``strategy``. It can take o
 Transducer Loss
 ~~~~~~~~~~~~~~~
 
-This section configures the type of Transducer loss itself, along with possible sub-sections. By default, an optimized implementation of Transducer loss will be used which depends on Numba for CUDA acceleration. The base config for the Transducer loss section can be found in the the ``loss`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+This section configures the type of Transducer loss itself, along with possible sub-sections. By default, an optimized implementation of Transducer loss will be used which depends on Numba for CUDA acceleration. The base config for the Transducer loss section can be found in the the ``loss`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -755,12 +1024,172 @@ FastEmit Regularization is supported for the default Numba based WarpRNNT loss. 
 Refer to the above paper for results and recommendations of ``fastemit_lambda``.
 
 
+.. _Hybrid-ASR-TTS_model__Config:
+
+Hybrid ASR-TTS Model Configuration
+----------------------------------
+
+:ref:`Hybrid ASR-TTS model <Hybrid-ASR-TTS_model>` consists of three parts:
+
+* ASR model (``EncDecCTCModelBPE``, ``EncDecRNNTBPEModel`` or ``EncDecHybridRNNTCTCBPEModel``)
+* TTS Mel Spectrogram Generator (currently, only FastPitch model is supported)
+* Enhancer model (SpectrogramEnhancerModel) (optional)
+
+Also, the config allows to specify :ref:`text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>`.
+
+Main parts of the config:
+
+* ASR model
+    * ``asr_model_path``: path to the ASR model checkpoint (`.nemo`) file, loaded only once, then the config of the ASR model is stored in the ``asr_model`` field
+    * ``asr_model_type``: needed only when training from scratch. ``rnnt_bpe`` corresponds to ``EncDecRNNTBPEModel``, ``ctc_bpe`` to ``EncDecCTCModelBPE``, ``hybrid_rnnt_ctc_bpe`` to ``EncDecHybridRNNTCTCBPEModel``
+    * ``asr_model_fuse_bn``: fusing BatchNorm in the pretrained ASR model, can improve quality in finetuning scenario
+* TTS model
+    * ``tts_model_path``: path to the pretrained TTS model checkpoint (`.nemo`) file, loaded only once, then the config of the model is stored in the ``tts_model`` field
+* Enhancer model
+    * ``enhancer_model_path``: optional path to the enhancer model. Loaded only once, the config is stored in the ``enhancer_model`` field
+* ``train_ds``
+    * ``text_data``: properties related to text-only data
+        * ``manifest_filepath``: path (or paths) to :ref:`text-only dataset <Hybrid-ASR-TTS_model__Text-Only-Data>` manifests
+        * ``speakers_filepath``: path (or paths) to the text file containing speaker ids for the multi-speaker TTS model (speakers are sampled randomly during training)
+        * ``min_words`` and ``max_words``: parameters to filter text-only manifests by the number of words
+        * ``tokenizer_workers``: number of workers for initial tokenization (when loading the data). ``num_CPUs / num_GPUs`` is a recommended value.
+    * ``asr_tts_sampling_technique``, ``asr_tts_sampling_temperature``, ``asr_tts_sampling_probabilities``: sampling parameters for text-only and audio-text data (if both specified). Correspond to ``sampling_technique``, ``sampling_temperature``, and ``sampling_probabilities`` parameters of the :mod:`ConcatDataset <nemo.collections.common.data.dataset.ConcatDataset>`.
+    * all other components are similar to conventional ASR models
+* ``validation_ds`` and ``test_ds`` correspond to the underlying ASR model
+
+
+.. code-block:: yaml
+
+  model:
+    sample_rate: 16000
+
+    # asr model
+    asr_model_path: ???
+    asr_model: null
+    asr_model_type: null  # rnnt_bpe, ctc_bpe or hybrid_rnnt_ctc_bpe; needed only if instantiating from config, otherwise type is auto inferred
+    asr_model_fuse_bn: false  # only ConformerEncoder supported now, use false for other models
+
+    # tts model
+    tts_model_path: ???
+    tts_model: null
+
+    # enhancer model
+    enhancer_model_path: null
+    enhancer_model: null
+
+    train_ds:
+      text_data:
+        manifest_filepath: ???
+        speakers_filepath: ???
+        min_words: 1
+        max_words: 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
+        tokenizer_workers: 1
+      asr_tts_sampling_technique: round-robin  # random, round-robin, temperature
+      asr_tts_sampling_temperature: null
+      asr_tts_sampling_probabilities: null  # [0.5,0.5] – ASR,TTS
+      manifest_filepath: ???
+      batch_size: 16 # you may increase batch_size if your memory allows
+      # other params
+
+Finetuning with Text-Only Data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To finetune existing ASR model using text-only data use ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text_finetune.py`` script with the corresponding config ``<NeMo_git_root>/examples/asr/conf/asr_tts/hybrid_asr_tts.yaml``.
+
+Please specify paths to all the required models (ASR, TTS, and Enhancer checkpoints), along with ``train_ds.text_data.manifest_filepath`` and ``train_ds.text_data.speakers_filepath``.
+
+.. code-block:: shell
+
+    python speech_to_text_bpe_with_text_finetune.py \
+        model.asr_model_path=<path to ASR model> \
+        model.tts_model_path=<path to compatible TTS model> \
+        model.enhancer_model_path=<optional path to enhancer model> \
+        model.asr_model_fuse_bn=<true recommended if ConformerEncoder with BatchNorm, false otherwise> \
+        model.train_ds.manifest_filepath=<path to manifest with audio-text pairs or null> \
+        model.train_ds.text_data.manifest_filepath=<path(s) to manifest with train text> \
+        model.train_ds.text_data.speakers_filepath=<path(s) to speakers list> \
+        model.train_ds.text_data.tokenizer_workers=4 \
+        model.validation_ds.manifest_filepath=<path to validation manifest> \
+        model.train_ds.batch_size=<batch_size>
+
+Training from Scratch
+~~~~~~~~~~~~~~~~~~~~~
+
+To train ASR model from scratch using text-only data use ``<NeMo_git_root>/examples/asr/asr_with_tts/speech_to_text_bpe_with_text.py`` script with conventional ASR model config, e.g. ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml`` or  ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_transducer_bpe.yaml``
+
+Please specify the ASR model type, paths to the TTS model, and (optional) enhancer, along with text-only data-related fields.
+Use ``++`` or ``+`` markers for these options, since the options are not present in the original ASR model config.
+
+.. code-block:: shell
+
+    python speech_to_text_bpe_with_text.py \
+        ++asr_model_type=<rnnt_bpe or ctc_bpe> \
+        ++tts_model_path=<path to compatible tts model> \
+        ++enhancer_model_path=<optional path to enhancer model> \
+        ++model.train_ds.text_data.manifest_filepath=<path(s) to manifests with train text> \
+        ++model.train_ds.text_data.speakers_filepath=<path(s) to speakers list> \
+        ++model.train_ds.text_data.min_words=1 \
+        ++model.train_ds.text_data.max_words=45 \
+        ++model.train_ds.text_data.tokenizer_workers=4
+
 Fine-tuning Configurations
 --------------------------
 
-All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the **currently instantiated model**. Note that the currently instantiated model should have parameters that match the pre-trained checkpoint (such that weights may load properly). In order to directly fine-tune a pre-existing checkpoint, please follow the tuturial : `ASR Language Fine-tuning. <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>_
+All ASR scripts support easy fine-tuning by partially/fully loading the pretrained weights from a checkpoint into the **currently instantiated model**. Note that the currently instantiated model should have parameters that match the pre-trained checkpoint (such that weights may load properly). In order to directly fine-tune a pre-existing checkpoint, please follow the tutorial  `ASR Language Fine-tuning. <https://colab.research.google.com/github/NVIDIA/NeMo/blob/stable/tutorials/asr/ASR_CTC_Language_Finetuning.ipynb>`_
 
-Pre-trained weights can be provided in multiple ways -
+Models can be fine-tuned in two ways:
+* By updating or retaining current tokenizer alone
+* By updating model architecture and tokenizer
+
+Fine-tuning by updating or retaining current tokenizer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In this case, the model architecture is not updated. The model is initialized with the pre-trained weights by
+two ways:
+
+1) Providing a path to a NeMo model (via ``init_from_nemo_model``)
+2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
+
+Then users can use existing tokenizer or update the tokenizer with new vocabulary. This is useful when users don't want to update the model architecture
+but want to update the tokenizer with new vocabulary.
+
+The same script can be used to finetune CTC, RNNT or Hybrid models as well.
+
+<NeMo_repo>/examples/asr/speech_to_text_finetune.py script supports this type of fine-tuning with the following arguments:
+
+.. code-block:: sh
+
+    python examples/asr/speech_to_text_finetune.py \
+        --config-path=<path to dir of configs> \
+        --config-name=<name of config without .yaml>) \
+        model.train_ds.manifest_filepath="<path to manifest file>" \
+        model.validation_ds.manifest_filepath="<path to manifest file>" \
+        model.tokenizer.update_tokenizer=<True/False> \ # True to update tokenizer, False to retain existing tokenizer
+        model.tokenizer.dir=<path to tokenizer dir> \ # Path to tokenizer dir when update_tokenizer=True
+        model.tokenizer.type=<tokenizer type> \ # tokenizer type when update_tokenizer=True
+        trainer.devices=-1 \
+        trainer.accelerator='gpu' \
+        trainer.max_epochs=50 \
+        +init_from_nemo_model="<path to .nemo model file>" (or +init_from_pretrained_model="<name of pretrained checkpoint>")
+
+
+Refer to <NeMo_repo>/examples/asr/conf/asr_finetune/speech_to_text_finetune.yaml for more details.
+
+Finetune ASR Models using HuggingFace Datasets
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Users can utilize HuggingFace Datasets for finetuning NeMo ASR models. The following config file can be used for this purpose:
+`<NeMo_repo>/examples/asr/conf/asr_finetune/speech_to_text_hf_finetune.yaml`
+
+As mentioned earlier, users can update the tokenizer or use an existing one based on their requirements. If users want to create a new tokenizer
+from HuggingFace Datasets, they can use the following script:
+`<NeMo_repo>/scripts/tokenizers/get_hf_text_data.py`
+
+Fine-tuning by changing model architecture and tokenizer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If users want to update the model architecture as well they can use the following script:
+
+For providing pretrained model, users can provide Pre-trained weights in multiple ways -
 
 1) Providing a path to a NeMo model (via ``init_from_nemo_model``)
 2) Providing a name of a pretrained NeMo model (which will be downloaded via the cloud) (via ``init_from_pretrained_model``)
@@ -768,9 +1197,6 @@ Pre-trained weights can be provided in multiple ways -
 
 There are multiple ASR subtasks inside the ``examples/asr/`` directory, you can substitute the ``<subtask>`` tag below.
 
-Fine-tuning via a NeMo model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 .. code-block:: sh
 
     python examples/asr/<subtask>/script_to_<script_name>.py \
@@ -781,38 +1207,16 @@ Fine-tuning via a NeMo model
         trainer.devices=-1 \
         trainer.accelerator='gpu' \
         trainer.max_epochs=50 \
-        +init_from_nemo_model="<path to .nemo model file>"
+        +init_from_nemo_model="<path to .nemo model file>" # (or +init_from_pretrained_model, +init_from_ptl_ckpt )
 
+To reinitialize part of the model, to make it different from the pretrained model, users can mention them through config:
 
-Fine-tuning via a NeMo pretrained model name
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. code-block:: yaml
 
-.. code-block:: sh
-
-    python examples/asr/<subtask>/script_to_<script_name>.py \
-        --config-path=<path to dir of configs> \
-        --config-name=<name of config without .yaml>) \
-        model.train_ds.manifest_filepath="<path to manifest file>" \
-        model.validation_ds.manifest_filepath="<path to manifest file>" \
-        trainer.devices=-1 \
-        trainer.accelerator='gpu' \
-        trainer.max_epochs=50 \
-        +init_from_pretrained_model="<name of pretrained checkpoint>"
-
-Fine-tuning via a Pytorch Lightning checkpoint
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: sh
-
-    python examples/asr/<subtask>/script_to_<script_name>.py \
-        --config-path=<path to dir of configs> \
-        --config-name=<name of config without .yaml>) \
-        model.train_ds.manifest_filepath="<path to manifest file>" \
-        model.validation_ds.manifest_filepath="<path to manifest file>" \
-        trainer.devices=-1 \
-        trainer.accelerator='gpu' \
-        trainer.max_epochs=50 \
-        +init_from_ptl_ckpt="<name of pytorch lightning checkpoint>"
+    init_from_nemo_model: "<path to .nemo model file>"
+        asr_model:
+            include: ["preprocessor","encoder"]
+            exclude: ["decoder"]
 
 Fine-tuning Execution Flow Diagram
 ----------------------------------

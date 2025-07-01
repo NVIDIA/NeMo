@@ -16,14 +16,10 @@
 Script for inference ASR models using TensorRT
 """
 
-import collections
 import os
-import time
 from argparse import ArgumentParser
-from pprint import pprint
 
 import numpy as np
-import pycuda.autoinit
 import pycuda.driver as cuda
 import tensorrt as trt
 import torch
@@ -31,27 +27,31 @@ from omegaconf import open_dict
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
 from nemo.utils import logging
+
+# Use autoprimaryctx if available (pycuda >= 2021.1) to
+# prevent issues with other modules that rely on the primary
+# device context.
+try:
+    import pycuda.autoprimaryctx
+except ModuleNotFoundError:
+    import pycuda.autoinit
 
 TRT_LOGGER = trt.Logger()
 
 
 can_gpu = torch.cuda.is_available()
 
-try:
-    from torch.cuda.amp import autocast
-except ImportError:
-    from contextlib import contextmanager
-
-    @contextmanager
-    def autocast(enabled=None):
-        yield
-
 
 def main():
     parser = ArgumentParser()
     parser.add_argument(
-        "--asr_model", type=str, default="QuartzNet15x5Base-En", required=True, help="Pass: 'QuartzNet15x5Base-En'",
+        "--asr_model",
+        type=str,
+        default="QuartzNet15x5Base-En",
+        required=True,
+        help="Pass: 'QuartzNet15x5Base-En'",
     )
     parser.add_argument(
         "--asr_onnx",
@@ -102,7 +102,9 @@ def main():
         asr_model = asr_model.cuda()
     asr_model.eval()
     labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
-    wer = WER(vocabulary=asr_model.decoder.vocabulary, use_cer=args.use_cer)
+    decoding_cfg = CTCDecodingConfig()
+    char_decoding = CTCDecoding(decoding_cfg, vocabulary=labels_map)
+    wer = WER(char_decoding, use_cer=args.use_cer)
     wer_result = evaluate(asr_model, args.asr_onnx, labels_map, wer, args.qat)
     logging.info(f'Got WER of {wer_result}.')
 
@@ -138,9 +140,11 @@ def build_trt_engine(asr_model, onnx_path, qat):
         network_flags = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
         if qat:
             network_flags |= 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_PRECISION)
-        with builder.create_network(flags=network_flags) as network, trt.OnnxParser(
-            network, TRT_LOGGER
-        ) as parser, builder.create_builder_config() as builder_config:
+        with (
+            builder.create_network(flags=network_flags) as network,
+            trt.OnnxParser(network, TRT_LOGGER) as parser,
+            builder.create_builder_config() as builder_config,
+        ):
             parser.parse_from_file(onnx_path)
             builder_config.max_workspace_size = workspace_size * (1024 * 1024)
             if qat:
@@ -210,7 +214,7 @@ def evaluate(asr_model, asr_onnx, labels_map, wer, qat):
                 input_signal=processed_signal,
                 input_signal_length=processed_signal_length,
             )
-            hypotheses += wer.ctc_decoder_predictions_tensor(greedy_predictions)
+            hypotheses += wer.decoding.ctc_decoder_predictions_tensor(greedy_predictions)[0]
             for batch_ind in range(greedy_predictions.shape[0]):
                 seq_len = test_batch[3][batch_ind].cpu().detach().numpy()
                 seq_ids = test_batch[2][batch_ind].cpu().detach().numpy()

@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import torch
+
 from nemo.utils.env_var_parsing import get_envint
 
 
 def is_global_rank_zero():
-    """ Helper function to determine if the current process is global_rank 0 (the main process)
-    """
+    """Helper function to determine if the current process is global_rank 0 (the main process)"""
     # Try to get the pytorch RANK env var
     # RANK is set by torch.distributed.launch
     rank = get_envint("RANK", None)
@@ -30,9 +31,30 @@ def is_global_rank_zero():
     if slurm_rank is not None:
         return slurm_rank == 0
 
-    # if neither pytorch and SLURM env vars are set
+    # Try to get the MPI global rank env var
+    mpi_rank = get_envint("OMPI_COMM_WORLD_RANK", None)
+    if mpi_rank is not None:
+        return mpi_rank == 0
+
+    # if neither pytorch, SLURM nor MPI env vars are set
     # check NODE_RANK/GROUP_RANK and LOCAL_RANK env vars
-    # asume global_rank is zero if undefined
+    # assume global_rank is zero if undefined
     node_rank = get_envint("NODE_RANK", get_envint("GROUP_RANK", 0))
     local_rank = get_envint("LOCAL_RANK", 0)
     return node_rank == 0 and local_rank == 0
+
+
+def get_rank():
+    """Helper function that returns torch.distributed.get_rank() if DDP has been initialized otherwise it returns 0."""
+
+    if is_global_rank_zero():
+        return 0
+    else:
+        return torch.distributed.get_rank()
+
+
+def get_last_rank() -> int:
+    """Get the last rank in the distributed group"""
+    if not torch.distributed.is_initialized():
+        return 0
+    return torch.distributed.get_world_size() - 1

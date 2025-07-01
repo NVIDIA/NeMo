@@ -22,10 +22,11 @@ https://github.com/huggingface/pytorch-pretrained-BERT
 
 import os
 import pickle
+import tempfile
+import time
 from typing import Dict, List, Optional
 
 import numpy as np
-import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import get_stats
@@ -216,17 +217,16 @@ class BertTokenClassificationDataset(Dataset):
         """ Initializes BertTokenClassificationDataset. """
 
         data_dir = os.path.dirname(text_file)
-        filename = os.path.basename(text_file)
+        text_filename = os.path.basename(text_file)
+        lbl_filename = os.path.basename(label_file)
 
-        if not filename.endswith('.txt'):
+        if not text_filename.endswith('.txt'):
             raise ValueError("{text_file} should have extension .txt")
 
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         features_pkl = os.path.join(
             data_dir,
-            "cached_{}_{}_{}_{}_{}".format(
-                filename, tokenizer.name, str(max_seq_length), str(vocab_size), str(num_samples)
-            ),
+            f"cached__{text_filename}__{lbl_filename}__{tokenizer.name}_{max_seq_length}_{vocab_size}_{num_samples}",
         )
 
         master_device = is_global_rank_zero()
@@ -266,12 +266,21 @@ class BertTokenClassificationDataset(Dataset):
                 ignore_start_end=ignore_start_end,
             )
 
-            pickle.dump(features, open(features_pkl, "wb"))
+            # save features to a temp file first to make sure that non-master processes don't start reading the file
+            # until the master process is done with writing
+            ofd, tmp_features_pkl = tempfile.mkstemp(
+                suffix='.pkl', prefix=os.path.basename(features_pkl), dir=os.path.dirname(features_pkl)
+            )
+            with os.fdopen(ofd, 'wb') as temp_f:
+                pickle.dump(features, temp_f)
+
+            os.rename(tmp_features_pkl, features_pkl)
             logging.info(f'features saved to {features_pkl}')
 
         # wait until the master process writes to the processed data files
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+        if not master_device:
+            while features is None and not os.path.exists(features_pkl):
+                time.sleep(10)
 
         if features is None:
             features = pickle.load(open(features_pkl, 'rb'))
@@ -291,7 +300,7 @@ class BertTokenClassificationDataset(Dataset):
         return (
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
-            np.array(self.all_input_mask[idx], dtype=np.long),
+            np.array(self.all_input_mask[idx], dtype=np.longlong),
             np.array(self.all_subtokens_mask[idx]),
             np.array(self.all_loss_mask[idx]),
             np.array(self.all_labels[idx]),
@@ -339,6 +348,6 @@ class BertTokenClassificationInferDataset(Dataset):
         return (
             np.array(self.all_input_ids[idx]),
             np.array(self.all_segment_ids[idx]),
-            np.array(self.all_input_mask[idx], dtype=np.long),
+            np.array(self.all_input_mask[idx], dtype=np.longlong),
             np.array(self.all_subtokens_mask[idx]),
         )

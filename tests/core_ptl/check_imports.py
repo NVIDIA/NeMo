@@ -22,6 +22,7 @@ import wrapt
 
 from nemo.core import Model
 from nemo.utils import model_utils
+from nemo.utils.import_utils import UnavailableError
 
 DOMAINS = ['asr', 'tts', 'nlp']
 
@@ -66,6 +67,10 @@ def _get_class_from_path(domain, subdomains, imp):
         else:
             class_ = None
 
+        error = None
+    # UnavailableError is raised for safe import modules and should not be considered import errors
+    except UnavailableError:
+        result = None
         error = None
 
     except Exception:
@@ -185,7 +190,9 @@ def test_domain_nlp(args):
     )
     all_passed = (
         _test_domain_module_imports(
-            nemo_nlp, domain=args.domain, subdomains=['models', 'language_modeling', 'megatron_ptune_gpt_model']
+            nemo_nlp,
+            domain=args.domain,
+            subdomains=['models', 'language_modeling', 'megatron_gpt_prompt_learning_model'],
         )
         and all_passed
     )

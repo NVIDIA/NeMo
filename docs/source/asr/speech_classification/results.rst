@@ -33,7 +33,7 @@ Transcribing/Inference
    
 The audio files should be 16KHz monochannel wav files.
 
-**Transcribe speech command segment:**
+`Transcribe speech command segment:`
   
 You may perform inference and transcribe a sample of speech after loading the model by using its 'transcribe()' method:
 
@@ -42,21 +42,21 @@ You may perform inference and transcribe a sample of speech after loading the mo
   mbn_model = nemo_asr.models.EncDecClassificationModel.from_pretrained(model_name="<MODEL_NAME>")
   mbn_model.transcribe([list of audio files],  batch_size=BATCH_SIZE, logprobs=False) 
 
-Setting argument ``logprobs`` to True would return the log probabilities instead of transcriptions. You may find more details in `Modules <../api.html#modules>`__.
+Setting argument ``logprobs`` to True would return the log probabilities instead of transcriptions. You may find more details in :ref:`Modules <asr-api-modules>`.
 
 Learn how to fine tune on your own data or on subset classes in ``<NeMo_git_root>/tutorials/asr/Speech_Commands.ipynb``
 
 
-**Run VAD inference:**
+`Run VAD inference:`
 
 .. code-block:: bash 
 
-  python <NeMo-git-root>/examples/asr/speech_classification/vad_infer.py --config-path="../conf/VAD" --config-name="vad_inference_postprocessing.yaml" dataset=<Path of json file of evaluation data. Audio files should have unique names>
+  python <NeMo-git-root>/examples/asr/speech_classification/vad_infer.py --config-path="../conf/vad" --config-name="vad_inference_postprocessing.yaml" dataset=<Path of json file of evaluation data. Audio files should have unique names>
 
 
 This script will perform vad frame-level prediction and will help you perform postprocessing and generate speech segments as well if needed.
 
-Have a look at configuration file ``<NeMo-git-root>/examples/asr/conf/VAD/vad_inference_postprocessing.yaml`` and scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for details regarding posterior processing, postprocessing and threshold tuning.
+Have a look at configuration file ``<NeMo-git-root>/examples/asr/conf/vad/vad_inference_postprocessing.yaml`` and scripts under ``<NeMo-git-root>/scripts/voice_activity_detection`` for details regarding posterior processing, postprocessing and threshold tuning.
 
 Posterior processing includes generating predictions with overlapping input segments. Then a smoothing filter is applied to decide the label for a frame spanned by multiple segments.
 
@@ -72,6 +72,23 @@ Filtering:
   - ``filter_speech_first`` to control whether to perform short speech segment deletion first.
 
 
+`Identify language of utterance`
+
+You may load the model and identify the language of an audio file by using `get_label()` method:
+
+.. code-block:: python
+
+  langid_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name="<MODEL_NAME>")
+  lang = langid_model.get_label('<audio_path>')
+  
+or you can run `batch_inference()` to perform inference on a manifest with seleted batch_size to get trained model labels and gt_labels with logits
+
+.. code-block:: python
+
+  langid_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name="<MODEL_NAME>")
+  lang_embs, logits, gt_labels, trained_labels = langid_model.batch_inference(manifest_filepath, batch_size=32)
+
+  
 NGC Pretrained Checkpoints
 --------------------------
 

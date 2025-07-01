@@ -12,29 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Optional, Tuple, Union
 
 import editdistance
+import jiwer
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
+from nemo.collections.asr.parts.submodules.multitask_decoding import AbstractMultiTaskDecoding
+from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
 from nemo.utils import logging
 
-__all__ = ['word_error_rate', 'WER', 'move_dimension_to_the_front']
+__all__ = ['word_error_rate', 'word_error_rate_detail', 'WER']
+
+
+def move_dimension_to_the_front(tensor, dim_index):
+    all_dims = list(range(tensor.ndim))
+    return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
 
 
 def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False) -> float:
     """
     Computes Average Word Error rate between two texts represented as
-    corresponding lists of string. Hypotheses and references must have same
-    length.
+    corresponding lists of string.
+
+    Hypotheses and references must have same length.
+
     Args:
-      hypotheses: list of hypotheses
-      references: list of references
-      use_cer: bool, set True to enable cer
+        hypotheses (list): list of hypotheses
+        references(list) : list of references
+        use_cer (bool): set True to enable cer
+
     Returns:
-      (float) average word error rate
+        wer (float): average word error rate
     """
     scores = 0
     words = 0
@@ -52,6 +63,8 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
             h_list = h.split()
             r_list = r.split()
         words += len(r_list)
+        # May deprecate using editdistance in future release for here and rest of codebase
+        # once we confirm jiwer is reliable.
         scores += editdistance.eval(h_list, r_list)
     if words != 0:
         wer = 1.0 * scores / words
@@ -60,15 +73,144 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
     return wer
 
 
-def move_dimension_to_the_front(tensor, dim_index):
-    all_dims = list(range(tensor.ndim))
-    return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
+def word_error_rate_detail(
+    hypotheses: List[str], references: List[str], use_cer=False
+) -> Tuple[float, int, float, float, float]:
+    """
+    Computes Average Word Error Rate with details (insertion rate, deletion rate, substitution rate)
+    between two texts represented as corresponding lists of string.
+
+    Hypotheses and references must have same length.
+
+    Args:
+        hypotheses (list): list of hypotheses
+        references(list) : list of references
+        use_cer (bool): set True to enable cer
+
+    Returns:
+        wer (float): average word error rate
+        words (int):  Total number of words/charactors of given reference texts
+        ins_rate (float): average insertion error rate
+        del_rate (float): average deletion error rate
+        sub_rate (float): average substitution error rate
+    """
+    scores = 0
+    words = 0
+    ops_count = {'substitutions': 0, 'insertions': 0, 'deletions': 0}
+
+    if len(hypotheses) != len(references):
+        raise ValueError(
+            "In word error rate calculation, hypotheses and reference"
+            " lists must have the same number of elements. But I got:"
+            "{0} and {1} correspondingly".format(len(hypotheses), len(references))
+        )
+
+    for h, r in zip(hypotheses, references):
+        if use_cer:
+            h_list = list(h)
+            r_list = list(r)
+        else:
+            h_list = h.split()
+            r_list = r.split()
+
+        # To get rid of the issue that jiwer does not allow empty string
+        if len(r_list) == 0:
+            if len(h_list) != 0:
+                errors = len(h_list)
+                ops_count['insertions'] += errors
+            else:
+                errors = 0
+        else:
+            if use_cer:
+                measures = jiwer.cer(r, h, return_dict=True)
+            else:
+                measures = jiwer.compute_measures(r, h)
+
+            errors = measures['insertions'] + measures['deletions'] + measures['substitutions']
+            ops_count['insertions'] += measures['insertions']
+            ops_count['deletions'] += measures['deletions']
+            ops_count['substitutions'] += measures['substitutions']
+
+        scores += errors
+        words += len(r_list)
+
+    if words != 0:
+        wer = 1.0 * scores / words
+        ins_rate = 1.0 * ops_count['insertions'] / words
+        del_rate = 1.0 * ops_count['deletions'] / words
+        sub_rate = 1.0 * ops_count['substitutions'] / words
+    else:
+        wer, ins_rate, del_rate, sub_rate = float('inf'), float('inf'), float('inf'), float('inf')
+
+    return wer, words, ins_rate, del_rate, sub_rate
+
+
+def word_error_rate_per_utt(hypotheses: List[str], references: List[str], use_cer=False) -> Tuple[List[float], float]:
+    """
+    Computes Word Error Rate per utterance and the average WER
+    between two texts represented as corresponding lists of string.
+
+    Hypotheses and references must have same length.
+
+    Args:
+        hypotheses (list): list of hypotheses
+        references(list) : list of references
+        use_cer (bool): set True to enable cer
+
+    Returns:
+        wer_per_utt (List[float]): word error rate per utterance
+        avg_wer (float): average word error rate
+    """
+    scores = 0
+    words = 0
+    wer_per_utt = []
+
+    if len(hypotheses) != len(references):
+        raise ValueError(
+            "In word error rate calculation, hypotheses and reference"
+            " lists must have the same number of elements. But I got:"
+            "{0} and {1} correspondingly".format(len(hypotheses), len(references))
+        )
+
+    for h, r in zip(hypotheses, references):
+        if use_cer:
+            h_list = list(h)
+            r_list = list(r)
+        else:
+            h_list = h.split()
+            r_list = r.split()
+
+        # To get rid of the issue that jiwer does not allow empty string
+        if len(r_list) == 0:
+            if len(h_list) != 0:
+                errors = len(h_list)
+                wer_per_utt.append(float('inf'))
+        else:
+            if use_cer:
+                measures = jiwer.cer(r, h, return_dict=True)
+                er = measures['cer']
+            else:
+                measures = jiwer.compute_measures(r, h)
+                er = measures['wer']
+
+            errors = measures['insertions'] + measures['deletions'] + measures['substitutions']
+            wer_per_utt.append(er)
+
+        scores += errors
+        words += len(r_list)
+
+    if words != 0:
+        avg_wer = 1.0 * scores / words
+    else:
+        avg_wer = float('inf')
+
+    return wer_per_utt, avg_wer
 
 
 class WER(Metric):
     """
     This metric computes numerator and denominator for Overall Word Error Rate (WER) between prediction and reference
-    texts. When doing distributed training/evaluation the result of ``res=WER(predictions, targets, target_lengths)``
+    texts. When doing distributed training/evaluation the result of ``res=WER(predictions, predictions_lengths, targets, target_lengths)``
     calls will be all-reduced between all workers using SUM operations. Here ``res`` contains three numbers
     ``res=[wer, total_levenstein_distance, total_number_of_words]``.
 
@@ -78,188 +220,131 @@ class WER(Metric):
     Example:
         def validation_step(self, batch, batch_idx):
             ...
-            wer_num, wer_denom = self.__wer(predictions, transcript, transcript_len)
-            return {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            wer_num, wer_denom = self.__wer(predictions, predictions_len, transcript, transcript_len)
+            self.val_outputs = {'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom}
+            return self.val_outputs
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
-            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
+            wer_num = torch.stack([x['val_wer_num'] for x in self.val_outputs]).sum()
+            wer_denom = torch.stack([x['val_wer_denom'] for x in self.val_outputs]).sum()
             tensorboard_logs = {'validation_loss': val_loss_mean, 'validation_avg_wer': wer_num / wer_denom}
+            self.val_outputs.clear()  # free memory
             return {'val_loss': val_loss_mean, 'log': tensorboard_logs}
 
     Args:
-        vocabulary: List of strings that describes the vocabulary of the dataset.
-        batch_dim_index: Index of the batch dimension of ``targets`` and ``predictions`` parameters of ``__call__``,
-            ``forward``, ``update``, ``ctc_decoder_predictions_tensor`` methods. Can be either 0 or 1.
+        decoding: An instance of CTCDecoding or RNNTDecoding.
         use_cer: Whether to use Character Error Rate instead of Word Error Rate.
-        ctc_decode: Whether to use CTC decoding or not. Currently, must be set.
         log_prediction: Whether to log a single decoded sample per call.
-        fold_consecutive: Whether repeated consecutive characters should be folded into one when decoding.
+        batch_dim_index: Index corresponding to batch dimension. (For RNNT.)
+        dist_dync_on_step: Whether to perform reduction on forward pass of metric.
 
     Returns:
         res: a tuple of 3 zero dimensional float32 ``torch.Tensor` objects: a WER score, a sum of Levenstein's
             distances for all prediction - reference pairs, total number of words in all references.
     """
 
+    full_state_update: bool = True
+
     def __init__(
         self,
-        vocabulary,
-        batch_dim_index=0,
+        decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding],
         use_cer=False,
-        ctc_decode=True,
         log_prediction=True,
-        dist_sync_on_step=False,
         fold_consecutive=True,
+        batch_dim_index=0,
+        dist_sync_on_step=False,
+        sync_on_compute=True,
+        **kwargs,
     ):
-        super().__init__(dist_sync_on_step=dist_sync_on_step, compute_on_step=False)
-        self.batch_dim_index = batch_dim_index
-        self.blank_id = len(vocabulary)
-        self.labels_map = dict([(i, vocabulary[i]) for i in range(len(vocabulary))])
+        super().__init__(dist_sync_on_step=dist_sync_on_step, sync_on_compute=sync_on_compute)
+
+        self.decoding = decoding
         self.use_cer = use_cer
-        self.ctc_decode = ctc_decode
         self.log_prediction = log_prediction
         self.fold_consecutive = fold_consecutive
+        self.batch_dim_index = batch_dim_index
+
+        self.decode = None
+        if isinstance(self.decoding, AbstractRNNTDecoding):
+            self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids: self.decoding.rnnt_decoder_predictions_tensor(
+                encoder_output=predictions, encoded_lengths=predictions_lengths
+            )
+        elif isinstance(self.decoding, AbstractCTCDecoding):
+            self.decode = lambda predictions, predictions_lengths, predictions_mask, input_ids: self.decoding.ctc_decoder_predictions_tensor(
+                decoder_outputs=predictions,
+                decoder_lengths=predictions_lengths,
+                fold_consecutive=self.fold_consecutive,
+            )
+        elif isinstance(self.decoding, AbstractMultiTaskDecoding):
+            self.decode = lambda predictions, prediction_lengths, predictions_mask, input_ids: self.decoding.decode_predictions_tensor(
+                encoder_hidden_states=predictions,
+                encoder_input_mask=predictions_mask,
+                decoder_input_ids=input_ids,
+                return_hypotheses=False,
+            )
+        else:
+            raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
 
         self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
         self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
 
-    def ctc_decoder_predictions_tensor(
-        self, predictions: torch.Tensor, predictions_len: torch.Tensor = None, return_hypotheses: bool = False,
-    ) -> List[str]:
-        """
-        Decodes a sequence of labels to words
-
-        Args:
-            predictions: An integer torch.Tensor of shape [Batch, Time] (if ``batch_index_dim == 0``) or [Time, Batch]
-                (if ``batch_index_dim == 1``) of integer indices that correspond to the index of some character in the
-                label set.
-            predictions_len: Optional tensor of length `Batch` which contains the integer lengths
-                of the sequence in the padded `predictions` tensor.
-            return_hypotheses: Bool flag whether to return just the decoding predictions of the model
-                or a Hypothesis object that holds information such as the decoded `text`,
-                the `alignment` of emited by the CTC Model, and the `length` of the sequence (if available).
-                May also contain the log-probabilities of the decoder (if this method is called via
-                transcribe())
-
-        Returns:
-            Either a list of str which represent the CTC decoded strings per sample,
-            or a list of Hypothesis objects containing additional information.
-        """
-        hypotheses = []
-        # Drop predictions to CPU
-        predictions = move_dimension_to_the_front(predictions, self.batch_dim_index)
-        prediction_cpu_tensor = predictions.long().cpu()
-        # iterate over batch
-        for ind in range(prediction_cpu_tensor.shape[0]):
-            if self.fold_consecutive:
-                prediction = prediction_cpu_tensor[ind].detach().numpy().tolist()
-                if predictions_len is not None:
-                    prediction = prediction[: predictions_len[ind]]
-                # CTC decoding procedure
-                decoded_prediction = []
-                previous = self.blank_id
-                for p in prediction:
-                    if (p != previous or previous == self.blank_id) and p != self.blank_id:
-                        decoded_prediction.append(p)
-                    previous = p
-            else:
-                prediction = prediction_cpu_tensor[ind].detach()
-                if predictions_len is not None:
-                    prediction = prediction[: predictions_len[ind]]
-                decoded_prediction = prediction[prediction != self.blank_id].tolist()
-
-            text = self.decode_tokens_to_str(decoded_prediction)
-
-            if not return_hypotheses:
-                hypothesis = text
-            else:
-                hypothesis = Hypothesis(
-                    y_sequence=None,
-                    score=-1.0,
-                    text=text,
-                    alignments=prediction,
-                    length=predictions_len[ind] if predictions_len is not None else 0,
-                )
-
-            hypotheses.append(hypothesis)
-        return hypotheses
-
-    def decode_tokens_to_str(self, tokens: List[int]) -> str:
-        """
-        Implemented in order to decoder a token list into a string.
-
-        Args:
-            tokens: List of int representing the token ids.
-
-        Returns:
-            A decoded string.
-        """
-        hypothesis = ''.join(self.decode_ids_to_tokens(tokens))
-        return hypothesis
-
-    def decode_ids_to_tokens(self, tokens: List[int]) -> List[str]:
-        """
-        Implemented in order to decode a token id list into a token list.
-        A token list is the string representation of each token id.
-
-        Args:
-            tokens: List of int representing the token ids.
-
-        Returns:
-            A list of decoded tokens.
-        """
-        token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
-        return token_list
-
     def update(
         self,
         predictions: torch.Tensor,
+        predictions_lengths: torch.Tensor,
         targets: torch.Tensor,
-        target_lengths: torch.Tensor,
-        predictions_lengths: torch.Tensor = None,
+        targets_lengths: torch.Tensor,
+        predictions_mask: Optional[torch.Tensor] = None,
+        input_ids: Optional[torch.Tensor] = None,
+        **kwargs,  # To allow easy swapping of metrics without worrying about var alignment.
     ):
         """
         Updates metric state.
         Args:
-            predictions: an integer torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
+            predictions: an integer torch.Tensor of shape ``[Batch, Time, {Vocabulary}]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``)
+            prediction_lengths: an integer torch.Tensor of shape ``[Batch]``
             targets: an integer torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``)
             target_lengths: an integer torch.Tensor of shape ``[Batch]``
             predictions_lengths: an integer torch.Tensor of shape ``[Batch]``
         """
-        words = 0.0
-        scores = 0.0
+        words = 0
+        scores = 0
         references = []
-        with torch.no_grad():
-            # prediction_cpu_tensor = tensors[0].long().cpu()
-            targets_cpu_tensor = targets.long().cpu()
-            targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
-            tgt_lenths_cpu_tensor = target_lengths.long().cpu()
 
+        with torch.no_grad():
+            tgt_lenths_cpu_tensor = targets_lengths.long().cpu()
+            targets_cpu_tensor = targets.long().cpu()
+            # check batch_dim_index is first dim
+            if self.batch_dim_index != 0:
+                targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
             # iterate over batch
             for ind in range(targets_cpu_tensor.shape[0]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
-                reference = self.decode_tokens_to_str(target)
+                reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
-            if self.ctc_decode:
-                hypotheses = self.ctc_decoder_predictions_tensor(predictions, predictions_lengths)
-            else:
-                raise NotImplementedError("Implement me if you need non-CTC decode on predictions")
+            hypotheses = (
+                self.decode(predictions, predictions_lengths, predictions_mask, input_ids)
+                if predictions.numel() > 0
+                else []
+            )
 
-        if self.log_prediction:
-            logging.info(f"\n")
-            logging.info(f"reference:{references[0]}")
-            logging.info(f"predicted:{hypotheses[0]}")
+        if hypotheses and self.log_prediction:
+            logging.info("\n")
+            logging.info(f"WER reference:{references[0]}")
+            logging.info(f"WER predicted:{hypotheses[0].text}")
 
         for h, r in zip(hypotheses, references):
+            if isinstance(h, list):
+                h = h[0]
             if self.use_cer:
-                h_list = list(h)
+                h_list = list(h.text)
                 r_list = list(r)
             else:
-                h_list = h.split()
+                h_list = h.text.split()
                 r_list = r.split()
             words += len(r_list)
             # Compute Levenstein's distance
@@ -267,7 +352,6 @@ class WER(Metric):
 
         self.scores = torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
         self.words = torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
-        # return torch.tensor([scores, words]).to(predictions.device)
 
     def compute(self):
         scores = self.scores.detach().float()

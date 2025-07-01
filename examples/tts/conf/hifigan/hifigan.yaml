@@ -64,7 +64,7 @@ model:
       min_lr: 1e-5
       warmup_ratio: 0.02
 
-  max_steps: 25000000
+  max_steps: 2500000
   l1_loss_factor: 45
   denoise_strength: 0.0025
 
@@ -72,7 +72,7 @@ trainer:
   num_nodes: 1
   devices: 1
   accelerator: gpu
-  strategy: ddp
+  strategy: ddp_find_unused_parameters_true
   precision: 32
   max_steps: ${model.max_steps}
   accumulate_grad_batches: 1
@@ -80,6 +80,7 @@ trainer:
   logger: false # Provided by exp_manager
   log_every_n_steps: 100
   check_val_every_n_epoch: 10
+  benchmark: false
 
 exp_manager:
   exp_dir: null

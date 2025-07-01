@@ -108,9 +108,12 @@ class RNNEncoder(NeuralModule, Exportable):
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = proj_size
         if subsampling and subsampling_factor > 1:
-            if subsampling == 'stacking':
+            if subsampling in ['stacking', 'stacking_norm']:
                 self.pre_encode = StackingSubsampling(
-                    subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=proj_size
+                    subsampling_factor=subsampling_factor,
+                    feat_in=feat_in,
+                    feat_out=proj_size,
+                    norm=True if 'norm' in subsampling else False,
                 )
             else:
                 self.pre_encode = ConvSubsampling(
@@ -161,10 +164,10 @@ class RNNEncoder(NeuralModule, Exportable):
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
 
-        if isinstance(self.pre_encode, ConvSubsampling) or isinstance(self.pre_encode, StackingSubsampling):
-            audio_signal, length = self.pre_encode(audio_signal, length)
-        else:
+        if isinstance(self.pre_encode, nn.Linear):
             audio_signal = self.pre_encode(audio_signal)
+        else:
+            audio_signal, length = self.pre_encode(audio_signal, length)
 
         for lth, layer in enumerate(self.layers):
             audio_signal = layer(audio_signal)

@@ -14,11 +14,11 @@
 
 import os
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import TokenClassificationModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -102,7 +102,12 @@ For more ways of restoring a pre-trained model, see tutorials/00_NeMo_Primer.ipy
 
 @hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
-    trainer = pl.Trainer(plugins=[NLPDDPPlugin()], **cfg.trainer)
+    try:
+        strategy = NLPDDPStrategy(find_unused_parameters=True)
+    except (ImportError, ModuleNotFoundError):
+        strategy = 'auto'
+
+    trainer = pl.Trainer(strategy=strategy, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     if not cfg.pretrained_model:

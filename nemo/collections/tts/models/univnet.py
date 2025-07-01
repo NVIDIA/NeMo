@@ -18,21 +18,19 @@ from typing import Dict
 import torch
 import torch.nn.functional as F
 from hydra.utils import instantiate
-from omegaconf import DictConfig, open_dict
-from pytorch_lightning.loggers.wandb import WandbLogger
+from lightning.pytorch.loggers.wandb import WandbLogger
+from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.collections.tts.data.datalayers import MelAudioDataset
-from nemo.collections.tts.helpers.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
 from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, GeneratorLoss
 from nemo.collections.tts.losses.stftlosses import MultiResolutionSTFTLoss
 from nemo.collections.tts.models.base import Vocoder
 from nemo.collections.tts.modules.univnet_modules import MultiPeriodDiscriminator, MultiResolutionDiscriminator
-from nemo.collections.tts.torch.data import VocoderDataset
+from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
 from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.optim.lr_scheduler import compute_max_steps
+from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
 from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True
@@ -77,11 +75,7 @@ class UnivNetModel(Vocoder, Exportable):
 
         self.input_as_mel = False
         if self._train_dl:
-            # TODO(Oktai15): remove it in 1.8.0 version
-            if isinstance(self._train_dl.dataset, MelAudioDataset):
-                self.input_as_mel = True
-            elif isinstance(self._train_dl.dataset, VocoderDataset):
-                self.input_as_mel = self._train_dl.dataset.load_precomputed_mel
+            self.input_as_mel = self._train_dl.dataset.load_precomputed_mel
 
         self.automatic_optimization = False
 
@@ -96,11 +90,67 @@ class UnivNetModel(Vocoder, Exportable):
             drop_last=self._train_dl.drop_last,
         )
 
-    def configure_optimizers(self):
-        optim_g = instantiate(self._cfg.optim, params=self.generator.parameters(),)
-        optim_d = instantiate(self._cfg.optim, params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),)
+    @staticmethod
+    def get_warmup_steps(max_steps, warmup_steps, warmup_ratio):
+        if warmup_steps is not None and warmup_ratio is not None:
+            raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
 
-        return [optim_g, optim_d]
+        if warmup_steps is not None:
+            return warmup_steps
+
+        if warmup_ratio is not None:
+            return warmup_ratio * max_steps
+
+        raise ValueError(f'Specify warmup_steps or warmup_ratio for scheduler')
+
+    def configure_optimizers(self):
+        optim_config = self._cfg.optim.copy()
+
+        OmegaConf.set_struct(optim_config, False)
+        sched_config = optim_config.pop("sched", None)
+        OmegaConf.set_struct(optim_config, True)
+
+        # Backward compatibility
+        if sched_config is None and 'sched' in self._cfg:
+            sched_config = self._cfg.sched
+
+        optim_g = instantiate(
+            optim_config,
+            params=self.generator.parameters(),
+        )
+        optim_d = instantiate(
+            optim_config,
+            params=itertools.chain(self.mrd.parameters(), self.mpd.parameters()),
+        )
+
+        if sched_config is not None:
+            max_steps = self._cfg.get("max_steps", None)
+            if max_steps is None or max_steps < 0:
+                max_steps = self._get_max_steps()
+
+            warmup_steps = UnivNetModel.get_warmup_steps(
+                max_steps=max_steps,
+                warmup_steps=sched_config.get("warmup_steps", None),
+                warmup_ratio=sched_config.get("warmup_ratio", None),
+            )
+
+            OmegaConf.set_struct(sched_config, False)
+            sched_config["max_steps"] = max_steps
+            sched_config["warmup_steps"] = warmup_steps
+            sched_config.pop("warmup_ratio", None)
+            OmegaConf.set_struct(sched_config, True)
+
+            scheduler_g = prepare_lr_scheduler(
+                optimizer=optim_g, scheduler_config=sched_config, train_dataloader=self._train_dl
+            )
+
+            scheduler_d = prepare_lr_scheduler(
+                optimizer=optim_d, scheduler_config=sched_config, train_dataloader=self._train_dl
+            )
+
+            return [optim_g, optim_d], [scheduler_g, scheduler_d]
+        else:
+            return [optim_g, optim_d]
 
     @typecheck()
     def forward(self, *, spec):
@@ -243,15 +293,16 @@ class UnivNetModel(Vocoder, Exportable):
 
     def _bias_denoise(self, audio, mel):
         def stft(x):
-            comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024)
+            comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024, return_complex=True)
+            comp = torch.view_as_real(comp)
             real, imag = comp[..., 0], comp[..., 1]
-            mags = torch.sqrt(real ** 2 + imag ** 2)
+            mags = torch.sqrt(real**2 + imag**2)
             phase = torch.atan2(imag, real)
             return mags, phase
 
         def istft(mags, phase):
             comp = torch.stack([mags * torch.cos(phase), mags * torch.sin(phase)], dim=-1)
-            x = torch.istft(comp, n_fft=1024, hop_length=256, win_length=1024)
+            x = torch.istft(torch.view_as_complex(comp), n_fft=1024, hop_length=256, win_length=1024)
             return x
 
         # Create bias tensor

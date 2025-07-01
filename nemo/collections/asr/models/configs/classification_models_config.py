@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Union
 
 from omegaconf import MISSING
 
@@ -45,6 +45,8 @@ class EncDecClassificationDatasetConfig(nemo.core.classes.dataset.DatasetConfig)
     augmentor: Optional[Dict[str, Any]] = None
     max_duration: Optional[float] = None
     min_duration: Optional[float] = None
+    cal_labels_occurrence: Optional[bool] = False
+    channel_selector: Optional[Union[str, int, List[int]]] = None
 
     # VAD Optional
     vad_stream: Optional[bool] = None
@@ -52,6 +54,11 @@ class EncDecClassificationDatasetConfig(nemo.core.classes.dataset.DatasetConfig)
     shift_length_in_sec: float = 0.01
     normalize_audio: bool = False
     is_regression_task: bool = False
+
+    # bucketing params
+    bucketing_strategy: str = "synced_randomized"
+    bucketing_batch_size: Optional[Any] = None
+    bucketing_weights: Optional[List[int]] = None
 
 
 @dataclass
@@ -66,30 +73,40 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
     timesteps: int = MISSING
 
     # Dataset configs
-    train_ds: EncDecClassificationDatasetConfig = EncDecClassificationDatasetConfig(
-        manifest_filepath=None, shuffle=True, trim_silence=False
+    train_ds: EncDecClassificationDatasetConfig = field(
+        default_factory=lambda: EncDecClassificationDatasetConfig(
+            manifest_filepath=None, shuffle=True, trim_silence=False
+        )
     )
-    validation_ds: EncDecClassificationDatasetConfig = EncDecClassificationDatasetConfig(
-        manifest_filepath=None, shuffle=False
+    validation_ds: EncDecClassificationDatasetConfig = field(
+        default_factory=lambda: EncDecClassificationDatasetConfig(manifest_filepath=None, shuffle=False)
     )
-    test_ds: EncDecClassificationDatasetConfig = EncDecClassificationDatasetConfig(
-        manifest_filepath=None, shuffle=False
+    test_ds: EncDecClassificationDatasetConfig = field(
+        default_factory=lambda: EncDecClassificationDatasetConfig(manifest_filepath=None, shuffle=False)
     )
 
     # Optimizer / Scheduler config
-    optim: Optional[model_cfg.OptimConfig] = model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
-
-    # Model component configs
-    preprocessor: AudioToMFCCPreprocessorConfig = AudioToMFCCPreprocessorConfig()
-    spec_augment: Optional[SpectrogramAugmentationConfig] = SpectrogramAugmentationConfig()
-    crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = CropOrPadSpectrogramAugmentationConfig(
-        audio_length=timesteps
+    optim: Optional[model_cfg.OptimConfig] = field(
+        default_factory=lambda: model_cfg.OptimConfig(sched=model_cfg.SchedConfig())
     )
 
-    encoder: ConvASREncoderConfig = ConvASREncoderConfig()
-    decoder: ConvASRDecoderClassificationConfig = ConvASRDecoderClassificationConfig()
+    # Model component configs
+    preprocessor: AudioToMFCCPreprocessorConfig = field(default_factory=lambda: AudioToMFCCPreprocessorConfig())
+    spec_augment: Optional[SpectrogramAugmentationConfig] = field(
+        default_factory=lambda: SpectrogramAugmentationConfig()
+    )
+    crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = field(
+        default_factory=lambda: CropOrPadSpectrogramAugmentationConfig(audio_length=-1)
+    )
+
+    encoder: ConvASREncoderConfig = field(default_factory=lambda: ConvASREncoderConfig())
+    decoder: ConvASRDecoderClassificationConfig = field(default_factory=lambda: ConvASRDecoderClassificationConfig())
+
+    def __post_init__(self):
+        if self.crop_or_pad_augment is not None:
+            self.crop_or_pad_augment.audio_length = self.timesteps
 
 
 @dataclass
 class EncDecClassificationModelConfig(model_cfg.NemoConfig):
-    model: EncDecClassificationConfig = EncDecClassificationConfig()
+    model: EncDecClassificationConfig = field(default_factory=lambda: EncDecClassificationConfig())

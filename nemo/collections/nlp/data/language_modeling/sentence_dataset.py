@@ -22,11 +22,12 @@ from typing import Any
 
 import braceexpand
 import numpy as np
-import webdataset as wd
+import webdataset as wds
 from torch.utils.data import IterableDataset
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
 from nemo.core import Dataset
+from nemo.utils.distributed import webdataset_split_by_workers
 
 __all__ = ['SentenceDataset', 'TarredSentenceDataset']
 
@@ -68,7 +69,7 @@ class SentenceDataset(Dataset):
 
         batches = []
         for batch_elem_len, batch_sent_ids in zip(self.batch_elem_lengths, self.batch_sent_ids):
-            batch = self.tokenizer.pad_id * np.ones((len(batch_sent_ids), batch_elem_len), dtype=np.int)
+            batch = self.tokenizer.pad_id * np.ones((len(batch_sent_ids), batch_elem_len), dtype=np.int64)
             for i, sentence_idx in enumerate(batch_sent_ids):
                 batch[i][: len(ids[sentence_idx])] = ids[sentence_idx]
             batches.append(batch)
@@ -142,7 +143,7 @@ class TarredSentenceDataset(IterableDataset):
     """
     A similar Dataset to the SentenceDataset, but which loads tarred tokenized pickle files.
     Accepts a single JSON metadata file containing the total number of batches
-    as well as the path(s) to the tarball(s) containing the wav files. 
+    as well as the path(s) to the tarball(s) containing the wav files.
     Valid formats for the text_tar_filepaths argument include:
     (1) a single string that can be brace-expanded, e.g. 'path/to/text.tar' or 'path/to/text_{1..100}.tar.gz', or
     (2) a list of file paths that will not be brace-expanded, e.g. ['text_1.tar', 'text_2.tar', ...].
@@ -160,8 +161,8 @@ class TarredSentenceDataset(IterableDataset):
         text_tar_filepaths: Either a list of tokenized text tarball filepaths, or a
             string (can be brace-expandable).
         metadata_path (str): Path to the metadata manifest.
-        encoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
-        decoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as YTTM
+        encoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as SentencePiece
+        decoder_tokenizer: Autokenizer wrapped BPE tokenizer model, such as SentencePiece
         shuffle_n (int): How many samples to look ahead and load to be shuffled.
             See WebDataset documentation for more details.
             Defaults to 0.
@@ -172,10 +173,15 @@ class TarredSentenceDataset(IterableDataset):
                 available in the tarred dataset, which are permanently pre-allocated and never changed at runtime.
                 The benefit of replication is that it allows each node to sample data points from the entire
                 dataset independently of other nodes, and reduces dependence on value of `shuffle_n`.
-                Note: Replicated strategy allows every node to sample the entire set of available tarfiles,
-                and therefore more than one node may sample the same tarfile, and even sample the same
-                data points! As such, there is no assured guarantee that all samples in the dataset will be
-                sampled at least once during 1 epoch.
+
+                .. warning::
+                    Replicated strategy allows every node to sample the entire set of available tarfiles,
+                    and therefore more than one node may sample the same tarfile, and even sample the same
+                    data points! As such, there is no assured guarantee that all samples in the dataset will be
+                    sampled at least once during 1 epoch. Scattered strategy, on the other hand, on specific
+                    occasions (when the number of shards is not divisible with ``world_size``), will not sample
+                    the entire dataset. For these reasons it is not advisable to use tarred datasets as validation
+                    or test datasets.
         global_rank (int): Worker rank, used for partitioning shards. Defaults to 0.
         world_size (int): Total number of processes, used for partitioning shards. Defaults to 0.
         reverse_lang_direction (bool): When True, swaps the source and target directions when returning minibatches.
@@ -198,7 +204,11 @@ class TarredSentenceDataset(IterableDataset):
 
         valid_shard_strategies = ['scatter', 'replicate']
         if shard_strategy not in valid_shard_strategies:
-            raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
+            raise ValueError(
+                f"Invalid shard strategy of type {type(shard_strategy)} "
+                f"{repr(shard_strategy) if len(repr(shard_strategy)) < 100 else repr(shard_strategy)[:100] + '...'}! "
+                f"Allowed values are: {valid_shard_strategies}."
+            )
 
         with open(metadata_path, 'r') as f:
             metadata = json.load(f)
@@ -223,12 +233,14 @@ class TarredSentenceDataset(IterableDataset):
             text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
 
         if shard_strategy == 'scatter':
-            logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
+            logging.info("Tarred dataset shards will be scattered evenly across all nodes.")
             if len(text_tar_filepaths) % world_size != 0:
                 logging.warning(
                     f"Number of shards in tarred dataset ({len(text_tar_filepaths)}) is not divisible "
-                    f"by number of distributed workers ({world_size})."
+                    f"by number of distributed workers ({world_size}). "
+                    f"Some shards will not be used ({len(text_tar_filepaths) % world_size})."
                 )
+            batches_per_tar = self.metadata['num_batches'] // len(text_tar_filepaths)
             begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
             end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
             logging.info('Begin Index : %d' % (begin_idx))
@@ -237,7 +249,7 @@ class TarredSentenceDataset(IterableDataset):
             logging.info(
                 "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
             )
-            self.length = self.metadata['num_batches'] // world_size
+            self.length = batches_per_tar * len(text_tar_filepaths) * world_size
 
         elif shard_strategy == 'replicate':
             logging.info("All tarred dataset shards will be replicated across all nodes.")
@@ -249,14 +261,15 @@ class TarredSentenceDataset(IterableDataset):
         self.tarpath = text_tar_filepaths
 
         # Put together WebDataset
-        self._dataset = wd.WebDataset(urls=text_tar_filepaths, nodesplitter=None)
-
-        if shuffle_n > 0:
-            self._dataset = self._dataset.shuffle(shuffle_n)
-        else:
-            logging.info("WebDataset will not shuffle files within the tar files.")
-
-        self._dataset = self._dataset.rename(pkl='pkl', key='__key__').to_tuple('pkl', 'key').map(f=self._build_sample)
+        self._dataset = wds.DataPipeline(
+            wds.SimpleShardList(text_tar_filepaths),
+            webdataset_split_by_workers,
+            wds.shuffle(shuffle_n),
+            wds.tarfile_to_samples(),
+            wds.rename(pkl='pkl', key='__key__'),
+            wds.to_tuple('pkl', 'key'),
+            wds.map(self._build_sample),
+        )
 
     def _build_sample(self, fname):
         # Load file

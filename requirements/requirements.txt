@@ -1,13 +1,17 @@
-setuptools==59.5.0
-numpy>=1.21
+fsspec==2024.12.0
+huggingface_hub>=0.24
+numba
+numpy>=1.22
 onnx>=1.7.0
+# Align with upstream PyTorch requirements
+protobuf~=5.29.5
 python-dateutil
-torch
-wrapt
 ruamel.yaml
 scikit-learn
+setuptools>=70.0.0
+tensorboard
+text-unidecode
+torch
 tqdm>=4.41.0
-numba
 wget
-frozendict
-unidecode
+wrapt

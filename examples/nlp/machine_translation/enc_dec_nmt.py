@@ -12,23 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
+from lightning.pytorch import Trainer
 from omegaconf import OmegaConf
-from pytorch_lightning import Trainer
 
 from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
 from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.core.config.modelPT import NemoConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
 from nemo.utils import logging
 from nemo.utils.config_utils import update_model_config
 from nemo.utils.exp_manager import ExpManagerConfig, exp_manager
-
 
 """
 Usage:
@@ -39,7 +38,7 @@ Usage:
     c. ```./reinstall.sh```
  
  2. Train a new tokenizer (or use pre-trained one):
-    ```yttm bpe --data /mnt/D1/Data/NMT/wmt16_de_en/train.clean.en-de.shuffled.common --model tokenizer.BPE.8192.model --vocab_size 8192```
+    ```spm_train --input=<input> --model_prefix=<model_name> --vocab_size=8000 --character_coverage=1.0 --model_type=<type>```
 
 (To use WANDB, optionally, do login first)
 ``wandb login [YOUR WANDB login]``
@@ -95,9 +94,11 @@ class MTEncDecConfig(NemoConfig):
     name: Optional[str] = 'MTEncDec'
     do_training: bool = True
     do_testing: bool = False
-    model: MTEncDecModelConfig = MTEncDecModelConfig()
-    trainer: Optional[TrainerConfig] = TrainerConfig()
-    exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+    model: MTEncDecModelConfig = field(default_factory=MTEncDecModelConfig)
+    trainer: Optional[TrainerConfig] = field(default_factory=TrainerConfig)
+    exp_manager: Optional[ExpManagerConfig] = field(
+        default_factory=lambda: ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+    )
 
 
 @hydra_runner(config_path="conf", config_name="aayn_base")
@@ -110,8 +111,8 @@ def main(cfg: MTEncDecConfig) -> None:
 
     # training is managed by PyTorch Lightning
     trainer_cfg = OmegaConf.to_container(cfg.trainer)
-    trainer_cfg.pop('plugins', None)
-    trainer = Trainer(plugins=[NLPDDPPlugin()], **trainer_cfg)
+    trainer_cfg.pop('strategy', None)
+    trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
 
     # tokenizers will be trained and and tarred training data will be created if needed
     # model config is then updated
@@ -131,7 +132,8 @@ def main(cfg: MTEncDecConfig) -> None:
 
     if cfg.do_training:
         trainer.fit(mt_model)
-
+    # Reset for PTL 2.0 as test uses the same ckpt as train via previously set self._ckpt_path
+    trainer.ckpt_path = None
     if cfg.do_testing:
         trainer.test(mt_model)
 

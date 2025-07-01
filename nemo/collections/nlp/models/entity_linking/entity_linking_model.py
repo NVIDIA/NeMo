@@ -15,8 +15,8 @@
 from typing import Dict, Optional
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 from transformers import AutoTokenizer
 
 from nemo.collections.common.losses import MultiSimilarityLoss
@@ -24,8 +24,9 @@ from nemo.collections.nlp.data import EntityLinkingDataset
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import ChannelType, LogitsType, MaskType, NeuralType
+from nemo.core.neural_types import LogitsType, NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['EntityLinkingModel']
 
@@ -43,6 +44,9 @@ class EntityLinkingModel(NLPModel, Exportable):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         """Initializes the SAP-BERT model for entity linking."""
+
+        # deprecation warning
+        deprecated_warning("EntityLinkingModel")
 
         # tokenizer needed before super().__init__() so dataset and loader can process data
         self._setup_tokenizer(cfg.tokenizer)
@@ -112,21 +116,25 @@ class EntityLinkingModel(NLPModel, Exportable):
             self.log("val_loss", val_loss)
             logging.info(f"val loss: {val_loss}")
 
-        return {"val_loss": val_loss}
+        loss = {"val_loss": val_loss}
+        self.validation_step_outputs.append(loss)
+        return loss
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
 
         Args:
             outputs: list of individual outputs of each validation step.
         Returns:
-            
-        """
-        if outputs:
-            avg_loss = torch.stack([x["val_loss"] for x in outputs if x["val_loss"] != None]).mean()
-            self.log(f"val_loss", avg_loss, prog_bar=True)
 
+        """
+        if self.validation_step_outputs:
+            avg_loss = torch.stack(
+                [x["val_loss"] for x in self.validation_step_outputs if x["val_loss"] != None]
+            ).mean()
+            self.log(f"val_loss", avg_loss, prog_bar=True)
+            self.validation_step_outputs.clear()  # free memory
             return {"val_loss": avg_loss}
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):

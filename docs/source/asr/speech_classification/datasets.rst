@@ -114,13 +114,31 @@ Each line is a training example. `audio_filepath` contains path to the wav file,
     {"audio_filepath": "<absolute path to dataset>/Emergency_vehicle/id_58368 simambulance.wav", "duration": 0.63, "label": "background", "offset": 4.0}
 
 
+.. _Voxlingua107:
+
+Voxlingua107
+------------------------------
+
+VoxLingua107 consists of short speech segments automatically extracted from YouTube videos. 
+It contains 107 languages. The total amount of speech in the training set is 6628 hours, and 62 hours per language on average but it's highly imbalanced. 
+It also includes separate evaluation set containing 1609 speech segments from 33 languages, validated by at least two volunteers.
+
+You could download dataset from its `website <https://cs.taltech.ee/staff/tanel.alumae/data/voxlingua107/>`__.
+
+Each line is a training example.
+
+.. code-block:: bash
+
+  {"audio_filepath": "<absolute path to dataset>/ln/lFpWXQYseo4__U__S113---0400.650-0410.420.wav", "offset": 0, "duration": 3.0, "label": "ln"}
+  {"audio_filepath": "<absolute path to dataset>/lt/w0lp3mGUN8s__U__S28---0352.170-0364.770.wav", "offset": 8, "duration": 4.0, "label": "lt"}
+
 
 Preparing Custom Speech Classification Data
 --------------------------------------------
 
-Preparing Custom Speech Classification Data is almost identical to `Preparing Custom ASR Data <../datasets.html#preparing-custom-asr-data>`__.
+Preparing Custom Speech Classification Data is almost identical to :ref:`Preparing Custom ASR Data <section-with-manifest-format-explanation>`.
 
-Instead of :code:`text` entry in manifest, you need :code:`label` to determine class of this sample
+Instead of a :code:`text` entry in the manifest, you need a :code:`label` to determine the class of this sample.
 
 
 Tarred Datasets
@@ -128,4 +146,4 @@ Tarred Datasets
 
 Similarly to ASR, you can tar your audio files and use ASR Dataset class ``TarredAudioToClassificationLabelDataset`` (corresponding to the ``AudioToClassificationLabelDataset``) for this case.
 
-If you would like to use tarred dataset, have a look at `ASR Tarred Datasets <../datasets.html#tarred-datasets>`__.
+If you would like to use tarred dataset, have a look at :ref:`ASR Tarred Datasets <Tarred_Datasets>`.

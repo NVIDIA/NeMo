@@ -15,34 +15,35 @@
 
 import os
 
-from nemo_text_processing.text_normalization.en.graph_utils import (
-    NEMO_WHITE_SPACE,
-    GraphFst,
-    delete_extra_space,
-    delete_space,
-    generator_main,
-)
-from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
-from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
-from nemo_text_processing.text_normalization.en.taggers.word import WordFst
-
-from nemo.utils import logging
-
 try:
     import pynini
+    from nemo_text_processing.text_normalization.en.graph_utils import (
+        NEMO_WHITE_SPACE,
+        GraphFst,
+        delete_extra_space,
+        delete_space,
+        generator_main,
+    )
+    from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
+    from nemo_text_processing.text_normalization.en.taggers.whitelist import WhiteListFst
+    from nemo_text_processing.text_normalization.en.taggers.word import WordFst
     from pynini.lib import pynutil
+except (ImportError, ModuleNotFoundError):
+    raise ModuleNotFoundError(
+        "The package `nemo_text_processing` was not installed in this environment. Please refer to"
+        " https://github.com/NVIDIA/NeMo-text-processing and install this package before using "
+        "this script"
+    )
 
-    PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
-    PYNINI_AVAILABLE = False
+from nemo.utils import logging
 
 
 class ClassifyFst(GraphFst):
     """
     Final class that composes all other classification grammars. This class can process an entire sentence including punctuation.
-    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File. 
+    For deployment, this grammar will be compiled and exported to OpenFst Finate State Archiv (FAR) File.
     More details to deployment at NeMo/tools/text_processing_deployment.
-    
+
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
         deterministic: if True will provide a single transduction option,
@@ -75,9 +76,10 @@ class ClassifyFst(GraphFst):
         else:
             logging.info(f"Creating ClassifyFst grammars.")
 
-            word_graph = WordFst(deterministic=deterministic).fst
+            punctuation = PunctuationFst(deterministic=deterministic)
+            punct_graph = punctuation.fst
+            word_graph = WordFst(deterministic=deterministic, punctuation=punctuation).fst
             whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
-            punct_graph = PunctuationFst(deterministic=deterministic).fst
 
             classify = pynutil.add_weight(whitelist_graph, 1) | pynutil.add_weight(word_graph, 100)
 

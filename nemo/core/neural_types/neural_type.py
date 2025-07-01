@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Tuple
+from typing import Any, Optional
+
+import torch
 
 from nemo.core.neural_types.axes import AxisKind, AxisType
 from nemo.core.neural_types.comparison import NeuralTypeComparisonResult
@@ -26,7 +28,7 @@ __all__ = [
 ]
 
 
-class NeuralType(object):
+class NeuralType:
     """This is the main class which would represent neural type concept.
     It is used to represent *the types* of inputs and outputs.
 
@@ -42,13 +44,30 @@ class NeuralType(object):
     """
 
     def __str__(self):
-
+        if torch.jit.is_scripting():
+            return "SuppressedForTorchScript"
         if self.axes is not None:
             return f"axes: {self.axes}; elements_type: {self.elements_type.__class__.__name__}"
         else:
             return f"axes: None; elements_type: {self.elements_type.__class__.__name__}"
 
-    def __init__(self, axes: Optional[Tuple] = None, elements_type: ElementType = VoidType(), optional=False):
+    def __init__(self, axes: Optional[Any] = None, elements_type: Optional[Any] = None, optional: bool = False):
+        """
+        Args:
+            axes: a tuple of AxisTypes objects representing the semantics of what varying each axis means
+            elements_type: None or ElementType; we need Any annotation here to avoid problems with TorchScript (it is checked in _init_internal)
+            optional: If input to the port of this type can be optional (False by default).
+        """
+        if not torch.jit.is_scripting():
+            self._init_internal(axes=axes, elements_type=elements_type, optional=optional)
+
+    @torch.jit.unused
+    def _init_internal(
+        self, axes: Optional[Any] = None, elements_type: Optional[ElementType] = None, optional: bool = False
+    ):
+        """Internals of __init__, separated to make TorchScript and autodoc work"""
+        if elements_type is None:
+            elements_type = VoidType()
         if not isinstance(elements_type, ElementType):
             raise ValueError(
                 "elements_type of NeuralType must be an instance of a class derived from ElementType. "
@@ -73,6 +92,9 @@ class NeuralType(object):
     def compare(self, second) -> NeuralTypeComparisonResult:
         """Performs neural type comparison of self with second. When you chain two modules' inputs/outputs via
         __call__ method, this comparison will be called to ensure neural type compatibility."""
+        if torch.jit.is_scripting():
+            # suppress check for TorchScript
+            return NeuralTypeComparisonResult.SAME
         # First, handle dimensionality
         axes_a = self.axes
         axes_b = second.axes
@@ -110,6 +132,9 @@ class NeuralType(object):
 
     def compare_and_raise_error(self, parent_type_name, port_name, second_object):
         """ Method compares definition of one type with another and raises an error if not compatible. """
+        if torch.jit.is_scripting():
+            # suppress for TorchScript
+            return
         type_comatibility = self.compare(second_object)
         if (
             type_comatibility != NeuralTypeComparisonResult.SAME
@@ -200,6 +225,9 @@ class NeuralType(object):
                 return 3
 
     def __repr__(self):
+        if torch.jit.is_scripting():
+            return "SuppressedForTorchScript"
+
         if self.axes is not None:
             axes = str(self.axes)
         else:

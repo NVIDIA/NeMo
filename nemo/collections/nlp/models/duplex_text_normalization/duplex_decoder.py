@@ -15,11 +15,12 @@
 import json
 import os
 from collections import defaultdict
+from math import ceil
 from typing import Dict, List, Optional, Union
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig
-from pytorch_lightning import Trainer
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
@@ -39,7 +40,7 @@ try:
     from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
 
     PYNINI_AVAILABLE = True
-except (ModuleNotFoundError, ImportError):
+except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
@@ -69,7 +70,7 @@ class DuplexDecoderModel(NLPModel):
         # Global_rank and local_rank is set by LightningModule in Lightning 1.2.0
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         self.tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer)
 
@@ -105,13 +106,14 @@ class DuplexDecoderModel(NLPModel):
         input_case = 'cased'  # input_case is cased by default
         if hasattr(self.tokenizer, 'do_lower_case') and self.tokenizer.do_lower_case:
             input_case = 'lower_cased'
-        if not PYNINI_AVAILABLE:
-            raise Exception(
-                "`pynini` is not installed ! \n"
-                "Please run the `nemo_text_processing/setup.sh` script"
-                "prior to usage of this toolkit."
+
+        if PYNINI_AVAILABLE:
+            self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
+        else:
+            self.cg_normalizer = None
+            logging.warning(
+                "`nemo_text_processing` is not installed, see https://github.com/NVIDIA/NeMo-text-processing for details"
             )
-        self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
 
     @typecheck()
     def forward(self, input_ids, decoder_input_ids, attention_mask, labels):
@@ -305,7 +307,7 @@ class DuplexDecoderModel(NLPModel):
         span_ends: List[List[int]],
         inst_directions: List[str],
     ):
-        """ Main function for Inference
+        """Main function for Inference
         Args:
             sents: A list of inputs tokenized by a basic tokenizer.
             nb_spans: A list of ints where each int indicates the number of semiotic spans in each input.
@@ -410,6 +412,23 @@ class DuplexDecoderModel(NLPModel):
             cfg=train_data_config, data_split="train"
         )
 
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in train_data_config and train_data_config['use_tarred_dataset']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches * ceil(len(self._train_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
             logging.info(
@@ -420,6 +439,23 @@ class DuplexDecoderModel(NLPModel):
         self.validation_dataset, self._validation_dl = self._setup_dataloader_from_config(
             cfg=val_data_config, data_split="val"
         )
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in val_data_config and val_data_config['use_tarred_dataset']:
+            # We also need to check if limit_val_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # validation batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_val_batches, float):
+                self._trainer.limit_val_batches = int(
+                    self._trainer.limit_val_batches * ceil(len(self._validation_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "validation batches will be used. Please set the trainer and rebuild the dataset."
+                )
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict] = None):
         if val_data_config is None:
@@ -485,9 +521,9 @@ class DuplexDecoderModel(NLPModel):
                 tokenizer_name=self.transformer_name,
                 mode=self.mode,
                 max_len=self.max_sequence_len,
-                decoder_data_augmentation=cfg.get('decoder_data_augmentation', False)
-                if data_split == "train"
-                else False,
+                decoder_data_augmentation=(
+                    cfg.get('decoder_data_augmentation', False) if data_split == "train" else False
+                ),
                 lang=self.lang,
                 use_cache=cfg.get('use_cache', False),
                 max_insts=cfg.get('max_insts', -1),
@@ -531,6 +567,13 @@ class DuplexDecoderModel(NLPModel):
                 pretrained_model_name="neural_text_normalization_t5",
                 location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/neural_text_normalization_t5/versions/1.5.0/files/neural_text_normalization_t5_decoder.nemo",
                 description="Text Normalization model's decoder model.",
+            )
+        )
+        result.append(
+            PretrainedModelInfo(
+                pretrained_model_name="itn_en_t5",
+                location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/itn_en_t5/versions/1.11.0/files/itn_en_t5_decoder.nemo",
+                description="English Inverse Text Normalization model's decoder model.",
             )
         )
         return result

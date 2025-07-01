@@ -77,23 +77,21 @@ model:
       warmup_ratio: 0.1
 
   encoder_tokenizer:
-    library: yttm
+    library: sentencepiece
     tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
-    training_sample_size: null # valid for sentencepiece tokenizer
     r2l: false
 
   decoder_tokenizer:
-    library: yttm
+    library: sentencepiece
     tokenizer_model: null
     vocab_size: null # vocab size for training bpe
     bpe_dropout: null
     vocab_file: null
     special_tokens: null
-    training_sample_size: null # valid for sentencepiece tokenizer
     r2l: false
 
   encoder:
@@ -152,6 +150,7 @@ trainer:
   logger: False
   log_every_n_steps: 50  # Interval of logging.
   check_val_every_n_epoch: 1
+  benchmark: False
 
 exp_manager:
   name: AAYNBase

@@ -13,23 +13,18 @@
 # limitations under the License.
 
 from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
-from nemo.collections.asr.parts.preprocessing.features import (
-    STFT,
-    FeaturizerFactory,
-    FilterbankFeatures,
-    STFTExactPad,
-    STFTPatch,
-    WaveformFeaturizer,
-)
+from nemo.collections.asr.parts.preprocessing.features import FeaturizerFactory, FilterbankFeatures, WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import (
     AudioAugmentor,
     AugmentationDataset,
     GainPerturbation,
     ImpulsePerturbation,
     NoisePerturbation,
+    NoisePerturbationWithNormalization,
     Perturbation,
     RirAndNoisePerturbation,
     ShiftPerturbation,
+    SilencePerturbation,
     SpeedPerturbation,
     TimeStretchPerturbation,
     TranscodePerturbation,

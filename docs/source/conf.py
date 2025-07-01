@@ -20,7 +20,7 @@ import re
 import sys
 import glob
 
-import sphinx_rtd_theme
+import sphinx_book_theme
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -28,7 +28,6 @@ import sphinx_rtd_theme
 
 sys.path.insert(0, os.path.abspath("../.."))
 sys.path.insert(0, os.path.abspath("../../nemo"))
-sys.path.insert(0, os.path.abspath("../../nemo_text_processing"))
 
 from package_info import __version__
 
@@ -41,20 +40,34 @@ autodoc_mock_imports = [
     'torch.optim',
     'torch.utils.data',
     'torch.utils.data.sampler',
-    'torchvision',
-    'torchvision.models',
     'torchtext',
+    'torchvision',
     'ruamel.yaml',  # ruamel.yaml has ., which is troublesome for this regex
     'hydra',  # hydra-core in requirements, hydra during import
     'dateutil',  # part of core python
     'transformers.tokenization_bert',  # has ., troublesome for this regex
-    'megatron',  # megatron-lm in requirements, megatron in import
-    'sklearn',
+    'sklearn',  # scikit_learn in requirements, sklearn in import
     'nemo_text_processing.inverse_text_normalization',  # Not installed automatically
     'nemo_text_processing.text_normalization',  # Not installed automatically
     'attr',  # attrdict in requirements, attr in import
     'torchmetrics',  # inherited from PTL
+    'lightning_utilities',  # inherited from PTL
+    'lightning_fabric',
     'apex',
+    'megatron.core',
+    'transformer_engine',
+    'joblib',  # inherited from optional code
+    'IPython',
+    'ipadic',
+    'psutil',
+    'pytorch_lightning',
+    'regex',
+    'PIL',
+    'boto3',
+    'taming',
+    'cytoolz',  # for adapters
+    'megatron',  # for nlp
+    "open_clip",
 ]
 
 _skipped_autodoc_mock_imports = ['wrapt', 'numpy']
@@ -102,12 +115,12 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
     "sphinx.ext.githubpages",
-    "sphinxcontrib.bibtex",
     "sphinx.ext.inheritance_diagram",
     "sphinx.ext.intersphinx",
-    "sphinx.ext.autosectionlabel",
+    # "sphinx.ext.autosectionlabel",
     "sphinxcontrib.bibtex",
-    "sphinx_rtd_theme",
+    "sphinx_copybutton",
+    "sphinxext.opengraph",
 ]
 
 bibtex_bibfiles = [
@@ -115,7 +128,12 @@ bibtex_bibfiles = [
     'nlp/nlp_all.bib',
     'nlp/text_normalization/tn_itn_all.bib',
     'tools/tools_all.bib',
-    'tts_all.bib',
+    'tts/tts_all.bib',
+    'text_processing/text_processing_all.bib',
+    'core/adapters/adapter_bib.bib',
+    'multimodal/mm_all.bib',
+    'vision/vision_all.bib',
+    'audio/audio_all.bib',
 ]
 
 intersphinx_mapping = {
@@ -140,7 +158,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "NVIDIA NeMo"
-copyright = "© 2021-2022 NVIDIA Corporation & Affiliates. All rights reserved."
+copyright = "© 2021-2023 NVIDIA Corporation & Affiliates. All rights reserved."
 author = "NVIDIA CORPORATION"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -170,6 +188,14 @@ exclude_patterns = []
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "default"
 
+# Ignore Github links and downloading a large file
+# Github links are now getting rate limited from the Github Actions
+linkcheck_ignore = [
+    "https://zenodo.org/record/5525342/files/thorsten-neutral_v03.tgz?download=1",
+    ".*github\\.com.*",
+    ".*githubusercontent\\.com.*",
+]
+
 ### Previous NeMo theme
 # # NVIDIA theme settings.
 # html_theme = 'nvidia_theme'
@@ -187,6 +213,10 @@ pygments_style = "default"
 
 # html_logo = html_theme_options["logo_path"]
 
+# html_sidebars = {
+#     "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
+# }
+
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
@@ -201,21 +231,27 @@ htmlhelp_basename = "nemodoc"
 
 # html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "sphinx_book_theme"
 html_logo = os.path.join('nv_logo.png')
+html_title = 'NVIDIA NeMo'
 
 html_theme_options = {
-    'logo_only': True,
+    'logo_only': False,
     'display_version': True,
-    'prev_next_buttons_location': 'bottom',
-    'style_external_links': False,
-    'style_nav_header_background': '#000000',
+    # 'prev_next_buttons_location': 'bottom',
+    # 'style_external_links': False,
+    # 'style_nav_header_background': '#000000',
     # Toc options
     'collapse_navigation': False,
-    'sticky_navigation': False,
-    # 'navigation_depth': 10,
-    'includehidden': False,
-    'titles_only': False,
+    # 'sticky_navigation': False,
+    'navigation_depth': 10,
+    # 'includehidden': False,
+    # 'titles_only': False,
+    # Sphinx Book theme,
+    'repository_url': 'https://github.com/NVIDIA/NeMo',
+    'use_repository_button': True,
+    'show_navbar_depth': 1,
+    'show_toc_level': 10,
 }
 
 
@@ -242,3 +278,11 @@ def setup(app):
 # html_js_files = [
 #     './pk_scripts.js',
 # ]
+
+# OpenGraph settings
+ogp_site_url = 'https://nvidia.github.io/NeMo/'
+ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
+
+# MathJax CDN
+# follow recommendation here https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.mathjax
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

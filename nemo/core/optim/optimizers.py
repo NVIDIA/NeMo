@@ -14,7 +14,7 @@
 
 import copy
 from functools import partial
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import hydra
 import torch
@@ -25,6 +25,7 @@ from torch.optim.optimizer import Optimizer
 
 from nemo.core.config import OptimizerParams, get_optimizer_config, register_optimizer_params
 from nemo.core.optim.adafactor import Adafactor
+from nemo.core.optim.adan import Adan
 from nemo.core.optim.novograd import Novograd
 from nemo.utils import logging
 from nemo.utils.model_utils import maybe_update_config_version
@@ -40,11 +41,11 @@ AVAILABLE_OPTIMIZERS = {
     'rprop': rprop.Rprop,
     'novograd': Novograd,
     'adafactor': Adafactor,
+    'adan': Adan,
 }
 
 try:
-    from apex.optimizers import FusedLAMB
-    from apex.optimizers import FusedAdam
+    from apex.optimizers import FusedAdam, FusedLAMB
 
     HAVE_APEX = True
 
@@ -52,7 +53,26 @@ try:
     AVAILABLE_OPTIMIZERS['fused_adam'] = FusedAdam
 except ModuleNotFoundError:
     HAVE_APEX = False
-    logging.warning("Apex was not found. Using the lamb or fused_adam optimizer will error out.")
+
+HAVE_APEX_DISTRIBUTED_ADAM = False
+if HAVE_APEX:
+    try:
+        # Try importing wrapper for Apex distributed Adam optimizer
+        from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
+
+        HAVE_APEX_DISTRIBUTED_ADAM = True
+
+        AVAILABLE_OPTIMIZERS['distributed_fused_adam'] = MegatronDistributedFusedAdam
+    except (ImportError, ModuleNotFoundError):
+        HAVE_APEX_DISTRIBUTED_ADAM = False
+
+    try:
+        # Try importing wrapper for Apex FusedAdam optimizer
+        from nemo.core.optim.megatron_fused_adam import MegatronFusedAdam
+
+        AVAILABLE_OPTIMIZERS['megatron_fused_adam'] = MegatronFusedAdam
+    except (ImportError, ModuleNotFoundError):
+        pass
 
 __all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
 
@@ -180,3 +200,18 @@ def get_optimizer(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optimizer:
     optimizer = AVAILABLE_OPTIMIZERS[name]
     optimizer = partial(optimizer, **kwargs)
     return optimizer
+
+
+def init_optimizer_states(optimizer: Optimizer):
+    adam_nondist_optims = (optim.Adam, optim.AdamW)
+    if HAVE_APEX:
+        adam_nondist_optims += (FusedAdam,)
+    if isinstance(optimizer, adam_nondist_optims):
+        for group in optimizer.param_groups:
+            for p in group['params']:
+                state = optimizer.state[p]
+                if len(state) == 0:
+                    state['exp_avg'] = torch.zeros_like(p.data, memory_format=torch.preserve_format)
+                    state['exp_avg_sq'] = torch.zeros_like(p.data, memory_format=torch.preserve_format)
+                    if group.get('amsgrad'):
+                        state['max_exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)

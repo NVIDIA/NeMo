@@ -15,8 +15,6 @@
 import glob
 import logging
 import os
-import shutil
-import subprocess
 from dataclasses import dataclass
 
 import hydra
@@ -66,11 +64,11 @@ def process_index_path(tar_paths, index_dir):
 
 
 def build_index(tarpath, indexfile):
-    with IndexCreator(tarpath, indexfile, verbose=False) as index:
+    with IndexCreator(tarpath, indexfile) as index:
         index.create_index()
 
 
-@hydra.main(config_path=None, config_name='index_config')
+@hydra.main(config_path=None, config_name='index_config', version_base="1.1")
 def main(cfg: DALITarredIndexConfig):
     if not INDEX_CREATOR_AVAILABLE:
         logging.error("`wds2idx` is not installed. Please install NVIDIA DALI >= 1.11")

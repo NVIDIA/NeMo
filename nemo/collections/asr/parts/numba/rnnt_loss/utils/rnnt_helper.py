@@ -28,8 +28,9 @@
 
 
 import math
-from typing import Optional
+from typing import Optional, Tuple
 
+import numba
 import torch
 from numba import cuda
 
@@ -112,12 +113,12 @@ def compute_costs_data(source: torch.Tensor, dest: torch.Tensor, fastemit_lambda
     if idx < length:
         copy_data_1d(source, dest, idx)
         dest[idx] *= -1.0
-        dest[idx] *= 1.0 + fastemit_lambda
+        dest[idx] *= numba.float32(1.0 + fastemit_lambda)
 
 
 def get_workspace_size(
     maxT: int, maxU: int, minibatch: int, gpu: bool
-) -> (Optional[int], global_constants.RNNTStatus):
+) -> Tuple[Optional[int], global_constants.RNNTStatus]:
 
     if minibatch <= 0 or maxT <= 0 or maxU <= 0:
         return (None, global_constants.RNNTStatus.RNNT_STATUS_INVALID_VALUE)

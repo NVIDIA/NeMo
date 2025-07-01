@@ -19,7 +19,7 @@ The Checkpoints page also contains benchmark results for the available ASR model
 MatchboxNet (Speech Commands) 
 ------------------------------
 
-MatchboxNet :cite:`sc-models-matchboxnet` is an end-to-end neural network for speech command recognition based on `QuartzNet <../models.html#QuartzNet>`__.
+MatchboxNet :cite:`sc-models-matchboxnet` is an end-to-end neural network for speech command recognition based on :ref:`QuartzNet <QuartzNet_model>`.
 
 Similarly to QuartzNet, the MatchboxNet family of models are denoted as MatchBoxNet_[BxRxC] where B is the number of blocks, and R is the number of convolutional sub-blocks within a block, and C is the number of channels. Each sub-block contains a 1-D *separable* convolution, batch normalization, ReLU, and dropout:
 
@@ -60,6 +60,19 @@ MarbleNet models can be instantiated using the :class:`~nemo.collections.asr.mod
 .. note::
   For model details and deep understanding about VAD training, inference, postprocessing, threshold tuning and etc., 
   please refer to  ``<NeMo_git_root>/tutorials/asr/06_Voice_Activiy_Detection.ipynb`` and ``<NeMo_git_root>/tutorials/asr/Online_Offline_Microphone_VAD_Demo.ipynb``.
+
+
+
+.. _AmberNet_model:
+
+AmberNet (Lang ID) 
+------------------
+
+AmberNet is an end-to-end neural network for language identification model based on :ref:`TitaNet <TitaNet_model>`.
+
+It can reach state-of-the art performance on the `Voxlingua107 dataset <https://cs.taltech.ee/staff/tanel.alumae/data/voxlingua107/>`__ while having significantly fewer parameters than similar models.
+AmberNet models can be instantiated using the :class:`~nemo.collections.asr.models.EncDecSpeakerLabelModel` class.
+
 
 
 References

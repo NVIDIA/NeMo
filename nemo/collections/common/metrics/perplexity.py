@@ -22,14 +22,15 @@ __all__ = ['Perplexity']
 class Perplexity(Metric):
     """
     This class computes mean perplexity of distributions in the last dimension of inputs. It is a wrapper around
-    :doc:`torch.distributions.Categorical.perplexity<pytorch:distributions>` method. You have to provide either 
-    ``probs`` or ``logits`` to the :meth:`update` method. The class computes perplexities for distributions passed to 
+    :doc:`torch.distributions.Categorical.perplexity<pytorch:distributions>` method. You have to provide either
+    ``probs`` or ``logits`` to the :meth:`update` method. The class computes perplexities for distributions passed to
     :meth:`update` method in ``probs`` or ``logits`` arguments and averages the perplexities. Reducing results between
     all workers is done via SUM operations.
-    See :doc:`PyTorch Lightning Metrics<pytorch-lightning:metrics>` for the metric usage instructions.
+    See the `TorchMetrics in PyTorch Lightning guide
+    <https://lightning.ai/docs/torchmetrics/stable/pages/lightning.html>`_
+    for the metric usage instructions.
+
     Args:
-        compute_on_step:
-            Forward only calls ``update()`` and returns ``None`` if this is set to ``False``. default: ``True``
         dist_sync_on_step:
             Synchronize metric state across processes at each ``forward()``
             before returning the value at the step.
@@ -41,10 +42,10 @@ class Perplexity(Metric):
             ``probs`` last dim has to be valid probability distribution.
     """
 
-    def __init__(self, compute_on_step=True, dist_sync_on_step=False, process_group=None, validate_args=True):
-        super().__init__(
-            compute_on_step=compute_on_step, dist_sync_on_step=dist_sync_on_step, process_group=process_group
-        )
+    full_state_update = True
+
+    def __init__(self, dist_sync_on_step=False, process_group=None, validate_args=True):
+        super().__init__(dist_sync_on_step=dist_sync_on_step, process_group=process_group)
         self.validate_args = validate_args
         self.add_state('perplexities_sum', torch.tensor(0.0, dtype=torch.float64), dist_reduce_fx='sum')
         # Total number of distributions seen since last reset

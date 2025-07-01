@@ -20,7 +20,7 @@ trainer:
   devices: 1 # the number of gpus, 0 for CPU
   num_nodes: 1
   max_epochs: 5
-  max_steps: null # precedence over max_epochs
+  max_steps: -1 # precedence over max_epochs
   accumulate_grad_batches: 1 # accumulates grads every k batches
   gradient_clip_val: 0.0
   precision: 16 # Should be set to 16 for O1 and O2, default is 16 as PT ignores it when am_level is O0
@@ -29,7 +29,6 @@ trainer:
   logger: False  # Provided by exp_manager
   log_every_n_steps: 1  # Interval of logging.
   val_check_interval: 1.0  # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
-  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
 
 exp_manager:
   exp_dir: null  # exp_dir for your experiment, if None, defaults to "./nemo_experiments"
@@ -48,7 +47,7 @@ model:
     pad_label: 'O'
     ignore_extra_tokens: false
     ignore_start_end: false
-    use_cache: true
+    use_cache: false
     # shared among dataloaders
     num_workers:  2
     pin_memory: false

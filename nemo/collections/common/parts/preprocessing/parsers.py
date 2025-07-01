@@ -12,15 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-'''
+"""
 A collection of simple character based parsers. These parser handle cleaning and tokenization by default.
 We currently support English.
-'''
+"""
 
 import string
 from typing import List, Optional
-
-import frozendict
 
 from nemo.collections.common.parts.preprocessing import cleaners
 
@@ -128,7 +126,7 @@ class CharParser:
 class ENCharParser(CharParser):
     """Incorporates english-specific parsing logic."""
 
-    PUNCTUATION_TO_REPLACE = frozendict.frozendict({'+': 'plus', '&': 'and', '%': 'percent'})
+    PUNCTUATION_TO_REPLACE = {'+': 'plus', '&': 'and', '%': 'percent'}
 
     def __init__(self, abbreviation_version=None, make_table=True, *args, **kwargs):
         """Creates english-specific mapping char parser.
@@ -175,7 +173,49 @@ class ENCharParser(CharParser):
         return text
 
 
-NAME_TO_PARSER = frozendict.frozendict({'base': CharParser, 'en': ENCharParser})
+class RUCharParser(CharParser):
+    """Incorporates russian-specific parsing logic."""
+
+    PUNCTUATION_TO_REPLACE = {'+': 'плюс', 'ё': 'е'}
+
+    def __init__(self, *args, **kwargs):
+        """Creates cyrillic-specific mapping char parser.
+        This class overrides normalizing implementation.
+        Args:
+            *args: Positional args to pass to `CharParser` constructor.
+            **kwargs: Key-value args to pass to `CharParser` constructor.
+        """
+
+        super().__init__(*args, **kwargs)
+
+        self._table = self.__make_trans_table()
+
+    def __make_trans_table(self):
+        punctuation = string.punctuation
+
+        for char in self.PUNCTUATION_TO_REPLACE:
+            punctuation = punctuation.replace(char, '')
+
+        for label in self._labels:
+            punctuation = punctuation.replace(label, '')
+
+        table = str.maketrans(punctuation, ' ' * len(punctuation))
+
+        return table
+
+    def _normalize(self, text: str) -> Optional[str]:
+        # noinspection PyBroadException
+        try:
+            text = cleaners.clean_text(
+                string=text, table=self._table, punctuation_to_replace=self.PUNCTUATION_TO_REPLACE,
+            )
+        except Exception:
+            return None
+
+        return text
+
+
+NAME_TO_PARSER = {'base': CharParser, 'en': ENCharParser, 'ru': RUCharParser}
 
 
 def make_parser(labels: Optional[List[str]] = None, name: str = 'base', **kwargs,) -> CharParser:
@@ -183,7 +223,7 @@ def make_parser(labels: Optional[List[str]] = None, name: str = 'base', **kwargs
 
     Args:
         labels: List of labels to allocate indexes for. If set to
-            None then labels would be ascii table list. Essentially, this is a
+            None then labels would be ascii table list. Essentially, this is an
             id to str mapping (default: None).
         name: Concise name of parser to create (default: 'base').
             (default: -1).

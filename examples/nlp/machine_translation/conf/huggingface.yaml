@@ -79,7 +79,7 @@ model:
     vocab_size: null
 
   decoder_tokenizer:
-    library: yttm
+    library: huggingface
     tokenizer_model: null
     vocab_file: null
     special_tokens: null
@@ -125,6 +125,7 @@ trainer:
   logger: False
   log_every_n_steps: 50  # Interval of logging.
   check_val_every_n_epoch: 1
+  benchmark: False
 
 exp_manager:
   name: HuggingFaceEncoder

@@ -1,0 +1,2 @@
+include requirements/*
+include tools/ctc_segmentation/requirements.txt

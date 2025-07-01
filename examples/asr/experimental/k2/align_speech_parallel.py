@@ -46,7 +46,7 @@ By setting the trainer config you may control these configs. For example to do t
 
 python align_speech_parallel.py \
     trainer.precision=16 \
-    trainer.gpus=2 \
+    trainer.devices=2 \
     ...
 
 You may control the dataloader's config by setting the predict_ds:
@@ -65,6 +65,7 @@ You may control the aligner's config by setting the aligner_args:
     aligner_args.decode_batch_size=8 \
     aligner_args.ctc_cfg.prob_suppress_index=-1 \
     aligner_args.ctc_cfg.prob_suppress_value=0.5 \
+    aligner_args.rnnt_cfg.predictor_window_size=10 \
     aligner_args.decoder_module_cfg.intersect_pruned=true \
     aligner_args.decoder_module_cfg.intersect_conf.search_beam=40 \
     ...
@@ -73,10 +74,10 @@ You may control the aligner's config by setting the aligner_args:
 
 
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Optional
 
-import pytorch_lightning as ptl
+import lightning.pytorch as ptl
 import torch
 from omegaconf import MISSING, OmegaConf
 
@@ -93,12 +94,14 @@ from nemo.utils.get_rank import is_global_rank_zero
 @dataclass
 class ParallelAlignmentConfig:
     model: Optional[str] = None  # name
-    predict_ds: ASRDatasetConfig = ASRDatasetConfig(return_sample_id=True, num_workers=4)
-    aligner_args: K2AlignerWrapperModelConfig = K2AlignerWrapperModelConfig()
+    predict_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(return_sample_id=True, num_workers=4)
+    )
+    aligner_args: K2AlignerWrapperModelConfig = field(default_factory=lambda: K2AlignerWrapperModelConfig())
     output_path: str = MISSING
     model_stride: int = 8
 
-    trainer: TrainerConfig = TrainerConfig(gpus=-1, accelerator="ddp")
+    trainer: TrainerConfig = field(default_factory=lambda: TrainerConfig(devices=-1, accelerator="ddp"))
 
     # there arguments will be ignored
     return_predictions: bool = False
@@ -157,7 +160,7 @@ def main(cfg: ParallelAlignmentConfig):
 
     os.makedirs(cfg.output_path, exist_ok=True)
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
-    global_rank = trainer.node_rank * trainer.num_gpus + int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
     output_file = os.path.join(cfg.output_path, f"predictions_{global_rank}.json")
     output_ctm_dir = os.path.join(cfg.output_path, "ctm")
     predictor_writer = ASRCTMPredictionWriter(

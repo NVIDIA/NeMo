@@ -17,142 +17,231 @@ This script serves three goals:
     (1) Demonstrate how to use NeMo Models outside of PytorchLightning
     (2) Shows example of batch ASR inference
     (3) Serves as CI test for pre-trained checkpoint
-"""
 
+python speech_to_text_buffered_infer_ctc.py \
+    model_path=null \
+    pretrained_name=null \
+    audio_dir="<remove or path to folder of audio files>" \
+    dataset_manifest="<remove or path to manifest>" \
+    output_filename="<remove or specify output filename>" \
+    total_buffer_in_secs=4.0 \
+    chunk_len_in_secs=1.6 \
+    batch_size=32 \
+    clean_groundtruth_text=True \
+    langid='en'
+
+# NOTE:
+    You can use `DEBUG=1 python speech_to_text_buffered_infer_ctc.py ...` to print out the
+    predictions of the model, and ground-truth text if presents in manifest.
+"""
 import copy
-import json
+import glob
 import math
 import os
-from argparse import ArgumentParser
+from dataclasses import dataclass, field
+from typing import Optional
 
+import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
-import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
+from nemo.collections.asr.parts.utils.transcribe_utils import (
+    compute_output_filename,
+    get_buffered_pred_feat,
+    setup_model,
+    write_transcription,
+)
+from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
 can_gpu = torch.cuda.is_available()
 
 
-def get_wer_feat(mfst, asr, frame_len, tokens_per_chunk, delay, preprocessor_cfg, model_stride_in_secs, device):
-    # Create a preprocessor to convert audio samples into raw features,
-    # Normalization will be done per buffer in frame_bufferer
-    # Do not normalize whatever the model's preprocessor setting is
-    preprocessor_cfg.normalize = "None"
-    preprocessor = nemo_asr.models.EncDecCTCModelBPE.from_config_dict(preprocessor_cfg)
-    preprocessor.to(device)
-    hyps = []
-    refs = []
+@dataclass
+class TranscriptionConfig:
+    """
+    Transcription Configuration for buffered inference.
+    """
 
-    with open(mfst, "r") as mfst_f:
-        for l in mfst_f:
-            asr.reset()
-            row = json.loads(l.strip())
-            asr.read_audio_file(row['audio_filepath'], delay, model_stride_in_secs)
-            hyp = asr.transcribe(tokens_per_chunk, delay)
-            hyps.append(hyp)
-            refs.append(row['text'])
+    # Required configs
+    model_path: Optional[str] = None  # Path to a .nemo file
+    pretrained_name: Optional[str] = None  # Name of a pretrained model
+    audio_dir: Optional[str] = None  # Path to a directory which contains audio files
+    dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
 
-    wer = word_error_rate(hypotheses=hyps, references=refs)
-    return hyps, refs, wer
+    # General configs
+    output_filename: Optional[str] = None
+    batch_size: int = 32
+    num_workers: int = 0
+    append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
+    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
+    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
+
+    # Set to True to output greedy timestamp information (only supported models)
+    compute_timestamps: bool = False
+
+    # Set to True to output language ID information
+    compute_langs: bool = False
+
+    # Chunked configs
+    chunk_len_in_secs: float = 1.6  # Chunk length in seconds
+    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
+
+    # Decoding strategy for CTC models
+    decoding: CTCDecodingConfig = field(default_factory=CTCDecodingConfig)
+
+    # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
+    # device anyway, and do inference on CPU only if CUDA device is not found.
+    # If `cuda` is a negative number, inference will be on CPU only.
+    cuda: Optional[int] = None
+    amp: bool = False
+    audio_type: str = "wav"
+
+    # Recompute model transcription, even if the output folder exists with scores.
+    overwrite_transcripts: bool = True
+
+    # Config for word / character error rate calculation
+    calculate_wer: bool = True
+    clean_groundtruth_text: bool = False
+    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    use_cer: bool = False
 
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--asr_model", type=str, required=True, help="Path to asr model .nemo file",
-    )
-    parser.add_argument("--test_manifest", type=str, required=True, help="path to evaluation data")
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument(
-        "--total_buffer_in_secs",
-        type=float,
-        default=4.0,
-        help="Length of buffer (chunk + left and right padding) in seconds ",
-    )
-    parser.add_argument("--chunk_len_in_ms", type=int, default=1600, help="Chunk length in milliseconds")
-    parser.add_argument("--output_path", type=str, help="path to output file", default=None)
-    parser.add_argument(
-        "--model_stride",
-        type=int,
-        default=8,
-        help="Model downsampling factor, 8 for Citrinet models and 4 for Conformer models",
-    )
-
-    args = parser.parse_args()
+@hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
+def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
+    """
+    Transcribes the input audio and can be used to infer long audio files by chunking
+    them into smaller segments.
+    """
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     torch.set_grad_enabled(False)
-    if args.asr_model.endswith('.nemo'):
-        logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = nemo_asr.models.EncDecCTCModelBPE.restore_from(restore_path=args.asr_model)
+
+    cfg = OmegaConf.structured(cfg)
+
+    if cfg.random_seed:
+        pl.seed_everything(cfg.random_seed)
+
+    if cfg.model_path is None and cfg.pretrained_name is None:
+        raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
+    if cfg.audio_dir is None and cfg.dataset_manifest is None:
+        raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
+
+    filepaths = None
+    manifest = cfg.dataset_manifest
+    if cfg.audio_dir is not None:
+        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+        manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
+
+    # setup GPU
+    if cfg.cuda is None:
+        if torch.cuda.is_available():
+            device = [0]  # use 0th CUDA device
+            accelerator = 'gpu'
+        else:
+            device = 1
+            accelerator = 'cpu'
     else:
-        logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name=args.asr_model)
+        device = [cfg.cuda]
+        accelerator = 'gpu'
+    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+    logging.info(f"Inference will be done on device : {device}")
 
-    cfg = copy.deepcopy(asr_model._cfg)
-    OmegaConf.set_struct(cfg.preprocessor, False)
+    asr_model, model_name = setup_model(cfg, map_location)
 
+    model_cfg = copy.deepcopy(asr_model._cfg)
+    OmegaConf.set_struct(model_cfg.preprocessor, False)
     # some changes for streaming scenario
-    cfg.preprocessor.dither = 0.0
-    cfg.preprocessor.pad_to = 0
+    model_cfg.preprocessor.dither = 0.0
+    model_cfg.preprocessor.pad_to = 0
 
-    if cfg.preprocessor.normalize != "per_feature":
+    if model_cfg.preprocessor.normalize != "per_feature":
         logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
 
     # Disable config overwriting
-    OmegaConf.set_struct(cfg.preprocessor, True)
+    OmegaConf.set_struct(model_cfg.preprocessor, True)
+
+    # Compute output filename
+    cfg = compute_output_filename(cfg, model_name)
+
+    # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
+    if not cfg.overwrite_transcripts and os.path.exists(cfg.output_filename):
+        logging.info(
+            f"Previous transcripts found at {cfg.output_filename}, and flag `overwrite_transcripts`"
+            f"is {cfg.overwrite_transcripts}. Returning without re-transcribing text."
+        )
+        return cfg
+
+    # Setup decoding strategy
+    if hasattr(asr_model, 'change_decoding_strategy'):
+        if not isinstance(asr_model, EncDecCTCModel) and not isinstance(asr_model, EncDecHybridRNNTCTCModel):
+            raise ValueError("The script supports ctc model and hybrid model with ctc decodng!")
+
+        else:
+            if cfg.compute_langs:
+                raise ValueError("CTC models do not support `compute_langs` at the moment.")
+
+            if hasattr(
+                asr_model, 'cur_decoder'
+            ):  # hybrid model with ctc decoding or potential other models containing decoding switch feature
+                asr_model.change_decoding_strategy(cfg.decoding, decoder_type='ctc')
+
+            else:  # ctc model
+                asr_model.change_decoding_strategy(cfg.decoding)
+
     asr_model.eval()
     asr_model = asr_model.to(asr_model.device)
 
-    feature_stride = cfg.preprocessor['window_stride']
-    model_stride_in_secs = feature_stride * args.model_stride
-    total_buffer = args.total_buffer_in_secs
-
-    chunk_len = args.chunk_len_in_ms / 1000
+    feature_stride = model_cfg.preprocessor['window_stride']
+    model_stride_in_secs = feature_stride * asr_model.subsampling_factor
+    total_buffer = cfg.total_buffer_in_secs
+    chunk_len = float(cfg.chunk_len_in_secs)
 
     tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
     mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
-    print(tokens_per_chunk, mid_delay)
+    logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
 
     frame_asr = FrameBatchASR(
-        asr_model=asr_model, frame_len=chunk_len, total_buffer=args.total_buffer_in_secs, batch_size=args.batch_size,
+        asr_model=asr_model,
+        frame_len=chunk_len,
+        total_buffer=cfg.total_buffer_in_secs,
+        batch_size=cfg.batch_size,
     )
 
-    hyps, refs, wer = get_wer_feat(
-        args.test_manifest,
-        frame_asr,
-        chunk_len,
-        tokens_per_chunk,
-        mid_delay,
-        cfg.preprocessor,
-        model_stride_in_secs,
-        asr_model.device,
-    )
-    logging.info(f"WER is {round(wer, 2)} when decoded with a delay of {round(mid_delay*model_stride_in_secs, 2)}s")
-
-    if args.output_path is not None:
-
-        fname = (
-            os.path.splitext(os.path.basename(args.asr_model))[0]
-            + "_"
-            + os.path.splitext(os.path.basename(args.test_manifest))[0]
-            + "_"
-            + str(args.chunk_len_in_ms)
-            + "_"
-            + str(int(total_buffer * 1000))
-            + ".json"
+    with torch.amp.autocast(asr_model.device.type, enabled=cfg.amp):
+        hyps = get_buffered_pred_feat(
+            frame_asr,
+            chunk_len,
+            tokens_per_chunk,
+            mid_delay,
+            model_cfg.preprocessor,
+            model_stride_in_secs,
+            asr_model.device,
+            manifest,
+            filepaths,
         )
-        hyp_json = os.path.join(args.output_path, fname)
-        os.makedirs(args.output_path, exist_ok=True)
-        with open(hyp_json, "w") as out_f:
-            for i, hyp in enumerate(hyps):
-                record = {
-                    "pred_text": hyp,
-                    "text": refs[i],
-                    "wer": round(word_error_rate(hypotheses=[hyp], references=[refs[i]]) * 100, 2),
-                }
-                out_f.write(json.dumps(record) + '\n')
+    output_filename, pred_text_attr_name = write_transcription(
+        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
+    )
+    logging.info(f"Finished writing predictions to {output_filename}!")
+
+    if cfg.calculate_wer:
+        output_manifest_w_wer, total_res, _ = cal_write_wer(
+            pred_manifest=output_filename,
+            pred_text_attr_name=pred_text_attr_name,
+            clean_groundtruth_text=cfg.clean_groundtruth_text,
+            langid=cfg.langid,
+            use_cer=cfg.use_cer,
+            output_filename=None,
+        )
+        if output_manifest_w_wer:
+            logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(f"{total_res}")
+
+    return cfg
 
 
 if __name__ == '__main__':

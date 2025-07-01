@@ -1,0 +1,85 @@
+name: "Code freeze"
+
+on:
+  workflow_dispatch:
+    inputs:
+      type_of_release:
+        type: choice
+        description: Type of release
+        options:
+          - major
+          - minor
+      freeze-commit:
+        type: string
+        description: Commit SHA to use for cut-off
+        required: false
+        default: main
+      mcore_version:
+        description: "Version of MCore to use (must be a valid git ref)"
+        required: true
+        type: string
+      dry-run:
+        type: boolean
+        description: Dry-run of code-freeze
+        required: false
+        default: true
+
+jobs:
+  code-freeze:
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_code_freeze.yml@v0.25.2
+    with:
+      library-name: NeMo-Toolkit
+      python-package: nemo
+      release-type: ${{ inputs.type_of_release }}
+      freeze-commit: ${{ inputs.freeze-commit }}
+      dry-run: ${{ inputs.dry-run }}
+      use-pat: true
+    secrets:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_RELEASE_ENDPOINT }}
+      SLACK_WEBHOOK_ADMIN: ${{ secrets.SLACK_WEBHOOK_ADMIN }}
+      PAT: ${{ secrets.PAT }}
+
+  freeze-tags:
+    runs-on: ubuntu-latest
+    needs: [code-freeze]
+    environment: main
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: ${{ github.run_id }}
+          token: ${{ secrets.PAT }}
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ inputs.dry-run == true && inputs.freeze-commit || needs.code-freeze.outputs.release-branch }}
+
+      - name: Pin branch name in Notebooks
+        run: |
+          cd ${{ github.run_id }}
+          find tutorials -type f -name "*.ipynb" -exec sed -i "s/BRANCH = 'main'/BRANCH = '${{ needs.code-freeze.outputs.release-branch }}'/g" {} +
+
+      - name: Pin MCore in Dockerfile
+        run: |
+          cd ${{ github.run_id }}
+          sed -i 's/^ARG MCORE_TAG=.*$/ARG MCORE_TAG=${{ inputs.mcore_version }}/' docker/Dockerfile.ci
+
+      - name: Show status
+        run: |
+          cd ${{ github.run_id }}
+          git status
+
+      - name: Create PR
+        uses: peter-evans/create-pull-request@v6
+        id: create-pull-request
+        if: ${{ inputs.dry-run != true }}
+        with:
+          path: ${{ github.run_id }}
+          base: ${{ needs.code-freeze.outputs.release-branch }}
+          branch: ci/freeze-tags-${{ needs.code-freeze.outputs.release-branch }}
+          title: "Freeze tags in in `${{ needs.code-freeze.outputs.release-branch }}`"
+          body: |
+            🚀 PR to freeze tags in `${{ needs.code-freeze.outputs.release-branch }}`.
+
+          commit-message: "[🤠]: Howdy folks, let's release NeMo `${{ needs.code-freeze.outputs.release-branch }}` !"
+          signoff: true
+          assignees: okoenig

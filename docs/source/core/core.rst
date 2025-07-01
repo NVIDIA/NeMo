@@ -4,7 +4,7 @@ NeMo Models
 Basics
 ------
 
-NeMo models contain everything needed to train and reproduce Conversational AI models:
+NeMo models contain everything needed to train and reproduce conversational AI models:
 
 - neural network architectures 
 - datasets/data loaders
@@ -16,9 +16,10 @@ NeMo models contain everything needed to train and reproduce Conversational AI m
 
 NeMo uses `Hydra <https://hydra.cc/>`_ for configuring both NeMo models and the PyTorch Lightning Trainer.
 
-.. note:: Every NeMo model has an example configuration file and training script that can be found `here <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_.
+.. note::
+    Every NeMo model has an example configuration file and training script that can be found `here <https://github.com/NVIDIA/NeMo/tree/stable/examples>`__.
 
-The end result of using NeMo, `Pytorch Lightning <https://github.com/PyTorchLightning/pytorch-lightning>`_, and Hydra is that NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem. 
+The end result of using NeMo, `Pytorch Lightning <https://github.com/PyTorchLightning/pytorch-lightning>`__, and Hydra is that NeMo models all have the same look and feel and are also fully compatible with the PyTorch ecosystem.
 
 Pretrained
 ----------
@@ -34,24 +35,24 @@ As an example, we can instantiate QuartzNet with the following:
 
     model = nemo_asr.models.EncDecCTCModel.from_pretrained(model_name="QuartzNet15x5Base-En")
 
-To see all available pretrained models for a specific NeMo model, use the ``list_available_models()`` method.
+To see all available pretrained models for a specific NeMo model, use the ``list_available_models()`` method:
 
 .. code-block:: Python
 
-    nemo_asr.model.EncDecCTCModel.list_available_models()
+    nemo_asr.models.EncDecCTCModel.list_available_models()
 
 For detailed information on the available pretrained models, refer to the collections documentation: 
 
-- :ref:`Automatic Speech Recognition (ASR)`
-- :ref:`Natural Language Processing (NLP)`
-- :ref:`Speech Synthesis (TTS)`
+- :doc:`Automatic Speech Recognition (ASR) <../asr/intro>`
+- :doc:`Natural Language Processing (NLP) <../nlp/models>`
+- :doc:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
 
 Training
 --------
 
-NeMo leverages `PyTorch Lightning <https://www.pytorchlightning.ai/>`_ for model training. PyTorch Lightning lets NeMo decouple the 
+NeMo leverages `PyTorch Lightning <https://www.pytorchlightning.ai/>`__ for model training. PyTorch Lightning lets NeMo decouple the
 conversational AI code from the PyTorch training code. This means that NeMo users can focus on their domain (ASR, NLP, TTS) and 
-build complex AI applications without having to rewrite boiler plate code for PyTorch training.
+build complex AI applications without having to rewrite boilerplate code for PyTorch training.
 
 When using PyTorch Lightning, NeMo users can automatically train with:
 
@@ -167,16 +168,16 @@ While validation logic can be found in ``validation_step``:
 
         return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
-PyTorch Lightning then handles all of the boiler plate code needed for training. Virtually any aspect of training can be customized 
+PyTorch Lightning then handles all of the boilerplate code needed for training. Virtually any aspect of training can be customized
 via PyTorch Lightning `hooks <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#hooks>`_, 
 `Plugins <https://pytorch-lightning.readthedocs.io/en/stable/extensions/plugins.html>`_, 
 `callbacks <https://pytorch-lightning.readthedocs.io/en/stable/extensions/callbacks.html>`_, or by overriding `methods <https://pytorch-lightning.readthedocs.io/en/stable/common/lightning_module.html#methods>`_. 
 
 For more domain-specific information, see:
 
-- :ref:`Automatic Speech Recognition (ASR)`
-- :ref:`Natural Language Processing (NLP)`
-- :ref:`Speech Synthesis (TTS)`
+- :doc:`Automatic Speech Recognition (ASR) <../asr/intro>`
+- :doc:`Natural Language Processing (NLP) <../nlp/models>`
+- :doc:`Text-to-Speech Synthesis (TTS) <../tts/intro>`
 
 PyTorch Lightning Trainer
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -201,8 +202,7 @@ First, instantiate the model and trainer, then call ``.fit``:
     # Or we can run the test loop on test data by calling
     trainer.test(model=model)
 
-All `trainer flags <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-flags>`_ can be set from from the 
-NeMo configuration. 
+All `trainer flags <https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#trainer-flags>`_ can be set from from the NeMo configuration. 
     
 
 Configuration
@@ -239,8 +239,8 @@ Every NeMo example YAML has the same underlying configuration structure:
 - exp_manager
 - model
 
-Model configuration always contain ``train_ds``, ``validation_ds``, ``test_ds``, and ``optim``.  Model architectures vary across 
-domains, therefore, refer to the ASR, NLP, and TTS Collections documentation for more detailed information on Model architecture configuration.
+The model configuration always contains ``train_ds``, ``validation_ds``, ``test_ds``, and ``optim``.  Model architectures, however, can vary across domains.
+Refer to the documentation of specific collections (LLM, ASR etc.) for detailed information on model architecture configuration.
 
 A NeMo configuration file should look similar to the following:
 
@@ -288,18 +288,14 @@ A NeMo configuration file should look similar to the following:
         decoder:
             ...
 
-More specific details about configuration files for each collection can be found on the following pages:
-
-:ref:`NeMo ASR Configuration Files`
-        
 CLI
 ~~~
 
 With NeMo and Hydra, every aspect of model training can be modified from the command-line. This is extremely helpful for running lots 
-of experiments on compute clusters or for quickly testing parameters while developing.
+of experiments on compute clusters or for quickly testing parameters during development.
 
-All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ come with instructions on how to
-run the training/inference script from the command-line (see `here <https://github.com/NVIDIA/NeMo/blob/4e9da75f021fe23c9f49404cd2e7da4597cb5879/examples/asr/asr_ctc/speech_to_text_ctc.py#L24>`_
+All NeMo `examples <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ come with instructions on how to
+run the training/inference script from the command-line (e.g. see `here <https://github.com/NVIDIA/NeMo/blob/stable/examples/asr/asr_ctc/speech_to_text_ctc.py>`__
 for an example).
 
 With Hydra, arguments are set using the ``=`` operator:
@@ -374,7 +370,7 @@ be instantiated and modified like any Python `Dataclass <https://docs.python.org
     # modify the training batch size
     cfg.train_ds.tokens_in_batch = 8192
 
-.. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass
+.. note:: Configuration with Hydra always has the following precedence CLI > YAML > Dataclass.
 
 .. _optimization-label:
 
@@ -382,7 +378,7 @@ Optimization
 ------------
 
 Optimizers and learning rate schedules are configurable across all NeMo models and have their own namespace. Here is a sample YAML 
-configuration for a Novograd optimizer with Cosine Annealing learning rate schedule.
+configuration for a Novograd optimizer with a Cosine Annealing learning rate schedule.
 
 .. code-block:: yaml
 
@@ -399,7 +395,7 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
             name: CosineAnnealing
     
             # Optional arguments
-            max_steps: null # computed at runtime or explicitly set here
+            max_steps: -1 # computed at runtime or explicitly set here
             monitor: val_loss
             reduce_on_plateau: false
     
@@ -408,8 +404,7 @@ configuration for a Novograd optimizer with Cosine Annealing learning rate sched
             warmup_ratio: null
             min_lr: 1e-9:
 
-.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/v1.0.2/examples>`_ has optimizer and scheduler configurations for
-every NeMo model. 
+.. note:: `NeMo Examples <https://github.com/NVIDIA/NeMo/tree/stable/examples>`_ has optimizer and scheduler configurations for every NeMo model.
 
 Optimizers can be configured from the CLI as well:
 
@@ -597,7 +592,7 @@ as shown below we can update this config prior to restoring the model.
 Register Artifacts
 ------------------
 
-Conversational AI models can be complicated to restore as more information is needed than just the checkpoint weights in order to use the model.
+Restoring conversational AI models can be complicated because it requires more than just the checkpoint weights; additional information is also needed to use the model.
 NeMo models can save additional artifacts in the .nemo file by calling ``.register_artifact``.
 When restoring NeMo models using ``.restore_from`` or ``.from_pretrained``, any artifacts that were registered will be available automatically.
 
@@ -636,366 +631,149 @@ The resulting .nemo file will then have the following file:
     4978b28103264263a03439aaa6560e5e_tokenizer.model
 
 If ``verify_src_exists`` is set to ``False``, then the artifact is optional. This means that ``.register_artifact`` will return ``None`` 
-if the ``src`` cannot be found. 
+if the ``src`` cannot be found.
 
-.. _exp-manager-label:
-
-Experiment Manager
-==================
-
-NeMo's Experiment Manager leverages PyTorch Lightning for model checkpointing, TensorBoard Logging, and Weights and Biases logging. The 
-Experiment Manager is included by default in all NeMo example scripts.
-
-To use the experiment manager simply call :class:`~nemo.utils.exp_manager.exp_manager` and pass in the PyTorch Lightning ``Trainer``.
-
-.. code-block:: python
-
-    exp_manager(trainer, cfg.get("exp_manager", None))
-
-And is configurable via YAML with Hydra.
-
-.. code-block:: bash
-
-    exp_manager:
-        exp_dir: /path/to/my/experiments
-        name: my_experiment_name
-        create_tensorboard_logger: True
-        create_checkpoint_callback: True
-
-Optionally, launch TensorBoard to view the training results in ``./nemo_experiments`` (by default).
-
-.. code-block:: bash
-
-    tensorboard --bind_all --logdir nemo_experiments
-
-..
-
-If ``create_checkpoint_callback`` is set to ``True``, then NeMo automatically creates checkpoints during training
-using PyTorch Lightning's `ModelCheckpoint <https://pytorch-lightning.readthedocs.io/en/stable/extensions/generated/pytorch_lightning.callbacks.ModelCheckpoint.html#pytorch_lightning.callbacks.ModelCheckpoint>`_.
-We can configure the ``ModelCheckpoint`` via YAML or CLI.
-
-.. code-block:: yaml
-
-    exp_manager:
-        ...
-        # configure the PyTorch Lightning ModelCheckpoint using checkpoint_call_back_params
-        # any ModelCheckpoint argument can be set here
-
-        # save the best checkpoints based on this metric
-        checkpoint_callback_params.monitor=val_loss 
-        
-        # choose how many total checkpoints to save
-        checkpoint_callback_params.save_top_k=5
-
-We can auto-resume training as well by configuring the ``exp_manager``. Being able to auto-resume is important when doing long training 
-runs that are premptible or may be shut down before the training procedure has completed. To auto-resume training, set the following 
-via YAML or CLI:
-
-.. code-block:: yaml
-
-    exp_manager:
-        ...
-        # resume training if checkpoints already exist
-        resume_if_exists: True
-
-        # to start training with no existing checkpoints
-        resume_ignore_no_checkpoint: True
-
-        # by default experiments will be versioned by datetime
-        # we can set our own version with
-        exp_manager.version: my_experiment_version
-
-Neural Modules
-==============
-
-NeMo is built around Neural Modules, conceptual blocks of neural networks that take typed inputs and produce typed outputs. Such 
-modules typically represent data layers, encoders, decoders, language models, loss functions, or methods of combining activations.
-NeMo makes it easy to combine and re-use these building blocks while providing a level of semantic correctness checking via its neural 
-type system.
-
-.. note:: *All Neural Modules inherit from ``torch.nn.Module`` and are therefore compatible with the PyTorch ecosystem.*
-
-There are 3 types on Neural Modules:
-
-    - Regular modules
-    - Dataset/IterableDataset
-    - Losses
-
-Every Neural Module in NeMo must inherit from `nemo.core.classes.module.NeuralModule` class.
-
-.. autoclass:: nemo.core.classes.module.NeuralModule
-
-Every Neural Modules inherits the ``nemo.core.classes.common.Typing`` interface and needs to define neural types for its inputs and outputs.
-This is done by defining two properties: ``input_types`` and ``output_types``. Each property should return an ordered dictionary of 
-"port name"->"port neural type" pairs. Here is the example from :class:`~nemo.collections.asr.modules.ConvASREncoder` class:
-
-.. code-block:: python
-
-    @property
-    def input_types(self):
-        return OrderedDict(
-            {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
-            }
-        )
-
-    @property
-    def output_types(self):
-        return OrderedDict(
-            {
-                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-            }
-        )
-
-    @typecheck()
-    def forward(self, audio_signal, length=None):
-        ...
-
-The code snippet above means that ``nemo.collections.asr.modules.conv_asr.ConvASREncoder`` expects two arguments:
-    * First one, named ``audio_signal`` of shape ``[batch, dimension, time]`` with elements representing spectrogram values.
-    * Second one, named ``length`` of shape ``[batch]`` with elements representing lengths of corresponding signals.
-
-It also means that ``.forward(...)`` and ``__call__(...)`` methods each produce two outputs:
-    * First one, of shape ``[batch, dimension, time]`` but with elements representing encoded representation (``AcousticEncodedRepresentation`` class).
-    * Second one, of shape ``[batch]``, corresponding to their lengths.
-
-.. tip:: It is a good practice to define types and add ``@typecheck()`` decorator to your ``.forward()`` method after your module is ready for use by others.
-
-.. note:: The outputs of ``.forward(...)`` method will always be of type ``torch.Tensor`` or container of tensors and will work with any other Pytorch code. The type information is attached to every output tensor.
-If tensors without types is passed to your module, it will not fail, however the types will not be checked. Thus, it is recommended to define input/output types for all your modules, starting with
-data layers and add ``@typecheck()`` decorator to them.
-
-.. note:: To temporarily disable typechecking, you can enclose your code in ```with typecheck.disable_checks():``` statement.
-
-Neural Types
-============
-
-Motivation
-----------
-
-Neural Types describe the semantics, axis order, and dimensions of a tensor. The purpose of this type system is to catch semantic and 
-dimensionality errors during model creation and facilitate module re-use.
-
-.. image:: whyntypes.gif
-  :width: 900
-  :alt: Neural Types Motivation
-
-``NeuralType`` class
---------------------
-
-Neural Types perform semantic checks for modules and models inputs/outputs. They contain information about:
-
-    - Semantics of what is stored in the tensors. For example, logits, logprobs, audiosignal, embeddings, etc.
-    - Axes layout, semantic and (optionally) dimensionality. For example: ``[Batch, Time, Channel]``
-
-Types are implemented in ``nemo.core.neural_types.NeuralType`` class. When you instantiate an instance of this class, you
-are expected to include both *axes* information and *element type* information.
-
-.. autoclass:: nemo.core.neural_types.NeuralType
-
-Type Comparison Results
------------------------
-
-When comparing two neural types, the following comparison results are generated.
-
-.. autoclass:: nemo.core.neural_types.NeuralTypeComparisonResult
-
-Examples
---------
-
-Long vs short notation
-~~~~~~~~~~~~~~~~~~~~~~
-
-NeMo's ``NeuralType`` class allows you to express axis semantics information in long and short form. Consider these two equivalent types. Both encoder 3 dimensional tensors and both contain elements of type ``AcousticEncodedRepresentation`` (this type is a typical output of ASR encoders).
-
-.. code-block:: python
-
-    long_version = NeuralType(
-            axes=(AxisType(AxisKind.Batch, None), AxisType(AxisKind.Dimension, None), AxisType(AxisKind.Time, None)),
-            elements_type=AcousticEncodedRepresentation(),
-        )
-    short_version = NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())
-    assert long_version.compare(short_version) == NeuralTypeComparisonResult.SAME
-
-Transpose same
-~~~~~~~~~~~~~~
-
-Often it is useful to know if a simple transposition will solve type incompatibility. This is the case if the comparison result of two types equals ``nemo.core.neural_types.NeuralTypeComparisonResult.TRANSPOSE_SAME``.
-
-.. code-block:: python
-
-    type1 = NeuralType(axes=('B', 'T', 'C'))
-    type2 = NeuralType(axes=('T', 'B', 'C'))
-    assert type1.compare(type2) == NeuralTypeComparisonResult.TRANSPOSE_SAME
-    assert type2.compare(type1) == NeuralTypeComparisonResult.TRANSPOSE_SAME
-
-Note that in this example, we dropped ``elements_type`` argument of ``NeuralType`` constructor. If not supplied, the element type is ``VoidType``.
-
-``VoidType`` for elements
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Sometimes it is useful to express that elements' types don't matter but axes layout do. ``VoidType`` for elements can be used to express this.
-
-.. note:: ``VoidType`` is compatible with every other elements' type but not the other way around. See the following code snippet below for details.
-
-.. code-block:: python
-
-        btc_spctr = NeuralType(('B', 'T', 'C'), SpectrogramType())
-        btc_spct_bad = NeuralType(('B', 'T'), SpectrogramType())
-        # Note the VoidType for elements here
-        btc_void = NeuralType(('B', 'T', 'C'), VoidType())
-
-        # This is true because VoidType is compatible with every other element type (SpectrogramType in this case)
-        # And axes layout between btc_void and btc_spctr is the same
-        assert btc_void.compare(btc_spctr) == NeuralTypeComparisonResult.SAME
-        # These two types are incompatible because even though VoidType is used for elements on one side,
-        # the axes layout is different
-        assert btc_void.compare(btc_spct_bad) == NeuralTypeComparisonResult.INCOMPATIBLE
-        # Note that even though VoidType is compatible with every other type, other types are not compatible with VoidType!
-        # It is one-way compatibility
-        assert btc_spctr.compare(btc_void) == NeuralTypeComparisonResult.INCOMPATIBLE
-
-Element type inheritance
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Neural types in NeMo support Python inheritance between element types. Consider an example where you want to develop a Neural Module which performs data augmentation for all kinds of spectrograms.
-In ASR, two types of spectrograms are frequently used: mel and mfcc. To express this, we will create 3 classes to express
-element's types: ``SpectrogramType``, ``MelSpectrogramType(SpectrogramType)``, ``MFCCSpectrogramType(SpectrogramType)``.
-
-.. code-block:: python
-
-        input = NeuralType(('B', 'D', 'T'), SpectrogramType())
-        out1 = NeuralType(('B', 'D', 'T'), MelSpectrogramType())
-        out2 = NeuralType(('B', 'D', 'T'), MFCCSpectrogramType())
-
-        # MelSpectrogram and MFCCSpectrogram are not interchangeable.
-        assert out1.compare(out2) == NeuralTypeComparisonResult.INCOMPATIBLE
-        assert out2.compare(out1) == NeuralTypeComparisonResult.INCOMPATIBLE
-        # Type comparison detects that MFCC/MelSpectrogramType is a kind of SpectrogramType and can be accepted.
-        assert input.compare(out1) == NeuralTypeComparisonResult.GREATER
-        assert input.compare(out2) == NeuralTypeComparisonResult.GREATER
-
-Custom element types
-~~~~~~~~~~~~~~~~~~~~
-
-It is possible to create user-defined element types to express the semantics of elements in your tensors. To do so, the user will need to inherit and implement abstract methods of the ``nemo.core.neural_types.elements.ElementType`` class
-
-.. autoclass:: nemo.core.neural_types.elements.ElementType
-
-Note that element types can be parametrized. Consider this example where it distinguishes between audio sampled at 8Khz and 16Khz.
-
-.. code-block:: python
-
-    audio16K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(16000))
-    audio8K = NeuralType(axes=('B', 'T'), elements_type=AudioSignal(8000))
-
-    assert audio8K.compare(audio16K) == NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
-    assert audio16K.compare(audio8K) == NeuralTypeComparisonResult.SAME_TYPE_INCOMPATIBLE_PARAMS
-
-Enforcing dimensions
-~~~~~~~~~~~~~~~~~~~~
-
-In addition to specifying tensor layout and elements' semantics, neural types also allow you to enforce tensor dimensions.
-The user will have to use long notations to specify dimensions. Short notations only allows you to specify axes semantics and assumes
-arbitrary dimensions.
-
-.. code-block:: python
-
-        type1 = NeuralType(
-        (AxisType(AxisKind.Batch, 64), AxisType(AxisKind.Time, 10), AxisType(AxisKind.Dimension, 128)),
-        SpectrogramType(),
-        )
-        type2 = NeuralType(('B', 'T', 'C'), SpectrogramType())
-
-        # type2 will accept elements of type1 because their axes semantics match and type2 does not care about dimensions
-        assert type2.compare(type1), NeuralTypeComparisonResult.SAME
-        # type1 will not accept elements of type2 because it need dimensions to match strictly.
-        assert type1.compare(type2), NeuralTypeComparisonResult.DIM_INCOMPATIBLE
-
-Generic Axis kind
-~~~~~~~~~~~~~~~~~
-
-Sometimes (especially in the case of loss modules) it is useful to be able to specify a "generic" axis kind which will make it
-compatible with any other kind of axis. This is easy to express with Neural Types by using ``nemo.core.neural_types.axes.AxisKind.Any`` for axes.
-
-.. code-block:: python
-
-        type1 = NeuralType(('B', 'Any', 'Any'), SpectrogramType())
-        type2 = NeuralType(('B', 'T', 'C'), SpectrogramType())
-        type3 = NeuralType(('B', 'C', 'T'), SpectrogramType())
-
-        # type1 will accept elements of type2 and type3 because it only cares about element kind (SpectrogramType)
-        # number of axes (3) and that first one corresponds to batch
-        assert type1.compare(type2) == NeuralTypeComparisonResult.SAME
-        assert type1.compare(type3) == NeuralTypeComparisonResult.INCOMPATIBLE
-
-Container types
-~~~~~~~~~~~~~~~
-
-The NeMo-type system understands Python containers (lists). If your module returns a nested list of typed tensors, the way to express it is by
-using Python list notation and Neural Types together when defining your input/output types.
-
-The example below shows how to express that your module returns single output ("out") which is list of lists of two dimensional tensors of shape ``[batch, dimension]`` containing logits.
-
-.. code-block:: python
-
-    @property
-    def output_types(self):
-        return {
-            "out": [[NeuralType(('B', 'D'), LogitsType())]],
-        }
-
-Core APIs
-=========
-
-Base class for all NeMo models
-------------------------------
-
-.. autoclass:: nemo.core.ModelPT
-    :show-inheritance:
-    :members:
-    :member-order: bysource
-    :undoc-members: cfg, num_weights
-    :exclude-members: set_eff_save, use_eff_save, teardown
-
-Base Neural Module class
+Push to Hugging Face Hub
 ------------------------
 
-.. autoclass:: nemo.core.NeuralModule
-    :show-inheritance:
-    :members:
-    :member-order: bysource
+NeMo models can be pushed to the `Hugging Face Hub <https://huggingface.co/>`_ with the :meth:`~nemo.core.classes.mixins.hf_io_mixin.HuggingFaceFileIO.push_to_hf_hub` method. This method performs the same actions as ``save_to()`` and then uploads the model to the HuggingFace Hub. It offers an additional ``pack_nemo_file`` argument that allows the user to upload the entire NeMo file or just the ``.nemo`` file. This is useful for large language models that have a massive number of parameters, and a single NeMo file could exceed the max upload size of Hugging Face Hub.
 
-Neural Type classes
--------------------
 
-.. autoclass:: nemo.core.neural_types.NeuralType
-    :show-inheritance:
-    :members:
-    :member-order: bysource
+Upload a model to the Hub
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: nemo.core.neural_types.axes.AxisType
-    :show-inheritance:
-    :members:
-    :member-order: bysource
+.. code-block:: python
 
-.. autoclass:: nemo.core.neural_types.elements.ElementType
-    :show-inheritance:
-    :members:
-    :member-order: bysource
+    token = "<HF TOKEN>" or None
+    pack_nemo_file = True  # False will upload multiple files that comprise the NeMo file onto HF Hub; Generally useful for LLMs
 
-.. autoclass:: nemo.core.neural_types.comparison.NeuralTypeComparisonResult
-    :show-inheritance:
-    :members:
-    :member-order: bysource
+    model.push_to_hf_hub(
+       repo_id=repo_id, pack_nemo_file=pack_nemo_file, token=token,
+    )
 
-Experiment manager
+Use a Custom Model Card Template for the Hub
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    # Override the default model card
+    template = """ <Your own custom template>
+    # {model_name}
+    """
+    kwargs = {"model_name": "ABC", "repo_id": "nvidia/ABC_XYZ"}
+    model_card = model.generate_model_card(template=template, template_kwargs=kwargs, type="hf")
+
+    model.push_to_hf_hub(
+        repo_id=repo_id, token=token, model_card=model_card
+    )
+
+    # Write your own model card class
+    class MyModelCard:
+      def __init__(self, model_name):
+        self.model_name = model_name
+
+      def __repr__(self):
+        template = """This is the {model_name} model""".format(model_name=self.model_name)
+        return template
+
+    model.push_to_hf_hub(
+        repo_id=repo_id, token=token, model_card=MyModelCard("ABC")
+    )
+
+
+Nested NeMo Models
 ------------------
 
-.. autoclass:: nemo.utils.exp_manager.exp_manager
-    :show-inheritance:
-    :members:
-    :member-order: bysource
+In some cases, it may be helpful to use NeMo models inside other NeMo models. For example, we can incorporate language models into ASR models to use in a decoding process to improve accuracy or use hybrid ASR-TTS models to generate audio from the text on the fly to train or fine-tune the ASR model.
 
+There are three ways to instantiate child models inside parent models:
+
+- use subconfig directly
+- use the ``.nemo`` checkpoint path to load the child model
+- use a pretrained NeMo model
+
+To register a child model, use the ``register_nemo_submodule`` method of the parent model. This method will add the child model to a specified model attribute. During serialization, it will correctly handle child artifacts and store the child model’s configuration in the parent model’s ``config_field``.
+
+.. code-block:: python
+
+    from nemo.core.classes import ModelPT
+
+    class ChildModel(ModelPT):
+        ...  # implement necessary methods
+
+    class ParentModel(ModelPT):
+        def __init__(self, cfg, trainer=None):
+            super().__init__(cfg=cfg, trainer=trainer)
+
+            # optionally annotate type for IDE autocompletion and type checking
+            self.child_model: Optional[ChildModel]
+            if cfg.get("child_model") is not None:
+                # load directly from config
+                # either if config provided initially, or automatically
+                # after model restoration
+                self.register_nemo_submodule(
+                    name="child_model",
+                    config_field="child_model",
+                    model=ChildModel(self.cfg.child_model, trainer=trainer),
+                )
+            elif cfg.get('child_model_path') is not None:
+                # load from .nemo model checkpoint
+                # while saving, config will be automatically assigned/updated
+                # in cfg.child_model
+                self.register_nemo_submodule(
+                    name="child_model",
+                    config_field="child_model",
+                    model=ChildModel.restore_from(self.cfg.child_model_path, trainer=trainer),
+                )
+            elif cfg.get('child_model_name') is not None:
+                # load from pretrained model
+                # while saving, config will be automatically assigned/updated
+                # in cfg.child_model
+                self.register_nemo_submodule(
+                    name="child_model",
+                    config_field="child_model",
+                    model=ChildModel.from_pretrained(self.cfg.child_model_name, trainer=trainer),
+                )
+            else:
+                self.child_model = None
+
+
+
+Profiling 
+---------
+
+NeMo offers users two options for profiling: Nsys and CUDA memory profiling. These two options allow users
+to debug performance issues as well as memory issues such as memory leaks.
+
+To enable Nsys profiling, add the following options to the model config:
+
+.. code-block:: yaml
+
+    nsys_profile: False
+        start_step: 10  # Global batch to start profiling
+        end_step: 10 # Global batch to end profiling
+        ranks: [0] # Global rank IDs to profile
+        gen_shape: False # Generate model and kernel details including input shapes
+
+Finally, run the model training script with:
+
+.. code-block:: bash
+
+    nsys profile -s none -o <profile filepath> -t cuda,nvtx --force-overwrite true --capture-range=cudaProfilerApi --capture-range-end=stop python ./examples/...
+
+See more options at `nsight user guide <https://docs.nvidia.com/nsight-systems/UserGuide/index.html#cli-profiling>`_.
+
+
+
+To enable CUDA memory profiling, add the following options to the model config:
+
+.. code-block:: yaml
+
+    memory_profile:
+        enabled: True
+        start_step: 10  # Global batch to start profiling
+        end_step: 10 # Global batch to end profiling
+        rank: 0 # Global rank ID to profile
+        output_path: None # Path to store the profile output file
+
+Then invoke your NeMo script without any changes in the invocation command.

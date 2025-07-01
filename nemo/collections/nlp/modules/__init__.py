@@ -19,6 +19,7 @@ from nemo.collections.nlp.modules.common import (
     BertModule,
     CamembertEncoder,
     DistilBertEncoder,
+    PromptEncoder,
     RobertaEncoder,
     SequenceClassifier,
     SequenceRegression,

@@ -15,11 +15,17 @@ import copy
 
 import pytest
 import torch
+from lhotse import CutSet, MonoCut
+from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.data import audio_to_text
+from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models import EncDecCTCModel, configs
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.utils.config_utils import assert_dataclass_signature_match, update_model_config
 
 
@@ -131,6 +137,19 @@ class TestEncDecCTCModel:
         assert diff <= 1e-6
 
     @pytest.mark.unit
+    def test_predict_step(self, asr_model):
+        token_list = [" ", "a", "b", "c"]
+        asr_model = asr_model.eval()
+        cuts = DummyManifest(CutSet, begin_id=0, end_id=1, with_data=True)
+        dataset = LhotseSpeechToTextBpeDataset(tokenizer=make_parser(labels=token_list), return_cuts=True)
+        batch = dataset[cuts]
+        outputs = asr_model.predict_step(batch, 0)
+        assert len(outputs) == 1
+        assert len(outputs[0]) == 2
+        assert isinstance(outputs[0][0], MonoCut)
+        assert isinstance(outputs[0][1], Hypothesis)
+
+    @pytest.mark.unit
     def test_vocab_change(self, asr_model):
         old_vocab = copy.deepcopy(asr_model.decoder.vocabulary)
         nw1 = asr_model.num_weights
@@ -144,6 +163,20 @@ class TestEncDecCTCModel:
         asr_model.change_vocabulary(new_vocabulary=new_vocab)
         # fully connected + bias
         assert asr_model.num_weights == nw1 + 3 * (asr_model.decoder._feat_in + 1)
+
+    @pytest.mark.unit
+    def test_decoding_change(self, asr_model):
+        assert asr_model.decoding is not None
+        assert isinstance(asr_model.decoding, CTCDecoding)
+        assert asr_model.decoding.cfg.strategy == "greedy_batch"
+        assert asr_model.decoding.preserve_alignments is False
+        assert asr_model.decoding.compute_timestamps is False
+
+        cfg = CTCDecodingConfig(preserve_alignments=True, compute_timestamps=True)
+        asr_model.change_decoding_strategy(cfg)
+
+        assert asr_model.decoding.preserve_alignments is True
+        assert asr_model.decoding.compute_timestamps is True
 
     @pytest.mark.unit
     def test_change_conv_asr_se_context_window(self, asr_model):
@@ -251,17 +284,32 @@ class TestEncDecCTCModel:
             'pin_memory',
             'drop_last',
             'tarred_shard_strategy',
+            'shard_manifests',
             'shuffle_n',
             'use_start_end_token',
             'use_start_end_token',
             'bucketing_batch_size',
             'bucketing_strategy',
+            'bucketing_weights',
+            'channel_selector',
+            'use_lhotse',
+            'tarred_random_access',
+            'use_bucketing',
+            'batch_duration',
+            'quadratic_duration',
+            'bucket_batch_size',
+            'bucket_duration_bins',
+            'num_buckets',
+            'pin_memory',
         ]
 
         REMAP_ARGS = {'trim_silence': 'trim'}
 
         result = assert_dataclass_signature_match(
-            audio_to_text.AudioToCharDataset, configs.ASRDatasetConfig, ignore_args=IGNORE_ARGS, remap_args=REMAP_ARGS,
+            audio_to_text.AudioToCharDataset,
+            configs.ASRDatasetConfig,
+            ignore_args=IGNORE_ARGS,
+            remap_args=REMAP_ARGS,
         )
         signatures_match, cls_subset, dataclass_subset = result
 
@@ -284,6 +332,17 @@ class TestEncDecCTCModel:
             'use_start_end_token',
             'bucketing_batch_size',
             'bucketing_strategy',
+            'bucketing_weights',
+            'max_utts',
+            'use_lhotse',
+            'tarred_random_access',
+            'use_bucketing',
+            'batch_duration',
+            'quadratic_duration',
+            'bucket_batch_size',
+            'bucket_duration_bins',
+            'num_buckets',
+            'pin_memory',
         ]
 
         REMAP_ARGS = {

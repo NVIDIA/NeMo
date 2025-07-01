@@ -38,7 +38,7 @@ class ClassificationReport(Metric):
 
             return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
             # calculate metrics and classification report
             precision, recall, f1, report = self.classification_report.compute()
@@ -59,6 +59,8 @@ class ClassificationReport(Metric):
     Return:
         aggregated precision, recall, f1, report
     """
+
+    full_state_update = True
 
     def __init__(
         self,
@@ -203,7 +205,7 @@ class MultiLabelClassificationReport(ClassificationReport):
 
             return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
 
-        def validation_epoch_end(self, outputs):
+        def on_validation_epoch_end(self):
             ...
             # calculate metrics and classification report
             precision, recall, f1, report = self.classification_report.compute()

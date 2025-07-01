@@ -28,6 +28,45 @@ class AbstractRNNTJoint(NeuralModule, ABC):
     """
 
     @abstractmethod
+    def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor) -> Any:
+        """
+        Compute the joint step of the network after the projection step.
+        Args:
+            f: Output of the Encoder model after projection. A torch.Tensor of shape [B, T, H]
+            g: Output of the Decoder model (Prediction Network) after projection. A torch.Tensor of shape [B, U, H]
+
+        Returns:
+            Logits / log softmaxed tensor of shape (B, T, U, V + 1).
+            Arbitrary return type, preferably torch.Tensor, but not limited to (e.g., see HatJoint)
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def project_encoder(self, encoder_output: torch.Tensor) -> torch.Tensor:
+        """
+        Project the encoder output to the joint hidden dimension.
+
+        Args:
+            encoder_output: A torch.Tensor of shape [B, T, D]
+
+        Returns:
+            A torch.Tensor of shape [B, T, H]
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def project_prednet(self, prednet_output: torch.Tensor) -> torch.Tensor:
+        """
+        Project the Prediction Network (Decoder) output to the joint hidden dimension.
+
+        Args:
+            prednet_output: A torch.Tensor of shape [B, U, D]
+
+        Returns:
+            A torch.Tensor of shape [B, U, H]
+        """
+        raise NotImplementedError()
+
     def joint(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
         """
         Compute the joint step of the network.
@@ -58,10 +97,14 @@ class AbstractRNNTJoint(NeuralModule, ABC):
         Returns:
             Logits / log softmaxed tensor of shape (B, T, U, V + 1).
         """
-        raise NotImplementedError()
+        return self.joint_after_projection(self.project_encoder(f), self.project_prednet(g))
 
     @property
     def num_classes_with_blank(self):
+        raise NotImplementedError()
+
+    @property
+    def num_extra_outputs(self):
         raise NotImplementedError()
 
 
@@ -99,7 +142,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         state: Optional[torch.Tensor] = None,
         add_sos: bool = False,
         batch_size: Optional[int] = None,
-    ) -> (torch.Tensor, List[torch.Tensor]):
+    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
         """
         Stateful prediction of scores and state for a (possibly null) tokenset.
         This method takes various cases into consideration :
@@ -165,7 +208,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
     @abstractmethod
     def score_hypothesis(
         self, hypothesis: Hypothesis, cache: Dict[Tuple[int], Any]
-    ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
+    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """
         Similar to the predict() method, instead this method scores a Hypothesis during beam search.
         Hypothesis is a dataclass representing one hypothesis in a Beam Search.
@@ -183,41 +226,38 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     def batch_score_hypothesis(
-        self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any], batch_states: List[torch.Tensor]
-    ) -> (torch.Tensor, List[torch.Tensor], torch.Tensor):
+        self, hypotheses: List[Hypothesis], cache: Dict[Tuple[int], Any]
+    ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """
         Used for batched beam search algorithms. Similar to score_hypothesis method.
 
         Args:
             hypothesis: List of Hypotheses. Refer to rnnt_utils.Hypothesis.
             cache: Dict which contains a cache to avoid duplicate computations.
-            batch_states: List of torch.Tensor which represent the states of the RNN for this batch.
-                Each state is of shape [L, B, H]
 
         Returns:
-            Returns a tuple (b_y, b_states, lm_tokens) such that:
-            b_y is a torch.Tensor of shape [B, 1, H] representing the scores of the last tokens in the Hypotheses.
-            b_state is a list of list of RNN states, each of shape [L, B, H].
-                Represented as B x List[states].
-            lm_token is a list of the final integer tokens of the hypotheses in the batch.
+            Returns a tuple (batch_dec_out, batch_dec_states) such that:
+                batch_dec_out: a list of torch.Tensor [1, H] representing the prediction network outputs for the last tokens in the Hypotheses.
+                batch_dec_states: a list of list of RNN states, each of shape [L, B, H]. Represented as B x List[states].
         """
         raise NotImplementedError()
 
-    def batch_initialize_states(self, batch_states: List[torch.Tensor], decoder_states: List[List[torch.Tensor]]):
+    def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]):
         """
-        Create batch of decoder states.
+        Creates a stacked decoder states to be passed to prediction network
 
-       Args:
-           batch_states (list): batch of decoder states
-              ([L x (B, H)], [L x (B, H)])
+        Args:
+            decoder_states (list of list of list of torch.Tensor): list of decoder states
+                [B, C, L, H]
+                    - B: Batch size.
+                    - C: e.g., for LSTM, this is 2: hidden and cell states
+                    - L: Number of layers in prediction RNN.
+                    - H: Dimensionality of the hidden state.
 
-           decoder_states (list of list): list of decoder states
-               [B x ([L x (1, H)], [L x (1, H)])]
-
-       Returns:
-           batch_states (tuple): batch of decoder states
-               ([L x (B, H)], [L x (B, H)])
-       """
+        Returns:
+            batch_states (list of torch.Tensor): batch of decoder states
+                [C x torch.Tensor[L x B x H]
+        """
         raise NotImplementedError()
 
     def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
@@ -232,6 +272,88 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         Returns:
             (tuple): decoder states for given id
                 ([L x (1, H)], [L x (1, H)])
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_aggregate_states_beam(
+        cls,
+        src_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
+        batch_size: int,
+        beam_size: int,
+        indices: torch.Tensor,
+        dst_states: Optional[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
+        """
+        Aggregates decoder states based on the given indices.
+        Args:
+            src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]): source states of
+                shape `([L x (batch_size * beam_size, H)], [L x (batch_size * beam_size, H)])`
+            batch_size (int): The size of the batch.
+            beam_size (int): The size of the beam.
+            indices (torch.Tensor): A tensor of shape `(batch_size, beam_size)` containing
+                the indices in beam that map the source states to the destination states.
+            dst_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): If provided, the method
+                updates these tensors in-place.
+        Returns:
+            tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]: aggregated states
+        """
+
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_replace_states_mask(
+        cls,
+        src_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
+        dst_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
+        mask: torch.Tensor,
+        other_src_states: Optional[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]] = None,
+    ):
+        """
+        Replaces states in `dst_states` with states from `src_states` based on the given `mask`.
+
+        Args:
+            mask (torch.Tensor): When True, selects values from `src_states`, otherwise `out` or `other_src_states`(if provided).
+            src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]): Values selected at indices where `mask` is True.
+            dst_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): The output states.
+            other_src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): Values selected at indices where `mask` is False.
+
+        Note:
+            This operation is performed without CPU-GPU synchronization by using `torch.where`.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_replace_states_all(
+        cls,
+        src_states: list[torch.Tensor],
+        dst_states: list[torch.Tensor],
+        batch_size: int | None = None,
+    ):
+        """Replace states in dst_states with states from src_states"""
+        raise NotImplementedError()
+
+    @classmethod
+    def clone_state(
+        cls, states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
+        """Return copy of the states"""
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+        """
+        Split states into a list of states.
+        Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_unsplit_states(
+        cls, batch_states: list[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]], device=None, dtype=None
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
+        """
+        Concatenate a batch of decoder state to a packed state. Inverse of `batch_split_states`.
         """
         raise NotImplementedError()
 
@@ -256,7 +378,7 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         value: Optional[float] = None,
     ) -> List[torch.Tensor]:
         """Copy states from new state to old state at certain indices.
-        
+
         Args:
             old_states(list): packed decoder states
                 (L x B x H, L x B x H)
@@ -271,5 +393,17 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         Returns:
             batch of decoder states with partial copy at ids (or a specific value).
                 (L x B x H, L x B x H)
+        """
+        raise NotImplementedError()
+
+    def mask_select_states(self, states: Any, mask: torch.Tensor) -> Any:
+        """
+        Return states by mask selection
+        Args:
+            states: states for the batch (preferably a list of tensors, but not limited to)
+            mask: boolean mask for selecting states; batch dimension should be the same as for states
+
+        Returns:
+            states filtered by mask (same type as `states`)
         """
         raise NotImplementedError()

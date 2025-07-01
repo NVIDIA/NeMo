@@ -94,7 +94,7 @@ class GumbelVectorQuantizer(NeuralModule):
         self.codebook_indices = None
 
     def set_num_updates(self, num_updates):
-        self.curr_temp = max(self.max_temp * self.temp_decay ** num_updates, self.min_temp)
+        self.curr_temp = max(self.max_temp * self.temp_decay**num_updates, self.min_temp)
 
     def get_codebook_indices(self):
         if self.codebook_indices is None:
@@ -105,7 +105,7 @@ class GumbelVectorQuantizer(NeuralModule):
             self.codebook_indices = torch.tensor(inds, dtype=torch.long, device=self.vars.device).flatten()
 
             if not self.combine_groups:
-                self.codebook_indices = self.codebook_indices.view(self.num_vars ** self.groups, -1)
+                self.codebook_indices = self.codebook_indices.view(self.num_vars**self.groups, -1)
                 for b in range(1, self.groups):
                     self.codebook_indices[:, b] += self.num_vars * b
                 self.codebook_indices = self.codebook_indices.flatten()
@@ -124,16 +124,14 @@ class GumbelVectorQuantizer(NeuralModule):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         if self.time_first:
             return {"x": NeuralType(('B', 'T', 'D'), EncodedRepresentation())}
         return {"x": NeuralType(('B', 'D', 'T'), EncodedRepresentation())}
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         if self.time_first:
             return {
                 "x": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
@@ -144,7 +142,7 @@ class GumbelVectorQuantizer(NeuralModule):
             "quantize_prob_ppl": NeuralType(elements_type=LossType()),
         }
 
-    def forward(self, x):
+    def forward(self, x, return_ids=False):
 
         if not self.time_first:
             x = x.transpose(1, 2)
@@ -184,4 +182,17 @@ class GumbelVectorQuantizer(NeuralModule):
         if not self.time_first:
             x = x.transpose(1, 2)  # BTC -> BCT
 
-        return x, quantize_prob_ppl, cur_codebook_temp
+        if return_ids:
+            hard_x_max = hard_x.argmax(-1).reshape(bsz, tsz, -1)
+            # BxTxG
+
+            # create single id from multiple group ids
+            target_ids = hard_x.new_zeros(bsz, tsz).long()
+
+            for i in range(self.groups):
+                target_ids *= self.num_vars
+                target_ids += hard_x_max[:, :, i]
+
+            return x, quantize_prob_ppl, cur_codebook_temp, target_ids
+        else:
+            return x, quantize_prob_ppl, cur_codebook_temp

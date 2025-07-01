@@ -13,11 +13,11 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
@@ -32,7 +32,6 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 
 __all__ = ['TokenClassificationModel']
@@ -145,14 +144,16 @@ class TokenClassificationModel(NLPModel):
         labels = labels[subtokens_mask]
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        return {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        loss = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        self.validation_step_outputs.append(loss)
+        return loss
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
 
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
@@ -165,6 +166,7 @@ class TokenClassificationModel(NLPModel):
         self.log('recall', recall)
 
         self.classification_report.reset()
+        self.validation_step_outputs.clear()  # free memory
 
     def test_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
@@ -177,10 +179,12 @@ class TokenClassificationModel(NLPModel):
         labels = labels[subtokens_mask]
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        return {'test_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        loss = {'test_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        self.test_step_outputs.append(loss)
+        return loss
 
-    def test_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
+    def on_test_epoch_end(self):
+        avg_loss = torch.stack([x['test_loss'] for x in self.test_step_outputs]).mean()
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
         logging.info(report)
@@ -189,6 +193,7 @@ class TokenClassificationModel(NLPModel):
         self.log('precision', precision)
         self.log('f1', f1)
         self.log('recall', recall)
+        self.test_step_outputs.clear()  # free memory
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
@@ -297,7 +302,7 @@ class TokenClassificationModel(NLPModel):
 
     def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
         """
-        Setup function for a infer data loader.
+        Setup function for an infer data loader.
 
         Args:
             queries: text
@@ -488,7 +493,7 @@ class TokenClassificationModel(NLPModel):
             raise
 
     @classmethod
-    def list_available_models(cls) -> Optional[PretrainedModelInfo]:
+    def list_available_models(cls) -> List[PretrainedModelInfo]:
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
@@ -498,7 +503,7 @@ class TokenClassificationModel(NLPModel):
         result = []
         model = PretrainedModelInfo(
             pretrained_model_name="ner_en_bert",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ner_en_bert/versions/1.0.0rc1/files/ner_en_bert.nemo",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/ner_en_bert/versions/1.10/files/ner_en_bert.nemo",
             description="The model was trained on GMB (Groningen Meaning Bank) corpus for entity recognition and achieves 74.61 F1 Macro score.",
         )
         result.append(model)

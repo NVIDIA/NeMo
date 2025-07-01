@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import json
-from typing import Dict, Optional
+from typing import Optional
 
 import torch
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
-from torch.utils.data import DataLoader
+from torch.cuda.amp import autocast
 
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.nlp.data import SquadDataset
@@ -31,8 +31,8 @@ from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
+from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['QAModel']
 
@@ -43,6 +43,9 @@ class QAModel(NLPModel):
     """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        # deprecation warning
+        deprecated_warning("QAModel")
+
         super().__init__(cfg=cfg, trainer=trainer)
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -58,19 +61,21 @@ class QAModel(NLPModel):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
-        hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
-        )
-        if isinstance(hidden_states, tuple):
-            hidden_states = hidden_states[0]
-        logits = self.classifier(hidden_states=hidden_states)
+        with autocast():
+            hidden_states = self.bert_model(
+                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
+
+            if isinstance(hidden_states, tuple):
+                hidden_states = hidden_states[0]
+
+            logits = self.classifier(hidden_states=hidden_states)
         return logits
 
     def training_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
         logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
         loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
-
         lr = self._optimizer.param_groups[0]['lr']
         self.log('train_loss', loss)
         self.log('lr', lr, prog_bar=True)
@@ -93,16 +98,20 @@ class QAModel(NLPModel):
             'start_logits': start_logits,
             'end_logits': end_logits,
         }
-        return {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
+        loss = {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
+        self.validation_step_outputs.append(loss) if prefix == 'val' else self.test_step_outputs.append(loss)
+        return loss
 
     def test_step(self, batch, batch_idx):
         return self.validation_step(batch, batch_idx)
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         if self.trainer.testing:
             prefix = 'test'
+            outputs = self.test_step_outputs
         else:
             prefix = 'val'
+            outputs = self.validation_step_outputs
 
         avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
 
@@ -158,9 +167,10 @@ class QAModel(NLPModel):
         self.log(f'{prefix}_loss', avg_loss)
         self.log(f'{prefix}_exact_match', exact_match)
         self.log(f'{prefix}_f1', f1)
+        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear()  # free memory
 
-    def test_epoch_end(self, outputs):
-        return self.validation_epoch_end(outputs)
+    def on_test_epoch_end(self):
+        return self.on_validation_epoch_end()
 
     @torch.no_grad()
     def inference(
@@ -180,7 +190,7 @@ class QAModel(NLPModel):
             num_samples: number of samples to use of inference data. Default: -1 if all data should be used.
             output_nbest_file: optional output file for writing out nbest list
             output_prediction_file: optional output file for writing out predictions
-            
+
         Returns:
             model predictions, model nbest list
         """
@@ -290,6 +300,7 @@ class QAModel(NLPModel):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.file,
+            keep_doc_spans='all',  # self._cfg.dataset.keep_doc_spans,
             doc_stride=self._cfg.dataset.doc_stride,
             max_query_length=self._cfg.dataset.max_query_length,
             max_seq_length=self._cfg.dataset.max_seq_length,

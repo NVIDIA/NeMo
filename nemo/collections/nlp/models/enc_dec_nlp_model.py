@@ -15,8 +15,8 @@
 from dataclasses import dataclass
 from typing import Any
 
+from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.omegaconf import MISSING
-from pytorch_lightning.trainer.trainer import Trainer
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
@@ -35,8 +35,7 @@ class EncDecNLPModelConfig(ModelConfig):
 
 
 class EncDecNLPModel(NLPModel):
-    """Base class for encoder-decoder NLP models.
-    """
+    """Base class for encoder-decoder NLP models."""
 
     def __init__(self, cfg: EncDecNLPModelConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
@@ -80,6 +79,3 @@ class EncDecNLPModel(NLPModel):
     @decoder.setter
     def decoder(self, decoder):
         self._decoder = decoder
-
-    def export(self, **kwargs):
-        raise NotImplementedError('For EncDecNLPModel, you must export encoder and decoder separately!')

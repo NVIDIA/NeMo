@@ -19,8 +19,8 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 import torch.utils.data as pt_data
+from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
-from pytorch_lightning import Trainer
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -47,7 +47,7 @@ class TransformerLMModel(ModelPT):
         # Get global rank and total number of GPU workers for IterableDataset partitioning, if applicable
         self.world_size = 1
         if trainer is not None:
-            self.world_size = trainer.num_nodes * trainer.num_gpus
+            self.world_size = trainer.num_nodes * trainer.num_devices
 
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
@@ -55,10 +55,15 @@ class TransformerLMModel(ModelPT):
         # Instantiates tokenizer and register to be saved with NeMo Model archive
         # After this call, ther will be self.tokenizer which can convert between tokens and token_ids.
         self.setup_tokenizer(
-            tokenizer_name=cfg.tokenizer.get("tokenizer_name", "yttm"),
+            tokenizer_name=cfg.tokenizer.get("tokenizer_name", "sentencepiece"),
             tokenizer_model=cfg.tokenizer.get("tokenizer_model", None),
             vocab_file=cfg.tokenizer.get("vocab_file", None),
             bpe_dropout=cfg.tokenizer.get("bpe_dropout", 0.0),
+            special_tokens=(
+                OmegaConf.to_container(cfg.tokenizer.special_tokens)
+                if cfg.tokenizer.get("special_tokens", None)
+                else None
+            ),
         )
 
         # init superclass
@@ -96,7 +101,7 @@ class TransformerLMModel(ModelPT):
         # tie weights of embedding and softmax matrices
         self.log_softmax.mlp.layer0.weight = self.encoder.embedding.token_embedding.weight
 
-        std_init_range = 1 / self.encoder.hidden_size ** 0.5
+        std_init_range = 1 / self.encoder.hidden_size**0.5
 
         # initialize weights if not using pretrained encoder
         if not self._cfg.encoder.get('pretrained', False):
@@ -146,6 +151,7 @@ class TransformerLMModel(ModelPT):
         return {"loss": train_loss, "log": tensorboard_logs}
 
     def eval_step(self, batch, batch_idx):
+        mode = 'test' if self.trainer.testing else 'val'
         for i in range(len(batch)):
             if batch[i].ndim == 3:
                 # Dataset returns already batched data and the first dimension of size 1
@@ -159,6 +165,7 @@ class TransformerLMModel(ModelPT):
 
         self.eval_loss(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
         self.eval_ppl(log_probs=log_probs, labels=labels, mask=output_mask)
+        self.validation_step_outputs.append({}) if mode == 'val' else self.test_step_outputs.append({})
         return {}
 
     def test_step(self, batch, batch_idx):
@@ -179,23 +186,30 @@ class TransformerLMModel(ModelPT):
         dataset_name = "Validation" if mode == 'val' else "Test"
         logging.info(f"\n\n\n\n{dataset_name} PPL: {np.round(eval_ppl.item(), 2)}")
 
-    def validation_epoch_end(self, outputs):
+    def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.eval_epoch_end(outputs, 'val')
+        self.eval_epoch_end(self.validation_step_outputs, 'val')
+        self.validation_step_outputs.clear()  # free memory
         self.eval_loss.reset()
         self.eval_ppl.reset()
 
-    def test_epoch_end(self, outputs):
-        self.eval_epoch_end(outputs, 'test')
+    def on_test_epoch_end(self):
+        self.eval_epoch_end(self.test_step_outputs, 'test')
+        self.test_step_outputs.clear()  # free memory
 
     def setup_tokenizer(
-        self, tokenizer_name=None, tokenizer_model=None, vocab_file=None, bpe_dropout=0.0,
+        self,
+        tokenizer_name=None,
+        tokenizer_model=None,
+        vocab_file=None,
+        bpe_dropout=0.0,
+        special_tokens=None,
     ):
 
-        supported_tokenizers = ['yttm', 'huggingface', 'sentencepiece', 'word']
+        supported_tokenizers = ['huggingface', 'sentencepiece', 'word']
         if tokenizer_name not in supported_tokenizers:
             raise NotImplementedError(f"Currently we only support tokenizers in {supported_tokenizers}.")
 
@@ -204,15 +218,49 @@ class TransformerLMModel(ModelPT):
             tokenizer_model=self.register_artifact("cfg.tokenizer.tokenizer_model", tokenizer_model),
             vocab_file=vocab_file,
             bpe_dropout=bpe_dropout,
-            special_tokens=None,
+            special_tokens=special_tokens,
             use_fast=False,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in train_data_config and train_data_config['use_tarred_dataset']:
+            # We also need to check if limit_train_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+                self._trainer.limit_train_batches = int(
+                    self._trainer.limit_train_batches * math.ceil(len(self._train_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "training batches will be used. Please set the trainer and rebuild the dataset."
+                )
+
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
+
+        # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
+        # of samples rather than the number of batches, and this messes up the tqdm progress bar.
+        # So we set the number of steps manually (to the correct number) to fix this.
+        if 'use_tarred_dataset' in val_data_config and val_data_config['use_tarred_dataset']:
+            # We also need to check if limit_val_batches is already set.
+            # If it's an int, we assume that the user has set it to something sane, i.e. <= # validation batches,
+            # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
+            if self._trainer is not None and isinstance(self._trainer.limit_val_batches, float):
+                self._trainer.limit_val_batches = int(
+                    self._trainer.limit_val_batches * math.ceil(len(self._validation_dl.dataset) / self.world_size)
+                )
+            elif self._trainer is None:
+                logging.warning(
+                    "Model Trainer was not set before constructing the dataset, incorrect number of "
+                    "validation batches will be used. Please set the trainer and rebuild the dataset."
+                )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)

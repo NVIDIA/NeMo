@@ -12,13 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo_text_processing.text_normalization.normalize import Normalizer
+try:
+    from nemo_text_processing.text_normalization.normalize import Normalizer
+    from nemo_text_processing.text_normalization.token_parser import TokenParser
+except (ImportError, ModuleNotFoundError):
+    raise ModuleNotFoundError(
+        "The package `nemo_text_processing` was not installed in this environment. Please refer to"
+        " https://github.com/NVIDIA/NeMo-text-processing and install this package before using "
+        "this script"
+    )
+
+from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
 
 
 class WhitelistNormalizer(Normalizer):
     """
     Normalizer for WHITELIST.
-    
+
     Args:
         input_case: accepting either "lower_cased" or "cased" input.
         lang: language
@@ -37,20 +47,13 @@ class WhitelistNormalizer(Normalizer):
         cache_dir: str = None,
         overwrite_cache: bool = False,
         whitelist: str = None,
+        max_number_of_permutations_per_split: int = 729,
     ):
 
-        super().__init__(
-            input_case=input_case,
-            lang=lang,
-            deterministic=deterministic,
-            cache_dir=cache_dir,
-            overwrite_cache=overwrite_cache,
-            whitelist=whitelist,
-        )
         from nn_wfst.en.whitelist.tokenize_and_classify import ClassifyFst
         from nn_wfst.en.whitelist.verbalize_final import VerbalizeFinalFst
 
-        self.tagger = self.tagger = ClassifyFst(
+        self.tagger = ClassifyFst(
             input_case=input_case,
             deterministic=deterministic,
             cache_dir=cache_dir,
@@ -58,3 +61,8 @@ class WhitelistNormalizer(Normalizer):
             whitelist=whitelist,
         )
         self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
+        self.post_processor = None
+        self.parser = TokenParser()
+        self.lang = lang
+        self.processor = MosesProcessor(lang_id=lang)
+        self.max_number_of_permutations_per_split = max_number_of_permutations_per_split
