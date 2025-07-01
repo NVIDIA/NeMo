@@ -58,7 +58,7 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         self.prompt_dict = cfg.get('prompt_dictionary')
         if self.prompt_dict:
             # Set num_prompts based on the length of prompt_dictionary or a minimum value
-            # This ensures we have enough dimensions in our embedding space
+            # This ensures we have enough dimensions in our embedding space to add scale up without changing the model
             self.num_prompts = cfg.get('num_prompts', 128)
 
         # Field to use for prompt key (default to 'language')
@@ -69,7 +69,7 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         Maps prompt keys to indices using the prompt dictionary.
         """
         if not self.prompt_dict:
-            raise ValueError(f"Prompt dictionary is empty. Please provide a valid prompt_dictionary in the config.")
+            raise ValueError("Prompt dictionary is empty. Please provide a valid prompt_dictionary in the config.")
 
         if prompt_key not in self.prompt_dict:
             available_keys = list(self.prompt_dict.keys())
