@@ -16,7 +16,7 @@
 Example:
   # mock dataset:
   torchrun --nproc_per_node=8 scripts/vlm/qwen2vl_finetune.py \
-  --devices=8 --tp=4 --data_type=mock
+  --devices=8 --tp_size=2 --data_type=mock
 
   # real dataset:
    torchrun --nproc_per_node=8 /path/to/NeMo/scripts/vlm/qwen2vl_finetune.py  \
@@ -83,6 +83,7 @@ def main(args):
         # Data module setup
         data = vlm.Qwen2VLPreloadedDataModule(
             paths=args.data_path,
+            model_version="qwen2-vl",
             data_config=data_config,
             seq_length=max_sequence_length,
             decoder_seq_length=None,
@@ -148,7 +149,7 @@ def main(args):
         freeze_vision_model=True,
     )
 
-    model = vlm.Qwen2VLModel(qwen2vl_config, tokenizer=data.tokenizer)
+    model = vlm.Qwen2VLModel(qwen2vl_config, model_version="qwen2-vl", tokenizer=data.tokenizer)
 
     from megatron.core.distributed import DistributedDataParallelConfig
 
