@@ -29,5 +29,3 @@ from nemo.collections.nlp.modules.common import (
     get_tokenizer,
     get_tokenizer_list,
 )
-from nemo.collections.nlp.modules.dialogue_state_tracking.sgd_decoder import SGDDecoder
-from nemo.collections.nlp.modules.dialogue_state_tracking.sgd_encoder import SGDEncoder
