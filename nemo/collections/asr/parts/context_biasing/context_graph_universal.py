@@ -243,7 +243,7 @@ class ContextGraph:
                         token_score = context_score
                     self.num_nodes += 1
                     is_end = i == len(tokens) - 1
-                    node_score = node.node_score + context_score
+                    node_score = node.node_score + token_score
                     node.next[token] = ContextState(
                         id=self.num_nodes,
                         token=token,
