@@ -528,6 +528,7 @@ class ImplicitModalFilter(nn.Module):
         return t
 
     def get_logp(self):
+        """Compute the log poles for the implicit modal filter."""
         logp = -torch.exp(self.p.to(torch.float32))
         glogp = logp * torch.exp(self.gamma.to(torch.float32))
         return glogp
@@ -817,6 +818,7 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias.stride = 1
 
     def forward_long(self, *, x1, x2, v, h, bias, inference_context):
+        """Forward pass long."""
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
 
         def update_filter_state(filter_name, *, state):
@@ -871,6 +873,7 @@ class ParallelHyenaOperator(nn.Module):
         return rearrange(y, "b l d -> b d l")  # b l d
 
     def forward_medium(self, *, x1, x2, v, h, bias, inference_context):
+        """Forward pass medium."""
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
 
         def update_filter_state(filter_name, *, state):
@@ -1394,6 +1397,8 @@ class B2BCausalConv1dModule(nn.Module):
 
 
 class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
+    """A class for the ParallelCausalDepthwiseConv1dWithState."""
+
     def forward(self, features_BDL, inference_context=None, _use_cp=True):
         features_BLD = rearrange(features_BDL, "b d l -> b l d").contiguous()
         u = features_BLD

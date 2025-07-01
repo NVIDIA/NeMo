@@ -21,6 +21,9 @@ from einops import rearrange
 
 
 def adjust_filter_shape_for_broadcast(u, h):
+    """
+    Adjust filter shape for broadcasting compatibility with input tensor.
+    """
     h = h.squeeze()  # Standardize to [D, L] from [1, D, L] and [D, 1, L]
 
     # Case: u: [B, D, L], k_f: [D, L]
@@ -34,6 +37,12 @@ def adjust_filter_shape_for_broadcast(u, h):
 
 
 def fftconv_func(*, u, k, D):
+    """
+    Compute fast Fourier transform convolution with bias addition.
+
+    This function performs convolution using FFT for efficient computation of long sequences.
+    The convolution is computed in the frequency domain and then transformed back to the time domain.
+    """
     seqlen = u.shape[-1]
     fft_size = 2 * seqlen
 
@@ -58,6 +67,7 @@ def parallel_fir(
     fir_length,
     compute_state,
 ):
+    """Compute parallel finite impulse response filtering with optional state computation."""
     L = u.shape[1]
     u = rearrange(u, "b l d -> b d l")
 
@@ -123,7 +133,8 @@ def parallel_iir(*, z_pre, h, D, L, poles, t, hidden_size, compute_state):
 
 def step_fir(*, u, fir_state, weight, bias=None, gated_bias=False, flip_filter=False):
     """Steps forward FIR filters in the architecture.
-    FIR filters generally include truncated convolutions in Hyena with an explicit or hybrid time-domain parametrization:
+    FIR filters generally include truncated convolutions in Hyena with an explicit or
+    hybrid time-domain parametrization:
     * Short FIR filters in Hyena featurizers
     * Short and medium FIR filters in Hyena operators
     Note:
@@ -166,6 +177,7 @@ def step_fir(*, u, fir_state, weight, bias=None, gated_bias=False, flip_filter=F
 
 
 def step_iir(*, x2, x1, v, D, residues, poles, iir_state):
+    """Steps forward IIR filters in the architecture."""
     x1v = x1 * v
     poles = torch.exp(poles)  # poles arg contains log_poles
     poles = poles[..., 0][None]  # squeeze dummy seqlen dim and add dummy batch dim
