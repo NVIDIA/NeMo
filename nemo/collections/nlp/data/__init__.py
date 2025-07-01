@@ -30,7 +30,6 @@ from nemo.collections.nlp.data.machine_translation.machine_translation_dataset i
     TarredTranslationDataset,
     TranslationDataset,
 )
-from nemo.collections.nlp.data.question_answering_squad.qa_dataset import SquadDataset
 from nemo.collections.nlp.data.text2sparql.text2sparql_dataset import Text2SparqlDataset
 from nemo.collections.nlp.data.text_normalization.decoder_dataset import TextNormalizationDecoderDataset
 from nemo.collections.nlp.data.text_normalization.tagger_dataset import TextNormalizationTaggerDataset
