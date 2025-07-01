@@ -124,7 +124,7 @@ model:
     use_learnable_pos_emb: true
 
   context_encoder: # Only used for multi_encoder_context_tts, ignored otherwise
-    n_layers: 3
+    n_layers: 1
     d_model: 768
     d_ffn: 3072
     sa_n_heads: 12
