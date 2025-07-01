@@ -38,7 +38,7 @@ def _setup_trainer_and_restore_model(path: str, trainer: nl.Trainer, model: pl.L
     """Setup trainer and restore model from path"""
 
     # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
-    from nemo.collections.llm.modelopt import set_modelopt_spec_if_exists_in_ckpt
+    from nemo.collections.vlm.modelopt import set_modelopt_spec_if_exists_in_ckpt
 
     set_modelopt_spec_if_exists_in_ckpt(model, path)
 
