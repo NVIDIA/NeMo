@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import contextlib
+import inspect
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
