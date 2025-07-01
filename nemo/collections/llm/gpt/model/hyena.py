@@ -467,6 +467,7 @@ class Hyena7bARCLongContextConfig(Hyena7bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 11264
+    seq_len_interpolation_factor: float = 128
 
 
 @dataclass
