@@ -116,48 +116,29 @@ You can also specify the files to be transcribed inside a manifest file, and pas
 Improve ASR transcriptions by incorporating a language model (LM)
 -----------------------------------------------------------------
 
-You can often improve transcription accuracy by using a language model to help select words that are more likely to occur in a given context.
-Even a simple n-gram language model can provide a noticeable boost in accuracy.
+You can often improve transcription accuracy by incorporating a language model to guide the selection of more probable words in context.
+Even a simple n-gram language model can yield a noticeable improvement.
 
-Language Model Integration Options
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-NeMo provides multiple approaches for integrating language models with ASR systems:
-
-**1. NGPU-LM (Recommended for Production)**
-   GPU-accelerated LM fusion for all major model types: CTC, RNN-T, TDT, and AED models.
-
-**2. KenLM (Traditional CPU-based)**
-   CPU-based LM fusion using the KenLM library.
-
-LM Fusion using NGPU-LM
-^^^^^^^^^^^^^^^^^^^^^^^
-
-NGPU-LM fusion is supported for all major decoding approaches, including CTC, RNN-T, TDT and AED models.
-Fusion can be performed during both greedy decoding and beam search decoding.
-
-After :ref:`training <train-ngram-lm>` an N-gram LM, you can use it for transcribing audio using the 
+NeMo supports GPU-accelerated language model fusion for all major ASR model types, including CTC, RNN-T, TDT, and AED. 
+Customization is available during both greedy and beam decoding. After :ref:`training <train-ngram-lm>` an n-gram LM, you can apply it using the
 `speech_to_text_eval.py <https://github.com/NVIDIA/NeMo/blob/main/examples/asr/speech_to_text_eval.py>`_ script.
 
-To configure the evaluation:
+**To configure the evaluation:**
 
-1. **Select the pretrained model:**
-   Use the `pretrained_name` option to choose a pretrained model, or provide a local model path using the `model_path` option.  
+1. Select the pretrained model:
+   Use the `pretrained_name` option or provide a local path using `model_path`.
 
-2. **Set up the N-gram language model:**
-   Provide the path to the NGPU-LM model using the `ngram_lm_model` option, and set the language model weight with the `ngram_lm_alpha` option.
+2. Set up the N-gram language model:
+   Provide the path to the NGPU-LM model with `ngram_lm_model`, and set LM weight with `ngram_lm_alpha`.
 
-3. **Choose the decoding strategy:**
+3. Choose the decoding strategy:
 
    - CTC models: `greedy_batch` or `beam_batch`
-
-   - RNN-T models: `greedy_batch` or `malsd_batch`, `maes_batch`
-
+   - RNN-T models: `greedy_batch`, `malsd_batch`, or `maes_batch`
    - TDT models: `greedy_batch` or `malsd_batch`
-   
-   - AED models: `beam` (`beam_size=1` corresponds to greedy decoding)
+   - AED models: `beam` (set `beam_size=1` for greedy decoding)
 
-
+4. Run the evaluation script.
 
 **Example: CTC Greedy Decoding with NGPU-LM**
 
@@ -197,31 +178,7 @@ To configure the evaluation:
         rnnt_decoding.beam.beam_size=10 \
         rnnt_decoding.strategy="malsd_batch"
 
-
-See detailed NGPU-LM documentation :doc:`here <./asr_ngpulm_language_modeling_and_customization>`.
-
-LM Fusion using KenLM
-^^^^^^^^^^^^^^^^^^^^^
-
-After :ref:`training <train-ngram-lm>` an N-gram LM, you can use it for transcribing audio as follows:
-
-1. Install the OpenSeq2Seq beam search decoding and KenLM libraries using the `install_beamsearch_decoders script <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/install_beamsearch_decoders.sh>`_.
-2. Perform transcription using the `eval_beamsearch_ngram script <https://github.com/NVIDIA/NeMo/blob/stable/scripts/asr_language_modeling/ngram_lm/eval_beamsearch_ngram_ctc.py>`_:
-
-.. code-block:: bash
-
-    python eval_beamsearch_ngram.py nemo_model_file=<path to the .nemo file of the model> \
-        input_manifest=<path to the evaluation JSON manifest file \
-        kenlm_model_file=<path to the binary KenLM model> \
-        beam_width=[<list of the beam widths, separated with commas>] \
-        beam_alpha=[<list of the beam alphas, separated with commas>] \
-        beam_beta=[<list of the beam betas, separated with commas>] \
-        preds_output_folder=<optional folder to store the predictions> \
-        probs_cache_file=null \
-        decoding_mode=beamsearch_ngram \
-        decoding_strategy="<Beam library such as beam, pyctcdecode or flashlight>"
-
-See more information about LM decoding :doc:`here <./asr_language_modeling_and_customization>`.
+See detailed documentation here: :ref:`asr_language_modeling_and_customization`.
 
 Use real-time transcription
 ---------------------------

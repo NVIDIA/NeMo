@@ -1,6 +1,8 @@
-######################################################################################
-ASR Language Modeling and Customization with NGPU-LM (GPU-based N-gram Language Model)
-######################################################################################
+.. _ngpulm_ngram_modeling:
+
+***************************************************************
+NGPU-LM (GPU-based N-gram Language Model) Language Model Fusion
+***************************************************************
 
 ASR systems can achieve significantly improved accuracy by leveraging **external language model (LM) shallow fusion** during the decoding process. 
 This technique integrates knowledge from an external LM without requiring the ASR model itself to be retrained.
@@ -43,8 +45,6 @@ For full details, please refer to the [beamsearch]_.
 
 NGPU-LM fusion is supported for BPE-based ASR models (CTC, RNNT, TDT, AED) during both greedy and beam decoding.
 
-.. _train-ngram-lm:
-
 Train NGPU-LM
 =============
 
@@ -64,8 +64,7 @@ However, for faster performance, it is recommended to convert the model to the `
                               preserve_arpa=true \
                               save_nemo=True
 
-For a complete list of arguments and usage details, refer to the 
-`ASR decoding and customization guide <https://github.com/NVIDIA/NeMo/blob/main/docs/source/asr/asr_language_modeling_and_customization>`__.
+For a complete list of arguments and usage details, refer to the :ref:`train-ngram-lm`.
 
 
 .. note::
