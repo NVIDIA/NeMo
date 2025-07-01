@@ -204,7 +204,6 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         ckpt_path = self.language_model_from_pretrained
 
         if dist_checkpointing.check_is_distributed_checkpoint(ckpt_path):
-            # TODO: why is this early return here
             return ckpt_path
 
         if not torch.distributed.is_initialized():

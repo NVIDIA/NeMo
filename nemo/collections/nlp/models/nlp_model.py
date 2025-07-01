@@ -397,7 +397,6 @@ class NLPModel(ModelPT, Exportable):
                     if model.trainer.strategy.launcher is not None:
                         model.trainer.strategy.launcher.launch(dummy, trainer=model.trainer)
                     model.trainer.strategy.setup_environment()
-                # TODO: confirm this is NeMo 1?
                 sharded_state_dict = model.sharded_state_dict()
                 if kwargs.get("load_mlm", False):
                     mlm_sharded_state_dict = {}
