@@ -33,6 +33,7 @@ from torch import Tensor
 
 try:
     from megatron.core.extensions.transformer_engine import te_checkpoint
+
     HAVE_TE = True
 except ImportError:
     HAVE_TE = False
