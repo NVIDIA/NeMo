@@ -97,7 +97,7 @@ You can run NGPU-LM shallow fusion during greedy CTC decoding using the followin
 .. code-block:: bash
 
     python examples/asr/speech_to_text_eval.py \
-        pretrained_name=nvidia/stt_en_fastconformer_ctc_large \
+        pretrained_name=nvidia/parakeet-ctc-1.1b \
         amp=false \
         amp_dtype=bfloat16 \
         matmul_precision=high \
@@ -144,7 +144,7 @@ The following is the list of the adjustable arguments of batched CTC decoding al
 .. code-block:: bash
 
     python examples/asr/speech_to_text_eval.py \
-        pretrained_name=nvidia/stt_en_fastconformer_ctc_large \
+        pretrained_name=nvidia/parakeet-ctc-1.1b \
         amp=false \
         amp_dtype=bfloat16 \
         matmul_precision=high \
@@ -161,17 +161,17 @@ The following is the list of the adjustable arguments of batched CTC decoding al
         ctc_decoding.beam.allow_cuda_graphs=True
 
 
-RNN-T(TDT) decoding with NGPU-LM
---------------------------------
+RNN-T/TDT decoding with NGPU-LM
+-------------------------------
 
 **Greedy Search:**
 
-You can run NGPU-LM shallow fusion during greedy RNN-T (TDT) decoding using the following command:
+You can run NGPU-LM shallow fusion during greedy RNN-T / TDT decoding using the following command:
 
 .. code-block:: bash
 
     python examples/asr/speech_to_text_eval.py \
-        pretrained_name=nvidia/stt_en_fastconformer_transducer_large \
+        pretrained_name=nvidia/parakeet-rnnt-1.1b \
         amp=false \
         amp_dtype=bfloat16 \
         matmul_precision=high \
@@ -187,12 +187,12 @@ You can run NGPU-LM shallow fusion during greedy RNN-T (TDT) decoding using the 
 
 .. note::
 
-    To run the inference with TDT model, you need to provide pretrained TDT model in ``pretrained_name`` field (for example ``nvidia/stt_en_fastconformer_tdt_large`` ).
+    To run the inference with TDT model, you need to provide pretrained TDT model in ``pretrained_name`` field (for example ``nvidia/parakeet-tdt_ctc-1.1b`` ).
 
 
 **Beam Search:**
 
-During RNN-T (TDT) beam search, each hypothesis is scored using the following formula:
+During RNN-T / TDT beam search, each hypothesis is scored using the following formula:
 
 .. code-block::
 
@@ -268,13 +268,13 @@ The following is the list of the adjustable arguments of batched CTC decoding al
 | maes_expansion_gamma  | float     | maes_batch              | 2.3              | Threshold used to prune candidate hypotheses by comparing their scores to the best hypothesis.                                 |
 +-----------------------+-----------+-------------------------+------------------+--------------------------------------------------------------------------------------------------------------------------------+
 
-You can run NGPU-LM shallow fusion during beam RNN-T (TDT) decoding using the following command:
+You can run NGPU-LM shallow fusion during beam RNN-T / TDT decoding using the following command:
 
 
 .. code-block:: bash
 
     python examples/asr/speech_to_text_eval.py \
-        pretrained_name=nvidia/stt_en_fastconformer_transducer_large \
+        pretrained_name=nvidia/parakeet-rnnt-1.1b \
         amp=false \
         amp_dtype=bfloat16 \
         matmul_precision=high \
@@ -293,7 +293,7 @@ You can run NGPU-LM shallow fusion during beam RNN-T (TDT) decoding using the fo
 
 .. note::
 
-    To run the inference with TDT model, you need to provide pretrained TDT model in ``pretrained_name`` field (for example ``nvidia/stt_en_fastconformer_tdt_large`` ).
+    To run the inference with TDT model, you need to provide pretrained TDT model in ``pretrained_name`` field (for example ``nvidia/parakeet-tdt_ctc-1.1b`` ).
 
 AED Decoding with NGPU-LM
 -------------------------

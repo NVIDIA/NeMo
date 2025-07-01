@@ -145,7 +145,7 @@ Customization is available during both greedy and beam decoding. After :ref:`tra
 .. code-block:: bash
 
     python examples/asr/speech_to_text_eval.py \
-        pretrained_name=nvidia/stt_en_fastconformer_ctc_large \
+        pretrained_name=nvidia/parakeet-ctc-1.1b \
         amp=false \
         amp_dtype=bfloat16 \
         matmul_precision=high \
@@ -164,7 +164,7 @@ Customization is available during both greedy and beam decoding. After :ref:`tra
 .. code-block:: bash
 
     python examples/asr/speech_to_text_eval.py \
-        pretrained_name=nvidia/stt_en_fastconformer_transducer_large \
+        pretrained_name=nvidia/parakeet-rnnt-1.1b \
         amp=false \
         amp_dtype=bfloat16 \
         matmul_precision=high \
