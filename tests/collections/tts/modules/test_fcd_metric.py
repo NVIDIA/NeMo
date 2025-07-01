@@ -110,3 +110,14 @@ class TestFrechetCodecDistance:
         codes_len = T * torch.ones(B, device=device)
         # if it crashes PyTest will report it
         metric.update(codes, codes_len, is_real=True)
+
+    @pytest.mark.unit
+    def test_codebooks_mismatch_update(self, metric, device, codec):
+        """Test that the FCD metric doesn't crash when provided with incorrect number ofcodebooks."""
+        B = 2
+        C = codec.num_codebooks - 1  # intentionally missing one codebook
+        T = 10
+        codes = torch.ones(B, C, T, device=device)
+        codes_len = T * torch.ones(B, device=device, dtype=torch.long)
+        # if it crashes PyTest will report it
+        metric.update(codes, codes_len, is_real=True)
