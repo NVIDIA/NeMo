@@ -16,14 +16,34 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Union
+from lhotse import CutSet
 
 import soundfile as sf
 import torch
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
-
+import lhotse.dataset
+import torch
+from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoTarredIterator
 from nemo.utils import logging
 
+
+
+class ToAudio(torch.utils.data.Dataset):
+    def __init__(self, return_dict=True):
+        self.return_dict = return_dict
+
+    def __getitem__(self, cuts: CutSet):
+        audios, audio_lens = cuts.load_audio(collate=True)
+        text = [cut.supervisions[0].text for cut in cuts]
+
+        tokens = torch.zeros(len(text), 0, dtype=torch.int64)
+        token_lens = torch.zeros(len(text), dtype=torch.int64)
+
+        if self.return_dict:
+            return {"cuts": cuts, "audios": audios, "audio_lens": audio_lens, "text": text}
+        else:
+            return audios, audio_lens, tokens, token_lens
 
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     fp_parts = Path(audio_filepath).parts[-audio_filepath_parts_in_utt_id:]
@@ -112,6 +132,15 @@ def get_char_tokens(text, model):
             tokens.append(len(model.decoder.vocabulary))  # return unk token (same as blank token)
 
     return tokens
+
+def get_lhotse_dataloader(cuts, batch_size, return_dict=False):
+    dloader = torch.utils.data.DataLoader(
+        dataset=ToAudio(return_dict=return_dict),
+        sampler=lhotse.dataset.DynamicCutSampler(cuts, max_cuts=batch_size),
+        num_workers=1,
+        batch_size=None,
+    )
+    return dloader
 
 
 def is_sub_or_superscript_pair(ref_text, text):
@@ -684,6 +713,7 @@ def get_batch_variables(
     simulate_cache_aware_streaming=False,
     use_buffered_chunked_streaming=False,
     buffered_chunk_params={},
+    load_lhotse_tarred=False,
 ):
     """
     Returns:
@@ -697,8 +727,19 @@ def get_batch_variables(
     # get hypotheses by calling 'transcribe'
     # we will use the output log_probs, the duration of the log_probs,
     # and (optionally) the predicted ASR text from the hypotheses
-    audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
-    B = len(audio_filepaths_batch)
+  
+    if load_lhotse_tarred:
+        # convert batch tensor to list of tensors which is what expected by the transcribe function
+        # audio_batch = [manifest_lines_batch['audios'][i] for i in range(manifest_lines_batch['audios'].shape[0])]
+
+        # audio_filepaths_batch = [manifest_lines_batch['cuts'][i].id for i in range(manifest_lines_batch['audios'].shape[0])]
+        audio_filepaths_batch = [cut.id for cut in manifest_lines_batch]
+        B = len(manifest_lines_batch)
+        # text_batch = [ {"text": manifest_lines_batch['text'][i]} for i in range(len(manifest_lines_batch['text']))]
+
+    else:
+        audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
+        B = len(audio_filepaths_batch)
     log_probs_list_batch = []
     T_list_batch = []
     pred_text_batch = []
@@ -706,7 +747,10 @@ def get_batch_variables(
     if not use_buffered_chunked_streaming:
         if not simulate_cache_aware_streaming:
             with torch.no_grad():
-                hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
+                if load_lhotse_tarred:
+                    hypotheses = model.transcribe(CutSet.from_cuts(manifest_lines_batch), return_hypotheses=True, batch_size=B)
+                else:
+                    hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
         else:
             with torch.no_grad():
                 hypotheses = model.transcribe_simulate_cache_aware_streaming(
@@ -739,12 +783,15 @@ def get_batch_variables(
     y_list_batch = []
     U_list_batch = []
     utt_obj_batch = []
-
+  
     for i_line, line in enumerate(manifest_lines_batch):
         if align_using_pred_text:
             gt_text_for_alignment = " ".join(pred_text_batch[i_line].split())
         else:
-            gt_text_for_alignment = line["text"]
+            if load_lhotse_tarred:
+                gt_text_for_alignment = manifest_lines_batch[i_line].supervisions[0].text
+            else:
+                gt_text_for_alignment = line["text"]
         utt_obj = get_utt_obj(
             gt_text_for_alignment,
             model,
@@ -755,6 +802,7 @@ def get_batch_variables(
         )
 
         # update utt_obj.pred_text or utt_obj.text
+
         if align_using_pred_text:
             utt_obj.pred_text = pred_text_batch[i_line]
             if len(utt_obj.pred_text) == 0:
@@ -765,7 +813,10 @@ def get_batch_variables(
             if "text" in line:
                 utt_obj.text = line["text"]  # keep the text as we will save it in the output manifest
         else:
-            utt_obj.text = line["text"]
+            if load_lhotse_tarred:
+                utt_obj.text = manifest_lines_batch[i_line].supervisions[0].text
+            else:
+                utt_obj.text = line["text"]
             if len(utt_obj.text) == 0:
                 logging.info(
                     f"'text' of utterance {utt_obj.utt_id} is empty - we will not generate"
@@ -839,3 +890,12 @@ def get_batch_variables(
         utt_obj_batch,
         output_timestep_duration,
     )
+
+def load_nemo_tarred_from_dir(manifest_path: str, tar_paths: str) -> CutSet:
+
+    # Initialize iterator
+    iterator = LazyNeMoTarredIterator(
+        manifest_path=manifest_path,
+        tar_paths=tar_paths,
+    )
+    return CutSet.from_cuts(iterator)
