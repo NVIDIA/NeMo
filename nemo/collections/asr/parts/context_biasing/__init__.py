@@ -20,4 +20,10 @@ from nemo.collections.asr.parts.context_biasing.context_biasing_utils import (
 from nemo.collections.asr.parts.context_biasing.context_graph_ctc import ContextGraphCTC
 from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import run_word_spotter
 
-__all__ = ["GPUBoostingTreeModel", "compute_fscore", "merge_alignment_with_ws_hyps", "ContextGraphCTC", "run_word_spotter"]
+__all__ = [
+    "GPUBoostingTreeModel",
+    "compute_fscore",
+    "merge_alignment_with_ws_hyps",
+    "ContextGraphCTC",
+    "run_word_spotter",
+]
