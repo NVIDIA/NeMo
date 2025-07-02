@@ -231,7 +231,7 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                 )
 
             input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
-                get_adapter_attributes_from_linear(m)
+                get_adapter_attributes_from_linear(m, full_name)
             )
 
             adapter_kwargs = dict(

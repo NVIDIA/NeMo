@@ -68,12 +68,16 @@ TECL = (TEColumnParallelLinear, TELayerNormColumnParallelLinear, TEColumnParalle
 TERL = (TERowParallelLinear, TERowParallelGroupedLinear)
 
 
-def get_adapter_attributes_from_linear(m: nn.Module):
+def get_adapter_attributes_from_linear(m: nn.Module, full_name: str):
     """
     Return input_is_parallel, in_features, out_feature attributes based on implementation of the base layer.
     """
     disable_sequence_parallel_comm = not m.config.sequence_parallel
     base_linear_is_parallel = True
+    # check if open overlap for share expert, if overlap enable, ag and rs will do in megatron's hook
+    moe_shared_expert_overlap = True if is_share_expert_linear(full_name) and m.config.moe_shared_expert_overlap else False
+    if moe_shared_expert_overlap:
+        disable_sequence_parallel_comm = True
     if HAVE_TE and any(isinstance(m, te_column_parallel) for te_column_parallel in TECL):
         input_is_parallel = False
         # m.in_features and m.out_features are divided by tp_size already,
@@ -132,7 +136,13 @@ def is_expert_linear(fqn):
     Return whether the current base module is an expert linear module.
     See ParallelLinearAdapter.is_expert for usage details.
     """
-    return re.match(r'.*mlp\..*experts.*\.linear_fc[1-2]$', fqn) is not None
+    return re.match(r'.*mlp\.experts.*\.linear_fc[1-2]$', fqn) is not None
+
+def is_share_expert_linear(fqn):
+    """
+    Return whether the current base module is an share expert linear module.
+    """
+    return re.match(r'.*mlp\.shared_experts\.linear_fc[1-2]$', fqn) is not None
 
 
 def wildcard_match(pattern, key):
