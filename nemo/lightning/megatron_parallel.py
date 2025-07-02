@@ -711,18 +711,11 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         from nemo.utils import logging
 
         if metadata is None:
-            strategy = self.trainer.strategy
-            if isinstance(strategy, MegatronParallel):
-                metadata = strategy.sharded_state_dict_metadata
-                logging.debug(
-                    f'No sharded_state_dict metadata passed for the model,'
-                    f' using metadata for checkpoint save: {metadata}'
-                )
-            else:
-                logging.warning(
-                    'sharded_state_dict called with `metadata=None` and strategy is not'
-                    ' MegatronParallel. Using empty metadata.'
-                )
+            metadata = self.trainer.strategy.sharded_state_dict_metadata
+            logging.debug(
+                f'No sharded_state_dict metadata passed for the model,'
+                f' using metadata for checkpoint save: {metadata}'
+            )
         else:
             logging.debug(f'Using passed sharded_state_dict metadata in the model: {metadata}')
         sharded_state_dict = {}
