@@ -20,9 +20,12 @@ import numpy as np
 import torch
 from tqdm import trange
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import INFERENCE_MODE, TRAINING_MODE
-from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
-from nemo.collections.nlp.data.question_answering.input_example.qa_gpt_input_example import GPTQAInputExample
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
+    INFERENCE_MODE, TRAINING_MODE)
+from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import \
+    QADataset
+from nemo.collections.nlp.data.question_answering.input_example.qa_gpt_input_example import \
+    GPTQAInputExample
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 

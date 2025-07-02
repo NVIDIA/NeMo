@@ -21,15 +21,14 @@ from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
-from nemo.collections.llm.gpt.model.nemotron import (
-    Nemotron3Config4B,
-    Nemotron3Config8B,
-    Nemotron3Config22B,
-    Nemotron4Config15B,
-    Nemotron4Config340B,
-    NemotronModel,
-)
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
+from nemo.collections.llm.gpt.model.nemotron import (Nemotron3Config4B,
+                                                     Nemotron3Config8B,
+                                                     Nemotron3Config22B,
+                                                     Nemotron4Config15B,
+                                                     Nemotron4Config340B,
+                                                     NemotronModel)
+from nemo.collections.llm.recipes.precision.mixed_precision import (bf16_mixed,
+                                                                    fp16_mixed)
 
 
 def nemotron_model(version: str) -> run.Config[pl.LightningModule]:

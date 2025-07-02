@@ -21,7 +21,8 @@ import argparse
 
 import requests
 import torch
-from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
 from PIL import Image
 from transformers import AutoProcessor
 

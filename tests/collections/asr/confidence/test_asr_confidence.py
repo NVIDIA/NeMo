@@ -22,13 +22,20 @@ import pytest
 from lightning.pytorch import Trainer
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
-from nemo.collections.asr.parts.submodules.ctc_greedy_decoding import GreedyCTCInferConfig
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInferConfig
-from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import run_confidence_benchmark
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
+from nemo.collections.asr.models import (ASRModel, EncDecCTCModelBPE,
+                                         EncDecRNNTBPEModel)
+from nemo.collections.asr.parts.submodules.ctc_decoding import \
+    CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.ctc_greedy_decoding import \
+    GreedyCTCInferConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import \
+    RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import \
+    GreedyBatchedRNNTInferConfig
+from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import \
+    run_confidence_benchmark
+from nemo.collections.asr.parts.utils.asr_confidence_utils import \
+    ConfidenceConfig
 
 # both models recognize the test data without errors, thus every metric except ece return default values
 ECE_VALUES = {("token", "ctc"): 0.87, ("token", "rnnt"): 0.82, ("word", "ctc"): 0.91, ("word", "rnnt"): 0.88}

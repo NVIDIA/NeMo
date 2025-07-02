@@ -21,11 +21,15 @@ from omegaconf import DictConfig, OmegaConf
 from nemo import lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm.api import _setup, finetune
-from nemo.collections.speechlm.data.audio_to_text_module import AudioToTextDataModule
-from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM, SpeechToTextLLMConfig
+from nemo.collections.speechlm.data.audio_to_text_module import \
+    AudioToTextDataModule
+from nemo.collections.speechlm.models.speech_to_text_llm_model import (
+    SpeechToTextLLM, SpeechToTextLLMConfig)
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
-from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
-from nemo.collections.speechlm.utils import SpeechToTextLLMPEFT, get_object_list_from_config
+from nemo.collections.speechlm.modules.modality_adapter import \
+    ModalityAdapterConfig
+from nemo.collections.speechlm.utils import (SpeechToTextLLMPEFT,
+                                             get_object_list_from_config)
 from nemo.collections.speechlm.utils.io import prepare_pretrained_llm_dist_ckpt
 from nemo.core.classes.common import Serialization, typecheck
 from nemo.lightning import AutoResume

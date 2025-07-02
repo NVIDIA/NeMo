@@ -16,7 +16,8 @@
 import nemo_run as run
 import torch
 
-from nemo.lightning.pytorch.plugins.mixed_precision import MegatronMixedPrecision
+from nemo.lightning.pytorch.plugins.mixed_precision import \
+    MegatronMixedPrecision
 
 
 @run.cli.factory

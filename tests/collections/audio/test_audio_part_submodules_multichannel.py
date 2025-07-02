@@ -16,12 +16,8 @@ import pytest
 import torch
 
 from nemo.collections.audio.parts.submodules.multichannel import (
-    ChannelAttentionPool,
-    ChannelAugment,
-    ChannelAveragePool,
-    TransformAttendConcatenate,
-    TransformAverageConcatenate,
-)
+    ChannelAttentionPool, ChannelAugment, ChannelAveragePool,
+    TransformAttendConcatenate, TransformAverageConcatenate)
 
 
 class TestChannelAugment:

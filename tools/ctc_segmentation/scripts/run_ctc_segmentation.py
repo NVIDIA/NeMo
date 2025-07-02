@@ -28,7 +28,8 @@ from utils import get_segments
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import \
+    EncDecHybridRNNTCTCModel
 
 parser = argparse.ArgumentParser(description="CTC Segmentation")
 parser.add_argument("--output_dir", default="output", type=str, help="Path to output directory")

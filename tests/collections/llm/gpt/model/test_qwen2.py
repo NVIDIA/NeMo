@@ -14,13 +14,10 @@
 
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.qwen2 import (
-    Qwen2Config,
-    Qwen2Config1P5B,
-    Qwen2Config7B,
-    Qwen2Config72B,
-    Qwen2Config500M,
-)
+from nemo.collections.llm.gpt.model.qwen2 import (Qwen2Config, Qwen2Config1P5B,
+                                                  Qwen2Config7B,
+                                                  Qwen2Config72B,
+                                                  Qwen2Config500M)
 
 
 def test_qwen2_config():

@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.speechlm.models import HFAutoModelForSpeechSeq2Seq
-from nemo.collections.speechlm.recipes.pipeline import speech_to_text_llm_train, speech_to_text_llm_validate
+from nemo.collections.speechlm.recipes.pipeline import (
+    speech_to_text_llm_train, speech_to_text_llm_validate)
 from nemo.utils import logging
 
 __all__ = [
@@ -25,7 +26,8 @@ __all__ = [
 try:
     import nemo_run as run
 
-    from nemo.collections.speechlm.api import finetune, generate, pretrain, train, validate
+    from nemo.collections.speechlm.api import (finetune, generate, pretrain,
+                                               train, validate)
     from nemo.collections.speechlm.recipes.optim import adam
 
     __all__.extend(

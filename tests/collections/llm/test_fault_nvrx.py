@@ -20,11 +20,11 @@ import argparse
 import os
 
 import nemo_run as run
-
 from lightning.pytorch.callbacks import Callback
 
 from nemo.collections import llm
-from nemo.collections.llm.recipes.callbacks.common import straggler_det_callback
+from nemo.collections.llm.recipes.callbacks.common import \
+    straggler_det_callback
 from nemo.lightning.run.plugins import FaultTolerancePlugin
 from nemo.utils.exp_manager import TimingCallback
 from tests.collections.llm.common import small_llama_cfg, train_data

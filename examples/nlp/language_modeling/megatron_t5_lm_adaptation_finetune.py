@@ -16,18 +16,15 @@
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import ModelSummary
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
-from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
+from lightning.pytorch.trainer.connectors.checkpoint_connector import \
+    _CheckpointConnector
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import \
+    MegatronT5Model
 from nemo.collections.nlp.parts.nlp_overrides import (
-    CustomProgressBar,
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+    CustomProgressBar, GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy,
+    NLPSaveRestoreConnector, PipelineMixedPrecisionPlugin)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

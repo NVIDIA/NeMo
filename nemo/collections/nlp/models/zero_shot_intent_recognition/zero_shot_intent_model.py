@@ -22,10 +22,8 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dataset import (
-    ZeroShotIntentDataset,
-    ZeroShotIntentInferenceDataset,
-    calc_class_weights_from_dataloader,
-)
+    ZeroShotIntentDataset, ZeroShotIntentInferenceDataset,
+    calc_class_weights_from_dataloader)
 from nemo.collections.nlp.models import TextClassificationModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging

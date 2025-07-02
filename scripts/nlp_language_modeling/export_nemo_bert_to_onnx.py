@@ -19,8 +19,10 @@ from argparse import ArgumentParser
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertTextEmbeddingModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
+    MegatronBertTextEmbeddingModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.utils import logging
 
 

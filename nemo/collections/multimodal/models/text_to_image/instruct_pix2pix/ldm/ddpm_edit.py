@@ -18,15 +18,12 @@ https://github.com/timothybrooks/instruct-pix2pix/blob/2afcb7e45bd350765f21a58a0
 import torch
 from einops import rearrange
 
-from nemo.collections.multimodal.data.instruct_pix2pix.edit_dataset import EditDataset
+from nemo.collections.multimodal.data.instruct_pix2pix.edit_dataset import \
+    EditDataset
 from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import (
-    LatentDiffusion,
-    MegatronLatentDiffusion,
-)
+    LatentDiffusion, MegatronLatentDiffusion)
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
+    MegatronPretrainingRandomSampler, MegatronPretrainingSampler)
 from nemo.utils import logging
 
 try:

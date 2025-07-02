@@ -181,7 +181,8 @@ class AutoResume:
         return base_model_path
 
     def _find_trainer_ckpt_path(self) -> Optional[Path]:
-        from nemo.utils.exp_manager import NotFoundError, _filter_out_unfinished_checkpoints
+        from nemo.utils.exp_manager import (NotFoundError,
+                                            _filter_out_unfinished_checkpoints)
 
         app_state = AppState()
         log_dir = app_state.log_dir

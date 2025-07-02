@@ -16,31 +16,27 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    PromptEncoderAdapterConfig,
-)
-from nemo.collections.nlp.modules.common.megatron.hiddens import get_hiddens_module
-from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
+    AdapterName, PromptEncoderAdapterConfig)
+from nemo.collections.nlp.modules.common.megatron.hiddens import \
+    get_hiddens_module
+from nemo.collections.nlp.modules.common.megatron.language_model import \
+    Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
-from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import (
-    MegatronTransformerEncoderDecoderModule,
-)
-from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
+from nemo.collections.nlp.modules.common.megatron.megatron_decoders import \
+    get_decoder_model
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder_decoder import \
+    MegatronTransformerEncoderDecoderModule
+from nemo.collections.nlp.modules.common.megatron.megatron_encoders import \
+    get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.position_embedding import (
-    ALiBiRelativePositionEmbedding,
-    KERPLERelativePositionEmbedding,
-    T5RelativePositionEmbedding,
-)
+    ALiBiRelativePositionEmbedding, KERPLERelativePositionEmbedding,
+    T5RelativePositionEmbedding)
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    build_position_ids,
-    init_method_normal,
-    parallel_lm_logits,
-    scaled_init_method_normal,
-)
-from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import vocab_parallel_cross_entropy
+    ApexGuardDefaults, build_position_ids, init_method_normal,
+    parallel_lm_logits, scaled_init_method_normal)
+from nemo.collections.nlp.modules.common.megatron.vocab_parallel_cross_entropy import \
+    vocab_parallel_cross_entropy
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging
 
@@ -58,7 +54,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import (ModelParallelConfig, parallel_state,
+                               tensor_parallel)
 
     HAVE_MEGATRON_CORE = True
 

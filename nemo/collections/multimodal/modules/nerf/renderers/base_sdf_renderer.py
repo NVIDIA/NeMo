@@ -13,7 +13,8 @@
 # limitations under the License.
 import torch
 
-from nemo.collections.multimodal.modules.renderer.base_renderer import RendererBase
+from nemo.collections.multimodal.modules.renderer.base_renderer import \
+    RendererBase
 
 
 class BaseSDFRenderer(RendererBase):

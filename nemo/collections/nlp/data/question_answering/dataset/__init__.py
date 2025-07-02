@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.question_answering.dataset.qa_bert_dataset import BERTQADataset
-from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import QADataset
-from nemo.collections.nlp.data.question_answering.dataset.qa_gpt_dataset import GPTQADataset
-from nemo.collections.nlp.data.question_answering.dataset.qa_s2s_dataset import S2SQADataset
+from nemo.collections.nlp.data.question_answering.dataset.qa_bert_dataset import \
+    BERTQADataset
+from nemo.collections.nlp.data.question_answering.dataset.qa_dataset import \
+    QADataset
+from nemo.collections.nlp.data.question_answering.dataset.qa_gpt_dataset import \
+    GPTQADataset
+from nemo.collections.nlp.data.question_answering.dataset.qa_s2s_dataset import \
+    S2SQADataset

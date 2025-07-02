@@ -16,7 +16,8 @@ from typing import List, Optional
 
 from vllm.config import TokenizerPoolConfig
 from vllm.lora.request import LoRARequest
-from vllm.transformers_utils.tokenizer_group.base_tokenizer_group import BaseTokenizerGroup
+from vllm.transformers_utils.tokenizer_group.base_tokenizer_group import \
+    BaseTokenizerGroup
 
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 

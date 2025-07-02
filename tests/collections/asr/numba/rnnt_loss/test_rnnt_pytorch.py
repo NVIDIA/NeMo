@@ -18,13 +18,12 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.losses.rnnt import MultiblankRNNTLossPytorch, RNNTLossPytorch, TDTLossPytorch
-from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
+from nemo.collections.asr.losses.rnnt import (MultiblankRNNTLossPytorch,
+                                              RNNTLossPytorch, TDTLossPytorch)
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import \
+    RNNTLoss as RNNTLoss_Numpy
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_pytorch import (
-    MultiblankRNNTLossNumba,
-    RNNTLossNumba,
-    TDTLossNumba,
-)
+    MultiblankRNNTLossNumba, RNNTLossNumba, TDTLossNumba)
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 

@@ -29,15 +29,14 @@ from omegaconf import OmegaConf
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
-from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig, tokenize, tokenize_with_prompt
+from nemo.collections.common.data.lhotse.dataloader import (
+    LhotseDataLoadingConfig, tokenize, tokenize_with_prompt)
 from nemo.collections.common.data.lhotse.sampling import (
-    MultimodalFixedBucketBatchSizeConstraint2D,
-    MultimodalSamplingConstraint,
-    TokenCountFilter,
-    TokenPerTokenFilter,
-)
+    MultimodalFixedBucketBatchSizeConstraint2D, MultimodalSamplingConstraint,
+    TokenCountFilter, TokenPerTokenFilter)
 from nemo.collections.common.prompts.formatter import PromptFormatter
-from nemo.collections.common.tokenizers import AggregateTokenizer, SentencePieceTokenizer
+from nemo.collections.common.tokenizers import (AggregateTokenizer,
+                                                SentencePieceTokenizer)
 
 
 def parse_args():

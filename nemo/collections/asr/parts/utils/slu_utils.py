@@ -21,10 +21,8 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.modules.transformer import (
-    BeamSearchSequenceGenerator,
-    GreedySequenceGenerator,
-    TopKSequenceGenerator,
-)
+    BeamSearchSequenceGenerator, GreedySequenceGenerator,
+    TopKSequenceGenerator)
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes.module import NeuralModule
 

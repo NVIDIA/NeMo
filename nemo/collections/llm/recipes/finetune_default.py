@@ -23,7 +23,8 @@ from nemo.collections import llm
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.peft import DoRA, LoRA
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.optim.adam import \
+    distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.lightning.pytorch.callbacks import PEFT
 from nemo.utils.exp_manager import TimingCallback

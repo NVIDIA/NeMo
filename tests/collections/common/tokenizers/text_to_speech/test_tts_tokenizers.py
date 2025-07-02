@@ -15,15 +15,9 @@
 import pytest
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
-    EnglishCharsTokenizer,
-    FrenchCharsTokenizer,
-    GermanCharsTokenizer,
-    IPATokenizer,
-    ItalianCharsTokenizer,
-    JapanesePhonemeTokenizer,
-    SpanishCharsTokenizer,
-    VietnameseCharsTokenizer,
-)
+    EnglishCharsTokenizer, FrenchCharsTokenizer, GermanCharsTokenizer,
+    IPATokenizer, ItalianCharsTokenizer, JapanesePhonemeTokenizer,
+    SpanishCharsTokenizer, VietnameseCharsTokenizer)
 from nemo.collections.tts.g2p.models.i18n_ipa import IpaG2p
 from nemo.collections.tts.g2p.models.ja_jp_ipa import JapaneseG2p
 

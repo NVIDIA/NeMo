@@ -35,14 +35,19 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.submodules.rnnt_loop_labels_computer import GreedyBatchedRNNTLoopLabelsComputer
-from nemo.collections.asr.parts.submodules.tdt_loop_labels_computer import GreedyBatchedTDTLoopLabelsComputer
+from nemo.collections.asr.parts.submodules.rnnt_loop_labels_computer import \
+    GreedyBatchedRNNTLoopLabelsComputer
+from nemo.collections.asr.parts.submodules.tdt_loop_labels_computer import \
+    GreedyBatchedTDTLoopLabelsComputer
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
-from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
+from nemo.collections.asr.parts.utils.asr_confidence_utils import (
+    ConfidenceMethodConfig, ConfidenceMethodMixin)
+from nemo.collections.common.parts.optional_cuda_graphs import \
+    WithOptionalCudaGraphs
 from nemo.collections.common.parts.rnn import label_collate
 from nemo.core.classes import Typing, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
+from nemo.core.neural_types import (AcousticEncodedRepresentation,
+                                    HypothesisType, LengthsType, NeuralType)
 from nemo.utils import logging
 
 
@@ -662,9 +667,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
 
                     if self.use_cuda_graph_decoder:
                         try:
-                            from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import (
-                                RNNTGreedyDecodeCudaGraph,
-                            )
+                            from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import \
+                                RNNTGreedyDecodeCudaGraph
 
                             self._greedy_decode = RNNTGreedyDecodeCudaGraph(max_symbols_per_step, self)
                         except (ImportError, ModuleNotFoundError, ValueError, EnvironmentError) as e:
@@ -706,7 +710,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             # Label-Looping implementation
             self._decoding_computer.maybe_enable_cuda_graphs()
         else:
-            from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import RNNTGreedyDecodeCudaGraph
+            from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import \
+                RNNTGreedyDecodeCudaGraph
 
             self._greedy_decode = RNNTGreedyDecodeCudaGraph(self.max_symbols, self)
 

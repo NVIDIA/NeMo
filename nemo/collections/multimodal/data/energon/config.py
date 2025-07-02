@@ -19,7 +19,8 @@ from typing import List, Optional, Tuple, Union
 import torch
 from megatron.core.packed_seq_params import PackedSeqParams
 
-from nemo.collections.multimodal.data.energon.conversation import BaseConversationTemplateConfig, LLaVATemplateConfig
+from nemo.collections.multimodal.data.energon.conversation import (
+    BaseConversationTemplateConfig, LLaVATemplateConfig)
 
 
 @dataclass

@@ -23,10 +23,14 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from PIL import Image
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
-from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import \
+    image_transform
 from nemo.collections.multimodal.data.neva.neva_dataset import process_image
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPFSDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.modules.common.megatron.megatron_init import \
+    fake_initialize_model_parallel
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPFSDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import AppState, logging
@@ -361,7 +365,8 @@ def setup_trainer_and_model_for_inference(
 
 
 def create_neva_model_and_processor(cfg):
-    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import \
+        MegatronNevaModel
 
     plugins = []
     if cfg.get('cluster_type', None) == 'BCP':

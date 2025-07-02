@@ -14,7 +14,8 @@
 
 try:
     from nemo_text_processing.text_normalization.en.graph_utils import GraphFst
-    from nemo_text_processing.text_normalization.en.verbalizers.whitelist import WhiteListFst
+    from nemo_text_processing.text_normalization.en.verbalizers.whitelist import \
+        WhiteListFst
 except (ImportError, ModuleNotFoundError):
     raise ModuleNotFoundError(
         "The package `nemo_text_processing` was not installed in this environment. Please refer to"

@@ -21,7 +21,8 @@ from megatron.core.model_parallel_config import ModelParallelConfig
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.transformer_config import TransformerConfig
 from omegaconf import OmegaConf
-from transformers import AutoConfig, AutoFeatureExtractor, AutoModelForSpeechSeq2Seq
+from transformers import (AutoConfig, AutoFeatureExtractor,
+                          AutoModelForSpeechSeq2Seq)
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.speechlm.utils import get_nested_attr, to_dict_config

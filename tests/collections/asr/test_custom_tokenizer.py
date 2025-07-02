@@ -19,8 +19,10 @@ import sentencepiece as spm
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.common.tokenizers.canary_tokenizer import DEFAULT_TOKENS, CanaryTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
+from nemo.collections.common.tokenizers.canary_tokenizer import (
+    DEFAULT_TOKENS, CanaryTokenizer)
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+    SentencePieceTokenizer, create_spt_model)
 from nemo.core import Serialization
 
 

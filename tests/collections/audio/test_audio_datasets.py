@@ -23,18 +23,13 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.parts.utils.manifest_utils import write_manifest
 from nemo.collections.audio.data import audio_to_audio_dataset
 from nemo.collections.audio.data.audio_to_audio import (
-    ASRAudioProcessor,
-    AudioToTargetDataset,
-    AudioToTargetWithEmbeddingDataset,
-    AudioToTargetWithReferenceDataset,
-    _audio_collate_fn,
-)
+    ASRAudioProcessor, AudioToTargetDataset, AudioToTargetWithEmbeddingDataset,
+    AudioToTargetWithReferenceDataset, _audio_collate_fn)
 from nemo.collections.audio.data.audio_to_audio_lhotse import (
-    LhotseAudioToTargetDataset,
-    convert_manifest_nemo_to_lhotse,
-)
+    LhotseAudioToTargetDataset, convert_manifest_nemo_to_lhotse)
 from nemo.collections.audio.parts.utils.audio import get_segment_start
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 
 
 class TestAudioDatasets:

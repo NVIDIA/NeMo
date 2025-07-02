@@ -15,8 +15,11 @@
 
 import torch
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers import Sampler
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.base_sampler import AbstractBaseSampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers import \
+    Sampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.base_sampler import \
+    AbstractBaseSampler
+
 from .dpmsolver import DPMSolver, NoiseScheduleVP, model_wrapper
 
 MODEL_TYPES = {"eps": "noise", "v": "v"}

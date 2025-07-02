@@ -20,8 +20,10 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model import GPTConfig175B, GPTModel
 from nemo.collections.llm.recipes import gpt3_175b
 from nemo.lightning import Trainer
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.garbage_collection import \
+    GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 

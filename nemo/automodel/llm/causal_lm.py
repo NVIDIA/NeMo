@@ -21,7 +21,8 @@ from typing import Any, Iterable, Optional, Protocol
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, BitsAndBytesConfig
 
-from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
+from nemo.automodel.loss.linear_ce import (HAVE_LINEAR_LOSS_CE,
+                                           fused_linear_cross_entropy)
 from nemo.automodel.loss.masked_ce import masked_cross_entropy
 from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
 from nemo.lightning.pytorch.callbacks.jit_transform import JitConfig
@@ -174,12 +175,14 @@ class AutoModelForCausalLMConfig:
                 raise e
 
         if self.use_liger_kernel:
-            from liger_kernel.transformers import _apply_liger_kernel_to_instance
+            from liger_kernel.transformers import \
+                _apply_liger_kernel_to_instance
 
             _apply_liger_kernel_to_instance(model=model)
 
         if self.model_accelerator is not None:
-            from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+            from nemo.lightning.pytorch.accelerate.transformer_engine import \
+                te_accelerate
 
             te_accelerate(model, self.model_accelerator.fp8_autocast)
 

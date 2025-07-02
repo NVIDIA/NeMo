@@ -15,7 +15,8 @@
 import argparse
 import os
 
-from nemo.collections.nlp.data.machine_translation.preproc_mt_data import MTDataPreproc
+from nemo.collections.nlp.data.machine_translation.preproc_mt_data import \
+    MTDataPreproc
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NMT dataset pre-processing')

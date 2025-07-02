@@ -22,8 +22,10 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from nemo.collections.asr.parts.preprocessing.perturb import NoisePerturbation, SilencePerturbation
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, select_channels
+from nemo.collections.asr.parts.preprocessing.perturb import (
+    NoisePerturbation, SilencePerturbation)
+from nemo.collections.asr.parts.preprocessing.segment import (AudioSegment,
+                                                              select_channels)
 
 
 class TestSelectChannels:

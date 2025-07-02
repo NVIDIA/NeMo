@@ -17,19 +17,18 @@ from typing import Dict, List, Optional, Tuple
 import torch
 
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
-from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
-from nemo.collections.audio.modules.features import SpectrogramToMultichannelFeatures
+from nemo.collections.asr.parts.preprocessing.features import \
+    make_seq_mask_like
+from nemo.collections.audio.modules.features import \
+    SpectrogramToMultichannelFeatures
 from nemo.collections.audio.parts.submodules.multichannel import (
-    ChannelAttentionPool,
-    ChannelAveragePool,
-    ParametricMultichannelWienerFilter,
-    TransformAttendConcatenate,
-    TransformAverageConcatenate,
-    WPEFilter,
-)
+    ChannelAttentionPool, ChannelAveragePool,
+    ParametricMultichannelWienerFilter, TransformAttendConcatenate,
+    TransformAverageConcatenate, WPEFilter)
 from nemo.collections.audio.parts.utils.audio import db2mag
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import FloatType, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (FloatType, LengthsType, NeuralType,
+                                    SpectrogramType)
 from nemo.utils import logging
 
 

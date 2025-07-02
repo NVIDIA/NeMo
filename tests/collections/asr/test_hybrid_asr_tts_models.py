@@ -19,7 +19,8 @@ import pytest
 import torch.nn as nn
 from omegaconf import DictConfig
 
-from nemo.collections.asr.models import ASRModel, EncDecCTCModelBPE, EncDecRNNTBPEModel
+from nemo.collections.asr.models import (ASRModel, EncDecCTCModelBPE,
+                                         EncDecRNNTBPEModel)
 from nemo.collections.asr.models.hybrid_asr_tts_models import ASRWithTTSModel
 from nemo.collections.asr.parts.submodules.batchnorm import FusedBatchNorm1d
 from nemo.collections.tts.models import FastPitchModel

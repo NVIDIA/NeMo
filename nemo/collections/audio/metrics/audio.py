@@ -18,11 +18,14 @@ import torch
 from torchmetrics import Metric
 from torchmetrics.audio.pesq import PerceptualEvaluationSpeechQuality
 from torchmetrics.audio.pit import PermutationInvariantTraining
-from torchmetrics.audio.sdr import ScaleInvariantSignalDistortionRatio, SignalDistortionRatio
-from torchmetrics.audio.snr import ScaleInvariantSignalNoiseRatio, SignalNoiseRatio
+from torchmetrics.audio.sdr import (ScaleInvariantSignalDistortionRatio,
+                                    SignalDistortionRatio)
+from torchmetrics.audio.snr import (ScaleInvariantSignalNoiseRatio,
+                                    SignalNoiseRatio)
 from torchmetrics.audio.stoi import ShortTimeObjectiveIntelligibility
-from nemo.collections.audio.metrics.squim import SquimMOSMetric, SquimObjectiveMetric
 
+from nemo.collections.audio.metrics.squim import (SquimMOSMetric,
+                                                  SquimObjectiveMetric)
 from nemo.utils import logging
 
 __all__ = ['AudioMetricWrapper']

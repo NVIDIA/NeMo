@@ -25,17 +25,14 @@ from einops import rearrange
 from transformers import AutoModel
 
 from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor
-from nemo.collections.common.parts.utils import ClampActivation, HalfSnake, Snake, mask_sequence_tensor
+from nemo.collections.common.parts.utils import (ClampActivation, HalfSnake,
+                                                 Snake, mask_sequence_tensor)
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types.elements import (
-    AudioSignal,
-    EncodedRepresentation,
-    Index,
-    LengthsType,
-    MelSpectrogramType,
-    VoidType,
-)
+from nemo.core.neural_types.elements import (AudioSignal,
+                                             EncodedRepresentation, Index,
+                                             LengthsType, MelSpectrogramType,
+                                             VoidType)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 

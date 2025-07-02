@@ -30,7 +30,8 @@ from pytorch_lightning.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
+from nemo.collections.multimodal.data.energon.base import \
+    EnergonMultiModalDataModule
 from nemo.collections.vlm.clip.data.clip_data_module import ClipTaskEncoder
 from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPModel
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler

@@ -12,14 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.gpt.model.base import (
-    GPTConfig5B,
-    GPTConfig7B,
-    GPTConfig20B,
-    GPTConfig40B,
-    GPTConfig126M,
-    GPTConfig175B,
-)
+from nemo.collections.llm.gpt.model.base import (GPTConfig5B, GPTConfig7B,
+                                                 GPTConfig20B, GPTConfig40B,
+                                                 GPTConfig126M, GPTConfig175B)
 
 
 def test_gpt_config_126m():

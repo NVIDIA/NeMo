@@ -22,11 +22,15 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
-from nemo.collections.vision.data.imagenet_classnames import imagenet_classnames
-from nemo.collections.vision.data.megatron.vit_dataset import ClassificationTransform
-from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
+from nemo.collections.vision.data.imagenet_classnames import \
+    imagenet_classnames
+from nemo.collections.vision.data.megatron.vit_dataset import \
+    ClassificationTransform
+from nemo.collections.vision.models.megatron_vit_classification_models import \
+    MegatronVitClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero

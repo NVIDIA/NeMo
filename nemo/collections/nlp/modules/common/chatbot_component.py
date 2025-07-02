@@ -26,17 +26,10 @@ from markdown2 import Markdown
 try:
     from typing import Any, Callable, Dict, List, Literal, Tuple
 
-    from gradio.components import (
-        Changeable,
-        Component,
-        Enum,
-        EventListenerMethod,
-        IOComponent,
-        JSONSerializable,
-        Selectable,
-        document,
-        processing_utils,
-    )
+    from gradio.components import (Changeable, Component, Enum,
+                                   EventListenerMethod, IOComponent,
+                                   JSONSerializable, Selectable, document,
+                                   processing_utils)
 
     GRADIO_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

@@ -19,9 +19,12 @@ import jiwer
 import torch
 from torchmetrics import Metric
 
-from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
-from nemo.collections.asr.parts.submodules.multitask_decoding import AbstractMultiTaskDecoding
-from nemo.collections.asr.parts.submodules.rnnt_decoding import AbstractRNNTDecoding
+from nemo.collections.asr.parts.submodules.ctc_decoding import \
+    AbstractCTCDecoding
+from nemo.collections.asr.parts.submodules.multitask_decoding import \
+    AbstractMultiTaskDecoding
+from nemo.collections.asr.parts.submodules.rnnt_decoding import \
+    AbstractRNNTDecoding
 from nemo.utils import logging
 
 __all__ = ['word_error_rate', 'word_error_rate_detail', 'WER']

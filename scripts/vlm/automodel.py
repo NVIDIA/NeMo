@@ -24,10 +24,11 @@ import fiddle as fdl
 import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
-from scripts.vlm.automodel_datasets import mk_hf_vlm_dataset_cord_v2, mk_hf_vlm_dataset_rdr
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from scripts.vlm.automodel_datasets import (mk_hf_vlm_dataset_cord_v2,
+                                            mk_hf_vlm_dataset_rdr)
 
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):

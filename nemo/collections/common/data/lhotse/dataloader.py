@@ -22,40 +22,27 @@ import numpy as np
 import torch
 from lhotse import CutSet, RecordingSet
 from lhotse.cut import Cut
-from lhotse.dataset import (
-    CutConcatenate,
-    DynamicBucketingSampler,
-    DynamicCutSampler,
-    IterableDatasetWrapper,
-    ReverbWithImpulseResponse,
-    RoundRobinSampler,
-    ZipSampler,
-    make_worker_init_fn,
-)
+from lhotse.dataset import (CutConcatenate, DynamicBucketingSampler,
+                            DynamicCutSampler, IterableDatasetWrapper,
+                            ReverbWithImpulseResponse, RoundRobinSampler,
+                            ZipSampler, make_worker_init_fn)
 from lhotse.dataset.dataloading import resolve_seed
-from lhotse.dataset.sampling.base import CutSampler, SamplingConstraint, TimeConstraint
+from lhotse.dataset.sampling.base import (CutSampler, SamplingConstraint,
+                                          TimeConstraint)
 from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import (
-    IncompleteConfigError,
-    guess_parse_cutset,
-    read_cutset_from_config,
-)
+    IncompleteConfigError, guess_parse_cutset, read_cutset_from_config)
 from nemo.collections.common.data.lhotse.sampling import (
-    BucketingFilter,
-    DurationFilter,
-    FixedBucketBatchSizeConstraint2D,
-    MultimodalFixedBucketBatchSizeConstraint2D,
-    MultimodalSamplingConstraint,
-    TokenCountFilter,
-    TokenPerSecondFilter,
-    TokenPerTokenFilter,
-)
+    BucketingFilter, DurationFilter, FixedBucketBatchSizeConstraint2D,
+    MultimodalFixedBucketBatchSizeConstraint2D, MultimodalSamplingConstraint,
+    TokenCountFilter, TokenPerSecondFilter, TokenPerTokenFilter)
 from nemo.collections.common.data.prompt_fn import apply_prompt_format_fn
 from nemo.collections.common.prompts import PromptFormatter
-from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
+from nemo.collections.common.tokenizers.aggregate_tokenizer import \
+    TokenizerWrapper
 from nemo.utils import logging
 
 

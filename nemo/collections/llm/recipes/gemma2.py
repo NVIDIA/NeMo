@@ -21,8 +21,12 @@ from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo import lightning as nl
-from nemo.collections.llm.gpt.model.gemma2 import Gemma2Config2B, Gemma2Config9B, Gemma2Config27B, Gemma2Model
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, fp16_mixed
+from nemo.collections.llm.gpt.model.gemma2 import (Gemma2Config2B,
+                                                   Gemma2Config9B,
+                                                   Gemma2Config27B,
+                                                   Gemma2Model)
+from nemo.collections.llm.recipes.precision.mixed_precision import (bf16_mixed,
+                                                                    fp16_mixed)
 
 
 def gemma2_model(version: str) -> run.Config[pl.LightningModule]:

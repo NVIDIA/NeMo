@@ -21,7 +21,8 @@ import time
 from collections import OrderedDict, defaultdict
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, Iterator, List, Literal, Mapping, Optional, Sized, Union
+from typing import (Any, Callable, Dict, Generator, Iterator, List, Literal,
+                    Mapping, Optional, Sized, Union)
 
 import lightning.pytorch as pl
 import torch
@@ -42,17 +43,15 @@ from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from torch._C._distributed_c10d import ReduceOp
-from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import \
+    noop_hook
 from torch.distributed.fsdp import BackwardPrefetch, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import (
-    MixedPrecision,
-    OptimStateKeyType,
-    ShardedStateDictConfig,
-    ShardingStrategy,
-    StateDictType,
-)
-from torch.distributed.fsdp.api import FullOptimStateDictConfig, ShardedOptimStateDictConfig
+from torch.distributed.fsdp import (MixedPrecision, OptimStateKeyType,
+                                    ShardedStateDictConfig, ShardingStrategy,
+                                    StateDictType)
+from torch.distributed.fsdp.api import (FullOptimStateDictConfig,
+                                        ShardedOptimStateDictConfig)
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel
 
@@ -65,13 +64,15 @@ except ImportError:
     from torch.amp.grad_scaler import _refresh_per_optimizer_state
 
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.transformer import AutocastTransformerLayer, ParallelTransformerLayer
+from nemo.collections.nlp.modules.common.megatron.transformer import (
+    AutocastTransformerLayer, ParallelTransformerLayer)
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.core.optim.optimizers import init_optimizer_states
 from nemo.utils import AppState, logging
-from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
+from nemo.utils.model_utils import (ckpt_to_dir, inject_model_parallel_rank,
+                                    uninject_model_parallel_rank)
 
 try:
 
@@ -97,16 +98,19 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import dist_checkpointing, parallel_state
     from megatron.core.dist_checkpointing.core import CheckpointingException
-    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
-    from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject
+    from megatron.core.dist_checkpointing.dict_utils import \
+        dict_list_map_outplace
+    from megatron.core.dist_checkpointing.mapping import \
+        LocalNonpersistentObject
     from megatron.core.dist_checkpointing.optimizer import (
-        get_param_id_to_sharded_param_map,
-        make_sharded_optimizer_tensor,
-        optim_state_to_sharding_state,
-    )
-    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-    from megatron.core.transformer.transformer_layer import TransformerLayer as MCoreTransformerLayer
+        get_param_id_to_sharded_param_map, make_sharded_optimizer_tensor,
+        optim_state_to_sharding_state)
+    from megatron.core.tensor_parallel.layers import \
+        param_is_not_tensor_parallel_duplicate
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.transformer_layer import \
+        TransformerLayer as MCoreTransformerLayer
 
     from nemo.utils.callbacks.dist_ckpt_io import DistributedCheckpointIO
 
@@ -125,7 +129,8 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from modelopt.torch.opt.plugins import restore_sharded_modelopt_state, save_sharded_modelopt_state
+    from modelopt.torch.opt.plugins import (restore_sharded_modelopt_state,
+                                            save_sharded_modelopt_state)
 
     HAVE_MODELOPT = True
 
@@ -779,7 +784,8 @@ class NLPFSDPStrategy(FSDPStrategy):
         kwargs['backward_prefetch'] = BackwardPrefetch.BACKWARD_PRE
 
         # import here to prevent circular imports
-        from nemo.collections.multimodal.modules.stable_diffusion.attention import BasicTransformerBlock
+        from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+            BasicTransformerBlock
 
         # Set FSDP wrapping policy: use Transformer layer module as the FSDP sharding granularity.
         self.fsdp_wrap_module = {

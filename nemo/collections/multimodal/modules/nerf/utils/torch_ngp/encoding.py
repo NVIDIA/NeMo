@@ -102,17 +102,20 @@ def get_encoder(
         )
 
     elif encoder_type == 'frequency':  # CUDA implementation, faster than torch.
-        from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.freqencoder import FreqEncoder
+        from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.freqencoder import \
+            FreqEncoder
 
         encoder = FreqEncoder(input_dim=input_dim, degree=multires)
 
     elif encoder_type == 'sphere_harmonics':
-        from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.shencoder import SHEncoder
+        from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.shencoder import \
+            SHEncoder
 
         encoder = SHEncoder(input_dim=input_dim, degree=degree)
 
     elif encoder_type == 'hashgrid':
-        from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.gridencoder import GridEncoder
+        from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.gridencoder import \
+            GridEncoder
 
         encoder = GridEncoder(
             input_dim=input_dim,
@@ -127,7 +130,8 @@ def get_encoder(
         )
 
     elif encoder_type == 'tiledgrid':
-        from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.gridencoder import GridEncoder
+        from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.gridencoder import \
+            GridEncoder
 
         encoder = GridEncoder(
             input_dim=input_dim,

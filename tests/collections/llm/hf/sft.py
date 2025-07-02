@@ -318,7 +318,8 @@ def main():
 
     model_accelerator = None
     if args.model_accelerator == "te":
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+        from nemo.lightning.pytorch.accelerate.transformer_engine import \
+            TEConfig
 
         model_accelerator = TEConfig(fp8_autocast=args.fp8_autocast)
 

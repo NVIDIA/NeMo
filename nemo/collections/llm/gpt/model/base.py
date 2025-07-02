@@ -20,8 +20,10 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 import lightning.pytorch as L
 import torch
 import torch.distributed
-from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
-from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import \
+    GPTInferenceWrapper
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import \
+    InferenceWrapperConfig
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
@@ -31,7 +33,8 @@ from torch import nn
 from nemo.collections.llm import fn
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.optim import (MegatronOptimizerModule,
+                                          OptimizerModule)
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
@@ -169,9 +172,8 @@ def transformer_engine_full_layer_spec(config: "GPTConfig") -> ModuleSpec:
     Returns:
         ModuleSpec: Module specification for full TE layers
     """
-    from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import (
-        get_gpt_full_te_layer_autocast_spec,
-    )
+    from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_autocast_spec import \
+        get_gpt_full_te_layer_autocast_spec
 
     return get_gpt_full_te_layer_autocast_spec(transformer_config=config)
 
@@ -225,7 +227,8 @@ def mtp_block_spec(config: "GPTConfig") -> Optional[ModuleSpec]:
         ModuleSpec: The MTP module specification
     """
     if getattr(config, "mtp_num_layers", None):
-        from megatron.core.models.gpt.gpt_layer_specs import get_gpt_mtp_block_spec
+        from megatron.core.models.gpt.gpt_layer_specs import \
+            get_gpt_mtp_block_spec
 
         if isinstance(config.transformer_layer_spec, Callable):
             spec = config.transformer_layer_spec(config)

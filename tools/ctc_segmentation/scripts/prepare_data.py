@@ -27,7 +27,8 @@ from tqdm import tqdm
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import \
+    EncDecHybridRNNTCTCModel
 from nemo.utils import model_utils
 
 try:

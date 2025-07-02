@@ -21,7 +21,8 @@ from collections import OrderedDict, namedtuple
 import torch
 from torch import nn
 
-from nemo.collections.common.video_tokenizers.modules import ContinuousFormulation, DecoderType, EncoderType
+from nemo.collections.common.video_tokenizers.modules import (
+    ContinuousFormulation, DecoderType, EncoderType)
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "posteriors", "latent"])
 

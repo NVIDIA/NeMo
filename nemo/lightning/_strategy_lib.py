@@ -17,7 +17,8 @@ import itertools
 import os
 from collections import defaultdict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Mapping, Optional, Protocol, TypeVar
+from typing import (TYPE_CHECKING, Any, Callable, Dict, Generator, Mapping,
+                    Optional, Protocol, TypeVar)
 
 import torch
 from torch import nn
@@ -465,10 +466,8 @@ def optimizer_sharded_state_dict(
         ValueError: If a parameter ID does not match any model sharded parameter.
     """
     from megatron.core.dist_checkpointing.optimizer import (
-        get_param_id_to_sharded_param_map,
-        make_sharded_optimizer_tensor,
-        optim_state_to_sharding_state,
-    )
+        get_param_id_to_sharded_param_map, make_sharded_optimizer_tensor,
+        optim_state_to_sharding_state)
 
     from nemo.core.optim import MainParamsOptimizerWrapper
     from nemo.core.optim.optimizers import init_optimizer_states
@@ -532,7 +531,8 @@ def optimizer_sharded_state_dict(
 def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
     """ """
     from megatron.core import parallel_state
-    from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
+    from megatron.core.dist_checkpointing.validation import (StrictHandling,
+                                                             parse_strict_flag)
 
     # convert from StrictHandling to bool for PTL
     if strict is not None and not isinstance(strict, bool):
@@ -545,7 +545,8 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
         strict = strict in strict_options
 
     try:
-        from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
+        from megatron.core.distributed.custom_fsdp import \
+            FullyShardedDataParallel
 
         have_custom_fsdp = True
     except ImportError or ModuleNotFoundError:

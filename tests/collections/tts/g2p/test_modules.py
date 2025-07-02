@@ -18,7 +18,9 @@ import unicodedata
 import pytest
 
 from nemo.collections.tts.g2p.models.i18n_ipa import IpaG2p
-from nemo.collections.tts.g2p.utils import GRAPHEME_CASE_LOWER, GRAPHEME_CASE_MIXED, GRAPHEME_CASE_UPPER
+from nemo.collections.tts.g2p.utils import (GRAPHEME_CASE_LOWER,
+                                            GRAPHEME_CASE_MIXED,
+                                            GRAPHEME_CASE_UPPER)
 
 
 class TestIpaG2p:

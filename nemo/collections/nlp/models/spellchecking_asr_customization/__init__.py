@@ -13,6 +13,5 @@
 # limitations under the License.
 
 
-from nemo.collections.nlp.models.spellchecking_asr_customization.spellchecking_model import (
-    SpellcheckingAsrCustomizationModel,
-)
+from nemo.collections.nlp.models.spellchecking_asr_customization.spellchecking_model import \
+    SpellcheckingAsrCustomizationModel

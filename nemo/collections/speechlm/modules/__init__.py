@@ -13,4 +13,5 @@
 # limitations under the License.
 
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
-from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
+from nemo.collections.speechlm.modules.modality_adapter import \
+    ModalityAdapterConfig

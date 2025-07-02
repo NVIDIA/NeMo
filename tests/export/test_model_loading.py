@@ -15,6 +15,7 @@
 import shutil
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 from nemo.collections import llm
@@ -52,7 +53,8 @@ def test_model_loading() -> None:
             'tensorrt_llm._utils': dummy_module,
         },
     ):
-        from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
+        from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import \
+            load_nemo_model
 
         load_nemo_model(nemo_path, export_path_local, False)
         load_nemo_model(nemo_path, export_path_mcore, True)

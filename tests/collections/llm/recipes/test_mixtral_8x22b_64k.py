@@ -19,7 +19,8 @@ from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x22B, MixtralModel
+from nemo.collections.llm.gpt.model.mixtral import (MixtralConfig8x22B,
+                                                    MixtralModel)
 from nemo.collections.llm.recipes import mixtral_8x22b_64k
 from nemo.lightning import Trainer
 

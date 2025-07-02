@@ -15,21 +15,26 @@
 from typing import Optional
 
 try:
-    from megatron.core.extensions.transformer_engine import TEDotProductAttention, TENorm
+    from megatron.core.extensions.transformer_engine import (
+        TEDotProductAttention, TENorm)
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.models.gpt.gpt_layer_specs import _get_mlp_module_spec
-    from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
-    from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+    from megatron.core.tensor_parallel.layers import (ColumnParallelLinear,
+                                                      RowParallelLinear)
+    from megatron.core.transformer.attention import (SelfAttention,
+                                                     SelfAttentionSubmodules)
     from megatron.core.transformer.enums import AttnMaskType
     from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.spec_utils import ModuleSpec
-    from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+    from megatron.core.transformer.transformer_layer import (
+        TransformerLayer, TransformerLayerSubmodules)
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError) as e:
 
-    from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+    from nemo.collections.nlp.modules.common.megatron.utils import \
+        ApexGuardDefaults
 
     ModuleSpec = ApexGuardDefaults
     HAVE_MEGATRON_CORE = False

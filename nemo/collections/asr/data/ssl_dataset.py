@@ -27,7 +27,8 @@ from omegaconf import DictConfig, ListConfig, open_dict
 from torch import Tensor
 
 from nemo.collections.asr.data import audio_to_text, audio_to_text_dataset
-from nemo.collections.asr.parts.preprocessing.perturb import WhiteNoisePerturbation, process_augmentations
+from nemo.collections.asr.parts.preprocessing.perturb import (
+    WhiteNoisePerturbation, process_augmentations)
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.common.data.dataset import ConcatDataset

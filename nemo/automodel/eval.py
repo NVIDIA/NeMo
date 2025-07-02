@@ -18,10 +18,12 @@ import time
 import torch
 
 from nemo.automodel.config import ConfigContainer
-from nemo.automodel.schedules import ForwardStepFnProtocol, get_forward_backward_func
+from nemo.automodel.schedules import (ForwardStepFnProtocol,
+                                      get_forward_backward_func)
 from nemo.automodel.utils.train_utils import reduce_loss
 from nemo.tron.state import GlobalState
-from nemo.tron.utils.common_utils import is_last_rank, print_rank_0, print_rank_last
+from nemo.tron.utils.common_utils import (is_last_rank, print_rank_0,
+                                          print_rank_last)
 
 
 def evaluate(

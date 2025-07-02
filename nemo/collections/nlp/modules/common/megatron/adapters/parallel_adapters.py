@@ -23,17 +23,15 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.init as init
-
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
+
 from nemo.collections.common.parts.adapter_modules import AdapterModuleUtil
 from nemo.collections.common.parts.utils import activation_registry
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import \
+    fused_bias_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    init_method_const,
-    init_method_kaiming_uniform,
-    init_method_normal,
-)
+    ApexGuardDefaults, init_method_const, init_method_kaiming_uniform,
+    init_method_normal)
 from nemo.core.classes.mixins import adapter_mixin_strategies
 from nemo.core.classes.mixins.adapter_mixins import AdapterConfig
 
@@ -48,12 +46,13 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import ModelParallelConfig
-    from megatron.core.parallel_state import get_tensor_model_parallel_group, get_tensor_model_parallel_world_size
-    from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
+    from megatron.core.parallel_state import (
+        get_tensor_model_parallel_group, get_tensor_model_parallel_world_size)
+    from megatron.core.tensor_parallel import (ColumnParallelLinear,
+                                               RowParallelLinear)
     from megatron.core.tensor_parallel.mappings import (
         gather_from_sequence_parallel_region,
-        scatter_to_sequence_parallel_region,
-    )
+        scatter_to_sequence_parallel_region)
 
     HAVE_MEGATRON_CORE = True
 

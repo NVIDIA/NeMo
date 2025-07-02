@@ -24,22 +24,25 @@ from omegaconf import MISSING, DictConfig, OmegaConf, open_dict
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
-from nemo.collections.asr.data.audio_to_text_dataset import get_audio_to_text_bpe_dataset_from_config
-from nemo.collections.asr.data.text_to_text import (
-    TextOrAudioToTextBatch,
-    TextToTextBatch,
-    TextToTextDataset,
-    TextToTextIterableDataset,
-)
+from nemo.collections.asr.data.audio_to_text_dataset import \
+    get_audio_to_text_bpe_dataset_from_config
+from nemo.collections.asr.data.text_to_text import (TextOrAudioToTextBatch,
+                                                    TextToTextBatch,
+                                                    TextToTextDataset,
+                                                    TextToTextIterableDataset)
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import \
+    EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.models.rnnt_bpe_models import EncDecRNNTBPEModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
-from nemo.collections.asr.parts.preprocessing.features import clean_spectrogram_batch, normalize_batch
-from nemo.collections.asr.parts.submodules.batchnorm import replace_bn_with_fused_bn_all
+from nemo.collections.asr.parts.preprocessing.features import (
+    clean_spectrogram_batch, normalize_batch)
+from nemo.collections.asr.parts.submodules.batchnorm import \
+    replace_bn_with_fused_bn_all
 from nemo.collections.common.data import ConcatDataset, ConcatMapDataset
-from nemo.collections.tts.models import FastPitchModel, SpectrogramEnhancerModel
+from nemo.collections.tts.models import (FastPitchModel,
+                                         SpectrogramEnhancerModel)
 from nemo.core.classes import Dataset, typecheck
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging

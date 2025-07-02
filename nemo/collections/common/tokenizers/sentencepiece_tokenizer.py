@@ -21,7 +21,8 @@ import sentencepiece
 import torch
 
 from nemo.collections.common.parts.utils import if_exist
-from nemo.collections.common.tokenizers.chat_template_mixin import ChatTemplateMixin
+from nemo.collections.common.tokenizers.chat_template_mixin import \
+    ChatTemplateMixin
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 

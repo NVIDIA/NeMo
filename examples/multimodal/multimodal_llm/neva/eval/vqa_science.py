@@ -21,8 +21,10 @@ import shortuuid
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.multimodal.parts.utils import create_neva_model_and_processor
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
+from nemo.collections.multimodal.parts.utils import \
+    create_neva_model_and_processor
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam, SamplingParam)
 from nemo.utils.get_rank import is_global_rank_zero
 
 CFG_STRING = """

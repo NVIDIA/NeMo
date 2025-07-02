@@ -44,14 +44,17 @@ from typing import Any, Dict
 
 import torch
 from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
-from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
+from megatron.core.dist_checkpointing.mapping import (LocalNonpersistentObject,
+                                                      ShardedObject)
 from omegaconf import OmegaConf
 from transformers import AutoTokenizer as HFAutoTokenizer
 
 from nemo.collections import llm
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir

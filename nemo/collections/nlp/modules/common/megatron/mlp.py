@@ -16,18 +16,21 @@ import torch
 import torch.nn.functional as F
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    Lora4HtoHAdapterConfig,
-    LoraHto4HAdapterConfig,
-    MLPInfusedAdapterConfig,
-)
-from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import fused_bias_geglu
-from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import fused_bias_gelu
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
-from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P
+    AdapterName, Lora4HtoHAdapterConfig, LoraHto4HAdapterConfig,
+    MLPInfusedAdapterConfig)
+from nemo.collections.nlp.modules.common.megatron.fused_bias_geglu import \
+    fused_bias_geglu
+from nemo.collections.nlp.modules.common.megatron.fused_bias_gelu import \
+    fused_bias_gelu
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import \
+    get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import \
+    LayerNorm1P
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults, ApproxGELUActivation, erf_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApexGuardDefaults, ApproxGELUActivation, erf_gelu)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    openai_gelu as openai_gelu_func
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.core import adapter_mixins
 
@@ -46,8 +49,10 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
-    from megatron.core.parallel_state import get_tensor_model_parallel_world_size
+    from megatron.core import (ModelParallelConfig, parallel_state,
+                               tensor_parallel)
+    from megatron.core.parallel_state import \
+        get_tensor_model_parallel_world_size
 
     HAVE_MEGATRON_CORE = True
 

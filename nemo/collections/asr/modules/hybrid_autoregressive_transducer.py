@@ -32,7 +32,6 @@ import torch
 
 from nemo.collections.asr.modules import rnnt
 from nemo.collections.asr.parts.utils.rnnt_utils import HATJointOutput
-
 from nemo.utils import logging
 
 

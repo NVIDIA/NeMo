@@ -31,7 +31,9 @@ except (ImportError, ModuleNotFoundError):
         "this script"
     )
 
-from nemo.collections.asr.data.text_to_text import TextToTextDataset, TextToTextItem, TextToTextIterableDataset
+from nemo.collections.asr.data.text_to_text import (TextToTextDataset,
+                                                    TextToTextItem,
+                                                    TextToTextIterableDataset)
 from nemo.collections.common import tokenizers
 
 BASE_DIR = Path(__file__).parent.parent.parent.parent

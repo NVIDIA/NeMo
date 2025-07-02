@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.multimodal.speech_cv.modules.linear_projection_video_front_end import (
-    LinearProjectionVideoFrontEnd,
-)
-from nemo.collections.multimodal.speech_cv.modules.resnet_video_front_end import ResNetVideoFrontEnd
-from nemo.collections.multimodal.speech_cv.modules.video_augment import VideoAugmentation
-from nemo.collections.multimodal.speech_cv.modules.video_preprocessing import VideoPreprocessor
+from nemo.collections.multimodal.speech_cv.modules.linear_projection_video_front_end import \
+    LinearProjectionVideoFrontEnd
+from nemo.collections.multimodal.speech_cv.modules.resnet_video_front_end import \
+    ResNetVideoFrontEnd
+from nemo.collections.multimodal.speech_cv.modules.video_augment import \
+    VideoAugmentation
+from nemo.collections.multimodal.speech_cv.modules.video_preprocessing import \
+    VideoPreprocessor

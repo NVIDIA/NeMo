@@ -20,11 +20,16 @@ from itertools import chain
 import torch
 from PIL import Image
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import DDIMSampler
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.para_ddim import ParaDDIMSampler
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.plms import PLMSSampler
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.sampler_dpm import DPMSolverSampler
-from nemo.collections.multimodal.parts.stable_diffusion.utils import DataParallelWrapper
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import \
+    DDIMSampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.para_ddim import \
+    ParaDDIMSampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.plms import \
+    PLMSSampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.sampler_dpm import \
+    DPMSolverSampler
+from nemo.collections.multimodal.parts.stable_diffusion.utils import \
+    DataParallelWrapper
 
 
 def encode_prompt(cond_stage_model, prompts, unconditional_guidance_scale):

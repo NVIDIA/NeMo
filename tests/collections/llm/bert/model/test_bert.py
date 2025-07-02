@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.bert.model.bert import (
-    HuggingFaceBertBaseConfig,
-    HuggingFaceBertLargeConfig,
-    MegatronBertBaseConfig,
-    MegatronBertLargeConfig,
-)
+from nemo.collections.llm.bert.model.bert import (HuggingFaceBertBaseConfig,
+                                                  HuggingFaceBertLargeConfig,
+                                                  MegatronBertBaseConfig,
+                                                  MegatronBertLargeConfig)
 
 
 def test_huggingface_bert_base_config():
@@ -62,18 +60,15 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 
-from nemo.collections.llm.bert.model.bert import (
-    _export_embedding,
-    _export_qkv,
-    _export_qkv_bias,
-    _import_embedding,
-    _import_embedding_2,
-    _import_output_bias,
-    _import_qkv,
-    _import_qkv_2,
-    _import_qkv_bias,
-    _import_qkv_bias_2,
-)
+from nemo.collections.llm.bert.model.bert import (_export_embedding,
+                                                  _export_qkv,
+                                                  _export_qkv_bias,
+                                                  _import_embedding,
+                                                  _import_embedding_2,
+                                                  _import_output_bias,
+                                                  _import_qkv, _import_qkv_2,
+                                                  _import_qkv_bias,
+                                                  _import_qkv_bias_2)
 
 
 @dataclass

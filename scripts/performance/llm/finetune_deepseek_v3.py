@@ -19,22 +19,20 @@ import nemo_run as run
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.deepseek_v3 import finetune_recipe, model
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
+from nemo.collections.llm.recipes.precision.mixed_precision import \
+    bf16_with_fp8_mixed
+from nemo.lightning.pytorch.callbacks.garbage_collection import \
+    GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.moe_token_drop import \
+    MegatronTokenDropCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    hf_tokenizer,
-    import_ckpt_experiment,
-    isfile_train_pack_metadata,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..utils import (args_sanity_check, get_user_configs, hf_tokenizer,
+                     import_ckpt_experiment, isfile_train_pack_metadata,
+                     set_primary_perf_configs, slurm_executor)
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 

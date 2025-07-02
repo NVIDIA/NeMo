@@ -21,8 +21,7 @@ from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
     PunctuationCapitalizationEvalDataConfig,
     PunctuationCapitalizationTrainDataConfig,
-    legacy_data_config_to_new_data_config,
-)
+    legacy_data_config_to_new_data_config)
 from nemo.core.config import TrainerConfig
 from nemo.core.config.modelPT import NemoConfig
 from nemo.utils.exp_manager import ExpManagerConfig

@@ -21,20 +21,12 @@ import pytest
 import scipy
 import torch
 
-from nemo.collections.audio.parts.utils.audio import SOUND_VELOCITY as sound_velocity
+from nemo.collections.audio.parts.utils.audio import \
+    SOUND_VELOCITY as sound_velocity
 from nemo.collections.audio.parts.utils.audio import (
-    calculate_sdr_numpy,
-    convmtx_mc_numpy,
-    db2mag,
-    estimated_coherence,
-    generate_approximate_noise_field,
-    get_segment_start,
-    mag2db,
-    pow2db,
-    rms,
-    theoretical_coherence,
-    toeplitz,
-)
+    calculate_sdr_numpy, convmtx_mc_numpy, db2mag, estimated_coherence,
+    generate_approximate_noise_field, get_segment_start, mag2db, pow2db, rms,
+    theoretical_coherence, toeplitz)
 
 
 class TestGenerateApproximateNoiseField:

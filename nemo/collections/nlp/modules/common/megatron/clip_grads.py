@@ -15,6 +15,7 @@
 """Gradient clipping."""
 
 import itertools
+
 import torch
 from torch import inf
 
@@ -35,7 +36,8 @@ HAVE_APEX_DISTRIBUTED_ADAM = False
 
 if HAVE_APEX:
     try:
-        from apex.contrib.optimizers.distributed_fused_adam import DistributedFusedAdam
+        from apex.contrib.optimizers.distributed_fused_adam import \
+            DistributedFusedAdam
 
         HAVE_APEX_DISTRIBUTED_ADAM = True
 
@@ -44,7 +46,8 @@ if HAVE_APEX:
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.tensor_parallel.layers import param_is_not_tensor_parallel_duplicate
+    from megatron.core.tensor_parallel.layers import \
+        param_is_not_tensor_parallel_duplicate
 
     HAVE_MEGATRON_CORE = True
 

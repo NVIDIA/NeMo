@@ -18,9 +18,12 @@ import nvdiffrast.torch as dr
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.multimodal.modules.nerf.geometry.dmtet import DeepMarchingTetrahedra
-from nemo.collections.multimodal.modules.nerf.geometry.nerf_base import DensityActivationEnum
-from nemo.collections.multimodal.modules.nerf.renderers.base_renderer import BaseRenderer
+from nemo.collections.multimodal.modules.nerf.geometry.dmtet import \
+    DeepMarchingTetrahedra
+from nemo.collections.multimodal.modules.nerf.geometry.nerf_base import \
+    DensityActivationEnum
+from nemo.collections.multimodal.modules.nerf.renderers.base_renderer import \
+    BaseRenderer
 
 
 # TODO: self.density_thresh, self.mean_density need a rework, they can be infered at run time

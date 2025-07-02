@@ -19,10 +19,9 @@ from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_matrices
 
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import (
-    get_hidden_length_from_sample_length,
-    speaker_to_target,
-)
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+    get_hidden_length_from_sample_length, speaker_to_target)
+from nemo.core.neural_types import (AudioSignal, LabelsType, LengthsType,
+                                    NeuralType)
 
 
 class LhotseAudioToSpeechE2ESpkDiarDataset(torch.utils.data.Dataset):

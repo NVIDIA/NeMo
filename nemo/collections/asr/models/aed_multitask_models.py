@@ -26,39 +26,34 @@ from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
-    PromptedAudioToTextLhotseDataset,
-    PromptedAudioToTextMiniBatch,
-)
+    PromptedAudioToTextLhotseDataset, PromptedAudioToTextMiniBatch)
 from nemo.collections.asr.metrics import BLEU, WER
-from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin, ASRTranscriptionMixin
+from nemo.collections.asr.models.asr_model import (ASRModel,
+                                                   ExportableEncDecModel)
+from nemo.collections.asr.parts.mixins import (ASRBPEMixin, ASRModuleMixin,
+                                               ASRTranscriptionMixin)
 from nemo.collections.asr.parts.mixins.transcription import (
-    GenericTranscriptionType,
-    InternalTranscribeConfig,
-    TranscribeConfig,
-)
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
-from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
+    GenericTranscriptionType, InternalTranscribeConfig, TranscribeConfig)
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
+from nemo.collections.asr.parts.submodules.multitask_decoding import (
+    MultiTaskDecoding, MultiTaskDecodingConfig)
+from nemo.collections.asr.parts.submodules.token_classifier import \
+    TokenClassifier
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.asr.parts.utils.timestamp_utils import process_aed_timestamp_outputs
+from nemo.collections.asr.parts.utils.timestamp_utils import \
+    process_aed_timestamp_outputs
 from nemo.collections.common import tokenizers
-from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.dataloader import \
+    get_lhotse_dataloader_from_config
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types import (
-    AudioSignal,
-    ChannelType,
-    LabelsType,
-    LengthsType,
-    LogprobsType,
-    MaskType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import (AudioSignal, ChannelType, LabelsType,
+                                    LengthsType, LogprobsType, MaskType,
+                                    NeuralType, SpectrogramType)
 from nemo.utils import logging, model_utils
 
 __all__ = ['EncDecMultiTaskModel']

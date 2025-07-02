@@ -14,9 +14,9 @@
 
 from multiprocessing import set_start_method
 
-from nemo.collections.asr.data.data_simulation import MultiSpeakerSimulator, RIRMultiSpeakerSimulator
+from nemo.collections.asr.data.data_simulation import (
+    MultiSpeakerSimulator, RIRMultiSpeakerSimulator)
 from nemo.core.config import hydra_runner
-
 
 """
 This script creates a synthetic diarization session using the provided audio dataset with ctm files.

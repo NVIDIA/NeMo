@@ -22,26 +22,32 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.common.metrics import MetricStringToTorchMetric
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import GPTSFTChatDataset
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset, GPTSFTPackedDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
-from nemo.collections.nlp.modules.common.text_generation_utils import generate, get_computeprob_response
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import \
+    get_datasets_weights_and_num_samples
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import \
+    GPTSFTChatDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import (
+    GPTSFTDataset, GPTSFTPackedDataset)
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
+    MegatronPretrainingBatchSampler
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_iterator_k_split
+from nemo.collections.nlp.modules.common.text_generation_utils import (
+    generate, get_computeprob_response)
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import \
+    NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state
     from megatron.core.distributed import finalize_model_grads
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -51,22 +57,17 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-        reconfigure_num_microbatches_calculator,
-    )
+        get_current_global_batch_size, get_micro_batch_size,
+        get_num_microbatches, reconfigure_num_microbatches_calculator)
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
     from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
-    from apex.transformer.pipeline_parallel.utils import (
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+        get_current_global_batch_size, get_micro_batch_size,
+        get_num_microbatches)
 
 
 __all__ = ['MegatronGPTSFTModel']

@@ -17,7 +17,8 @@ import torch
 from torch import nn
 
 from nemo.core.classes import Serialization, Typing, typecheck
-from nemo.core.neural_types import LabelsType, LengthsType, LogprobsType, LossType, NeuralType
+from nemo.core.neural_types import (LabelsType, LengthsType, LogprobsType,
+                                    LossType, NeuralType)
 
 __all__ = ['CTCLoss']
 

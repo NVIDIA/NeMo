@@ -17,9 +17,11 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.bert_example import BertExampleBuilder, read_input_file
+from nemo.collections.nlp.data.text_normalization_as_tagging.bert_example import (
+    BertExampleBuilder, read_input_file)
 from nemo.core.classes.dataset import Dataset
-from nemo.core.neural_types import ChannelType, IntType, LabelsType, MaskType, NeuralType
+from nemo.core.neural_types import (ChannelType, IntType, LabelsType, MaskType,
+                                    NeuralType)
 
 __all__ = ["ThutmoseTaggerDataset", "ThutmoseTaggerTestDataset"]
 

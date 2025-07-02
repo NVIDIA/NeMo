@@ -17,7 +17,8 @@ import numpy as np
 import tinycudann as tcnn
 import torch
 
-from nemo.collections.multimodal.modules.nerf.geometry.nerf_base import DensityActivationEnum, NeRFBase, NormalTypeEnum
+from nemo.collections.multimodal.modules.nerf.geometry.nerf_base import (
+    DensityActivationEnum, NeRFBase, NormalTypeEnum)
 
 
 # Don't fuse sigma_net with features_net:

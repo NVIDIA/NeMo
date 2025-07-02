@@ -21,18 +21,17 @@ import torch
 from modelopt.torch.quantization.nn import QuantModuleRegistry
 from torch.onnx import export as onnx_export
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
-from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import \
+    MegatronDiffusionEngine
+from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+    LinearWrapper
 from nemo.collections.multimodal.modules.stable_diffusion.quantization_utils.utils import (
-    AXES_NAME,
-    _QuantNeMoLinearWrapper,
-    generate_dummy_inputs,
-    get_int8_config,
-    load_calib_prompts,
-    quantize_lvl,
-)
-from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import SamplingPipeline
-from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
+    AXES_NAME, _QuantNeMoLinearWrapper, generate_dummy_inputs, get_int8_config,
+    load_calib_prompts, quantize_lvl)
+from nemo.collections.multimodal.parts.stable_diffusion.sdxl_pipeline import \
+    SamplingPipeline
+from nemo.collections.multimodal.parts.utils import \
+    setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
 from nemo.utils.trt_utils import build_engine
 

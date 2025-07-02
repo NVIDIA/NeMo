@@ -16,7 +16,8 @@ from typing import Optional
 import torch
 from torch.utils.data import Dataset
 
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import \
+    MegatronPretrainingRandomSampler
 from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 
 

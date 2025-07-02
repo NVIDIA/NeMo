@@ -16,7 +16,8 @@ import torch
 from torch import nn
 from torch.nn.modules.utils import _pair
 
-from nemo.collections.multimodal.speech_cv.parts.submodules.conv2d import Conv2d
+from nemo.collections.multimodal.speech_cv.parts.submodules.conv2d import \
+    Conv2d
 
 
 class ResNetBottleneckBlock(nn.Module):

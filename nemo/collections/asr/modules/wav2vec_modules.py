@@ -27,10 +27,12 @@ from omegaconf.dictconfig import DictConfig
 from torch import nn
 from torch.nn import functional as F
 
-from nemo.collections.common.parts import form_attention_mask, transformer_weights_init
+from nemo.collections.common.parts import (form_attention_mask,
+                                           transformer_weights_init)
 from nemo.collections.nlp.modules.common.transformer import TransformerEncoder
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (AcousticEncodedRepresentation, AudioSignal,
+                                    LengthsType, NeuralType, SpectrogramType)
 
 
 class TransposeLast(torch.nn.Module):

@@ -45,7 +45,8 @@ from torch import nn
 from torch.nn import Module
 
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import BoolType, FloatType, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (BoolType, FloatType, LengthsType,
+                                    NeuralType, SpectrogramType)
 from nemo.utils import logging
 
 __all__ = ['TransformerUNet']

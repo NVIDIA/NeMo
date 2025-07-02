@@ -14,8 +14,5 @@
 
 
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
-    ceil_to_nearest,
-    get_num_samples_from_files,
-    maybe_cast_to_list,
-    shift_tokens_by_multi_audios,
-)
+    ceil_to_nearest, get_num_samples_from_files, maybe_cast_to_list,
+    shift_tokens_by_multi_audios)

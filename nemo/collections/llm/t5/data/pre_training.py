@@ -18,7 +18,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import lightning.pytorch as pl
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
@@ -26,7 +27,8 @@ from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 if TYPE_CHECKING:
-    from megatron.core.datasets.t5_dataset import T5MaskedWordPieceDatasetConfig
+    from megatron.core.datasets.t5_dataset import \
+        T5MaskedWordPieceDatasetConfig
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -145,7 +147,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         # create tokenizer if tokenizer is None
         if tokenizer is None:
-            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+            from nemo.collections.nlp.modules.common.tokenizer_utils import \
+                get_nmt_tokenizer
 
             special_tokens = {}
             special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
@@ -164,7 +167,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         )
 
     def setup(self, stage: str = "") -> None:
-        from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+        from megatron.core.datasets.blended_megatron_dataset_builder import \
+            BlendedMegatronDatasetBuilder
         from megatron.core.datasets.t5_dataset import T5MaskedWordPieceDataset
 
         assert (
@@ -244,7 +248,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     @property
     def t5_dataset_config(self) -> "T5MaskedWordPieceDatasetConfig":
-        from megatron.core.datasets.t5_dataset import T5MaskedWordPieceDatasetConfig
+        from megatron.core.datasets.t5_dataset import \
+            T5MaskedWordPieceDatasetConfig
 
         return T5MaskedWordPieceDatasetConfig(
             random_seed=self.seed,
@@ -280,11 +285,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         """
         try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                update_num_microbatches
 
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples
@@ -308,11 +315,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         """
         # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches num of global batches
         try:
-            from megatron.core.num_microbatches_calculator import get_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                get_num_microbatches
 
         if isinstance(limit_batches, int):
             limit_batches *= get_num_microbatches()

@@ -19,7 +19,8 @@ from argparse import ArgumentParser
 
 import torch
 import torch.distributed
-from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
 
 import nemo.lightning as nl
 from nemo.collections.llm import api

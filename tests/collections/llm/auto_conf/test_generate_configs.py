@@ -15,7 +15,8 @@
 from functools import partial
 
 from nemo.collections import llm
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
+from nemo.collections.llm.tools.auto_configurator import (AutoConfigurator,
+                                                          generate_configs)
 
 
 def get_auto_configs(configs):

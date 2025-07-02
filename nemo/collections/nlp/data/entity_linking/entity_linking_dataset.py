@@ -18,7 +18,8 @@ from typing import Optional
 
 import torch
 
-from nemo.collections.nlp.data.data_utils.data_preprocessing import find_newlines, load_data_indices
+from nemo.collections.nlp.data.data_utils.data_preprocessing import (
+    find_newlines, load_data_indices)
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 

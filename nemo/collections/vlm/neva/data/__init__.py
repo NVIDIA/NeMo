@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig, VideoDataConfig
-from nemo.collections.vlm.neva.data.mock import MockDataModule as NevaMockDataModule
-from nemo.collections.vlm.neva.data.multimodal_tokens import ImageToken, MultiModalToken, VideoToken
+from nemo.collections.vlm.neva.data.config import (DataConfig, ImageDataConfig,
+                                                   VideoDataConfig)
+from nemo.collections.vlm.neva.data.mock import \
+    MockDataModule as NevaMockDataModule
+from nemo.collections.vlm.neva.data.multimodal_tokens import (ImageToken,
+                                                              MultiModalToken,
+                                                              VideoToken)
 from nemo.collections.vlm.neva.data.preloaded import NevaPreloadedDataModule
 
 __all__ = [

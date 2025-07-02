@@ -19,7 +19,6 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 

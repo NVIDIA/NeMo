@@ -14,9 +14,12 @@
 
 from lightning.pytorch import Trainer
 
-from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import MegatronControlNet
-from nemo.collections.multimodal.models.text_to_image.controlnet.util import ImageLogger
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.multimodal.models.text_to_image.controlnet.controlnet import \
+    MegatronControlNet
+from nemo.collections.multimodal.models.text_to_image.controlnet.util import \
+    ImageLogger
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils.exp_manager import exp_manager
 

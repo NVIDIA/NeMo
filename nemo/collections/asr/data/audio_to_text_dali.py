@@ -22,14 +22,16 @@ from typing import Callable, List, Optional, Union
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.data.audio_to_text import ASRManifestProcessor, expand_sharded_filepaths
+from nemo.collections.asr.data.audio_to_text import (ASRManifestProcessor,
+                                                     expand_sharded_filepaths)
 from nemo.collections.common.parts.preprocessing import parsers
 from nemo.utils import logging, model_utils
 
 try:
     import nvidia.dali as dali
     from nvidia.dali.pipeline import Pipeline
-    from nvidia.dali.plugin.pytorch import DALIGenericIterator as DALIPytorchIterator
+    from nvidia.dali.plugin.pytorch import \
+        DALIGenericIterator as DALIPytorchIterator
     from nvidia.dali.plugin.pytorch import LastBatchPolicy as LastBatchPolicy
 
     HAVE_DALI = True

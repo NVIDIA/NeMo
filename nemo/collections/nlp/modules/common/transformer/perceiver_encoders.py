@@ -16,9 +16,12 @@ import copy
 
 import torch
 
-from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import AttentionBridge
+from nemo.collections.nlp.modules.common.transformer.transformer_decoders import \
+    TransformerDecoder
+from nemo.collections.nlp.modules.common.transformer.transformer_encoders import \
+    TransformerEncoder
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import \
+    AttentionBridge
 
 __all__ = ["PerceiverEncoder"]
 

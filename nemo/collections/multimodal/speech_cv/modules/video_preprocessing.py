@@ -15,7 +15,8 @@
 import torch
 from torch import nn
 
-from nemo.collections.multimodal.speech_cv.parts.submodules.permute import Permute
+from nemo.collections.multimodal.speech_cv.parts.submodules.permute import \
+    Permute
 from nemo.core.classes import NeuralModule, typecheck
 
 try:

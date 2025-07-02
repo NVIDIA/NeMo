@@ -14,8 +14,10 @@
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.multimodal.modules.imagen.sampler.batch_ops import batch_mul
-from nemo.collections.multimodal.modules.imagen.sampler.continuous_ddpm import GaussianDiffusionContinuousTimes
+from nemo.collections.multimodal.modules.imagen.sampler.batch_ops import \
+    batch_mul
+from nemo.collections.multimodal.modules.imagen.sampler.continuous_ddpm import \
+    GaussianDiffusionContinuousTimes
 from nemo.collections.multimodal.parts.utils import randn_like
 
 

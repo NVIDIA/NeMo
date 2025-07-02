@@ -22,7 +22,8 @@ from accelerated_scan.triton import scan
 from einops import rearrange
 from torch import nn
 
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 
 try:
     from megatron.core import tensor_parallel

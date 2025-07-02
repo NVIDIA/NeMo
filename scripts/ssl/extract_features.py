@@ -44,7 +44,8 @@ from tqdm import tqdm
 from nemo.collections.asr.data.audio_to_text_dataset import get_char_dataset
 from nemo.collections.asr.models import EncDecDenoiseMaskedTokenPredModel
 from nemo.collections.asr.modules import ConformerMultiLayerFeatureExtractor
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.classes.common import typecheck

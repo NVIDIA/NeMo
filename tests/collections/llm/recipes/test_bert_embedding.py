@@ -16,7 +16,8 @@ import nemo_run as run
 import pytest
 import torch
 
-from nemo.collections.llm import BertEmbeddingLargeConfig, BertEmbeddingMiniConfig, BertEmbeddingModel
+from nemo.collections.llm import (BertEmbeddingLargeConfig,
+                                  BertEmbeddingMiniConfig, BertEmbeddingModel)
 from nemo.collections.llm.recipes import bert_embedding
 from nemo.lightning import Trainer
 from nemo.utils.exp_manager import TimingCallback

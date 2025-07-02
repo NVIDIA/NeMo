@@ -17,7 +17,8 @@ import copy
 import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import GPTSFTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import \
+    GPTSFTDataset
 from nemo.utils import logging
 
 __all__ = ['GPTSFTChatDataset', 'get_prompt_template_example']

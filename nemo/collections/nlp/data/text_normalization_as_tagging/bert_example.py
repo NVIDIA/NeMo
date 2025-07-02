@@ -25,9 +25,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from transformers import PreTrainedTokenizerBase
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.tagging import EditingTask, Tag
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import yield_sources_and_targets
-
+from nemo.collections.nlp.data.text_normalization_as_tagging.tagging import (
+    EditingTask, Tag)
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import \
+    yield_sources_and_targets
 
 """Build BERT Examples from source, target pairs.
    The difference from the original Lasertagger approach is that our target already consists of tags,

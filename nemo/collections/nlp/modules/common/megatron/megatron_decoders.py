@@ -14,15 +14,12 @@
 
 """Transformer based language model."""
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import MegatronTransformerDecoderModule
-from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import (
-    MegatronRetrievalTransformerDecoderModule,
-)
+from nemo.collections.nlp.modules.common.megatron.megatron_transformer_decoder import \
+    MegatronTransformerDecoderModule
+from nemo.collections.nlp.modules.common.megatron.retrieval_transformer import \
+    MegatronRetrievalTransformerDecoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    init_method_normal,
-    scaled_init_method_normal,
-)
+    ApexGuardDefaults, init_method_normal, scaled_init_method_normal)
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType

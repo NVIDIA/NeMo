@@ -39,7 +39,8 @@ import csv
 import os
 from urllib.request import Request, urlopen
 
-from nemo.collections.nlp.data.data_utils.data_preprocessing import MODE_EXISTS_TMP, if_exist
+from nemo.collections.nlp.data.data_utils.data_preprocessing import (
+    MODE_EXISTS_TMP, if_exist)
 from nemo.utils import logging
 
 base_url = "https://m.meetkai.com/public_datasets/knowledge/"

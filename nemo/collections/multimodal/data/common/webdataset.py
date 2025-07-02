@@ -26,9 +26,12 @@ import torch.distributed as dist
 from botocore.config import Config
 from PIL import Image
 
-from nemo.collections.multimodal.data.common.data_samplers import SharedEpoch, WDSUrlsRandomSampler
-from nemo.collections.multimodal.data.common.webdataset_s3 import WebDataset as WebDatasetS3
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.multimodal.data.common.data_samplers import (
+    SharedEpoch, WDSUrlsRandomSampler)
+from nemo.collections.multimodal.data.common.webdataset_s3 import \
+    WebDataset as WebDatasetS3
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 from nemo.core.classes import IterableDataset as NeMoIterableDataset
 from nemo.utils import logging
 

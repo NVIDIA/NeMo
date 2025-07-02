@@ -17,10 +17,13 @@ import json
 import torch
 from tqdm.auto import tqdm
 
-from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import BasePromptLearningDataset
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import T5Sentinel
+from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import \
+    BasePromptLearningDataset
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import \
+    T5Sentinel
 from nemo.collections.nlp.modules.common import VirtualPromptSource
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    build_position_ids
 from nemo.utils import logging
 
 __all__ = ['T5PromptLearningDataset']

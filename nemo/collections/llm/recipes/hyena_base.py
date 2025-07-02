@@ -31,16 +31,25 @@ from nemo.collections import llm
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data import PreTrainingDataModule
-from nemo.collections.llm.gpt.data.megatron.hyena import Evo2Dataset, parse_dataset_config
+from nemo.collections.llm.gpt.data.megatron.hyena import (Evo2Dataset,
+                                                          parse_dataset_config)
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.recipes.log.default import default_log, tensorboard_logger, wandb_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed, bf16_with_fp8_mixed
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.llm.recipes.log.default import (default_log,
+                                                      tensorboard_logger,
+                                                      wandb_logger)
+from nemo.collections.llm.recipes.optim.adam import \
+    distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.precision.mixed_precision import (
+    bf16_mixed, bf16_with_fp8_mixed)
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import \
+    userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning.pytorch import callbacks as nl_callbacks
-from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.flops_callback import \
+    FLOPsMeasurementCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "hyena_test"

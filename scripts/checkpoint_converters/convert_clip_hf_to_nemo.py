@@ -43,7 +43,8 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from transformers import CLIPModel
 
-from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import \
+    MegatronCLIPModel
 from nemo.utils import AppState, logging
 from nemo.utils.distributed import initialize_distributed
 

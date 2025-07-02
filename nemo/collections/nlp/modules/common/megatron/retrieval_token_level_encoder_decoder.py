@@ -15,17 +15,17 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.language_model import Embedding
+from nemo.collections.nlp.modules.common.megatron.language_model import \
+    Embedding
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-from nemo.collections.nlp.modules.common.megatron.megatron_decoders import get_decoder_model
-from nemo.collections.nlp.modules.common.megatron.megatron_encoders import get_encoder_model
+from nemo.collections.nlp.modules.common.megatron.megatron_decoders import \
+    get_decoder_model
+from nemo.collections.nlp.modules.common.megatron.megatron_encoders import \
+    get_encoder_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.mup.layer import MuReadout
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    init_method_normal,
-    scaled_init_method_normal,
-)
+    ApexGuardDefaults, init_method_normal, scaled_init_method_normal)
 
 try:
     from apex.transformer.enums import ModelType

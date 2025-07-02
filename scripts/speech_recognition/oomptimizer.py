@@ -26,7 +26,8 @@ from lhotse import compute_num_samples
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
+from nemo.core.neural_types import (AudioSignal, LabelsType, LengthsType,
+                                    MaskType, NeuralType)
 from nemo.utils import logging
 
 

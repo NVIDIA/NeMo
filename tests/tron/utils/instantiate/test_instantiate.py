@@ -26,49 +26,26 @@ import yaml
 from omegaconf import DictConfig, ListConfig, MissingMandatoryValue, OmegaConf
 from pytest import fixture, mark, param, raises
 
-from nemo.tron.utils.instantiate_utils import (
-    InstantiationException,
-    InstantiationMode,
-    _convert_node,
-    _convert_target_to_string,
-    _locate,
-    instantiate,
-    instantiate_node,
-)
+from nemo.tron.utils.instantiate_utils import (InstantiationException,
+                                               InstantiationMode,
+                                               _convert_node,
+                                               _convert_target_to_string,
+                                               _locate, instantiate,
+                                               instantiate_node)
 from nemo.tron.utils.yaml_utils import safe_yaml_representers
-from tests.tron.utils.instantiate import (
-    AClass,
-    Adam,
-    AdamConf,
-    AnotherClass,
-    ArgsClass,
-    ASubclass,
-    BClass,
-    CenterCrop,
-    CenterCropConf,
-    Compose,
-    ComposeConf,
-    IllegalType,
-    KeywordsInParamsClass,
-    Mapping,
-    MappingConf,
-    NestingClass,
-    OuterClass,
-    Parameters,
-    Rotation,
-    RotationConf,
-    SimpleClass,
-    TargetWithInstantiateInInit,
-    Tree,
-    TreeConf,
-    UntypedPassthroughClass,
-    UntypedPassthroughConf,
-    User,
-    add_values,
-    module_function,
-    module_function2,
-    partial_equal,
-)
+from tests.tron.utils.instantiate import (AClass, Adam, AdamConf, AnotherClass,
+                                          ArgsClass, ASubclass, BClass,
+                                          CenterCrop, CenterCropConf, Compose,
+                                          ComposeConf, IllegalType,
+                                          KeywordsInParamsClass, Mapping,
+                                          MappingConf, NestingClass,
+                                          OuterClass, Parameters, Rotation,
+                                          RotationConf, SimpleClass,
+                                          TargetWithInstantiateInInit, Tree,
+                                          TreeConf, UntypedPassthroughClass,
+                                          UntypedPassthroughConf, User,
+                                          add_values, module_function,
+                                          module_function2, partial_equal)
 
 
 @fixture(

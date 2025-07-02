@@ -12,4 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.inference.base import generate, setup_inference_wrapper, setup_model_and_tokenizer
+from nemo.collections.vlm.inference.base import (generate,
+                                                 setup_inference_wrapper,
+                                                 setup_model_and_tokenizer)

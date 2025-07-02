@@ -16,14 +16,13 @@
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-from nemo.collections.nlp.modules.common.megatron.megatron_encoder_module import MegatronEncoderModule
+from nemo.collections.nlp.modules.common.megatron.megatron_encoder_module import \
+    MegatronEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
+from nemo.collections.nlp.modules.common.megatron.transformer import \
+    ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    attn_mask_postprocess,
-    build_attention_mask_3d,
-)
+    ApexGuardDefaults, attn_mask_postprocess, build_attention_mask_3d)
 from nemo.core.classes.exportable import Exportable
 
 try:

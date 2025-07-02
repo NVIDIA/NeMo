@@ -20,15 +20,14 @@ import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
-    DataProcessor,
-    fill_class_weights,
-    get_freq_weights,
-    get_label_stats,
-)
-from nemo.collections.nlp.data.glue_benchmark.data_processors import InputExample
-from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUEDataset
+    DataProcessor, fill_class_weights, get_freq_weights, get_label_stats)
+from nemo.collections.nlp.data.glue_benchmark.data_processors import \
+    InputExample
+from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import \
+    GLUEDataset
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
-from nemo.core.neural_types import CategoricalValuesType, ChannelType, MaskType, NeuralType
+from nemo.core.neural_types import (CategoricalValuesType, ChannelType,
+                                    MaskType, NeuralType)
 from nemo.utils import logging
 
 __all__ = ['ZeroShotIntentProcessor', 'ZeroShotIntentDataset', 'ZeroShotIntentInferenceDataset']

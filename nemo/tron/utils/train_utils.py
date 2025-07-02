@@ -20,16 +20,20 @@ from typing import Callable, Optional
 import torch
 from megatron.core import parallel_state
 from megatron.core.num_microbatches_calculator import get_num_microbatches
-from megatron.core.tensor_parallel import param_is_not_tensor_parallel_duplicate
-from megatron.core.utils import get_data_parallel_group_if_dtensor, to_local_if_dtensor
+from megatron.core.tensor_parallel import \
+    param_is_not_tensor_parallel_duplicate
+from megatron.core.utils import (get_data_parallel_group_if_dtensor,
+                                 to_local_if_dtensor)
 
 from nemo.tron.config import ConfigContainer
 from nemo.tron.state import GlobalState
-from nemo.tron.utils.common_utils import get_world_size_safe, is_last_rank, print_rank_last
+from nemo.tron.utils.common_utils import (get_world_size_safe, is_last_rank,
+                                          print_rank_last)
 from nemo.tron.utils.theoretical_memory_utils import report_theoretical_memory
 
 try:
-    from transformer_engine.pytorch.optimizers import multi_tensor_applier, multi_tensor_l2norm
+    from transformer_engine.pytorch.optimizers import (multi_tensor_applier,
+                                                       multi_tensor_l2norm)
 except ImportError:
     try:
         from amp_C import multi_tensor_l2norm
@@ -43,8 +47,10 @@ except ImportError:
             "multi_tensor_applier and multi_tensor_l2norm"
         )
 
-        from megatron.core.utils import local_multi_tensor_applier as multi_tensor_applier
-        from megatron.core.utils import local_multi_tensor_l2_norm as multi_tensor_l2norm
+        from megatron.core.utils import \
+            local_multi_tensor_applier as multi_tensor_applier
+        from megatron.core.utils import \
+            local_multi_tensor_l2_norm as multi_tensor_l2norm
 
 
 def param_is_not_shared(param):

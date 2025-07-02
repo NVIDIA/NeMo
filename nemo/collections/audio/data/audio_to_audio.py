@@ -23,11 +23,13 @@ import librosa
 import numpy as np
 import torch
 
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, ChannelSelectorType
+from nemo.collections.asr.parts.preprocessing.segment import (
+    AudioSegment, ChannelSelectorType)
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.common.parts.utils import flatten
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType
+from nemo.core.neural_types import (AudioSignal, EncodedRepresentation,
+                                    LengthsType, NeuralType)
 from nemo.utils import logging
 
 __all__ = [

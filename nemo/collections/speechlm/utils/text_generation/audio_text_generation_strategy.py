@@ -20,8 +20,10 @@ import pytorch_lightning as pl
 import torch
 from megatron.core import InferenceParams, parallel_state
 
-from nemo.collections.common.tokenizers.chat_template_mixin import explode_chat_template_input, is_chat_input
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
+from nemo.collections.common.tokenizers.chat_template_mixin import (
+    explode_chat_template_input, is_chat_input)
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import \
+    shift_tokens_by_multi_audios
 
 # the text representation of eos_id, it applies for all tokenizers
 END_OF_SEQ = '<|endoftext|>'
@@ -419,7 +421,8 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.speechlm.models.speech_to_text_llm_model import SpeechToTextLLM
+    from nemo.collections.speechlm.models.speech_to_text_llm_model import \
+        SpeechToTextLLM
 
     if isinstance(model, SpeechToTextLLM):
         return SpeechToTextGenerationStrategy(model, **args)

@@ -17,7 +17,8 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 
-from nemo.collections.llm.bert.data.mock import BERTMockDataModule, _MockBERTDataset
+from nemo.collections.llm.bert.data.mock import (BERTMockDataModule,
+                                                 _MockBERTDataset)
 
 
 @pytest.fixture

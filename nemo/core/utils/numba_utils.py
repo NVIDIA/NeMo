@@ -16,7 +16,6 @@ import contextlib
 import logging as pylogger
 import operator
 import os
-
 from typing import Tuple, Union
 
 from nemo.utils import model_utils

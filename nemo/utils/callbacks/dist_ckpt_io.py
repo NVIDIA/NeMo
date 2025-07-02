@@ -30,20 +30,20 @@ from nemo.utils import logging
 
 try:
     from megatron.core import dist_checkpointing
-    from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
+    from megatron.core.dist_checkpointing.dict_utils import \
+        extract_matching_values
     from megatron.core.dist_checkpointing.mapping import ShardedBase
     from megatron.core.dist_checkpointing.serialization import (
-        get_default_load_sharded_strategy,
-        get_default_save_sharded_strategy,
-    )
+        get_default_load_sharded_strategy, get_default_save_sharded_strategy)
     from megatron.core.dist_checkpointing.strategies import tensorstore
-    from megatron.core.dist_checkpointing.strategies.async_utils import AsyncCallsQueue, AsyncRequest
-    from megatron.core.dist_checkpointing.strategies.base import SaveShardedStrategy
+    from megatron.core.dist_checkpointing.strategies.async_utils import (
+        AsyncCallsQueue, AsyncRequest)
+    from megatron.core.dist_checkpointing.strategies.base import \
+        SaveShardedStrategy
     from megatron.core.dist_checkpointing.strategies.fully_parallel import (
-        FullyParallelLoadStrategyWrapper,
-        FullyParallelSaveStrategyWrapper,
-    )
-    from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
+        FullyParallelLoadStrategyWrapper, FullyParallelSaveStrategyWrapper)
+    from megatron.core.dist_checkpointing.strategies.torch import \
+        TorchDistSaveShardedStrategy
     from megatron.core.dist_checkpointing.validation import StrictHandling
     from megatron.core.parallel_state import get_data_parallel_group
 

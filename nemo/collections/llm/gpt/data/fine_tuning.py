@@ -28,7 +28,8 @@ from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
-    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from nemo.collections.llm.gpt.data.packed_sequence import \
+        PackedSequenceSpecs
 
 
 class FineTuningDataModule(pl.LightningDataModule):
@@ -119,7 +120,8 @@ class FineTuningDataModule(pl.LightningDataModule):
         Prepare packed sequence data
         """
         if self.packed_sequence_size > 0:
-            from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
+            from nemo.collections.llm.gpt.data.packed_sequence import \
+                prepare_packed_sequence_data
 
             if not self.train_path_packed.is_file():
                 prepare_packed_sequence_data(
@@ -177,11 +179,13 @@ class FineTuningDataModule(pl.LightningDataModule):
 
         """
         try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                update_num_microbatches
         consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples

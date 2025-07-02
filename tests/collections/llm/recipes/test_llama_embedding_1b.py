@@ -21,7 +21,8 @@ from nemo.collections.llm.api import finetune
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import llama_embedding_1b
 from nemo.lightning import Trainer
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.garbage_collection import \
+    GarbageCollectionCallback
 from nemo.utils.exp_manager import TimingCallback
 
 

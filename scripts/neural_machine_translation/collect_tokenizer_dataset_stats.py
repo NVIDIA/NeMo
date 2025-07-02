@@ -20,7 +20,8 @@ import os
 import numpy as np
 from matplotlib import pyplot as plt
 
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 
 # =============================================================================#
 # Auxiliary methods

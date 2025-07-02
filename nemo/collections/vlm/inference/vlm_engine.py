@@ -15,7 +15,8 @@
 from typing import List, Union
 
 import torch
-from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
 from megatron.core.inference.inference_request import InferenceRequest
 from PIL.Image import Image

@@ -18,7 +18,9 @@ from pathlib import Path
 import pytest
 import torch
 
-from nemo.collections.llm.bert.data.core import BertEmbeddingDataset, create_sft_dataset, get_dataset_root
+from nemo.collections.llm.bert.data.core import (BertEmbeddingDataset,
+                                                 create_sft_dataset,
+                                                 get_dataset_root)
 
 
 class MockTokenizer:

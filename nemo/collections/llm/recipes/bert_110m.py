@@ -21,8 +21,11 @@ import torch
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.bert.data.mock import BERTMockDataModule
 from nemo.collections.llm.recipes.bert import bert_model, bert_trainer
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.log.default import (default_log,
+                                                      default_resume,
+                                                      tensorboard_logger)
+from nemo.collections.llm.recipes.optim.adam import \
+    distributed_fused_adam_with_cosine_annealing
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "bert_110m"

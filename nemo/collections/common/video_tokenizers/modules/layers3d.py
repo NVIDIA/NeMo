@@ -30,18 +30,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.collections.common.video_tokenizers.modules.patching import Patcher, Patcher3D, UnPatcher, UnPatcher3D
+from nemo.collections.common.video_tokenizers.modules.patching import (
+    Patcher, Patcher3D, UnPatcher, UnPatcher3D)
 from nemo.collections.common.video_tokenizers.modules.utils import (
-    CausalNormalize,
-    batch2space,
-    batch2time,
-    cast_tuple,
-    is_odd,
-    nonlinearity,
-    replication_pad,
-    space2batch,
-    time2batch,
-)
+    CausalNormalize, batch2space, batch2time, cast_tuple, is_odd, nonlinearity,
+    replication_pad, space2batch, time2batch)
 
 _LEGACY_NUM_GROUPS = 32
 

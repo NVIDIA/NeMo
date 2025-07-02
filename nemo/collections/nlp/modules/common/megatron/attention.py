@@ -19,25 +19,18 @@ import torch.nn.functional as F
 from einops import rearrange, repeat
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    InfusedAdapterConfig,
-    LoraDenseAttentionAdapterConfig,
-    LoraKQVAdapterConfig,
-    LoraKQVAdapterWeightTyingConfig,
-    LoraKVAdapterConfig,
-    LoraQAdapterConfig,
-)
-from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
+    AdapterName, InfusedAdapterConfig, LoraDenseAttentionAdapterConfig,
+    LoraKQVAdapterConfig, LoraKQVAdapterWeightTyingConfig, LoraKVAdapterConfig,
+    LoraQAdapterConfig)
+from nemo.collections.nlp.modules.common.megatron.fused_softmax import \
+    MatchedScaleMaskSoftmax
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.position_embedding import XPOSPositionEmbedding
-from nemo.collections.nlp.modules.common.megatron.position_embedding.rotary_position_embedding import (
-    apply_rotary_pos_emb,
-)
+from nemo.collections.nlp.modules.common.megatron.position_embedding import \
+    XPOSPositionEmbedding
+from nemo.collections.nlp.modules.common.megatron.position_embedding.rotary_position_embedding import \
+    apply_rotary_pos_emb
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    _cast_if_autocast_enabled,
-    attention_mask_func,
-)
+    ApexGuardDefaults, _cast_if_autocast_enabled, attention_mask_func)
 from nemo.core import adapter_mixins
 
 try:
@@ -55,7 +48,8 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import (ModelParallelConfig, parallel_state,
+                               tensor_parallel)
 
     HAVE_MEGATRON_CORE = True
 
@@ -67,7 +61,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     # Flash Attention Triton
-    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_func_triton
+    from flash_attn.flash_attn_triton import \
+        flash_attn_func as flash_attn_func_triton
 
 except (ImportError, ModuleNotFoundError):
 
@@ -86,7 +81,8 @@ except (ImportError, ModuleNotFoundError):
     try:
         # Flash Attention 2.X
         from flash_attn import flash_attn_func
-        from flash_attn.flash_attn_interface import flash_attn_varlen_func as flash_attn_unpadded_func
+        from flash_attn.flash_attn_interface import \
+            flash_attn_varlen_func as flash_attn_unpadded_func
 
         HAVE_FLASH_ATTENTION = True
 

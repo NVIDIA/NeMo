@@ -18,8 +18,10 @@ import torch.multiprocessing as mp
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import MegatronGPTEmbeddingModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
+from nemo.collections.nlp.models.information_retrieval.megatron_gpt_embedding_model import \
+    MegatronGPTEmbeddingModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronLMPPTrainerBuilder
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

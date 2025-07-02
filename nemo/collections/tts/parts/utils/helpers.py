@@ -52,7 +52,9 @@ import seaborn as sns
 import torch
 from numba import jit, prange
 
-from nemo.collections.tts.torch.tts_data_types import DATA_STR2DATA_CLASS, MAIN_DATA_TYPES, WithLens
+from nemo.collections.tts.torch.tts_data_types import (DATA_STR2DATA_CLASS,
+                                                       MAIN_DATA_TYPES,
+                                                       WithLens)
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated
 

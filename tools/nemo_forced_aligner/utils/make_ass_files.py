@@ -25,8 +25,8 @@ by the NFA alignemtns.
 
 import math
 import os
-import soundfile as sf
 
+import soundfile as sf
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
 from utils.data_prep import Segment, Token, Word
 

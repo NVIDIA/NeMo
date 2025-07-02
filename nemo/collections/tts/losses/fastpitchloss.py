@@ -47,14 +47,11 @@ import torch.nn.functional as F
 
 from nemo.collections.tts.modules.transformer import mask_from_lens
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types.elements import (
-    LengthsType,
-    LossType,
-    MelSpectrogramType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenLogDurationType,
-)
+from nemo.core.neural_types.elements import (LengthsType, LossType,
+                                             MelSpectrogramType,
+                                             RegressionValuesType,
+                                             TokenDurationType,
+                                             TokenLogDurationType)
 from nemo.core.neural_types.neural_type import NeuralType
 
 

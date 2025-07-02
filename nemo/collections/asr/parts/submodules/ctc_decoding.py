@@ -22,10 +22,14 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.parts.submodules import ctc_beam_decoding, ctc_greedy_decoding
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
-from nemo.collections.common.tokenizers.aggregate_tokenizer import DummyTokenizer
+from nemo.collections.asr.parts.submodules import (ctc_beam_decoding,
+                                                   ctc_greedy_decoding)
+from nemo.collections.asr.parts.utils.asr_confidence_utils import (
+    ConfidenceConfig, ConfidenceMixin)
+from nemo.collections.asr.parts.utils.rnnt_utils import (Hypothesis,
+                                                         NBestHypotheses)
+from nemo.collections.common.tokenizers.aggregate_tokenizer import \
+    DummyTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging, logging_mode
 

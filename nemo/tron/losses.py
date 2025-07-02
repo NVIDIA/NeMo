@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from functools import partial
+
 import torch
 from megatron.core import parallel_state
 from megatron.core.rerun_state_machine import get_rerun_state_machine

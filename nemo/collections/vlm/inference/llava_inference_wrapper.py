@@ -16,10 +16,10 @@ from typing import Any, Dict, List
 
 import torch
 from megatron.core import tensor_parallel
-from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
-    AbstractModelInferenceWrapper,
-)
-from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import \
+    AbstractModelInferenceWrapper
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import \
+    InferenceWrapperConfig
 from megatron.core.inference_params import InferenceParams
 from torch.utils.data import default_collate
 

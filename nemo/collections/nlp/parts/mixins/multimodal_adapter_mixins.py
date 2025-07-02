@@ -17,15 +17,19 @@ from typing import List, Optional, Union
 import torch
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin, replace_prefix
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig, PtuningPEFTConfig
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import (
+    NLPAdapterModelMixin, replace_prefix)
+from nemo.collections.nlp.parts.peft_config import (PEFT_CONFIG_MAP,
+                                                    PEFTConfig,
+                                                    PtuningPEFTConfig)
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging, model_utils
 
 try:
     from megatron.core import parallel_state
 
-    from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
+    from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import \
+        swap_mcore_mixin
 
 except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False

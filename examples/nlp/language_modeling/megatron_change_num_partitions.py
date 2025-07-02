@@ -25,13 +25,9 @@ from lightning.pytorch import Trainer
 from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.nlp.parts.nlp_overrides import (
-    NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE,
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+    NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler,
+    MegatronHalfPrecisionPlugin, NLPDDPStrategy, NLPSaveRestoreConnector,
+    PipelineMixedPrecisionPlugin)
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 

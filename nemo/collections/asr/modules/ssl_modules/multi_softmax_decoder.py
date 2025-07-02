@@ -19,7 +19,8 @@ import torch
 
 from nemo.collections.asr.parts.submodules.jasper import init_weights
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import AcousticEncodedRepresentation, LogprobsType, NeuralType
+from nemo.core.neural_types import (AcousticEncodedRepresentation,
+                                    LogprobsType, NeuralType)
 
 
 class MultiSoftmaxDecoder(NeuralModule):

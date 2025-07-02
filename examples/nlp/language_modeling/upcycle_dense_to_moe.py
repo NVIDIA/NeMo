@@ -28,8 +28,10 @@ import torch
 import torch.nn
 from lightning.pytorch.trainer.trainer import Trainer
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.utils import logging
 
 
@@ -97,7 +99,8 @@ def upcycle(in_file, num_experts, cpu_only=True) -> None:
     moe_model = MegatronGPTModel(moe_config, trainer=dummy_trainer2)
 
     # convert state dict dense -> MoE
-    from megatron.core.transformer.moe.upcycling_utils import upcycle_state_dict
+    from megatron.core.transformer.moe.upcycling_utils import \
+        upcycle_state_dict
 
     moe_state_dict = upcycle_state_dict([unwrap(moe_model.model)], [unwrap(dense_model.model)])
     moe_model.model.module.load_state_dict(moe_state_dict['model'])

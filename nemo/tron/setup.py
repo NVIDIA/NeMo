@@ -18,11 +18,9 @@ from functools import partial
 from typing import Any, Dict, NamedTuple, Optional
 
 import torch
-from megatron.core.distributed import (
-    DistributedDataParallel,
-    DistributedDataParallelConfig,
-    finalize_model_grads,
-)
+from megatron.core.distributed import (DistributedDataParallel,
+                                       DistributedDataParallelConfig,
+                                       finalize_model_grads)
 from megatron.core.optimizer import MegatronOptimizer
 from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
 from megatron.core.rerun_state_machine import RerunDataIterator
@@ -39,14 +37,16 @@ from nemo.tron.model import get_model_from_config
 from nemo.tron.optim import setup_optimizer
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
-from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, print_rank_0
+from nemo.tron.utils.common_utils import (append_to_progress_log,
+                                          barrier_and_log, print_rank_0)
 from nemo.tron.utils.log_utils import setup_logging
 from nemo.utils.import_utils import safe_import
 
 _, HAVE_RESIL = safe_import("nvidia_resiliency_ext.checkpointing")
 
 try:
-    from megatron.core.distributed import TorchFullyShardedDataParallel  # noqa: F401
+    from megatron.core.distributed import \
+        TorchFullyShardedDataParallel  # noqa: F401
 
     HAVE_FSDP2 = True
 except ImportError:
@@ -216,12 +216,10 @@ def _init_checkpointing_context(checkpoint_config: CheckpointConfig) -> Dict[str
             "checkpointing but was not found. Please ensure it is installed."
         )
 
-    from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import (
-        LocalCheckpointManager,
-    )
-    from nvidia_resiliency_ext.checkpointing.local.replication.strategies import (
-        CliqueReplicationStrategy,
-    )
+    from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import \
+        LocalCheckpointManager
+    from nvidia_resiliency_ext.checkpointing.local.replication.strategies import \
+        CliqueReplicationStrategy
 
     if checkpoint_config.replication:
         repl_strategy = CliqueReplicationStrategy.from_replication_params(

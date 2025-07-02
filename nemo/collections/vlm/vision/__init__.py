@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.vision.base import (
-    BaseCLIPViTModel,
-    CLIPViTConfig,
-    HFCLIPVisionConfig,
-    MultimodalProjectorConfig,
-)
-from nemo.collections.vlm.vision.clip_vit import CLIPViTL_14_336_Config, CLIPViTModel
+from nemo.collections.vlm.vision.base import (BaseCLIPViTModel, CLIPViTConfig,
+                                              HFCLIPVisionConfig,
+                                              MultimodalProjectorConfig)
+from nemo.collections.vlm.vision.clip_vit import (CLIPViTL_14_336_Config,
+                                                  CLIPViTModel)
 from nemo.collections.vlm.vision.intern_vit import (
-    InternViT_6B_448px_Config,
-    InternViT_300M_448px_Config,
-    InternViTModel,
-)
-from nemo.collections.vlm.vision.siglip_vit import SigLIPViT400M_14_384_Config, SigLIPViTModel
+    InternViT_6B_448px_Config, InternViT_300M_448px_Config, InternViTModel)
+from nemo.collections.vlm.vision.siglip_vit import (
+    SigLIPViT400M_14_384_Config, SigLIPViTModel)
 
 __all__ = [
     "MultimodalProjectorConfig",

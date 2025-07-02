@@ -17,7 +17,8 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
+from nemo.collections.asr.parts.preprocessing.features import \
+    FilterbankFeatures
 
 
 class TestFilterbankFeatures:

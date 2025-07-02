@@ -20,13 +20,13 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss, SmoothedCrossEntropyLoss
+from nemo.collections.common.losses import (AggregatorLoss, CrossEntropyLoss,
+                                            SmoothedCrossEntropyLoss)
 from nemo.collections.common.metrics import Perplexity
 from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
-    BertPretrainingDataset,
-    BertPretrainingPreprocessedDataloader,
-)
-from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, SequenceClassifier
+    BertPretrainingDataset, BertPretrainingPreprocessedDataloader)
+from nemo.collections.nlp.modules.common import (
+    BertPretrainingTokenClassifier, SequenceClassifier)
 from nemo.collections.nlp.modules.common.lm_utils import get_lm_model
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import PretrainedModelInfo, typecheck

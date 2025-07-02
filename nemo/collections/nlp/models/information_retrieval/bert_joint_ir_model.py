@@ -19,7 +19,8 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 
 from nemo.collections.common.losses import SmoothedCrossEntropyLoss
-from nemo.collections.nlp.models.information_retrieval.base_ir_model import BaseIRModel
+from nemo.collections.nlp.models.information_retrieval.base_ir_model import \
+    BaseIRModel
 from nemo.collections.nlp.modules.common import SequenceRegression
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.core.classes.common import typecheck

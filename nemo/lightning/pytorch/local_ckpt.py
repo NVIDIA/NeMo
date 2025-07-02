@@ -20,19 +20,24 @@ from typing import Any, Callable, Dict, Optional
 import torch
 from lightning_fabric.plugins import CheckpointIO
 from lightning_fabric.utilities.types import _PATH
-from megatron.core.dist_checkpointing.tensor_aware_state_dict import MCoreTensorAwareStateDict
-from nvidia_resiliency_ext.checkpointing.local.base_state_dict import TensorAwareStateDict
-from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.base_manager import BaseCheckpointManager
-from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import LocalCheckpointManager
-from nvidia_resiliency_ext.checkpointing.local.replication.strategies import LazyCliqueReplicationStrategy
-from nvidia_resiliency_ext.fault_tolerance.dict_utils import dict_list_map_inplace
+from megatron.core.dist_checkpointing.tensor_aware_state_dict import \
+    MCoreTensorAwareStateDict
+from nvidia_resiliency_ext.checkpointing.local.base_state_dict import \
+    TensorAwareStateDict
+from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.base_manager import \
+    BaseCheckpointManager
+from nvidia_resiliency_ext.checkpointing.local.ckpt_managers.local_manager import \
+    LocalCheckpointManager
+from nvidia_resiliency_ext.checkpointing.local.replication.strategies import \
+    LazyCliqueReplicationStrategy
+from nvidia_resiliency_ext.fault_tolerance.dict_utils import \
+    dict_list_map_inplace
 from nvidia_resiliency_ext.ptl_resiliency.local_checkpoint_callback import (
-    HierarchicalCheckpointIO,
-    LocalCheckpointCallback,
-)
+    HierarchicalCheckpointIO, LocalCheckpointCallback)
 
 from nemo.lightning.pytorch.trainer import Trainer
-from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO, AsyncFinalizableCheckpointIO
+from nemo.utils.callbacks.dist_ckpt_io import (AsyncCompatibleCheckpointIO,
+                                               AsyncFinalizableCheckpointIO)
 
 logger = logging.getLogger(__name__)
 

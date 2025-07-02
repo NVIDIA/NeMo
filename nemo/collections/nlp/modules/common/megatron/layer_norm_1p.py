@@ -14,10 +14,13 @@
 # limitations under the License.
 
 import torch
-from nemo.collections.nlp.modules.common.megatron.utils import _cast_if_autocast_enabled
+
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    _cast_if_autocast_enabled
 
 try:
-    from apex.contrib.layer_norm.layer_norm import FastLayerNorm as OrigFastLayerNorm
+    from apex.contrib.layer_norm.layer_norm import \
+        FastLayerNorm as OrigFastLayerNorm
     from apex.contrib.layer_norm.layer_norm import _fast_layer_norm
     from apex.transformer.layers.layer_norm import FastLayerNorm
 

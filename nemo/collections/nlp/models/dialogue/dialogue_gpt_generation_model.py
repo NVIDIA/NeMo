@@ -24,14 +24,18 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from transformers import AutoModelWithLMHead
 
-from nemo.collections.nlp.data.dialogue.data_processor.mellon_qa_data_processor import DialogueMellonQADataProcessor
-from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import DialogueMSMarcoDataProcessor
-from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_generation_dataset import DialogueGPTGenerationDataset
-from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-    MegatronGPTPromptLearningModel,
-)
+from nemo.collections.nlp.data.dialogue.data_processor.mellon_qa_data_processor import \
+    DialogueMellonQADataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.ms_marco_data_processor import \
+    DialogueMSMarcoDataProcessor
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_gpt_generation_dataset import \
+    DialogueGPTGenerationDataset
+from nemo.collections.nlp.metrics.dialogue_metrics import \
+    DialogueGenerationMetrics
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import \
+    MegatronGPTPromptLearningModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging

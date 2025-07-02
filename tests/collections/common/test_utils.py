@@ -21,7 +21,8 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.common.parts.preprocessing.manifest import get_full_path, is_tarred_dataset
+from nemo.collections.common.parts.preprocessing.manifest import (
+    get_full_path, is_tarred_dataset)
 from nemo.collections.common.parts.utils import flatten, mask_sequence_tensor
 
 

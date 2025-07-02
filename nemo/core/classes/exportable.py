@@ -21,17 +21,11 @@ from nemo.core.classes import typecheck
 from nemo.core.neural_types import NeuralType
 from nemo.core.utils.neural_type_utils import get_dynamic_axes, get_io_names
 from nemo.utils import logging, monkeypatched
-from nemo.utils.export_utils import (
-    ExportFormat,
-    augment_filename,
-    get_export_format,
-    parse_input_example,
-    rename_onnx_io,
-    replace_for_export,
-    verify_runtime,
-    verify_torchscript,
-    wrap_forward_method,
-)
+from nemo.utils.export_utils import (ExportFormat, augment_filename,
+                                     get_export_format, parse_input_example,
+                                     rename_onnx_io, replace_for_export,
+                                     verify_runtime, verify_torchscript,
+                                     wrap_forward_method)
 
 __all__ = ['ExportFormat', 'Exportable']
 

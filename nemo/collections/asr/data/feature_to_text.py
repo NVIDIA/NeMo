@@ -16,15 +16,20 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 
-from nemo.collections.asr.data.feature_to_label import _audio_feature_collate_fn
-from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
+from nemo.collections.asr.data.feature_to_label import \
+    _audio_feature_collate_fn
+from nemo.collections.asr.parts.preprocessing.feature_loader import \
+    ExternalFeatureLoader
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.utils.vad_utils import load_speech_segments_from_rttm
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
+from nemo.collections.asr.parts.utils.vad_utils import \
+    load_speech_segments_from_rttm
 from nemo.collections.common import tokenizers
 from nemo.collections.common.parts.preprocessing import collections, parsers
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AcousticEncodedRepresentation, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import (AcousticEncodedRepresentation, LabelsType,
+                                    LengthsType, NeuralType)
 
 
 class ASRFeatureManifestProcessor:

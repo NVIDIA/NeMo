@@ -24,7 +24,6 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
 from nemo.utils import logging
 
-
 TW_BREAK = "‡"
 
 

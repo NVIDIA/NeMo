@@ -24,7 +24,8 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.collections.common.parts.adapter_modules import LinearAdapter
 from nemo.core import ModelPT, NeuralModule
 from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
-from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
+from nemo.core.classes.mixins.adapter_mixins import (AdapterModelPTMixin,
+                                                     AdapterModuleMixin)
 from nemo.utils import logging, logging_mode
 
 

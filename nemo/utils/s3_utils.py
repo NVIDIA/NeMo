@@ -23,7 +23,8 @@ import boto3
 import botocore
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import ClientError
-from tenacity import before_sleep_log, retry, retry_if_exception, stop_after_delay, wait_exponential
+from tenacity import (before_sleep_log, retry, retry_if_exception,
+                      stop_after_delay, wait_exponential)
 
 from nemo.utils import logging
 from nemo.utils.s3_dirpath_utils import build_s3_url, is_s3_url

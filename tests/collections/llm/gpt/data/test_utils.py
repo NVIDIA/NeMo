@@ -19,18 +19,10 @@ import pytest
 import torch
 
 from nemo.collections.llm.gpt.data.utils import (
-    IGNORE_INDEX,
-    _add_speaker_and_signal,
-    _build_memmap_index_files,
-    _get_header_conversation_type_mask_role,
-    _JSONLMemMapDataset,
-    _mask_targets,
-    _OnlineSampleMapping,
-    _response_value_formater,
-    _TextMemMapDataset,
-    build_index_files,
-    build_index_from_memdata,
-)
+    IGNORE_INDEX, _add_speaker_and_signal, _build_memmap_index_files,
+    _get_header_conversation_type_mask_role, _JSONLMemMapDataset,
+    _mask_targets, _OnlineSampleMapping, _response_value_formater,
+    _TextMemMapDataset, build_index_files, build_index_from_memdata)
 
 
 # Test fixtures

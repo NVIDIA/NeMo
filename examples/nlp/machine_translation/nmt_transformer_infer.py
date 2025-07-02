@@ -29,10 +29,8 @@ import torch
 
 import nemo.collections.nlp as nemo_nlp
 from nemo.collections.nlp.modules.common.transformer import (
-    BeamSearchSequenceGenerator,
-    BeamSearchSequenceGeneratorWithLanguageModel,
-    EnsembleBeamSearchSequenceGenerator,
-)
+    BeamSearchSequenceGenerator, BeamSearchSequenceGeneratorWithLanguageModel,
+    EnsembleBeamSearchSequenceGenerator)
 from nemo.utils import logging
 
 

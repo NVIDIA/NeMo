@@ -18,7 +18,8 @@ import lightning.pytorch as pl
 import torch
 
 from nemo.collections.common.callbacks import LogEpochTimeCallback
-from nemo.collections.tts.g2p.models.heteronym_classification import HeteronymClassificationModel
+from nemo.collections.tts.g2p.models.heteronym_classification import \
+    HeteronymClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

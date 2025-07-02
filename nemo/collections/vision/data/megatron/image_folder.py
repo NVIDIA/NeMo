@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 from PIL import Image
+
 from nemo.utils import logging
 
 try:

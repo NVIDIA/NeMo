@@ -41,9 +41,11 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.multimodal.data.energon.task_encoder import \
+    MultiModalTaskEncoder
 from nemo.collections.vlm import ImageDataConfig
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
@@ -111,13 +113,12 @@ def main(args):
         )
     elif args.data_type == "energon":
         from transformers import AutoProcessor
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
         from nemo.collections.multimodal.data.energon import (
-            EnergonMultiModalDataModule,
-            ImageToken,
-            LLaVATemplateConfig,
-            MultiModalSampleConfig,
-        )
+            EnergonMultiModalDataModule, ImageToken, LLaVATemplateConfig,
+            MultiModalSampleConfig)
 
         processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
         image_processor = processor.image_processor

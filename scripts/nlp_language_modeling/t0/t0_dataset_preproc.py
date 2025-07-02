@@ -21,7 +21,6 @@ from multiprocessing import Pool
 import tensorflow as tf
 from tasks_splits_and_features import _TASK_SPLITS_AND_FEATURES_DICT
 
-
 """
 This script converts the P3 dataset used to train T0 from a tfrecords format to individual JSONL files.
 

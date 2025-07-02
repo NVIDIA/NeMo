@@ -30,24 +30,26 @@ from omegaconf.dictconfig import DictConfig
 from tqdm import tqdm
 
 from nemo.collections.multimodal.data.clip.clip_dataset import (
-    build_imagenet_validation_dataloader,
-    build_train_valid_datasets,
-)
+    build_imagenet_validation_dataloader, build_train_valid_datasets)
 from nemo.collections.multimodal.losses.clip_loss import ClipLoss
 from nemo.collections.multimodal.losses.siglip_loss import SigLipLoss
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import get_specs, mcore_supports_moe
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
+    get_specs, mcore_supports_moe)
+from nemo.collections.nlp.modules.common.megatron.build_model import \
+    build_model
+from nemo.collections.nlp.modules.common.megatron.language_model import \
+    get_language_model
+from nemo.collections.nlp.modules.common.megatron.module import (
+    Float16Module, MegatronModule)
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
-    get_params_for_weight_decay_optimization,
-    init_method_normal,
-    scaled_init_method_normal,
-)
-from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
+    get_params_for_weight_decay_optimization, init_method_normal,
+    scaled_init_method_normal)
+from nemo.collections.nlp.parts.utils_funcs import (activation_to_func,
+                                                    get_last_rank)
 from nemo.collections.vision.modules.vit.vit_backbone import VitBackbone
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
@@ -66,30 +68,28 @@ try:
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.distributed import DistributedDataParallelConfig
     from megatron.core.extensions.transformer_engine import (
-        TEColumnParallelLinear,
-        TEDotProductAttention,
-        TELayerNormColumnParallelLinear,
-        TENorm,
-        TERowParallelLinear,
-    )
+        TEColumnParallelLinear, TEDotProductAttention,
+        TELayerNormColumnParallelLinear, TENorm, TERowParallelLinear)
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.vision.clip_vit_model import CLIPViTModel
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.attention import CrossAttention, CrossAttentionSubmodules
-    from megatron.core.transformer.enums import AttnMaskType as MCoreAttnMaskType
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
+    from megatron.core.transformer.attention import (CrossAttention,
+                                                     CrossAttentionSubmodules)
+    from megatron.core.transformer.enums import \
+        AttnMaskType as MCoreAttnMaskType
     from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-    from megatron.core.utils import (
-        drain_embedding_wgrad_compute,
-        get_model_config,
-        init_method_normal,
-        scaled_init_method_normal,
-    )
+    from megatron.core.transformer.transformer_layer import (
+        TransformerLayer, TransformerLayerSubmodules)
+    from megatron.core.utils import (drain_embedding_wgrad_compute,
+                                     get_model_config, init_method_normal,
+                                     scaled_init_method_normal)
 
     HAVE_MEGATRON_CORE = True
 

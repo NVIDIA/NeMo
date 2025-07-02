@@ -56,15 +56,14 @@ import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecodingConfig
+from nemo.collections.asr.parts.submodules.multitask_decoding import \
+    MultiTaskDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
-from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchMultiTaskAED
+from nemo.collections.asr.parts.utils.streaming_utils import \
+    FrameBatchMultiTaskAED
 from nemo.collections.asr.parts.utils.transcribe_utils import (
-    compute_output_filename,
-    get_buffered_pred_feat_multitaskAED,
-    setup_model,
-    write_transcription,
-)
+    compute_output_filename, get_buffered_pred_feat_multitaskAED, setup_model,
+    write_transcription)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

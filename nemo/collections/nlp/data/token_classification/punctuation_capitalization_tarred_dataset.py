@@ -22,7 +22,8 @@ import shutil
 import tempfile
 from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
+from typing import (Any, Callable, Dict, Iterator, List, Optional, Set, Tuple,
+                    Type, Union)
 
 import numpy as np
 import torch
@@ -33,16 +34,12 @@ from torch.utils.data import IterableDataset
 
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.nlp.data.token_classification.punctuation_capitalization_dataset import (
-    LABEL_ID_DIR_FOR_NEMO_CHECKPOINT,
-    BertPunctuationCapitalizationDataset,
-    Progress,
-    create_label_ids,
-    create_masks_and_segment_ids,
-    load_label_ids,
-    raise_not_equal_labels_error,
-)
+    LABEL_ID_DIR_FOR_NEMO_CHECKPOINT, BertPunctuationCapitalizationDataset,
+    Progress, create_label_ids, create_masks_and_segment_ids, load_label_ids,
+    raise_not_equal_labels_error)
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
-from nemo.core.neural_types import AudioSignal, ChannelType, LabelsType, LengthsType, MaskType, NeuralType
+from nemo.core.neural_types import (AudioSignal, ChannelType, LabelsType,
+                                    LengthsType, MaskType, NeuralType)
 from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
 

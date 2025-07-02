@@ -20,6 +20,7 @@ __all__ = [
 import functools
 import inspect
 import time
+
 import wrapt
 
 from nemo.utils import logging

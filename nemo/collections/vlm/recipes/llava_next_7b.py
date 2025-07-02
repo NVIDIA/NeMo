@@ -23,7 +23,8 @@ from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.llm.recipes.finetune_default import nemo_resume
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.optim.adam import \
+    distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.vlm import LlavaNextMockDataModule
 from nemo.utils.exp_manager import TimingCallback
@@ -107,7 +108,8 @@ def finetune_recipe(
     )
     from transformers import AutoProcessor
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
 
     recipe = run.Partial(
         llm.finetune,
@@ -213,7 +215,8 @@ def pretrain_recipe(
     )
     from transformers import AutoProcessor
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
 
     recipe = run.Partial(
         llm.pretrain,

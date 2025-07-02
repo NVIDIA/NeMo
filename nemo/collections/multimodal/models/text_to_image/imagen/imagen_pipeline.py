@@ -21,8 +21,10 @@ from lightning.pytorch import Trainer
 from omegaconf.omegaconf import OmegaConf
 from torch.cuda.amp import autocast
 
-from nemo.collections.multimodal.models.text_to_image.imagen.imagen import Imagen, MegatronImagen
-from nemo.collections.multimodal.parts.utils import numpy_to_pil, setup_trainer_and_models_for_inference
+from nemo.collections.multimodal.models.text_to_image.imagen.imagen import (
+    Imagen, MegatronImagen)
+from nemo.collections.multimodal.parts.utils import (
+    numpy_to_pil, setup_trainer_and_models_for_inference)
 
 
 @dataclass

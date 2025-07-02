@@ -23,25 +23,22 @@ from lightning.pytorch.utilities.rank_zero import rank_zero_only
 from omegaconf import DictConfig
 from torch._inductor import config as inductor_config
 
-from nemo.collections.multimodal.data.controlnet.controlnet_dataset import build_train_valid_datasets
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import LatentDiffusion
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import DDIMSampler
-from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
+from nemo.collections.multimodal.data.controlnet.controlnet_dataset import \
+    build_train_valid_datasets
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import \
+    LatentDiffusion
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.ddim import \
+    DDIMSampler
+from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+    SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import (
-    AttentionBlock,
-    Downsample,
-    ResBlock,
-    TimestepEmbedSequential,
-    UNetModel,
-)
+    AttentionBlock, Downsample, ResBlock, TimestepEmbedSequential, UNetModel)
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
-    conv_nd,
-    linear,
-    timestep_embedding,
-    zero_module,
-)
-from nemo.collections.multimodal.parts.stable_diffusion.utils import exists, log_txt_as_img
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+    conv_nd, linear, timestep_embedding, zero_module)
+from nemo.collections.multimodal.parts.stable_diffusion.utils import (
+    exists, log_txt_as_img)
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.utils import logging
 
@@ -54,7 +51,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 

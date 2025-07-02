@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear
+from megatron.core.extensions.transformer_engine import \
+    TELayerNormColumnParallelLinear
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.transformer import ModuleSpec, TransformerLayer, TransformerLayerSubmodules
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer import (ModuleSpec, TransformerLayer,
+                                       TransformerLayerSubmodules)
+from megatron.core.transformer.attention import (SelfAttention,
+                                                 SelfAttentionSubmodules)
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 
 from nemo.collections.nlp.models.language_modeling.megatron.gemma2.gemma2_modules import (
-    Gemma2DotProductAttention,
-    TERowParallelLinearLayerNorm,
-)
+    Gemma2DotProductAttention, TERowParallelLinearLayerNorm)
 
 
 def get_gemma2_layer_spec():

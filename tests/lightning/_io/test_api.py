@@ -23,7 +23,8 @@ from lightning.pytorch.loggers import TensorBoardLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning import io
 from nemo.utils.import_utils import safe_import
 

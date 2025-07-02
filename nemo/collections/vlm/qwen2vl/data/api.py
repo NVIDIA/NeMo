@@ -15,7 +15,8 @@
 import lightning.pytorch as pl
 
 from nemo.collections.vlm.qwen2vl.data.mock import Qwen2VLMockDataModule
-from nemo.collections.vlm.qwen2vl.data.preloaded import Qwen2VLPreloadedDataModule
+from nemo.collections.vlm.qwen2vl.data.preloaded import \
+    Qwen2VLPreloadedDataModule
 
 
 def mock() -> pl.LightningDataModule:

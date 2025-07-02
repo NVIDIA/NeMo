@@ -14,7 +14,8 @@
 
 import torch.nn as nn
 
-from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims, instantiate_from_config
+from nemo.collections.multimodal.parts.stable_diffusion.utils import (
+    append_dims, instantiate_from_config)
 from nemo.core.classes import Serialization
 
 

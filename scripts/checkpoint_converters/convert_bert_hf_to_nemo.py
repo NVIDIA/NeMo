@@ -29,8 +29,11 @@ from argparse import ArgumentParser
 import torch
 from omegaconf import OmegaConf
 from transformers import AutoModel
-from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
+    MegatronBertModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 

@@ -28,27 +28,19 @@ from typing_extensions import Annotated
 
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
-from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
-from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
+from nemo.collections.llm.evaluation.api import (EvaluationConfig,
+                                                 EvaluationTarget,
+                                                 MisconfigurationError)
+from nemo.collections.llm.evaluation.base import (_legacy_evaluate,
+                                                  find_framework,
+                                                  wait_for_fastapi_server)
 from nemo.collections.llm.modelopt import (
-    DistillationGPTModel,
-    ExportConfig,
-    PruningConfig,
-    QuantizationConfig,
-    Quantizer,
-    prune_gpt_model,
-    save_pruned_model,
+    DistillationGPTModel, ExportConfig, PruningConfig, QuantizationConfig,
+    Quantizer, prune_gpt_model, save_pruned_model,
     set_modelopt_spec_if_exists_in_ckpt,
-    setup_trainer_and_restore_model_with_modelopt_spec,
-)
-from nemo.lightning import (
-    AutoResume,
-    NeMoLogger,
-    OptimizerModule,
-    Trainer,
-    configure_no_restart_validation_training_loop,
-    io,
-)
+    setup_trainer_and_restore_model_with_modelopt_spec)
+from nemo.lightning import (AutoResume, NeMoLogger, OptimizerModule, Trainer,
+                            configure_no_restart_validation_training_loop, io)
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
@@ -56,7 +48,8 @@ from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
 if TYPE_CHECKING:
-    from megatron.core.inference.common_inference_params import CommonInferenceParams
+    from megatron.core.inference.common_inference_params import \
+        CommonInferenceParams
     from megatron.core.inference.inference_request import InferenceRequest
 
 
@@ -627,6 +620,7 @@ def deploy(
         benchmarks (like MMLU, lambada). Default: True. Used only with "trtllm" backend.
     """
     import os
+
     import uvicorn
 
     from nemo.deploy import DeployPyTriton
@@ -644,7 +638,8 @@ def deploy(
         os.environ["TRITON_PORT"] = str(triton_http_port)
 
         try:
-            from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
+            from nemo.deploy.nlp.megatronllm_deployable import \
+                MegatronLLMDeployableNemo2
         except Exception as e:
             raise ValueError(
                 f"Unable to import MegatronLLMDeployable, due to: {type(e).__name__}: {e} cannot run "
@@ -708,7 +703,8 @@ def deploy(
                 triton_deployable.generate_other_ranks()
 
     elif backend == "trtllm":
-        from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
+        from nemo.collections.llm.deploy.base import (
+            get_trtllm_deployable, unset_environment_variables)
 
         unset_environment_variables()  ## Required for export to trtllm on clusters.
         triton_deployable = get_trtllm_deployable(
@@ -1128,7 +1124,8 @@ def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, toke
         _set_with_io(data, "tokenizer", model.tokenizer)
     else:
         try:
-            from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+            from nemo.collections.common.tokenizers.tokenizer_spec import \
+                TokenizerSpec
 
             if isinstance(tokenizer, TokenizerSpec):
                 _set_with_io(model, "tokenizer", tokenizer)

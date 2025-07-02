@@ -23,8 +23,10 @@ import lightning
 import lightning.pytorch as pl
 import torch
 from _weakref import proxy
-from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
-from lightning.pytorch.callbacks.model_checkpoint import _is_local_file_protocol
+from lightning.pytorch.callbacks.model_checkpoint import \
+    ModelCheckpoint as PTLModelCheckpoint
+from lightning.pytorch.callbacks.model_checkpoint import \
+    _is_local_file_protocol
 from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
@@ -138,7 +140,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         """
         from nemo.utils.exp_manager import get_git_diff, get_git_hash
         from nemo.utils.get_rank import is_global_rank_zero
-        from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
+        from nemo.utils.lightning_logger_patch import \
+            add_filehandlers_to_pl_logger
 
         app_state = AppState()
         if self.save_top_k != -1 and app_state.restore:
@@ -525,7 +528,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         monitor_candidates = super()._monitor_candidates(trainer)
 
         from nemo.lightning._strategy_lib import _sync_from_last_pipeline_stage
-        from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
+        from nemo.lightning.pytorch.strategies.megatron_strategy import \
+            MegatronStrategy
 
         keys = re.findall(r"[\{](.*?)[:\}]", self.filename)
         for loss_name in ['reduced_train_loss']:
@@ -613,7 +617,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             finalize_fn = self._get_finalize_save_checkpoint_callback(trainer, filepath, trainer.global_step)
             if self.async_save:
                 checkpoint_io = trainer.strategy.checkpoint_io
-                from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
+                from nemo.utils.callbacks.dist_ckpt_io import \
+                    AsyncFinalizableCheckpointIO
 
                 if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
                     raise ValueError('Async save requires async compatible CheckpointIO')

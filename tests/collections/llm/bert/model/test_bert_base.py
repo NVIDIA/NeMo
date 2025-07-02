@@ -17,12 +17,8 @@ import pytest
 import torch
 
 from nemo.collections.llm.bert.model.base import (
-    BertConfig,
-    BertModel,
-    bert_forward_step,
-    get_batch_on_this_context_parallel_rank,
-    get_packed_seq_params,
-)
+    BertConfig, BertModel, bert_forward_step,
+    get_batch_on_this_context_parallel_rank, get_packed_seq_params)
 
 
 class TestBertBase:

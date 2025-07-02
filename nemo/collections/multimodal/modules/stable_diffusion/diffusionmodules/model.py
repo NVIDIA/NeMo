@@ -19,8 +19,10 @@ import torch
 import torch.nn as nn
 from einops import rearrange
 
-from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearAttention
-from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
+from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+    LinearAttention
+from nemo.collections.multimodal.parts.stable_diffusion.utils import \
+    instantiate_from_config
 
 try:
     from apex.contrib.group_norm import GroupNorm

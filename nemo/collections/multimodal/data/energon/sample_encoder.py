@@ -16,9 +16,11 @@ from abc import ABC, abstractmethod
 
 import torch
 from einops import rearrange
-from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
+from megatron.energon import (InterleavedSample, SimilarityInterleavedSample,
+                              VQASample)
 
-from nemo.collections.multimodal.data.energon.config import ImageTextSample, MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.config import (
+    ImageTextSample, MultiModalSampleConfig)
 from nemo.utils import logging
 
 

@@ -27,19 +27,19 @@ import torch.distributed as dist
 from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.rank_zero import rank_zero_info
 from lightning.fabric.utilities.seed import reset_seed
-from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
+from lightning.pytorch.strategies.model_parallel import \
+    ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel
+from torch.distributed.tensor.parallel import (ColwiseParallel,
+                                               RowwiseParallel,
+                                               SequenceParallel)
 from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
-    _destroy_dist_connection,
-    ckpt_to_dir,
-    create_checkpoint_io,
-    fsdp2_strategy_parallelize,
-)
+    _destroy_dist_connection, ckpt_to_dir, create_checkpoint_io,
+    fsdp2_strategy_parallelize)
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
@@ -199,7 +199,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         Note: This operation runs only once, as the checkpoint reference is cleared after execution.
         """
-        from torch.distributed.checkpoint.state_dict import set_optimizer_state_dict
+        from torch.distributed.checkpoint.state_dict import \
+            set_optimizer_state_dict
 
         if self.checkpoint is None:
             for optimizer, opt_state in zip(self.optimizers, self.checkpoint["optimizer_states"]):

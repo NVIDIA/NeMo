@@ -23,10 +23,7 @@ except (ImportError, ModuleNotFoundError):
 
 from nemo.collections.nlp.modules.common.chat_css import CSS
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
-    convert_retrieved_to_md,
-    request_data,
-    text_generation,
-)
+    convert_retrieved_to_md, request_data, text_generation)
 
 __all__ = ['RetroDemoWebApp', 'get_demo']
 

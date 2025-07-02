@@ -24,12 +24,14 @@ from torch import nn
 from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig
 from nemo.collections.llm.utils import Config
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
-from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProjectorConfig
+from nemo.collections.vlm.vision.base import (HFCLIPVisionConfig,
+                                              MultimodalProjectorConfig)
 from nemo.lightning import OptimizerModule, io, teardown
 
 if TYPE_CHECKING:
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -193,7 +195,8 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
     @property
     def tokenizer(self) -> "AutoTokenizer":
         # pylint: disable=C0115,C0116
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(str(self))
 

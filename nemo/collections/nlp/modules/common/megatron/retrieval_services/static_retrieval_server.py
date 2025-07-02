@@ -26,8 +26,10 @@ from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import \
+    MMapRetrievalIndexedDataset
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
+    lock, request_data)
 
 
 class FaissRetrievalResource(Resource):

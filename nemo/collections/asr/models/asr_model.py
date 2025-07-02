@@ -17,12 +17,14 @@ from typing import List, Optional
 
 import torch
 
-from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
+from nemo.collections.common.parts.optional_cuda_graphs import \
+    WithOptionalCudaGraphs
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import (AudioSignal, LabelsType, LengthsType,
+                                    NeuralType)
 from nemo.core.utils.neural_type_utils import get_io_names
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all

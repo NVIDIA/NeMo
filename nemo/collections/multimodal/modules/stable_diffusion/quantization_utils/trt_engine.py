@@ -18,15 +18,10 @@ import numpy as np
 import tensorrt as trt
 import torch
 from polygraphy.backend.common import bytes_from_path
-from polygraphy.backend.trt import (
-    CreateConfig,
-    ModifyNetworkOutputs,
-    Profile,
-    engine_from_bytes,
-    engine_from_network,
-    network_from_onnx_path,
-    save_engine,
-)
+from polygraphy.backend.trt import (CreateConfig, ModifyNetworkOutputs,
+                                    Profile, engine_from_bytes,
+                                    engine_from_network,
+                                    network_from_onnx_path, save_engine)
 
 TRT_LOGGER = trt.Logger(trt.Logger.ERROR)
 

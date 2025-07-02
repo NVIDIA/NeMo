@@ -23,13 +23,9 @@ import librosa
 import numpy as np
 
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    audio_rttm_map,
-    get_subsegments_scriptable,
-    get_uniqname_from_filepath,
-    rttm_to_labels,
-    segments_manifest_to_subsegments_manifest,
-    write_rttm2manifest,
-)
+    audio_rttm_map, get_subsegments_scriptable, get_uniqname_from_filepath,
+    rttm_to_labels, segments_manifest_to_subsegments_manifest,
+    write_rttm2manifest)
 from nemo.utils import logging
 from nemo.utils.data_utils import DataStoreObject
 

@@ -26,23 +26,23 @@ from omegaconf.listconfig import ListConfig
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    ParallelLinearAdapterConfig,
-    ParallelLinearAdapterWeightTyingConfig,
-)
-from nemo.collections.nlp.modules.common.megatron.attention import ParallelAttention, ParallelChunkedCrossAttention
+    AdapterName, ParallelLinearAdapterConfig,
+    ParallelLinearAdapterWeightTyingConfig)
+from nemo.collections.nlp.modules.common.megatron.attention import (
+    ParallelAttention, ParallelChunkedCrossAttention)
 from nemo.collections.nlp.modules.common.megatron.fused_bias_dropout_add import (
-    bias_dropout_add,
-    bias_dropout_add_fused_inference,
-    bias_dropout_add_fused_train,
-    dropout_add,
-)
-from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import get_layer_norm
-from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import LayerNorm1P, LPLayerNorm
+    bias_dropout_add, bias_dropout_add_fused_inference,
+    bias_dropout_add_fused_train, dropout_add)
+from nemo.collections.nlp.modules.common.megatron.fused_layer_norm import \
+    get_layer_norm
+from nemo.collections.nlp.modules.common.megatron.layer_norm_1p import (
+    LayerNorm1P, LPLayerNorm)
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
-from nemo.collections.nlp.modules.common.megatron.mlp import ParallelMLP, SwitchMLP
+from nemo.collections.nlp.modules.common.megatron.mlp import (ParallelMLP,
+                                                              SwitchMLP)
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.core import adapter_mixins
 from nemo.utils import logging
@@ -62,7 +62,8 @@ except (ImportError, ModuleNotFoundError):
     ModelType = AttnMaskType = AttnType = LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import (ModelParallelConfig, parallel_state,
+                               tensor_parallel)
 
     HAVE_MEGATRON_CORE = True
 
@@ -1573,11 +1574,13 @@ class ParallelTransformer(MegatronModule):
         If set, FP8 weights are cached and some minor optimizations are applied to fuse_wgrad_accumulation
         """
         try:
-            from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from megatron.core.num_microbatches_calculator import \
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from apex.transformer.pipeline_parallel.utils import \
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         num_micro_batches = getattr(_GLOBAL_NUM_MICROBATCHES_CALCULATOR, 'num_micro_batches', 1)
 

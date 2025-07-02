@@ -20,7 +20,6 @@ from multiprocessing import Pool
 
 from nemo.collections.common.tokenizers import AutoTokenizer
 
-
 """
 This script converts the NaturalInstructions v2 dataset into individual JSONL files.
 

@@ -14,8 +14,8 @@
 
 from pathlib import Path
 from typing import Callable, Optional, Type, overload
-import fiddle as fdl
 
+import fiddle as fdl
 import lightning.pytorch as pl
 
 from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load

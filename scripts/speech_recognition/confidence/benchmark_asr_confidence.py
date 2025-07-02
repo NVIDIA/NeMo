@@ -24,13 +24,14 @@ from omegaconf import MISSING, OmegaConf
 from sklearn.model_selection import ParameterGrid
 
 from nemo.collections.asr.models import ASRModel, EncDecRNNTModel
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import \
+    CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import \
+    RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_confidence_benchmarking_utils import (
-    apply_confidence_parameters,
-    run_confidence_benchmark,
-)
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
+    apply_confidence_parameters, run_confidence_benchmark)
+from nemo.collections.asr.parts.utils.asr_confidence_utils import \
+    ConfidenceConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging, model_utils
 

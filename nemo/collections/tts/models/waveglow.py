@@ -20,17 +20,15 @@ from omegaconf import DictConfig, open_dict
 
 from nemo.collections.tts.losses.waveglowloss import WaveGlowLoss
 from nemo.collections.tts.models.base import GlowVocoder
-from nemo.collections.tts.parts.utils.helpers import OperationMode, waveglow_log_to_tb_func
+from nemo.collections.tts.parts.utils.helpers import (OperationMode,
+                                                      waveglow_log_to_tb_func)
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    AudioSignal,
-    LengthsType,
-    LogDeterminantType,
-    MelSpectrogramType,
-    NormalDistributionSamplesType,
-    VoidType,
-)
+from nemo.core.neural_types.elements import (AudioSignal, LengthsType,
+                                             LogDeterminantType,
+                                             MelSpectrogramType,
+                                             NormalDistributionSamplesType,
+                                             VoidType)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 

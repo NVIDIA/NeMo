@@ -13,15 +13,15 @@
 # limitations under the License.
 
 from typing import Dict, List, Tuple
+
 import torch
 from tqdm import tqdm
+
 from nemo.collections.asr.parts.utils.offline_clustering import (
-    SpeakerClustering,
-    get_scale_interpolated_embs,
-    getCosAffinityMatrix,
-    split_input_data,
-)
-from nemo.collections.asr.parts.utils.online_clustering import get_merge_quantity, run_reducer
+    SpeakerClustering, get_scale_interpolated_embs, getCosAffinityMatrix,
+    split_input_data)
+from nemo.collections.asr.parts.utils.online_clustering import (
+    get_merge_quantity, run_reducer)
 
 
 class LongFormSpeakerClustering(torch.nn.Module):

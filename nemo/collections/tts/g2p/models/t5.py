@@ -26,7 +26,8 @@ from nemo.collections.tts.g2p.data.t5 import T5G2PDataset
 from nemo.collections.tts.models.base import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import LabelsType, LossType, MaskType, NeuralType, TokenIndex
+from nemo.core.neural_types import (LabelsType, LossType, MaskType, NeuralType,
+                                    TokenIndex)
 from nemo.utils import logging
 
 __all__ = ['T5G2PModel']

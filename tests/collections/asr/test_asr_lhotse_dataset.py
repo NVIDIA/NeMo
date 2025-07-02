@@ -17,8 +17,10 @@ import torch
 from lhotse import CutSet, SupervisionSegment
 from lhotse.testing.dummies import DummyManifest
 
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
+from nemo.collections.asr.data.audio_to_text_lhotse import \
+    LhotseSpeechToTextBpeDataset
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+    SentencePieceTokenizer, create_spt_model)
 
 
 @pytest.fixture(scope="session")

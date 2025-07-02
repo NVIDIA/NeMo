@@ -24,7 +24,8 @@ import ctc_segmentation as cs
 import numpy as np
 from tqdm import tqdm
 
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    SentencePieceTokenizer
 
 
 def get_segments(

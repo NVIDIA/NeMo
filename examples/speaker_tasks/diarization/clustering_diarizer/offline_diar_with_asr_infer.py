@@ -15,11 +15,12 @@
 
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.utils.decoder_timestamps_utils import ASRDecoderTimeStamps
-from nemo.collections.asr.parts.utils.diarization_utils import OfflineDiarWithASR
+from nemo.collections.asr.parts.utils.decoder_timestamps_utils import \
+    ASRDecoderTimeStamps
+from nemo.collections.asr.parts.utils.diarization_utils import \
+    OfflineDiarWithASR
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
-
 
 """
 This script demonstrates how to run offline speaker diarization with asr.

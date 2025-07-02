@@ -17,7 +17,8 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from numpy import ndarray
-from sklearn.preprocessing import PowerTransformer, QuantileTransformer, RobustScaler
+from sklearn.preprocessing import (PowerTransformer, QuantileTransformer,
+                                   RobustScaler)
 
 from nemo.utils import logging
 

@@ -16,7 +16,8 @@
 
 import os
 
-from nemo.collections.nlp.data.data_utils.data_preprocessing import DataProcessor
+from nemo.collections.nlp.data.data_utils.data_preprocessing import \
+    DataProcessor
 from nemo.utils import logging
 
 __all__ = [

@@ -17,7 +17,8 @@ from typing import Any, Dict, List, Optional
 import lightning.pytorch as pl
 import numpy as np
 import torch
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
@@ -86,7 +87,8 @@ class MockDataModule(pl.LightningDataModule):
             logging.warning("Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
             from transformers import AutoProcessor
 
-            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+                AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("openai/clip-vit-large-patch14")
             self.tokenizer = tokenizer or AutoTokenizer("openai/clip-vit-large-patch14")

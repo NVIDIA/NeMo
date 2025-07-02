@@ -31,21 +31,19 @@ from torch.optim.lr_scheduler import LambdaLR
 
 from nemo.collections.multimodal.data.stable_diffusion.stable_diffusion_dataset import (
     build_sdxl_precached_text_train_valid_datasets,
-    build_sdxl_train_valid_datasets,
-    build_train_valid_precached_datasets,
-)
-from nemo.collections.multimodal.modules.stable_diffusion.attention import LinearWrapper
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import OPENAIUNETWRAPPER
+    build_sdxl_train_valid_datasets, build_train_valid_precached_datasets)
+from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+    LinearWrapper
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.wrappers import \
+    OPENAIUNETWRAPPER
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
-    default,
-    disabled_train,
-    get_obj_from_str,
-    instantiate_from_config,
-    log_txt_as_img,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+    default, disabled_train, get_obj_from_str, instantiate_from_config,
+    log_txt_as_img)
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import \
+    NLPAdapterModelMixin
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT, Serialization
@@ -54,7 +52,8 @@ from nemo.utils import logging, model_utils
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 

@@ -22,7 +22,6 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
-
 """
 This script shows how to perform evaluation and runs inference of a few examples.
 

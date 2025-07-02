@@ -35,74 +35,52 @@ from tensorrt_llm._utils import numpy_to_torch
 from tensorrt_llm.builder import BuildConfig
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.mapping import Mapping
-from tensorrt_llm.models import (
-    BaichuanForCausalLM,
-    BertForQuestionAnswering,
-    BertForSequenceClassification,
-    BertModel,
-    BloomForCausalLM,
-    ChatGLMForCausalLM,
-    CogVLMForCausalLM,
-    CohereForCausalLM,
-    DbrxForCausalLM,
-    DeciLMForCausalLM,
-    DecoderModel,
-    DeepseekForCausalLM,
-    DeepseekV2ForCausalLM,
-    DiT,
-    EagleForCausalLM,
-    EncoderModel,
-    FalconForCausalLM,
-    GemmaForCausalLM,
-    GPTForCausalLM,
-    GPTJForCausalLM,
-    GPTNeoXForCausalLM,
-    GrokForCausalLM,
-    LLaMAForCausalLM,
-    MambaForCausalLM,
-    MedusaForCausalLm,
-    MLLaMAForCausalLM,
-    MPTForCausalLM,
-    OPTForCausalLM,
-    Phi3ForCausalLM,
-    PhiForCausalLM,
-    QWenForCausalLM,
-    RecurrentGemmaForCausalLM,
-    ReDrafterForCausalLM,
-    RobertaForQuestionAnswering,
-    RobertaForSequenceClassification,
-    RobertaModel,
-    WhisperEncoder,
-)
+from tensorrt_llm.models import (BaichuanForCausalLM, BertForQuestionAnswering,
+                                 BertForSequenceClassification, BertModel,
+                                 BloomForCausalLM, ChatGLMForCausalLM,
+                                 CogVLMForCausalLM, CohereForCausalLM,
+                                 DbrxForCausalLM, DeciLMForCausalLM,
+                                 DecoderModel, DeepseekForCausalLM,
+                                 DeepseekV2ForCausalLM, DiT, EagleForCausalLM,
+                                 EncoderModel, FalconForCausalLM,
+                                 GemmaForCausalLM, GPTForCausalLM,
+                                 GPTJForCausalLM, GPTNeoXForCausalLM,
+                                 GrokForCausalLM, LLaMAForCausalLM,
+                                 MambaForCausalLM, MedusaForCausalLm,
+                                 MLLaMAForCausalLM, MPTForCausalLM,
+                                 OPTForCausalLM, Phi3ForCausalLM,
+                                 PhiForCausalLM, QWenForCausalLM,
+                                 RecurrentGemmaForCausalLM,
+                                 ReDrafterForCausalLM,
+                                 RobertaForQuestionAnswering,
+                                 RobertaForSequenceClassification,
+                                 RobertaModel, WhisperEncoder)
 from tensorrt_llm.plugin import PluginConfig
 from transformers import PreTrainedTokenizerBase
 
 from nemo.deploy import ITritonDeployable
 from nemo.export.tarutils import TarPath, unpack_tarball
-from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings, model_to_trtllm_ckpt
-from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import dist_model_to_trt_llm_ckpt, get_layer_prefix
+from nemo.export.trt_llm.converter.model_converter import (
+    determine_quantization_settings, model_to_trtllm_ckpt)
+from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import (
+    dist_model_to_trt_llm_ckpt, get_layer_prefix)
 from nemo.export.trt_llm.converter.utils import init_model_parallel_from_nemo
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (
-    build_tokenizer,
-    get_model_type,
-    get_tokenizer,
-    get_weights_dtype,
-    load_nemo_model,
-)
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import (build_tokenizer,
+                                                            get_model_type,
+                                                            get_tokenizer,
+                                                            get_weights_dtype,
+                                                            load_nemo_model)
 from nemo.export.trt_llm.qnemo import qnemo_to_tensorrt_llm
-from nemo.export.trt_llm.qnemo.tokenizer_utils import TOKENIZER_CONFIG_FILE, get_nmt_tokenizer
+from nemo.export.trt_llm.qnemo.tokenizer_utils import (TOKENIZER_CONFIG_FILE,
+                                                       get_nmt_tokenizer)
 from nemo.export.trt_llm.qnemo.utils import is_qnemo_checkpoint
 from nemo.export.trt_llm.tensorrt_llm_build import build_and_save_engine
-from nemo.export.trt_llm.tensorrt_llm_run import (
-    generate,
-    generate_streaming,
-    load,
-    load_distributed,
-    refit,
-    unload_engine,
-)
+from nemo.export.trt_llm.tensorrt_llm_run import (generate, generate_streaming,
+                                                  load, load_distributed,
+                                                  refit, unload_engine)
 from nemo.export.trt_llm.utils import is_rank
-from nemo.export.utils import is_nemo_tarfile, prepare_directory_for_export, torch_dtype_from_precision
+from nemo.export.utils import (is_nemo_tarfile, prepare_directory_for_export,
+                               torch_dtype_from_precision)
 from nemo.export.utils.constants import TRTLLM_ENGINE_DIR
 
 use_deploy = True
@@ -393,10 +371,10 @@ class TensorRTLLM(ITritonDeployable):
                     from megatron.core.export.data_type import DataType
                     from megatron.core.export.export_config import ExportConfig
                     from megatron.core.export.model_type import ModelType
-                    from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import (
-                        DEFAULT_CONVERSION_DICT,
-                    )
-                    from megatron.core.export.trtllm.trtllm_helper import TRTLLMHelper
+                    from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import \
+                        DEFAULT_CONVERSION_DICT
+                    from megatron.core.export.trtllm.trtllm_helper import \
+                        TRTLLMHelper
                     from tensorrt_llm.layers import MoeConfig
 
                     share_embeddings_and_output_weights = model_config.get(
@@ -779,7 +757,8 @@ class TensorRTLLM(ITritonDeployable):
 
     def get_transformer_config(self, nemo_model_config):
         """Given nemo model config get transformer config"""
-        from megatron.core.transformer.transformer_config import TransformerConfig
+        from megatron.core.transformer.transformer_config import \
+            TransformerConfig
 
         normalization = nemo_model_config.get('normalization', 'layernorm')
         transformer_config_normalization = 'LayerNorm'
@@ -1037,7 +1016,8 @@ class TensorRTLLM(ITritonDeployable):
         """MCore export supports some default conversion dictionaries
         All Mcore conversion dicts start with "decoder.layers.4.blah.blah" , while nemo models sometimes start with "model.decoder.layers.4.blahblah". so we append model prefix. to the keys
         """
-        from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import DEFAULT_CONVERSION_DICT
+        from megatron.core.export.trtllm.model_to_trllm_mapping.default_conversion_dict import \
+            DEFAULT_CONVERSION_DICT
 
         model_prefix, _ = get_layer_prefix(layer_names=model_state_dict.keys(), is_mcore=True)
 

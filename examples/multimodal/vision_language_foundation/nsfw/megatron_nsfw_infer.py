@@ -16,11 +16,12 @@ import torch
 from omegaconf.omegaconf import OmegaConf
 from PIL import Image
 
-from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
-from nemo.collections.multimodal.models.vision_language_foundation.megatron_nsfw_clip_models import (
-    MegatronContentFilteringModel,
-)
-from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import \
+    image_transform
+from nemo.collections.multimodal.models.vision_language_foundation.megatron_nsfw_clip_models import \
+    MegatronContentFilteringModel
+from nemo.collections.multimodal.parts.utils import \
+    setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero

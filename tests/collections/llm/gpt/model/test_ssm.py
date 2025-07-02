@@ -12,21 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.gpt.model.ssm import (
-    BaseMambaConfig1_3B,
-    BaseMambaConfig2_7B,
-    BaseMambaConfig130M,
-    BaseMambaConfig370M,
-    BaseMambaConfig780M,
-    NemotronHConfig8B,
-    NemotronHConfig47B,
-    NemotronHConfig56B,
-    NVIDIAMambaConfig8B,
-    NVIDIAMambaHybridConfig8B,
-    SSMConfig,
-    gpt_data_step,
-    ssm_forward_step,
-)
+from nemo.collections.llm.gpt.model.ssm import (BaseMambaConfig1_3B,
+                                                BaseMambaConfig2_7B,
+                                                BaseMambaConfig130M,
+                                                BaseMambaConfig370M,
+                                                BaseMambaConfig780M,
+                                                NemotronHConfig8B,
+                                                NemotronHConfig47B,
+                                                NemotronHConfig56B,
+                                                NVIDIAMambaConfig8B,
+                                                NVIDIAMambaHybridConfig8B,
+                                                SSMConfig, gpt_data_step,
+                                                ssm_forward_step)
 
 
 def test_ssm_config():

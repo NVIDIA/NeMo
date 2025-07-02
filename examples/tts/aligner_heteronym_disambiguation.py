@@ -24,7 +24,6 @@ import torch
 from nemo.collections.tts.models import AlignerModel
 from nemo.collections.tts.parts.utils.tts_dataset_utils import general_padding
 
-
 """
 G2P disambiguation using an Aligner model's input embedding distances.
 

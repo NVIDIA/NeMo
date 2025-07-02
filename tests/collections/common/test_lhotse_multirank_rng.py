@@ -22,7 +22,8 @@ from lhotse.shar.writers import JsonlShardWriter, TarWriter
 from lhotse.testing.dummies import DummyManifest
 from omegaconf import OmegaConf
 
-from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.dataloader import \
+    get_lhotse_dataloader_from_config
 
 
 class _Identity:

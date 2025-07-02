@@ -26,9 +26,12 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 
-from nemo.collections.nlp.data.dialogue import DialogueSGDBERTDataset, DialogueSGDDataProcessor
-from nemo.collections.nlp.data.dialogue.sgd.evaluate import evaluate, get_in_domain_services
-from nemo.collections.nlp.data.dialogue.sgd.prediction_utils import write_predictions_to_file
+from nemo.collections.nlp.data.dialogue import (DialogueSGDBERTDataset,
+                                                DialogueSGDDataProcessor)
+from nemo.collections.nlp.data.dialogue.sgd.evaluate import (
+    evaluate, get_in_domain_services)
+from nemo.collections.nlp.data.dialogue.sgd.prediction_utils import \
+    write_predictions_to_file
 from nemo.collections.nlp.losses import SGDDialogueStateLoss
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules import SGDDecoder, SGDEncoder

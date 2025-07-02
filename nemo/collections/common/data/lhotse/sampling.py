@@ -20,7 +20,8 @@ from typing import Any, Sequence
 import numpy as np
 from lhotse.cut import Cut
 from lhotse.dataset import SamplingConstraint, TokenConstraint
-from lhotse.dataset.sampling.dynamic_bucketing import FixedBucketBatchSizeConstraint
+from lhotse.dataset.sampling.dynamic_bucketing import \
+    FixedBucketBatchSizeConstraint
 from lhotse.utils import ifnone
 
 from nemo.collections.common.data.lhotse.text_adapters import Formattable

@@ -17,18 +17,17 @@ from typing import Any, Optional, Tuple
 
 from omegaconf.omegaconf import MISSING
 
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataConfig
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import \
+    TranslationDataConfig
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModelConfig
-from nemo.collections.nlp.modules.common.token_classifier import TokenClassifierConfig
+from nemo.collections.nlp.modules.common.token_classifier import \
+    TokenClassifierConfig
 from nemo.collections.nlp.modules.common.tokenizer_utils import TokenizerConfig
 from nemo.collections.nlp.modules.common.transformer.transformer import (
-    NeMoTransformerConfig,
-    NeMoTransformerEncoderConfig,
-)
+    NeMoTransformerConfig, NeMoTransformerEncoderConfig)
 from nemo.collections.nlp.modules.common.transformer.transformer_bottleneck import (
     NeMoTransformerBottleneckDecoderConfig,
-    NeMoTransformerBottleneckEncoderConfig,
-)
+    NeMoTransformerBottleneckEncoderConfig)
 from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
 

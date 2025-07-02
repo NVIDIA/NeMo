@@ -29,7 +29,8 @@ import torch.nn.functional as F
 from lightning.pytorch import Trainer
 from transformers import AutoTokenizer, BertConfig, BertModel
 
-from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
+    MegatronBertModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 

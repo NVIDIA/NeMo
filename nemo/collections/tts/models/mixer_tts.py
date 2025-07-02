@@ -28,31 +28,21 @@ from torch.nn import functional as F
 from transformers import AlbertTokenizer
 
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
-    EnglishCharsTokenizer,
-    EnglishPhonemesTokenizer,
-)
+    EnglishCharsTokenizer, EnglishPhonemesTokenizer)
 from nemo.collections.tts.losses.aligner_loss import BinLoss, ForwardSumLoss
 from nemo.collections.tts.models.base import SpectrogramGenerator
-from nemo.collections.tts.modules.fastpitch import average_features, regulate_len
+from nemo.collections.tts.modules.fastpitch import (average_features,
+                                                    regulate_len)
 from nemo.collections.tts.parts.utils.helpers import (
-    binarize_attention_parallel,
-    g2p_backward_compatible_support,
-    get_mask_from_lengths,
-    plot_pitch_to_numpy,
-    plot_spectrogram_to_numpy,
-)
+    binarize_attention_parallel, g2p_backward_compatible_support,
+    get_mask_from_lengths, plot_pitch_to_numpy, plot_spectrogram_to_numpy)
 from nemo.core import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    LengthsType,
-    LogprobsType,
-    MelSpectrogramType,
-    ProbsType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenIndex,
-    TokenLogDurationType,
-)
+from nemo.core.neural_types.elements import (LengthsType, LogprobsType,
+                                             MelSpectrogramType, ProbsType,
+                                             RegressionValuesType,
+                                             TokenDurationType, TokenIndex,
+                                             TokenLogDurationType)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 

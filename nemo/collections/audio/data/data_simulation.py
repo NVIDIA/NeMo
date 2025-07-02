@@ -30,8 +30,10 @@ from scipy.spatial.transform import Rotation
 from tqdm import tqdm
 
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
-from nemo.collections.audio.parts.utils.audio import db2mag, generate_approximate_noise_field, mag2db, pow2db, rms
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
+from nemo.collections.audio.parts.utils.audio import (
+    db2mag, generate_approximate_noise_field, mag2db, pow2db, rms)
 from nemo.utils import logging
 
 try:

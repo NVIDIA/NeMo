@@ -23,7 +23,6 @@ from scipy.optimize import brentq
 from sklearn.metrics import roc_curve
 from tqdm import tqdm
 
-
 """
 This script faciliates to get EER % based on cosine-smilarity 
 for Voxceleb dataset.

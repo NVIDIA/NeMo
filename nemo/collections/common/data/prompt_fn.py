@@ -15,7 +15,6 @@ from typing import Callable, Type
 
 import torch
 
-
 PromptFormatFnReturnType = dict[str, list[torch.Tensor]]
 PromptFormatSignature = Callable[[object, object], PromptFormatFnReturnType]
 PROMPT_FORMAT_FNS: dict[tuple[Type, Type] | Type, PromptFormatSignature] = {}

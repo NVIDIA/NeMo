@@ -87,7 +87,8 @@ class FinetuningDatasetBuilder:
     def prepare_packed_data(self) -> None:
         """Prepare packed sequence data if needed."""
         if self.packed_sequence_size > 0:
-            from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
+            from nemo.collections.llm.gpt.data.packed_sequence import \
+                prepare_packed_sequence_data
 
             if not self.train_path_packed.is_file():
                 print_rank_0(f"Preparing packed training data at {self.train_path_packed}")
