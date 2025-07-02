@@ -25,11 +25,11 @@ from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (  # noq
     BertPretrainingDataset,
     BertPretrainingPreprocessedDataloader,
 )
-from nemo.collections.nlp.data.language_modeling.sentence_dataset import ( # noqa: F401
-        SentenceDataset,
-        TarredSentenceDataset,
+from nemo.collections.nlp.data.language_modeling.sentence_dataset import (  # noqa: F401
+    SentenceDataset,
+    TarredSentenceDataset,
 )
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import ( # noqa: F401
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (  # noqa: F401
     TarredTranslationDataset,
     TranslationDataset,
 )
