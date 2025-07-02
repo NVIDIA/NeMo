@@ -864,7 +864,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         return kwargs
 
-    def optimizer_sharded_state_dict(self, is_loading=False):
+    def optimizer_sharded_state_dict(self, is_loading=False, metadata: Optional[dict] = None):
         """
         Sharded state dictionary for an MainParamsOptimizerWrapper.
         Used to save and load the optimizer state when training with distributed_checkpoint.
@@ -872,16 +872,27 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         Returns
         -------
             dict: The sharded state dictionary for the optimizer
+            TODO
         Raises:
             ValueError: If a parameter ID does not match any model sharded parameter.
         """
         # TODO: Fix when MainParamsOptimizerWrapper is not used
 
         optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)
-        sharding_type = "fully_sharded_model_space" if self.parallel_save_optim else "dp_zero_gather_scatter"
+        if metadata is None:
+            metadata = self.sharded_state_dict_metadata
+            logging.debug(
+                f'No sharded_state_dict metadata passed for the optimizer,'
+                f' using metadata for checkpoint save: {metadata}'
+            )
+        else:
+            logging.debug(f'Using passed sharded_state_dict metadata in the optimizer: {metadata}')
 
         return _strategy_lib.optimizer_sharded_state_dict(
-            self.megatron_parallel, optimizer, is_loading=is_loading, sharding_type=sharding_type
+            self.megatron_parallel,
+            optimizer,
+            is_loading=is_loading,
+            metadata=metadata,
         )
 
     @override
@@ -914,7 +925,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.ckpt_save_optimizer:
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
-        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        self.checkpoint_io.save_checkpoint(
+            checkpoint, filepath, storage_options=storage_options, content_metadata=self.sharded_state_dict_metadata
+        )
 
         # Save ModelOpt state too, if it exists.
         save_modelopt_state(self.megatron_parallel, filepath, self.checkpoint_io)
@@ -945,13 +958,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             sharded_state_context = nullcontext
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
+        sharded_sd_metadata = self.checkpoint_io.load_content_metadata(checkpoint_path)
         sharded_state_dict = {}
         with sharded_state_context():
-            sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
+            sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict(metadata=sharded_sd_metadata)
 
         if restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
-                sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
+                sharded_state_dict["optimizer"] = [
+                    self.optimizer_sharded_state_dict(is_loading=True, metadata=sharded_sd_metadata)
+                ]
 
         strict = (
             self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
@@ -973,6 +989,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             return final_checkpoint
 
         return checkpoint
+
+    @property
+    def sharded_state_dict_metadata(self):
+        """Metadata used for sharded_state_dict generation during checkpoint save."""
+        metadata = {}
+        if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer:
+            if self.parallel_save_optim:
+                metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
+            else:
+                metadata["distrib_optim_sharding_type"] = "dp_zero_gather_scatter"
+        # This ensures correct sharding logic for ChainedOptimizer:
+        metadata['chained_optim_avoid_prefix'] = True
+        return metadata
 
     def selective_restore(self) -> None:
         """Implements selective restoration of checkpoint"""
