@@ -51,10 +51,7 @@ class SalmEvalConfig:
 def main(cfg: SalmEvalConfig):
     logging.info(f"Hydra config:\n{OmegaConf.to_yaml(cfg)}")
 
-    with torch.device(cfg.device):
-        torch.set_default_dtype(torch.bfloat16)
-        model = SALM.from_pretrained(cfg.pretrained_name).eval().to(torch.bfloat16).to(cfg.device)
-        torch.set_default_dtype(torch.float32)
+    model = SALM.from_pretrained(cfg.pretrained_name).eval().to(torch.bfloat16).to(cfg.device)
 
     conversations = (
         guess_parse_cutset(cfg.inputs)
