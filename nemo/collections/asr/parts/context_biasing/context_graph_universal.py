@@ -35,7 +35,7 @@
 import os
 import shutil
 from collections import deque
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 
@@ -272,118 +272,6 @@ class ContextGraph:
                 node = node.next[token]
         self._fill_fail_output()
 
-    # TODO: remove everything below this line?
-    def forward_one_step(
-        self, state: ContextState, token: int, strict_mode: bool = True
-    ) -> Tuple[float, ContextState, ContextState]:
-        """Search the graph with given state and token.
-
-        Args:
-          state:
-            The given token containing trie node to start.
-          token:
-            The given token.
-          strict_mode:
-            If the `strict_mode` is True, it can match multiple phrases simultaneously,
-            and will continue to match longer phrase after matching a shorter one.
-            If the `strict_mode` is False, it can only match one phrase at a time,
-            when it matches a phrase, then the state will fall back to root state
-            (i.e. forgetting all the history state and starting a new match). If
-            the matched state have multiple outputs (node.output is not None), the
-            longest phrase will be return.
-            For example, if the phrases are `he`, `she` and `shell`, the query is
-            `like shell`, when `strict_mode` is True, the query will match `he` and
-            `she` at token `e` and `shell` at token `l`, while when `strict_mode`
-            if False, the query can only match `she`(`she` is longer than `he`, so
-            `she` not `he`) at token `e`.
-            Caution: When applying this graph for keywords spotting system, the
-            `strict_mode` MUST be True.
-
-        Returns:
-          Return a tuple of boosting score for current state, next state and matched
-          state (if any). Note: Only returns the matched state with longest phrase of
-          current state, even if there are multiple matches phrases. If no phrase
-          matched, the matched state is None.
-        """
-        node = None
-        score = 0
-        # token matched
-        if token in state.next:
-            node = state.next[token]
-            score = node.token_score
-        else:
-            # token not matched
-            # We will trace along the fail arc until it matches the token or reaching
-            # root of the graph.
-            node = state.fail
-            while token not in node.next:
-                node = node.fail
-                if node.token == -1:  # root
-                    break
-
-            if token in node.next:
-                node = node.next[token]
-
-            # The score of the fail path
-            score = node.node_score - state.node_score
-        assert node is not None
-
-        # The matched node of current step, will only return the node with
-        # longest phrase if there are multiple phrases matches this step.
-        # None if no matched phrase.
-        matched_node = node if node.is_end else (node.output if node.output is not None else None)
-        if not strict_mode and node.output_score != 0:
-            # output_score != 0 means at least on phrase matched
-            assert matched_node is not None
-            output_score = (
-                node.node_score
-                if node.is_end
-                else (node.node_score if node.output is None else node.output.node_score)
-            )
-            return (score + output_score - node.node_score, self.root, matched_node)
-        assert (node.output_score != 0 and matched_node is not None) or (
-            node.output_score == 0 and matched_node is None
-        ), (
-            node.output_score,
-            matched_node,
-        )
-        return (score + node.output_score, node, matched_node)
-
-    def is_matched(self, state: ContextState) -> Tuple[bool, ContextState]:
-        """Whether current state matches any phrase (i.e. current state is the
-        end state or the output of current state is not None.
-
-        Args:
-          state:
-            The given state(trie node).
-
-        Returns:
-          Return a tuple of status and matched state.
-        """
-        if state.is_end:
-            return True, state
-        else:
-            if state.output is not None:
-                return True, state.output
-            return False, None
-
-    def finalize(self, state: ContextState) -> Tuple[float, ContextState]:
-        """When reaching the end of the decoded sequence, we need to finalize
-        the matching, the purpose is to subtract the added bonus score for the
-        state that is not the end of a word/phrase.
-
-        Args:
-          state:
-            The given state(trie node).
-
-        Returns:
-          Return a tuple of score and next state. If state is the end of a word/phrase
-          the score is zero, otherwise the score is the score of a implicit fail arc
-          to root. The next state is always root.
-        """
-        # The score of the fail arc
-        score = -state.node_score
-        return (score, self.root)
 
     def draw(
         self,
@@ -444,7 +332,6 @@ class ContextGraph:
             "fontsize": "14",
         }
 
-        final_state = -1
         dot = graphviz.Digraph(name="Context Graph", graph_attr=graph_attr)
 
         seen = set()
@@ -501,122 +388,4 @@ class ContextGraph:
                 shutil.move(temp_fn, filename)
 
         return dot
-
-
-# def _test(queries, score, strict_mode):
-#     contexts_str = [
-#         "S",
-#         "HE",
-#         "SHE",
-#         "SHELL",
-#         "HIS",
-#         "HERS",
-#         "HELLO",
-#         "THIS",
-#         "THEM",
-#     ]
-
-#     # test default score (1)
-#     contexts = []
-#     scores = []
-#     phrases = []
-#     for s in contexts_str:
-#         contexts.append([ord(x) for x in s])
-#         scores.append(round(score / len(s), 2))
-#         phrases.append(s)
-
-#     context_graph = ContextGraph(context_score=1)
-#     context_graph.build(token_ids=contexts, scores=scores, phrases=phrases)
-
-#     symbol_table = {}
-#     for contexts in contexts_str:
-#         for s in contexts:
-#             symbol_table[ord(s)] = s
-
-#     context_graph.draw(
-#         title="Graph for: " + " / ".join(contexts_str),
-#         filename=f"context_graph_{score}.pdf",
-#         symbol_table=symbol_table,
-#     )
-
-#     for query, expected_score in queries.items():
-#         total_scores = 0
-#         state = context_graph.root
-#         for q in query:
-#             score, state, phrase = context_graph.forward_one_step(
-#                 state, ord(q), strict_mode
-#             )
-#             total_scores += score
-#         score, state = context_graph.finalize(state)
-#         assert state.token == -1, state.token
-#         total_scores += score
-#         assert round(total_scores, 2) == expected_score, (
-#             total_scores,
-#             expected_score,
-#             query,
-#         )
-
-
-# if __name__ == "__main__":
-#     # test default score
-#     queries = {
-#         "HEHERSHE": 14,  # "HE", "HE", "HERS", "S", "SHE", "HE"
-#         "HERSHE": 12,  # "HE", "HERS", "S", "SHE", "HE"
-#         "HISHE": 9,  # "HIS", "S", "SHE", "HE"
-#         "SHED": 6,  # "S", "SHE", "HE"
-#         "SHELF": 6,  # "S", "SHE", "HE"
-#         "HELL": 2,  # "HE"
-#         "HELLO": 7,  # "HE", "HELLO"
-#         "DHRHISQ": 4,  # "HIS", "S"
-#         "THEN": 2,  # "HE"
-#     }
-#     _test(queries, 0, True)
-
-#     queries = {
-#         "HEHERSHE": 7,  # "HE", "HE", "S", "HE"
-#         "HERSHE": 5,  # "HE", "S", "HE"
-#         "HISHE": 5,  # "HIS", "HE"
-#         "SHED": 3,  # "S", "HE"
-#         "SHELF": 3,  # "S", "HE"
-#         "HELL": 2,  # "HE"
-#         "HELLO": 2,  # "HE"
-#         "DHRHISQ": 3,  # "HIS"
-#         "THEN": 2,  # "HE"
-#     }
-#     _test(queries, 0, False)
-
-#     # test custom score
-#     # S : 5
-#     # HE : 5 (2.5 + 2.5)
-#     # SHE : 8.34 (5 + 1.67 + 1.67)
-#     # SHELL : 10.34 (5 + 1.67 + 1.67 + 1 + 1)
-#     # HIS : 5.84 (2.5 + 1.67 + 1.67)
-#     # HERS : 7.5 (2.5 + 2.5 + 1.25 + 1.25)
-#     # HELLO : 8 (2.5 + 2.5 + 1 + 1 + 1)
-#     # THIS : 5 (1.25 + 1.25 + 1.25 + 1.25)
-#     queries = {
-#         "HEHERSHE": 35.84,  # "HE", "HE", "HERS", "S", "SHE", "HE"
-#         "HERSHE": 30.84,  # "HE", "HERS", "S", "SHE", "HE"
-#         "HISHE": 24.18,  # "HIS", "S", "SHE", "HE"
-#         "SHED": 18.34,  # "S", "SHE", "HE"
-#         "SHELF": 18.34,  # "S", "SHE", "HE"
-#         "HELL": 5,  # "HE"
-#         "HELLO": 13,  # "HE", "HELLO"
-#         "DHRHISQ": 10.84,  # "HIS", "S"
-#         "THEN": 5,  # "HE"
-#     }
-
-#     _test(queries, 5, True)
-
-#     queries = {
-#         "HEHERSHE": 20,  # "HE", "HE", "S", "HE"
-#         "HERSHE": 15,  # "HE", "S", "HE"
-#         "HISHE": 10.84,  # "HIS", "HE"
-#         "SHED": 10,  # "S", "HE"
-#         "SHELF": 10,  # "S", "HE"
-#         "HELL": 5,  # "HE"
-#         "HELLO": 5,  # "HE"
-#         "DHRHISQ": 5.84,  # "HIS"
-#         "THEN": 5,  # "HE"
-#     }
-#     _test(queries, 5, False)
+    

@@ -14,7 +14,6 @@
 
 import pytest
 import torch
-from omegaconf import OmegaConf
 from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel

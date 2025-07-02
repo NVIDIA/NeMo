@@ -19,11 +19,9 @@ import torch
 from omegaconf import DictConfig
 from torch.distributions import Categorical
 
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts import NEG_INF, mask_padded_tokens
-from nemo.utils import logging
 
 __all__ = [
     "GreedySequenceGenerator",

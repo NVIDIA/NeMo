@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import json
-import os
-
 from nemo.collections.asr.parts import context_biasing
 
 
@@ -34,8 +31,7 @@ def main():
         if item not in key_words_list:
             key_words_list.append(item)
 
-    fscore_stats = context_biasing.compute_fscore(args.input_manifest, key_words_list, print_stats=True)
-    # print(f"Precision/Recall/Fscore = {fscore_stats[0]:.4f}/{fscore_stats[1]:.4f}/{fscore_stats[2]:.4f}")
+    context_biasing.compute_fscore(args.input_manifest, key_words_list, print_stats=True)
 
 
 if __name__ == '__main__':
