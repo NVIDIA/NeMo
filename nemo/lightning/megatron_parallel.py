@@ -720,8 +720,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 )
             else:
                 logging.warning(
-                    f'sharded_state_dict called with `metadata=None` and strategy is not'
-                    f' MegatronParallel. Using empty metadata.'
+                    'sharded_state_dict called with `metadata=None` and strategy is not'
+                    ' MegatronParallel. Using empty metadata.'
                 )
         else:
             logging.debug(f'Using passed sharded_state_dict metadata in the model: {metadata}')
