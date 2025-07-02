@@ -565,7 +565,7 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
 def read_nemo_manifest(config) -> tuple[CutSet, bool]:
     """Read NeMo manifest and return a Lhotse CutSet."""
     common_kwargs = {}
-    for key in ("text_field", "lang_field", "shuffle", "shard_seed", "extra_fields"):
+    for key in ("text_field", "lang_field", "shuffle", "shard_seed", "extra_fields", "check_for_skipme"):
         if key in config:
             if key == "shuffle":
                 common_kwargs["shuffle_shards"] = config[key]
@@ -598,7 +598,13 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
             if not force_finite:
                 cuts = cuts.repeat()
         else:
-            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
+            cuts = CutSet(
+                LazyNeMoIterator(
+                    config.manifest_filepath,
+                    **notar_kwargs,
+                    **common_kwargs,
+                )
+            )
     else:
         # Format option 1:
         #   Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
@@ -639,7 +645,11 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                     **common_kwargs,
                 )
             else:
-                nemo_iter = LazyNeMoIterator(manifest_path, **notar_kwargs, **common_kwargs)
+                nemo_iter = LazyNeMoIterator(
+                    manifest_path,
+                    **notar_kwargs,
+                    **common_kwargs,
+                )
             # Then, determine the weight or use one provided
             if isinstance(manifest_info, str) or len(manifest_info) == 1:
                 weight = len(nemo_iter)
