@@ -153,8 +153,10 @@ class TranscriptionConfig:
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     amp: bool = False
     amp_dtype: str = "float16"  # can be set to "float16" or "bfloat16" when using amp
-    compute_dtype: str = "float32"
-    matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
+    compute_dtype: Optional[str] = (
+        None  # "float32", "bfloat16" or "float16"; if None (default): bfloat16 if available else float32
+    )
+    matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -268,13 +270,23 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
-    if cfg.compute_dtype != "float32" and cfg.amp:
+    if (cfg.compute_dtype is not None and cfg.compute_dtype != "float32") and cfg.amp:
         raise ValueError("amp=true is mutually exclusive with a compute_dtype other than float32")
 
     amp_dtype = torch.float16 if cfg.amp_dtype == "float16" else torch.bfloat16
 
-    if cfg.compute_dtype != "float32":
-        asr_model.to(getattr(torch, cfg.compute_dtype))
+    compute_dtype: torch.dtype
+    if cfg.compute_dtype is None:
+        can_use_bfloat16 = (not cfg.amp) and map_location.type == "cuda" and torch.cuda.is_bf16_supported()
+        if can_use_bfloat16:
+            compute_dtype = torch.bfloat16
+        else:
+            compute_dtype = torch.float32
+    else:
+        assert cfg.compute_dtype in {"float32", "bfloat16", "float16"}
+        compute_dtype = getattr(torch, cfg.compute_dtype)
+
+    asr_model.to(compute_dtype)
 
     # we will adjust this flag if the model does not support it
     compute_langs = cfg.compute_langs
