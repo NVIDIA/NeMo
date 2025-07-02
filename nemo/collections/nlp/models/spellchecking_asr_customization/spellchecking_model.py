@@ -27,7 +27,10 @@ from nemo.collections.nlp.data.spellchecking_asr_customization import (
     TarredSpellcheckingAsrCustomizationDataset,
     bert_example,
 )
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_label_map
+try:
+    from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_label_map
+except ModuleNotFoundError:
+    read_label_map = None
 from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifier
