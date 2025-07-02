@@ -26,7 +26,10 @@ from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dat
     ZeroShotIntentInferenceDataset,
     calc_class_weights_from_dataloader,
 )
-from nemo.collections.nlp.models import TextClassificationModel
+try:
+    from nemo.collections.nlp.models import TextClassificationModel
+except ImportError:
+    TextClassificationModel = None
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
