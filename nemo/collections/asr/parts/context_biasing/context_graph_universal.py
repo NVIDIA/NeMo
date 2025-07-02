@@ -272,7 +272,6 @@ class ContextGraph:
                 node = node.next[token]
         self._fill_fail_output()
 
-
     def draw(
         self,
         title: Optional[str] = None,
@@ -388,4 +387,3 @@ class ContextGraph:
                 shutil.move(temp_fn, filename)
 
         return dot
-    
