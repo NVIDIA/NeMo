@@ -13,11 +13,6 @@
 # limitations under the License.
 
 
-from nemo.collections.nlp.models.duplex_text_normalization import (  # noqa: F401
-    DuplexDecoderModel,
-    DuplexTaggerModel,
-    DuplexTextNormalizationModel,
-)
 from nemo.collections.nlp.models.entity_linking.entity_linking_model import EntityLinkingModel  # noqa: F401
 from nemo.collections.nlp.models.glue_benchmark.glue_benchmark_model import GLUEModel  # noqa: F401
 from nemo.collections.nlp.models.information_retrieval import BertDPRModel, BertJointIRModel  # noqa: F401
