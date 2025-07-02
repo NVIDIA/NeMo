@@ -62,9 +62,6 @@ _logger = _logging.getLogger(__name__)
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
     """FSDP2Strategy implementing FSDP via FSDP 2.
-
-    Notes:
-    - TP + FSDP2 is currently not supported.
     """
 
     def __init__(
