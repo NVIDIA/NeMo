@@ -61,8 +61,7 @@ _logger = _logging.getLogger(__name__)
 
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
-    """FSDP2Strategy implementing FSDP via FSDP 2.
-    """
+    """FSDP2Strategy implementing FSDP via FSDP 2."""
 
     def __init__(
         self,
