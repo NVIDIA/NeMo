@@ -113,22 +113,27 @@ class TiktokenTokenizer(TokenizerSpec):
             tokenizer_name = Path(vocab_file).parent.name
             self._vocab_size = vocab_size
             self.inner_vocab_size = self._vocab_size - num_special_tokens
+
+            print(f'{self._vocab_size = }')
+            self.num_special_tokens = num_special_tokens
+            special_filler = [SPECIAL_TOKEN_TEMPLATE.format(id=i) for i in
+                              range(len(special_tokens), num_special_tokens)]
+            self.special_filler = special_filler
+            if special_filler:
+                print(f"Adding special tokens {special_filler[0]}, ..., {special_filler[-1]}")
+            self.special_tokens = special_tokens + special_filler
+            assert len(set(self.special_tokens)) == len(self.special_tokens) == num_special_tokens, self.special_tokens
+
         else:
             tokenizer_base = tiktoken.get_encoding(encoding_name)  # "o200k_base"
             self.token2id = tokenizer_base._mergeable_ranks
             pattern = tokenizer_base._pat_str
             tokenizer_name = encoding_name
             self.inner_vocab_size = len(self.token2id)
-            self._vocab_size = self.inner_vocab_size + num_special_tokens
-
-        print(f'{self._vocab_size = }')
-        self.num_special_tokens = num_special_tokens
-        special_filler = [SPECIAL_TOKEN_TEMPLATE.format(id=i) for i in range(len(special_tokens), num_special_tokens)]
-        self.special_filler = special_filler
-        if special_filler:
-            print(f"Adding special tokens {special_filler[0]}, ..., {special_filler[-1]}")
-        self.special_tokens = special_tokens + special_filler
-        assert len(set(self.special_tokens)) == len(self.special_tokens) == num_special_tokens, self.special_tokens
+            self.num_special_tokens = 0
+            self._vocab_size = self.inner_vocab_size
+            self.special_filler = []
+            self.special_tokens = []
 
         id2token = {v: k for k, v in self.token2id.items()}
         assert set(range(self.inner_vocab_size)) == set(id2token.keys())
