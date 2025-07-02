@@ -248,15 +248,19 @@ def set_perf_optimization_configs(
     recompute_layers: int,
     activation_offload_layers: int,
     recompute_modules: Optional[List[str]],
-    use_fsdp_double_buffer: Optional[bool],
-    use_user_buffer_registration: Optional[bool],
-    use_sharp: Optional[bool],
+    use_fsdp_double_buffer: Optional[bool] = None,
+    use_user_buffer_registration: Optional[bool] = None,
+    use_sharp: Optional[bool] = None,
 ):
     # enable cross entropy fusion with TE kernel
     recipe.model.config.cross_entropy_fusion_impl = "te"
 
     if use_fsdp_double_buffer:
         assert use_mcore_fsdp == True, "use_fsdp_double_buffer requires use_mcore_fsdp to be True"
+    
+    if use_user_buffer_registration:
+        assert use_mcore_fsdp == True, "use_user_buffer_registration requires use_mcore_fsdp to be True"
+        assert use_fsdp_double_buffer is not False, "use_fsdp_double_buffer cannot be False when use_user_buffer_registration is True"
 
     if use_mcore_fsdp and enable_cuda_graphs:
         logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
@@ -302,9 +306,9 @@ def set_primary_perf_configs(
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
-    use_fsdp_double_buffer: bool = False,
-    use_user_buffer_registration: bool = False,
-    use_sharp: bool = False,
+    use_fsdp_double_buffer: Optional[bool] = None,
+    use_user_buffer_registration: Optional[bool] = None,
+    use_sharp: Optional[bool] = None,
     recompute_layers: int = 0,
     activation_offload_layers: int = 0,
     compute_dtype: str = None,
