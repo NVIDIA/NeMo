@@ -352,7 +352,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.RNNT:
                 if ngram_lm_model_greedy is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy {strategy} does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models."
+                        f"Recommended greedy strategy with LM is `greedy_batch`."
                     )
                 self.decoding = rnnt_greedy_decoding.GreedyRNNTInfer(
                     decoder_model=decoder,
@@ -368,7 +369,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.TDT:
                 if ngram_lm_model_greedy is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy {strategy} does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
+                        f"Recommended greedy strategy with LM is `greedy_batch`."
                     )
                 self.decoding = rnnt_greedy_decoding.GreedyTDTInfer(
                     decoder_model=decoder,
@@ -387,7 +389,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.MULTI_BLANK:
                 if ngram_lm_model_greedy is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy {strategy} does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models."
                     )
                 self.decoding = rnnt_greedy_decoding.GreedyMultiblankRNNTInfer(
                     decoder_model=decoder,
@@ -439,7 +441,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.MULTI_BLANK:
                 if ngram_lm_model_greedy is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy {strategy} does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models"
                     )
                 self.decoding = rnnt_greedy_decoding.GreedyBatchedMultiblankRNNTInfer(
                     decoder_model=decoder,
@@ -457,8 +459,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             case TransducerDecodingStrategyType.BEAM, TransducerModelType.RNNT:
                 if ngram_lm_model_beam is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy {strategy} does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
+                        f"Recommended beam decoding strategy with LM is `malsd_batch`."
                     )
+                logging.warning(
+                    f"Decoding strategy `{strategy}` is experimental. "
+                    "Recommended beam decoding strategy is `malsd_batch`."
+                )
                 self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
                     decoder_model=decoder,
                     joint_model=joint,
@@ -472,8 +479,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             case TransducerDecodingStrategyType.BEAM, TransducerModelType.TDT:
                 if ngram_lm_model_beam is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy {strategy} does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
+                        f"Recommended beam decoding strategy with LM is `malsd_batch`."
                     )
+                logging.warning(
+                    f"Decoding strategy `{strategy}` is experimental. "
+                    "Recommended beam decoding strategy is `malsd_batch`."
+                )
                 self.decoding = tdt_beam_decoding.BeamTDTInfer(
                     decoder_model=decoder,
                     joint_model=joint,
@@ -488,8 +500,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             case TransducerDecodingStrategyType.TSD, TransducerModelType.RNNT:
                 if ngram_lm_model_beam is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy {strategy} does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models"
+                        f"Recommended beam decoding strategy with LM is `malsd_batch`."
                     )
+                logging.warning(
+                    f"Decoding strategy `{strategy}` is experimental. "
+                    "Recommended beam decoding strategy is `malsd_batch`."
+                )
                 self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
                     decoder_model=decoder,
                     joint_model=joint,
@@ -504,8 +521,13 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             case TransducerDecodingStrategyType.ALSD, TransducerModelType.RNNT:
                 if ngram_lm_model_beam is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy {strategy} does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
+                        f"Recommended beam decoding strategy with LM is `malsd_batch`."
                     )
+                logging.warning(
+                    f"Decoding strategy `{strategy}` is experimental. "
+                    "Recommended beam decoding strategy is `malsd_batch`."
+                )
                 self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
                     decoder_model=decoder,
                     joint_model=joint,
@@ -518,6 +540,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.MAES, TransducerModelType.RNNT:
+                logging.warning(
+                    f"Decoding strategy `{strategy}` is experimental. "
+                    "Recommended beam decoding strategy is `malsd_batch`."
+                )
                 self.decoding = rnnt_beam_decoding.BeamRNNTInfer(
                     decoder_model=decoder,
                     joint_model=joint,
@@ -537,6 +563,10 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
                 )
             case TransducerDecodingStrategyType.MAES, TransducerModelType.TDT:
+                logging.warning(
+                    f"Decoding strategy `{strategy}` is experimental. "
+                    "Recommended beam decoding strategy is `malsd_batch`."
+                )
                 self.decoding = tdt_beam_decoding.BeamTDTInfer(
                     decoder_model=decoder,
                     joint_model=joint,
