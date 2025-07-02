@@ -50,7 +50,7 @@ class TransducerDecodingStrategyType(PrettyStrEnum):
     MAES_BATCH = "maes_batch"
 
 
-TRANSDUCER_SUPPORTED_STRATEGIES = {
+TRANSDUCER_SUPPORTED_STRATEGIES: dict[TransducerModelType, set[TransducerDecodingStrategyType]] = {
     TransducerModelType.RNNT: {
         TransducerDecodingStrategyType.GREEDY,
         TransducerDecodingStrategyType.GREEDY_BATCH,
@@ -273,25 +273,28 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self.segment_gap_threshold = self.cfg.get('segment_gap_threshold', None)
 
         self._is_tdt = self.durations is not None and self.durations != []  # this means it's a TDT model.
-        with_multiple_blanks = self.big_blank_durations is not None and len(self.big_blank_durations) > 0
+        self._with_multiple_blanks = self.big_blank_durations is not None and len(self.big_blank_durations) > 0
 
         if self._is_tdt:
             if blank_id == 0:
                 raise ValueError("blank_id must equal len(non_blank_vocabs) for TDT models")
-            if with_multiple_blanks:
+            if self._with_multiple_blanks:
                 raise ValueError("duration and big_blank_durations can't both be not None")
 
-        if with_multiple_blanks and blank_id == 0:
+        if self._with_multiple_blanks and blank_id == 0:
             raise ValueError("blank_id must equal len(vocabs) for multi-blank RNN-T models")
 
         strategy = TransducerDecodingStrategyType(self.cfg.strategy)
 
         if self._is_tdt:
             model_type = TransducerModelType.TDT
-        elif with_multiple_blanks:
+        elif self._with_multiple_blanks:
             model_type = TransducerModelType.MULTI_BLANK
         else:
             model_type = TransducerModelType.RNNT
+
+        self._model_type = model_type
+        self._decoding_strategy_type = strategy
 
         # Update preserve alignments
         if self.preserve_alignments is None:
