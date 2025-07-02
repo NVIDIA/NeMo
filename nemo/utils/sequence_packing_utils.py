@@ -118,7 +118,6 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
 
     sequences = collections.defaultdict(list)
     counts = [0] * (truncate_seq_len + 1)
-
     for item_dict in dataset:
         # Minus 1 here to account for the fact that transformer input and label
         # have one less token than the full sequence.
@@ -126,17 +125,13 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
         # (this way the tokens are aligned for next token prediction).
         # We want pack size to be the length of the actual input and label, hence minus 1.
         seq_len = len(item_dict["input_ids"]) - 1
-        sequences[seq_len].append(item_dict)
-        counts[seq_len] += 1
+        if seq_len <= truncate_seq_len:
+            sequences[seq_len].append(item_dict)
+            counts[seq_len] += 1
 
     logging.debug("Histogram of sequence lengths")
     logging.debug(counts)
-
-    histogram = []
-    for seq_len in range(truncate_seq_len + 1):
-        histogram.append(len(sequences[seq_len]))
-
-    return sequences, histogram
+    return sequences, counts
 
 
 def create_packing_strategy(

@@ -90,3 +90,34 @@ class ChatDataModule(FineTuningDataModule):
             use_hf_tokenizer_chat_template=self.use_hf_tokenizer_chat_template,
             **kwargs,
         )
+
+    def prepare_data(self) -> None:
+        """
+        Prepare packed sequence data
+        """
+        if self.packed_sequence_size > 0:
+            from nemo.collections.llm.gpt.data.packed_sequence import prepare_packed_sequence_data
+
+            if not self.train_path_packed.is_file():
+                prepare_packed_sequence_data(
+                    input_path=self.train_path,
+                    output_path=self.train_path_packed,
+                    packed_sequence_size=self.packed_sequence_size,
+                    tokenizer=self.tokenizer,
+                    max_seq_length=self.seq_length,
+                    seed=self.seed,
+                    output_metadata_path=self.pack_metadata,
+                    chat=True,
+                )
+
+            if not self.validation_path_packed.is_file():
+                prepare_packed_sequence_data(
+                    input_path=self.validation_path,
+                    output_path=self.validation_path_packed,
+                    packed_sequence_size=self.packed_sequence_size,
+                    tokenizer=self.tokenizer,
+                    max_seq_length=self.seq_length,
+                    seed=self.seed,
+                    output_metadata_path=self.pack_metadata,
+                    chat=True,
+                )

@@ -24,6 +24,7 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data import ChatDataModule, MockDataModule
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
@@ -98,6 +99,11 @@ def get_args():
     parser.add_argument("--limit_val_batches", type=int, default=32, help="Number of batches per validation stage")
     parser.add_argument("--log_interval", type=int, default=10, help="Write to log every _ steps")
     parser.add_argument("--legacy_ckpt", action="store_true", help="Load ckpt saved with TE < 1.14")
+    parser.add_argument(
+        "--pack_sequence",
+        action="store_true",
+        help="Pack sequences for training. Packed sequence length is set to --seq_length.",
+    )
     return parser.parse_args()
 
 
@@ -159,13 +165,10 @@ if __name__ == "__main__":
         chat_template = _read_chat_template(args.chat_template_path)
         tokenizer = get_tokenizer(args.tokenizer, chat_template=chat_template)
         if '{% generation %}' not in tokenizer.tokenizer.chat_template:
-            if not args.chat_template_path:
-                raise ValueError(
-                    "Tokenizer does not contain the '{% generation %}' keyword. Please provide a chat template path using --chat-template-path."
-                )
-            raise ValueError(
-                "Please ensure the chat template includes a '{% generation %}' keyword for proper assistant mask during training. See https://github.com/huggingface/transformers/pull/30650"
+            logging.warning(
+                "Tokenizer does not contain the '{% generation %}' keyword. Please provide a chat template path using --chat-template-path that includes the '{% generation %}' keyword for proper assistant mask during training. See https://github.com/huggingface/transformers/pull/30650."
             )
+        ps = PackedSequenceSpecs(packed_sequence_size=args.seq_length)
         data = ChatDataModule(
             dataset_root=args.data_paths[0],
             seq_length=args.seq_length,
@@ -173,7 +176,9 @@ if __name__ == "__main__":
             global_batch_size=args.gbs,
             micro_batch_size=args.mbs,
             use_hf_tokenizer_chat_template=True,
+            packed_sequence_specs=ps if args.pack_sequence else None,
         )
+        data.prepare_data()  # sequence packing
     else:
         data = llm.PreTrainingDataModule(
             paths=args.data_paths,

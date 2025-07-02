@@ -29,7 +29,8 @@ def tokenize_dataset(
     tokenizer: TokenizerSpec,
     max_seq_length: int,
     seed: int,
-    dataset_kwargs: Optional[dict],
+    chat: bool = False,
+    dataset_kwargs: Optional[dict] = None,
 ):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
@@ -64,6 +65,8 @@ def tokenize_dataset(
         seq_length=max_seq_length,
         seed=seed,
         is_test=True,
+        chat=chat,
+        use_hf_tokenizer_chat_template=chat,
         **dataset_kwargs,
     )
     return np.array([dataset[i] for i in range(len(dataset))])
@@ -78,6 +81,7 @@ def prepare_packed_sequence_data(
     max_seq_length: int,
     seed: Optional[int] = 0,
     packing_algorithm: str = "first_fit_shuffle",
+    chat: bool = False,
     dataset_kwargs: dict = None,
 ):
     """
@@ -93,12 +97,13 @@ def prepare_packed_sequence_data(
         packing_algorithm (str): The algorithm used for packing sequences
                 currently supports "first_fit_shuffle" and "first_fit_decreasing".
 
+
     Returns:
         None: Saves the packed sequence data to the specified output path.
     """
 
     logging.info(f"Preparing packed sequence from {input_path}")
-    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed, dataset_kwargs)
+    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed, chat, dataset_kwargs)
     sequences, histogram = create_hist(dataset, max_seq_length)
 
     assignments, packing_metadata = create_packing_strategy(histogram, packed_sequence_size, packing_algorithm)
