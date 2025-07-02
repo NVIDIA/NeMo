@@ -670,6 +670,8 @@ class MagpieTTSModel(ModelPT):
             progress = step / n_steps
             # get mask fraction
             frac_masked = cosine_schedule(torch.tensor(progress))
+            if sampling_type == "causal":
+                frac_masked = torch.ones_like(frac_masked) * (1.0 - progress)
             # how many codebooks to mask
             if fixed_schedule_n_unmasked is None:
                 n_masked = torch.ceil(codebook_seq_len * frac_masked).long()
@@ -677,9 +679,10 @@ class MagpieTTSModel(ModelPT):
                 n_masked = codebook_seq_len - fixed_schedule_n_unmasked[step]
             n_unmasked = codebook_seq_len - n_masked
 
-            if sampling_type == "causal" and n_unmasked <= self.num_audio_codebooks:
+            if sampling_type == "causal":# and n_unmasked <= self.num_audio_codebooks:
                 # force second frame not to be unmasked
-                confidences[:,self.num_audio_codebooks:] = min_confidence-1 # only works for downsampling_factor=2
+                n_frames_to_allow = int(np.floor(progress*self.downsampling_factor+1))
+                confidences[:,n_frames_to_allow*self.num_audio_codebooks:] = min_confidence-1 # only works for downsampling_factor=2
             elif sampling_type == "alternate":
                 # TODO: preserve already-unmasked codebooks
                 if step % 2 == 1:
