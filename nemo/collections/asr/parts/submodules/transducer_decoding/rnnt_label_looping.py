@@ -73,7 +73,6 @@ class LabelLoopingState:
     advance_mask_any: torch.Tensor  # 0-dim bool tensor, condition for inner loop ('should advance any index')
 
     decoder_state: Any  # current decoder state
-    decoder_output_before_projection: torch.Tensor  # output from the decoder (not projected)
     decoder_output: torch.Tensor  # output from the decoder (projected)
 
     decoder_state_after_sos: Any  # decoder state after _SOS symbol (for initialization)
