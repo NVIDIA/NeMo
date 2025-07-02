@@ -25,9 +25,6 @@ from nemo.collections.nlp.models.language_modeling.bert_lm_model import BERTLMMo
 from nemo.collections.nlp.models.language_modeling.transformer_lm_model import TransformerLMModel  # noqa: F401
 from nemo.collections.nlp.models.machine_translation import MTEncDecModel  # noqa: F401
 from nemo.collections.nlp.models.question_answering.qa_model import QAModel  # noqa: F401
-from nemo.collections.nlp.models.spellchecking_asr_customization import (  # noqa: F401
-    SpellcheckingAsrCustomizationModel,
-)
 from nemo.collections.nlp.models.token_classification import (  # noqa: F401
     PunctuationCapitalizationLexicalAudioModel,
     PunctuationCapitalizationModel,
