@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import deque
 from dataclasses import InitVar, dataclass, field
 from typing import NamedTuple, Optional
 
@@ -20,21 +21,18 @@ import torch
 from lightning.pytorch import Trainer
 from omegaconf import MISSING, DictConfig, OmegaConf
 from tqdm.auto import tqdm
-from collections import deque
 
-from nemo.utils import logging
-
-
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.context_biasing.context_graph_universal import ContextGraph, ContextState
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.utils import logging
 
 
 class TBranch(NamedTuple):
     """Structure (tuple) to represent a branch in the boosting tree"""
 
-    symbol: int # token id
-    start_node: ContextState # start node of the branch
-    next_node: ContextState # next node of the branch
+    symbol: int  # token id
+    start_node: ContextState  # start node of the branch
+    next_node: ContextState  # next node of the branch
 
 
 @dataclass
@@ -68,12 +66,7 @@ class BoostingTreeStorage:
             int_np_dtype = np.int64
         self.arcs = np.zeros(
             [num_arcs_max],
-            dtype=[
-                ("from", int_np_dtype),
-                ("to", int_np_dtype),
-                ("ilabel", int_np_dtype),
-                ("weight", np.float32)
-            ],
+            dtype=[("from", int_np_dtype), ("to", int_np_dtype), ("ilabel", int_np_dtype), ("weight", np.float32)],
         )
         self.states = np.zeros(
             [num_states_max],
@@ -135,7 +128,6 @@ class BoostingTreeStorage:
                 self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_score)
                 self.num_arcs += 1
 
-
     def _add_tbranches_next_order(self, tbranches: list):
         """Add tbranches for the order > 1; should be called after adding first order tokens (unigrams), using increasing order"""
         tbranches = sorted(tbranches, key=lambda x: (x.start_node.id, x.symbol))
@@ -151,7 +143,7 @@ class BoostingTreeStorage:
                 backoff_weight = 0.0
             else:
                 backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
-            
+
             arc_id = self.num_arcs
             next_state = self.num_states
             self.num_arcs += 1
@@ -170,9 +162,9 @@ class BoostingTreeStorage:
                 backoff_weight,
                 self.final_eos_score if tbranch.next_node.is_end else 0.0,
             )
-            
+
             self._node_cache[tbranch.next_node.id] = next_state
-            
+
             if self.states[from_state]["arcs_start"] == 0:
                 self.states[from_state]["arcs_start"] = arc_id
                 self.states[from_state]["arcs_end"] = arc_id + 1
@@ -180,14 +172,12 @@ class BoostingTreeStorage:
                 assert self.states[from_state]["arcs_end"] == arc_id
                 self.states[from_state]["arcs_end"] = arc_id + 1
 
-
     def _start_adding_tbranches_for_order(self, order: int):
         """Prepare for adding tbranches for the given order: initialize temporary storage"""
         self._start_arcs = self.num_arcs
         self._cur_order = order
         self._tbranches = []
         self._tbranches_cnt = 0
-
 
     def _end_adding_tbranches_for_order(self, order: int):
         """Finish adding tbranches for the given order"""
@@ -201,7 +191,6 @@ class BoostingTreeStorage:
             self._add_tbranches_next_order(tbranches=self._tbranches)
             self._tbranches = None
             self._tbranches_cnt = 0
-
 
     def sanity_check(self):
         """Sanity check for the model"""
@@ -256,9 +245,8 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             trainer: Lightning trainer (optional)
         """
         super().__init__(cfg=cfg, trainer=trainer)
-        self.bos_state = self.START_STATE # Always START_STATE for gpu boosting tree
+        self.bos_state = self.START_STATE  # Always START_STATE for gpu boosting tree
 
-    
     @classmethod
     def _read_context_graph(
         cls,
@@ -286,10 +274,9 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
                     tbranches_list.append(TBranch(symbol=token, start_node=current_node, next_node=node))
                     order2cnt[node.level] = order2cnt.get(node.level, 0) + 1
                     queue.append(node)
-        
+
         return order2cnt, tbranches_list
 
-    
     @classmethod
     def from_context_graph(
         cls,
@@ -321,7 +308,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         order2cnt, tbranches_list = cls._read_context_graph(context_graph=context_graph)
 
         # init suffix tree storage
-        max_states = context_graph.num_nodes + 1 # + 1 for root state
+        max_states = context_graph.num_nodes + 1  # + 1 for root state
         boosting_tree_np = BoostingTreeStorage(
             num_states_max=max_states,
             num_states=0,
@@ -330,7 +317,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             unk_score=unk_score,
             final_eos_score=final_eos_score,
             vocab_size=vocab_size,
-            max_order=max(order2cnt)+1,
+            max_order=max(order2cnt) + 1,
         )
 
         boosting_tree_np.uniform_weights = uniform_weights
@@ -347,7 +334,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             # add tbranch
             boosting_tree_np._tbranches.append(tbranch)
             boosting_tree_np._tbranches_cnt += 1
-            
+
             if tbranch_cur_order_i == order2cnt[cur_order]:
                 boosting_tree_np._end_adding_tbranches_for_order(order=cur_order)
                 logging.info(f"Processed {order2cnt[cur_order]} n-grams of order {cur_order}")
@@ -358,7 +345,6 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         boosting_tree_np.sanity_check()
 
         return GPUBoostingTreeModel.from_boosting_tree_np(boosting_tree_np=boosting_tree_np, use_triton=use_triton)
-
 
     @classmethod
     def from_boosting_tree_np(
@@ -391,7 +377,6 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         model._resolve_final()
         return model
 
-
     def advance(self, states: torch.Tensor, eos_id: Optional[int] = None) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab
@@ -406,18 +391,17 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             scores, next_states = self._advance_triton(states=states)
         else:
             scores, next_states = self._advance_pytorch(states=states)
-        
+
         # replace eos_id score with maximum state weight to prevent from hallucinating in case of AED models (e.g. Canary)
         if eos_id is not None:
             # 1. replace eos score with maximum boosting value at each step
             scores[:, eos_id] = torch.clamp(torch.max(scores, dim=1).values, min=0.0)
-            
+
             # 2. increase eos score after detected end of context phrase
             scores[:, eos_id] += self.get_final(states)
-            
+
             next_states[:, eos_id] = states
         return scores, next_states
-
 
     def get_final(self, states: torch.Tensor) -> torch.Tensor:
         """
@@ -432,7 +416,6 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
 
         return self.final_weights[states]
 
-
     @classmethod
     def dummy_boosting_tree(
         cls,
@@ -446,7 +429,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         Returns:
             GPUBoostingTreeModel instance
         """
-        
+
         context_graph_trivial = ContextGraph(context_score=0.0, depth_scaling=0.0)
         context_graph_trivial.build(token_ids=[[1]], phrases=["c"], scores=[0.0], uniform_weights=False)
 
@@ -456,6 +439,6 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             unk_score=0.0,
             final_eos_score=0.0,
             use_triton=use_triton,
-            uniform_weights=False
+            uniform_weights=False,
         )
         return boosting_tree_trivial

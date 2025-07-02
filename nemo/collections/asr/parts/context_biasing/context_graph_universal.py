@@ -238,7 +238,9 @@ class ContextGraph:
             for i, token in enumerate(tokens):
                 if token not in node.next:
                     if i > 0 and not uniform_weights:
-                        token_score = context_score * self.depth_scaling + np.log(i+1) # depth scaling is used to give a larger score for all tokens after the first one
+                        token_score = context_score * self.depth_scaling + np.log(
+                            i + 1
+                        )  # depth scaling is used to give a larger score for all tokens after the first one
                     else:
                         token_score = context_score
                     self.num_nodes += 1
@@ -270,7 +272,6 @@ class ContextGraph:
                 node = node.next[token]
         self._fill_fail_output()
 
-    
     # TODO: remove everything below this line?
     def forward_one_step(
         self, state: ContextState, token: int, strict_mode: bool = True
@@ -330,18 +331,14 @@ class ContextGraph:
         # The matched node of current step, will only return the node with
         # longest phrase if there are multiple phrases matches this step.
         # None if no matched phrase.
-        matched_node = (
-            node if node.is_end else (node.output if node.output is not None else None)
-        )
+        matched_node = node if node.is_end else (node.output if node.output is not None else None)
         if not strict_mode and node.output_score != 0:
             # output_score != 0 means at least on phrase matched
             assert matched_node is not None
             output_score = (
                 node.node_score
                 if node.is_end
-                else (
-                    node.node_score if node.output is None else node.output.node_score
-                )
+                else (node.node_score if node.output is None else node.output.node_score)
             )
             return (score + output_score - node.node_score, self.root, matched_node)
         assert (node.output_score != 0 and matched_node is not None) or (
@@ -489,11 +486,7 @@ class ContextGraph:
         if filename:
             _, extension = os.path.splitext(filename)
             if extension == "" or extension[0] != ".":
-                raise ValueError(
-                    "Filename needs to have a suffix like .png, .pdf, .svg: {}".format(
-                        filename
-                    )
-                )
+                raise ValueError("Filename needs to have a suffix like .png, .pdf, .svg: {}".format(filename))
 
             import tempfile
 

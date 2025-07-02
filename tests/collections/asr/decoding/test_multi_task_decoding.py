@@ -23,10 +23,10 @@ from nemo.collections.asr.modules.transformer.transformer_generators import (
     BeamSearchSequenceGeneratorWithFusionModels,
     GreedySequenceGenerator,
 )
+from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.multitask_beam_decoding import TransformerAEDBeamInfer
 from nemo.collections.asr.parts.submodules.multitask_greedy_decoding import TransformerAEDGreedyInfer
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 
 
@@ -169,7 +169,9 @@ def test_beam_decoding_beam_scores_true_with_fusion_models(inputs, nnet):
     fusion_models = [lm, boosting_tree]
     fusion_moldes_alpha = [0.2, 0.2]
 
-    gen = BeamSearchSequenceGeneratorWithFusionModels(*nnet, fusion_models=fusion_models, fusion_models_alpha=fusion_moldes_alpha, beam_size=2)
+    gen = BeamSearchSequenceGeneratorWithFusionModels(
+        *nnet, fusion_models=fusion_models, fusion_models_alpha=fusion_moldes_alpha, beam_size=2
+    )
     output = gen(*inputs, return_beam_scores=True)
 
     assert len(output) == 3

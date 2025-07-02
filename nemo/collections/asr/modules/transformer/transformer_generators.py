@@ -529,7 +529,6 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
         self.fusion_models = fusion_models
         self.fusion_models_alpha = fusion_models_alpha
 
-
     def _forward(
         self, decoder_input_ids=None, encoder_hidden_states=None, encoder_input_mask=None, return_beam_scores=False
     ):
@@ -539,8 +538,10 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
             fusion_model.to(device)
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
-        
-        batch_fusion_states_list = [fusion_model.get_init_states(batch_size=batch_size, bos=True) for fusion_model in self.fusion_models]
+
+        batch_fusion_states_list = [
+            fusion_model.get_init_states(batch_size=batch_size, bos=True) for fusion_model in self.fusion_models
+        ]
         batch_fusion_states_candidates_list = []
 
         # generate initial buffer of beam_size prefixes-hypotheses
@@ -555,7 +556,9 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
 
         scores, prefixes = torch.topk(log_probs.permute(0, 2, 1), self.beam_size, dim=1)  # [Batch, Beam, 1]
         for fusion_model_idx, batch_fusion_states_candidates in enumerate(batch_fusion_states_candidates_list):
-            batch_fusion_states_list[fusion_model_idx] = batch_fusion_states_candidates.gather(dim=1, index=prefixes.squeeze(-1)).view(
+            batch_fusion_states_list[fusion_model_idx] = batch_fusion_states_candidates.gather(
+                dim=1, index=prefixes.squeeze(-1)
+            ).view(
                 -1
             )  # [Batch, Beam] -> [Batch*Beam]
 
@@ -604,7 +607,9 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)  # [Batch*Beam, Beam]
 
             for fusion_model_idx, batch_fusion_states_candidates in enumerate(batch_fusion_states_candidates_list):
-                batch_fusion_states_list[fusion_model_idx] = batch_fusion_states_candidates.gather(dim=1, index=prefixes_i)
+                batch_fusion_states_list[fusion_model_idx] = batch_fusion_states_candidates.gather(
+                    dim=1, index=prefixes_i
+                )
 
             # for all prefixes ending with <eos> or <pad> replace generated
             # continuations with <pad>
@@ -622,8 +627,10 @@ class BeamSearchSequenceGeneratorWithFusionModels(BeamSearchSequenceGenerator):
             scores, indices_i = torch.topk(scores.view(-1, self.beam_size**2), self.beam_size, dim=1)  # [Batch, Beam]
 
             for fusion_model_idx, batch_fusion_states in enumerate(batch_fusion_states_list):
-                batch_fusion_states_list[fusion_model_idx] = batch_fusion_states.view(-1, self.beam_size**2).gather(dim=1, index=indices_i).view(-1)
-            
+                batch_fusion_states_list[fusion_model_idx] = (
+                    batch_fusion_states.view(-1, self.beam_size**2).gather(dim=1, index=indices_i).view(-1)
+                )
+
             scores = scores.view(-1, 1) * len_penalties  # [Batch*Beam, 1]
 
             # select prefixes which correspond to the chosen hypotheses

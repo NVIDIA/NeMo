@@ -23,8 +23,8 @@ from nemo.collections.asr.modules.transformer import (
     BeamSearchSequenceGenerator,
     BeamSearchSequenceGeneratorWithFusionModels,
 )
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core import Typing, typecheck
@@ -152,16 +152,20 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         self.bos = tokenizer.bos
         self.pad = tokenizer.pad
         self.eos = tokenizer.eos
-        
+
         # initialize fusion models (ngram LM, boosting tree)
         fusion_models, fusion_models_alpha = [], []
         if ngram_lm_model is not None:
-            fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=tokenizer.vocab_size))
+            fusion_models.append(
+                NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=tokenizer.vocab_size)
+            )
             fusion_models_alpha.append(ngram_lm_alpha)
         if boosting_tree_model is not None:
-            fusion_models.append(GPUBoostingTreeModel.from_file(lm_path=boosting_tree_model, vocab_size=tokenizer.vocab_size))
+            fusion_models.append(
+                GPUBoostingTreeModel.from_file(lm_path=boosting_tree_model, vocab_size=tokenizer.vocab_size)
+            )
             fusion_models_alpha.append(boosting_tree_alpha)
-        
+
         if not fusion_models:
             self.beam_search = BeamSearchSequenceGenerator(
                 embedding=transformer_decoder.embedding,

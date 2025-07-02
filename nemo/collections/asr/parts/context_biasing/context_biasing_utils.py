@@ -150,7 +150,10 @@ def merge_alignment_with_ws_hyps(
 
 
 def compute_fscore(
-    recognition_results_manifest: str, key_words_list: List, eps: str = "<eps>", print_stats: bool = False,
+    recognition_results_manifest: str,
+    key_words_list: List,
+    eps: str = "<eps>",
+    print_stats: bool = False,
 ) -> tuple[float, float, float]:
     """
     Compute fscore for list of context biasing words/phrases.
