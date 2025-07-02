@@ -27,6 +27,7 @@ from nemo.collections.nlp.data.spellchecking_asr_customization import (
     TarredSpellcheckingAsrCustomizationDataset,
     bert_example,
 )
+
 try:
     from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_label_map
 except ModuleNotFoundError:
