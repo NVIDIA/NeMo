@@ -1652,7 +1652,6 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
         """
         Force None for the parent class's sharded_state_dict() method if setup is complete.
         """
-        # TODO: confirm this is NeMo 1
         if self.setup_complete:
             return None
         else:
