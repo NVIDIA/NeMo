@@ -107,7 +107,11 @@ def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_second
 @contextmanager
 def nemo_log_level(level):
     """
-    Temporarily sets the logging level for the nemo logger to the specified level.
+    A context manager that temporarily sets the logging level for the NeMo logger 
+    and restores the original level when the context manager is exited.
+
+    Args:
+        level (int): The logging level to set.
     """
     logger = logging.getLogger("nemo_logger")
     original_level = logger.level
