@@ -31,6 +31,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import cu_call, run_nvrtc, with_conditional_node
+from nemo.utils import logging
 
 try:
     from cuda import cudart
@@ -243,6 +244,9 @@ class GreedyBatchedTDTLabelLoopingComputer(
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
         self.allow_cuda_graphs = allow_cuda_graphs
+        if self.allow_cuda_graphs and not self.decoder.state_size_is_fixed():
+            logging.warning("Decoding with CUDA graphs is not supported with Transformer-Decoder.")
+            self.allow_cuda_graphs = False
         self.include_duration = include_duration
         self.include_duration_confidence = include_duration_confidence
         self._SOS = self._blank_index
@@ -511,11 +515,12 @@ class GreedyBatchedTDTLabelLoopingComputer(
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
             # preserve correct states/outputs for inactive elements
-            self.decoder.batch_replace_states_mask(
-                src_states=prev_state,
-                dst_states=state,
-                mask=~found_labels_mask,
-            )
+            if self.decoder_state_size_is_fixed:
+                self.decoder.batch_replace_states_mask(
+                    src_states=prev_state,
+                    dst_states=state,
+                    mask=~found_labels_mask,
+                )
             torch.where(
                 found_labels_mask.unsqueeze(-1).unsqueeze(-1), decoder_output, prev_decoder_output, out=decoder_output
             )

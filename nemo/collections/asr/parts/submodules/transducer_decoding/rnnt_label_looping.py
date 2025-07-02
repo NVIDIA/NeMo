@@ -248,8 +248,6 @@ class GreedyBatchedRNNTLabelLoopingComputer(
         self.state = None
         self.full_graph = None
         self.separate_graphs = None
-        self.separate_graphs_no_decoder = None
-        self.graphs_with_while_no_decoder = None
 
     def _get_frame_confidence(self, logits: torch.Tensor) -> Optional[torch.Tensor]:
         float_dtype = logits.dtype
@@ -453,7 +451,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(
             decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
 
             # preserve correct states/outputs for inactive elements
-            if self.decoder.state_size_is_fixed():
+            if self.decoder_state_size_is_fixed:
                 self.decoder.batch_replace_states_mask(
                     src_states=prev_state,
                     dst_states=state,
@@ -819,12 +817,8 @@ class GreedyBatchedRNNTLabelLoopingComputer(
         match self.cuda_graphs_mode:
             case self.CudaGraphsMode.FULL_GRAPH:
                 self._full_graph_compile()
-            case self.CudaGraphsMode.WITH_WHILE_LOOPS_EXCLUDE_DECODER:
-                self._graphs_with_while_exclude_decoder_compile()
             case self.CudaGraphsMode.NO_WHILE_LOOPS:
                 self._separate_graphs_compile()
-            case self.CudaGraphsMode.NO_WHILE_LOOPS_EXCLUDE_DECODER:
-                self._separate_graphs_compile_no_decoder()
             case self.CudaGraphsMode.NO_GRAPHS:
                 pass  # nothing to compile
             case _:
@@ -848,57 +842,6 @@ class GreedyBatchedRNNTLabelLoopingComputer(
                 self._after_inner_loop_step()
         torch.cuda.current_stream().wait_stream(s)
         self.state.encoder_output_length.fill_(0)
-
-    def _graphs_with_while_exclude_decoder_compile(self):
-        """Compile decoding by parts: before outer loop, full inner loop (excluding decoder)"""
-        # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
-        stream_for_graph = torch.cuda.Stream(self.state.device)
-        stream_for_graph.wait_stream(torch.cuda.default_stream(self.state.device))
-        self.graphs_with_while_no_decoder = GraphsWithWhileExcludeDecoderLoopLabels()
-        with (
-            torch.cuda.stream(stream_for_graph),
-            torch.inference_mode(),
-            torch.cuda.graph(
-                self.graphs_with_while_no_decoder.before_outer_loop,
-                stream=stream_for_graph,
-                capture_error_mode="thread_local",
-            ),
-        ):
-            self._before_outer_loop()
-
-        with (
-            torch.cuda.stream(stream_for_graph),
-            torch.inference_mode(),
-            torch.cuda.graph(
-                self.graphs_with_while_no_decoder.full_inner_loop,
-                stream=stream_for_graph,
-                capture_error_mode="thread_local",
-            ),
-        ):
-            self._before_inner_loop_project_decoder_and_query_lm()
-            self._before_inner_loop_get_joint_output()
-
-            capture_status, _, graph, _, _ = cu_call(
-                cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.state.device).cuda_stream)
-            )
-            assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
-
-            # capture: while self.advance_mask_any.item():
-            inner_while_loop_kernel = self._create_inner_while_loop_kernel()
-            (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
-            advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
-            inner_loop_args = np.array(
-                [
-                    inner_loop_conditional_handle.getPtr(),
-                    advance_mask_any_ptr.ctypes.data,
-                ],
-                dtype=np.uint64,
-            )
-            with with_conditional_node(
-                inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
-            ):
-                self._inner_loop_code()
-            self._after_inner_loop()
 
     def _separate_graphs_compile(self):
         """Compile decoding by parts"""
