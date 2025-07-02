@@ -158,22 +158,17 @@ def test_beam_decoding_beam_scores_true(inputs, nnet):
     assert best_path.shape == (1, 26)
 
 
-def test_beam_decoding_beam_scores_true_with_fusion_models(inputs, nnet, tmp_path):
+def test_beam_decoding_beam_scores_true_with_fusion_models(inputs, nnet):
     """Test decoding with dummy unigram LM and boosting tree"""
     # load dummy ngpu-lm
     lm = NGramGPULanguageModel.dummy_unigram_lm(vocab_size=8)
-    # lm_path = tmp_path / "unigram_lm.nemo"
-    # lm.save_to(f"{lm_path}")
 
     # load dummy boosting tree
     boosting_tree = GPUBoostingTreeModel.dummy_boosting_tree(vocab_size=8)
-    # boosting_tree_path = tmp_path / "boosting_tree.nemo"
-    # boosting_tree.save_to(f"{boosting_tree_path}")
 
     fusion_models = [lm, boosting_tree]
     fusion_moldes_alpha = [0.2, 0.2]
 
-    # gen = BeamSearchSequenceGeneratorWithNGramLM(*nnet, ngram_lm_model=lm_path, ngram_lm_alpha=0.2, beam_size=2)
     gen = BeamSearchSequenceGeneratorWithFusionModels(*nnet, fusion_models=fusion_models, fusion_models_alpha=fusion_moldes_alpha, beam_size=2)
     output = gen(*inputs, return_beam_scores=True)
 

@@ -12,16 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import re
-from collections import defaultdict
-from collections.abc import Iterator
 from dataclasses import InitVar, dataclass, field
-from pathlib import Path
-from typing import NamedTuple, Optional, Union, cast
+from typing import NamedTuple, Optional
 
 import numpy as np
 import torch
-import torch.nn as nn
 from lightning.pytorch import Trainer
 from omegaconf import MISSING, DictConfig, OmegaConf
 from tqdm.auto import tqdm
@@ -117,8 +112,8 @@ class BoostingTreeStorage:
             self.arcs[arc_id] = (self.start_state, next_state, ilabel, tbranch.next_node.token_score)
             self.num_arcs += 1
 
-            # TODO: do we need to increase arc weigth in the case of the final node (end of phrase)?
             if tbranch.next_node.is_end:
+                # we do not penalize transitions from final nodes in case of non-uniform weights
                 backoff_weight = 0.0
             else:
                 backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
@@ -151,8 +146,8 @@ class BoostingTreeStorage:
             assert ilabel < self.vocab_size
             backoff_state = self._node_cache[tbranch.next_node.fail.id]
 
-            # TODO: do we need to increase arc weigth in the case of the final node (end of phrase)?
             if tbranch.next_node.is_end and not self.uniform_weights:
+                # we do not penalize transitions from final nodes in case of non-uniform weights
                 backoff_weight = 0.0
             else:
                 backoff_weight = tbranch.next_node.fail.node_score - tbranch.next_node.node_score
@@ -265,20 +260,20 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
 
     
     @classmethod
-    def _read_cb_tree(
+    def _read_context_graph(
         cls,
-        cb_tree: ContextGraph,
+        context_graph: ContextGraph,
     ) -> tuple[dict[int, int], list[TBranch]]:
         """
         Read context-biasing tree from python structure and return branches in TBranch format.
 
         Args:
-            cb_tree: python context-biasing tree
+            context_graph: python context-biasing graph
         """
 
         seen = set()
         queue = deque()
-        queue.append(cb_tree.root)
+        queue.append(context_graph.root)
         seen.add(0)
         order2cnt = {}
         tbranches_list = []
@@ -296,11 +291,11 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
 
     
     @classmethod
-    def from_cb_tree(
+    def from_context_graph(
         cls,
-        cb_tree: ContextGraph,
+        context_graph: ContextGraph,
         vocab_size: int,
-        unk_score: float = True,
+        unk_score: float = 0.0,
         final_eos_score: float = 0.0,
         use_triton: bool | None = None,
         uniform_weights: bool | None = None,
@@ -309,23 +304,24 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         Constructor from Icefall context graph (dict-based tree).
 
         Args:
-            cb_tree: context-biasing graph
+            context_graph: context-biasing graph
             vocab_size: vocabulary size (existing vocabulary units in LM; should not include blank etc.)
             unk_score: score for unknown tokens
             final_eos_score: score for eos token after detected end of context phrase
             use_triton: allow using Triton implementation;
                 None (default) means "auto" (used if available), True means forced mode
                 (will crash if Triton is unavailable)
+            uniform_weights: whether to use uniform weights for the context-biasing tree as in Icefall
 
         Returns:
             GPUBoostingTreeModel instance
         """
-        logging.info(f"{cls.__name__}: reading boosting tree from {cb_tree}")
+        logging.info(f"{cls.__name__}: reading boosting tree from {context_graph}")
 
-        order2cnt, tbranches_list = cls._read_cb_tree(cb_tree=cb_tree)
+        order2cnt, tbranches_list = cls._read_context_graph(context_graph=context_graph)
 
         # init suffix tree storage
-        max_states = cb_tree.num_nodes + 1 # + 1 for root state
+        max_states = context_graph.num_nodes + 1 # + 1 for root state
         boosting_tree_np = BoostingTreeStorage(
             num_states_max=max_states,
             num_states=0,
@@ -338,7 +334,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         )
 
         boosting_tree_np.uniform_weights = uniform_weights
-        # convert cb_tree to np boosting tree
+        # convert context-biasing graph to np boosting tree
         tbranch_cur_order_i = 0
         cur_order = 1
 
@@ -407,13 +403,11 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             tuple with next states and scores
         """
         if self.use_triton and states.device.type == "cuda":
-            # raise NotImplementedError("Triton implementation is not available yet")
             scores, next_states = self._advance_triton(states=states)
         else:
-            # raise NotImplementedError("Pytorch implementation is not available yet")
             scores, next_states = self._advance_pytorch(states=states)
         
-        # replace eos_id score with maximum state weight to prevent the model from hallucinating
+        # replace eos_id score with maximum state weight to prevent from hallucinating in case of AED models (e.g. Canary)
         if eos_id is not None:
             # 1. replace eos score with maximum boosting value at each step
             scores[:, eos_id] = torch.clamp(torch.max(scores, dim=1).values, min=0.0)
@@ -450,14 +444,14 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         Useful for testing purposes (e.g., decoding).
 
         Returns:
-            NGramGPULanguageModel instance
+            GPUBoostingTreeModel instance
         """
         
         context_graph_trivial = ContextGraph(context_score=0.0, depth_scaling=0.0)
         context_graph_trivial.build(token_ids=[[1]], phrases=["c"], scores=[0.0], uniform_weights=False)
 
-        boosting_tree_trivial = GPUBoostingTreeModel.from_cb_tree(
-            cb_tree=context_graph_trivial,
+        boosting_tree_trivial = GPUBoostingTreeModel.from_context_graph(
+            context_graph=context_graph_trivial,
             vocab_size=vocab_size,
             unk_score=0.0,
             final_eos_score=0.0,

@@ -36,9 +36,23 @@ def test_context_graph():
     return context_graph
 
 
+@pytest.fixture(scope="module")
+def test_boosting_tree(test_context_graph):
+    boosting_tree = GPUBoostingTreeModel.from_context_graph(
+        context_graph=test_context_graph,
+        vocab_size=5,
+        unk_score=0.0,
+        final_eos_score=0.0,
+        use_triton=True,
+        uniform_weights=False
+    )
+    return boosting_tree
+    
+
 class TestGPUBoostingTreeModel:
     @pytest.mark.unit
     def test_bulding_context_graph(self, test_context_graph):
+        """ Test initial python-based context graph"""
         context_graph = test_context_graph
         assert context_graph.num_nodes == 5
         # end nodes
@@ -62,15 +76,12 @@ class TestGPUBoostingTreeModel:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("batch_size", [1, 3, 8])
-    def test_advance_method(self, test_context_graph, device, batch_size):
+    def test_advance_method(self, test_boosting_tree, device, batch_size):
         """Test advance method with different batch sizes"""
-        boosting_tree = GPUBoostingTreeModel.from_cb_tree(
-            cb_tree=test_context_graph, vocab_size=5
-        ).to(device)
-        
+        test_boosting_tree.to(device)
         # Test with initial states
-        init_states = boosting_tree.get_init_states(batch_size=batch_size, bos=True)
-        scores, next_states = boosting_tree.advance(init_states)
+        init_states = test_boosting_tree.get_init_states(batch_size=batch_size, bos=True)
+        scores, next_states = test_boosting_tree.advance(init_states)
         
         assert scores.shape == (batch_size, 5)  # vocab_size=5
         assert next_states.shape == (batch_size, 5)
@@ -78,43 +89,29 @@ class TestGPUBoostingTreeModel:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
-    def test_get_final_method(self, test_context_graph, device):
+    def test_get_final_method(self, test_boosting_tree, device):
         """Test get_final method for EOS scoring"""
-        boosting_tree = GPUBoostingTreeModel.from_cb_tree(
-            cb_tree=test_context_graph, vocab_size=5
-        ).to(device)
-        
+        test_boosting_tree.to(device)
         # Test with various states
         states = torch.tensor([0, 1, 2], dtype=torch.long, device=device)
-        final_scores = boosting_tree.get_final(states)
+        final_scores = test_boosting_tree.get_final(states)
         
         assert final_scores.shape == (3,)
 
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
-    def test_building_boosting_tree(self, test_context_graph, device):
-        context_graph = test_context_graph
-        boosting_tree = GPUBoostingTreeModel.from_cb_tree(
-            cb_tree=context_graph,
-            vocab_size=5,
-            unk_score=0.0,
-            final_eos_score=0.0,
-            use_triton=True,
-            uniform_weights=False
-        )
+    def test_boosting_tree_inference(self, test_boosting_tree, device):
+        """Test boosting tree inference with predefined sentences"""
+        test_boosting_tree.to(device)
 
         sentences_ids = [[1, 2, 3, 2, 1], [2, 2, 1, 2, 4], [3, 1, 2, 1], []] # ['abcba', 'bbabd', 'caba', '']
-        device = torch.device("cuda")
-        boosting_tree = boosting_tree.cuda()
-
-        boosting_scores = boosting_tree(
+        boosting_scores = test_boosting_tree(
             labels=pad_sequence([torch.LongTensor(sentence) for sentence in sentences_ids], batch_first=True).to(device),
             labels_lengths=torch.LongTensor([len(sentence) for sentence in sentences_ids]).to(device),
             bos=False,
             eos=False,
         )
-
         correct_answer  = torch.tensor([[ 1.0000,  1.6931,  2.0986,  0.0000,  1.0000],
                                         [ 0.0000,  0.0000,  1.0000,  1.6931,  2.0986],
                                         [ 1.0000,  1.0000,  1.6931, -1.6931,  0.0000],
@@ -129,12 +126,12 @@ class TestGPUBoostingTreeModel:
         device = torch.device("cuda")
         
         # Create two identical models with different implementations
-        boosting_tree_triton = GPUBoostingTreeModel.from_cb_tree(
-            cb_tree=test_context_graph, vocab_size=5, use_triton=True
+        boosting_tree_triton = GPUBoostingTreeModel.from_context_graph(
+            context_graph=test_context_graph, vocab_size=5, use_triton=True
         ).to(device)
         
-        boosting_tree_pytorch = GPUBoostingTreeModel.from_cb_tree(
-            cb_tree=test_context_graph, vocab_size=5, use_triton=False
+        boosting_tree_pytorch = GPUBoostingTreeModel.from_context_graph(
+            context_graph=test_context_graph, vocab_size=5, use_triton=False
         ).to(device)
         
         # Test with same input
@@ -150,9 +147,9 @@ class TestGPUBoostingTreeModel:
 
     @pytest.mark.unit
     def test_eos_handling(self, test_context_graph):
-        """Test EOS token handling"""
-        boosting_tree = GPUBoostingTreeModel.from_cb_tree(
-            cb_tree=test_context_graph, vocab_size=5, unk_score=0.0, final_eos_score=1.0
+        """Test EOS token handling (important for AED models)"""
+        boosting_tree = GPUBoostingTreeModel.from_context_graph(
+            context_graph=test_context_graph, vocab_size=5, unk_score=0.0, final_eos_score=1.0
         )
         
         # Test advance with EOS

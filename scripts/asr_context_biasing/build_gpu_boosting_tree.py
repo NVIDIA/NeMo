@@ -13,9 +13,6 @@
 # limitations under the License.
 
 import logging
-import os
-import subprocess
-import sys
 from dataclasses import dataclass, field
 from glob import glob
 from typing import List
@@ -43,14 +40,14 @@ class BuildWordBoostingTreeConfig:
 
     asr_model_nemo_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
     context_biasing_list: str = MISSING  # The path to the context-biasing list file (one phrase per line)
-    path_to_save_btree: str = MISSING  # The path to save the GPU-accelerated word boosting graph
+    path_to_save_boosting_tree: str = MISSING  # The path to save the GPU-accelerated word boosting graph
 
     context_score: float = 1.0  # The score for each arc transition in the context graph
     depth_scaling: float = 1.0  # The scaling factor for the depth of the context graph
-    unk_score: float = 0.0  # The score for unknown tokens (tokens that are not in the beginning of context-biasing phrases)
-    final_eos_score: float = 1.0  # The score for eos token after detected end of context phrase to prevent hallucination
+    unk_score: float = 0.0  # The score for unknown tokens (tokens that are not presented in the beginning of context-biasing phrases)
+    final_eos_score: float = 1.0  # The score for eos token after detected end of context phrase to prevent hallucination for AED models
     score_per_phrase: float = 0.0  # Custom score for each phrase in the context graph
-    source_lang: str = "en"  # The source language of the context-biasing phrases
+    source_lang: str = "en"  # The source language of the context-biasing phrases (for aggregate tokenizer)
 
     use_triton: bool = False  # Whether to use Triton for inference.
     uniform_weights: bool = False # Whether to use uniform weights for the context-biasing tree as in Icefall
@@ -60,8 +57,9 @@ class BuildWordBoostingTreeConfig:
     num_of_transcriptions: int = 5  # The number of alternative transcriptions to generate for each context-biasing phrase
     bpe_alpha: float = 0.3  # The alpha parameter for BPE dropout
 
-    test_btree_model: bool = False  # Whether to test the GPU-accelerated word boosting graph after building it
-    test_sentences: List[str] = field(default_factory=list) # The phrases to test boosting graph ["hello world","nvlink","nvlinz","omniverse cloud now","acupuncture"]
+    # evaluation of obtained boosting tree with test_sentences (optional)
+    test_boosting_tree: bool = False  # Whether to test the GPU-accelerated word boosting tree after building it
+    test_sentences: List[str] = field(default_factory=list) # The phrases to test boosting tree ["hello world","nvlink","nvlinz","omniverse cloud now","acupuncture"]
 
 
 @hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=BuildWordBoostingTreeConfig)
@@ -99,9 +97,7 @@ def main(cfg: BuildWordBoostingTreeConfig):
                 cb_dict[line] = asr_model.tokenizer.text_to_ids(line, cfg.source_lang)
     
     # 3. build context-biasing tree based on modified Icefall graph
-    contexts = []
-    scores = []
-    phrases = []
+    contexts, scores, phrases = [], [], []
     for phrase in cb_dict:
         if cfg.use_bpe_dropout:
             for trans in cb_dict[phrase]:
@@ -119,8 +115,8 @@ def main(cfg: BuildWordBoostingTreeConfig):
     # 4. convert python context-biasing graph to gpu boosting tree
     vocab_size = len(asr_model.tokenizer.vocab)
 
-    gpu_boosting_model = GPUBoostingTreeModel.from_cb_tree(
-        context_graph,
+    gpu_boosting_model = GPUBoostingTreeModel.from_context_graph(
+        context_graph=context_graph,
         vocab_size=vocab_size,
         unk_score=cfg.unk_score,
         final_eos_score=cfg.final_eos_score,
@@ -129,12 +125,12 @@ def main(cfg: BuildWordBoostingTreeConfig):
     )
 
     # 5. save gpu boosting tree to nemo file
-    gpu_boosting_model.save_to(cfg.path_to_save_btree)
+    gpu_boosting_model.save_to(cfg.path_to_save_boosting_tree)
 
     # 6. test gpu boosting tree model
     logging.info("testing gpu boosting tree model...")
-    if cfg.test_btree_model and cfg.test_sentences:
-        gpu_boosting_model_loaded = GPUBoostingTreeModel.from_nemo(cfg.path_to_save_btree, vocab_size=vocab_size, use_triton=cfg.use_triton)
+    if cfg.test_boosting_tree and cfg.test_sentences:
+        gpu_boosting_model_loaded = GPUBoostingTreeModel.from_nemo(cfg.path_to_save_boosting_tree, vocab_size=vocab_size, use_triton=cfg.use_triton)
         device = torch.device("cuda")
         gpu_boosting_model_loaded = gpu_boosting_model_loaded.cuda()
 
