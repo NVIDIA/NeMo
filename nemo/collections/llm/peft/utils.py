@@ -75,7 +75,9 @@ def get_adapter_attributes_from_linear(m: nn.Module, full_name: str):
     disable_sequence_parallel_comm = not m.config.sequence_parallel
     base_linear_is_parallel = True
     # check if open overlap for share expert, if overlap enable, ag and rs will do in megatron's hook
-    moe_shared_expert_overlap = True if is_share_expert_linear(full_name) and m.config.moe_shared_expert_overlap else False
+    moe_shared_expert_overlap = (
+        True if is_share_expert_linear(full_name) and m.config.moe_shared_expert_overlap else False
+    )
     if moe_shared_expert_overlap:
         disable_sequence_parallel_comm = True
     if HAVE_TE and any(isinstance(m, te_column_parallel) for te_column_parallel in TECL):
@@ -137,6 +139,7 @@ def is_expert_linear(fqn):
     See ParallelLinearAdapter.is_expert for usage details.
     """
     return re.match(r'.*mlp\.experts.*\.linear_fc[1-2]$', fqn) is not None
+
 
 def is_share_expert_linear(fqn):
     """
