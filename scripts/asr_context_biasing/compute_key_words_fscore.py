@@ -35,13 +35,14 @@ def main():
     args = parser.parse_args()
 
     key_words_list = []
-    for line in open(args.key_words_file, encoding='utf-8').readlines():
-        if args.ctcws_mode:
-            item = line.strip().split("_")[0].lower()
-        else:
-            item = line.strip().lower()
-        if item not in key_words_list:
-            key_words_list.append(item)
+    with open(args.key_words_file, encoding='utf-8') as f:
+        for line in f.readlines():
+            if args.ctcws_mode:
+                item = line.strip().split("_")[0].lower()
+            else:
+                item = line.strip().lower()
+            if item not in key_words_list:
+                key_words_list.append(item)
 
     context_biasing.compute_fscore(args.input_manifest, key_words_list, print_stats=True)
 
