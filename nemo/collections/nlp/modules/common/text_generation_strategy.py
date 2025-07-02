@@ -1045,7 +1045,6 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
     from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
         MegatronGPTPromptLearningModel,
@@ -1064,8 +1063,6 @@ def model_inference_strategy_dispatcher(model, **args):
         return GriffinModelTextGenerationStrategy(model)
     if isinstance(model, MegatronMambaModel):
         return GPTModelTextGenerationStrategy(model)
-    if isinstance(model, MegatronNevaModel):
-        return NevaModelTextGenerationStrategy(model)
     if isinstance(model, MegatronGPTPromptLearningModel):
         return PromptLearningModelTextGenerationStrategy(model, **args)
     elif isinstance(model, MegatronGPTModel) and not (isinstance(model, MegatronRetroModel)):
