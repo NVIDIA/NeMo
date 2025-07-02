@@ -25,6 +25,7 @@ from nemo.core.classes import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AdapterModuleMixin
 from nemo.core.neural_types import LabelsType, LengthsType, NeuralType
+from nemo.utils.decorators import experimental
 
 
 class GPTDecoderState:
@@ -73,6 +74,7 @@ class GPTDecoderState:
         return mask
 
 
+@experimental
 class GPTTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMixin):
     def __init__(
         self,
