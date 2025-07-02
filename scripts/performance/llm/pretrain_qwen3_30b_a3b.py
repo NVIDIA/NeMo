@@ -16,7 +16,6 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.llm.recipes.qwen3_30b_a3b import pretrain_recipe
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
@@ -65,6 +64,7 @@ def override_recipe_configs(
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "qwen3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -72,11 +72,6 @@ def override_recipe_configs(
 
     recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
     recipe.trainer.callbacks.append(run.Config(MegatronCommOverlapCallback, tp_comm_overlap=True))
-
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_loss_fusion = True
