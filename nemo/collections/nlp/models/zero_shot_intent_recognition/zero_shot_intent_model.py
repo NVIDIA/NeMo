@@ -33,6 +33,7 @@ try:
     from nemo.collections.nlp.models import TextClassificationModel
 except ImportError:
     from abc import ABC
+
     TextClassificationModel = ABC
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
