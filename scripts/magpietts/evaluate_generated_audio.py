@@ -16,6 +16,8 @@ import json
 import os
 import pprint
 import string
+import logging
+from contextlib import contextmanager
 
 import numpy as np
 import torch
@@ -102,6 +104,19 @@ def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_second
         audio_np = np.pad(audio_np, (0, padding_needed), mode='constant', constant_values=0)
     return audio_np
 
+@contextmanager
+def nemo_log_level(level):
+    """
+    Temporarily sets the logging level for the nemo logger to the specified level.
+    """
+    logger = logging.getLogger("nemo_logger")
+    original_level = logger.level
+    logger.setLevel(level)
+    try:
+        yield
+    finally:
+        # restore the original level when the context manager is exited (even if an exception was raised)
+        logger.setLevel(original_level)
 
 def extract_embedding(model, extractor, audio_path, device, sv_model_type):
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
@@ -151,8 +166,10 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
         speaker_verification_model = speaker_verification_model.to(device)
         speaker_verification_model.eval()
-
-    speaker_verification_model_alternate = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_small')
+    with nemo_log_level(logging.ERROR):
+        # The model `titanet_small` prints thousands of lines during initialization, so suppress logs temporarily
+        print("Loading `titanet_small` model...")
+        speaker_verification_model_alternate = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_small')
     speaker_verification_model_alternate = speaker_verification_model_alternate.to(device)
     speaker_verification_model_alternate.eval()
 
