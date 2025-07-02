@@ -32,7 +32,8 @@ from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dat
 try:
     from nemo.collections.nlp.models import TextClassificationModel
 except ImportError:
-    TextClassificationModel = None
+    from abc import ABC
+    TextClassificationModel = ABC
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
