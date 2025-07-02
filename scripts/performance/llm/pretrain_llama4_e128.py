@@ -17,19 +17,13 @@ from os.path import basename, splitext
 import nemo_run as run
 
 from nemo.collections.llm.recipes.llama4_e128 import pretrain_recipe
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    hf_tokenizer,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import hf_tokenizer
 
 
 def override_recipe_configs(
@@ -70,6 +64,7 @@ def override_recipe_configs(
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -83,11 +78,6 @@ def override_recipe_configs(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=202048
         )
         recipe.model.tokenizer = recipe.data.tokenizer
-
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_loss_fusion = True
@@ -116,6 +106,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
