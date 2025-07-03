@@ -51,7 +51,6 @@ def get_results(
     # Define needed variables
     model_name = train_config.model_type
     model_size = train_config.model_size_in_b
-    global_batch_size = base_config.data.global_batch_size
     seq_length = base_config.data.seq_length
 
     vocab_size = train_config.vocab_size
@@ -85,7 +84,7 @@ def get_results(
         "Samples per Second",
         "Model TFLOPS / GPU",
         "Model TFLOPS Aggregate",
-        "Full Configuration Name",
+        "Full Configuration Name"
     ]
     error_columns = [
         "Model Name",
@@ -109,18 +108,20 @@ def get_results(
     errors = []
 
     performance_dict = {}
-
+    
     training_logs = os.path.abspath(training_logs)
     error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
 
+
     for error_file, tb_file, candidate_dir in zip(error_files, tb_files, dirs):
         try:
-            tp, pp, cp, ep, mbs, vp = get_config(candidate_dir)
-        except:
-            print(f"Skipping {candidate_dir}")
+            tp, pp, cp, ep, mbs, vp, gbs = get_config(candidate_dir)
+        except Exception as e:
+            print(f"Skipping {candidate_dir}: {e}")
             continue
+            
         error = find_error(error_file)
         if error:
             errors.append(
@@ -137,7 +138,7 @@ def get_results(
                     layers,
                     hs,
                     ffn_hs,
-                    global_batch_size,
+                    gbs,
                     num_nodes,
                     gpus_per_node,
                     error,
@@ -152,10 +153,10 @@ def get_results(
                 continue
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
-            samples_per_s = round(global_batch_size / avg_global_step_time, 2)
+            samples_per_s = round(gbs / avg_global_step_time, 2)
             m_tflops, m_tflops_gpu = calculate_tflops(
                 model_name=model_name,
-                gbs=global_batch_size,
+                gbs=gbs,
                 enc_seq_len=seq_length,
                 dec_seq_len=seq_length,
                 hs=hs,
@@ -178,7 +179,7 @@ def get_results(
                 mbs=mbs,
                 vp=vp,
                 seq_length=seq_length,
-                global_batch_size=global_batch_size,
+                global_batch_size=gbs
             )
 
             result.append(
@@ -195,7 +196,7 @@ def get_results(
                     layers,
                     hs,
                     ffn_hs,
-                    global_batch_size,
+                    gbs,  # Use extracted GBS
                     num_nodes,
                     gpus_per_node,
                     avg_global_step_time,
@@ -210,38 +211,39 @@ def get_results(
                 "m_tflops_gpu": m_tflops_gpu,
                 "time_per_global_step": avg_global_step_time,
                 "samples_per_s": samples_per_s,
-                "m_tflops": m_tflops,
+                "m_tflops": m_tflops
             }
 
         finally:
             continue
+    
+    if result:
+        result.sort(key=lambda x: x[15])
+        print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
+        for i, res in enumerate(result):
+            print(f"Config #{i+1} - {res[-1]}: {res[-3]} TFLOPS per GPU with {res[15]:.4f}s per global step.")
+            if i + 1 == output_top_n:
+                break
 
-    print("results first element")
-    print(result[0])
-    result.sort(key=lambda x: x[15])
-    print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
-    for i, res in enumerate(result):
-        print(f"Config #{i+1} - {res[-1]}: {res[-3]} TFLOPS per GPU with {res[15]:.4f}s per global step.")
-        if i + 1 == output_top_n:
-            break
+        top_config = (
+            f"{model_name}_{model_size}b_{num_nodes}nodes_tp_"
+            f"{result[0][3]}_pp_{result[0][4]}_cp_"
+            f"{result[0][5]}_ep_{result[0][6]}_mbs_"
+            f"{result[0][7]}_vp_{result[0][8]}"
+        )
+        print("\n==================================================")
+        print(f"Optimal config: {result[0][-1]} with {result[0][15]:.4f}s per global step.")
+        print("==================================================\n")
 
-    top_config = (
-        f"{model_name}_{model_size}b_{num_nodes}nodes_tp_"
-        f"{result[0][3]}_pp_{result[0][4]}_cp_"
-        f"{result[0][5]}_ep_{result[0][6]}_mbs_"
-        f"{result[0][7]}_vp_{result[0][8]}"
-    )
-    print("\n==================================================")
-    print(f"Optimal config: {result[0][-1]} with {result[0][15]:.4f}s per global step.")
-    print("==================================================\n")
+        # Save results as a CSV file.
+        os.makedirs(final_result_logs, exist_ok=True)
+        result_df = pd.DataFrame(result, columns=result_columns)
+        result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
 
-    # Save results as a CSV file.
-    os.makedirs(final_result_logs, exist_ok=True)
-    result_df = pd.DataFrame(result, columns=result_columns)
-    result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
-
-    error_df = pd.DataFrame(errors, columns=error_columns)
-    error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
+        error_df = pd.DataFrame(errors, columns=error_columns)
+        error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
+    else:
+        print("No valid results found to process.")
 
     return performance_dict
 
@@ -340,16 +342,17 @@ def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
 
 
 def get_config(run_name: str) -> tuple:
-    """Function that extract model parallelism parameters
+    """Function that extract model parallelism parameters including GBS
 
     Args:
         run_name (str): name of the run.
 
     Returns:
-        tuple: model parallelism parameters.
+        tuple: model parallelism parameters (tp, pp, cp, ep, mbs, vp, gbs).
     """
-
-    pattern = r'_(tp|pp|cp|ep|mbs|vp)_([^_]+)'
+    
+    # Updated pattern to include gbs
+    pattern = r'_(tp|pp|cp|ep|mbs|vp|gbs)_([^_]+)'
 
     # Find all matches in the input string
     matches = re.findall(pattern, run_name)
@@ -357,14 +360,19 @@ def get_config(run_name: str) -> tuple:
     # Convert matches to a dictionary
     params = {param: value for param, value in matches}
 
-    return (
-        params["tp"],
-        params["pp"],
-        params["cp"],
-        params["ep"],
-        params["mbs"],
-        params["vp"],
-    )
+    # Convert string values to appropriate types
+    try:
+        tp = int(params.get("tp", "1"))
+        pp = int(params.get("pp", "1"))
+        cp = int(params.get("cp", "1"))
+        ep = int(params.get("ep", "1"))
+        mbs = int(params.get("mbs", "1"))
+        vp = params.get("vp", "None")
+        gbs = int(params.get("gbs", "512"))
+    except (ValueError, KeyError) as e:
+        raise ValueError(f"Could not parse configuration from {run_name}: {e}")
+
+    return (tp, pp, cp, ep, mbs, vp, gbs)
 
 
 def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
@@ -388,55 +396,49 @@ def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
 
     return tb_files
 
-
 def create_descriptive_model_name(
     model_name: str,
     model_size: float,
     num_nodes: int,
-    tp: str,
-    pp: str,
-    cp: str,
-    ep: str,
-    mbs: str,
+    tp: int,
+    pp: int,
+    cp: int,
+    ep: int,
+    mbs: int,
     vp: str,
     seq_length: int,
-    global_batch_size: int,
+    global_batch_size: int
 ) -> str:
     """
     Create a descriptive model name from configuration parameters.
-
+    
     Args:
         model_name: Name of the model
         model_size: Model size in billions
         num_nodes: Number of nodes
-        tp, pp, cp, ep, mbs, vp: Parallelism parameters
+        tp, pp, cp, ep, mbs: Parallelism parameters (integers)
+        vp: Virtual pipeline parameter (string)
         seq_length: Sequence length
         global_batch_size: Global batch size
-
+        
     Returns:
         str: Descriptive model name
     """
-    # Convert string parameters to integers for cleaner formatting
+    # Handle vp parameter formatting
     try:
-        tp_int = int(tp)
-        pp_int = int(pp)
-        cp_int = int(cp)
-        ep_int = int(ep)
-        mbs_int = int(mbs)
         vp_str = int(vp) if vp.lower() != 'none' else 'None'
     except (ValueError, AttributeError):
-        # Fallback to string representation if conversion fails
-        tp_int, pp_int, cp_int, ep_int, mbs_int, vp_str = tp, pp, cp, ep, mbs, vp
-
+        vp_str = vp
+    
     descriptive_name = (
         f"{model_name}_"
         f"{model_size}b_"
         f"{num_nodes}nodes_"
-        f"tp_{tp_int}_pp_{pp_int}_cp_{cp_int}_ep_{ep_int}_"
-        f"mbs_{mbs_int}_"
+        f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_"
+        f"mbs_{mbs}_"
         f"vp_{vp_str}_"
         f"seq_{seq_length}_"
         f"gbs_{global_batch_size}"
     )
-
+    
     return descriptive_name

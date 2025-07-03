@@ -384,6 +384,7 @@ def modify_cfg(
     ep: int,
     virtual_pipelines: int,
     mbs: int,
+    gbs: int,
     max_steps: int,
     num_nodes: int,
     model_name: str,
@@ -405,6 +406,7 @@ def modify_cfg(
         ep (int): Expert Parallelism (EP) value to be set for the model.
         virtual_pipelines (int): Virtual Pipelines value to be set for the model.
         mbs (int): Micro Batch Size (MBS) value to be set for the model.
+        gbs (int): Global Batch Size (GBS) value to be set for the model.
         max_steps (int): maximum number of steps to run this model for.
         num_nodes (int): number of nodes to use for the training run.
         model_name (str): name of the model, i.e. gpt3, t5, mt5...
@@ -420,7 +422,6 @@ def modify_cfg(
 
     # gbs = mbs * num_gpus * accumulate_grad_batches / (tp * pp)
     num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
-    gbs = base_cfg.data.global_batch_size
     seq_len = base_cfg.model.config.seq_length
 
     new_cfg = {}  # dict(run=base_cfg.run)
@@ -458,7 +459,7 @@ def modify_cfg(
             f"{model_name}_{str(model_size)}b_{num_nodes}nodes_"
             f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_mbs_{mbs}_vp_{virtual_pipelines}_seq_{seq_len}_gbs_{gbs}"
         )
-
+        
         print(
             f"Valid config: SeqLen={seq_len}, GBS={gbs}, MBS={mbs}, TP={tp}, PP={pp}, CP={cp}, EP={ep}, "
             f"VP={virtual_pipelines}. Adding to directory."
