@@ -197,6 +197,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "metadata_only": config.get("metadata_only", False),
         "force_finite": config.get("force_finite", False),
         "max_open_streams": config.get("max_open_streams", None),
+        "audio_locator_tag": config.get("audio_locator_tag", None),
         "token_equivalent_duration": config.get("token_equivalent_duration", None),
         "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
         "force_map_dataset": config.get("force_map_dataset", False),

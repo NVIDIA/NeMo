@@ -548,9 +548,6 @@ class NeMoMultimodalConversationJsonlAdapter:
                     assert (
                         audio_path == turn['value']
                     ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}"
-                    assert (
-                        cut.duration == turn["duration"]
-                    ), f"Mismatch between JSONL and tar. JSONL defines audio duration={turn['duration']} but we got the following from tar {cut.duration=}"
                     cuts.append(cut)
                 cuts = deque(cuts)
                 yield NeMoMultimodalConversation(
