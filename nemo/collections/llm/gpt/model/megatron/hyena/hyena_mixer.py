@@ -160,11 +160,7 @@ class HyenaMixer(MegatronModule):
         hyena_proj_groups = self.proj_groups if not self.grouped_attention else 1
         grouped_proj_size = self.hidden_size_per_partition // hyena_proj_groups
 
-        hyena_proj_conv_class = ParallelCausalDepthwiseConv1dWithState
-
-        short_conv_class = ParallelCausalDepthwiseConv1dWithState
-
-        self.hyena_proj_conv = hyena_proj_conv_class(
+        self.hyena_proj_conv = ParallelCausalDepthwiseConv1dWithState(
             self.hidden_size_per_partition + 2 * grouped_proj_size,
             self.transformer_config,
             self.hyena_config,
@@ -183,7 +179,7 @@ class HyenaMixer(MegatronModule):
                 self.transformer_config,
                 self.hyena_config,
                 self.transformer_config.init_method,
-                short_conv_class=short_conv_class,
+                short_conv_class=ParallelCausalDepthwiseConv1dWithState,
                 use_fast_causal_conv=self.fast_conv_mixer,
                 use_conv_bias=self.transformer_config.use_short_conv_bias,
             )
