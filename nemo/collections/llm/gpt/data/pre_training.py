@@ -157,6 +157,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         init_consumed_samples: (Optional[int]): Number of samples already consumed at initialization.
         init_global_step: (Optional[int]): Starting global training step count, used for resuming training.
         output_log: (Optional[bool]): Whether to print logging/debug output during sampling.
+        mmap_bin_files: (Optional[bool]): Whether to mmap the .bin files or use file pointers.
     """
 
     def __init__(
@@ -186,6 +187,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         init_global_step: Optional[int] = 0,
         output_log: Optional[bool] = True,
         dataset_cls: Type[MegatronDataset] = GPTDataset,
+        mmap_bin_files: Optional[bool] = True,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
@@ -239,6 +241,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.init_consumed_samples = init_consumed_samples
         self.init_global_step = init_global_step
         self.output_log = output_log
+        self.mmap_bin_files = mmap_bin_files
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -400,6 +403,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             reset_attention_mask=self.reset_attention_mask,
             eod_mask_loss=self.eod_mask_loss,
             num_dataset_builder_threads=self.num_dataset_builder_threads,
+            mmap_bin_files=self.mmap_bin_files,
             **self.build_kwargs,
         )
 
