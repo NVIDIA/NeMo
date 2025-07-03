@@ -1505,7 +1505,7 @@ class MagpieTTSModel(ModelPT):
                     if bidx not in end_indices:
                         unfinished_texts[bidx] = True
 
-                if text_time_step_attended[bidx] >= text_lens[bidx] - 5 or bidx in end_indices:
+                if text_time_step_attended[bidx] >= text_lens[bidx] - 2 or bidx in end_indices:
                     if bidx not in finished_texts_counter:
                         finished_texts_counter[bidx] = 0
 
