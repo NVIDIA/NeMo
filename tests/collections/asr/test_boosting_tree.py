@@ -50,7 +50,7 @@ def test_boosting_tree(test_context_graph):
 
 class TestGPUBoostingTreeModel:
     @pytest.mark.unit
-    def test_bulding_context_graph(self, test_context_graph):
+    def test_building_context_graph(self, test_context_graph):
         """Test initial python-based context graph"""
         context_graph = test_context_graph
         assert context_graph.num_nodes == 5
