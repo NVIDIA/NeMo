@@ -15,22 +15,19 @@
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-
+from typing import List, Optional, Union
 
 import numpy as np
 import soundfile as sf
 import torch
-from tqdm.auto import tqdm
 from torch.utils.data import DataLoader
-from typing import Union, List, Optional
+from tqdm.auto import tqdm
 
-from nemo.utils import logging
 from nemo.collections.asr.models.asr_model import ASRModel
-
+from nemo.utils import logging
 
 BLANK_TOKEN = "<b>"
 SPACE_TOKEN = "<space>"
-
 
 
 @dataclass
@@ -72,7 +69,6 @@ class Utterance:
     audio_filepath: Optional[str] = None
     utt_id: Optional[str] = None
     saved_output_files: dict = field(default_factory=dict)
-
 
 
 def is_sub_or_superscript_pair(ref_text, text):
@@ -148,6 +144,7 @@ def restore_token_case(word: str, word_tokens: List[str]) -> List[str]:
 
     return word_tokens_cased
 
+
 def get_char_tokens(text, model):
     tokens = []
     for character in text:
@@ -158,6 +155,7 @@ def get_char_tokens(text, model):
 
     return tokens
 
+
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     fp_parts = Path(audio_filepath).parts[-audio_filepath_parts_in_utt_id:]
     utt_id = Path("_".join(fp_parts)).stem
@@ -166,11 +164,11 @@ def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
 
 
 def get_utt_obj(
-    text: str, 
+    text: str,
     T: int,
     model: ASRModel,
-    separator: Union[str, List[str]] = ['.', '?', '!', '...'], 
-    audio_filepath: Optional[str] = None, 
+    separator: Union[str, List[str]] = ['.', '?', '!', '...'],
+    audio_filepath: Optional[str] = None,
     utt_id: Optional[str] = None,
 ):
     """
@@ -203,7 +201,11 @@ def get_utt_obj(
             - token_ids_with_blanks: a list of token IDs with blanks.
     """
 
-    utt = Utterance(text=text, audio_filepath=audio_filepath, utt_id=utt_id,)
+    utt = Utterance(
+        text=text,
+        audio_filepath=audio_filepath,
+        utt_id=utt_id,
+    )
 
     if len(text) == 0:
         return utt
@@ -217,11 +219,11 @@ def get_utt_obj(
 
         for i, letter in enumerate(text):
             if letter in separator:
-                segments.append(text[last_sep_idx+1:i+1].strip())
-                last_sep_idx = i+1
+                segments.append(text[last_sep_idx + 1 : i + 1].strip())
+                last_sep_idx = i + 1
 
         if last_sep_idx < len(text):
-            segments.append(text[last_sep_idx+1:].strip())
+            segments.append(text[last_sep_idx + 1 :].strip())
 
     # remove any empty segments
     segments = [seg for seg in segments if len(seg) > 0]
@@ -255,8 +257,13 @@ def get_utt_obj(
 
         # build up data structures containing segments/words/tokens
         utt.segments_and_tokens.append(
-            Token(text=BLANK_TOKEN, text_cased=BLANK_TOKEN, s_start=0, s_end=0,)
+            Token(
+                text=BLANK_TOKEN,
+                text_cased=BLANK_TOKEN,
+                s_start=0,
+                s_end=0,
             )
+        )
 
         segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
         word_s_pointer = 1  # first word will start at s=1 because s=0 is a blank
@@ -396,7 +403,14 @@ def get_utt_obj(
             return utt
 
         # build up data structures containing segments/words/tokens
-        utt.segments_and_tokens.append(Token(text=BLANK_TOKEN, text_cased=BLANK_TOKEN, s_start=0, s_end=0,))
+        utt.segments_and_tokens.append(
+            Token(
+                text=BLANK_TOKEN,
+                text_cased=BLANK_TOKEN,
+                s_start=0,
+                s_end=0,
+            )
+        )
 
         segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
         word_s_pointer = 1  # first word will start at s=1 because s=0 is a blank
@@ -556,18 +570,18 @@ def get_utt_obj(
         return utt
 
     else:
-        raise RuntimeError("Cannot get tokens of this model as it does not have a `tokenizer` or `vocabulary` attribute.")
-
-
+        raise RuntimeError(
+            "Cannot get tokens of this model as it does not have a `tokenizer` or `vocabulary` attribute."
+        )
 
 
 def add_t_start_end_to_utt_obj(utt_obj: Utterance, alignment_utt: List[int], output_timestep_duration: float):
     """
     Function to add t_start and t_end (representing time in seconds) to the Utterance object utt_obj.
     Args:
-        utt_obj: Utterance object to which we will add t_start and t_end for its 
+        utt_obj: Utterance object to which we will add t_start and t_end for its
             constituent segments/words/tokens.
-        alignment_utt: a list of ints indicating which token does the alignment pass through at each 
+        alignment_utt: a list of ints indicating which token does the alignment pass through at each
             timestep (will take the form [0, 0, 1, 1, ..., <num of tokens including blanks in uterance>]).
         output_timestep_duration: a float indicating the duration of a single output timestep from
             the ASR Model.
@@ -650,24 +664,23 @@ def add_t_start_end_to_utt_obj(utt_obj: Utterance, alignment_utt: List[int], out
     return utt_obj
 
 
-
 def viterbi_decoding(
-    log_probs_batch: torch.Tensor, 
-    y_batch: torch.Tensor, 
-    T_batch: torch.Tensor, 
+    log_probs_batch: torch.Tensor,
+    y_batch: torch.Tensor,
+    T_batch: torch.Tensor,
     U_batch: torch.Tensor,
     viterbi_device: Optional[torch.device] = None,
     padding_value: float = -3.4e38,
 ):
     """
-    Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension). 
+    Do Viterbi decoding with an efficient algorithm (the only for-loop in the 'forward pass' is over the time dimension).
     Args:
         log_probs_batch: tensor of shape (B, T_max, V). The parts of log_probs_batch which are 'padding' are filled
             with 'padding_value'
         y_batch: tensor of shape (B, U_max) - contains token IDs including blanks. The parts of
             y_batch which are padding are filled with the number 'V'. V = the number of tokens in the vocabulary + 1 for
             the blank token.
-        T_batch: tensor of shape (B) - contains the durations of the log_probs_batch (so we can ignore the 
+        T_batch: tensor of shape (B) - contains the durations of the log_probs_batch (so we can ignore the
             parts of log_probs_batch which are padding)
         U_batch: tensor of shape (B) - contains the lengths of y_batch (so we can ignore the parts of y_batch
             which are padding).
@@ -731,7 +744,12 @@ def viterbi_decoding(
             torch.arange(0, U_max, device=viterbi_device).unsqueeze(0) == (U_batch.unsqueeze(1) - 1),
         )
 
-        mask = torch.logical_not(torch.logical_and(t_exceeded_T_batch.unsqueeze(1), U_can_be_final,)).long()
+        mask = torch.logical_not(
+            torch.logical_and(
+                t_exceeded_T_batch.unsqueeze(1),
+                U_can_be_final,
+            )
+        ).long()
 
         e_current = e_current * mask
 
@@ -751,7 +769,12 @@ def viterbi_decoding(
         # we need this v_prev_dup tensor so we can calculated the viterbi probability of every possible
         # token position simultaneously
         v_prev_dup = torch.cat(
-            (v_prev.unsqueeze(2), v_prev_shifted.unsqueeze(2), v_prev_shifted2.unsqueeze(2),), dim=2,
+            (
+                v_prev.unsqueeze(2),
+                v_prev_shifted.unsqueeze(2),
+                v_prev_shifted2.unsqueeze(2),
+            ),
+            dim=2,
         )
 
         # candidates_v_current are our candidate viterbi probabilities for every token position, from which
@@ -783,7 +806,6 @@ def viterbi_decoding(
     return alignments_batch
 
 
-
 def get_batch_variables(
     audio: Union[str, List[str], np.ndarray, DataLoader],
     model: ASRModel,
@@ -813,9 +835,9 @@ def get_batch_variables(
         padding_value: a float, the value to use for padding the log_probs tensor.
 
     Returns:
-        log_probs_batch: a tensor of shape (B, T_max, V) - contains the log probabilities of the tokens for each utterance in the batch. 
+        log_probs_batch: a tensor of shape (B, T_max, V) - contains the log probabilities of the tokens for each utterance in the batch.
             The parts of log_probs_batch which are 'padding' are filled with 'padding_value', which is a large negative number.
-        y_batch: a tensor of shape (B, U_max) - contains token IDs including blanks in every other position. 
+        y_batch: a tensor of shape (B, U_max) - contains token IDs including blanks in every other position.
             The parts of y_batch which are padding are filled with the number 'V'. V = the number of tokens in the vocabulary + 1 for the blank token.
         T_batch: a tensor of shape (B) - contains the number of frames in the log_probs for each utterance in the batch.
         U_batch: a tensor of shape (B) - contains the lengths of token_ids_with_blanks for each utterance in the batch.
@@ -825,7 +847,7 @@ def get_batch_variables(
     """
 
     if output_timestep_duration is None:
-        try:    
+        try:
             output_timestep_duration = model.cfg['preprocessor']['window_stride'] * model.encoder.subsampling_factor
             logging.info(
                 f"`output_timestep_duration` is not provided, so we calculated that the model output_timestep_duration is {output_timestep_duration} ms."
@@ -835,7 +857,9 @@ def get_batch_variables(
             raise ValueError("output_timestep_duration is not provided and cannot be calculated from the model.")
 
     if simulate_cache_aware_streaming or use_buffered_chunked_streaming:
-        if not (isinstance(audio, list) and all(isinstance(item, str) for item in audio)) and not isinstance(audio, str):
+        if not (isinstance(audio, list) and all(isinstance(item, str) for item in audio)) and not isinstance(
+            audio, str
+        ):
             raise ValueError("Audio must be a list of audio files or a single audio file when using streaming mode.")
 
     if gt_text_batch is not None:
@@ -847,18 +871,20 @@ def get_batch_variables(
     # get hypotheses by calling 'transcribe'
     # we will use the output log_probs, the duration of the log_probs,
     # and (optionally) the predicted ASR text from the hypotheses
-    
+
     batch_size = len(audio)
-    log_probs_list_batch = [] # log_probs is the output of the ASR model, with a shape (T, V+1)
-    T_list_batch = [] # T is the number of frames in the log_probs
-    pred_text_batch = [] # pred_text is the predicted text from the ASR model
+    log_probs_list_batch = []  # log_probs is the output of the ASR model, with a shape (T, V+1)
+    T_list_batch = []  # T is the number of frames in the log_probs
+    pred_text_batch = []  # pred_text is the predicted text from the ASR model
 
     if not use_buffered_chunked_streaming:
         if not simulate_cache_aware_streaming:
             with torch.no_grad():
                 hypotheses = model.transcribe(audio, return_hypotheses=True, batch_size=batch_size)
         else:
-            assert isinstance(audio, list) or isinstance(audio, str), "audio must be a list of audio files or a single audio file"
+            assert isinstance(audio, list) or isinstance(
+                audio, str
+            ), "audio must be a list of audio files or a single audio file"
             with torch.no_grad():
                 hypotheses = model.transcribe_simulate_cache_aware_streaming(
                     audio, return_hypotheses=True, batch_size=batch_size
@@ -888,9 +914,9 @@ def get_batch_variables(
     # and record the y (list of tokens, including blanks), U (list of lengths of y) and
     # token_info_batch, word_info_batch, segment_info_batch
 
-    y_list_batch = [] # List of lists of token IDs with blanks, where each token is followed by a blank
-    U_list_batch = [] # List of lengths of y_list_batch
-    utt_obj_batch = [] # List of Utterance objects for every utterance in the batch
+    y_list_batch = []  # List of lists of token IDs with blanks, where each token is followed by a blank
+    U_list_batch = []  # List of lengths of y_list_batch
+    utt_obj_batch = []  # List of Utterance objects for every utterance in the batch
 
     for idx, sample in enumerate(audio):
 
@@ -924,7 +950,6 @@ def get_batch_variables(
         y_list_batch.append(utt_obj.token_ids_with_blanks)
         U_list_batch.append(len(utt_obj.token_ids_with_blanks))
         utt_obj_batch.append(utt_obj)
-
 
     # turn log_probs, y, T, U into dense tensors for fast computation during Viterbi decoding
     T_max = max(T_list_batch)

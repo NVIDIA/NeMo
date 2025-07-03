@@ -13,18 +13,18 @@
 # limitations under the License.
 
 import os
+import tempfile
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import ceil
 from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 import torch
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
 from torch.utils.data import DataLoader
-from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
-from nemo.utils.app_state import AppState
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
     PromptedAudioToTextLhotseDataset,
@@ -32,6 +32,8 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
 )
 from nemo.collections.asr.metrics import MultiTaskMetric
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin, ASRTranscriptionMixin
 from nemo.collections.asr.parts.mixins.transcription import (
     GenericTranscriptionType,
@@ -42,7 +44,10 @@ from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.asr.parts.utils.timestamp_utils import get_forced_aligned_timestamps_with_external_model, process_aed_timestamp_outputs
+from nemo.collections.asr.parts.utils.timestamp_utils import (
+    get_forced_aligned_timestamps_with_external_model,
+    process_aed_timestamp_outputs,
+)
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
 from nemo.collections.common.metrics import GlobalAverageLossMetric
@@ -50,6 +55,7 @@ from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.common.prompts.formatter import PromptFormatter
 from nemo.core.classes.common import typecheck
+from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import (
     AudioSignal,
     ChannelType,
@@ -61,10 +67,7 @@ from nemo.core.neural_types import (
     SpectrogramType,
 )
 from nemo.utils import logging, model_utils
-import tempfile
-
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
+from nemo.utils.app_state import AppState
 
 __all__ = ['EncDecMultiTaskModel']
 
@@ -875,7 +878,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             if external_timestamps_model_path is not None:
                 try:
                     if not os.path.exists(external_timestamps_model_path):
-                        
+
                         app_state = AppState()
                         model_restore_path = app_state.model_restore_path
 
@@ -889,20 +892,26 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                             external_timestamps_model = ASRModel.from_pretrained(external_timestamps_model_path)
                         else:
                             with tempfile.TemporaryDirectory() as tmpdir:
-                                save_restore_connector._unpack_nemo_file(path2file=model_restore_path, out_folder=tmpdir, members=members)
+                                save_restore_connector._unpack_nemo_file(
+                                    path2file=model_restore_path, out_folder=tmpdir, members=members
+                                )
                                 external_timestamps_model_path = os.path.join(tmpdir, external_timestamps_model_path)
                                 external_timestamps_model = ASRModel.restore_from(external_timestamps_model_path)
-                
+
                     else:
                         external_timestamps_model = ASRModel.restore_from(external_timestamps_model_path)
-                
+
                 except Exception as e:
-                    raise RuntimeError(f"Error restoring externaltimestamps ASR model from {external_timestamps_model_path}: {e}")
+                    raise RuntimeError(
+                        f"Error restoring externaltimestamps ASR model from {external_timestamps_model_path}: {e}"
+                    )
 
-
-                if not isinstance(external_timestamps_model, EncDecCTCModel) and not issubclass(type(external_timestamps_model), EncDecCTCModel):
+                if not isinstance(external_timestamps_model, EncDecCTCModel) and not issubclass(
+                    type(external_timestamps_model), EncDecCTCModel
+                ):
                     logging.warning(
-                        f"External timestamps model {external_timestamps_model_path} is not an instance of EncDecHybridRNNTCTCModel or EncDecCTCModel. Setting timestamps_asr_model to None.")
+                        f"External timestamps model {external_timestamps_model_path} is not an instance of EncDecHybridRNNTCTCModel or EncDecCTCModel. Setting timestamps_asr_model to None."
+                    )
                     logging.warning(f"External timestamps model: {external_timestamps_model}")
                     self.timestamps_asr_model = None
                 else:
@@ -911,7 +920,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     external_timestamps_model.eval()
                     external_timestamps_model.to(trcfg._internal.device)
                     self.timestamps_asr_model = external_timestamps_model
-                
 
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: MultiTaskTranscriptionConfig
@@ -1322,5 +1330,3 @@ def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
     # )
     role = prompt.pop("role", "user")
     return [dict(role=role, slots=prompt)]
-
-

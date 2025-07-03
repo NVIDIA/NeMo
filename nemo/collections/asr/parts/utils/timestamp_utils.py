@@ -13,22 +13,22 @@
 # limitations under the License.
 
 import re
-import torch
+from typing import List, Optional, Set, Union
+
 import numpy as np
+import torch
 from torch.utils.data import DataLoader
-from typing import Union, List, Optional, Set
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-
 from nemo.collections.asr.parts.utils.aligner_utils import (
-    get_batch_variables, 
-    add_t_start_end_to_utt_obj,
-    viterbi_decoding,
+    BLANK_TOKEN,
     Segment,
     Word,
-    BLANK_TOKEN,
+    add_t_start_end_to_utt_obj,
+    get_batch_variables,
+    viterbi_decoding,
 )
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
 def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):
@@ -204,26 +204,30 @@ def get_forced_aligned_timestamps_with_external_model(
             if not isinstance(segment, Segment):
                 continue
 
-            timestamps["segment"].append({
-                "segment": segment.text,
-                "start_offset": int(segment.t_start / output_timestep_duration),
-                "end_offset": int(segment.t_end / output_timestep_duration),
-                "start": round(segment.t_start, 2),
-                "end": round(segment.t_end, 2),
-            })
+            timestamps["segment"].append(
+                {
+                    "segment": segment.text,
+                    "start_offset": int(segment.t_start / output_timestep_duration),
+                    "end_offset": int(segment.t_end / output_timestep_duration),
+                    "start": round(segment.t_start, 2),
+                    "end": round(segment.t_end, 2),
+                }
+            )
 
             for word in segment.words_and_tokens:
 
                 if not isinstance(word, Word):
                     continue
 
-                timestamps["word"].append({
-                    "word": word.text,
-                    "start_offset": int(word.t_start / output_timestep_duration),
-                    "end_offset": int(word.t_end / output_timestep_duration),
-                    "start": round(word.t_start, 2),
-                    "end": round(word.t_end, 2),
-                })
+                timestamps["word"].append(
+                    {
+                        "word": word.text,
+                        "start_offset": int(word.t_start / output_timestep_duration),
+                        "end_offset": int(word.t_end / output_timestep_duration),
+                        "start": round(word.t_start, 2),
+                        "end": round(word.t_end, 2),
+                    }
+                )
 
                 for idx, token in enumerate(word.tokens):
                     if token.text == BLANK_TOKEN:
@@ -231,9 +235,9 @@ def get_forced_aligned_timestamps_with_external_model(
 
                     if token.text in supported_punctuation:
 
-                        previous_token_end = round(
-                            timestamps['char'][-1]['end'], 2
-                            ) if timestamps['char'] else round(token.t_start, 2)
+                        previous_token_end = (
+                            round(timestamps['char'][-1]['end'], 2) if timestamps['char'] else round(token.t_start, 2)
+                        )
 
                         if segment.t_end == word.t_end:
                             timestamps["segment"][-1]["end"] = previous_token_end
@@ -242,12 +246,15 @@ def get_forced_aligned_timestamps_with_external_model(
 
                         token.t_end = token.t_start = previous_token_end
 
-                    timestamps["char"].append({
-                        "char": token.text,
-                        "start_offset": int(token.t_start / output_timestep_duration),
-                        "end_offset": int(token.t_end / output_timestep_duration),
-                        "start": round(token.t_start, 2),
-                        "end": round(token.t_end, 2),})
+                    timestamps["char"].append(
+                        {
+                            "char": token.text,
+                            "start_offset": int(token.t_start / output_timestep_duration),
+                            "end_offset": int(token.t_end / output_timestep_duration),
+                            "start": round(token.t_start, 2),
+                            "end": round(token.t_end, 2),
+                        }
+                    )
 
         return timestamps
 
@@ -267,10 +274,10 @@ def get_forced_aligned_timestamps_with_external_model(
         )
 
         alignments_batch = viterbi_decoding(
-            log_probs_batch, 
-            y_batch, 
-            T_batch, 
-            U_batch, 
+            log_probs_batch,
+            y_batch,
+            T_batch,
+            U_batch,
             viterbi_device=viterbi_device,
         )
 
@@ -279,10 +286,3 @@ def get_forced_aligned_timestamps_with_external_model(
             main_model_predictions[start_idx + i].timestamp = process_timestamps(utt_obj, output_timestep_duration)
 
     return main_model_predictions
-
-
-
-
-    
-
-

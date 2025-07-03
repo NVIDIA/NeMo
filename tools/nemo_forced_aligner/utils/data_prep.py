@@ -20,10 +20,9 @@ from typing import List, Union
 import soundfile as sf
 import torch
 from tqdm.auto import tqdm
-from tools.nemo_forced_aligner.utils.constants import BLANK_TOKEN, SPACE_TOKEN
 
 from nemo.utils import logging
-
+from tools.nemo_forced_aligner.utils.constants import BLANK_TOKEN, SPACE_TOKEN
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):
@@ -96,7 +95,9 @@ def get_manifest_lines_batch(manifest_filepath, start, end):
                     if extended_path.exists():
                         data['audio_filepath'] = str(extended_path)
                     else:
-                        raise FileNotFoundError(f"Audio file {data['audio_filepath']} not found in {manifest_filepath}")
+                        raise FileNotFoundError(
+                            f"Audio file {data['audio_filepath']} not found in {manifest_filepath}"
+                        )
 
                 manifest_lines_batch.append(data)
 
