@@ -1484,10 +1484,14 @@ class MagpieTTSModel(ModelPT):
                     _attn_prior[bidx, 0, :] = 1.0
                 else:
                     # _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-2)] = 0.1 # Slight exposure to history for better pronounciation. Not very important.
-                    _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1)] = 0.2 # Slight exposure to history for better pronounciation. Not very important.
-                    _attn_prior[bidx, 0, text_time_step_attended[bidx]] = 0.8 # Slightly bias to continue moving forward. Not very important.
+                    _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1)] = 1.0 # Slight exposure to history for better pronounciation. Not very important.
+                    _attn_prior[bidx, 0, text_time_step_attended[bidx]] = 1.0 # Slightly bias to continue moving forward. Not very important.
                     _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+1, _text_len - 1) ] = 1.0
-                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2, _text_len - 1) ] = 0.8
+                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2, _text_len - 1) ] = 1.0
+                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+3, _text_len - 1) ] = 1.0
+                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+4, _text_len - 1) ] = 1.0
+                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+5, _text_len - 1) ] = 1.0
+                    # _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+6, _text_len - 1) ] = 1.0
 
                 # Penalize timesteps that have been attended to more than 10 times
                 for _timestep in attended_timestep_counter[bidx]:
