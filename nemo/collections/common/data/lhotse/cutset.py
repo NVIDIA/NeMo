@@ -40,6 +40,7 @@ from nemo.collections.common.data.lhotse.text_adapters import (
     TextTurn,
 )
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+from nemo.collections.asr.parts.utils.asr_tgtspeaker_utils import TargetSpeakerSimulator
 
 
 def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bool]:
@@ -676,6 +677,21 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
         )
     return cuts, is_tarred
 
+@data_type_parser("tgt_speaker_simulator")
+def read_target_speaker_simulator(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read NeMo manifest and return a Lhotse CutSet simulator for target speaker ASR."""
+    tgt_speaker_cuts = CutSet(
+        TargetSpeakerSimulator(
+            manifest_filepath=config.manifest_filepath,
+            num_speakers=config.num_speakers,
+            simulator_type=config.simulator_type,
+            min_delay=config.get("min_delay", 0.5),
+            max_delay_after_each_mono=config.get("max_delay_after_each_mono", 0),
+            non_query_sample=config.get("non_query_sample", False),
+        )
+    )
+
+    return tgt_speaker_cuts, False
 
 def mux(
     *cutsets: CutSet,

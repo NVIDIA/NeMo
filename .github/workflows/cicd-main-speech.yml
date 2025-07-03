@@ -152,6 +152,12 @@ jobs:
           - runner: self-hosted-azure
             script: L2_Speaker_dev_run_Neural_Diarizer_Inference
           - runner: self-hosted-azure
+            script: TSASR_dev_run_Parakeet_train
+          - runner: self-hosted-azure
+            script: TSASR_dev_run_Parakeet_inference_offline
+          - runner: self-hosted-azure
+            script: TSASR_dev_run_Parakeet_inference_streaming
+          - runner: self-hosted-azure
             script: L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
           - runner: self-hosted-azure
             script: L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
