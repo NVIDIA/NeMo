@@ -378,7 +378,7 @@ class BeamTDTInfer(Typing):
 
         # Initialize hypothesis array with blank hypothesis.
         start_hyp = Hypothesis(
-            score=0.0, y_sequence=[self.blank], dec_state=decoder_state, timestamp=[-1], length=0, last_frame=0
+            score=0.0, y_sequence=[self.blank], dec_state=decoder_state, timestamp=[-1], length=0, last_frame=0, token_duration=[-1]
         )
         kept_hyps = [start_hyp]
 
@@ -390,6 +390,8 @@ class BeamTDTInfer(Typing):
             # Loop over hypotheses of current frame
             while len(hyps) > 0:
                 max_hyp = max(hyps, key=lambda x: x.score)
+                print("tdtdtdtd")
+                print(max_hyp.token_duration)
                 hyps.remove(max_hyp)
 
                 # Update decoder state and get probability distribution over vocabulary and durations.
@@ -426,6 +428,7 @@ class BeamTDTInfer(Typing):
                         timestamp=max_hyp.timestamp + [time_idx + duration],  # update timesteps
                         length=encoded_lengths,
                         last_frame=max_hyp.last_frame + duration,
+                        token_duration=max_hyp.token_duration + [duration],
                     )  # update frame idx where last token appeared
 
                     # Update current frame hypotheses if duration is zero and future frame hypotheses otherwise
@@ -453,6 +456,7 @@ class BeamTDTInfer(Typing):
                         timestamp=max_hyp.timestamp[:],  # no need to update timesteps
                         length=encoded_lengths,
                         last_frame=max_hyp.last_frame + duration,
+                        token_duration=max_hyp.token_duration[:],
                     )  # update frame idx where last token appeared
                     kept_hyps.append(new_hyp)
 
@@ -514,6 +518,7 @@ class BeamTDTInfer(Typing):
             timestamp=[-1],
             length=0,
             last_frame=0,
+            token_duration=[-1],
         )
         init_tokens = [start_hyp]
 
@@ -533,6 +538,7 @@ class BeamTDTInfer(Typing):
             timestamp=[-1],
             length=0,
             last_frame=0,
+            token_duration=[-1],
         )
 
         kept_hyps = [start_hyp_kept]
@@ -612,6 +618,7 @@ class BeamTDTInfer(Typing):
                             timestamp=hyp.timestamp[:],
                             length=time_idx,
                             last_frame=hyp.last_frame + duration,
+                            token_duration=hyp.token_duration[:],
                         )
 
                         if self.ngram_lm:
@@ -623,6 +630,7 @@ class BeamTDTInfer(Typing):
                         else:
                             new_hyp.y_sequence.append(k)
                             new_hyp.timestamp.append(time_idx + duration)
+                            new_hyp.token_duration.append(duration)
 
                             if self.ngram_lm:
                                 lm_score, new_hyp.ngram_lm_state = self.compute_ngram_score(hyp.ngram_lm_state, int(k))
