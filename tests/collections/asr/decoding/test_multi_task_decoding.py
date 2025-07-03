@@ -167,10 +167,10 @@ def test_beam_decoding_beam_scores_true_with_fusion_models(inputs, nnet):
     boosting_tree = GPUBoostingTreeModel.dummy_boosting_tree(vocab_size=8)
 
     fusion_models = [lm, boosting_tree]
-    fusion_moldes_alpha = [0.2, 0.2]
+    fusion_models_alpha = [0.2, 0.2]
 
     gen = BeamSearchSequenceGeneratorWithFusionModels(
-        *nnet, fusion_models=fusion_models, fusion_models_alpha=fusion_moldes_alpha, beam_size=2
+        *nnet, fusion_models=fusion_models, fusion_models_alpha=fusion_models_alpha, beam_size=2
     )
     output = gen(*inputs, return_beam_scores=True)
 
