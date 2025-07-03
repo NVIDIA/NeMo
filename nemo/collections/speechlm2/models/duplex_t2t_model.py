@@ -49,6 +49,7 @@ from nemo.collections.speechlm2.parts.precision import fp32_precision
 from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, load_pretrained_nemo, setup_audio_codec, setup_speech_encoder
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
+from nemo.collections.asr.modules.transformer import TransformerEncoder
 
 class DuplexT2TModel(LightningModule, HFHubMixin):
     """
@@ -56,8 +57,8 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
     With cfg.generate_speech=True and cfg.audio_loss_weight > 0, this model can be trained to generate speech.
     
     Text to text model:
-      speech → [ASR] → decoded text → [deterministic retokenization] → tokens from LLM’s vocabulary → 
-      [LLM’s embed and combine with agent channel] → continuous representation → [LLM]
+      speech → [ASR] → decoded text → [deterministic retokenization] → tokens from LLM's vocabulary → 
+      [LLM's embed and combine with agent channel] → continuous representation → [LLM]
 
       CASE 1 input (oracle-EoU):
         <BOS><turn 1 tokens><EOS><PAD tokens to fill user turn 1 duration><PAD tokens to fill agent turn 1>
@@ -69,7 +70,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         ...
 
     Token to text model:
-      speech → [ASR] → frame-level output tokens → [ASR’s embed and combine with agent channel embed^] → 
+      speech → [ASR] → frame-level output tokens → [ASR's embed and combine with agent channel embed^] → 
       continuous representation → [shallow transformer module*] → continuous representation → [LLM]
     
       Input:
@@ -77,9 +78,9 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         <turn 2 tokens frame-aligned><PAD tokens to fill agent turn 2>
         ...
 
-    ^Agent channel can be embedded either via LLM’s tokenize+embedding or ASR’s tokenization+embedding. 
+    ^Agent channel can be embedded either via LLM's tokenize+embedding or ASR's tokenization+embedding. 
 
-    *transformer so that the self-attention can learn which tokens to combine/split etc to match LLM’s vocabulary space. 
+    *transformer so that the self-attention can learn which tokens to combine/split etc to match LLM's vocabulary space. 
     """
 
     def __init__(self, cfg: dict) -> None:
@@ -151,6 +152,9 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         self.concat_embeddings = cfg.get("concat_embeddings", False)
         self.retokenize_type = cfg.get("retokenize_type", "no_llm_embed")
         self.retokenize_first = cfg.get("retokenize_first", False)
+        self.num_eos_zeros_eval = cfg.get("num_eos_zeros_eval", -1)
+        self.force_agent_bos = cfg.get("force_agent_bos", False)
+
         # Transform concatenated embeddings to LLM dimension
         if self.concat_embeddings:
             # Moved the commented out logic to the training script since
@@ -438,9 +442,10 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         else:
             source_tokens = batch["source_tokens"]  # (B, T)
         target_tokens = batch["target_tokens"]  # (B, T)
-
+        # breakpoint()
         # Append padding to the shorter sequence
         diff = target_tokens.shape[1] - source_tokens.shape[1]
+        assert diff < 2, f"Source and target sequences must have similar lengths, got {source_tokens.shape[1]} and {target_tokens.shape[1]}"
         if diff > 0:
             source_tokens = torch.cat(
                 [
@@ -512,6 +517,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         else:
             inputs = self.prepare_t2t_inputs(batch)
             forward_outputs = self(inputs["input_embeds"])
+        
         num_frames = inputs["input_lens"].sum()
         with loss_parallel():
             text_loss = (
@@ -580,6 +586,42 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
                     for result in results:
                         f.write(json.dumps(result) + "\n")
 
+    def temp_extra_func(self, source_tokens, source_lens, num_filler_zeros, force_agent_bos):
+        if num_filler_zeros != -1:
+            # control number of zeros between last non-zero token and EOS token (id 2)
+            for idx, token in enumerate(source_tokens[0]):
+                if token != 0 and token != 2:
+                    last_non_zero_token = token
+                    last_non_zero_token_idx = idx
+                elif token == 2:
+                    eos_token_idx = idx
+                    break
+            # if eos_token_idx - last_non_zero_token_idx > num_filler_zeros:
+            source_tokens[0, eos_token_idx] = 0
+            source_tokens[0, last_non_zero_token_idx+num_filler_zeros] = 2
+        if self.force_agent_bos:
+            force_bos_positions = []
+            for idx, cur_source_tokens in enumerate(source_tokens):
+                # tmp = torch.where(cur_source_tokens == self.text_pad_id)[0]
+                tmp = torch.where(cur_source_tokens == 2)[0] # end of user turns
+                for user_eos_pos in tmp:
+                    force_bos_positions.append(user_eos_pos.item() + self.cfg.get("force_agent_bos_offset", 5))
+                    if not self.cfg.get("add_eos", False) and not self.cfg.get("add_bos_eos", False):   # if we don't add EOS or BOS, we need to remove the user EOS
+                        source_tokens[idx, user_eos_pos] = self.text_pad_id
+        else:
+            force_bos_positions = None
+        # breakpoint()
+        results = self.offline_t2t_inference(
+            source_tokens,
+            source_lens,
+            force_bos_positions = force_bos_positions,
+        )
+        print(source_tokens[0])
+        print(results["tokens"][0])
+        print(tokens_to_str(source_tokens, source_lens, tokenizer=self.tokenizer, pad_id=self.text_pad_id))
+        print(results["text"][0])
+        return results
+
     def validation_step(self, batch: dict, batch_idx: int):
         for name, dataset_batch in batch.items():
             if dataset_batch is None:
@@ -605,10 +647,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
                     source_tokens = dataset_batch["source_tokens"]
                     source_lens = dataset_batch["source_token_lens"]
                 
-                results = self.offline_t2t_inference(
-                    source_tokens,
-                    source_lens,
-                )
+                results = self.temp_extra_func(source_tokens, source_lens, self.num_eos_zeros_eval, self.force_agent_bos)
             
             if self.save_val_outputs:
                 for user, agent, pred, data_id in zip(dataset_batch["source_texts"], dataset_batch["target_texts"], results["text"], dataset_batch["data_id"]):
@@ -748,6 +787,7 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         self,
         source_tokens: torch.Tensor,
         source_lens: torch.Tensor,
+        force_bos_positions = None,
     ) -> dict[str, torch.Tensor]:
         """
         Autoregressive text-to-text prediction.
@@ -763,6 +803,9 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
                 * "tokens_len": output lengths as number of tokens of shape (B,).
         """
         B, T = source_tokens.shape
+
+        if force_bos_positions is not None:
+            assert len(force_bos_positions) == B, "force_bos_positions must have the same length as batch size"
         
         # Embed source tokens
         if self.train_retokenizer:
@@ -793,11 +836,20 @@ class DuplexT2TModel(LightningModule, HFHubMixin):
         for t in range(1, T):
             # Add embedding of previously generated token
             last_emb = self.embed_tokens(gen_tokens[:, t-1:t])  # (B, 1, H)
+            if force_bos_positions is not None:
+                for batch_idx in range(last_emb.shape[0]):
+                    if force_bos_positions[batch_idx] == t:
+                        last_emb[batch_idx] = self.embed_tokens(
+                            torch.full((1,), fill_value=self.text_bos_id, device=self.device)
+                        )
             step_embeds = self._combine_embeddings(last_emb, source_embeds[:, t:t+1], source_tokens[:, t:t+1])
             
             # Generate next token
             ans = self(step_embeds, cache=ans["cache"])
             gen_tokens[:, t] = ans["text_logits"][:, -1].argmax(dim=-1)
+        pred_text = tokens_to_str(gen_tokens, source_lens, tokenizer=self.tokenizer, pad_id=self.text_pad_id)
+        # if pred_text[0] == "": #empty output
+        #     breakpoint()
         return {
             "text": tokens_to_str(gen_tokens, source_lens, tokenizer=self.tokenizer, pad_id=self.text_pad_id),
             "tokens": gen_tokens,
@@ -975,22 +1027,32 @@ class Retokenizer(nn.Module):
         self.linear = nn.Linear(input_dim, output_dim)
 
         if use_transformer:
-            encoder_layer = nn.TransformerEncoderLayer(
-                d_model=output_dim,
-                nhead=num_heads,
-                dim_feedforward=output_dim * 4,
-                dropout=dropout,
-                activation='gelu',
-                batch_first=True,
+            # Use NeMo's TransformerEncoder with causal masking
+            self.transformer = TransformerEncoder(
+                num_layers=num_layers,
+                hidden_size=output_dim,
+                inner_size=output_dim * 4,  # Standard FFN size
+                mask_future=True,  # Enable causal masking
+                num_attention_heads=num_heads,
+                attn_score_dropout=dropout,
+                attn_layer_dropout=dropout,
+                ffn_dropout=dropout,
+                hidden_act="gelu",  # Use GELU activation
+                pre_ln=False,  # Use post-LayerNorm for consistency
             )
-            self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
         else:
             self.transformer = None
 
     def forward(self, x):
         x = self.linear(x)  # [B, T, output_dim]
         if self.transformer:
-            x = self.transformer(x)  # [B, T, output_dim]
+            # Create attention mask for the transformer
+            # For causal transformer, we need a mask that allows each position to attend to itself and previous positions
+            B, T, _ = x.shape
+            # Create a mask where each position can attend to itself and all previous positions
+            # This is handled automatically by the NeMo TransformerEncoder when mask_future=True
+            attention_mask = torch.ones(B, T, device=x.device, dtype=torch.bool)
+            x = self.transformer(x, attention_mask)  # [B, T, output_dim]
         return x
 
 class SoftTokenMap(nn.Module):

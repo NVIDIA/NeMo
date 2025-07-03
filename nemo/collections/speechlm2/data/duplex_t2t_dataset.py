@@ -121,6 +121,11 @@ class DuplexT2TDataset(torch.utils.data.Dataset):
         input_roles: list[str] = None,
         output_roles: list[str] = None,
         collate_source_interleaved: bool = False,
+        add_bos_eos: bool = False,
+        remove_bos_eos: bool = False,
+        add_eos: bool = False,
+        user_eos_placement_offset: int = -1,
+        force_agent_bos: bool = False,
     ):
         self.tokenizer = tokenizer
         self.frame_length = frame_length
@@ -130,7 +135,12 @@ class DuplexT2TDataset(torch.utils.data.Dataset):
         self.output_roles = set(ifnone(output_roles, ["agent"]))
         
         self.collate_source_interleaved = collate_source_interleaved
-        
+        self.add_bos_eos = add_bos_eos
+        self.add_eos = add_eos
+        self.remove_bos_eos = remove_bos_eos
+        self.user_eos_placement_offset = user_eos_placement_offset
+        self.force_agent_bos = force_agent_bos
+
         assert tokenizer.bos is not None, "BOS support in the tokenizer is required for S2S models."
         assert tokenizer.eos is not None, "EOS support in the tokenizer is required for S2S models."
 
@@ -144,14 +154,25 @@ class DuplexT2TDataset(torch.utils.data.Dataset):
 
         if self.collate_source_interleaved:
             source_tokens, source_token_lens = collate_token_channel_interleaved(
-                cuts, self.tokenizer, self.frame_length, roles=self.input_roles
+                cuts,
+                self.tokenizer,
+                self.frame_length,
+                roles=self.input_roles,
+                add_bos_eos=self.add_bos_eos,
+                add_eos=self.add_eos,
+                eos_placement_offset=self.user_eos_placement_offset,
+                force_agent_bos=self.force_agent_bos,
             )
         else:
             source_tokens, source_token_lens = collate_token_channel(
-                stripped_cuts, self.tokenizer, self.frame_length, roles=self.input_roles
+                stripped_cuts,
+                self.tokenizer,
+                self.frame_length,
+                roles=self.input_roles,
+                remove_bos_eos=self.remove_bos_eos,
             )
         target_tokens, target_token_lens = collate_token_channel(
-            stripped_cuts, self.tokenizer, self.frame_length, roles=self.output_roles
+            stripped_cuts, self.tokenizer, self.frame_length, roles=self.output_roles, remove_bos_eos=False
         )
         return {
             "source_audio": source_audio,
@@ -177,10 +198,11 @@ def collate_token_channel(
     tokenizer: TokenizerSpec,
     frame_length: Seconds,
     roles: set[str],
+    remove_bos_eos: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     pad_id = get_pad_id(tokenizer)
     tokens = [
-        build_token_channel(c, tokenizer=tokenizer, frame_length=frame_length, roles=roles, pad_id=pad_id)
+        build_token_channel(c, tokenizer=tokenizer, frame_length=frame_length, roles=roles, pad_id=pad_id, remove_bos_eos=remove_bos_eos)
         for c in cuts
     ]
     token_lens = torch.tensor([len(tt) for tt in tokens])
@@ -193,10 +215,14 @@ def collate_token_channel_interleaved(
     tokenizer: TokenizerSpec,
     frame_length: Seconds,
     roles: set[str],
+    add_bos_eos: bool = False,
+    add_eos: bool = False,
+    eos_placement_offset: int = -1,
+    force_agent_bos: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     pad_id = get_pad_id(tokenizer)
     tokens = [
-        build_token_channel_interleaved(c, tokenizer=tokenizer, frame_length=frame_length, roles=roles, pad_id=pad_id)
+        build_token_channel_interleaved(c, tokenizer=tokenizer, frame_length=frame_length, roles=roles, pad_id=pad_id, add_bos_eos=add_bos_eos, add_eos=add_eos, eos_placement_offset=eos_placement_offset, force_agent_bos=force_agent_bos)
         for c in cuts
     ]
     token_lens = torch.tensor([len(tt) for tt in tokens])
@@ -210,6 +236,7 @@ def build_token_channel(
     frame_length: Seconds,
     roles: set[str],
     pad_id: int = -1,
+    remove_bos_eos: bool = False,
 ) -> torch.Tensor:
     diagnostic = f"Extra info: {cut.id=}"
     if getattr(cut, "shard_origin", None) is not None:
@@ -219,7 +246,10 @@ def build_token_channel(
     tokens = torch.ones(total, dtype=torch.long) * pad_id
     for supervision in cut.supervisions:
         if supervision.speaker in roles:
-            text_ids = torch.as_tensor([tokenizer.bos] + tokenizer.text_to_ids(supervision.text))
+            if remove_bos_eos:
+                text_ids = torch.as_tensor(tokenizer.text_to_ids(supervision.text))
+            else:
+                text_ids = torch.as_tensor([tokenizer.bos] + tokenizer.text_to_ids(supervision.text))
 
             # Determine the frame offset for the start of the supervision to insert the text tokens.
             pos = compute_num_frames(supervision.start, frame_length, cut.sampling_rate)
@@ -244,10 +274,11 @@ def build_token_channel(
             except Exception as e:
                 raise RuntimeError(f"{tokens.shape=} {pos=} {endpos=} {text_ids.shape=} {diagnostic}") from e
 
-            # Insert EOS at the end of the supervision segment.
-            eospos = compute_num_frames(supervision.end, frame_length, cut.sampling_rate)
-            if eospos < len(tokens):  # skip otherwise - unfinished turn
-                tokens[eospos] = tokenizer.eos
+            if not remove_bos_eos:
+                # Insert EOS at the end of the supervision segment.
+                eospos = compute_num_frames(supervision.end, frame_length, cut.sampling_rate)
+                if eospos < len(tokens):  # skip otherwise - unfinished turn
+                    tokens[eospos] = tokenizer.eos
 
     return tokens
 
@@ -323,6 +354,10 @@ def build_token_channel_interleaved(
     frame_length: Seconds,
     roles: set[str],
     pad_id: int = -1,
+    add_bos_eos: bool = False,
+    add_eos: bool = False,
+    eos_placement_offset: int = -1,
+    force_agent_bos: bool = False,
 ) -> torch.Tensor:
     """
     Similar to build_token_channel but handles timestamped text, placing tokens at specific
@@ -334,6 +369,7 @@ def build_token_channel_interleaved(
         frame_length: Duration of a single frame in seconds
         roles: Set of speaker roles to process
         pad_id: Token ID to use for padding
+        add_bos_eos: If True, add BOS token at the start of the segment and EOS token at the end of the segment
         
     Returns:
         torch.Tensor of shape [total_frames] containing token IDs with pad tokens
@@ -401,6 +437,23 @@ def build_token_channel_interleaved(
                     logging.warning(
                         f"Truncating word tokens of length {len(word_ids)} to {span_length} for word '{word}'. {diagnostic}"
                     )
+            # Insert EOS at the end of the supervision segment.
+            if add_bos_eos or add_eos or force_agent_bos:
+                seq_end_pos_abs = compute_num_frames(supervision.end, frame_length, cut.sampling_rate)
+                if eos_placement_offset == -1:
+                    seq_end_pos = seq_end_pos_abs
+                else:
+                    # print(word, start_frame, end_frame, start_pos, end_pos)
+                    # print(f"eos_placement_offset: {eos_placement_offset}")
+                    # print(f"end_pos: {end_pos}")
+                    # print(f"seq_end_pos_abs: {seq_end_pos_abs}")
+                    seq_end_pos = min(end_pos + eos_placement_offset, seq_end_pos_abs)
+                if seq_end_pos < len(tokens):  # skip otherwise - unfinished turn
+                    tokens[seq_end_pos] = tokenizer.eos
+            if add_bos_eos:
+                seq_start_pos = compute_num_frames(supervision.start, frame_length, cut.sampling_rate)
+                if seq_start_pos < len(tokens):  # skip otherwise - unfinished turn
+                    tokens[seq_start_pos] = tokenizer.bos
 
     return tokens
 

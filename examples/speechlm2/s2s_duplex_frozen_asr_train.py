@@ -108,6 +108,11 @@ def train(cfg):
         input_roles=cfg.data.input_roles,
         output_roles=cfg.data.output_roles,
         collate_source_interleaved=cfg.data.collate_source_interleaved,
+        add_bos_eos=cfg.model.get("add_bos_eos", False),
+        remove_bos_eos=cfg.model.get("remove_bos_eos", False),
+        add_eos=cfg.model.get("add_eos", False),
+        user_eos_placement_offset=cfg.model.get("user_eos_placement_offset", -1),
+        force_agent_bos=cfg.model.get("force_agent_bos", False),
     )
     datamodule = DataModule(cfg.data, tokenizer=model.tokenizer, dataset=dataset)
 
