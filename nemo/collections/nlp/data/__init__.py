@@ -33,7 +33,6 @@ from nemo.collections.nlp.data.machine_translation.machine_translation_dataset i
     TarredTranslationDataset,
     TranslationDataset,
 )
-from nemo.collections.nlp.data.question_answering_squad.qa_dataset import SquadDataset  # noqa: F401
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import (  # noqa: F401
     BertTokenClassificationDataset,
     BertTokenClassificationInferDataset,
