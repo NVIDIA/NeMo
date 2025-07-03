@@ -575,7 +575,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                         )
                         for turn in data["conversations"]
                     ],
-                    custom=data["custom"],
+                    custom=data.get("custom"),
                 )
 
     def _iter_jsonl(self):
@@ -632,6 +632,8 @@ class TarIterator:
                     yield meta, data_path
                 else:  # nemo tar format
                     yield Recording.from_bytes(data, recording_id=data_path.stem), data_path
+                    if meta is not None:  # the second item is also a recording despite the name
+                        yield Recording.from_bytes(meta, recording_id=meta_path.stem), meta_path
 
 
 def _iterate_tarfile_pairwise(
