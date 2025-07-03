@@ -66,7 +66,6 @@ def slurm_executor(
         "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
         "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
-        "TORCH_NCCL_HIGH_PRIORITY": "1",  # Enable high priority for NCCL communication in pytorch
     }
 
     custom_bash_cmds = [] if custom_bash_cmds is None else custom_bash_cmds
