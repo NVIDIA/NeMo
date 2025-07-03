@@ -170,6 +170,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_type (TrainerCkptProtocol): Checkpoint type. Defaults to TrainerCheckpoint.
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
+        ckpt_load_main_params (bool): Load main parameters from trainer.ckpt_path. Defaults to False.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
         fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"].
             Defaults to None.
@@ -257,6 +258,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         find_unused_parameters: bool = False,
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
+        ckpt_load_main_params: bool = False,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         fsdp: Optional[FSDPLiteral] = None,
         lazy_init: bool = False,
@@ -319,6 +321,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
+        self.ckpt_load_main_params = ckpt_load_main_params
         self.ckpt_load_strictness = ckpt_load_strictness
         self.use_te_rng_tracker = use_te_rng_tracker
         self.use_sharp = use_sharp
@@ -1052,11 +1055,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if not 'optimizer' in checkpoint:
             for opt in self.optimizers:
-                if "state_dict" in checkpoint:
-                    checkpoint_state_dict = checkpoint["state_dict"]
+                if self.ckpt_load_main_params:
+                    if "state_dict" in checkpoint:
+                        opt.reload_model_params(checkpoint["state_dict"])
+                    else:
+                        opt.reload_model_params(checkpoint)
                 else:
-                    checkpoint_state_dict = checkpoint
-                opt.reload_model_params(checkpoint_state_dict)
+                    opt.reload_model_params()
 
     @property
     @override
