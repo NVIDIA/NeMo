@@ -44,6 +44,7 @@ model:
   # Below args are only relevant if use_alignment_encoder is true
   use_prior_for_aligner: true # Whether to use the beta-binomial prior to train the alignment encoder
   alignment_encoder_loss_scale: 1.0
+  binarize_attn_prior: true # Whether to use binarized attention prior (vs using beta-binomial prior only)
   binarize_prior_after_step: 10000 # Switch from beta-binomial prior to binarized prior after this step.
   binarize_attn_method: "nemo_binarize" # nemo_binarize or argmax.
   prior_future_context: 2 # Future window of the binarized prior.
