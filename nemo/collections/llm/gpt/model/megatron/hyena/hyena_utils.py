@@ -824,13 +824,13 @@ class ParallelHyenaOperator(nn.Module):
         def update_filter_state(filter_name, *, state):
             if not inference_context:
                 return
-            key = "{filter_name}_filter_state_dict"
+            key = f"{filter_name}_filter_state_dict"
             filter_state_dict = getattr(inference_context, key, {})
             filter_state_dict[id(self)] = state
             setattr(inference_context, key, filter_state_dict)
 
         def get_filter_state(filter_name):
-            key = "{filter_name}_filter_state_dict"
+            key = f"{filter_name}_filter_state_dict"
             return getattr(inference_context, key, {}).get(id(self))
 
         # x1, x2, v all of shape torch.Size([1, 4096, 63])
@@ -879,13 +879,13 @@ class ParallelHyenaOperator(nn.Module):
         def update_filter_state(filter_name, *, state):
             if not inference_context:
                 return
-            key = "{filter_name}_filter_state_dict"
+            key = f"{filter_name}_filter_state_dict"
             filter_state_dict = getattr(inference_context, key, {})
             filter_state_dict[id(self)] = state
             setattr(inference_context, key, filter_state_dict)
 
         def get_filter_state(filter_name):
-            key = "{filter_name}_filter_state_dict"
+            key = f"{filter_name}_filter_state_dict"
             return getattr(inference_context, key, {}).get(id(self))
 
         x1, x2, v = rearrange([x1, x2, v], "h b d l -> h b l d")
@@ -1417,13 +1417,13 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
         def update_filter_state(filter_name, *, state):
             if not inference_context:
                 return
-            key = "{filter_name}_filter_state_dict"
+            key = f"{filter_name}_filter_state_dict"
             filter_state_dict = getattr(inference_context, key, {})
             filter_state_dict[id(self)] = state
             setattr(inference_context, key, filter_state_dict)
 
         def get_filter_state(filter_name):
-            key = "{filter_name}_filter_state_dict"
+            key = f"{filter_name}_filter_state_dict"
             return getattr(inference_context, key, {}).get(id(self))
 
         L = u.shape[1]
