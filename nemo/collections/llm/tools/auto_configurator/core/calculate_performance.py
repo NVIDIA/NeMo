@@ -84,7 +84,7 @@ def get_results(
         "Samples per Second",
         "Model TFLOPS / GPU",
         "Model TFLOPS Aggregate",
-        "Full Configuration Name"
+        "Full Configuration Name",
     ]
     error_columns = [
         "Model Name",
@@ -108,12 +108,11 @@ def get_results(
     errors = []
 
     performance_dict = {}
-    
+
     training_logs = os.path.abspath(training_logs)
     error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
-
 
     for error_file, tb_file, candidate_dir in zip(error_files, tb_files, dirs):
         try:
@@ -121,7 +120,7 @@ def get_results(
         except Exception as e:
             print(f"Skipping {candidate_dir}: {e}")
             continue
-            
+
         error = find_error(error_file)
         if error:
             errors.append(
@@ -179,7 +178,7 @@ def get_results(
                 mbs=mbs,
                 vp=vp,
                 seq_length=seq_length,
-                global_batch_size=gbs
+                global_batch_size=gbs,
             )
 
             result.append(
@@ -211,12 +210,12 @@ def get_results(
                 "m_tflops_gpu": m_tflops_gpu,
                 "time_per_global_step": avg_global_step_time,
                 "samples_per_s": samples_per_s,
-                "m_tflops": m_tflops
+                "m_tflops": m_tflops,
             }
 
         finally:
             continue
-    
+
     if result:
         result.sort(key=lambda x: x[15])
         print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
@@ -350,7 +349,7 @@ def get_config(run_name: str) -> tuple:
     Returns:
         tuple: model parallelism parameters (tp, pp, cp, ep, mbs, vp, gbs).
     """
-    
+
     # Updated pattern to include gbs
     pattern = r'_(tp|pp|cp|ep|mbs|vp|gbs)_([^_]+)'
 
@@ -396,6 +395,7 @@ def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
 
     return tb_files
 
+
 def create_descriptive_model_name(
     model_name: str,
     model_size: float,
@@ -407,11 +407,11 @@ def create_descriptive_model_name(
     mbs: int,
     vp: str,
     seq_length: int,
-    global_batch_size: int
+    global_batch_size: int,
 ) -> str:
     """
     Create a descriptive model name from configuration parameters.
-    
+
     Args:
         model_name: Name of the model
         model_size: Model size in billions
@@ -420,7 +420,7 @@ def create_descriptive_model_name(
         vp: Virtual pipeline parameter (string)
         seq_length: Sequence length
         global_batch_size: Global batch size
-        
+
     Returns:
         str: Descriptive model name
     """
@@ -429,7 +429,7 @@ def create_descriptive_model_name(
         vp_str = int(vp) if vp.lower() != 'none' else 'None'
     except (ValueError, AttributeError):
         vp_str = vp
-    
+
     descriptive_name = (
         f"{model_name}_"
         f"{model_size}b_"
@@ -440,5 +440,5 @@ def create_descriptive_model_name(
         f"seq_{seq_length}_"
         f"gbs_{global_batch_size}"
     )
-    
+
     return descriptive_name
