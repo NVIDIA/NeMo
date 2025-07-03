@@ -81,7 +81,6 @@ def _get_zigzag_indices(N, device=None):
     zigzag_idx[1::2] = idx2
     return zigzag_idx
 
-
 def _get_inverse_zigzag_indices(N, device=None):
     """Generates the inverse zigzag indices for rearrangement.
 
@@ -1399,8 +1398,11 @@ class B2BCausalConv1dModule(nn.Module):
 class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
     """A class for the ParallelCausalDepthwiseConv1dWithState."""
 
-    def forward(self, features_BDL, inference_context=None, _use_cp=True):
-        features_BLD = rearrange(features_BDL, "b d l -> b l d").contiguous()
+    def forward(self, x, inference_context=None, _use_cp=True):
+        # If not in inference mode, use the original implementation
+        if inference_context is None:
+            return super().forward(x, _use_cp=_use_cp)
+        features_BLD = rearrange(x, "b d l -> b l d").contiguous()
         u = features_BLD
         weight = self.short_conv_weight
 
