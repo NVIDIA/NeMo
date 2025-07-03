@@ -378,7 +378,13 @@ class BeamTDTInfer(Typing):
 
         # Initialize hypothesis array with blank hypothesis.
         start_hyp = Hypothesis(
-            score=0.0, y_sequence=[self.blank], dec_state=decoder_state, timestamp=[-1], length=0, last_frame=0, token_duration=[-1]
+            score=0.0,
+            y_sequence=[self.blank],
+            dec_state=decoder_state,
+            timestamp=[-1],
+            length=0,
+            last_frame=0,
+            token_duration=[-1],
         )
         kept_hyps = [start_hyp]
 

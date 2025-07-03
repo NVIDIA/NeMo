@@ -121,10 +121,10 @@ class BatchedBeamHyps:
         self.batch_size = batch_size
         self.batch_indices = torch.arange(self.batch_size, device=device)
         self.beam_indices = torch.arange(self.beam_size, device=device)
-        
+
         # store durations for TDT models
         self.store_durations = True if self.model_type == ASRModelTypeEnum.TDT else False
-        
+
         # Non-blank (non-blank and non-repeating for CTC) and full lengths
         self.current_lengths_nb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
         self.current_lengths_wb = torch.zeros([batch_size, self.beam_size], device=device, dtype=torch.long)
@@ -175,7 +175,9 @@ class BatchedBeamHyps:
             self.last_timestamp_lasts = torch.zeros((batch_size, self.beam_size), device=device, dtype=torch.long)
 
         if self.store_durations:
-            self.token_durations = torch.zeros((batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long)
+            self.token_durations = torch.zeros(
+                (batch_size, self.beam_size, self._max_length), device=device, dtype=torch.long
+            )
 
     def clear_(self):
         """
@@ -196,7 +198,7 @@ class BatchedBeamHyps:
         self.transcript_hash.fill_(INIT_HASH_VALUE)
         if self.store_prefix_hashes:
             self.transcript_prefix_hash.fill_(INIT_PREFIX_HASH_VALUE)
-            
+
         if self.store_durations:
             self.token_durations.fill_(0)
 
@@ -224,7 +226,7 @@ class BatchedBeamHyps:
             self.timestamps = self._create_timestamps_tensor(2 * self._max_length)
         else:
             self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
-            
+
         if self.store_durations:
             self.token_durations = torch.cat((self.token_durations, torch.zeros_like(self.token_durations)), dim=-1)
 
@@ -320,7 +322,7 @@ class BatchedBeamHyps:
                 torch.gather(self.last_timestamp_lasts, dim=-1, index=next_indices) + extended_with_label,
                 out=self.last_timestamp_lasts,
             )
-            
+
             if self.store_durations:
                 token_durations = torch.where(is_extended, next_label_durations, -1)
                 self.token_durations.scatter_(
@@ -496,7 +498,7 @@ class BatchedBeamHyps:
         transcripts = self.transcript_wb[..., 0, : max_idx + 1]
         if self.store_durations:
             token_durations = self.token_durations[..., 0, : max_idx + 1]
-            
+
         hypotheses = [
             Hypothesis(
                 score=scores[batch_idx],
@@ -507,11 +509,8 @@ class BatchedBeamHyps:
                 timestamp=timestamps[batch_idx][mask].cpu().detach().numpy(),
                 alignments=None,
                 dec_state=None,
-                token_duration=
-                (
-                    token_durations[batch_idx][mask].cpu().detach().numpy() 
-                    if self.store_durations 
-                    else None
+                token_duration=(
+                    token_durations[batch_idx][mask].cpu().detach().numpy() if self.store_durations else None
                 ),
             )
             for batch_idx in range(self.batch_size)
@@ -551,10 +550,9 @@ class BatchedBeamHyps:
                         timestamp=timestamps[batch_idx][beam_idx][mask].cpu().detach().numpy(),
                         alignments=None,
                         dec_state=None,
-                        token_duration=
-                        (
-                            token_durations[batch_idx][beam_idx][mask].cpu().detach().numpy() 
-                            if self.store_durations 
+                        token_duration=(
+                            token_durations[batch_idx][beam_idx][mask].cpu().detach().numpy()
+                            if self.store_durations
                             else None
                         ),
                     )
