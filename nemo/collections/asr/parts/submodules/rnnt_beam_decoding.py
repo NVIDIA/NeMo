@@ -83,16 +83,18 @@ def pack_hypotheses(hypotheses: List[Hypothesis]) -> List[Hypothesis]:
         if hyp.timestamp is not None and len(hyp.timestamp) > 0:
             # Note: in beam decoding methods hypotheses are initalized with starting blank token, which has timestamp -1.
             # Therefore, we need to remove the first timestamp and y_sequence element. After that, the length of timestamp and y_sequence should be the same.
-            
+
             if hyp.timestamp[0] == -1:
                 hyp.timestamp = hyp.timestamp[1:]
                 hyp.y_sequence = hyp.y_sequence[1:]
 
             if len(hyp.timestamp) != len(hyp.y_sequence):
-                raise ValueError(f"Hypothesis timestamp and sequence length mismatch: {len(hyp.timestamp)} != {len(hyp.y_sequence)}")
-            
-        hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)    
-        
+                raise ValueError(
+                    f"Hypothesis timestamp and sequence length mismatch: {len(hyp.timestamp)} != {len(hyp.y_sequence)}"
+                )
+
+        hyp.y_sequence = torch.tensor(hyp.y_sequence, dtype=torch.long)
+
     return hypotheses
 
 
