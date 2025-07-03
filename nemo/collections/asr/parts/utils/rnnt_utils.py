@@ -296,7 +296,7 @@ class BatchedHyps:
         self.batch_size = batch_size
         self.device = device
         self.float_dtype = float_dtype
-        self.store_durations = store_durations        
+        self.store_durations = store_durations
         # batch of current lengths of hypotheses and correspoinding timestamps
         self.current_lengths = torch.zeros(batch_size, device=device, dtype=torch.long)
         # tensor for storing transcripts
@@ -326,7 +326,7 @@ class BatchedHyps:
         self.scores.fill_(0.0)
         self.last_timestamp.fill_(-1)
         self.last_timestamp_lasts.fill_(0)
-        
+
         if self.store_durations:
             self.token_durations.fill_(0)
 
@@ -337,10 +337,10 @@ class BatchedHyps:
         """
         self.transcript = torch.cat((self.transcript, torch.zeros_like(self.transcript)), dim=-1)
         self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
-        
+
         if self.store_durations:
             self.token_durations = torch.cat((self.token_durations, torch.zeros_like(self.token_durations)), dim=-1)
-            
+
         self._max_length *= 2
 
     def add_results_(
@@ -365,7 +365,7 @@ class BatchedHyps:
         # if needed - increase storage
         if self.current_lengths.max().item() >= self._max_length:
             self._allocate_more()
-            
+
         if self.store_durations and token_durations is None:
             raise ValueError("Token durations should be provided for TDT models")
 
@@ -404,10 +404,10 @@ class BatchedHyps:
         active_lengths = self.current_lengths[active_indices]
         self.transcript[active_indices, active_lengths] = labels
         self.timestamps[active_indices, active_lengths] = time_indices
-        
+
         if self.store_durations and token_durations is not None:
             self.token_durations[active_indices, active_lengths] = token_durations
-        
+
         # store last observed timestamp + number of observation for the current timestamp
         self.last_timestamp_lasts[active_indices] = torch.where(
             self.last_timestamp[active_indices] == time_indices, self.last_timestamp_lasts[active_indices] + 1, 1
@@ -436,10 +436,10 @@ class BatchedHyps:
         """
         if (self.current_lengths + active_mask).max() >= self._max_length:
             self._allocate_more()
-            
+
         if self.store_durations and token_durations is None:
             raise ValueError("Token durations should be provided for TDT models")
-        
+
         self.add_results_masked_no_checks_(
             active_mask=active_mask,
             labels=labels,
@@ -475,10 +475,10 @@ class BatchedHyps:
         # store transcript and timestamps
         self.transcript[self._batch_indices, self.current_lengths] = labels
         self.timestamps[self._batch_indices, self.current_lengths] = time_indices
-        
+
         if self.store_durations and token_durations is not None:
             self.token_durations[self._batch_indices, self.current_lengths] = token_durations
-        
+
         # store last observed timestamp + number of observation for the current timestamp
         # if last_timestamp == time_indices, increase; else set to 1
         torch.where(
@@ -519,10 +519,10 @@ class BatchedHyps:
         batched_hyps.scores.copy_(self.scores)
         batched_hyps.last_timestamp.copy_(self.last_timestamp)
         batched_hyps.last_timestamp_lasts.copy_(self.last_timestamp_lasts)
-        
+
         if self.store_durations:
             batched_hyps.token_durations.copy_(self.token_durations)
-        
+
         return batched_hyps
 
     def merge_(self, other: "BatchedHyps") -> "BatchedHyps":
@@ -786,7 +786,11 @@ def batched_hyps_to_hypotheses(
             score=scores[i].item(),
             y_sequence=transcript[i, : current_lengths[i]],
             timestamp=timestamps[i, : batched_hyps.current_lengths[i]],
-            token_duration=batched_hyps.token_durations[i, : batched_hyps.current_lengths[i]] if batched_hyps.store_durations else None,
+            token_duration=(
+                batched_hyps.token_durations[i, : batched_hyps.current_lengths[i]]
+                if batched_hyps.store_durations
+                else None
+            ),
             alignments=None,
             dec_state=None,
         )
