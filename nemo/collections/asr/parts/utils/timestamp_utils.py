@@ -13,9 +13,22 @@
 # limitations under the License.
 
 import re
+import torch
+import numpy as np
+from torch.utils.data import DataLoader
+from typing import Union, List, Optional, Set
 
 from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+
+from nemo.collections.asr.parts.utils.aligner_utils import (
+    get_batch_variables, 
+    add_t_start_end_to_utt_obj,
+    viterbi_decoding,
+    Segment,
+    Word,
+    BLANK_TOKEN,
+)
 
 
 def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):
@@ -168,3 +181,108 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
                 timestamp['segment'], subsampling_factor, window_stride
             )
     return outputs
+
+
+def get_forced_aligned_timestamps_with_external_model(
+    audio: Union[str, List[str], np.ndarray, DataLoader],
+    external_ctc_model,
+    main_model_predictions: List[Hypothesis],
+    batch_size: int = 4,
+    viterbi_device: Optional[torch.device] = None,
+    supported_punctuation: Optional[Union[Set, List[str]]] = {',', '.', '!', '?'},
+):
+
+    def process_timestamps(utt_obj, output_timestep_duration):
+        timestamps = {
+            "segment": [],
+            "word": [],
+            "char": [],
+        }
+
+        for segment in utt_obj.segments_and_tokens:
+
+            if not isinstance(segment, Segment):
+                continue
+
+            timestamps["segment"].append({
+                "segment": segment.text,
+                "start_offset": int(segment.t_start / output_timestep_duration),
+                "end_offset": int(segment.t_end / output_timestep_duration),
+                "start": round(segment.t_start, 2),
+                "end": round(segment.t_end, 2),
+            })
+
+            for word in segment.words_and_tokens:
+
+                if not isinstance(word, Word):
+                    continue
+
+                timestamps["word"].append({
+                    "word": word.text,
+                    "start_offset": int(word.t_start / output_timestep_duration),
+                    "end_offset": int(word.t_end / output_timestep_duration),
+                    "start": round(word.t_start, 2),
+                    "end": round(word.t_end, 2),
+                })
+
+                for idx, token in enumerate(word.tokens):
+                    if token.text == BLANK_TOKEN:
+                        continue
+
+                    if token.text in supported_punctuation:
+
+                        previous_token_end = round(
+                            timestamps['char'][-1]['end'], 2
+                            ) if timestamps['char'] else round(token.t_start, 2)
+
+                        if segment.t_end == word.t_end:
+                            timestamps["segment"][-1]["end"] = previous_token_end
+                        if word.t_end == token.t_end:
+                            timestamps["word"][-1]["end"] = previous_token_end
+
+                        token.t_end = token.t_start = previous_token_end
+
+                    timestamps["char"].append({
+                        "char": token.text,
+                        "start_offset": int(token.t_start / output_timestep_duration),
+                        "end_offset": int(token.t_end / output_timestep_duration),
+                        "start": round(token.t_start, 2),
+                        "end": round(token.t_end, 2),})
+
+        return timestamps
+
+    if viterbi_device is None:
+        viterbi_device = external_ctc_model.device
+
+    for start_idx in range(0, len(audio), batch_size):
+        end_idx = start_idx + batch_size
+
+        audio_batch = [audio[i] for i in range(start_idx, end_idx)]
+
+        log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration = get_batch_variables(
+            audio=audio_batch,
+            model=external_ctc_model,
+            separator=['.', '?', '!'],
+            gt_text_batch=[hyp.text for hyp in main_model_predictions[start_idx:end_idx]],
+        )
+
+        alignments_batch = viterbi_decoding(
+            log_probs_batch, 
+            y_batch, 
+            T_batch, 
+            U_batch, 
+            viterbi_device=viterbi_device,
+        )
+
+        for i, (utt_obj, alignment_utt) in enumerate(zip(utt_obj_batch, alignments_batch)):
+            utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
+            main_model_predictions[start_idx + i].timestamp = process_timestamps(utt_obj, output_timestep_duration)
+
+    return main_model_predictions
+
+
+
+
+    
+
+
