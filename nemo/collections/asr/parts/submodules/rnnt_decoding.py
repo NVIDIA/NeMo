@@ -321,7 +321,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
-                        include_duration=self.tdt_include_token_duration,
                         include_duration_confidence=self.tdt_include_duration_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                     )
@@ -370,8 +369,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                         ),
                         preserve_alignments=self.preserve_alignments,
                         preserve_frame_confidence=self.preserve_frame_confidence,
-                        include_duration=self.tdt_include_token_duration,
-                        include_duration_confidence=self.tdt_include_duration_confidence,
                         confidence_method_cfg=self.confidence_method_cfg,
                         use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
                         ngram_lm_model=self.cfg.greedy.get('ngram_lm_model', None),
