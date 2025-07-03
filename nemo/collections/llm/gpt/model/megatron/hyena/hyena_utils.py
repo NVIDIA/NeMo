@@ -81,6 +81,7 @@ def _get_zigzag_indices(N, device=None):
     zigzag_idx[1::2] = idx2
     return zigzag_idx
 
+
 def _get_inverse_zigzag_indices(N, device=None):
     """Generates the inverse zigzag indices for rearrangement.
 
