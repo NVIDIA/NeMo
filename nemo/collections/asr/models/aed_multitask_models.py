@@ -1250,34 +1250,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             ],
         }
 
-    # def _register_restored_path(self, path: str):
-    #     if hasattr(self, 'restored_paths'):
-    #         self.restored_paths.append(path)
-    #     else:
-    #         self.restored_paths = [path]
-
-    # def restore_from(self, 
-    #                 restore_path: str, 
-    #                 override_config_path: Optional[Union[OmegaConf, str]] = None, 
-    #                 map_location: Optional[torch.device] = None, 
-    #                 strict: bool = True, 
-    #                 return_config: bool = False, 
-    #                 save_restore_connector: SaveRestoreConnector = None, 
-    #                 trainer: Optional[Trainer] = None, 
-    #                 validate_access_integrity: bool = True,
-    #                 timestamps_asr_model: Optional[str] = None):
-        
-    #     self._register_restored_path(restore_path)
-    #     return super().restore_from(
-    #         restore_path, 
-    #         override_config_path, 
-    #         map_location, 
-    #         strict, 
-    #         return_config, 
-    #         save_restore_connector, 
-    #         trainer, 
-    #         validate_access_integrity)
-
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
     if prompt is None or not prompt:
