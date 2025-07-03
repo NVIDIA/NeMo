@@ -344,13 +344,15 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         ):
             raise NotImplementedError(f"Confidence calculation is not supported for strategy `{self.cfg.strategy}`")
 
-        ngram_lm_model_greedy = self.cfg.greedy.get('ngram_lm_model', None)
-        ngram_lm_model_beam = self.cfg.beam.get('ngram_lm_model', None)
+        if strategy in {TransducerDecodingStrategyType.GREEDY, TransducerDecodingStrategyType.GREEDY_BATCH}:
+            ngram_lm_model = self.cfg.greedy.get('ngram_lm_model', None)
+        else:
+            ngram_lm_model = self.cfg.beam.get('ngram_lm_model', None)
 
         match strategy, model_type:
             # greedy strategy
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.RNNT:
-                if ngram_lm_model_greedy is not None:
+                if ngram_lm_model is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models."
                         f"Recommended greedy strategy with LM is `greedy_batch`."
@@ -367,7 +369,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     confidence_method_cfg=self.confidence_method_cfg,
                 )
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.TDT:
-                if ngram_lm_model_greedy is not None:
+                if ngram_lm_model is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
                         f"Recommended greedy strategy with LM is `greedy_batch`."
@@ -387,7 +389,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     confidence_method_cfg=self.confidence_method_cfg,
                 )
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.MULTI_BLANK:
-                if ngram_lm_model_greedy is not None:
+                if ngram_lm_model is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models."
                     )
@@ -417,7 +419,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     confidence_method_cfg=self.confidence_method_cfg,
                     loop_labels=self.cfg.greedy.get('loop_labels', True),
                     use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
-                    ngram_lm_model=ngram_lm_model_greedy,
+                    ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.TDT:
@@ -435,11 +437,11 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     include_duration_confidence=self.tdt_include_duration_confidence,
                     confidence_method_cfg=self.confidence_method_cfg,
                     use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
-                    ngram_lm_model=ngram_lm_model_greedy,
+                    ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.MULTI_BLANK:
-                if ngram_lm_model_greedy is not None:
+                if ngram_lm_model is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models"
                     )
@@ -457,7 +459,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 )
             # beam, maes, alsd, tsd strategies
             case TransducerDecodingStrategyType.BEAM, TransducerModelType.RNNT:
-                if ngram_lm_model_beam is not None:
+                if ngram_lm_model is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
@@ -477,7 +479,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.BEAM, TransducerModelType.TDT:
-                if ngram_lm_model_beam is not None:
+                if ngram_lm_model is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
@@ -498,7 +500,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.TSD, TransducerModelType.RNNT:
-                if ngram_lm_model_beam is not None:
+                if ngram_lm_model is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models"
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
@@ -519,7 +521,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.ALSD, TransducerModelType.RNNT:
-                if ngram_lm_model_beam is not None:
+                if ngram_lm_model is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
@@ -557,7 +559,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
                     softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                     preserve_alignments=self.preserve_alignments,
-                    ngram_lm_model=ngram_lm_model_beam,
+                    ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                     hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
                     hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
@@ -581,7 +583,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
                     softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                     preserve_alignments=self.preserve_alignments,
-                    ngram_lm_model=ngram_lm_model_beam,
+                    ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
                 )
             # beam batch: malsd_batch and maes_batch strategies
@@ -594,7 +596,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     search_type='malsd_batch',
                     max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
                     preserve_alignments=self.preserve_alignments,
-                    ngram_lm_model=ngram_lm_model_beam,
+                    ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                     blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
                     pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
@@ -612,7 +614,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     search_type='malsd_batch',
                     max_symbols_per_step=self.cfg.beam.get("max_symbols", 10),
                     preserve_alignments=self.preserve_alignments,
-                    ngram_lm_model=ngram_lm_model_beam,
+                    ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                     blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
                     pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
@@ -631,7 +633,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2),
                     maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
                     preserve_alignments=self.preserve_alignments,
-                    ngram_lm_model=ngram_lm_model_beam,
+                    ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
                     blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
                     pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
