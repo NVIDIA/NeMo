@@ -14,6 +14,7 @@
 import logging
 import math
 import random
+import tarfile
 from collections import deque
 from dataclasses import dataclass
 from itertools import groupby
@@ -29,7 +30,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.collation import collate_matrices, collate_vectors
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.serialization import load_jsonl
-from lhotse.shar import AudioTarWriter, JsonlShardWriter, TarIterator
+from lhotse.shar import AudioTarWriter, JsonlShardWriter
 from lhotse.utils import Pathlike, is_valid_url
 
 from nemo.collections.common.data.lhotse.nemo_adapters import expand_sharded_filepaths
@@ -379,7 +380,11 @@ class NeMoMultimodalConversation(Formattable, CustomFieldMixin):
         return all(isinstance(t, TextTurn) for t in self.turns)
 
     def to_dict(self):
-        return {"id": self.id, "conversations": [t.to_dict() for t in self.turns]}
+        return {
+            "id": self.id,
+            "conversations": [t.to_dict() for t in self.turns],
+            "custom": self.custom,
+        }
 
     def list_cuts(self) -> list[Cut]:
         return [turn.cut for turn in self.turns if isinstance(turn, AudioTurn)]
@@ -570,6 +575,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                         )
                         for turn in data["conversations"]
                     ],
+                    custom=data["custom"],
                 )
 
     def _iter_jsonl(self):
@@ -602,6 +608,49 @@ class NeMoMultimodalConversationJsonlAdapter:
                     ],
                     token_equivalent_duration=self.token_equivalent_duration,
                 )
+
+
+class TarIterator:
+    """
+    Copy of lhotse.shar.readers.tar.TarIterator, modified to read both Lhotse-Shar style audio tar files
+    and NeMo style audio tar files.
+    """
+
+    def __init__(self, source: Pathlike) -> None:
+        self.source = source
+
+    def __iter__(self):
+        from lhotse.serialization import decode_json_line, deserialize_item, open_best
+        from lhotse.shar.utils import fill_shar_placeholder
+
+        with tarfile.open(fileobj=open_best(self.source, mode="rb"), mode="r|*") as tar:
+            for (data, data_path), (meta, meta_path) in _iterate_tarfile_pairwise(tar):
+                if meta_path is not None and meta_path.suffix == ".json":  # lhotse-shar tar format
+                    if meta is not None:
+                        meta = deserialize_item(decode_json_line(meta.decode("utf-8")))
+                        fill_shar_placeholder(manifest=meta, data=data, tarpath=data_path)
+                    yield meta, data_path
+                else:  # nemo tar format
+                    yield Recording.from_bytes(data, recording_id=data_path.stem), data_path
+
+
+def _iterate_tarfile_pairwise(
+    tar_file: tarfile.TarFile,
+):
+    from lhotse.shar.readers.tar import parse_tarinfo
+
+    result = []
+    for tarinfo in tar_file:
+        if len(result) == 2:
+            yield tuple(result)
+            result = []
+        result.append(parse_tarinfo(tarinfo, tar_file))
+
+    if len(result) == 2:
+        yield tuple(result)
+
+    if len(result) == 1:
+        yield result, (None, None)
 
 
 class NeMoMultimodalConversationTarWriter:
