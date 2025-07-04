@@ -13,18 +13,40 @@
 # limitations under the License.
 
 from collections import deque
-from dataclasses import InitVar, dataclass, field, List
-from typing import NamedTuple, Optional
+from dataclasses import InitVar, dataclass, field
+from typing import NamedTuple, Optional, List
 
 import numpy as np
 import torch
 from lightning.pytorch import Trainer
 from omegaconf import MISSING, DictConfig, OmegaConf
-from tqdm.auto import tqdm
 
 from nemo.collections.asr.parts.context_biasing.context_graph_universal import ContextGraph, ContextState
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.common.tokenizers import AggregateTokenizer
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
+
+
+@dataclass
+class BoostingTreeModelConfig:
+    """
+    Boosting tree model config
+    """
+    model_path: Optional[str] = None # The path to builded '.nemo' boosting tree model
+    key_phrases_file: Optional[str] = None # The path to the context-biasing list file (one phrase per line)
+    key_phrases_list: Optional[List[str]] = None # The list of context-biasing phrases ['word1', 'word2', 'word3', ...]
+    context_score: float = 1.0 # The score for each arc transition in the context graph 
+    depth_scaling: float = 1.0 # The scaling factor for the depth of the context graph
+    unk_score: float = 0.0 # The score for unknown tokens (tokens that are not presented in the beginning of context-biasing phrases)
+    final_eos_score: float = 1.0 # The score for eos token after detected end of context phrase to prevent hallucination for AED models
+    score_per_phrase: float = 0.0 # Custom score for each phrase in the context graph
+    source_lang: str = "en" # The source language of the context-biasing phrases (for aggregate tokenizer)
+    use_triton: bool = False # Whether to use Triton for inference.
+    uniform_weights: bool = False # Whether to use uniform weights for the context-biasing tree as in Icefall
+    use_bpe_dropout: bool = False # Whether to use BPE dropout for generating alternative transcriptions
+    num_of_transcriptions: int = 5 # The number of alternative transcriptions to generate for each context-biasing phrase
+    bpe_alpha: float = 0.3 # The alpha parameter for BPE dropout
 
 
 class TBranch(NamedTuple):
@@ -131,7 +153,7 @@ class BoostingTreeStorage:
         """Add tbranches for the order > 1; should be called after adding first order tokens (unigrams), using increasing order"""
         tbranches = sorted(tbranches, key=lambda x: (x.start_node.id, x.symbol))
 
-        for tbranch in tqdm(tbranches):
+        for tbranch in tbranches:
             ilabel = tbranch.symbol
             from_state = self._node_cache[tbranch.start_node.id]
             assert ilabel < self.vocab_size
@@ -324,7 +346,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         tbranch_cur_order_i = 0
         cur_order = 1
 
-        for tbranch in tqdm(tbranches_list, total=len(tbranches_list)):
+        for tbranch in tbranches_list:
 
             if tbranch_cur_order_i == 0:
                 boosting_tree_np._start_adding_tbranches_for_order(order=cur_order)
@@ -441,25 +463,57 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             uniform_weights=False,
         )
         return boosting_tree_trivial
+    
+    @classmethod
+    def from_config(cls, cfg: BoostingTreeModelConfig, tokenizer: TokenizerSpec) -> "GPUBoostingTreeModel":
+        """
+        Constructor boosting tree model from config file
+        """
+        logging.info(f"Building boosting tree model from config: {cfg}...")
+        # load boosting tree from already built model path
+        if cfg.model_path is not None:
+            return cls.from_file(lm_path=cfg.model_path, vocab_size=tokenizer.vocab_size)
+        
+        # build boosting tree from key phrases file or phrases list
+        phrases_dict = {}
+        is_aggregate_tokenizer = isinstance(tokenizer, AggregateTokenizer)
+        
+        # 1. read key phrases from file or list
+        if cfg.key_phrases_file is not None:
+            phrases_list = []
+            with open(cfg.key_phrases_file, "r") as f:
+                for line in f:
+                    phrases_list.append(line.strip())
+        elif cfg.key_phrases_list is not None:
+            phrases_list = cfg.key_phrases_list
 
+        # 2. tokenize key phrases
+        for phrase in phrases_list:
+            if is_aggregate_tokenizer:
+                phrases_dict[phrase] = tokenizer.text_to_ids(phrase, cfg.source_lang)
+            else:
+                phrases_dict[phrase] = tokenizer.text_to_ids(phrase)
+        
+        # 3. build pythoncontext graph
+        contexts, scores, phrases = [], [], []
+        for phrase in phrases_dict:
+            contexts.append(phrases_dict[phrase])
+            scores.append(round(cfg.score_per_phrase / len(phrase), 2))
+            phrases.append(phrase)
+        
+        context_graph = ContextGraph(context_score=cfg.context_score, depth_scaling=cfg.depth_scaling)
+        context_graph.build(token_ids=contexts, scores=scores, phrases=phrases, uniform_weights=cfg.uniform_weights)
 
-# create dataclass for boosting tree model config
-@dataclass
-class BoostingTreeModelConfig:
-    """
-    Boosting tree model config
-    """
-    model_path: Optional[str] = None # The path to builded '.nemo' boosting tree model
-    key_phrases_file: Optional[str] = None # The path to the context-biasing list file (one phrase per line)
-    key_phrases_list: Optional[List[str]] = None # The list of context-biasing phrases ['word1', 'word2', 'word3', ...]
-    context_score: float = 1.0 # The score for each arc transition in the context graph 
-    depth_scaling: float = 1.0 # The scaling factor for the depth of the context graph
-    unk_score: float = 0.0 # The score for unknown tokens (tokens that are not presented in the beginning of context-biasing phrases)
-    final_eos_score: float = 1.0 # The score for eos token after detected end of context phrase to prevent hallucination for AED models
-    score_per_phrase: float = 0.0 # Custom score for each phrase in the context graph
-    source_lang: str = "en" # The source language of the context-biasing phrases (for aggregate tokenizer)
-    use_triton: bool = False # Whether to use Triton for inference.
-    uniform_weights: bool = False # Whether to use uniform weights for the context-biasing tree as in Icefall
-    use_bpe_dropout: bool = False # Whether to use BPE dropout for generating alternative transcriptions
-    num_of_transcriptions: int = 5 # The number of alternative transcriptions to generate for each context-biasing phrase
-    bpe_alpha: float = 0.3 # The alpha parameter for BPE dropout
+        # 4. build GPU boosting tree model from python context graph
+        boosting_tree_model = GPUBoostingTreeModel.from_context_graph(
+            context_graph=context_graph,
+            vocab_size=tokenizer.vocab_size,
+            unk_score=cfg.unk_score,
+            final_eos_score=cfg.final_eos_score,
+            use_triton=cfg.use_triton,
+            uniform_weights=cfg.uniform_weights,
+        )
+        
+        return boosting_tree_model
+        
+        

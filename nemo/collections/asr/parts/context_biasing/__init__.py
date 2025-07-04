@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel
+from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel, BoostingTreeModelConfig
 from nemo.collections.asr.parts.context_biasing.context_biasing_utils import (
     compute_fscore,
     merge_alignment_with_ws_hyps,
@@ -22,6 +22,7 @@ from nemo.collections.asr.parts.context_biasing.ctc_based_word_spotter import ru
 
 __all__ = [
     "GPUBoostingTreeModel",
+    "BoostingTreeModelConfig",
     "compute_fscore",
     "merge_alignment_with_ws_hyps",
     "ContextGraphCTC",

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -23,7 +23,7 @@ from nemo.collections.asr.modules.transformer import (
     BeamSearchSequenceGenerator,
     BeamSearchSequenceGeneratorWithFusionModels,
 )
-from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel
+from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel, BoostingTreeModelConfig
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -137,7 +137,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         preserve_alignments: bool = False,
         ngram_lm_model: Path | str | None = None,
         ngram_lm_alpha: float = 0.0,
-        boosting_tree_model: Path | str | None = None,
+        boosting_tree_cfg: BoostingTreeModelConfig | None = None,
         boosting_tree_alpha: float = 0.0,
     ):
         super().__init__(
@@ -153,6 +153,12 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         self.pad = tokenizer.pad
         self.eos = tokenizer.eos
 
+        
+        # load boosting tree model
+        if boosting_tree_cfg is not None and \
+            (boosting_tree_cfg.model_path or boosting_tree_cfg.key_phrases_file or boosting_tree_cfg.key_phrases_list):
+            boosting_tree_model = GPUBoostingTreeModel.from_config(boosting_tree_cfg, tokenizer=tokenizer)
+        
         # initialize fusion models (ngram LM, boosting tree)
         fusion_models, fusion_models_alpha = [], []
         if ngram_lm_model is not None:
@@ -160,10 +166,8 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=tokenizer.vocab_size)
             )
             fusion_models_alpha.append(ngram_lm_alpha)
-        if boosting_tree_model is not None:
-            fusion_models.append(
-                GPUBoostingTreeModel.from_file(lm_path=boosting_tree_model, vocab_size=tokenizer.vocab_size)
-            )
+        if boosting_tree_cfg is not None:
+            fusion_models.append(boosting_tree_model)
             fusion_models_alpha.append(boosting_tree_alpha)
 
         if not fusion_models:
@@ -307,5 +311,5 @@ class AEDBeamInferConfig:
     # fusion models params
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: float = 0.0
-    boosting_tree_model: Optional[str] = None
+    boosting_tree_cfg: BoostingTreeModelConfig = field(default_factory=BoostingTreeModelConfig)
     boosting_tree_alpha: float = 0.0
