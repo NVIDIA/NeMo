@@ -489,6 +489,11 @@ class CosineAnnealingScheduler(LRSchedulerModule):
 
 
 class WarmupHoldAnnealScheduler(LRSchedulerModule):
+    """Warmup Hold Annealing Learning Rate Scheduler.
+
+    A learning rate scheduler with warmup, hold, and linear annealing phases.
+    """
+
     def __init__(
         self,
         warmup_ratio: Optional[float] = None,
