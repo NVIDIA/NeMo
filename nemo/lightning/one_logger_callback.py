@@ -11,11 +11,11 @@ from typing import Any, Dict, List, Optional, Type
 import nv_one_logger.training_telemetry.api.callbacks as CB
 import pytorch_lightning as pl
 import torch
+from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import Callback
+from pytorch_lightning.core import LightningModule
 from pytorch_lightning.plugins.io import AsyncCheckpointIO
 from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning import Trainer
-from pytorch_lightning.core import LightningModule
 from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 

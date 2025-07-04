@@ -450,7 +450,8 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
         from nv_one_logger.training_telemetry.api.checkpoint import CheckPointStrategy
         from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
         from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-        from nv_one_logger.wandb.exporter.wandb_exporter import WandBExporterAsync, Config as WandBConfig
+        from nv_one_logger.wandb.exporter.wandb_exporter import Config as WandBConfig
+        from nv_one_logger.wandb.exporter.wandb_exporter import WandBExporterAsync
         from pytorch_lightning.plugins.io import AsyncCheckpointIO
 
         # Extract metadata from config

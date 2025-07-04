@@ -164,23 +164,26 @@ class NeMoLogger(IOMixin):
         if isinstance(trainer, pl.Trainer):
             self._setup_trainer_loggers(trainer, _dir, version)
             self._setup_trainer_model_checkpoint(trainer, log_dir=log_dir, ckpt=self.ckpt)
-            
+
             # Configure OneLogger callback
             try:
-                from nemo.utils.exp_manager import configure_onelogger
                 from omegaconf import OmegaConf
-                
+
+                from nemo.utils.exp_manager import configure_onelogger
+
                 # Create a minimal config for OneLogger
-                cfg = OmegaConf.create({
-                    "exp_manager": {
-                        "wandb_logger_kwargs": {
-                            "project": "nemo_experiments",
-                            "name": self.name,
-                            "id": version or None,
+                cfg = OmegaConf.create(
+                    {
+                        "exp_manager": {
+                            "wandb_logger_kwargs": {
+                                "project": "nemo_experiments",
+                                "name": self.name,
+                                "id": version or None,
+                            }
                         }
                     }
-                })
-                
+                )
+
                 # Configure OneLogger
                 configure_onelogger(cfg, trainer)
                 logging.info("OneLogger configured successfully")
