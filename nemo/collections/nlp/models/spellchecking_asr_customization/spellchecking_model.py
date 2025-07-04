@@ -28,10 +28,12 @@ from nemo.collections.nlp.data.spellchecking_asr_customization import (
     bert_example,
 )
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_label_map
+
 try:
     from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 except ModuleNotFoundError:
     from abc import ABC
+
     ClassificationReport = ABC
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifier
