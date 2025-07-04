@@ -200,6 +200,8 @@ class MegatronTrainerBuilder:
         precision = self.cfg.trainer.precision
         strategy = self._training_strategy()
         plugins = self._plugins()
+        if callbacks is None:
+            callbacks = []
         callbacks.extend(CallbackGroup.get_instance().callbacks)
         callbacks = self._callbacks(callbacks)
         trainer = Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)

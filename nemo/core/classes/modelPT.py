@@ -2128,6 +2128,3 @@ class ModelPT(LightningModule, Model):
             return copy.deepcopy(optim_config)
         else:
             return OmegaConf.create(optim_config)
-
-
-ModelPT = wrap_setup_training_data(ModelPT)

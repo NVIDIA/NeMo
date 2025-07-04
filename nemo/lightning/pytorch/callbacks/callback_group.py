@@ -187,4 +187,4 @@ def wrap_methods_with_callbacks(cls) -> None:
     for method_name in CB_WRAP_RULES.keys():
         if method_name in cls.__dict__:
             original_method = cls.__dict__[method_name]
-            cls.__dict__[method_name] = _make_callback_wrapped_method(original_method)
+            setattr(cls, method_name, _make_callback_wrapped_method(original_method))
