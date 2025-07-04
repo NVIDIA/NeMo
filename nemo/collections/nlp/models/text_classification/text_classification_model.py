@@ -24,10 +24,12 @@ from omegaconf import DictConfig
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.text_classification import TextClassificationDataset, calc_class_weights
+
 try:
     from nemo.collections.nlp.metrics.classification_report import ClassificationReport
 except ModuleNotFoundError:
     from abc import ABC
+
     ClassificationReport = ABC
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceClassifier
