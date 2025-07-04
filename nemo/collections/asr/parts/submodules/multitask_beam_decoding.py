@@ -154,6 +154,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         self.eos = tokenizer.eos
 
         # load boosting tree model
+        boosting_tree_model = None
         if boosting_tree_cfg is not None and (
             boosting_tree_cfg.model_path or boosting_tree_cfg.key_phrases_file or boosting_tree_cfg.key_phrases_list
         ):
@@ -166,7 +167,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
                 NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=tokenizer.vocab_size)
             )
             fusion_models_alpha.append(ngram_lm_alpha)
-        if boosting_tree_cfg is not None:
+        if boosting_tree_model is not None:
             fusion_models.append(boosting_tree_model)
             fusion_models_alpha.append(boosting_tree_alpha)
 
