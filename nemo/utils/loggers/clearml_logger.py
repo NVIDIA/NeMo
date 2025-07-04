@@ -64,7 +64,7 @@ class ClearMLLogger(Logger):
             raise ImportError(
                 "Found create_clearml_logger is True."
                 "But ClearML not found. Please see the README for installation instructions:"
-                "https://github.com/allegroai/clearml"
+                "https://github.com/clearml/clearml"
             )
 
         self.clearml_task = None
