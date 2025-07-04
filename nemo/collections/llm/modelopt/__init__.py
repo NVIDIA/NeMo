@@ -17,3 +17,4 @@ from .distill import *  # noqa: F401
 from .model_utils import *  # noqa: F401
 from .prune import *  # noqa: F401
 from .quantization import *  # noqa: F401
+from .speculative import *  # noqa: F401

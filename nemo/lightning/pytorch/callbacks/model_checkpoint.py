@@ -517,7 +517,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
     def file_exists(self, filepath: str, trainer: "lightning.pytorch.Trainer", check_dist_ckpt: bool = True) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
-        exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
+        exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(str(ckpt_to_dir(filepath))))
         return trainer.strategy.broadcast(exists)
 
     def _monitor_candidates(self, trainer: "pl.Trainer") -> Dict[str, torch.Tensor]:
@@ -678,6 +678,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
         """
         if self.async_save and not override_async:
             # Register checkpoint removal in the last (active) checkpoint removal list
+            if len(self.deferred_ckpts_to_remove) == 0:
+                self.deferred_ckpts_to_remove.append([])
             self.deferred_ckpts_to_remove[-1].append(filepath)
             return
         # barrier_after=True, so all ranks continue after the unfinished checkpoint marker is placed.

@@ -23,9 +23,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from lhotse import CutSet
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
+from utils.data_prep import get_lhotse_dataloader
 
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, ChannelSelectorType
@@ -355,7 +357,11 @@ class TranscriptionMixin(ABC):
 
                 # Create a DataLoader if not already present
                 if isinstance(audio, CutSet):
+<<<<<<< HEAD
                     dataloader  = get_lhotse_dataloader(audio, transcribe_cfg.batch_size)
+=======
+                    dataloader = get_lhotse_dataloader(audio, transcribe_cfg.batch_size)
+>>>>>>> f6be3bacef874eb02f855ee658ef73babfa68f75
                 elif not isinstance(audio, DataLoader):
                     dataloader = self._transcribe_input_processing(audio, transcribe_cfg)
                 else:

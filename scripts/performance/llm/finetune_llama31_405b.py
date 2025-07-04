@@ -18,25 +18,20 @@ import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
 
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama31_405b import finetune_recipe, model
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_h100_h16384_tp4_mbs1_seqlen2048_lora,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
 from ..utils import (
-    args_sanity_check,
     get_comm_overlap_callback_idx,
-    get_user_configs,
     hf_tokenizer,
     import_ckpt_experiment,
-    isfile_train_pack_metadata,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
+    prepare_squad_dataset_experiment,
 )
 
 HF_MODEL_URI = "meta-llama/Llama-3.1-405B"
@@ -46,6 +41,10 @@ HF_MODEL_URI = "meta-llama/Llama-3.1-405B"
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
 SKIP_IMPORT = False
+
+# Set this to True if dataset is already downloaded. If set to False,
+# dataset will be downloaded from HuggingFace
+SKIP_DATASET_DOWNLOAD = False
 
 
 def override_recipe_configs(
@@ -106,16 +105,7 @@ def override_recipe_configs(
     )
 
     # data module configs
-    if args.use_hf_tokenizer:
-        recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    else:
-        recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
-        )
-        recipe.model.tokenizer = recipe.data.tokenizer
-    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
-        # flag is valid only for SquadDataModule
-        recipe.data.force_redownload = True
+    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
@@ -191,6 +181,7 @@ if __name__ == "__main__":
     exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -223,6 +214,10 @@ if __name__ == "__main__":
         if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+        if not SKIP_DATASET_DOWNLOAD:
+            exp.add(
+                *prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home)
+            )
         exp.add(
             recipe,
             executor=executor,
