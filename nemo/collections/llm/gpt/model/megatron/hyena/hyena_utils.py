@@ -527,6 +527,12 @@ class ImplicitModalFilter(nn.Module):
 
         return t
 
+    def get_logp(self):
+        """Compute the log poles for the implicit modal filter."""
+        logp = -torch.exp(self.p.to(torch.float32))
+        glogp = logp * torch.exp(self.gamma.to(torch.float32))
+        return glogp
+
     def compute_filter(self, L, t):
         """Compute the filter for convolution."""
         assert (
@@ -811,7 +817,113 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias.partition_dim = 0
             self.conv_bias.stride = 1
 
-    def forward(self, x1, x2, v, _hyena_use_cp=True):
+    def forward_long(self, *, x1, x2, v, h, bias, inference_context):
+        """Forward pass long."""
+        import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
+
+        def update_filter_state(filter_name, *, state):
+            if not inference_context:
+                return
+            key = f"{filter_name}_filter_state_dict"
+            filter_state_dict = getattr(inference_context, key, {})
+            filter_state_dict[id(self)] = state
+            setattr(inference_context, key, filter_state_dict)
+
+        def get_filter_state(filter_name):
+            key = f"{filter_name}_filter_state_dict"
+            return getattr(inference_context, key, {}).get(id(self))
+
+        # x1, x2, v all of shape torch.Size([1, 4096, 63])
+        u = torch.cat([x2, x1, v], dim=1)  # torch.Size([1, 12288, 63])
+        L = u.shape[-1]
+        poles = rearrange(self.filter.p, "d n -> d n 1")  # n = 16
+        poles = self.filter.get_logp()
+        poles = rearrange(poles, "d n -> d n 1")  # n = 16
+
+        iir_state = get_filter_state("iir")
+        if iir_state is None:
+            y, iir_state = engine.parallel_iir(
+                z_pre=u,  # [1 d l]
+                h=h,  # must be in [1 d l]
+                D=bias,  # self.short_filter_bias,
+                L=L,
+                poles=poles,
+                t=self.filter.get_t(L),  # torch.Size([1, 1, L])
+                hidden_size=self.hidden_size,
+                compute_state=inference_context is not None,
+            )
+            # y = rearrange(y, "b d l -> b l d")
+        else:
+            x1 = rearrange(x1, "1 d l -> l d")
+            x2 = rearrange(x2, "1 d l -> l d")
+            v = rearrange(v, "1 d l -> l d")
+            x1, x2 = x2, x1  # TODO: figure why it is swapped
+            y, iir_state = engine.step_iir(
+                x2=x2,
+                x1=x1,
+                v=v,
+                D=bias,  # torch.Size([4096])
+                residues=self.filter.R,  # torch.Size([4096, 16])
+                poles=poles,  # torch.Size([4096, 16, 1])
+                iir_state=iir_state,
+            )
+            y = rearrange(y, "b d -> b 1 d")
+            y = y.to(dtype=x1.dtype)
+        update_filter_state("iir", state=iir_state)
+        return rearrange(y, "b l d -> b d l")  # b l d
+
+    def forward_medium(self, *, x1, x2, v, h, bias, inference_context):
+        """Forward pass medium."""
+        import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
+
+        def update_filter_state(filter_name, *, state):
+            if not inference_context:
+                return
+            key = f"{filter_name}_filter_state_dict"
+            filter_state_dict = getattr(inference_context, key, {})
+            filter_state_dict[id(self)] = state
+            setattr(inference_context, key, filter_state_dict)
+
+        def get_filter_state(filter_name):
+            key = f"{filter_name}_filter_state_dict"
+            return getattr(inference_context, key, {}).get(id(self))
+
+        x1, x2, v = rearrange([x1, x2, v], "h b d l -> h b l d")
+        # all above in [B D L]
+        u = x2 * v  # b l d
+        L = u.shape[1]
+        h = rearrange(h, "d l -> d 1 l")
+
+        fir_state = get_filter_state("inner_fir")
+        if fir_state is None:
+            y, fir_state = engine.parallel_fir(
+                u=u,
+                weight=h,  # self.short_filter_weight,
+                bias=bias,  # self.short_filter_bias,
+                gated_bias=self.kernel_size >= 128,  # aka: only for medium filter
+                L=L,
+                fir_length=self.kernel_size,  # self.short_filter_length,
+                compute_state=inference_context is not None,
+            )
+            y = rearrange(y, "b d l -> b l d")
+            y = y * x1
+        else:
+            u = rearrange(u, "b 1 d -> b d")
+            x1 = rearrange(x1, "b 1 d  -> b d")
+            y, fir_state = engine.step_fir(
+                u=u,
+                fir_state=fir_state,
+                weight=h,
+                bias=bias,
+                gated_bias=self.kernel_size >= 128,  # aka: only for medium filter
+                flip_filter=self.kernel_size >= 128,  # aka: only for medium filter
+            )
+            y = x1 * y
+            y = rearrange(y, "b d -> b 1 d")
+        update_filter_state("inner_fir", state=fir_state)
+        return rearrange(y, "b l d -> b d l")  # b l d
+
+    def forward(self, x1, x2, v, _hyena_use_cp=True, inference_context=None):
         """Shape specification for inputs and outputs.
 
         Input shapes: bs, (num_groups, group_size), seq_length
@@ -829,7 +941,7 @@ class ParallelHyenaOperator(nn.Module):
         # The kernel length must be adjusted in CP settings
         _L_kernel = L if cp_group is None else L * len(torch.distributed.get_process_group_ranks(cp_group))
         if self.use_medium_hyena:
-            h = self.filter(min(self.hyena_medium_conv_len, _L_kernel))
+            h = self.filter(self.hyena_medium_conv_len)
         else:
             h = self.filter(_L_kernel)
 
@@ -862,23 +974,29 @@ class ParallelHyenaOperator(nn.Module):
 
         h = h.repeat_interleave(self.group_dim, dim=-2)
 
-        z = x2 * v
-        # with torch.autocast("cuda"):
-        z = fftconv_func(
-            u=z.to(torch.float32),
-            k=h.to(torch.float32),
-            D=conv_bias.to(torch.float32),
-            dropout_mask=None,
-            gelu=False,
-            bidirectional=self.bidirectional,
-        )
-        z = z.to(v.dtype)
-        z = x1 * z
+        if inference_context is not None:
+            if self.operator_type == "hyena_medium_conv":
+                return self.forward_medium(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
+            elif self.operator_type == "hyena":
+                return self.forward_long(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
+        else:
+            z = x2 * v
+            # with torch.autocast("cuda"):
+            z = fftconv_func(
+                u=z.to(torch.float32),
+                k=h.to(torch.float32),
+                D=conv_bias.to(torch.float32),
+                dropout_mask=None,
+                gelu=False,
+                bidirectional=self.bidirectional,
+            )
+            z = z.to(v.dtype)
+            z = x1 * z
 
-        if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
-            z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
-            # [ B, H, L // num_ranks]
-        return z  # [B, (G, DG), L]
+            if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
+                z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
+                # [ B, H, L // num_ranks]
+            return z  # [B, (G, DG), L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the ParallelHyenaOperator."""
@@ -974,7 +1092,7 @@ class ParallelShortHyenaOperator(nn.Module):
                 self.conv_bias.partition_dim = 0
                 self.conv_bias.stride = 1
 
-    def forward(self, x1, x2, v, _hyena_use_cp=True):
+    def forward(self, x1, x2, v, inference_context=None, _hyena_use_cp=True):
         """Shape specification for inputs and outputs.
 
         Input shapes: bs, (num_groups, group_size), seq_length
@@ -985,7 +1103,7 @@ class ParallelShortHyenaOperator(nn.Module):
 
         z = x2 * v if self.pregate else v
         if not self.use_conv_bias:
-            z = self.short_conv(z, _use_cp=_hyena_use_cp)
+            z = self.short_conv(z, _use_cp=_hyena_use_cp, inference_context=inference_context)
         else:
             # maybe handle num_groups
             bias = self.conv_bias.repeat_interleave(self.group_dim, dim=0)
@@ -1081,7 +1199,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
                 # Call this on the module because it also modifies module attributes in addition to the data.
                 initialize_affine_weight_gpu(self.short_conv_weight, conv_init_method, partition_dim=0)
 
-    def forward(self, x, _use_cp=True):
+    def forward(self, x, inference_context=None, _use_cp=True):
         """Forward pass for the ParallelCausalDepthwiseConv1d."""
         assert x.ndim == 3, "Only 3D tensors supported."
 
@@ -1276,6 +1394,63 @@ class B2BCausalConv1dModule(nn.Module):
             result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
             result = result[..., self.effective_pad_size :]  # Remove padding from output
         return result
+
+
+class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
+    """A class for the ParallelCausalDepthwiseConv1dWithState."""
+
+    def forward(self, x, inference_context=None, _use_cp=True):
+        # If not in inference mode, use the original implementation
+        if inference_context is None:
+            return super().forward(x, _use_cp=_use_cp)
+        features_BLD = rearrange(x, "b d l -> b l d").contiguous()
+        u = features_BLD
+        weight = self.short_conv_weight
+
+        if len(weight.shape) == 2:
+            weight = rearrange(weight, "hidden_size3 filter_len -> hidden_size3 1 filter_len")
+
+        weight = weight.repeat_interleave(self.group_dim, dim=0)
+
+        import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
+
+        def update_filter_state(filter_name, *, state):
+            if not inference_context:
+                return
+            key = f"{filter_name}_filter_state_dict"
+            filter_state_dict = getattr(inference_context, key, {})
+            filter_state_dict[id(self)] = state
+            setattr(inference_context, key, filter_state_dict)
+
+        def get_filter_state(filter_name):
+            key = f"{filter_name}_filter_state_dict"
+            return getattr(inference_context, key, {}).get(id(self))
+
+        L = u.shape[1]
+        fir_state = get_filter_state("fir")
+        if fir_state is None:
+            z_pre, fir_state = engine.parallel_fir(
+                u=u,
+                weight=torch.tensor(weight),  # self.short_filter_weight,
+                bias=None,
+                L=L,
+                gated_bias=False,
+                fir_length=self.kernel_size,  # self.short_filter_length,
+                compute_state=inference_context is not None,
+            )
+        else:
+            if len(u.shape) > 2:
+                u = u[:, -1]
+
+            z_pre, fir_state = engine.step_fir(
+                u=u,
+                fir_state=fir_state,
+                weight=weight,
+                bias=None,
+            )
+            z_pre = rearrange(z_pre, "b d -> b d 1")
+        update_filter_state("fir", state=fir_state)
+        return z_pre
 
 
 def make_upper_case(tokens, lowercase_start=97, lowercase_end=122, case_diff=32):
