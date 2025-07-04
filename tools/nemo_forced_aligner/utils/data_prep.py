@@ -16,15 +16,17 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Union
-from lhotse import CutSet
 
 import lhotse.dataset
 import soundfile as sf
 import torch
+from lhotse import CutSet
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
+
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoTarredIterator
 from nemo.utils import logging
+
 
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     fp_parts = Path(audio_filepath).parts[-audio_filepath_parts_in_utt_id:]
@@ -113,6 +115,7 @@ def get_char_tokens(text, model):
             tokens.append(len(model.decoder.vocabulary))  # return unk token (same as blank token)
 
     return tokens
+
 
 def get_lhotse_dataloader(cuts, batch_size, return_dict=False):
     dloader = torch.utils.data.DataLoader(
@@ -798,7 +801,7 @@ def get_batch_variables(
     y_list_batch = []
     U_list_batch = []
     utt_obj_batch = []
-  
+
     for i_line, line in enumerate(manifest_lines_batch):
         if align_using_pred_text:
             gt_text_for_alignment = " ".join(pred_text_batch[i_line].split())
@@ -905,6 +908,7 @@ def get_batch_variables(
         utt_obj_batch,
         output_timestep_duration,
     )
+
 
 def load_nemo_tarred_from_dir(manifest_path: str, tar_paths: str) -> CutSet:
 
