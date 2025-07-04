@@ -33,7 +33,7 @@ class BuildWordBoostingTreeConfig:
     Build GPU-accelerated phrase boosting tree (btree) to be used with greedy and beam search decoders of ASR models.
     """
 
-    asr_model_path: Optional[str] = None # The path to '.nemo' ASR checkpoint
+    asr_model_path: Optional[str] = None  # The path to '.nemo' ASR checkpoint
     asr_pretrained_name: Optional[str] = None  # The name of pretrained ASR model (from NGC registry)
     context_biasing_list: str = MISSING  # The path to the context-biasing list file (one phrase per line)
     save_to: str = MISSING  # The path to save the GPU-accelerated word boosting graph
@@ -68,7 +68,7 @@ class BuildWordBoostingTreeConfig:
 
 @hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=BuildWordBoostingTreeConfig)
 def main(cfg: BuildWordBoostingTreeConfig):
- 
+
     # 1. load asr model to obtain tokenizer
     if cfg.asr_model_path is None and cfg.asr_pretrained_name is None:
         raise ValueError("Either asr_model_path or asr_pretrained_name must be provided")

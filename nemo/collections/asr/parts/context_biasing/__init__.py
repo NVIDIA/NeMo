@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel, BoostingTreeModelConfig
+from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import (
+    BoostingTreeModelConfig,
+    GPUBoostingTreeModel,
+)
 from nemo.collections.asr.parts.context_biasing.context_biasing_utils import (
     compute_fscore,
     merge_alignment_with_ws_hyps,

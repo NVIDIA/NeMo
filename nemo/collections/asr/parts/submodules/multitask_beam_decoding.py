@@ -23,7 +23,7 @@ from nemo.collections.asr.modules.transformer import (
     BeamSearchSequenceGenerator,
     BeamSearchSequenceGeneratorWithFusionModels,
 )
-from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel, BoostingTreeModelConfig
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -153,12 +153,12 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         self.pad = tokenizer.pad
         self.eos = tokenizer.eos
 
-        
         # load boosting tree model
-        if boosting_tree_cfg is not None and \
-            (boosting_tree_cfg.model_path or boosting_tree_cfg.key_phrases_file or boosting_tree_cfg.key_phrases_list):
+        if boosting_tree_cfg is not None and (
+            boosting_tree_cfg.model_path or boosting_tree_cfg.key_phrases_file or boosting_tree_cfg.key_phrases_list
+        ):
             boosting_tree_model = GPUBoostingTreeModel.from_config(boosting_tree_cfg, tokenizer=tokenizer)
-        
+
         # initialize fusion models (ngram LM, boosting tree)
         fusion_models, fusion_models_alpha = [], []
         if ngram_lm_model is not None:
