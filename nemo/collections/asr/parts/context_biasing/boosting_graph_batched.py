@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import deque
-from dataclasses import InitVar, dataclass, field
+from dataclasses import InitVar, dataclass, field, List
 from typing import NamedTuple, Optional
 
 import numpy as np
@@ -441,3 +441,25 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
             uniform_weights=False,
         )
         return boosting_tree_trivial
+
+
+# create dataclass for boosting tree model config
+@dataclass
+class BoostingTreeModelConfig:
+    """
+    Boosting tree model config
+    """
+    model_path: Optional[str] = None # The path to builded '.nemo' boosting tree model
+    key_phrases_file: Optional[str] = None # The path to the context-biasing list file (one phrase per line)
+    key_phrases_list: Optional[List[str]] = None # The list of context-biasing phrases ['word1', 'word2', 'word3', ...]
+    context_score: float = 1.0 # The score for each arc transition in the context graph 
+    depth_scaling: float = 1.0 # The scaling factor for the depth of the context graph
+    unk_score: float = 0.0 # The score for unknown tokens (tokens that are not presented in the beginning of context-biasing phrases)
+    final_eos_score: float = 1.0 # The score for eos token after detected end of context phrase to prevent hallucination for AED models
+    score_per_phrase: float = 0.0 # Custom score for each phrase in the context graph
+    source_lang: str = "en" # The source language of the context-biasing phrases (for aggregate tokenizer)
+    use_triton: bool = False # Whether to use Triton for inference.
+    uniform_weights: bool = False # Whether to use uniform weights for the context-biasing tree as in Icefall
+    use_bpe_dropout: bool = False # Whether to use BPE dropout for generating alternative transcriptions
+    num_of_transcriptions: int = 5 # The number of alternative transcriptions to generate for each context-biasing phrase
+    bpe_alpha: float = 0.3 # The alpha parameter for BPE dropout
