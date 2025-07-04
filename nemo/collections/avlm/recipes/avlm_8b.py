@@ -69,7 +69,13 @@ def finetune_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     peft_scheme: Optional[str] = 'none',
-    freeze_modules: Optional[dict] = None,
+    freeze_modules: Optional[dict] = {
+        "freeze_language_model": False,
+        "freeze_vision_model": True,
+        "freeze_audio_model": True,
+        "freeze_vision_projection": False,
+        "freeze_audio_projection": False,
+    },
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for AVLM 8B model.
@@ -178,7 +184,13 @@ def pretrain_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     language_model_from_pretrained: Optional[str] = None,
-    freeze_modules: Optional[dict] = None,
+    freeze_modules: Optional[dict] = {
+        "freeze_language_model": True,
+        "freeze_vision_model": True,
+        "freeze_audio_model": True,
+        "freeze_vision_projection": False,
+        "freeze_audio_projection": False,
+    },
 ) -> run.Partial:
     """
     Create a Pre-training recipe for AVLM 8B model.
