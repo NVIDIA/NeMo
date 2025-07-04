@@ -87,6 +87,7 @@ class LazyNeMoIterator:
         shuffle_shards: bool = False,
         shard_seed: int | Literal["randomized", "trng"] = "trng",
         extra_fields: list[dict[str, str]] | None = None,
+        allow_skipme: bool = False,
     ) -> None:
         self.path = path
         self.shuffle_shards = shuffle_shards
@@ -103,6 +104,7 @@ class LazyNeMoIterator:
         self.lang_field = lang_field
         self.metadata_only = metadata_only
         self.extra_fields = extra_fields
+        self.allow_skipme = allow_skipme
         validate_extra_fields(self.extra_fields)
 
     def __iter__(self) -> Generator[Cut, None, None]:
@@ -111,7 +113,7 @@ class LazyNeMoIterator:
         extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
         for data in self.source:
             # filter out entries with valid "_skipme" values.
-            if data.get("_skipme", False):
+            if data.get("_skipme", False) and not self.allow_skipme:
                 continue
             audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path), force_cache=False)
             duration = data.pop("duration")
@@ -278,6 +280,7 @@ class LazyNeMoTarredIterator:
         lang_field: str = "lang",
         skip_missing_manifest_entries: bool = False,
         extra_fields: list[dict[str, str]] | None = None,
+        allow_skipme: bool = False,
     ) -> None:
         self.skip_missing_manifest_entries = skip_missing_manifest_entries
         self.shard_id_to_manifest: dict[int, Iterable[dict]]
@@ -321,6 +324,7 @@ class LazyNeMoTarredIterator:
         self.text_field = text_field
         self.lang_field = lang_field
         self.extra_fields = extra_fields
+        self.allow_skipme = allow_skipme
         self._validate()
 
     def to_shards(self) -> List["LazyNeMoTarredIterator"]:
@@ -413,7 +417,7 @@ class LazyNeMoTarredIterator:
                     cuts_for_recording = []
                     for data in sorted(shard_manifest[tar_info.name], key=lambda d: d["audio_filepath"]):
                         # filter out entries with valid "_skipme" values.
-                        if data.get("_skipme", False):
+                        if data.get("_skipme", False) and not self.allow_skipme:
                             continue
                         # Cut the recording into corresponding segment and discard audio data outside the segment.
                         cut = make_cut_with_subset_inmemory_recording(
