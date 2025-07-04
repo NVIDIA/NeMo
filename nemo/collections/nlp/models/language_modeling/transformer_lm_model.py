@@ -26,10 +26,12 @@ from nemo.collections.common.losses import SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
 from nemo.collections.nlp.data import SentenceDataset, TarredSentenceDataset
+
 try:
     from nemo.collections.nlp.metrics import SequencePerplexity
 except ModuleNotFoundError:
     from abc import ABC
+
     SequencePerplexity = ABC
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
