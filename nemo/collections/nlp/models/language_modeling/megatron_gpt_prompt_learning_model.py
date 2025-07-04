@@ -27,10 +27,12 @@ from omegaconf.omegaconf import open_dict
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_prompt_learning_dataset import GPTPromptLearningDataset
+
 try:
     from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
 except ModuleNotFoundError:
     from abc import ABC
+
     AccuracyScore = ABC
     BLEUScore = ABC
     ROUGEScores = ABC
