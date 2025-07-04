@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: skip-file
+# flake8: noqa
+
 from time import perf_counter
 from typing import Dict, List, Optional
 
@@ -23,7 +26,13 @@ from transformers import AutoModelForTokenClassification, AutoTokenizer, DataCol
 from transformers.tokenization_utils_base import BatchEncoding
 
 from nemo.collections.nlp.data.text_normalization import TextNormalizationTaggerDataset, constants
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+
+try:
+    from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+except ModuleNotFoundError:
+    from abc import ABC
+
+    ClassificationReport = ABC
 from nemo.collections.nlp.models.duplex_text_normalization.utils import has_numbers
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck

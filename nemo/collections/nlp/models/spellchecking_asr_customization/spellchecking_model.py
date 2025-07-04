@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: skip-file
+# flake8: noqa
 
 from time import perf_counter
 from typing import Dict, Optional
@@ -28,7 +30,13 @@ from nemo.collections.nlp.data.spellchecking_asr_customization import (
     bert_example,
 )
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_label_map
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+
+try:
+    from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+except ModuleNotFoundError:
+    from abc import ABC
+
+    ClassificationReport = ABC
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.token_classifier import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
