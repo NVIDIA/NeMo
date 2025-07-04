@@ -18,6 +18,10 @@ from torch.nn.utils.rnn import pad_sequence
 
 from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel
 from nemo.collections.asr.parts.context_biasing.context_graph_universal import ContextGraph
+from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import BoostingTreeModelConfig
+from nemo.collections.asr.models import EncDecCTCModelBPE
+from lightning.pytorch import Trainer
+
 
 DEVICES = [torch.device("cpu")]
 
@@ -46,6 +50,14 @@ def test_boosting_tree(test_context_graph):
         uniform_weights=False,
     )
     return boosting_tree
+
+
+@pytest.fixture(scope="module")
+def conformer_ctc_bpe_model():
+    model = EncDecCTCModelBPE.from_pretrained(model_name="stt_en_conformer_ctc_small")
+    model.set_trainer(Trainer(devices=1, accelerator="cpu"))
+    model = model.eval()
+    return model
 
 
 class TestGPUBoostingTreeModel:
@@ -162,3 +174,45 @@ class TestGPUBoostingTreeModel:
             round(scores[0, 0].item(), 2) == 1.69
         )  # (1.69+0): 1.69 as max score for state 1 and 0 because it is not final state
         assert scores[1, 0] == 2.0  # (1+1): 1 as max score for state 2 and 1 because it is final state
+
+    @pytest.mark.unit
+    # I need to test that the boosting tree model is built correctly from the config using model_path, key_phrases_file, key_phrases_list
+    def test_boosting_tree_model_from_config(self, conformer_ctc_bpe_model, tmp_path):
+        """Test that the boosting tree model is built correctly from the config using model_path, key_phrases_file, key_phrases_list"""
+        
+        # 1. build boosting tree model from model path
+        boosting_tree_cfg = BoostingTreeModelConfig()
+        phrases = ["abc", "abd", "c"]
+        phrases_ids = [conformer_ctc_bpe_model.tokenizer.text_to_ids(phrase) for phrase in phrases]
+        scores = [0.0, 0.0, 0.0]
+        context_graph = ContextGraph(context_score=boosting_tree_cfg.context_score, depth_scaling=boosting_tree_cfg.depth_scaling)
+        context_graph.build(token_ids=phrases_ids, phrases=phrases, scores=scores, uniform_weights=boosting_tree_cfg.uniform_weights)
+        test_boosting_tree = GPUBoostingTreeModel.from_context_graph(
+            context_graph=context_graph,
+            vocab_size=conformer_ctc_bpe_model.tokenizer.vocab_size,
+            unk_score=boosting_tree_cfg.unk_score,
+            final_eos_score=boosting_tree_cfg.final_eos_score,
+            use_triton=boosting_tree_cfg.use_triton,
+            uniform_weights=boosting_tree_cfg.uniform_weights,
+        )
+
+        test_boosting_tree.save_to(tmp_path / "test_boosting_tree.nemo")
+        boosting_tree_cfg = BoostingTreeModelConfig(model_path=tmp_path / "test_boosting_tree.nemo")
+        boosting_tree_from_model_path = GPUBoostingTreeModel.from_config(boosting_tree_cfg, tokenizer=conformer_ctc_bpe_model.tokenizer)
+
+        # 2. build boosting tree model from key phrases file
+        with open(tmp_path / "test_boosting_tree.txt", "w") as f:
+            f.write("abc\nabd\nc")
+        boosting_tree_cfg = BoostingTreeModelConfig(key_phrases_file=tmp_path / "test_boosting_tree.txt")
+        boosting_tree_from_key_phrases_file = GPUBoostingTreeModel.from_config(boosting_tree_cfg, tokenizer=conformer_ctc_bpe_model.tokenizer)
+        
+        # 3. build boosting tree model from key phrases list
+        boosting_tree_cfg = BoostingTreeModelConfig(key_phrases_list=["abc", "abd", "c"])
+        boosting_tree_from_key_phrases_list = GPUBoostingTreeModel.from_config(boosting_tree_cfg, tokenizer=conformer_ctc_bpe_model.tokenizer)
+
+        # check that the boosting tree models are the same
+        assert torch.allclose(boosting_tree_from_model_path.arcs_weights, boosting_tree_from_key_phrases_file.arcs_weights)
+        assert torch.allclose(boosting_tree_from_model_path.arcs_weights, boosting_tree_from_key_phrases_list.arcs_weights)
+        
+        
+
