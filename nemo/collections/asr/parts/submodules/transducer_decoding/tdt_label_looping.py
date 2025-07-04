@@ -117,7 +117,6 @@ class LabelLoopingState:
             preserve_alignments: if alignments are needed
             preserve_frame_confidence: if frame confidence is needed
             include_duration_confidence: if duration confidence is needed to be added to the frame confidence
-            include_duration: if predicted token durations are needed to be added to the Hypothesis object
         """
         self.device = device
         self.float_dtype = float_dtype
@@ -157,6 +156,7 @@ class LabelLoopingState:
             init_length=self.max_time * max_symbols,
             device=self.device,
             float_dtype=float_dtype,
+            store_durations=True,
         )
         if preserve_alignments or preserve_frame_confidence:
             self.alignments = rnnt_utils.BatchedAlignments(
@@ -210,7 +210,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments=False,
         preserve_frame_confidence=False,
-        include_duration: bool = False,
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         allow_cuda_graphs: bool = True,
@@ -227,7 +226,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
             preserve_alignments: if alignments are needed
             preserve_frame_confidence: if frame confidence is needed
-            include_duration: if predicted token durations are needed to be added to the Hypothesis object
             include_duration_confidence: if duration confidence is needed to be added to the frame confidence
             confidence_method_cfg: config for the confidence
             ngram_lm_model: optional n-gram language model (LM) instance to use for decoding
@@ -242,8 +240,8 @@ class GreedyBatchedTDTLabelLoopingComputer(
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
+        self.use_alignments = preserve_alignments or preserve_frame_confidence
         self.allow_cuda_graphs = allow_cuda_graphs
-        self.include_duration = include_duration
         self.include_duration_confidence = include_duration_confidence
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
@@ -317,6 +315,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
             init_length=max_time * self.max_symbols if self.max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
+            store_durations=True,
         )
         # init alignments if necessary
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
@@ -486,7 +485,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
                     labels=labels,
                     time_indices=time_indices_current_labels,
                     scores=scores,
-                    token_durations=durations if self.include_duration else None,
+                    token_durations=durations,
                 )
             else:
                 # auto-adjusted storage
@@ -495,7 +494,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
                     labels=labels,
                     time_indices=time_indices_current_labels,
                     scores=scores,
-                    token_durations=durations if self.include_duration else None,
+                    token_durations=durations,
                 )
 
             # stage 3: get decoder (prediction network) output with found labels
@@ -778,7 +777,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
         # to avoid any manipulations with allocated memory outside the decoder
         return (
             self.state.batched_hyps.clone(),
-            self.state.alignments.clone() if self.preserve_alignments else None,
+            self.state.alignments.clone() if self.use_alignments else None,
             decoding_state,
         )
 
@@ -1205,7 +1204,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
             labels=self.state.labels,
             time_indices=self.state.time_indices_current_labels,
             scores=self.state.scores,
-            token_durations=self.state.durations if self.include_duration else None,
+            token_durations=self.state.durations,
         )
 
     def _after_inner_loop_select_lm_states(self):

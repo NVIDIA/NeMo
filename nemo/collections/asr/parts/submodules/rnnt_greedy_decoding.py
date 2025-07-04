@@ -2480,8 +2480,6 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
-        include_duration: Bool flag, which determines whether predicted durations for each token
-            need to be included in the Hypothesis object. Defaults to False.
         include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
             attached to the regular frame confidence,
             making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
@@ -2528,7 +2526,6 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
-        include_duration: bool = False,
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
     ):
@@ -2542,7 +2539,6 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
             confidence_method_cfg=confidence_method_cfg,
         )
         self.durations = durations
-        self.include_duration = include_duration
         self.include_duration_confidence = include_duration_confidence
 
     @typecheck()
@@ -2685,8 +2681,7 @@ class GreedyTDTInfer(_GreedyRNNTInfer):
                     hypothesis.timestamp.append(time_idx)
                     hypothesis.dec_state = hidden_prime
                     hypothesis.last_token = k
-                    if self.include_duration:
-                        hypothesis.token_duration.append(skip)
+                    hypothesis.token_duration.append(skip)
 
                 # Increment token counter.
                 symbols_added += 1
@@ -2751,8 +2746,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             The length of the list corresponds to the Acoustic Length (T).
             Each value in the list (Ti) is a torch.Tensor (U), representing 1 or more confidence scores.
             U is the number of target tokens for the current timestep Ti.
-        include_duration: Bool flag, which determines whether predicted durations for each token
-            need to be included in the Hypothesis object. Defaults to False.
         include_duration_confidence: Bool flag indicating that the duration confidence scores are to be calculated and
             attached to the regular frame confidence,
             making TDT frame confidence element a pair: (`prediction_confidence`, `duration_confidence`).
@@ -2804,7 +2797,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
-        include_duration: bool = False,
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         use_cuda_graph_decoder: bool = True,
@@ -2821,7 +2813,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             confidence_method_cfg=confidence_method_cfg,
         )
         self.durations = durations
-        self.include_duration = include_duration
         self.include_duration_confidence = include_duration_confidence
 
         # Depending on availability of `blank_as_pad` support
@@ -2837,7 +2828,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 max_symbols_per_step=self.max_symbols,
                 preserve_alignments=preserve_alignments,
                 preserve_frame_confidence=preserve_frame_confidence,
-                include_duration=include_duration,
                 include_duration_confidence=include_duration_confidence,
                 confidence_method_cfg=confidence_method_cfg,
                 allow_cuda_graphs=use_cuda_graph_decoder,

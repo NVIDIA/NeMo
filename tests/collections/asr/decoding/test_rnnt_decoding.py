@@ -408,10 +408,16 @@ class TestRNNTDecoding:
             ("stt_en_conformer_transducer_small", "greedy"),
             ("stt_en_conformer_transducer_small", "greedy_batch"),
             ("stt_en_conformer_transducer_small", "beam"),
-            # ("stt_en_conformer_transducer_small", "tsd"),
+            ("stt_en_conformer_transducer_small", "tsd"),
             ("stt_en_conformer_transducer_small", "alsd"),
+            ("stt_en_conformer_transducer_small", "maes"),
+            ("stt_en_conformer_transducer_small", "malsd_batch"),
+            ("stt_en_conformer_transducer_small", "maes_batch"),
             ("nvidia/parakeet-tdt_ctc-110m", "greedy"),
             ("nvidia/parakeet-tdt_ctc-110m", "greedy_batch"),
+            ("nvidia/parakeet-tdt_ctc-110m", "beam"),
+            ("nvidia/parakeet-tdt_ctc-110m", "maes"),
+            ("nvidia/parakeet-tdt_ctc-110m", "malsd_batch"),
         ],
     )
     def test_subword_decoding_compute_timestamps(self, test_data_dir, decoding_strategy, model_name):
@@ -420,7 +426,7 @@ class TestRNNTDecoding:
 
         cfg = DictConfig(model.cfg.decoding)
         cfg['strategy'] = decoding_strategy
-        cfg['preserve_alignments'] = True
+        cfg['preserve_alignments'] = False
         cfg['compute_timestamps'] = True
 
         decoding = RNNTBPEDecoding(
