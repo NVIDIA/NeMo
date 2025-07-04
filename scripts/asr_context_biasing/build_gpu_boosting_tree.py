@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 import torch
 from omegaconf import MISSING
@@ -33,9 +33,10 @@ class BuildWordBoostingTreeConfig:
     Build GPU-accelerated phrase boosting tree (btree) to be used with greedy and beam search decoders of ASR models.
     """
 
-    asr_model_nemo_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
+    asr_model_path: Optional[str] = None # The path to '.nemo' ASR checkpoint
+    asr_pretrained_name: Optional[str] = None  # The name of pretrained ASR model (from NGC registry)
     context_biasing_list: str = MISSING  # The path to the context-biasing list file (one phrase per line)
-    path_to_save_boosting_tree: str = MISSING  # The path to save the GPU-accelerated word boosting graph
+    save_to: str = MISSING  # The path to save the GPU-accelerated word boosting graph
 
     context_score: float = 1.0  # The score for each arc transition in the context graph
     depth_scaling: float = 1.0  # The scaling factor for the depth of the context graph
@@ -67,9 +68,15 @@ class BuildWordBoostingTreeConfig:
 
 @hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=BuildWordBoostingTreeConfig)
 def main(cfg: BuildWordBoostingTreeConfig):
-
+ 
     # 1. load asr model to obtain tokenizer
-    asr_model = nemo_asr.models.ASRModel.restore_from(cfg.asr_model_nemo_file, map_location=torch.device('cpu'))
+    if cfg.asr_model_path is None and cfg.asr_pretrained_name is None:
+        raise ValueError("Either asr_model_path or asr_pretrained_name must be provided")
+    elif cfg.asr_model_path is not None:
+        asr_model = nemo_asr.models.ASRModel.restore_from(cfg.asr_model_path, map_location=torch.device('cpu'))
+    else:
+        asr_model = nemo_asr.models.ASRModel.from_pretrained(cfg.asr_pretrained_name)
+
     is_aggregate_tokenizer = isinstance(asr_model.tokenizer, AggregateTokenizer)
 
     # 2. tokenize context-biasing phrases
@@ -130,15 +137,15 @@ def main(cfg: BuildWordBoostingTreeConfig):
     )
 
     # 5. save gpu boosting tree to nemo file
-    gpu_boosting_model.save_to(cfg.path_to_save_boosting_tree)
+    gpu_boosting_model.save_to(cfg.save_to)
 
     # 6. test gpu boosting tree model
     logging.info("testing gpu boosting tree model...")
     if cfg.test_boosting_tree and cfg.test_sentences:
         gpu_boosting_model_loaded = GPUBoostingTreeModel.from_nemo(
-            cfg.path_to_save_boosting_tree, vocab_size=vocab_size, use_triton=cfg.use_triton
+            cfg.save_to, vocab_size=vocab_size, use_triton=cfg.use_triton
         )
-        device = torch.device("cuda")
+        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         gpu_boosting_model_loaded = gpu_boosting_model_loaded.cuda()
 
         if not is_aggregate_tokenizer:

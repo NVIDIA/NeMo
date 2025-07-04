@@ -57,9 +57,9 @@ class BoostingTreeStorage:
     num_states: int = 0
     num_arcs: int = 0
     start_state: int = 0
-    bos_state: int = 1
+    bos_state: int = 0
 
-    def __post_init__(self, num_states_max: int, num_arcs_max: int, separate_bos_state: bool = True):
+    def __post_init__(self, num_states_max: int, num_arcs_max: int):
         if max(num_states_max, num_arcs_max) < np.iinfo(np.int32).max:
             int_np_dtype = np.int32
         else:
@@ -80,7 +80,6 @@ class BoostingTreeStorage:
             ],
         )
         self.states["final"] = self.final_eos_score
-        self.bos_state = 1 if separate_bos_state else self.start_state
         self._node_cache[0] = 0
         self.separate_bos_state = False
 
