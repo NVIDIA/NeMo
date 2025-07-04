@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# pylint: skip-file
+# flake8: noqa
+
 import itertools
 import re
 from collections import OrderedDict
