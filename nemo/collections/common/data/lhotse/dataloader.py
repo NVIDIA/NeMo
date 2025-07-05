@@ -111,6 +111,7 @@ class LhotseDataLoadingConfig:
     pretokenize: bool = True  # should we apply tokenizer before data sampling
     prompt_format: str | None = None  # when provided, we'll apply the prompt in addition to the tokenizer
     use_multimodal_sampling: bool = False
+    audio_locator_tag: str | None = None  # global audio placeholder token, propagates to datasets in input_cfg
     token_equivalent_duration: float | None = None
     batch_tokens: int | None = None
     quadratic_factor: float | None = None
