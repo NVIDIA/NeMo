@@ -31,7 +31,7 @@ from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from megatron.core.distributed.custom_fsdp import FSDP
+from nemo.lightning.pytorch.strategies.nvfsdp import nvFSDP
 from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel
 from typing_extensions import override
@@ -305,7 +305,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 """
                 Modified optimizer pre-step hook to wait for all sharded gradients to be reduced and unsharded.
                 """
-                if isinstance(lightning_module.model, FSDP):
+                if isinstance(lightning_module.model, nvFSDP):
                     # If the model uses custom FSDP2, wait for all sharded gradients to be reduced and unsharded.
                     # Necessary because the post-backward reduce-scatter is asynchronous, so gradients and backward
                     # computations are concurrent, but the gradients of the final layer may not be available yet.
@@ -336,7 +336,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 base_optimizer_step(epoch, batch_idx, optimizer, optimizer_closure)
 
                 if (
-                    isinstance(lightning_module.model, FSDP)
+                    isinstance(lightning_module.model, nvFSDP)
                     and lightning_module.model.ddp_config.preserve_fp32_weights
                 ):
                     # If custom FSDP2 is configured with "optim" (optimizer state / high-precision model weight sharding),

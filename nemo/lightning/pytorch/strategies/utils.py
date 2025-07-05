@@ -28,7 +28,7 @@ from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
 from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
-from megatron.core.distributed.custom_fsdp import FSDP
+from nemo.lightning.pytorch.strategies.nvfsdp import fully_shard
 from megatron.core.distributed.distributed_data_parallel_config import DistributedDataParallelConfig
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
@@ -46,9 +46,9 @@ from nemo.utils.import_utils import safe_import_from
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
     "torch.distributed.fsdp", "MixedPrecisionPolicy", fallback_module="torch.distributed._composable.fsdp"
 )
-fully_shard, HAS_FULLY_SHARD = safe_import_from(
-    "torch.distributed.fsdp", "fully_shard", fallback_module="torch.distributed._composable.fsdp"
-)
+# fully_shard, HAS_FULLY_SHARD = safe_import_from(
+#     "torch.distributed.fsdp", "fully_shard", fallback_module="torch.distributed._composable.fsdp"
+# )
 CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
     "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
 )
@@ -638,13 +638,25 @@ def custom_fsdp2_strategy_parallelize(
     cfsdp2_unit_modules = import_classes_from_paths(cfsdp2_unit_modules)
 
     # Wrap model with custom FSDP2.
-    model = FSDP(
-        ddp_config=ddp_config,
+    model, _ = fully_shard(
         module=model,
+        data_parallel_sharding_strategy=ddp_config.data_parallel_sharding_strategy,
         fsdp_unit_modules=cfsdp2_unit_modules,
-        dp_cp_group=dp_mesh.get_group(),
+        device_mesh=device_mesh,
+        dp_mesh_dim_name="data_parallel",
+        cp_mesh_dim_name="context_parallel",
+        tp_mesh_dim_name="tensor_parallel",
+        dp_cp_mesh_dim_name="dp_cp",
         calculate_per_token_loss=False,
-        init_model_with_meta_device=init_cfsdp2_model_with_meta_device,
+        init_model_with_meta_device=True,
+        check_for_nan_in_grad=ddp_config.check_for_nan_in_grad,
+        grad_reduce_in_fp32=ddp_config.grad_reduce_in_fp32,
+        preserve_fp32_weights=ddp_config.preserve_fp32_weights,
+        overlap_grad_reduce=ddp_config.overlap_grad_reduce,
+        overlap_param_gather=ddp_config.overlap_param_gather,
+        # Auto-sync gradients after post-backward so the user doesn't need to manually wait.
+        sync_grads_each_step=False,
+        average_in_collective=ddp_config.average_in_collective,
     )
 
     return model

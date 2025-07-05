@@ -114,6 +114,7 @@ def make_strategy(
     num_nodes,
     adapter_only=False,
     enable_cpu_offload=False,
+    sharding_strategy="optim_grads_params",
     dp_size=None,
     tp_size=None,
     cp_size=None,
@@ -159,7 +160,7 @@ def make_strategy(
             use_hf_tp_plan=use_hf_tp_plan,
             ddp_config=DistributedDataParallelConfig(
                 check_for_nan_in_grad=True,
-                data_parallel_sharding_strategy="optim_grads_params",
+                data_parallel_sharding_strategy=sharding_strategy,
                 grad_reduce_in_fp32=False,
                 preserve_fp32_weights=False,
                 overlap_grad_reduce=True,
@@ -215,6 +216,7 @@ def main():
     )
     parser.add_argument('--use-hf-tp-plan', action='store_true', help='Use huggingface TP plan; to be used with TP')
     parser.add_argument('--cfsdp2', action='store_true', help='Use custom FSDP2.')
+    parser.add_argument('--sharding-strategy', type=str, default='optim_grads_params', help='Sharding strategy to use with nvFSDP.')
     parser.add_argument(
         '--cfsdp2-unit-modules',
         type=str,
@@ -371,6 +373,7 @@ def main():
         args.num_nodes,
         False,
         args.enable_cpu_offload,
+        sharding_strategy=args.sharding_strategy,
         dp_size=args.dp_size,
         tp_size=args.tp_size,
         cp_size=args.cp_size,

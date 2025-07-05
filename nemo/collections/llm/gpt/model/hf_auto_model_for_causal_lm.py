@@ -473,6 +473,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # Log the reduced loss.
         self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
         self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log("steps_per_sec", 1.0 / time_delta, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log("torch_memory_alloc_gb", torch.cuda.memory_allocated() / 1024**3, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
         # log LR
         # TODO(akoumparouli): move this elsewhere.
