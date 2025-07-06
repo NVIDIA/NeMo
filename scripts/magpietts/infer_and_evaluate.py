@@ -423,7 +423,7 @@ def main():
     parser.add_argument('--hparams_file_from_wandb', action='store_true')
     parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
     parser.add_argument('--nemo_files', type=str, default=None)
-    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo", help="Path to codec model (only used when --compute_fcd is specified)")
+    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo", help="Path to codec model (used for FCD computation unless --disable_fcd is specified)")
     parser.add_argument('--datasets', type=str, default="libri_unseen_test_12.5")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmountedresson/")
     parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTS_FixedPosEmb/AllKernselSize3/EdressonCodecExperiments/")
@@ -453,8 +453,11 @@ def main():
     parser.add_argument('--cer_target', type=float, default=1.0)
     parser.add_argument('--ssim_target', type=float, default=0.)
     parser.add_argument('--log_exp_name', action='store_true', help="Include the experiment name (derived from the checkpoint path) in the output folder name.")
-    parser.add_argument('--compute_fcd', action='store_true', help="Compute Frechet Codec Distance (requires codecmodel_path)")
+    parser.add_argument('--disable_fcd', action='store_true', help="Disable Frechet Codec Distance computation")
     args = parser.parse_args()
+
+    # FCD computation is enabled by default, disabled only when --disable_fcd is specified
+    compute_fcd = not args.disable_fcd
 
     estimate_alignment_from_layers = None
     if args.estimate_alignment_from_layers is not None:
@@ -499,7 +502,7 @@ def main():
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
                 log_exp_name=args.log_exp_name,
-                compute_fcd=args.compute_fcd
+                compute_fcd=compute_fcd
             )
         return
     # Mode 2: Run inference from a .nemo file
@@ -533,8 +536,8 @@ def main():
                 legacy_codebooks=args.legacy_codebooks,
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
-                log_exp_name=args.log_exp_name
-                compute_fcd=args.compute_fcd,
+                log_exp_name=args.log_exp_name,
+                compute_fcd=compute_fcd
             )
     # Mode 3: Discover and run experiments from a base directory
     #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
@@ -602,7 +605,7 @@ def main():
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
                 log_exp_name=args.log_exp_name,
-                compute_fcd=args.compute_fcd
+                compute_fcd=compute_fcd
             )
     else:
         parser.error(
