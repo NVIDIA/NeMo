@@ -106,7 +106,7 @@ jobs:
             is_ci_workload=true
             echo "main=true" | tee -a "$GITHUB_OUTPUT"
           else
-            is_ci_workload=true
+            is_ci_workload=false
           fi
 
           echo "main=$is_ci_workload" | tee -a "$GITHUB_OUTPUT"
