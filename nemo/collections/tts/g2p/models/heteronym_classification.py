@@ -23,7 +23,7 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+from nemo.collections.tts.metrics.classification_report import ClassificationReport
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.collections.tts.g2p.data.heteronym_classification import HeteronymClassificationDataset
