@@ -90,7 +90,7 @@ class ClassificationReport(Metric):
         Updates attributes needed for new classification report (true positive, false negative, false postive, examples per class)
 
         Args:
-            predictions: predicted labels 
+            predictions: predicted labels
             labels: actual labels
 
         Return:
@@ -184,4 +184,3 @@ class ClassificationReport(Metric):
                 f'{self.mode} mode is not supported. Choose "macro" to get aggregated numbers \
             or "all" to get values for each class.'
             )
-
