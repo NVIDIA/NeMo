@@ -29,7 +29,7 @@ class ValMetric(ABC):
 class AccuracyScore(ValMetric):
     def get_score(self, ground_truth, predicted_text):
         corrects = 0
-        for (pred, label) in zip(predicted_text, ground_truth):
+        for pred, label in zip(predicted_text, ground_truth):
             if pred == label:
                 corrects += 1
 
@@ -43,7 +43,12 @@ class BLEUScore(ValMetric):
 
     def get_score(self, ground_truth, predicted_text):
         return {
-            'bleu_score': torch.tensor(self.scorer.corpus_score(predicted_text, [[i] for i in ground_truth],).score)
+            'bleu_score': torch.tensor(
+                self.scorer.corpus_score(
+                    predicted_text,
+                    [[i] for i in ground_truth],
+                ).score
+            )
         }
 
 
@@ -72,4 +77,3 @@ class ROUGEScores(ValMetric):
             'rouge_3_score': torch.tensor(all_rouges[2]),
             'rouge_L_score': torch.tensor(all_rouges[3]),
         }
-
