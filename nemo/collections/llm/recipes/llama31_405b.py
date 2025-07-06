@@ -226,6 +226,10 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
         It may not be suitable for all hardware configurations or use cases.
     """
 
+    # enable TE op fuser for MLP
+    if hasattr(recipe.model.config, "use_transformer_engine_op_fuser"):
+        recipe.model.config.use_transformer_engine_op_fuser = True
+
     if not recipe.trainer.callbacks:
         recipe.trainer.callbacks = []
 
