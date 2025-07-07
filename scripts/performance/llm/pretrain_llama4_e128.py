@@ -61,6 +61,8 @@ def override_recipe_configs(
         ep_size,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
+        use_mcore_fsdp=args.use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
@@ -72,10 +74,10 @@ def override_recipe_configs(
 
     # data module configs
     if args.use_hf_tokenizer:
-        recipe.data.tokenizer = hf_tokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
+        recipe.data.tokenizer = hf_tokenizer('meta-llama/Llama-4-Maverick-17B-128E-Instruct')
     else:
         recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=202048
+            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=200000
         )
         recipe.model.tokenizer = recipe.data.tokenizer
 
