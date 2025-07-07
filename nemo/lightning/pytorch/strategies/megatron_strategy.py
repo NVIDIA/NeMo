@@ -715,6 +715,16 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         _optimizers_to_device(self.optimizers, self.root_device)
 
     @override
+    def on_validation_end(self) -> None:
+        for model_chunk in self.model:
+            model_chunk.train()
+
+    @override
+    def on_test_end(self) -> None:
+        for model_chunk in self.model:
+            model_chunk.train()
+
+    @override
     def training_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
         """Runs one training step"""
         assert self.lightning_module is not None
