@@ -21,4 +21,4 @@ if __name__ == '__main__':
     params = FluxModelParams()
     model = MegatronFluxModel(flux_params=params)
 
-    llm.import_ckpt(model, "hf://black-forest-labs/FLUX.1-dev", "/tmp_flux_dist_ckpt", overwrite=True)
+    llm.import_ckpt(model, "/home/TestData/diffusion/ckpt/flux-hf", "/tmp_flux_dist_ckpt", overwrite=True)
