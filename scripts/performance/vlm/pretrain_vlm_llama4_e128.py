@@ -65,6 +65,9 @@ def override_recipe_configs(
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         compute_dtype=args.compute_dtype,
+        use_mcore_fsdp=args.use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_user_buffer_registration=args.use_user_buffer_registration,
     )
     recipe = set_exp_logging_configs(
         recipe,
@@ -86,15 +89,14 @@ def override_recipe_configs(
     recipe.model.config.language_transformer_config.cross_entropy_loss_fusion = True
     recipe.model.config.language_transformer_config.apply_rope_fusion = True
     recipe.model.config.language_transformer_config.moe_permute_fusion = True
-
-    recipe.model.config.vision_transformer_config.apply_rope_fusion = True
     recipe.model.config.vision_transformer_config.gradient_accumulation_fusion = True
 
     # enable cudagraph
-    enable_cuda_graphs = True
-    recipe.model.config.vision_transformer_config.enable_cuda_graph = enable_cuda_graphs
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+    recipe.model.config.vision_transformer_config.enable_cuda_graph = True
+    recipe.model.config.enable_cuda_graph = True
+    recipe.trainer.strategy.use_te_rng_tracker = True
+
+    recipe.model.config.language_transformer_config.enable_cuda_graph = enable_cuda_graphs
 
     return recipe
 
@@ -132,6 +134,9 @@ if __name__ == "__main__":
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
     )
+
+    if args.gpu.lower() in ['gb200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+        del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
 
     plugins = [
         PerfEnvPlugin(
