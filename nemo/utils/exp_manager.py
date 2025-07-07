@@ -450,8 +450,9 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
         from nv_one_logger.training_telemetry.api.checkpoint import CheckPointStrategy
         from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
         from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-        from nv_one_logger.wandb.exporter.wandb_exporter import WandBExporterAsync, Config as WandBConfig
+        from nv_one_logger.wandb.exporter.wandb_exporter import WandBExporterAsync, WandBExporterSync, Config as WandBConfig
         from pytorch_lightning.plugins.io import AsyncCheckpointIO
+        from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 
         # Extract metadata from config
         metadata = MetaInfoManager(cfg).get_metadata()
@@ -479,34 +480,53 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
             enable_one_logger=True,
             world_size_or_fn=world_size,
             global_batch_size_or_fn=metadata.get("global_batch_size", 1),
-            enable_for_current_rank=torch.distributed.get_rank() == 0,
+            enable_for_current_rank=os.environ.get("RANK", '-1') == '0',
             log_every_n_train_iterations=cfg.get("log_interval", 10),
             is_train_iterations_enabled_or_fn=True,
             is_validation_iterations_enabled_or_fn=True,
-            is_test_iterations_enabled_or_fn=True,
+            is_test_iterations_enabled_or_fn=False,
             is_save_checkpoint_enabled_or_fn=True,
             is_log_throughput_enabled_or_fn=False,
-            micro_batch_size_or_fn=None,
-            flops_per_sample_or_fn=None,
+            micro_batch_size_or_fn=1,
             save_checkpoint_strategy=save_checkpoint_strategy,
-            train_iterations_target_or_fn=None,
-            train_samples_target_or_fn=None,
+            train_iterations_target_or_fn=99,
+            train_samples_target_or_fn=990,
         )
         training_telemetry_config.validate_config()
 
-        # Build WandBConfig
-        wandb_config = WandBConfig(
-            entity="hwinf_dcm",
-            project="nemo-transition-jiashang",
-            run_name=f"nemo-session-{uuid.uuid4()}",
-        )
+        exporters = []
+        if os.environ.get("RANK", '-1') == '0':
+            # Build WandBConfig only on main rank
+            wandb_config = WandBConfig(
+                entity="hwinf_dcm",
+                project="nemo-transition-jiashang",
+                run_name=f"nemo-session-{uuid.uuid4()}",
+            )
 
-        # Create and initialize exporter
-        exporter = WandBExporterAsync(config=wandb_config)
-        exporter.initialize()
+            exporter = WandBExporterSync(config=wandb_config)
+            exporter.initialize()
+            exporters.append(exporter)
 
-        # Configure the provider
-        TrainingTelemetryProvider.instance().configure(training_telemetry_config, [exporter])
+        # Configure the provider (all ranks need this for proper coordination)
+        TrainingTelemetryProvider.instance().configure(training_telemetry_config, exporters)
+
+        TrainingTelemetryProvider.instance().recorder.on_app_start()
+
+        # Add the OneLogger callback to the trainer if provided
+        if trainer is not None: 
+            # Check if OneLoggerNeMoCallback is already in the trainer's callbacks
+            has_onelogger_callback = any(
+                isinstance(callback, OneLoggerNeMoCallback) 
+                for callback in trainer.callbacks
+            )
+            
+            if not has_onelogger_callback:
+                # Create the callback with metadata
+                onelogger_callback = OneLoggerNeMoCallback(
+                    callback_config=metadata,
+                    log_interval=cfg.get("log_interval", 10)
+                )
+                trainer.callbacks.append(onelogger_callback)
 
         logging.info("OneLogger v2 callback configured with training telemetry (direct v2 logic, no adapter)")
 
@@ -636,9 +656,6 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         logging.info("Trainer was called with fast_dev_run. exp_manager will return without any functionality.")
         return
 
-    # Call on_app_start at the beginning of exp_manager
-    CallbackGroup.get_instance().on_app_start()
-
     # Register on_app_end with atexit
     atexit.register(CallbackGroup.get_instance().on_app_end)
 
@@ -763,7 +780,9 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         )
 
     # Configure OneLogger callback
+    print(f"OneLogger: Calling configure_onelogger with trainer: {trainer}")
     configure_onelogger(cfg, trainer)
+    print(f"OneLogger: configure_onelogger completed")
 
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:
