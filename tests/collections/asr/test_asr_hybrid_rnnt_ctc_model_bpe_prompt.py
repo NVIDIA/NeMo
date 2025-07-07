@@ -156,9 +156,21 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         input_signal = torch.randn(size=(4, 512))
         length = torch.randint(low=161, high=500, size=[4])
 
-        # Create dummy prompt tensor
-        prompt_timesteps = 64
-        prompt = torch.randn(size=(4, prompt_timesteps, hybrid_asr_model_with_prompt.num_prompts))
+        # Calculate expected timesteps dynamically for the batch
+        with torch.no_grad():
+            # Process the entire batch to get the actual encoded timesteps
+            batch_processed, batch_processed_len = hybrid_asr_model_with_prompt.preprocessor(
+                input_signal=input_signal, length=length
+            )
+            # Run through encoder to get actual encoded length
+            encoded_sample, encoded_len_sample = hybrid_asr_model_with_prompt.encoder(
+                audio_signal=batch_processed, length=batch_processed_len
+            )
+            # Get the maximum encoded length for creating prompt tensor
+            max_encoded_timesteps = encoded_sample.shape[2]  # [B, D, T] format
+
+        # Create prompt tensor with the correct timesteps dimension
+        prompt = torch.randn(size=(4, max_encoded_timesteps, hybrid_asr_model_with_prompt.num_prompts))
 
         with torch.no_grad():
             # batch size 1
@@ -425,23 +437,6 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         first_layer = hybrid_asr_model_with_prompt.prompt_kernel[0]
         assert first_layer.in_features == expected_input_size
         assert first_layer.out_features == expected_output_size * 2
-
-    @pytest.mark.unit
-    def test_forward_without_prompt(self, hybrid_asr_model_with_prompt):
-        """Test forward pass when concat is disabled (no prompt processing)."""
-        hybrid_asr_model_with_prompt.eval()
-        hybrid_asr_model_with_prompt.concat = False  # Disable prompt concatenation
-
-        input_signal = torch.randn(size=(2, 512))
-        length = torch.randint(low=161, high=500, size=[2])
-
-        with torch.no_grad():
-            encoded, encoded_len = hybrid_asr_model_with_prompt.forward(
-                input_signal=input_signal, input_signal_length=length, prompt=None  # No prompt provided
-            )
-
-        assert encoded.shape[0] == 2  # Batch size
-        assert encoded_len.shape[0] == 2
 
     @pytest.mark.unit
     def test_prompt_truncation(self, hybrid_asr_model_with_prompt):

@@ -581,12 +581,15 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCBPEModel, ASRTran
         if self.concat:
             if prompt.shape[1] > encoded.shape[1]:
                 prompt = prompt[:, : encoded.shape[1], :]
+            out_dtype = encoded.dtype  # this is dtype, which the decoder previously got from encoder
 
             # Concatenate encoded states with prompt
             concat_enc_states = torch.cat([encoded, prompt], dim=-1)
 
             # Apply joint projection
-            encoded = self.prompt_kernel(concat_enc_states)
+            encoded = self.prompt_kernel(concat_enc_states).to(
+                out_dtype
+            )  # cast: unexpectedly without cast dtype is different from out_dtype
 
         encoded = torch.transpose(encoded, 1, 2)  # B * T * D -> B * D * T
         return encoded, encoded_len
