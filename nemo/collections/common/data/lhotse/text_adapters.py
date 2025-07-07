@@ -39,8 +39,8 @@ from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 
 """
-Formattable: mixin class with data fields for prompt formatter outputs and method for 
-applying prompt formatters to derived data types. 
+Formattable: mixin class with data fields for prompt formatter outputs and method for
+applying prompt formatters to derived data types.
 """
 
 
@@ -547,7 +547,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                     cut = recording.to_cut()
                     assert (
                         audio_path == turn['value']
-                    ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}"
+                        ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}.\nBad inputs in: {jsonl_path=} {tar_path=}"
                     cuts.append(cut)
                 cuts = deque(cuts)
                 yield NeMoMultimodalConversation(
@@ -649,7 +649,7 @@ def _iterate_tarfile_pairwise(
         yield tuple(result)
 
     if len(result) == 1:
-        yield result, (None, None)
+        yield result[0], (None, None)
 
 
 class NeMoMultimodalConversationTarWriter:
