@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Dict, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union, Any
 
 import lightning.pytorch as pl
 import torch
@@ -182,3 +182,92 @@ class ParameterDebugger(Callback):
 
             debug_table.align = "l"
             logging.info("\n" + debug_table.get_string())
+
+
+class ModelTrainingStateCallback(Callback):
+    """
+    Callback to detect model training state corruption during validation.
+    
+    This callback monitors whether all model components maintain their training 
+    state consistently before and after validation. Designed to catch issues
+    where some modules are left in eval() mode after PTL validation loop.
+    
+    Args:
+        val_check_interval: Interval at which validation occurs. Default: 10.
+        strict: If True, raises an exception when corruption is detected. Default: False.
+    """
+    
+    def __init__(self, val_check_interval: int = 10, strict: bool = False):
+        self.val_check_interval = val_check_interval
+        self.strict = strict
+        self._pre_validation_state = None
+        self._expecting_post_validation_check = False
+
+    def _get_training_state(self, trainer: "pl.Trainer") -> Dict[str, int]:
+        """Get training/eval module counts from model chunks."""
+        if not hasattr(trainer, 'model') or trainer.model is None:
+            return {'error': 'No model available'}
+        
+        from nemo.lightning.megatron_parallel import MegatronParallel
+        from nemo.utils.model_utils import unwrap_model
+        
+        # Extract model chunks
+        if isinstance(trainer.model, MegatronParallel):
+            pipeline = trainer.model.pipeline
+            model_chunks = pipeline if isinstance(pipeline, list) else [pipeline]
+        elif isinstance(trainer.model, list):
+            model_chunks = trainer.model
+        else:
+            model_chunks = [trainer.model]
+        
+        # Count training/eval modules across all chunks
+        total_training = total_eval = 0
+        for chunk in model_chunks:
+            actual_model = unwrap_model(chunk)
+            for module in actual_model.modules():
+                if module.training:
+                    total_training += 1
+                else:
+                    total_eval += 1
+        
+        return {
+            'training_modules': total_training,
+            'eval_modules': total_eval,
+            'num_chunks': len(model_chunks)
+        }
+
+    def on_train_batch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", 
+                            batch: Any, batch_idx: int) -> None:
+        """Capture training state before/after validation."""
+        current_step = trainer.global_step
+        
+        # Capture state before validation
+        if current_step > 0 and (current_step + 1) % self.val_check_interval == 0:
+            self._pre_validation_state = self._get_training_state(trainer)
+            self._expecting_post_validation_check = True
+            
+        # Check state after validation
+        elif self._expecting_post_validation_check and self._pre_validation_state is not None:
+            post_validation_state = self._get_training_state(trainer)
+            
+            # Compare states
+            if ('error' not in self._pre_validation_state and 
+                'error' not in post_validation_state):
+                
+                pre_training = self._pre_validation_state.get('training_modules', 0)
+                post_training = post_validation_state.get('training_modules', 0)
+                
+                if pre_training != post_training:
+                    msg = (f"Model training state corruption detected! "
+                          f"Before validation: {pre_training} training modules, "
+                          f"after validation: {post_training} training modules "
+                          f"(step {current_step})")
+                    
+                    if self.strict:
+                        raise RuntimeError(msg)
+                    else:
+                        logging.warning(msg)
+            
+            # Reset for next validation
+            self._pre_validation_state = None
+            self._expecting_post_validation_check = False
