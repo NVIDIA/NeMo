@@ -387,7 +387,8 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             kwargs = {}
 
         if self.attention_softmax_denominator_offset is not None:
-            transformer_layer_spec.submodules.self_attention.submodules.core_attention = DotProductAttention
+            if hasattr(transformer_layer_spec, 'submodules'):
+                transformer_layer_spec.submodules.self_attention.submodules.core_attention = DotProductAttention
         with model_init_device_context():
             model = MCoreGPTModel(
                 self,
