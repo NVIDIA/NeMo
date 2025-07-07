@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import glob
 import os
 import signal
 import subprocess
 import sys
 import time
+import uuid
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -41,6 +43,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
@@ -51,6 +54,7 @@ from nemo.utils.import_utils import safe_import_from
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
+from nemo.utils.meta_info_manager import MetaInfoManager
 from nemo.utils.model_utils import uninject_model_parallel_rank
 from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
@@ -249,7 +253,7 @@ class ExpManagerConfig:
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
-    # disable initial validation when resuming from a checkpoint saved during validation
+    # disable initial validation when resuming from a checkpoint
     disable_validation_on_resume: Optional[bool] = True
     ema: Optional[EMAParams] = field(default_factory=lambda: EMAParams())
     # Wall clock time limit
@@ -440,6 +444,98 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
+def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trainer] = None) -> None:
+    """Configure OneLogger v2 callback with training telemetry and exporters, using correct v2 logic (no adapter, no compatibility object)."""
+    try:
+        from nv_one_logger.api.config import ApplicationType, OneLoggerErrorHandlingStrategy
+        from nv_one_logger.training_telemetry.api.checkpoint import CheckPointStrategy
+        from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
+        from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
+        from nv_one_logger.wandb.exporter.wandb_exporter import Config as WandBConfig
+        from nv_one_logger.wandb.exporter.wandb_exporter import WandBExporterAsync, WandBExporterSync
+        from pytorch_lightning.plugins.io import AsyncCheckpointIO
+
+        from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
+
+        # Extract metadata from config
+        metadata = MetaInfoManager(cfg).get_metadata()
+        world_size = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+
+        # Compose custom_metadata, including app_tag_run_version
+        custom_metadata = dict(metadata) if metadata else {}
+        custom_metadata["app_tag_run_version"] = metadata.get("run_version", "1.0.0")
+
+        # Determine checkpoint strategy
+        if trainer is not None and isinstance(trainer.strategy.checkpoint_io, AsyncCheckpointIO):
+            save_checkpoint_strategy = CheckPointStrategy.ASYNC
+        else:
+            save_checkpoint_strategy = CheckPointStrategy.SYNC
+
+        # Build TrainingTelemetryConfig (mimic adapter logic)
+        training_telemetry_config = TrainingTelemetryConfig(
+            application_name=metadata.get("app_name", "nemo-training"),
+            perf_tag_or_fn=metadata.get("perf_tag", "default"),
+            session_tag_or_fn=metadata.get("session_tag", f"nemo-session"),
+            app_type_or_fn=ApplicationType.TRAINING,
+            is_baseline_run_or_fn=False,
+            custom_metadata=custom_metadata,
+            error_handling_strategy=OneLoggerErrorHandlingStrategy.PROPAGATE_EXCEPTIONS,
+            enable_one_logger=True,
+            world_size_or_fn=world_size,
+            global_batch_size_or_fn=metadata.get("global_batch_size", 1),
+            enable_for_current_rank=os.environ.get("RANK", '-1') == '0',
+            log_every_n_train_iterations=cfg.get("log_interval", 10),
+            is_train_iterations_enabled_or_fn=True,
+            is_validation_iterations_enabled_or_fn=True,
+            is_test_iterations_enabled_or_fn=False,
+            is_save_checkpoint_enabled_or_fn=True,
+            is_log_throughput_enabled_or_fn=False,
+            micro_batch_size_or_fn=1,
+            save_checkpoint_strategy=save_checkpoint_strategy,
+            train_iterations_target_or_fn=99,
+            train_samples_target_or_fn=990,
+        )
+        training_telemetry_config.validate_config()
+
+        exporters = []
+        if os.environ.get("RANK", '-1') == '0':
+            # Build WandBConfig only on main rank
+            wandb_config = WandBConfig(
+                entity="hwinf_dcm",
+                project="nemo-transition-jiashang",
+                run_name=f"nemo-session-{uuid.uuid4()}",
+            )
+
+            exporter = WandBExporterSync(config=wandb_config)
+            exporter.initialize()
+            exporters.append(exporter)
+
+        # Configure the provider (all ranks need this for proper coordination)
+        TrainingTelemetryProvider.instance().configure(training_telemetry_config, exporters)
+
+        TrainingTelemetryProvider.instance().recorder.on_app_start()
+
+        # Add the OneLogger callback to the trainer if provided
+        if trainer is not None:
+            # Check if OneLoggerNeMoCallback is already in the trainer's callbacks
+            has_onelogger_callback = any(isinstance(callback, OneLoggerNeMoCallback) for callback in trainer.callbacks)
+
+            if not has_onelogger_callback:
+                # Create the callback with metadata
+                onelogger_callback = OneLoggerNeMoCallback(
+                    callback_config=metadata, log_interval=cfg.get("log_interval", 10)
+                )
+                trainer.callbacks.append(onelogger_callback)
+
+        logging.info("OneLogger v2 callback configured with training telemetry (direct v2 logic, no adapter)")
+
+    except ImportError as e:
+        logging.warning(f"OneLogger v2 not available, skipping configuration. ImportError: {e}")
+    except Exception as e:
+        logging.error(f"OneLogger v2 configuration failed: {e}")
+        raise
+
+
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch
@@ -457,7 +553,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     exp_manager additionally has a resume feature (resume_if_exists) which can be used to
     continuing training from the constructed log_dir. When you need to continue the training
     repeatedly (like on a cluster which you need multiple consecutive jobs), you need to avoid
-    creating the version folders. Therefore from v1.0.0, when resume_if_exists is set to True,
+    creating the version folders. Therefore from v1.0.0, when resume_if_exists is True,
     creating the version folders is ignored.
 
     Args:
@@ -558,6 +654,9 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     if trainer.fast_dev_run:
         logging.info("Trainer was called with fast_dev_run. exp_manager will return without any functionality.")
         return
+
+    # Register on_app_end with atexit
+    atexit.register(CallbackGroup.get_instance().on_app_end)
 
     # Ensure passed cfg is compliant with ExpManagerConfig
     schema = OmegaConf.structured(ExpManagerConfig)
@@ -678,6 +777,11 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
             cfg.create_neptune_logger,
             cfg.neptune_logger_kwargs,
         )
+
+    # Configure OneLogger callback
+    print(f"OneLogger: Calling configure_onelogger with trainer: {trainer}")
+    configure_onelogger(cfg, trainer)
+    print(f"OneLogger: configure_onelogger completed")
 
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:
