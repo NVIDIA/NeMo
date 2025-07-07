@@ -205,9 +205,6 @@ class ModelTrainingStateCallback(Callback):
 
     def _get_training_state(self, trainer: "pl.Trainer") -> Dict[str, int]:
         """Get training/eval module counts from model chunks."""
-        if not hasattr(trainer, 'model') or trainer.model is None:
-            return {'error': 'No model available'}
-        
         from nemo.lightning.megatron_parallel import MegatronParallel
         from nemo.utils.model_utils import unwrap_model
         
@@ -251,22 +248,19 @@ class ModelTrainingStateCallback(Callback):
             post_validation_state = self._get_training_state(trainer)
             
             # Compare states
-            if ('error' not in self._pre_validation_state and 
-                'error' not in post_validation_state):
+            pre_training = self._pre_validation_state.get('training_modules', 0)
+            post_training = post_validation_state.get('training_modules', 0)
+            
+            if pre_training != post_training:
+                msg = (f"Model training state corruption detected! "
+                      f"Before validation: {pre_training} training modules, "
+                      f"after validation: {post_training} training modules "
+                      f"(step {current_step})")
                 
-                pre_training = self._pre_validation_state.get('training_modules', 0)
-                post_training = post_validation_state.get('training_modules', 0)
-                
-                if pre_training != post_training:
-                    msg = (f"Model training state corruption detected! "
-                          f"Before validation: {pre_training} training modules, "
-                          f"after validation: {post_training} training modules "
-                          f"(step {current_step})")
-                    
-                    if self.strict:
-                        raise RuntimeError(msg)
-                    else:
-                        logging.warning(msg)
+                if self.strict:
+                    raise RuntimeError(msg)
+                else:
+                    logging.warning(msg)
             
             # Reset for next validation
             self._pre_validation_state = None
