@@ -450,8 +450,10 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
         from nv_one_logger.training_telemetry.api.checkpoint import CheckPointStrategy
         from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
         from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-        from nv_one_logger.wandb.exporter.wandb_exporter import WandBExporterAsync, WandBExporterSync, Config as WandBConfig
+        from nv_one_logger.wandb.exporter.wandb_exporter import Config as WandBConfig
+        from nv_one_logger.wandb.exporter.wandb_exporter import WandBExporterAsync, WandBExporterSync
         from pytorch_lightning.plugins.io import AsyncCheckpointIO
+
         from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 
         # Extract metadata from config
@@ -513,18 +515,14 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
         TrainingTelemetryProvider.instance().recorder.on_app_start()
 
         # Add the OneLogger callback to the trainer if provided
-        if trainer is not None: 
+        if trainer is not None:
             # Check if OneLoggerNeMoCallback is already in the trainer's callbacks
-            has_onelogger_callback = any(
-                isinstance(callback, OneLoggerNeMoCallback) 
-                for callback in trainer.callbacks
-            )
-            
+            has_onelogger_callback = any(isinstance(callback, OneLoggerNeMoCallback) for callback in trainer.callbacks)
+
             if not has_onelogger_callback:
                 # Create the callback with metadata
                 onelogger_callback = OneLoggerNeMoCallback(
-                    callback_config=metadata,
-                    log_interval=cfg.get("log_interval", 10)
+                    callback_config=metadata, log_interval=cfg.get("log_interval", 10)
                 )
                 trainer.callbacks.append(onelogger_callback)
 
