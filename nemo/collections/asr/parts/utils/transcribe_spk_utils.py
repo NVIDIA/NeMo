@@ -345,8 +345,10 @@ def transcribe_partial_audio(
 
         temporary_datalayer = asr_model._setup_transcribe_dataloader(config)
         for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
-            logits, logits_len, transcript, transcript_len = asr_model.train_val_forward(
-                [x.to(device) for x in test_batch], 0
+            logits, logits_len = asr_model.forward(
+                input_signal=test_batch[0].to(device),
+                input_signal_length=test_batch[1].to(device),
+                spk_targets=test_batch[-1].to(device)
             )
 
             if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":

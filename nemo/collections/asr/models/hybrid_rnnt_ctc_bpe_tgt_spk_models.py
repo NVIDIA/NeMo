@@ -206,7 +206,7 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
         return position_encoding_tensor
 
 
-    def train_val_forward(self, batch, batch_nb):
+    def forward(self, input_signal: torch.Tensor, input_signal_length: torch.Tensor, spk_targets: torch.Tensor):
         """
         Forward pass for training and validation of getting encoder outputs. 
 
@@ -220,7 +220,8 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
                 - transcript_len (torch.Tensor): The length of the transcript of the input audio signal of shape [B].
         """
 
-        signal, signal_len, transcript, transcript_len, spk_targets = batch
+        signal = input_signal
+        signal_len = input_signal_length
 
         if self.diar == True:
             if self.cfg.spk_supervision_strategy == 'rttm':
@@ -240,7 +241,7 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
             else:
                 raise ValueError(f"Invalid RTTM strategy {self.cfg.spk_supervision_strategy} is not supported.")
 
-        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+        encoded, encoded_len = super().forward(input_signal=signal, input_signal_length=signal_len)
     
         encoded = torch.transpose(encoded, 1, 2) # B * D * T -> B * T * D
         if self.diar == True:        
@@ -292,10 +293,10 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
             encoded = encoded
         del signal
         encoded = torch.transpose(encoded, 1, 2) # B * T * D -> B * D * T
-        return encoded, encoded_len, transcript, transcript_len
+        return encoded, encoded_len
 
 
-    # training_step with train_val_forward
+    # training_step with new forward
     def training_step(self, batch, batch_nb):
         # Reset access registry
         if AccessMixin.is_access_enabled(self.model_guid):
@@ -304,7 +305,8 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True, guid=self.model_guid)
 
-        encoded, encoded_len, transcript, transcript_len = self.train_val_forward(batch, batch_nb)
+        signal, signal_len, transcript, transcript_len, spk_targets = batch
+        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len, spk_targets = spk_targets)
 
         # During training, loss must be computed, so decoder forward is necessary
         decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
@@ -421,7 +423,9 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
         if self.is_interctc_enabled():
             AccessMixin.set_access_enabled(access_enabled=True, guid=self.model_guid)
-        encoded, encoded_len, transcript, transcript_len = self.train_val_forward(batch, batch_idx)
+
+        signal, signal_len, transcript, transcript_len, spk_targets = batch
+        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len, spk_targets = spk_targets)
 
         tensorboard_logs = {}
         loss_value = None
@@ -595,3 +599,24 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
         """
         results = []
         return results
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        signal, signal_len, transcript, transcript_len, spk_targets = batch
+        sample_id = None
+
+        encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len, spk_targets = spk_targets)
+        del signal
+
+        if self.cur_decoder == 'rnnt':
+            best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
+                encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=True
+            )
+        else:
+            logits = self.ctc_decoder(encoder_output=encoded)
+            best_hyp = self.ctc_decoding.ctc_decoder_predictions_tensor(
+                decoder_outputs=logits,
+                decoder_lengths=encoded_len,
+                return_hypotheses=True,
+            )
+
+        return list(zip(transcript, best_hyp))

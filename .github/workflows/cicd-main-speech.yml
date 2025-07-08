@@ -151,7 +151,7 @@ jobs:
             script: L2_Speaker_dev_run_Clustering_Diarizer_Inference
           - runner: self-hosted-azure
             script: L2_Speaker_dev_run_Neural_Diarizer_Inference
-          - runner: self-hosted-azure
+          - runner: self-hosted-azure-gpus-1
             script: TSASR_dev_run_Parakeet_train
           - runner: self-hosted-azure
             script: TSASR_dev_run_Parakeet_inference_offline

@@ -189,7 +189,7 @@ class FrameBatchASR_tgt_spk:
         for batch in iter(self.data_loader):
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-            encoded, encoded_len, _, _ = self.asr_model.train_val_forward([feat_signal, feat_signal_len, None, None, None], 0)
+            encoded, encoded_len = self.asr_model.forward(input_signal = feat_signal, input_signal_length = feat_signal_len, spk_targets = None)
             forward_outs = (encoded, encoded_len)
             if len(forward_outs) == 2:  # hybrid ctc rnnt model
                 encoded, encoded_len = forward_outs

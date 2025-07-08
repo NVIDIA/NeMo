@@ -177,7 +177,7 @@ class BatchedFrameASRCTC_tgt_spk():
         feat_signal_len = torch.cat(feat_signal_lens, 0)
 
         del feat_signals, feat_signal_lens        
-        encoded, encoded_len, _, _ = self.asr_model.train_val_forward([feat_signal, feat_signal_len, None, None, None], 0)
+        encoded, encoded_len = self.asr_model.forward(input_signal = feat_signal, input_signal_length = feat_signal_len, spk_targets = None)
 
         log_probs = self.asr_model.ctc_decoder(encoder_output = encoded)
         predictions = log_probs.argmax(dim = -1, keepdim = False)

@@ -57,7 +57,7 @@ class LhotseSpeechToTextTgtSpkBpeDataset(torch.utils.data.Dataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
             'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            'audio_signal_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
             'spk_tar_id': NeuralType(('B','T'), LabelsType()),
