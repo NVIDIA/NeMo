@@ -25,6 +25,7 @@ from lhotse.array import Array, TemporalArray
 from lhotse.cut import Cut, MixedCut, PaddingCut
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from nemo.collections.asr.parts.utils.asr_tgtspeaker_utils import TargetSpeakerSimulator
 from nemo.collections.common.data.lhotse.nemo_adapters import (
     LazyNeMoIterator,
     LazyNeMoTarredIterator,
@@ -40,7 +41,6 @@ from nemo.collections.common.data.lhotse.text_adapters import (
     TextTurn,
 )
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.collections.asr.parts.utils.asr_tgtspeaker_utils import TargetSpeakerSimulator
 
 
 def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bool]:
@@ -677,6 +677,7 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
         )
     return cuts, is_tarred
 
+
 @data_type_parser("tgt_speaker_simulator")
 def read_target_speaker_simulator(config: DictConfig) -> tuple[CutSet, bool]:
     """Read NeMo manifest and return a Lhotse CutSet simulator for target speaker ASR."""
@@ -692,6 +693,7 @@ def read_target_speaker_simulator(config: DictConfig) -> tuple[CutSet, bool]:
     )
 
     return tgt_speaker_cuts, False
+
 
 def mux(
     *cutsets: CutSet,

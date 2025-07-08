@@ -1,19 +1,21 @@
-import pytest
-import numpy as np
-import torch
-import math 
+import math
+import os
 
+import numpy as np
+import pytest
+import torch
+from omegaconf import DictConfig
+
+from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_tgt_spk_models import EncDecHybridRNNTCTCTgtSpkBPEModel
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecodingConfig
 from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_dataset_utils import (
-    BatchedFrameASRCTC_tgt_spk,
     BatchedAudioBufferer_tgt_spk,
+    BatchedFrameASRCTC_tgt_spk,
 )
 from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_sample_utils import (
-    AudioBuffersDatalayer_tgt_spk
+    AudioBuffersDatalayer_tgt_spk,
 )
-import os
-from omegaconf import DictConfig
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecodingConfig
-from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_tgt_spk_models import EncDecHybridRNNTCTCTgtSpkBPEModel
+
 
 @pytest.fixture()
 def hybrid_asr_tgt_spk_model(test_data_dir):
@@ -35,7 +37,6 @@ def hybrid_asr_tgt_spk_model(test_data_dir):
         'self_attention_model': 'rel_pos',
         'n_heads': 8,
         'att_context_size': [-1, -1],
-        
     }
 
     decoder = {
@@ -99,33 +100,34 @@ def test_batched_audio_bufferer_tgt_spk():
         def __init__(self):
             self._cfg = type('obj', (object,), {'sample_rate': 16000})
             self.preprocessor = type('obj', (object,), {'log': False})
-    
+
     asr_model = MockASRModel()
     frame_len = 0.1
     batch_size = 2
     total_buffer = 0.3
-    
+
     bufferer = BatchedAudioBufferer_tgt_spk(
-        asr_model=asr_model,
-        frame_len=frame_len,
-        batch_size=batch_size,
-        total_buffer=total_buffer
+        asr_model=asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
     )
-    
+
     # Test initialization
     assert bufferer.feature_frame_len == int(frame_len * 16000)
     assert bufferer.batch_size == batch_size
     assert bufferer.buffer.shape == (batch_size, 1, int(total_buffer * 16000))
 
 
-@pytest.mark.parametrize("frame_len, total_buffer, expected_tokens_per_chunk, expected_mid_delay, tokens_per_buffer", [
-    (4.8, 8, 60, 80, 100),
-    (1, 4, 13, 32, 50),
-    # (0.16, 4, 2, 26, 50),
-])
-
+@pytest.mark.parametrize(
+    "frame_len, total_buffer, expected_tokens_per_chunk, expected_mid_delay, tokens_per_buffer",
+    [
+        (4.8, 8, 60, 80, 100),
+        (1, 4, 13, 32, 50),
+        # (0.16, 4, 2, 26, 50),
+    ],
+)
 @pytest.mark.unit
-def test_batched_frame_asr_ctc_tgt_spk(hybrid_asr_tgt_spk_model, frame_len, total_buffer, expected_tokens_per_chunk, expected_mid_delay, tokens_per_buffer):
+def test_batched_frame_asr_ctc_tgt_spk(
+    hybrid_asr_tgt_spk_model, frame_len, total_buffer, expected_tokens_per_chunk, expected_mid_delay, tokens_per_buffer
+):
     hybrid_asr_tgt_spk_model.eval()
     batch_size = 2
     model_stride_in_secs = 0.08
@@ -136,12 +138,9 @@ def test_batched_frame_asr_ctc_tgt_spk(hybrid_asr_tgt_spk_model, frame_len, tota
     assert mid_delay == expected_mid_delay
 
     frame_asr = BatchedFrameASRCTC_tgt_spk(
-        asr_model=hybrid_asr_tgt_spk_model,
-        frame_len=frame_len,
-        total_buffer=total_buffer,
-        batch_size=batch_size
+        asr_model=hybrid_asr_tgt_spk_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size
     )
-    
+
     # Test initialization
     assert frame_asr.frame_len == frame_len
     assert frame_asr.batch_size == batch_size

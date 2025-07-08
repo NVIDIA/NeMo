@@ -31,6 +31,7 @@ from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDe
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.transcribe_spk_utils import setup_model, transcribe_partial_audio
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
@@ -38,8 +39,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     restore_transcription_order,
     write_transcription,
 )
-
-from nemo.collections.asr.parts.utils.transcribe_spk_utils import transcribe_partial_audio, setup_model
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -122,9 +121,9 @@ class TranscriptionConfig:
     pretrained_name: Optional[str] = None  # Name of a pretrained model
     audio_dir: Optional[str] = None  # Path to a directory which contains audio files
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
-    channel_selector: Optional[
-        Union[int, str]
-    ] = None  # Used to select a single channel from multichannel audio, or use average across channels
+    channel_selector: Optional[Union[int, str]] = (
+        None  # Used to select a single channel from multichannel audio, or use average across channels
+    )
     audio_key: str = 'audio_filepath'  # Used to override the default audio key in dataset_manifest
     eval_config_yaml: Optional[str] = None  # Path to a yaml file of config of evaluation
     presort_manifest: bool = True  # Significant inference speedup on short-form data due to padding reduction
@@ -197,10 +196,11 @@ class TranscriptionConfig:
     # Your manifest input should have `offset` field to use transcribe_partial_audio()
     allow_partial_transcribe: bool = True
     extract_nbest: bool = False  # Extract n-best hypotheses from the model
-    override: bool = True # override the config in inference
-    diar_model_path: str = "" # path to diarization model
-    rttm_mix_prob: float = 0.0 # probability of mixing rttm with groundtruth, default is 0.0, only diarization prediction
-
+    override: bool = True  # override the config in inference
+    diar_model_path: str = ""  # path to diarization model
+    rttm_mix_prob: float = (
+        0.0  # probability of mixing rttm with groundtruth, default is 0.0, only diarization prediction
+    )
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -220,7 +220,7 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
         raise ValueError("Both cfg.model_path and cfg.pretrained_name cannot be None!")
     if cfg.audio_dir is None and cfg.dataset_manifest is None:
         raise ValueError("Both cfg.audio_dir and cfg.dataset_manifest cannot be None!")
-    
+
     # Load augmentor from exteranl yaml file which contains eval info, could be extend to other feature such VAD, P&C
     augmentor = None
     if cfg.eval_config_yaml:
@@ -402,8 +402,8 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     channel_selector=cfg.channel_selector,
                     augmentor=augmentor,
                     decoder_type=cfg.decoder_type,
-                    cfg = cfg,
-                )                  
+                    cfg=cfg,
+                )
             else:
                 override_cfg = asr_model.get_transcribe_config()
                 override_cfg.batch_size = cfg.batch_size
@@ -413,7 +413,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                 override_cfg.augmentor = augmentor
                 override_cfg.text_field = cfg.gt_text_attr_name
                 override_cfg.lang_field = cfg.gt_lang_attr_name
-                transcriptions = asr_model.transcribe(audio=filepaths, override_config=override_cfg,)
+                transcriptions = asr_model.transcribe(
+                    audio=filepaths,
+                    override_config=override_cfg,
+                )
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
         if cfg.presort_manifest:

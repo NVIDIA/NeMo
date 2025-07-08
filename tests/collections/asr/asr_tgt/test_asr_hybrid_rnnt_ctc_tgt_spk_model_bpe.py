@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import shutil
 import tempfile
-import json
 
 import pytest
 import torch
@@ -24,13 +24,13 @@ from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text_lhotse_target_speaker import LhotseSpeechToTextTgtSpkBpeDataset
-from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_tgt_spk_models import EncDecHybridRNNTCTCTgtSpkBPEModel
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
+from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
@@ -159,13 +159,17 @@ class TestEncDecHybridRNNTCTgtSpkBPEModel:
             logprobs_instance = []
             for i in range(input_signal.size(0)):
                 logprobs_ins, _ = hybrid_asr_tgt_spk_model.forward(
-                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1], spk_targets = spk_targets[i : i + 1]
+                    input_signal=input_signal[i : i + 1],
+                    input_signal_length=length[i : i + 1],
+                    spk_targets=spk_targets[i : i + 1],
                 )
                 logprobs_instance.append(logprobs_ins)
             logits_instance = torch.cat(logprobs_instance, 0)
 
             # batch size 4
-            logprobs_batch, _ = hybrid_asr_tgt_spk_model.forward(input_signal=input_signal, input_signal_length=length, spk_targets = spk_targets)
+            logprobs_batch, _ = hybrid_asr_tgt_spk_model.forward(
+                input_signal=input_signal, input_signal_length=length, spk_targets=spk_targets
+            )
 
         assert logits_instance.shape == logprobs_batch.shape
         diff = torch.mean(torch.abs(logits_instance - logprobs_batch))
@@ -187,9 +191,11 @@ class TestEncDecHybridRNNTCTgtSpkBPEModel:
             cuts[0].query_duration = 1
             cuts[0].query_speaker_id = 'spk0'
 
-            cfg = DictConfig({
-                'sample_rate': 16000,
-            })
+            cfg = DictConfig(
+                {
+                    'sample_rate': 16000,
+                }
+            )
 
             dataset = LhotseSpeechToTextTgtSpkBpeDataset(tokenizer=hybrid_asr_tgt_spk_model.tokenizer, cfg=cfg)
             batch = dataset[cuts]
@@ -263,4 +269,3 @@ class TestEncDecHybridRNNTCTgtSpkBPEModel:
             # should be double
             assert new_model.tokenizer.tokenizer.vocab_size == 254
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 254
-

@@ -16,36 +16,33 @@
 import copy
 import os
 from typing import Optional
-import soundfile as sf
-import librosa
 
+import librosa
 import numpy as np
+import soundfile as sf
 import torch
+import torch.nn.functional as F
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompted import PromptedAudioToTextMiniBatch
-from nemo.collections.asr.parts.utils.streaming_utils import BatchedFeatureFrameBufferer
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
-from nemo.collections.asr.parts.preprocessing.segment import get_samples, AudioSegment
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment, get_samples
+from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_hidden_length_from_sample_length
+from nemo.collections.asr.parts.utils.asr_tgtspeaker_utils import get_separator_audio
+from nemo.collections.asr.parts.utils.streaming_utils import *
+from nemo.collections.asr.parts.utils.streaming_utils import BatchedFeatureFrameBufferer
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
-from nemo.collections.asr.parts.utils.streaming_utils import *
-from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_hidden_length_from_sample_length
-from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
-from nemo.collections.asr.parts.utils.asr_tgtspeaker_utils import (
-    get_separator_audio,
-)
-import numpy as np
-import torch.nn.functional as F
-
 
 # class for streaming frame-based ASR
 # 1) use reset() method to reset FrameASR's state
 # 2) call transcribe(frame) to do ASR on
 #    contiguous signal's frames
+
 
 # audio buffer
 class FrameBatchASR_tgt_spk:
@@ -65,7 +62,6 @@ class FrameBatchASR_tgt_spk:
         ref_audio_offset=0,
         ref_audio_duration=3,
         ref_separater_duration=1,
-
     ):
         '''
         Args:
@@ -128,13 +124,15 @@ class FrameBatchASR_tgt_spk:
         self.all_logits = []
         self.all_preds = []
 
-    def get_partial_samples(self, audio_file: str, offset: float, duration: float, target_sr: int = 16000, dtype: str = 'float32'):
+    def get_partial_samples(
+        self, audio_file: str, offset: float, duration: float, target_sr: int = 16000, dtype: str = 'float32'
+    ):
         try:
             with sf.SoundFile(audio_file, 'r') as f:
                 start = int(offset * f.samplerate)
                 f.seek(start)
                 end = int((offset + duration) * f.samplerate)
-                samples = f.read(dtype=dtype, frames = end - start)
+                samples = f.read(dtype=dtype, frames=end - start)
                 if f.samplerate != target_sr:
                     samples = librosa.core.resample(samples, orig_sr=f.samplerate, target_sr=target_sr)
                 samples = samples.transpose()
@@ -142,19 +140,36 @@ class FrameBatchASR_tgt_spk:
             raise ValueError('Frame exceed audio')
         return samples
 
-    def read_audio_file(self, audio_filepath: str, offset, duration, query_audio_file, query_offset, query_duration, separater_freq, separater_duration, separater_unvoice_ratio,delay, model_stride_in_secs):
+    def read_audio_file(
+        self,
+        audio_filepath: str,
+        offset,
+        duration,
+        query_audio_file,
+        query_offset,
+        query_duration,
+        separater_freq,
+        separater_duration,
+        separater_unvoice_ratio,
+        delay,
+        model_stride_in_secs,
+    ):
         samples = self.get_partial_samples(audio_filepath, offset, duration)
         # pad on the right side
         samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
         self.pad_len = int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)
         # query related variables
-        separater_audio = get_separator_audio(separater_freq, self.asr_model._cfg.sample_rate, separater_duration, separater_unvoice_ratio)
+        separater_audio = get_separator_audio(
+            separater_freq, self.asr_model._cfg.sample_rate, separater_duration, separater_unvoice_ratio
+        )
         self.separater_audio = separater_audio
 
         if self.add_reference_audio:
             ref_audio_path = audio_filepath
             ref_audio = self.get_partial_samples(ref_audio_path, self.ref_audio_offset, self.ref_audio_duration)
-            self.ref_separater_audio = get_separator_audio(separater_freq, self.asr_model._cfg.sample_rate, self.ref_separater_duration, 0.5)
+            self.ref_separater_audio = get_separator_audio(
+                separater_freq, self.asr_model._cfg.sample_rate, self.ref_separater_duration, 0.5
+            )
 
         if query_duration > 0:
             query_samples = self.get_partial_samples(query_audio_file, query_offset, query_duration)
@@ -189,7 +204,9 @@ class FrameBatchASR_tgt_spk:
         for batch in iter(self.data_loader):
             feat_signal, feat_signal_len = batch
             feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-            encoded, encoded_len = self.asr_model.forward(input_signal = feat_signal, input_signal_length = feat_signal_len, spk_targets = None)
+            encoded, encoded_len = self.asr_model.forward(
+                input_signal=feat_signal, input_signal_length=feat_signal_len, spk_targets=None
+            )
             forward_outs = (encoded, encoded_len)
             if len(forward_outs) == 2:  # hybrid ctc rnnt model
                 encoded, encoded_len = forward_outs
@@ -198,8 +215,8 @@ class FrameBatchASR_tgt_spk:
             else:
                 log_probs, encoded_len, predictions = forward_outs
             # #remove pred from query
-            log_probs = log_probs[:,self.query_pred_len:,:]
-            predictions = predictions[:,self.query_pred_len:]
+            log_probs = log_probs[:, self.query_pred_len :, :]
+            predictions = predictions[:, self.query_pred_len :]
             preds = torch.unbind(predictions)
             for pred in preds:
                 self.all_preds.append(pred.cpu().numpy())
@@ -209,8 +226,6 @@ class FrameBatchASR_tgt_spk:
                     self.all_logits.append(log_prob.cpu())
             del encoded_len
             del predictions
-                        
-
 
     def transcribe(self, tokens_per_chunk: int, delay: int, keep_logits: bool = False):
         self.tokens_per_chunk = tokens_per_chunk
@@ -220,7 +235,7 @@ class FrameBatchASR_tgt_spk:
 
         for i, pred in enumerate(self.all_preds):
             decoded = pred.tolist()
-            self.unmerged += decoded[max(0,len(decoded) - 1 - delay) : len(decoded) - 1 - delay + tokens_per_chunk]
+            self.unmerged += decoded[max(0, len(decoded) - 1 - delay) : len(decoded) - 1 - delay + tokens_per_chunk]
         hypothesis = self.greedy_merge(self.unmerged)
         if not keep_logits:
             return hypothesis
@@ -280,6 +295,7 @@ class AudioIterator_tgt_spk(IterableDataset):
         self.count += 1
         return frame
 
+
 class AudioBufferer_tgt_spk:
     """
     Class to append each feature frame to a buffer and return
@@ -302,7 +318,7 @@ class AudioBufferer_tgt_spk:
         self.frame_len = frame_len
         self.feature_frame_len = int(frame_len * self.sr)
         total_buffer_len = int(total_buffer * self.sr)
-        self.buffer = np.ones([1, total_buffer_len], dtype = np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.buffer = np.ones([1, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         self.pad_to_buffer_len = pad_to_buffer_len
         self.batch_size = batch_size
 
@@ -310,9 +326,7 @@ class AudioBufferer_tgt_spk:
         self.frame_reader = None
         self.feature_buffer_len = total_buffer_len
 
-        self.feature_buffer = (
-            np.ones([1, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
-        )
+        self.feature_buffer = np.ones([1, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
         self.frame_buffers = []
         self.buffered_features_size = 0
         self.reset()
@@ -327,9 +341,7 @@ class AudioBufferer_tgt_spk:
         self.unmerged = []
         self.frame_buffers = []
         self.buffered_len = 0
-        self.feature_buffer = (
-            np.ones([1, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
-        )
+        self.feature_buffer = np.ones([1, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
 
     def get_batch_frames(self):
         if self.signal_end:
@@ -391,12 +403,13 @@ class AudioBufferer_tgt_spk:
 
             frame_buffers = self.get_frame_buffers(batch_frames)
             for i, frame_buffer in enumerate(frame_buffers):
-                frame_buffers[i] = np.concatenate([query_features, frame_buffer[0,:]], axis = 0)
+                frame_buffers[i] = np.concatenate([query_features, frame_buffer[0, :]], axis=0)
             if len(frame_buffers) == 0:
                 continue
             return frame_buffers
         return []
-    
+
+
 class AudioBuffersDatalayer_tgt_spk(AudioBuffersDataLayer):
     def __init__(self):
         super().__init__()
@@ -409,7 +422,3 @@ class AudioBuffersDatalayer_tgt_spk(AudioBuffersDataLayer):
             torch.as_tensor(self.signal[self._buf_count - 1], dtype=torch.float32),
             torch.as_tensor(self.signal[self._buf_count - 1].shape[0], dtype=torch.int64),
         )
-    
-
-    
-

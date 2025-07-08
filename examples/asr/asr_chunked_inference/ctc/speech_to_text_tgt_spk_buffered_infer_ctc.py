@@ -47,17 +47,18 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
-from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_sample_utils import FrameBatchASR_tgt_spk
-from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_dataset_utils import BatchedFrameASRCTC_tgt_spk
-from nemo.collections.asr.parts.utils.transcribe_utils import (
-    compute_output_filename,
-    write_transcription,
+from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_dataset_utils import (
+    BatchedFrameASRCTC_tgt_spk,
+)
+from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_sample_utils import (
+    FrameBatchASR_tgt_spk,
 )
 from nemo.collections.asr.parts.utils.transcribe_spk_utils import (
-    setup_model,
-    get_buffered_pred_feat_tgt_spk_ctc_batchview_sample,
     get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset,
+    get_buffered_pred_feat_tgt_spk_ctc_batchview_sample,
+    setup_model,
 )
+from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, write_transcription
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -79,7 +80,7 @@ class TranscriptionConfig:
     # General configs
     output_filename: Optional[str] = None
     batch_size: int = 32
-    batch_view: str = "dataset" # "dataset" or "sample" 
+    batch_view: str = "dataset"  # "dataset" or "sample"
     num_workers: int = 0
     append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
     pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
@@ -116,10 +117,14 @@ class TranscriptionConfig:
     clean_groundtruth_text: bool = False
     langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
     use_cer: bool = False
-    override: bool = True # override the config in inference
-    rttm_mix_prob: float = 0.0 # probability of mixing rttm with groundtruth, default is 0.0, only diarization prediction
-    diar_model_path: str = "" # path to diarization model
-    add_reference_audio: bool = False # extract first couple of seconds of audio segment from the input audio and inject between query and target audio for each buffer chunk, we found it can significantly stabilize the diarization performance on buffer-size samples
+    override: bool = True  # override the config in inference
+    rttm_mix_prob: float = (
+        0.0  # probability of mixing rttm with groundtruth, default is 0.0, only diarization prediction
+    )
+    diar_model_path: str = ""  # path to diarization model
+    add_reference_audio: bool = (
+        False  # extract first couple of seconds of audio segment from the input audio and inject between query and target audio for each buffer chunk, we found it can significantly stabilize the diarization performance on buffer-size samples
+    )
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -222,7 +227,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             total_buffer=cfg.total_buffer_in_secs,
             batch_size=cfg.batch_size,
             add_reference_audio=cfg.get('add_reference_audio', False),
-        )     
+        )
         with torch.amp.autocast(asr_model.device.type, enabled=cfg.amp):
             hyps = get_buffered_pred_feat_tgt_spk_ctc_batchview_sample(
                 frame_asr,
@@ -234,7 +239,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 asr_model.device,
                 manifest,
                 filepaths,
-            )   
+            )
     elif cfg.batch_view == "dataset":
         # multiple samples are processed in one batch, use this option when dataset average duration is short
         frame_asr = BatchedFrameASRCTC_tgt_spk(

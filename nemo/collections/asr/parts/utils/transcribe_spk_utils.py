@@ -15,28 +15,30 @@ import glob
 import json
 import os
 import re
+import tracemalloc
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from tqdm.auto import tqdm
-import tracemalloc
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.utils import manifest_utils, rnnt_utils
-from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_sample_utils import FrameBatchASR_tgt_spk
-from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_dataset_utils import BatchedFrameASRCTC_tgt_spk
+from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_dataset_utils import (
+    BatchedFrameASRCTC_tgt_spk,
+)
+from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_sample_utils import (
+    FrameBatchASR_tgt_spk,
+)
+from nemo.collections.asr.parts.utils.transcribe_utils import normalize_timestamp_output, wrap_transcription
 from nemo.collections.common.metrics.punct_er import OccurancePunctuationErrorRate
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging, model_utils
 
-from omegaconf import open_dict, OmegaConf
-
-from nemo.collections.asr.parts.utils.transcribe_utils import wrap_transcription, normalize_timestamp_output
 
 def get_buffered_pred_feat_tgt_spk_ctc_batchview_sample(
     asr: Union[FrameBatchASR_tgt_spk],
@@ -83,16 +85,28 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_sample(
                 audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
                 offset = row['offset']
                 duration = row['duration']
-                #query info
+                # query info
                 query_audio_file = row['query_audio_filepath']
                 query_offset = row['query_offset']
                 query_duration = row['query_duration']
-                #separater info
+                # separater info
                 separater_freq = asr.asr_model.cfg.test_ds.separater_freq
                 separater_duration = asr.asr_model.cfg.test_ds.separater_duration
                 separater_unvoice_ratio = asr.asr_model.cfg.test_ds.separater_unvoice_ratio
                 # do not support partial audio
-                asr.read_audio_file(audio_file, offset, duration, query_audio_file, query_offset, query_duration, separater_freq, separater_duration, separater_unvoice_ratio, delay, model_stride_in_secs)
+                asr.read_audio_file(
+                    audio_file,
+                    offset,
+                    duration,
+                    query_audio_file,
+                    query_offset,
+                    query_duration,
+                    separater_freq,
+                    separater_duration,
+                    separater_unvoice_ratio,
+                    delay,
+                    model_stride_in_secs,
+                )
                 hyp = asr.transcribe(tokens_per_chunk, delay)
                 hyps.append(hyp)
 
@@ -108,6 +122,7 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_sample(
 
     wrapped_hyps = wrap_transcription(hyps)
     return wrapped_hyps
+
 
 def get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset(
     asr: BatchedFrameASRCTC_tgt_spk,
@@ -140,7 +155,7 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset(
         query_offsets = []
         query_durations = []
 
-        #separater info
+        # separater info
         separater_freq = asr.asr_model.cfg.test_ds.separater_freq
         separater_duration = asr.asr_model.cfg.test_ds.separater_duration
         separater_unvoice_ratio = asr.asr_model.cfg.test_ds.separater_unvoice_ratio
@@ -152,40 +167,68 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset(
                 audio_file = get_full_path(audio_file=row['audio_filepath'], manifest_file=manifest)
                 offset = row['offset']
                 duration = row['duration']
-                #query info
+                # query info
                 query_audio_file = row['query_audio_filepath']
                 query_offset = row['query_offset']
                 query_duration = row['query_duration']
-                #save to list, each element corresponding to attribute of one sample
+                # save to list, each element corresponding to attribute of one sample
                 offsets.append(offset)
                 durations.append(duration)
                 query_audio_files.append(query_audio_file)
                 query_offsets.append(query_offset)
                 query_durations.append(query_duration)
-                
+
                 filepaths.append(audio_file)
                 if 'text' in row:
                     refs.append(row['text'])
-        assert len(refs) == len(filepaths) == len(offsets) == len(durations) == len(query_audio_files) == len(query_offsets) == len(query_durations)
+        assert (
+            len(refs)
+            == len(filepaths)
+            == len(offsets)
+            == len(durations)
+            == len(query_audio_files)
+            == len(query_offsets)
+            == len(query_durations)
+        )
 
     with torch.inference_mode():
         with torch.amp.autocast('cpu' if accelerator == 'cpu' else 'cuda'):
             batch = []
             asr.sample_offset = 0
             for idx in tqdm(range(len(filepaths)), desc='Sample:', total=len(filepaths)):
-                batch.append((filepaths[idx], offsets[idx], durations[idx], query_audio_files[idx], query_offsets[idx], query_durations[idx])
+                batch.append(
+                    (
+                        filepaths[idx],
+                        offsets[idx],
+                        durations[idx],
+                        query_audio_files[idx],
+                        query_offsets[idx],
+                        query_durations[idx],
+                    )
                 )
-            
+
                 if len(batch) == batch_size:
                     batch_audio_files = [sample[0] for sample in batch]
                     batch_offsets = [sample[1] for sample in batch]
                     batch_durations = [sample[2] for sample in batch]
                     batch_query_audio_files = [sample[3] for sample in batch]
                     batch_query_offsets = [sample[4] for sample in batch]
-                    batch_query_durations= [sample[5] for sample in batch]
+                    batch_query_durations = [sample[5] for sample in batch]
 
                     asr.reset()
-                    asr.read_audio_file(batch_audio_files, batch_offsets, batch_durations, batch_query_audio_files, batch_query_offsets, batch_query_durations, separater_freq, separater_duration, separater_unvoice_ratio, delay, model_stride_in_secs)
+                    asr.read_audio_file(
+                        batch_audio_files,
+                        batch_offsets,
+                        batch_durations,
+                        batch_query_audio_files,
+                        batch_query_offsets,
+                        batch_query_durations,
+                        separater_freq,
+                        separater_duration,
+                        separater_unvoice_ratio,
+                        delay,
+                        model_stride_in_secs,
+                    )
                     # asr.read_audio_file(batch_audio_files,delay,model_stride_in_secs)
                     hyp_list = asr.transcribe(tokens_per_chunk, delay)
                     hyps.extend(hyp_list)
@@ -201,10 +244,22 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset(
                 batch_durations = [sample[2] for sample in batch]
                 batch_query_audio_files = [sample[3] for sample in batch]
                 batch_query_offsets = [sample[4] for sample in batch]
-                batch_query_durations= [sample[5] for sample in batch]
+                batch_query_durations = [sample[5] for sample in batch]
 
                 asr.reset()
-                asr.read_audio_file(batch_audio_files, batch_offsets, batch_durations, batch_query_audio_files, batch_query_offsets, batch_query_durations, separater_freq, separater_duration, separater_unvoice_ratio, delay, model_stride_in_secs)
+                asr.read_audio_file(
+                    batch_audio_files,
+                    batch_offsets,
+                    batch_durations,
+                    batch_query_audio_files,
+                    batch_query_offsets,
+                    batch_query_durations,
+                    separater_freq,
+                    separater_duration,
+                    separater_unvoice_ratio,
+                    delay,
+                    model_stride_in_secs,
+                )
                 hyp_list = asr.transcribe(tokens_per_chunk, delay)
                 hyps.extend(hyp_list)
 
@@ -224,8 +279,9 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset(
     wrapped_hyps = wrap_transcription(hyps)
     return wrapped_hyps
 
+
 def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, str]:
-    """ Setup model from cfg and return model and model name for next step """
+    """Setup model from cfg and return model and model name for next step"""
     if cfg.model_path is not None and cfg.model_path != "None":
         # restore model from .nemo file path
         model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
@@ -234,8 +290,7 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
         logging.info(f"Restoring model : {imported_class.__name__}")
         if cfg.override:
             orig_config = imported_class.restore_from(
-                restore_path=cfg.model_path, map_location=map_location,
-                return_config=True
+                restore_path=cfg.model_path, map_location=map_location, return_config=True
             )
             orig_config.rttm_mix_prob = cfg.rttm_mix_prob
             if cfg.rttm_mix_prob == 1:
@@ -246,25 +301,29 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
             if cfg.diar_model_path:
                 orig_config.diar_model_path = cfg.diar_model_path
             new_config = orig_config
-            #set strict to False if model is trained with old diarization model, otherwise set to True
+            # set strict to False if model is trained with old diarization model, otherwise set to True
             asr_model = imported_class.restore_from(
-                restore_path=cfg.model_path, strict = True, map_location=map_location, override_config_path=new_config
+                restore_path=cfg.model_path, strict=True, map_location=map_location, override_config_path=new_config
             )
             if cfg.diar_model_path:
                 asr_model._init_diar_model()
                 asr_model.diarization_model.to(asr_model.device)
             else:
-                raise ValueError("Diarization model need to be provided, embedded diarization model loading is not supported yet")
+                raise ValueError(
+                    "Diarization model need to be provided, embedded diarization model loading is not supported yet"
+                )
         else:
             asr_model = imported_class.restore_from(
-                restore_path=cfg.model_path,map_location=map_location,
+                restore_path=cfg.model_path,
+                map_location=map_location,
             )
 
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=map_location,
+            model_name=cfg.pretrained_name,
+            map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 
@@ -277,10 +336,8 @@ def setup_model(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRModel, 
     return asr_model, model_name
 
 
-
 def transcribe_partial_audio(
-        
-    asr_model, 
+    asr_model,
     path2manifest: str = None,
     batch_size: int = 4,
     logprobs: bool = False,
@@ -348,7 +405,7 @@ def transcribe_partial_audio(
             logits, logits_len = asr_model.forward(
                 input_signal=test_batch[0].to(device),
                 input_signal_length=test_batch[1].to(device),
-                spk_targets=test_batch[-1].to(device)
+                spk_targets=test_batch[-1].to(device),
             )
 
             if isinstance(asr_model, EncDecHybridRNNTCTCModel) and decoder_type == "ctc":
@@ -361,7 +418,11 @@ def transcribe_partial_audio(
                     lg = logits[idx][: logits_len[idx]]
                     hypotheses.append(lg)
             else:
-                current_hypotheses =  decode_function(logits, logits_len, return_hypotheses=return_hypotheses,)
+                current_hypotheses = decode_function(
+                    logits,
+                    logits_len,
+                    return_hypotheses=return_hypotheses,
+                )
 
                 if return_hypotheses:
                     # dump log probs per file
@@ -371,7 +432,7 @@ def transcribe_partial_audio(
                             current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
 
                 hypotheses += current_hypotheses
-                
+
             del logits
             del test_batch
 

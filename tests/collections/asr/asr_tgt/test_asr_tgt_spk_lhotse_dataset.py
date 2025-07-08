@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tempfile
+
 import pytest
 import torch
-import tempfile
-import os
-from omegaconf import DictConfig
 from lhotse import CutSet, SupervisionSegment
 from lhotse.testing.dummies import DummyManifest
+from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text_lhotse_target_speaker import LhotseSpeechToTextTgtSpkBpeDataset
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import get_hidden_length_from_sample_length
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 
 @pytest.fixture(scope="session")
@@ -51,7 +52,6 @@ def test_lhotse_asr_tgt_spk_dataset(tokenizer):
         cuts[0].query_speaker_id = 'spk0'
         cuts[0].supervisions[0].text = "first"
 
-
         # 2nd case: target speaker is not query speaker: spk0 (q) spk1 (t)
         # add query related info
         cuts[1].speaker_id = 'spk1'
@@ -61,16 +61,17 @@ def test_lhotse_asr_tgt_spk_dataset(tokenizer):
         cuts[1].query_speaker_id = 'spk0'
         cuts[1].supervisions[0].text = ""
 
-        cfg = DictConfig({
-            'sample_rate': 16000,
-        })
-
+        cfg = DictConfig(
+            {
+                'sample_rate': 16000,
+            }
+        )
 
         dataset = LhotseSpeechToTextTgtSpkBpeDataset(tokenizer=tokenizer, cfg=cfg)
         batch = dataset[cuts]
 
     assert isinstance(batch, tuple)
-    assert len(batch) == 5 
+    assert len(batch) == 5
     assert all(isinstance(t, torch.Tensor) for t in batch)
 
     audio, audio_lens, tokens, token_lens, spk_targets = batch
@@ -88,26 +89,24 @@ def test_lhotse_asr_tgt_spk_dataset(tokenizer):
 
     assert spk_targets.shape == (2, get_hidden_length_from_sample_length(16000 * 3), 4)
 
-    #first case: target speaker is query speaker: spk0
+    # first case: target speaker is query speaker: spk0
     q_start = 0
     q_end = get_hidden_length_from_sample_length(16000)
     separater_len = get_hidden_length_from_sample_length(16000)
     tgt_start = q_end + separater_len + get_hidden_length_from_sample_length(0)
     tgt_end = tgt_start + get_hidden_length_from_sample_length(16000)
     assert spk_targets[0, q_start:q_end, 0].tolist() == [1.0] * q_end
-    assert spk_targets[0, q_end:q_end + separater_len, 0].tolist() == [0.0] * separater_len
+    assert spk_targets[0, q_end : q_end + separater_len, 0].tolist() == [0.0] * separater_len
     tgt_end = min(tgt_end, spk_targets.shape[1])
     assert spk_targets[0, tgt_start:tgt_end, 0].tolist() == [1.0] * (tgt_end - tgt_start)
 
-    #second case: target speaker is not query speaker: spk0 (q) spk1 (t)
+    # second case: target speaker is not query speaker: spk0 (q) spk1 (t)
     q_start = 0
     q_end = get_hidden_length_from_sample_length(16000)
     separater_len = get_hidden_length_from_sample_length(16000)
     tgt_start = q_end + separater_len + get_hidden_length_from_sample_length(0)
     tgt_end = tgt_start + get_hidden_length_from_sample_length(16000)
     assert spk_targets[1, q_start:q_end, 0].tolist() == [1.0] * q_end
-    assert spk_targets[1, q_end:q_end + separater_len, 0].tolist() == [0.0] * separater_len
+    assert spk_targets[1, q_end : q_end + separater_len, 0].tolist() == [0.0] * separater_len
     tgt_end = min(tgt_end, spk_targets.shape[1])
     assert spk_targets[1, tgt_start:tgt_end, 1].tolist() == [1.0] * (tgt_end - tgt_start)
-
-
