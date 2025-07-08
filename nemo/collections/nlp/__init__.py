@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# flake8: noqa
+
 from nemo.collections.nlp import data, models, modules
 from nemo.package_info import __version__
 
