@@ -170,14 +170,14 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         checkpoint: Dict[str, Any],
         path: _PATH,
         storage_options: Optional[Any] = None,
-        content_metadata: Optional[dict] = None,
     ) -> None:
         """Save model/training states as a checkpoint file through state-dump and file-write.
 
         Args:
             checkpoint: dict containing model and trainer state
             path: write-target path
-            storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
+            storage_options: if `storage_options` evaluates to True (e.g. non-empty dict)
+                and `content_metadata` exists in
             content_metadata (dict, optional): metadata to identify the checkpoint content.
                 Useful for framework specific versioning.
         Raises
@@ -188,12 +188,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         """
         from megatron.core import dist_checkpointing
 
-        if storage_options is not None and len(storage_options) > 0:
-            logging.warning(
-                f"{self.__class__.__name__} does not support"
-                f" storage_options, but {storage_options=} was provided."
-                f" Ignoring given storage_options"
-            )
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
 
         fs = get_filesystem(checkpoint_dir)
@@ -211,7 +205,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
-            content_metadata=content_metadata,
+            content_metadata=(storage_options or {}).get('content_metadata'),
         )
         end_time = time.time()
         log_parts = (

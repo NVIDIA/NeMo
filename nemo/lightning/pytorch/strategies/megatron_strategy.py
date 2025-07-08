@@ -932,9 +932,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.ckpt_save_optimizer:
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
-        self.checkpoint_io.save_checkpoint(
-            checkpoint, filepath, storage_options=storage_options, content_metadata=self.sharded_state_dict_metadata
-        )
+        if not storage_options:
+            storage_options = {}
+        storage_options['content_metadata'] = self.sharded_state_dict_metadata
+        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
 
         # Save ModelOpt state too, if it exists.
         save_modelopt_state(self.megatron_parallel, filepath, self.checkpoint_io)

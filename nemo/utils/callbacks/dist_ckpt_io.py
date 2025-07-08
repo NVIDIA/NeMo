@@ -115,7 +115,6 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         checkpoint: Dict[str, Any],
         path: _PATH,
         storage_options: Optional[Any] = None,
-        content_metadata: Optional[dict] = None,
     ) -> None:
         """Executes async request returned from the underlying checkpoint_io asynchronously.
 
@@ -130,8 +129,6 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
             storage_options (Any, optional): storage control modifiers. This class
                 consumed the `finalize_fn` parameter (if any), which is expected to be
                 a callback and is appended to async finalization functions.
-            content_metadata (dict, optional): metadata to identify the checkpoint content.
-                Useful for framework specific versioning.
 
         Applies underlying checkpoint_io finalize callback first, then the external one (postfix order).
         """
@@ -172,10 +169,6 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         if self.async_calls_queue.get_num_unfinalized_calls() > 0:
             # Can't do finalization now because some ranks might be lost
             logging.warning('Some async checkpoint saves might be not finalized properly.')
-
-    def load_content_metadata(self, path: Optional[_PATH] = None, preloaded_state_dict: Optional[dict] = None) -> dict:
-        """Call to wrapped checkpoint_io.load_content_metadata."""
-        return self.checkpoint_io.load_content_metadata(path, preloaded_state_dict)
 
 
 class AsyncFinalizerCallback(Callback):
