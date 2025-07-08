@@ -481,6 +481,7 @@ def default_multimodal_conversation_prompt_format_fn(example: NeMoMultimodalConv
         ],
         key=lambda turn: turn["role"],
     )
+    turns = [(k, list(v)) for k, v in turns]
     turns = [
         {"role": role, "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)}}
         for role, turn_grp in turns
@@ -572,6 +573,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                         )
                         for turn in data["conversations"]
                     ],
+                    token_equivalent_duration=self.token_equivalent_duration,
                     custom=data.get("custom"),
                 )
 
@@ -595,6 +597,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                             if turn["type"] == "text"
                             else AudioTurn(
                                 cut=Recording.from_file(get_full_path(turn["value"], path)).to_cut(),
+                                text=c.supervisions[0].text if c.supervisions else None,
                                 role=turn[
                                     "from"
                                 ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
@@ -604,6 +607,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                         for turn in data["conversations"]
                     ],
                     token_equivalent_duration=self.token_equivalent_duration,
+                    custom=data.get("custom"),
                 )
 
 

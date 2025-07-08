@@ -464,7 +464,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
         cuts = cuts.map(partial(_select_channel, channel_selector=config.channel_selector))
 
     # Resample as a safeguard; it's a no-op when SR is already OK
-    cuts = cuts.resample(config.sample_rate)
+    cuts = cuts.map(partial(resample, sampling_rate=config.sample_rate), apply_fn=None)
 
     # Expands cuts if multiple translations are provided.
     cuts = CutSet(LazyFlattener(cuts.map(_flatten_alt_text, apply_fn=None)))
@@ -835,6 +835,20 @@ def maybe_set_cuda_expandable_segments(enabled: bool):
                 "Failed to set expandable_segments:True for PyTorch CUDA allocator. "
                 "You may get training speed improvements if you enable this "
             )
+
+
+def resample(example, sampling_rate):
+    from nemo.collections.common.data.lhotse.text_adapters import NeMoMultimodalConversation
+
+    if isinstance(example, Cut):
+        return example.resample(sampling_rate)
+    elif isinstance(example, NeMoMultimodalConversation):
+        for turn in example.turns:
+            if hasattr(turn, "cut"):
+                turn.cut = turn.cut.resample(sampling_rate)
+        return example
+    else:
+        return example
 
 
 def _select_channel(cut, channel_selector: int | str) -> list:

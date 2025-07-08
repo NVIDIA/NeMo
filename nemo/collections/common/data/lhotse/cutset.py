@@ -203,11 +203,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "force_map_dataset": config.get("force_map_dataset", False),
         "force_iterable_dataset": config.get("force_iterable_dataset", False),
     }
-    input_cfg = config.input_cfg
-    if isinstance(input_cfg, (str, Path)):
-        # Resolve /path/to/input_cfg.yaml into config contents if needed.
-        input_cfg = OmegaConf.load(input_cfg)
-    cuts, is_tarred = parse_and_combine_datasets(input_cfg, propagate_attrs=propagate_attrs)
+    cuts, is_tarred = parse_and_combine_datasets(config.input_cfg, propagate_attrs=propagate_attrs)
     return cuts, is_tarred
 
 
@@ -317,6 +313,10 @@ def parse_and_combine_datasets(
     cuts = []
     weights = []
     tarred_status = []
+
+    if isinstance(config_list, (str, Path)):
+        # Resolve /path/to/input_cfg.yaml into config contents if needed.
+        config_list = OmegaConf.load(config_list)
     assert len(config_list) > 0, "Empty group in dataset config list."
 
     for item in config_list:
@@ -562,8 +562,6 @@ def s2s_cut_to_conversation(
         elif turn_speaker in output_roles:
             turns.append(TextTurn(value=turn_text, role="assistant"))
         else:
-            print(cut.supervisions)
-            print(per_turn_cut)
             raise ValueError(f"Speaker '{turn_speaker}' not found in user or agent roles for cut {cut.id}")
         idx += 1
 
@@ -669,7 +667,7 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
     is_tarred = config.get("tarred_audio_filepaths") is not None
     if isinstance(config.manifest_filepath, (str, Path)):
         logging.info(
-            f"""Initializing Lhotse CutSet from a single NeMo manifest 
+            f"""Initializing Lhotse CutSet from a single NeMo manifest
             (is_tarred={is_tarred}): '{config.manifest_filepath}'"""
         )
         if is_tarred and not metadata_only:
@@ -700,7 +698,7 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
         #   i.e., NeMo concatenated dataset
         #   Assume it's [path1, path2, ...] (while tarred_audio_filepaths in the same format).
         logging.info(
-            f"""Initializing Lhotse CutSet from multiple NeMo manifest 
+            f"""Initializing Lhotse CutSet from multiple NeMo manifest
             (is_tarred={is_tarred}) sources with a weighted multiplexer.
             We found the following sources and weights: """
         )
