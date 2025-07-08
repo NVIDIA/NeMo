@@ -210,7 +210,6 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
-            # TODO: can we assume MCore v0.13?
             content_metadata=content_metadata,
         )
         end_time = time.time()
@@ -368,8 +367,19 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         return self._save_sharded_strategy
 
     @staticmethod
-    def _preprocess_checkpoint_load_path(path):
-        """TODO"""
+    def _preprocess_checkpoint_load_path(path: _PATH):
+        """Preprocess checkpoint path by checking if a directory exists and setting appropriate subdir.
+
+        Args:
+            path (_PATH): checkpoint path
+
+        Returns:
+            Path: preprocessed path that can be passed directly to `dist_checkpointing.load/save`
+
+        Raises:
+            FileNotFoundError: if path does not exist
+            ValueError: if path is not a directory
+        """
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         fs = get_filesystem(path)
         if not fs.exists(path):
@@ -384,14 +394,23 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         return path
 
     @staticmethod
-    def load_content_metadata(path: Optional[_PATH] = None, state_dict: Optional[dict] = None) -> dict:
-        """TODO describe state_dict optimization."""
+    def load_content_metadata(path: Optional[_PATH] = None, preloaded_state_dict: Optional[dict] = None) -> dict:
+        """Load content metadata stored in the checkpoint with `save_checkpoint(..., content_metadata=...)`.
+
+        Args:
+            path (_PATH, optional): checkpoint directory to load the content metadata from.
+            preloaded_state_dict (StateDict, optional): if the state dict was already loaded,
+                can be provided to avoid double load from storage
+
+        Returns:
+            dict: checkpoint content metadata
+            None: in case there is no content metadata in the checkpoint
+        """
         from megatron.core import dist_checkpointing
 
         if path is not None:
             path = MegatronCheckpointIO._preprocess_checkpoint_load_path(path)
-        # TODO: can we assume MCore v0.13 here
-        sharded_state_dict_metadata = dist_checkpointing.load_content_metadata(path, state_dict)
+        sharded_state_dict_metadata = dist_checkpointing.load_content_metadata(path, preloaded_state_dict)
         logging.info(f'Loaded sharded_state_dict_metadata from checkpoint: {sharded_state_dict_metadata}')
         return sharded_state_dict_metadata
 

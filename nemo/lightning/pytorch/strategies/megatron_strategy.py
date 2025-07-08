@@ -864,15 +864,22 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         return kwargs
 
-    def optimizer_sharded_state_dict(self, is_loading=False, metadata: Optional[dict] = None):
+    def optimizer_sharded_state_dict(self, is_loading: bool = False, metadata: Optional[dict] = None):
         """
         Sharded state dictionary for an MainParamsOptimizerWrapper.
         Used to save and load the optimizer state when training with distributed_checkpoint.
 
+        Args:
+            is_loading (bool, optional): set to True if the sharded state dict is intended
+                for checkpoint loading (as opposed to saving). Defaults to False.
+            metadata (dict, optional): sharded state dict metadata passed from the framework.
+                Used to control the details of sharded state dict creation, in particular
+                the state dict format of the DistributedOptimizer with the flag
+                `distrib_optim_sharding_type`. Defaults to None (empty metadata).
+
         Returns
         -------
             dict: The sharded state dictionary for the optimizer
-            TODO
         Raises:
             ValueError: If a parameter ID does not match any model sharded parameter.
         """

@@ -465,10 +465,20 @@ def optimizer_sharded_state_dict(
     Sharded state dictionary for an MainParamsOptimizerWrapper.
     Used to save and load the optimizer state when training with distributed_checkpoint.
 
+    Args:
+        model (SharedStateDictProtocol): model with a `sharded_state_dict` method
+        optimizer (Optimizable): optimizer to get the state dict of
+        is_loading (bool, optional): set to True if the sharded state dict is intended
+            for checkpoint loading (as opposed to saving). Defaults to False.
+        sharding_type (str, optional): deprecated, use metadata flags instead.
+        metadata (dict, optional): sharded state dict metadata passed from the framework.
+            Used to control the details of sharded state dict creation, in particular
+            the state dict format of the DistributedOptimizer with the flag
+            `distrib_optim_sharding_type`. Defaults to None (empty metadata).
+
     Returns
     -------
         dict: The sharded state dictionary for the optimizer
-        TODO
     Raises:
         ValueError: If a parameter ID does not match any model sharded parameter.
     """
@@ -496,7 +506,6 @@ def optimizer_sharded_state_dict(
             metadata["distrib_optim_sharding_type"] = sharding_type
 
     if hasattr(optimizer, "sharded_state_dict"):
-        # TODO: can we assume MCore >= v0.13 here
         return optimizer.sharded_state_dict(
             model_sharded_state_dict,
             is_loading=is_loading,
@@ -681,10 +690,10 @@ def setup_megatron_optimizer(
         ):
             mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
             distrib_optim_kwargs = {}
-            if "sharding_type" in mcore_optimizer_sig:
-                distrib_optim_kwargs["sharding_type"] = sharding_type
             if "metadata" in mcore_optimizer_sig:
                 distrib_optim_kwargs["metadata"] = metadata
+            elif "sharding_type" in mcore_optimizer_sig:
+                distrib_optim_kwargs["sharding_type"] = sharding_type
             state_dict = self.mcore_optimizer.sharded_state_dict(
                 model_sharded_state_dict, is_loading=is_loading, **distrib_optim_kwargs
             )
