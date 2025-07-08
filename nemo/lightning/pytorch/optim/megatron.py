@@ -97,9 +97,6 @@ class MegatronOptimizerModule(OptimizerModule):
         if not isinstance(model, MegatronParallel):
             raise ValueError("Model must be an instance of MegatronParallel")
 
-        from nemo.utils import AppState
-        app_state = AppState()
-
         optimizer = setup_megatron_optimizer(
             model,
             self.config,
