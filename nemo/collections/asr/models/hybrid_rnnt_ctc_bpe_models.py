@@ -320,7 +320,14 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         self.decoder = EncDecHybridRNNTCTCBPEModel.from_config_dict(new_decoder_config)
 
         del self.loss
-        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
+        loss_kwargs = {
+            "fastemit_lambda": 0.0,
+            "clamp": -1.0,
+            "durations": [0, 1, 2, 3, 4],
+            "sigma": 0.02,
+            "omega": 0.1,
+        }
+        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1 - self.joint.num_extra_outputs, loss_name='tdt', loss_kwargs=loss_kwargs)
 
         if decoding_cfg is None:
             # Assume same decoding config as before
