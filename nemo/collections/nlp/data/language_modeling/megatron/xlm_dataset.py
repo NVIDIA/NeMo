@@ -85,7 +85,7 @@ class CrossLingualBERTDataset(BinarizedMemmapSequenceToSequenceDataset):
         if len(tgt) > self.max_tgt_seq_length - 1:  # -1 here to account for the <sep> token that gets added.
             tgt = tgt[: self.max_tgt_seq_length]
 
-        np_rng = np.random.RandomState(seed=((self.seed + idx) % 2 ** 32))
+        np_rng = np.random.RandomState(seed=((self.seed + idx) % 2**32))
         # Potentially swap src, tgt with a 50% chance to avoid learning associations based on position in the sequence.
         swap_src_tgt = np_rng.randint(0, 2)
         if swap_src_tgt == 0:
