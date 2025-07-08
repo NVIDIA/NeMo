@@ -65,6 +65,7 @@ def override_recipe_configs(
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         recompute_layers=recompute_layers,
@@ -85,11 +86,6 @@ def override_recipe_configs(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=32000
         )
         recipe.model.tokenizer = recipe.data.tokenizer
-
-    # to mitigate the incorrect gradient_scaling_factor calculation in megatron.core
-    # under scenario average_in_collective=True and tp_size != etp_size, disabling average_in_collective.
-    if etp_size is not None and etp_size != tp_size:
-        recipe.trainer.strategy.ddp.average_in_collective = False
 
     return recipe
 
