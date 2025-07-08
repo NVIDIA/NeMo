@@ -668,12 +668,13 @@ def replace_placeholders_and_build_targets(
 
     return output, new_target_ids, attention_masks
 
+
 def _unpad_inputs(
-        input_ids: torch.Tensor,
-        embeds: torch.Tensor,
-        target_ids: Optional[torch.Tensor],
-        padding_id: int,
-    ) -> tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    input_ids: torch.Tensor,
+    embeds: torch.Tensor,
+    target_ids: Optional[torch.Tensor],
+    padding_id: int,
+) -> tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
     def first_index_not_value(tensor, value):
         mask = tensor != value
         indices = torch.nonzero(mask, as_tuple=False)
