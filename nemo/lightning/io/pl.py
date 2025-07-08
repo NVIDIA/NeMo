@@ -178,7 +178,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             checkpoint: dict containing model and trainer state
             path: write-target path
             storage_options: not used in ``TorchCheckpointIO.save_checkpoint``
-
+            content_metadata (dict, optional): metadata to identify the checkpoint content.
+                Useful for framework specific versioning.
         Raises
         ------
             TypeError:

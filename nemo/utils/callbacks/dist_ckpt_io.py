@@ -110,7 +110,13 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         super().__init__(checkpoint_io)
         self.async_calls_queue = AsyncCallsQueue()
 
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+    def save_checkpoint(
+        self,
+        checkpoint: Dict[str, Any],
+        path: _PATH,
+        storage_options: Optional[Any] = None,
+        content_metadata: Optional[dict] = None,
+    ) -> None:
         """Executes async request returned from the underlying checkpoint_io asynchronously.
 
         Requires the underlying checkpoint_io.save_checkpoint to return an AsyncRequest.
@@ -124,12 +130,17 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
             storage_options (Any, optional): storage control modifiers. This class
                 consumed the `finalize_fn` parameter (if any), which is expected to be
                 a callback and is appended to async finalization functions.
+            content_metadata (dict, optional): metadata to identify the checkpoint content.
+                Useful for framework specific versioning.
 
         Applies underlying checkpoint_io finalize callback first, then the external one (postfix order).
         """
         external_finalize_fn = (storage_options or {}).pop('finalize_fn', None)
         assert isinstance(self.checkpoint_io, AsyncCompatibleCheckpointIO), type(self.checkpoint_io)
-        async_request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
+        save_kwargs = {}
+        if content_metadata is not None:
+            save_kwargs['content_metadata'] = content_metadata
+        async_request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options, **save_kwargs)
         if external_finalize_fn is not None:
             async_request.add_finalize_fn(external_finalize_fn)
         call_idx = self.async_calls_queue.schedule_async_request(async_request)
