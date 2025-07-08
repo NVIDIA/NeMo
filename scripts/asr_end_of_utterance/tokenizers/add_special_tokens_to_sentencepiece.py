@@ -54,7 +54,7 @@ parser.add_argument(
     "--input_file",
     type=str,
     required=True,
-    help="Path to sentencepiece model file",
+    help="Path to nemo model file, or sentencepiece model file",
 )
 parser.add_argument(
     "-o",
