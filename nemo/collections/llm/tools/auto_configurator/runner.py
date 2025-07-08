@@ -129,10 +129,7 @@ class AutoConfigurator:
         self.num_nodes = recipe.trainer.num_nodes
         gpu_count = self.num_nodes * self.num_gpus
         assert gpu_count > 0, "num_nodes * gpus_per_node must be an int larger than zero."
-        assert gpu_memory_gb in (
-            40,
-            80,
-        ), "gpu_memory_gb can only be 40 or 80."
+        assert 16 <= gpu_memory_gb <= 200, f"gpu_memory_gb must be between 16GB and 200GB. Got: {gpu_memory_gb} GB"
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
         assert max_steps_per_run >= 10, "max_steps_per_run must be an int and be at least 10 minutes."
 
