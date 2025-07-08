@@ -18,10 +18,18 @@ from typing import Dict, List
 import numpy as np
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
-    BinarizedMemmapSequenceToSequenceDataset,
-    TextMemmapSequenceToSequenceDataset,
-)
+
+try:
+    from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
+        BinarizedMemmapSequenceToSequenceDataset,
+        TextMemmapSequenceToSequenceDataset,
+    )
+except ModuleNotFoundError:
+    from abc import ABC
+
+    BinarizedMemmapSequenceToSequenceDataset = ABC
+    TextMemmapSequenceToSequenceDataset = ABC
+
 from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import (
     build_training_sample as build_training_sample_bert,
 )
