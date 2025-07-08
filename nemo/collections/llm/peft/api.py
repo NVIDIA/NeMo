@@ -164,14 +164,15 @@ def _setup_trainer_and_restore_model_and_adapter(
     model.trainer = trainer
 
     lora(model)
-    sharded_sd_metadata = trainer.strategy.checkpoint_io.load_content_metadata()
+    weights_dir = ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False)
+    sharded_sd_metadata = trainer.strategy.unwrapped_checkpoint_io.load_content_metadata(weights_dir)
     adapter_sharded_state_dict = {
         k: v
         for k, v in trainer.strategy.megatron_parallel.sharded_state_dict(metadata=sharded_sd_metadata).items()
         if ".adapter." in k
     }
     adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
-        ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
+        weights_dir, sharded_state_dict=adapter_sharded_state_dict
     )
     trainer.strategy.load_model_state_dict(adapter_state, strict=False)
 

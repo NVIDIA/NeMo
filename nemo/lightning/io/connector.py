@@ -276,7 +276,7 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
             model.trainer = _trainer
             model = model.model_transform(model)
             load_path = ckpt_to_weights_subdir(path, is_saving=False)
-            sharded_sd_metadata = _trainer.strategy.load_content_metadata(load_path)
+            sharded_sd_metadata = _trainer.strategy.unwrapped_checkpoint_io.load_content_metadata(load_path)
             adapter_sharded_state_dict = {
                 k: v
                 for k, v in _trainer.strategy.megatron_parallel.sharded_state_dict(

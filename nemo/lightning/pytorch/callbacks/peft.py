@@ -236,7 +236,9 @@ class PEFT(IOMixin, ABC, ModelTransform):
         adapter_sharded_state_dict = {}
         if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
-            sharded_sd_metadata = self.wrapped_io.load_content_metadata(self.wrapped_io.adapter_ckpt_path)
+            sharded_sd_metadata = trainer.strategy.unwrapped_checkpoint_io.load_content_metadata(
+                self.wrapped_io.adapter_ckpt_path
+            )
             # create sharded state dict for adapter weights only to enable PEFT resume
             adapter_sharded_state_dict['state_dict'] = {
                 k: v

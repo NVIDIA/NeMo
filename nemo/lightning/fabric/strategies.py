@@ -365,7 +365,7 @@ class FabricMegatronStrategy(DDPStrategy):
         torch.cuda.empty_cache()
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
-        sharded_sd_metadata = self.checkpoint_io.load_content_metadata(path)
+        sharded_sd_metadata = self.unwrapped_checkpoint_io.load_content_metadata(path)
         sharded_state_dict = {}
         if isinstance(state, Module):
             sharded_state_dict["state_dict"] = state.sharded_state_dict(metadata=sharded_sd_metadata)
@@ -457,6 +457,13 @@ class FabricMegatronStrategy(DDPStrategy):
             self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
 
         return self._checkpoint_io
+
+    @property
+    def unwrapped_checkpoint_io(self) -> CheckpointIO:
+        checkpoint_io = self.checkpoint_io
+        while isinstance(checkpoint_io, _WrappingCheckpointIO):
+            checkpoint_io = checkpoint_io.checkpoint_io
+        return checkpoint_io
 
     @property
     def parallelism(self):

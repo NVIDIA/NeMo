@@ -965,7 +965,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             sharded_state_context = nullcontext
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
-        sharded_sd_metadata = self.checkpoint_io.load_content_metadata(checkpoint_path)
+        sharded_sd_metadata = self.unwrapped_checkpoint_io.load_content_metadata(checkpoint_path)
         sharded_state_dict = {}
         with sharded_state_context():
             sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict(metadata=sharded_sd_metadata)
@@ -1103,6 +1103,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def checkpoint_io(self, io: CheckpointIO) -> None:
         """CheckpointIO setter"""
         self._checkpoint_io = io
+
+    @property
+    def unwrapped_checkpoint_io(self) -> CheckpointIO:
+        checkpoint_io = self.checkpoint_io
+        while isinstance(checkpoint_io, _WrappingCheckpointIO):
+            checkpoint_io = checkpoint_io.checkpoint_io
+        return checkpoint_io
 
     @property
     def current_epoch_step(self) -> int:
