@@ -1,10 +1,13 @@
 # Changelog
 
 <!-- Next changelog -->
-## NVIDIA Neural Modules 2.3.0
+## NVIDIA Neural Modules 2.3.2
+
+### Highlights
+
+This release addresses known security issues. For the latest NVIDIA Vulnerability Disclosure Information visit https://www.nvidia.com/en-us/security/, for acknowledgement please reach out to the NVIDIA PSIRT team at PSIRT@nvidia.com
 
 ### Detailed Changelogs:
-
 
 </details>
 
@@ -20,6 +23,7 @@
 - Cherry-pick `Added safe loading of models (#13607)` to `r2.3.0` by @chtruong814 :: PR: #13985
 
 </details>
+
 ## NVIDIA Neural Modules 2.3.1
 
 ### Highlights
