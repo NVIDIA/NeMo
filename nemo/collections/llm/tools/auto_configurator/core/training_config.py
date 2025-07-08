@@ -70,7 +70,7 @@ def generate_grid_search_configs(
     max_steps = train_cfg.max_steps_per_run
     num_nodes = train_cfg.num_nodes
     valid_tp_pp_list = []
-    
+
     # Generate valid TP, PP, CP, EP combinations first
     for tp in params.tp:
         for pp in params.pp:
@@ -118,11 +118,11 @@ def generate_grid_search_configs(
                 num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
                 model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
                 mod_gbs = gbs % (mbs * num_gpus / model_parallelism)
-                
+
                 # Only proceed if GBS is valid for current configuration
                 if mod_gbs != 0:
                     continue
-                
+
                 kwargs = {
                     "base_cfg": base_cfg,
                     "act": None,
@@ -225,7 +225,6 @@ def _set_activations_checkpoint_params(
         num_micro_batches_partial_act_ckpt,
         act_ckpt_layers_per_pipeline,
     )
-
 
 
 @dataclass
