@@ -3,8 +3,6 @@
 <!-- Next changelog -->
 ## NVIDIA Neural Modules 2.3.2
 
-### Highlights
-
 This release addresses known security issues. For the latest NVIDIA Vulnerability Disclosure Information visit https://www.nvidia.com/en-us/security/, for acknowledgement please reach out to the NVIDIA PSIRT team at PSIRT@nvidia.com
 
 ## NVIDIA Neural Modules 2.3.1
