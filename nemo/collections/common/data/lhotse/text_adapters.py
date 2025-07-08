@@ -540,6 +540,8 @@ class NeMoMultimodalConversationJsonlAdapter:
         for jsonl_path, tar_path in paths:
             tar = iter(TarIterator(tar_path))
             for data in load_jsonl(jsonl_path):
+                if data.get("custom", {}).get("_skipme", False):
+                    continue
                 audio_turns = [t for t in data["conversations"] if t["type"] == "audio"]
                 cuts = []
                 for turn in audio_turns:
@@ -584,6 +586,8 @@ class NeMoMultimodalConversationJsonlAdapter:
             random.Random(seed).shuffle(paths)
         for path in paths:
             for data in load_jsonl(path):
+                if data.get("custom", {}).get("_skipme", False):
+                    continue
                 yield NeMoMultimodalConversation(
                     id=data["id"],
                     turns=[
