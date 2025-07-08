@@ -7,23 +7,6 @@
 
 This release addresses known security issues. For the latest NVIDIA Vulnerability Disclosure Information visit https://www.nvidia.com/en-us/security/, for acknowledgement please reach out to the NVIDIA PSIRT team at PSIRT@nvidia.com
 
-### Detailed Changelogs:
-
-</details>
-
-#### Uncategorized:
-
-<details><summary>Changelog</summary>
-
-- ci: Rename FW templates by @ko3n1g :: PR: #13901
-- Cherry-pick `Use jiwer less than 4.0.0 (#13997)` to `r2.3.0` by @chtruong814 :: PR: #13999
-- Bump to 2.3.2 by @chtruong814 :: PR: #13726
-- Cherry pick `decompressing joblib file before checking it (13804)` into `r2.3.0` by @ko3n1g :: PR: #13984
-- Cherry-pick `move classes to module to use __target__ feature` (#14031) to `r2.3.0` by @chtruong814 :: PR: #14043
-- Cherry-pick `Added safe loading of models (#13607)` to `r2.3.0` by @chtruong814 :: PR: #13985
-
-</details>
-
 ## NVIDIA Neural Modules 2.3.1
 
 ### Highlights
