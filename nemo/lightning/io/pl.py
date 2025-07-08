@@ -411,7 +411,9 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
         if path is not None:
             path = MegatronCheckpointIO._preprocess_checkpoint_load_path(path)
-        sharded_state_dict_metadata = dist_checkpointing.load_content_metadata(path, preloaded_state_dict)
+        sharded_state_dict_metadata = dist_checkpointing.load_content_metadata(
+            path, preloaded_state_dict=preloaded_state_dict
+        )
         logging.info(f'Loaded sharded_state_dict_metadata from checkpoint: {sharded_state_dict_metadata}')
         return sharded_state_dict_metadata
 

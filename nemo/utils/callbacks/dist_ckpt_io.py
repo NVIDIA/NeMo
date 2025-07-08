@@ -173,6 +173,10 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
             # Can't do finalization now because some ranks might be lost
             logging.warning('Some async checkpoint saves might be not finalized properly.')
 
+    def load_content_metadata(self, path: Optional[_PATH] = None, preloaded_state_dict: Optional[dict] = None) -> dict:
+        """Call to wrapped checkpoint_io.load_content_metadata."""
+        return self.checkpoint_io.load_content_metadata(path, preloaded_state_dict)
+
 
 class AsyncFinalizerCallback(Callback):
     """Callback which finalizes async saves initiated by the AsyncFinalizableCheckpointIO.
