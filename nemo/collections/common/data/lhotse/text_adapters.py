@@ -532,6 +532,12 @@ class NeMoMultimodalConversationJsonlAdapter:
         else:
             yield from self._iter_jsonl()
 
+    def _should_skip(self, example: dict) -> bool:
+        custom = example.get("custom")
+        if custom is None:
+            return False
+        return bool(custom.get("_skipme", False))
+
     def _iter_tar(self):
         paths = list(zip(self.manifest_filepath, self.tarred_audio_filepaths))
         if self.shuffle_shards:
@@ -540,7 +546,7 @@ class NeMoMultimodalConversationJsonlAdapter:
         for jsonl_path, tar_path in paths:
             tar = iter(TarIterator(tar_path))
             for data in load_jsonl(jsonl_path):
-                if data.get("custom", {}).get("_skipme", False):
+                if self._should_skip(data):
                     continue
                 audio_turns = [t for t in data["conversations"] if t["type"] == "audio"]
                 cuts = []
@@ -559,17 +565,13 @@ class NeMoMultimodalConversationJsonlAdapter:
                         (
                             TextTurn(
                                 value=turn["value"],
-                                role=turn[
-                                    "from"
-                                ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
+                                role=turn["from"].lower(),
                             )
                             if turn["type"] == "text"
                             else AudioTurn(
                                 cut=(c := cuts.popleft()),
                                 text=c.supervisions[0].text if c.supervisions else None,
-                                role=turn[
-                                    "from"
-                                ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
+                                role=turn["from"].lower(),
                                 audio_locator_tag=self.audio_locator_tag,
                             )
                         )
@@ -586,7 +588,7 @@ class NeMoMultimodalConversationJsonlAdapter:
             random.Random(seed).shuffle(paths)
         for path in paths:
             for data in load_jsonl(path):
-                if data.get("custom", {}).get("_skipme", False):
+                if self._should_skip(data):
                     continue
                 yield NeMoMultimodalConversation(
                     id=data["id"],
@@ -594,17 +596,13 @@ class NeMoMultimodalConversationJsonlAdapter:
                         (
                             TextTurn(
                                 value=turn["value"],
-                                role=turn[
-                                    "from"
-                                ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
+                                role=turn["from"].lower(),
                             )
                             if turn["type"] == "text"
                             else AudioTurn(
-                                cut=Recording.from_file(get_full_path(turn["value"], path)).to_cut(),
-                                text=c.supervisions[0].text if c.supervisions else None,
-                                role=turn[
-                                    "from"
-                                ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
+                                cut=(cut := Recording.from_file(get_full_path(turn["value"], path)).to_cut()),
+                                text=cut.supervisions[0].text if cut.supervisions else None,
+                                role=turn["from"].lower(),
                                 audio_locator_tag=self.audio_locator_tag,
                             )
                         )
