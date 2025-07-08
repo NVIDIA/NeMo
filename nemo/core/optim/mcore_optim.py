@@ -14,6 +14,7 @@
 
 import torch
 
+from nemo.utils import logging
 from nemo.utils.nvtx import nvtx_range_pop, nvtx_range_push
 
 
