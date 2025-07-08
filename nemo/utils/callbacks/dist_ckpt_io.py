@@ -134,10 +134,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         """
         external_finalize_fn = (storage_options or {}).pop('finalize_fn', None)
         assert isinstance(self.checkpoint_io, AsyncCompatibleCheckpointIO), type(self.checkpoint_io)
-        save_kwargs = {}
-        if content_metadata is not None:
-            save_kwargs['content_metadata'] = content_metadata
-        async_request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options, **save_kwargs)
+        async_request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
         if external_finalize_fn is not None:
             async_request.add_finalize_fn(external_finalize_fn)
         call_idx = self.async_calls_queue.schedule_async_request(async_request)

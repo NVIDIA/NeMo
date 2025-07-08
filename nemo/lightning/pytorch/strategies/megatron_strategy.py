@@ -48,6 +48,7 @@ from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.accelerators import CPUAccelerator
 from lightning.pytorch.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
 from lightning.pytorch.loops.fetchers import _DataLoaderIterDataFetcher
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
@@ -1107,6 +1108,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @property
     def unwrapped_checkpoint_io(self) -> CheckpointIO:
+        """Unwraps `checkpoint_io` from all wrappers."""
         checkpoint_io = self.checkpoint_io
         while isinstance(checkpoint_io, _WrappingCheckpointIO):
             checkpoint_io = checkpoint_io.checkpoint_io

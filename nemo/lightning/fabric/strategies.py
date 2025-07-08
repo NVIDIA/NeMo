@@ -460,6 +460,7 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @property
     def unwrapped_checkpoint_io(self) -> CheckpointIO:
+        """Unwraps `checkpoint_io` from all wrappers."""
         checkpoint_io = self.checkpoint_io
         while isinstance(checkpoint_io, _WrappingCheckpointIO):
             checkpoint_io = checkpoint_io.checkpoint_io
