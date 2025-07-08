@@ -17,4 +17,5 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo exampl
     model.test_ds.manifest_filepath=/home/TestData/an4_tsasr/simulated_valid/tsasr_valid_tiny.json \
     model.tokenizer.dir=/home/TestData/an4_tsasr/tokenizer_bpe_asr_phase1_en_v1024_beep \
     model.tokenizer.type=bpe \
-    +model.diar_model_path=/home/TestData/an4_tsasr/diar_sortformer_4spk-v1-tiny.nemo
+    +model.diar_model_path=/home/TestData/an4_tsasr/diar_sortformer_4spk-v1-tiny.nemo \
+    +trainer.fast_dev_run=True
