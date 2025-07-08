@@ -548,7 +548,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                     cut = recording.to_cut()
                     assert (
                         audio_path == turn['value']
-                        ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}.\nBad inputs in: {jsonl_path=} {tar_path=}"
+                    ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}.\nBad inputs in: {jsonl_path=} {tar_path=}"
                     cuts.append(cut)
                 cuts = deque(cuts)
                 yield NeMoMultimodalConversation(
