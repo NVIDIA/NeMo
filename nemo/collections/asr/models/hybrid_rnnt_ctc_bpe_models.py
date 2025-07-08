@@ -327,7 +327,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             "sigma": 0.02,
             "omega": 0.1,
         }
-        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1 - self.joint.num_extra_outputs, loss_name='tdt', loss_kwargs=loss_kwargs)
+        self.loss = RNNTLoss(
+            num_classes=self.joint.num_classes_with_blank - 1 - self.joint.num_extra_outputs,
+            loss_name='tdt',
+            loss_kwargs=loss_kwargs,
+        )
 
         if decoding_cfg is None:
             # Assume same decoding config as before
