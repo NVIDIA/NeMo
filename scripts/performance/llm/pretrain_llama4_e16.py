@@ -67,6 +67,8 @@ def override_recipe_configs(
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        nccl_communicator_config_path=args.nccl_communicator_config_path,
+        high_priority_stream_groups=args.high_priority_stream_groups,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name

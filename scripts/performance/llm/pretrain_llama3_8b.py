@@ -66,6 +66,7 @@ def override_recipe_configs(
         use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
+        high_priority_stream_groups=args.high_priority_stream_groups,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name

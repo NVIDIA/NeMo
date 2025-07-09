@@ -277,6 +277,7 @@ def set_perf_optimization_configs(
     use_fsdp_double_buffer: Optional[bool] = None,
     use_user_buffer_registration: Optional[bool] = None,
     use_sharp: Optional[bool] = None,
+    high_priority_stream_groups: Optional[List[str]] = None,
 ):
     """
     Set performance optimization related configs.
@@ -316,7 +317,9 @@ def set_perf_optimization_configs(
         recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
         recipe.trainer.strategy.ddp.check_for_large_grads = False
         recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
-        recipe.trainer.strategy.ddp.fsdp_double_buffer = bool(use_fsdp_double_buffer)
+
+    if high_priority_stream_groups is not None:
+        recipe.trainer.strategy.high_priority_stream_groups = high_priority_stream_groups
 
     return recipe
 
@@ -346,6 +349,7 @@ def set_primary_perf_configs(
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
+    high_priority_stream_groups: Optional[List[str]] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -396,6 +400,7 @@ def set_primary_perf_configs(
         use_fsdp_double_buffer=use_fsdp_double_buffer,
         use_user_buffer_registration=use_user_buffer_registration,
         use_sharp=use_sharp,
+        high_priority_stream_groups=high_priority_stream_groups,
     )
 
     return recipe
