@@ -456,7 +456,7 @@ class MegatronTokenLevelEncoderDecoderModule(MegatronModule, adapter_mixins.Adap
             cfg.get("position_embedding_type", "learned_absolute") == "relative"
             and cfg.get("arch", "transformer") == "perceiver"
         ):
-            raise ValueError(f"Perceivers with relative position embeddings are not supported")
+            raise ValueError("Perceivers with relative position embeddings are not supported")
 
     def _validate_config(self):
         encoder_kv_channels = self._validate_kv_channels(self.encoder_cfg)
