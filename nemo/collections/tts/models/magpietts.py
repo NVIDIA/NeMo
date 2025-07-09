@@ -363,7 +363,7 @@ class MagpieTTSModel(ModelPT):
         self._codec_model.eval()
         with torch.no_grad(), torch.autocast(device_type=audio.device.type, dtype=torch.float32):
             codes, codes_len = self._codec_model.encode(audio=audio, audio_len=audio_len)
-            # Add a timestep to begining and end of codes tensor
+            # Add a timestep to beginning and end of codes tensor
             bos_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), audio_bos_id, dtype=codes.dtype, device=codes.device
             )
@@ -1097,7 +1097,7 @@ class MagpieTTSModel(ModelPT):
         dummy_additional_dec_mask = None
         if additional_decoder_input is not None:
             dummy_additional_decoder_input = torch.zeros_like(additional_decoder_input)
-            # all ones mask means dont ignore any timesteps (so that it is consistent with usual decoder mask)
+            # all ones mask means don't ignore any timesteps (so that it is consistent with usual decoder mask)
             dummy_additional_dec_mask = torch.ones_like(additional_dec_mask)
 
         if isinstance(cond, list):
@@ -1535,7 +1535,7 @@ class MagpieTTSModel(ModelPT):
         for bidx in finished_texts_counter:
             finished_texts_counter[bidx] += 1
             if finished_texts_counter[bidx] > 10:
-                # This means we have been within the text EOS window for atleast 10 timesteps
+                # This means we have been within the text EOS window for at least 10 timesteps
                 # We should allow EOS to be predicted now.
                 unfinished_texts[bidx] = False
 
@@ -1672,7 +1672,7 @@ class MagpieTTSModel(ModelPT):
                     # print(f"step {idx}")
                     # print(f"use_cfg {use_cfg}")
                     # print(f"shape {cfg_audio_codes_embedded.shape}")
-                    # print(f"use kv cahce? {self.use_kv_cache_for_inference}")
+                    # print(f"use kv cache? {self.use_kv_cache_for_inference}")
                     combined_logits, attn_probs, dec_out = self.forward(
                         dec_input_embedded=cfg_audio_codes_embedded,
                         dec_input_mask=cfg_audio_codes_mask,
@@ -1727,7 +1727,7 @@ class MagpieTTSModel(ModelPT):
                         batch_size=batch_size
                     )
 
-                finished_items = {k: v for k, v in finished_texts_counter.items() if v >= 20} # Items that have been close to the end for atleast 20 timesteps
+                finished_items = {k: v for k, v in finished_texts_counter.items() if v >= 20} # Items that have been close to the end for at least 20 timesteps
                 unfinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
@@ -1778,14 +1778,14 @@ class MagpieTTSModel(ModelPT):
                 audio_codes_lens = audio_codes_lens + 1
                 audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
                 if len(end_indices) == text.size(0) and len(all_predictions) >= 4:
-                    # Codec must be of atleast 4 timesteps to be decoded properly
+                    # Codec must be of at least 4 timesteps to be decoded properly
                     print("All ends reached")
                     break
             tts_generation_time = time.time() - start_time
             tts_generation_time_per_frame = tts_generation_time / len(all_predictions)
             predicted_codes = torch.stack(all_predictions, dim=-1)  # (B, num_codebooks, T')
 
-            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
+            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))] #  Ensure that the codec is at least of length 4
             predicted_codes_lens = torch.tensor(predicted_lens, device=text.device).long()
 
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
