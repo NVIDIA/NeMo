@@ -1171,8 +1171,7 @@ class MegatronBaseModel(NLPModel):
 
             # Subtract decoder position embedding params that are shared with encoder.
             if (
-                parallel_state.is_pipeline_stage_at_split()
-                and self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
+                self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
             ):
                 num_position_embedding_parameters = sum([p.nelement() for p in model.position_embeddings_weight()])
                 num_parameters_on_device -= num_position_embedding_parameters
@@ -1180,7 +1179,6 @@ class MegatronBaseModel(NLPModel):
         # Check and remove RPE embeddings from the encoder that are replicated.
         if (
             parallel_state.get_pipeline_model_parallel_world_size() > 1
-            and parallel_state.is_pipeline_stage_before_split()
             and not parallel_state.is_pipeline_first_stage()
             and self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "relative"
         ):
@@ -1191,8 +1189,6 @@ class MegatronBaseModel(NLPModel):
         # Check and remove RPE embeddings from the decoder that are replicated.
         if (
             parallel_state.get_pipeline_model_parallel_world_size() > 1
-            and parallel_state.is_pipeline_stage_after_split()
-            and not parallel_state.is_pipeline_stage_at_split()
             and self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "relative"
         ):
             # substract the RPE params on intermediate pipeline stages.

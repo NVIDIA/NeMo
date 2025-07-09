@@ -545,8 +545,7 @@ class ParallelVisionTransformer(ParallelTransformer):
         else:
             # Each stage gets a contiguous set of layers.
             if (
-                self.model_type == ModelType.encoder_and_decoder
-                and parallel_state.get_pipeline_model_parallel_world_size() > 1
+                parallel_state.get_pipeline_model_parallel_world_size() > 1
             ):
                 pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
                 if layer_type == LayerType.encoder:
