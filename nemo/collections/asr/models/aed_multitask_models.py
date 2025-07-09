@@ -1010,7 +1010,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         if trcfg.timestamps and self.timestamps_asr_model is not None:
             hypotheses = get_forced_aligned_timestamps_with_external_model(
-                audio=[audio.squeeze() for audio in batch.audio],
+                audio=[audio.squeeze()[:audio_len] for audio, audio_len in zip(batch.audio, batch.audio_lens)],
                 batch_size=len(batch.audio),
                 external_ctc_model=self.timestamps_asr_model,
                 main_model_predictions=hypotheses,
