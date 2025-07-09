@@ -43,6 +43,7 @@ from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import process_timestamp_outputs
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -1085,3 +1086,16 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
     @wer.setter
     def wer(self, wer):
         self._wer = wer
+
+    def enable_cuda_graphs_(self, force_reinit=False) -> bool:
+        if force_reinit:
+            self.disable_cuda_graphs_()
+        if isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
+            self.decoding.decoding.maybe_enable_cuda_graphs()
+        return True
+
+    # @abstractmethod
+    def disable_cuda_graphs_(self) -> bool:
+        if isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
+            self.decoding.decoding.disable_cuda_graphs()
+        return True
