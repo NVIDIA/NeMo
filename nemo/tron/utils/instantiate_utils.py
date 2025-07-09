@@ -21,6 +21,7 @@ import logging
 from enum import Enum
 from textwrap import dedent
 from typing import Any, Callable, Dict, List, Sequence, Tuple, Union
+import dataclasses
 
 from omegaconf import OmegaConf
 from omegaconf._utils import is_structured_config
@@ -191,6 +192,16 @@ def _call_target(
 ) -> Any:
     """Call target (type) with args and kwargs."""
     args, kwargs = _extract_pos_args(args, kwargs)
+
+    # dont pass dataclasses fields init=False set
+    if dataclasses.is_dataclass(_target_):
+        not_init_field_names = {
+            f.name for f in dataclasses.fields(_target_) if not f.init
+        }
+        # Filter the incoming kwargs against the valid init field names
+        kwargs = {key: value for key, value in kwargs.items()
+            if key not in not_init_field_names}
+
     if _partial_:
         try:
             return functools.partial(_target_, *args, **kwargs)
