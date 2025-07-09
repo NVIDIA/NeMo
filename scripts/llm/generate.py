@@ -17,7 +17,6 @@
 
 from argparse import ArgumentParser
 
-import torch
 import torch.distributed
 from megatron.core.inference.common_inference_params import CommonInferenceParams
 
@@ -151,6 +150,11 @@ def get_args():
         action="store_true",
         help="""Load ckpt saved with TE < 1.14""",
     )
+    parser.add_argument(
+        "--disable_flash_decode",
+        action="store_true",
+        help="""Disable flash decode for models that do not support it""",
+    )
     args = parser.parse_args()
     return args
 
@@ -165,7 +169,7 @@ if __name__ == "__main__":
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
         expert_model_parallel_size=args.ep,
-        expert_tensor_parallel_size=1 if args.ep > 1 else None,
+        expert_tensor_parallel_size=1,
         context_parallel_size=1,
         sequence_parallel=False,
         setup_optimizers=False,
@@ -206,10 +210,13 @@ if __name__ == "__main__":
             top_p=args.top_p,
             top_k=args.top_k,
             num_tokens_to_generate=args.num_tokens_to_generate,
+            return_log_probs=False,
+            top_n_logprobs=0,
         ),
         text_only=True,
         max_batch_size=args.max_batch_size,
         random_seed=args.random_seed,
+        enable_flash_decode=not args.disable_flash_decode,
     )
     if torch.distributed.get_rank() == 0:
         for i, r in enumerate(results):
