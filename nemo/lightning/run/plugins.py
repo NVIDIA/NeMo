@@ -359,6 +359,7 @@ class PerfEnvPlugin(run.Plugin):
     enable_vboost: bool = False
     nccl_pp_comm_chunksize: Optional[int] = None
     gpu_sm100_or_newer: bool = False
+    user_buffer_registration: bool = False
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
         "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
@@ -407,6 +408,19 @@ class PerfEnvPlugin(run.Plugin):
 
             # Enable high priority for NCCL communications
             executor.env_vars["TORCH_NCCL_HIGH_PRIORITY"] = "1"
+
+            if self.user_buffer_registration:
+                executor.env_vars["NCCL_NVLS_ENABLE"] = "1"
+                executor.env_vars["NCCL_CTA_POLICY"] = "1"
+                if "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+                    pytorch_cuda_alloc_conf = executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"].split(',')
+                    if "expandable_segments:True" in pytorch_cuda_alloc_conf:
+                        logging.warning(
+                            "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True is not compatible with user buffer registration."
+                            "Removing expandable_segments:True from the list."
+                        )
+                        pytorch_cuda_alloc_conf.remove("expandable_segments:True")
+                        executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"] = ",".join(pytorch_cuda_alloc_conf)
 
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):

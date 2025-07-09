@@ -78,6 +78,7 @@ def override_recipe_configs(
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
+        keep_fsdp_fp8_transpose_cache=args.keep_fsdp_fp8_transpose_cache,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -181,6 +182,7 @@ if __name__ == "__main__":
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            user_buffer_registration=args.use_user_buffer_registration,
         )
     ]
     if args.enable_nsys:
