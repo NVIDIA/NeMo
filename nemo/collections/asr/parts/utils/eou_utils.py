@@ -76,7 +76,7 @@ def evaluate_eou(
     num_utterances = len(reference)
     num_predictions = len(prediction)
     missing = 0
-
+    earlycut_ids = set()
     predicted_eou = prediction
     if threshold is not None and threshold > 0:
         predicted_eou = [p for p in prediction if p["eou_prob"] > threshold]
@@ -112,17 +112,24 @@ def evaluate_eou(
             # Correctly predicted EOU
             true_positives += 1
             latency.append(p_end - r_end)
+            if r_idx in earlycut_ids:
+                # If this reference was already missed due to early cutoff, we do not count it again
+                earlycut_ids.remove(r_idx)
             r_idx += 1
         elif r_start <= p_end < r_end - collar:
             # Early cutoff
             # current predicted EOU is within the current reference utterance
             false_positives += 1
             early_cutoff.append(r_end - p_end)
+            earlycut_ids.add(r_idx)
         elif r_end + collar < p_end:
             # Late EOU
             # Current predicted EOU is after the current reference ends
             false_negatives += 1
             latency.append(p_end - r_end)
+            if r_idx in earlycut_ids:
+                # If this reference was already missed due to early cutoff, we do not count it again
+                earlycut_ids.remove(r_idx)
             r_idx += 1
         else:
             # p_end <= r_start
@@ -134,6 +141,7 @@ def evaluate_eou(
         false_negatives += len(reference) - r_idx
         missing += len(reference) - r_idx
 
+    missing -= len(earlycut_ids)  # Remove the references that were missed due to early cutoff
     return EOUResult(
         latency=latency,
         early_cutoff=early_cutoff,
