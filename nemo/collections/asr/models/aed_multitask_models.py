@@ -250,6 +250,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
 
+        timestamps_asr_model = self.restore_timestamps_asr_model()
+        # Using object.__setattr__ to bypass PyTorch's module registration
+        object.__setattr__(self, 'timestamps_asr_model', timestamps_asr_model)
+
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
         Changes decoding strategy used during Multi Task decoding process.
@@ -527,10 +531,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             as paths2audio_files
         """
         if timestamps is not None:
-
-            external_timestamps_model_path = self.cfg.get('timestamps_asr_model', None)
-
-            if external_timestamps_model_path is None:
+            if self.cfg.get('timestamps_asr_model', None) is None:
                 # TODO: Handle this key gracefully later
                 if timestamps is True:
                     timestamps = 'yes'
@@ -870,56 +871,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     trcfg._internal.primary_language = self.tokenizer.langs[0]
                     logging.debug(f"Transcribing with default setting of {trcfg._internal.primary_language}.")
 
-        if trcfg.timestamps:
-            self.timestamps_asr_model = None
-
-            external_timestamps_model_path = self.cfg.get('timestamps_asr_model', None)
-
-            if external_timestamps_model_path is not None:
-                try:
-                    if not os.path.exists(external_timestamps_model_path):
-
-                        app_state = AppState()
-                        model_restore_path = app_state.model_restore_path
-
-                        save_restore_connector = SaveRestoreConnector()
-
-                        filter_fn = lambda name: external_timestamps_model_path in name
-
-                        members = save_restore_connector._filtered_tar_info(model_restore_path, filter_fn=filter_fn)
-
-                        if not members:
-                            external_timestamps_model = ASRModel.from_pretrained(external_timestamps_model_path)
-                        else:
-                            with tempfile.TemporaryDirectory() as tmpdir:
-                                save_restore_connector._unpack_nemo_file(
-                                    path2file=model_restore_path, out_folder=tmpdir, members=members
-                                )
-                                external_timestamps_model_path = os.path.join(tmpdir, external_timestamps_model_path)
-                                external_timestamps_model = ASRModel.restore_from(external_timestamps_model_path)
-
-                    else:
-                        external_timestamps_model = ASRModel.restore_from(external_timestamps_model_path)
-
-                except Exception as e:
-                    raise RuntimeError(
-                        f"Error restoring externaltimestamps ASR model from {external_timestamps_model_path}: {e}"
-                    )
-
-                if not isinstance(external_timestamps_model, EncDecCTCModel) and not issubclass(
-                    type(external_timestamps_model), EncDecCTCModel
-                ):
-                    logging.warning(
-                        f"External timestamps model {external_timestamps_model_path} is not an instance of EncDecHybridRNNTCTCModel or EncDecCTCModel. Setting timestamps_asr_model to None."
-                    )
-                    logging.warning(f"External timestamps model: {external_timestamps_model}")
-                    self.timestamps_asr_model = None
-                else:
-                    if isinstance(external_timestamps_model, EncDecHybridRNNTCTCModel):
-                        external_timestamps_model.change_decoding_strategy(decoder_type="ctc")
-                    external_timestamps_model.eval()
-                    external_timestamps_model.to(trcfg._internal.device)
-                    self.timestamps_asr_model = external_timestamps_model
+        if trcfg.timestamps and self.timestamps_asr_model is not None:
+            self.timestamps_asr_model.to(trcfg._internal.device)
 
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: MultiTaskTranscriptionConfig
@@ -1257,6 +1210,37 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 {"name": "prompt_lens", "type": "dummy"},
             ],
         }
+
+    def restore_timestamps_asr_model(self):
+        if self.cfg.get('timestamps_asr_model', None) is None:
+            return None
+        external_timestamps_model_path = self.cfg.timestamps_asr_model
+
+        app_state = AppState()
+        model_restore_path = app_state.model_restore_path
+
+        save_restore_connector = SaveRestoreConnector()
+
+        filter_fn = lambda name: external_timestamps_model_path in name
+        members = save_restore_connector._filtered_tar_info(model_restore_path, filter_fn=filter_fn)
+
+        try:
+            if not members:
+                external_timestamps_model = ASRModel.from_pretrained(external_timestamps_model_path)
+            else:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    save_restore_connector._unpack_nemo_file(
+                        path2file=model_restore_path, out_folder=tmpdir, members=members
+                    )
+                    external_timestamps_model_path = os.path.join(tmpdir, external_timestamps_model_path)
+                    external_timestamps_model = ASRModel.restore_from(external_timestamps_model_path)
+
+            external_timestamps_model.eval()
+            return external_timestamps_model
+        except Exception as e:
+            raise RuntimeError(
+                f"Error restoring external timestamps ASR model from {external_timestamps_model_path}: {e}"
+                )
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
