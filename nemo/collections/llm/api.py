@@ -1168,7 +1168,7 @@ def generate(
     )
 
     if trainer.strategy.expert_model_parallel_size > 1:
-        gathered_results = results_on_this_dp_rank
+        gathered_results = [r.generated_text if text_only else r for r in results_on_this_dp_rank]
     else:
         gathered_results = [None] * dp_size
 
