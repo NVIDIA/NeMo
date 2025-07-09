@@ -439,6 +439,7 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
 
 
 class CosineAnnealingScheduler(LRSchedulerModule):
+    """ """
     def __init__(
         self,
         max_steps: int = 10,
