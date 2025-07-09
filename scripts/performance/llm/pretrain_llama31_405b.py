@@ -132,7 +132,7 @@ def override_recipe_configs(
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
     if use_mcore_fsdp and gpu_type == 'gb200' and not override_fsdp:
-        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4)/64
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) / 64
 
     return recipe
 
