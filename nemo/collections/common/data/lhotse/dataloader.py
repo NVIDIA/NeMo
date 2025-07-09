@@ -649,6 +649,7 @@ def determine_sampling_constraint(cuts: CutSet, bucket_duration_bins, config) ->
                 token_equivalent_duration=config.token_equivalent_duration,
                 strict_2d=config.bucketing_2d_strict_mode,
                 max_ratio=config.max_tpt if isinstance(config.max_tpt, Sequence) else None,
+                measure_total_length=config.measure_total_length,
             )
             cuts = cuts.filter(BucketingFilter(constraint))
         else:
@@ -657,6 +658,7 @@ def determine_sampling_constraint(cuts: CutSet, bucket_duration_bins, config) ->
                 batch_size=config.batch_size,
                 batch_tokens=config.batch_tokens,
                 quadratic_factor=config.quadratic_factor,
+                measure_total_length=config.measure_total_length,
             )
     else:
         if config.bucket_batch_size is not None:
