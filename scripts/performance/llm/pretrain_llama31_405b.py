@@ -56,7 +56,7 @@ def override_recipe_configs(
     """
     recipe = pretrain_recipe(performance_mode=True)
 
-    #Should be fixed in next release for MXFP8 to support FSDP
+    # Should be fixed in next release for MXFP8 to support FSDP
     override_fsdp = use_mcore_fsdp and args.fp8_recipe.lower() == 'mxfp8'
 
     recipe = set_primary_perf_configs(
@@ -132,7 +132,7 @@ def override_recipe_configs(
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
     if use_mcore_fsdp and gpu_type == 'gb200':
-        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4)/64
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) / 64
 
     return recipe
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
     if use_mcore_fsdp:
         # Needed to enable CuDNN LN for FSDP overlap
-        env_vars = {"NVTE_NORM_FWD_USE_CUDNN":"1" , "NVTE_NORM_BWD_USE_CUDNN":"1"}
+        env_vars = {"NVTE_NORM_FWD_USE_CUDNN": "1", "NVTE_NORM_BWD_USE_CUDNN": "1"}
 
     executor = slurm_executor(
         args.gpu.lower(),
