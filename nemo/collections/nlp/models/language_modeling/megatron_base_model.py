@@ -1170,9 +1170,7 @@ class MegatronBaseModel(NLPModel):
             num_parameters_on_device -= num_word_embedding_parameters
 
             # Subtract decoder position embedding params that are shared with encoder.
-            if (
-                self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute"
-            ):
+            if self.cfg.encoder.get("position_embedding_type", "learned_absolute") == "learned_absolute":
                 num_position_embedding_parameters = sum([p.nelement() for p in model.position_embeddings_weight()])
                 num_parameters_on_device -= num_position_embedding_parameters
 

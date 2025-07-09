@@ -100,11 +100,10 @@ def initialize_model_parallel_for_nemo(
     """
     Initialize the model parallel groups for NeMo.
     """
-    assert pipeline_model_parallel_split_rank is None, \
-        "pipeline_model_parallel_split_rank is deprecated."
-    assert (encoder_pipeline_model_parallel_size == 0 and
-            (encoder_pipeline_model_parallel_size == 0 or
-             encoder_pipeline_model_parallel_size == tensor_model_parallel_size)), (
+    assert pipeline_model_parallel_split_rank is None, "pipeline_model_parallel_split_rank is deprecated."
+    assert encoder_pipeline_model_parallel_size == 0 and (
+        encoder_pipeline_model_parallel_size == 0 or encoder_pipeline_model_parallel_size == tensor_model_parallel_size
+    ), (
         "encoder_pipeline_model_parallel_size is temporarily "
         "unavailable. We are working on a refactoring to add it back."
     )
@@ -288,14 +287,14 @@ def fake_initialize_model_parallel(
     ranks 8 to 15 belong to the second box.
     """
 
-    assert (encoder_pipeline_model_parallel_size_ == 0 and
-            (encoder_pipeline_model_parallel_size_ == 0 or
-             encoder_pipeline_model_parallel_size_ == tensor_model_parallel_size_)), (
+    assert encoder_pipeline_model_parallel_size_ == 0 and (
+        encoder_pipeline_model_parallel_size_ == 0
+        or encoder_pipeline_model_parallel_size_ == tensor_model_parallel_size_
+    ), (
         "encoder_pipeline_model_parallel_size is temporarily "
         "unavailable. We are working on a refactoring to add it back."
     )
-    assert pipeline_model_parallel_split_rank_ is None, \
-        "pipeline_model_parallel_split_rank is deprecated."
+    assert pipeline_model_parallel_split_rank_ is None, "pipeline_model_parallel_split_rank is deprecated."
 
     # Get world size and rank. Ensure some consistencies.
     tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)

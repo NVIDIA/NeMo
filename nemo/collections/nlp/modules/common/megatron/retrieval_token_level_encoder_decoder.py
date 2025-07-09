@@ -172,9 +172,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=encoder_init,
                 scaled_init_method=encoder_scaled_init,
                 pre_process=pre_process,
-                post_process=False
-                if megatron_lm_compatible
-                else post_process,  # megatron lm model has no final layer_norm
+                post_process=(
+                    False if megatron_lm_compatible else post_process
+                ),  # megatron lm model has no final layer_norm
                 init_method_std=init_method_std,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,

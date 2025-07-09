@@ -156,8 +156,9 @@ def init_model_parallel(
     if app_state.model_parallel_size is not None:
         # destroy groups in case they have already been created
         # this happens with multiple calls to trainer.test for example
-        assert app_state.pipeline_model_parallel_split_rank is None, \
-            "pipeline_model_parallel_split_rank is deprecated."
+        assert (
+            app_state.pipeline_model_parallel_split_rank is None
+        ), "pipeline_model_parallel_split_rank is deprecated."
         parallel_state.destroy_model_parallel()
         if torch.distributed.is_initialized():
             parallel_state.initialize_model_parallel(
