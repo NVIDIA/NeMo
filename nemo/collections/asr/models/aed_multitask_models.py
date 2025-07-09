@@ -1240,7 +1240,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         except Exception as e:
             raise RuntimeError(
                 f"Error restoring external timestamps ASR model from {external_timestamps_model_path}: {e}"
-                )
+            )
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
