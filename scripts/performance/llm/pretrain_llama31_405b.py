@@ -55,6 +55,10 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     recipe = pretrain_recipe(performance_mode=True)
+
+    #Should be fixed in next release for MXFP8 to support FSDP
+    override_fsdp = use_mcore_fsdp and args.fp8_recipe.lower() == 'mxfp8'
+
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -63,14 +67,14 @@ def override_recipe_configs(
         mbs,
         gbs,
         args.max_steps,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
+        tp_size if not override_fsdp else 4,
+        pp_size if not override_fsdp else 8,
+        cp_size if not override_fsdp else 2,
+        vp_size if not override_fsdp else 8,
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
-        use_mcore_fsdp=use_mcore_fsdp,
-        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_mcore_fsdp=use_mcore_fsdp if not override_fsdp else False,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer if not override_fsdp else False,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         recompute_layers=recompute_layers,
@@ -127,6 +131,9 @@ def override_recipe_configs(
     tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
+    if use_mcore_fsdp and gpu_type == 'gb200':
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4)/64
+
     return recipe
 
 
@@ -169,6 +176,10 @@ if __name__ == "__main__":
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+
+    if use_mcore_fsdp:
+        # Needed to enable CuDNN LN for FSDP overlap
+        env_vars = {"NVTE_NORM_FWD_USE_CUDNN":"1" , "NVTE_NORM_BWD_USE_CUDNN":"1"}
 
     executor = slurm_executor(
         args.gpu.lower(),
