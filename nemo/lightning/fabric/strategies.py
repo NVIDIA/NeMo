@@ -347,6 +347,9 @@ class FabricMegatronStrategy(DDPStrategy):
                 state key, where its filter will be applied to the ``state_dict`` generated.
 
         """
+        if not storage_options:
+            storage_options = {}
+        storage_options['content_metadata'] = self.sharded_state_dict_metadata
         state = self._convert_stateful_objects_in_state(state, filter=(filter_dict or {}))
         self.checkpoint_io.save_checkpoint(checkpoint=state, path=path, storage_options=storage_options)
 
@@ -415,6 +418,16 @@ class FabricMegatronStrategy(DDPStrategy):
         Load the module state dict.
         """
         _strategy_lib.load_model_state_dict(module, state_dict, strict=strict)
+
+    @property
+    def sharded_state_dict_metadata(self):
+        """Metadata used for sharded_state_dict generation during checkpoint save."""
+        metadata = {}
+        if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer:
+            metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
+        # This ensures correct sharding logic for ChainedOptimizer:
+        metadata['chained_optim_avoid_prefix'] = True
+        return metadata
 
     @contextmanager
     def megatron_context(self) -> Generator[None, None, None]:
