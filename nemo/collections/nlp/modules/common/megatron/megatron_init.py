@@ -102,7 +102,8 @@ def initialize_model_parallel_for_nemo(
     """
     assert pipeline_model_parallel_split_rank is None, "pipeline_model_parallel_split_rank is deprecated."
     assert encoder_pipeline_model_parallel_size == 0 and (
-        encoder_pipeline_model_parallel_size == 0 or encoder_pipeline_model_parallel_size == tensor_model_parallel_size
+        encoder_tensor_model_parallel_size == 0
+        or encoder_tensor_model_parallel_size == tensor_model_parallel_size
     ), (
         "encoder_pipeline_model_parallel_size is temporarily "
         "unavailable. We are working on a refactoring to add it back."
@@ -288,8 +289,8 @@ def fake_initialize_model_parallel(
     """
 
     assert encoder_pipeline_model_parallel_size_ == 0 and (
-        encoder_pipeline_model_parallel_size_ == 0
-        or encoder_pipeline_model_parallel_size_ == tensor_model_parallel_size_
+        encoder_tensor_model_parallel_size_ == 0
+        or encoder_tensor_model_parallel_size_ == tensor_model_parallel_size_
     ), (
         "encoder_pipeline_model_parallel_size is temporarily "
         "unavailable. We are working on a refactoring to add it back."
