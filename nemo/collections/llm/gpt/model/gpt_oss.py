@@ -11,36 +11,34 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
 import re
-from dataclasses import dataclass, field
-from functools import cached_property, partial
+from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Tuple, Union, Literal, List
-
 import torch
-from nemo.utils import logging
 from safetensors import safe_open
 from torch import nn
 import torch.nn.functional as F
+import math
 
-from nemo.collections.llm.gpt.model.base import GPTModel, torch_dtype_from_mcore_config, GPTConfig
+from nemo.collections.llm.gpt.model.base import GPTModel, GPTConfig
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
-from nemo.lightning.pytorch.utils import dtype_from_hf
+from nemo.utils import logging
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 @dataclass
-class OranginaConfig(GPTConfig):
+class GPTOSSConfig(GPTConfig):
     """
-    Base config for Orangina
+    Base config for GPT-OSS
     """
-    num_layers: int = 36
     hidden_size: int = 2880
     num_attention_heads: int = 64
     num_query_groups: int = 8
@@ -60,10 +58,9 @@ class OranginaConfig(GPTConfig):
     yarn_beta_slow: float = 1.
     yarn_correction_range_round_to_int: bool = False
 
-    num_moe_experts: int = 128
     moe_router_topk: int = 4
     moe_router_pre_softmax: bool = False
-    moe_grouped_gemm: bool = False
+    moe_grouped_gemm: bool = True
     moe_token_dispatcher_type: str = "alltoall"
     moe_permute_fusion: bool = True
     moe_ffn_hidden_size: int = 2880
@@ -75,30 +72,42 @@ class OranginaConfig(GPTConfig):
     bias_activation_fusion: bool = False
     window_attn_skip_freq: Optional[Union[int, List[int]]] = 2  # alternative SWA/full
 
+@dataclass
+class GPTOSSConfig120B(GPTOSSConfig):
+    """Config for GPT-OSS 120B """
+    num_layers: int = 36
+    num_moe_experts: int = 128
+
+@dataclass
+class GPTOSSConfig20B(GPTOSSConfig):
+    """Config for GPT-OSS 20B """
+    num_layers: int = 24
+    num_moe_experts: int = 32
 
 
-class OranginaModel(GPTModel):
+class GPTOSSModel(GPTModel):
     """
-    Base model for Orangina
+    Base model for GPT-OSS
     """
-
     def __init__(
         self,
-        config: Annotated[Optional[OranginaConfig], Config[OranginaConfig]] = None,
+        config: Annotated[Optional[GPTOSSConfig], Config[GPTOSSConfig]] = None,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or OranginaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(config or GPTOSSConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
-@io.model_importer(OranginaModel, "hf-v0")
-class HFv0OranginaImporter(io.ModelConnector["AutoModelForCausalLM", OranginaModel]):
+
+@io.model_importer(GPTOSSModel, "hf")
+class HFGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]):
     # pylint: disable=C0115,C0116
-    def init(self) -> OranginaModel:
-        return OranginaModel(self.config, tokenizer=self.tokenizer)
+    def init(self) -> GPTOSSModel:
+        return GPTOSSModel(self.config, tokenizer=self.tokenizer)
 
     def hf_ckpt_load(self):
-        loaded_data = {}
+        loaded_bf16_data = {}
+        loaded_mxfp4_data = {}
         folder_path = str(self)
         # Check if the provided folder path exists
         if not os.path.isdir(folder_path):
@@ -114,26 +123,74 @@ class HFv0OranginaImporter(io.ModelConnector["AutoModelForCausalLM", OranginaMod
             if os.path.isfile(file_path) and filename.endswith(".safetensors"):
                 logging.debug(f"Attempting to load: {filename}")
                 try:
-                    # Using safe_open to read the tensors
-                    # Note: safe_open provides a context manager. To load all tensors,
-                    # you'll iterate through the keys and access them.
-                    # If you need a simple dictionary of tensors (e.g., for PyTorch models),
-                    # safetensors.torch.load_file is often more direct.
-                    # Here, we'll demonstrate using safe_open, which is more general.
-
-                    with safe_open(file_path, framework="pt", device="cpu") as f:  # framework and device are optional
+                    with safe_open(file_path, framework="pt", device="cpu") as f:
                         for key in f.keys():
-                            loaded_data[key] = f.get_tensor(key)
+                            if key.endswith("weight.blocks") or key.endswith("weight.scales"):
+                                loaded_mxfp4_data[key] = f.get_tensor(key)
+                            else:
+                                loaded_bf16_data[key] = f.get_tensor(key)
                     logging.debug(f"Successfully loaded '{filename}'")
 
                 except Exception as e:
                     logging.error(f"Error loading '{filename}': {e}")
-                    # You might choose to re-raise the exception or log it differently
-                    # depending on how you want to handle failures.
             else:
                 logging.debug(f"Skipping non-safetensors file or directory: {filename}")
 
-        return loaded_data
+        # Convert MXFP4 weights to BF16
+        for k, v in loaded_mxfp4_data.items():
+            if k.endswith("scales"):
+                continue  # process scales in the iteration of blocks
+            blocks = v
+            scales = loaded_mxfp4_data[k.replace("blocks", "scales")].to(torch.int32) - 127
+            new_key = k.replace(".blocks", "")
+            loaded_bf16_data[new_key] = self._dequantize_mxfp4(blocks, scales)
+            logging.debug(f"Successfully dequantized {new_key}")
+
+        return loaded_bf16_data
+
+    def _dequantize_mxfp4(
+        self,
+        blocks: torch.Tensor,
+        scales: torch.Tensor,
+        *,
+        dtype: torch.dtype = torch.bfloat16,
+        rows_per_chunk: int = 32768 * 1024,
+    ) -> torch.Tensor:
+        assert blocks.shape[:-1] == scales.shape, (
+            f"{blocks.shape=} does not match {scales.shape=}"
+        )
+        FP4_VALUES = [
+            +0.0, +0.5, +1.0, +1.5, +2.0, +3.0, +4.0, +6.0,
+            -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0,
+        ]
+        lut = torch.tensor(FP4_VALUES, dtype=dtype, device=blocks.device)
+
+        *prefix_shape, G, B = blocks.shape
+        rows_total   = math.prod(prefix_shape) * G
+
+        blocks = blocks.reshape(rows_total, B)
+        scales = scales.reshape(rows_total, 1)
+
+        out = torch.empty(rows_total, B * 2, dtype=dtype, device=blocks.device)
+
+        for r0 in range(0, rows_total, rows_per_chunk):
+            r1 = min(r0 + rows_per_chunk, rows_total)
+
+            blk = blocks[r0:r1]
+            exp = scales[r0:r1]
+
+            # nibble indices -> int64
+            idx_lo = (blk & 0x0F).to(torch.long)
+            idx_hi = (blk >> 4).to(torch.long)
+
+            sub = out[r0:r1]
+            sub[:, 0::2] = lut[idx_lo]
+            sub[:, 1::2] = lut[idx_hi]
+
+            torch.ldexp(sub, exp, out=sub)
+            del idx_lo, idx_hi, blk, exp
+
+        return out.reshape(*prefix_shape, G, B * 2).view(*prefix_shape, G * B * 2)
 
     def apply(self, output_path: Path) -> Path:
         logging.setLevel(logging.DEBUG)
@@ -154,7 +211,7 @@ class HFv0OranginaImporter(io.ModelConnector["AutoModelForCausalLM", OranginaMod
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Orangina model to Nemo, model saved to {output_path}")
+        print(f"Converted GPT-OSS model to Nemo, model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -188,12 +245,18 @@ class HFv0OranginaImporter(io.ModelConnector["AutoModelForCausalLM", OranginaMod
             ),
         ]
 
-        # moe names for SequentialMLP
+        # moe names for TEGroupedMLP
+        def interleave(elem):
+            return torch.cat((elem[::2, ...], elem[1::2, ...]), dim=0)
+
         for source_key, target_key in (
-            ("**.mlp.mlp1_bias", "**.mlp.experts.local_experts.*.linear_fc1.bias"),
-            ("**.mlp.mlp1_weight", "**.mlp.experts.local_experts.*.linear_fc1.weight"),
-            ("**.mlp.mlp2_bias", "**.mlp.experts.local_experts.*.linear_fc2.bias"),
-            ("**.mlp.mlp2_weight", "**.mlp.experts.local_experts.*.linear_fc2.weight"),
+            ("**.mlp.mlp1_weight", "**.mlp.experts.linear_fc1.weight*"),
+            ("**.mlp.mlp1_bias", "**.mlp.experts.linear_fc1.bias*"),
+        ):
+            transforms.append(io.state_transform(source_key, target_key, lambda x: [interleave(e) for e in [*x]]))
+        for source_key, target_key in (
+            ("**.mlp.mlp2_bias", "**.mlp.experts.linear_fc2.bias*"),
+            ("**.mlp.mlp2_weight", "**.mlp.experts.linear_fc2.weight*"),
         ):
             transforms.append(io.state_transform(source_key, target_key, lambda x: [*x]))
 
@@ -207,159 +270,13 @@ class HFv0OranginaImporter(io.ModelConnector["AutoModelForCausalLM", OranginaMod
         return TiktokenTokenizer(encoding_name="o200k_base")
 
     @cached_property
-    def config(self) -> OranginaConfig:
-        return OranginaConfig()
-
-
-@io.model_importer(OranginaModel, "hf")
-class HFOranginaImporter(io.ModelConnector["AutoModelForCausalLM", OranginaModel]):
-    # pylint: disable=C0115,C0116
-    def init(self) -> OranginaModel:
-        return OranginaModel(self.config, tokenizer=self.tokenizer)
-
-    def hf_ckpt_load(self):
-        loaded_data = {}
-        folder_path = str(self)
-        # Check if the provided folder path exists
-        if not os.path.isdir(folder_path):
-            logging.error(f"Error: Folder '{folder_path}' not found.")
-            return {}
-
-        # Iterate through all files in the specified folder
-        for filename in os.listdir(folder_path):
-            # Construct the full file path
-            file_path = os.path.join(folder_path, filename)
-
-            # Check if the file is a .safetensors file and is actually a file
-            if os.path.isfile(file_path) and filename.endswith(".safetensors"):
-                logging.debug(f"Attempting to load: {filename}")
-                try:
-                    # Using safe_open to read the tensors
-                    # Note: safe_open provides a context manager. To load all tensors,
-                    # you'll iterate through the keys and access them.
-                    # If you need a simple dictionary of tensors (e.g., for PyTorch models),
-                    # safetensors.torch.load_file is often more direct.
-                    # Here, we'll demonstrate using safe_open, which is more general.
-
-                    with safe_open(file_path, framework="pt", device="cpu") as f:  # framework and device are optional
-                        for key in f.keys():
-                            loaded_data[key] = f.get_tensor(key)
-                    logging.debug(f"Successfully loaded '{filename}'")
-
-                except Exception as e:
-                    logging.error(f"Error loading '{filename}': {e}")
-                    # You might choose to re-raise the exception or log it differently
-                    # depending on how you want to handle failures.
-            else:
-                logging.debug(f"Skipping non-safetensors file or directory: {filename}")
-
-        return loaded_data
-
-    def apply(self, output_path: Path) -> Path:
-        logging.setLevel(logging.DEBUG)
-        source_state = self.hf_ckpt_load()
-
-        if self.config.num_layers == 2:
-            # TEMP only keep first two layers
-            to_pop = []
-            for k, v in source_state.items():
-                if re.match(r".*\.layers\..*", k) and not re.match(r".*\.layers\.[0-1]\..*", k):
-                    to_pop.append(k)
-            [source_state.pop(k) for k in to_pop]
-
-        source = _ModelState(source_state)
-        # breakpoint()
-        target = self.init()
-        trainer = self.nemo_setup(target)
-        self.convert_state(source, target)
-        self.nemo_save(output_path, trainer)
-
-        print(f"Converted Orangina model to Nemo, model saved to {output_path}")
-
-        teardown(trainer, target)
-        del trainer, target
-
-        return output_path
-
-    def convert_state(self, source, target):
-        mapping = {
-            "model.embed_tokens.weight": "embedding.word_embeddings.weight",
-            "model.norm.weight": "decoder.final_layernorm.weight",
-            "lm_head.weight": "output_layer.weight",
-            "**.input_layernorm.weight": "**.self_attention.linear_qkv.layer_norm_weight",
-            "**.self_attn.o_proj.bias": "**.self_attention.linear_proj.bias",
-            "**.self_attn.o_proj.weight": "**.self_attention.linear_proj.weight",
-            "**.self_attn.sinks": "**.self_attention.core_attention.scale_mask_softmax.softmax_denominator_weight",
-            "**.post_attention_layernorm.weight": "**.pre_mlp_layernorm.weight",
-            "**.mlp.router.bias": "**.mlp.router.bias",
-            "**.mlp.router.weight": "**.mlp.router.weight",
-        }
-
-        transforms = [
-            io.state_transform(
-                source_key=(
-                    "**.self_attn.q_proj.bias",
-                    "**.self_attn.k_proj.bias",
-                    "**.self_attn.v_proj.bias",
-                ),
-                target_key="**.self_attention.linear_qkv.bias",
-                fn=TransformFns.merge_qkv_bias,
-            ),
-            io.state_transform(
-                source_key=(
-                    "**.self_attn.q_proj.weight",
-                    "**.self_attn.k_proj.weight",
-                    "**.self_attn.v_proj.weight",
-                ),
-                target_key="**.self_attention.linear_qkv.weight",
-                fn=TransformFns.merge_qkv,
-            ),
-        ]
-
-        # moe names for SequentialMLP
-        for source_key, target_key in (
-            ("**.mlp.experts.gate_up_proj_bias", "**.mlp.experts.local_experts.*.linear_fc1.bias"),
-            ("**.mlp.experts.gate_up_proj", "**.mlp.experts.local_experts.*.linear_fc1.weight"),
-            ("**.mlp.experts.down_proj_bias", "**.mlp.experts.local_experts.*.linear_fc2.bias"),
-            ("**.mlp.experts.down_proj", "**.mlp.experts.local_experts.*.linear_fc2.weight"),
-        ):
-            transforms.append(io.state_transform(source_key, target_key, lambda x: [t.transpose(-1, 0) for t in [*x]]))
-
-        io.apply_transforms(source, target, mapping=mapping, transforms=transforms, cast_dtype=torch.bfloat16)
-        return target
-
-    @cached_property
-    def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), use_fast=True, eos_token="<|endoftext|>")
-
-
-    @cached_property
-    def config(self) -> OranginaConfig:
-        # from transformers import AutoConfig as HFAutoConfig
-        # from transformers import GenerationConfig
-        #
-        # source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
-        # generation_config = GenerationConfig.from_pretrained(str(self))
-        #
-        # output = OranginaConfig(
-        #     num_layers=source.num_hidden_layers,
-        #     hidden_size=source.hidden_size,
-        #     ffn_hidden_size=source.intermediate_size,
-        #     num_attention_heads=source.num_attention_heads,
-        #     num_query_groups=source.num_key_value_heads,
-        #     init_method_std=source.initializer_range,
-        #     layernorm_epsilon=source.rms_norm_eps,
-        #     vocab_size=source.vocab_size,
-        #     make_vocab_size_divisible_by=1187,
-        #     rotary_base=source.rope_theta,
-        #     share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
-        #     fp16=(dtype_from_hf(source) == torch.float16),
-        #     bf16=(dtype_from_hf(source) == torch.bfloat16),
-        #     params_dtype=dtype_from_hf(source),
-        #     generation_config=generation_config,
-        # )
-        return OranginaConfig()
+    def config(self) -> GPTOSSConfig:
+        with open(self / "config.json") as f:
+            ckpt_config = json.load(f)
+        return GPTOSSConfig(
+            num_layers=ckpt_config['num_hidden_layers'],
+            num_moe_experts=ckpt_config['num_experts'],
+        )
 
 
 # @io.model_exporter(Qwen3Model, "hf")
@@ -498,6 +415,8 @@ class HFOranginaImporter(io.ModelConnector["AutoModelForCausalLM", OranginaModel
 
 
 __all__ = [
-    "OranginaConfig",
-    "OranginaModel",
+    "GPTOSSConfig",
+    "GPTOSSConfig120B",
+    "GPTOSSConfig20B",
+    "GPTOSSModel",
 ]

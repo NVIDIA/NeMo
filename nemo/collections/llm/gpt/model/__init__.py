@@ -126,7 +126,7 @@ from nemo.collections.llm.gpt.model.nemotron import (
     NemotronConfig,
     NemotronModel,
 )
-from nemo.collections.llm.gpt.model.orangina import OranginaConfig, OranginaModel
+from nemo.collections.llm.gpt.model.gpt_oss import GPTOSSConfig, GPTOSSConfig120B, GPTOSSConfig20B, GPTOSSModel
 from nemo.collections.llm.gpt.model.phi3mini import Phi3Config, Phi3ConfigMini, Phi3Model
 from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config,
@@ -232,8 +232,10 @@ __all__ = [
     "LlamaEmbeddingModel",
     "Llama32EmbeddingConfig1B",
     "Llama32EmbeddingConfig3B",
-    "OranginaConfig",
-    "OranginaModel",
+    "GPTOSSConfig",
+    "GPTOSSConfig120B",
+    "GPTOSSConfig20B",
+    "GPTOSSModel",
     "Phi3Config",
     "Phi3ConfigMini",
     "Phi3Model",
