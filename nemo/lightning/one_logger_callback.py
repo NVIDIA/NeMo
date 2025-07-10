@@ -22,7 +22,7 @@ from pytorch_lightning.utilities.types import STEP_OUTPUT
 
 def get_current_time_msec() -> float:
     """Get current time in milliseconds since epoch.
-    
+
     Returns:
         float: Current time in milliseconds since epoch
     """
@@ -31,53 +31,47 @@ def get_current_time_msec() -> float:
 
 class OneLoggerTimingTracker:
     """A singleton class to track timing data for OneLogger callbacks.
-    
+
     This class stores timing data when OneLogger is not yet initialized and
     logs it when OneLogger becomes available.
     """
+
     _instance = None
-    
+
     @classmethod
     def get_instance(cls) -> 'OneLoggerTimingTracker':
         """Get the singleton instance of the OneLoggerTimingTracker."""
         if cls._instance is None:
             cls._instance = OneLoggerTimingTracker()
         return cls._instance
-    
+
     def __init__(self):
         """Initialize the timing tracker."""
         self._pending_events = []
         self._one_logger_available = False
-    
+
     def track_event(self, event_type: str, current_time_ms: float = None):
         """Track a timing event with automatic start/end timing.
-        
+
         This method automatically handles the start and end timing for an event.
         It detects start/end events based on event names ending with "_start" or "_end".
-        
+
         Args:
             event_type: Type of event (e.g., 'model_init_start', 'model_init_end', 'dataloader_init')
         """
         if current_time_ms is None:
             current_time_ms = get_current_time_msec()
 
-        event = {
-            'name': event_type,
-            'api_name': f'on_{event_type}',  # Add 'on_' prefix
-            'time_ms': current_time_ms
-        }
-
+        event = {'name': event_type, 'api_name': f'on_{event_type}', 'time_ms': current_time_ms}  # Add 'on_' prefix
 
         if not self._one_logger_available:
             self._pending_events.append(event)
         else:
             self._log_event(event)
-    
 
-    
     def set_one_logger_available(self, available: bool = True):
         """Set whether OneLogger is available and process pending events.
-        
+
         Args:
             available: Whether OneLogger is now available
         """
@@ -87,16 +81,16 @@ class OneLoggerTimingTracker:
             for event in self._pending_events:
                 self._log_event(event)
             self._pending_events.clear()
-    
+
     @classmethod
     def mark_one_logger_available(cls):
         """Class method to mark OneLogger as available globally."""
         instance = cls.get_instance()
         instance.set_one_logger_available(True)
-    
+
     def _log_event(self, event: Dict[str, Any]):
         """Log an event using OneLogger callbacks.
-        
+
         Args:
             event: Event data containing name, time_ms, api_name
         """
@@ -107,10 +101,10 @@ class OneLoggerTimingTracker:
         event_name = event['name']
         attribute_name = event['api_name']
         time_ms = event['time_ms']
-        
+
         if not hasattr(CB, attribute_name):
             raise ValueError(f"Invalid event name: {event_name}")
-        
+
         if event_name.endswith('_start'):
             getattr(self, attribute_name)(start_time_msec=time_ms)
         elif event_name.endswith('_end'):
@@ -156,7 +150,9 @@ class OneLoggerNeMoCallback(Callback):
             self.perf_tag = callback_config.get("perf_tag", "")
             self.session_tag = callback_config.get("session_tag", "")
             self.global_batch_size = callback_config.get("global_batch_size", 0)
-            print(f"  ✓ Config loaded: app_name={self.app_name}, perf_tag={self.perf_tag}, global_batch_size={self.global_batch_size}")
+            print(
+                f"  ✓ Config loaded: app_name={self.app_name}, perf_tag={self.perf_tag}, global_batch_size={self.global_batch_size}"
+            )
         else:
             self.app_name = ""
             self.perf_tag = ""
@@ -254,7 +250,9 @@ class OneLoggerNeMoCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        print(f"OneLogger NeMo CB: on_validation_batch_start called with batch_idx={batch_idx}, dataloader_idx={dataloader_idx}")
+        print(
+            f"OneLogger NeMo CB: on_validation_batch_start called with batch_idx={batch_idx}, dataloader_idx={dataloader_idx}"
+        )
         CB.on_validation_single_iteration_start()
         print(f"  ✓ Called CB.on_validation_single_iteration_start")
 
@@ -268,7 +266,9 @@ class OneLoggerNeMoCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        print(f"OneLogger NeMo CB: on_validation_batch_end called with batch_idx={batch_idx}, dataloader_idx={dataloader_idx}")
+        print(
+            f"OneLogger NeMo CB: on_validation_batch_end called with batch_idx={batch_idx}, dataloader_idx={dataloader_idx}"
+        )
         CB.on_validation_single_iteration_end()
         print(f"  ✓ Called CB.on_validation_single_iteration_end")
 
