@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from contextlib import contextmanager
 from datetime import timedelta
 
@@ -57,6 +58,11 @@ def simple_parallel_state():
         parallel_state.destroy_model_parallel()
         if dist.is_initialized():
             dist.destroy_process_group()
+
+        os.environ.setdefault("MASTER_ADDR", "localhost")
+        os.environ.setdefault("MASTER_PORT", "12355")
+        os.environ.setdefault("RANK", "0")
+        os.environ.setdefault("WORLD_SIZE", "1")
 
         # Initialize process group
         if not dist.is_initialized():
