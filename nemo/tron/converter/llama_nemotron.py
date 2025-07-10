@@ -17,9 +17,10 @@ from typing import TYPE_CHECKING
 
 from nemo.collections.llm.gpt.model.llama_nemotron import HFLlamaNemotronExporter as _NeMo2HFLlamaNemotronExporter
 from nemo.collections.llm.gpt.model.llama_nemotron import HFLlamaNemotronImporter as _NeMo2HFLlamaNemotronImporter
-from nemo.collections.llm.gpt.model.llama_nemotron import Llama33NemotronSuper49BConfig
-
+from nemo.collections.llm.gpt.model.llama import Llama31Config
 from nemo.tron.converter.common import BaseExporter, BaseImporter
+
+from megatron.core.transformer.heterogeneous.heterogeneous_config import HeterogeneousTransformerConfig
 
 if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
@@ -27,54 +28,58 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# class HFLlamaExporter(BaseExporter):
-#     """Exporter to convert NeMo Llama models to Hugging Face format."""
+class HFLlamaNemotronExporter(BaseExporter):
+    """Exporter to convert NeMo Llama models to Hugging Face format."""
 
-#     convert_state = _NeMo2HFLlamaExporter.convert_state
+    convert_state = _NeMo2HFLlamaNemotronExporter.convert_state
 
-#     @property
-#     def hf_config(self) -> "HFLlamaConfig":
-#         """Generate a Hugging Face Llama configuration from the NeMo model configuration.
+    @property
+    def hf_config(self) -> "HFLlamaConfig":
+        """Generate a Hugging Face Llama configuration from the NeMo model configuration.
 
-#         This property maps NeMo configuration parameters to their Hugging Face equivalents.
+        This property maps NeMo configuration parameters to their Hugging Face equivalents.
 
-#         Returns:
-#             HFLlamaConfig: A Hugging Face Llama configuration
-#         """
-#         if self._hf_config is not None:
-#             return self._hf_config
+        Returns:
+            HFLlamaConfig: A Hugging Face Llama configuration
+        """
+        assert False, "Not implemented"
+        if self._hf_config is not None:
+            return self._hf_config
 
-#         source = self.tron_config
-#         from transformers import LlamaConfig as HFLlamaConfig
 
-#         rope_scaling = None
-#         # For Llama 3.1 and Llama 3.2, rope_scaling is used and thus needed to parsed to the config
-#         if isinstance(source, Llama31Config):
-#             rope_scaling = {
-#                 "factor": source.scale_factor,
-#                 "low_freq_factor": source.low_freq_factor,
-#                 "high_freq_factor": source.high_freq_factor,
-#                 "original_max_position_embeddings": source.old_context_len,
-#                 "rope_type": "llama3",
-#             }
+        source = self.tron_config
+        assert not isinstance(source, HeterogeneousTransformerConfig)
 
-#         self._hf_config = HFLlamaConfig(
-#             num_hidden_layers=source.num_layers,
-#             hidden_size=source.hidden_size,
-#             intermediate_size=source.ffn_hidden_size,
-#             num_attention_heads=source.num_attention_heads,
-#             max_position_embeddings=source.seq_length,
-#             initializer_range=source.init_method_std,
-#             rms_norm_eps=source.layernorm_epsilon,
-#             num_key_value_heads=source.num_query_groups,
-#             rope_theta=source.rotary_base,
-#             vocab_size=source.vocab_size,
-#             tie_word_embeddings=source.share_embeddings_and_output_weights,
-#             rope_scaling=rope_scaling,
-#             bos_token_id=self.tokenizer.bos_token_id if self.tokenizer else None,
-#             eos_token_id=self.tokenizer.eos_token_id if self.tokenizer else None,
-#         )
-#         return self._hf_config
+        from transformers import LlamaConfig as HFLlamaConfig
+
+        rope_scaling = None
+        # For Llama 3.1 and Llama 3.2, rope_scaling is used and thus needed to parsed to the config
+        if isinstance(source, Llama31Config):
+            rope_scaling = {
+                "factor": source.scale_factor,
+                "low_freq_factor": source.low_freq_factor,
+                "high_freq_factor": source.high_freq_factor,
+                "original_max_position_embeddings": source.old_context_len,
+                "rope_type": "llama3",
+            }
+
+        self._hf_config = HFLlamaConfig(
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            max_position_embeddings=source.seq_length,
+            initializer_range=source.init_method_std,
+            rms_norm_eps=source.layernorm_epsilon,
+            num_key_value_heads=source.num_query_groups,
+            rope_theta=source.rotary_base,
+            vocab_size=source.vocab_size,
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
+            rope_scaling=rope_scaling,
+            bos_token_id=self.tokenizer.bos_token_id if self.tokenizer else None,
+            eos_token_id=self.tokenizer.eos_token_id if self.tokenizer else None,
+        )
+        return self._hf_config
 
 
 class HFLlamaNemotronImporter(BaseImporter):
