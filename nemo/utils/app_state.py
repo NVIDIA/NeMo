@@ -597,7 +597,7 @@ class AppState(metaclass=Singleton):
             Whether to use Gloo process groups.
         """
         return self._use_gloo_process_groups
-    
+
     @use_gloo_process_groups.setter
     def use_gloo_process_groups(self, use_gloo_process_groups):
         """Property sets whether to use Gloo process groups.
