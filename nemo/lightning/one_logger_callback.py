@@ -49,7 +49,7 @@ class OneLoggerTimingTracker:
         self._pending_events = []
         self._one_logger_available = False
     
-    def track_event(self, event_type: str):
+    def track_event(self, event_type: str, current_time_ms: float = None):
         """Track a timing event with automatic start/end timing.
         
         This method automatically handles the start and end timing for an event.
@@ -58,56 +58,20 @@ class OneLoggerTimingTracker:
         Args:
             event_type: Type of event (e.g., 'model_init_start', 'model_init_end', 'dataloader_init')
         """
-        current_time_ms = get_current_time_msec()
-        
-        # Check if this is a start or end event
-        if event_type.endswith('_start'):
-            # This is a start event - store it for later pairing with end event
-            event = {
-                'type': event_type,
-                'start_time_ms': current_time_ms,
-                'end_time_ms': None,
-                'is_start': True
-            }
-        elif event_type.endswith('_end'):
-            # This is an end event - find and complete the corresponding start event
-            base_event_type = event_type[:-4]  # Remove '_end' suffix
-            start_event_type = base_event_type + '_start'
-            
-            # Find the corresponding start event
-            for pending_event in self._pending_events:
-                if (pending_event['type'] == start_event_type and 
-                    pending_event['end_time_ms'] is None and
-                    pending_event.get('is_start', False)):
-                    # Complete the start event with end time
-                    pending_event['end_time_ms'] = current_time_ms
-                    pending_event['is_start'] = False
-                    
-                    # Log the completed event
-                    if self._one_logger_available:
-                        self._log_event(pending_event)
-                    return
-            
-            # If no matching start event found, log as immediate event
-            event = {
-                'type': event_type,
-                'start_time_ms': current_time_ms,
-                'end_time_ms': current_time_ms,
-                'is_start': False
-            }
-        else:
-            # This is an immediate event (neither start nor end)
-            event = {
-                'type': event_type,
-                'start_time_ms': current_time_ms,
-                'end_time_ms': current_time_ms,
-                'is_start': False
-            }
-        
-        if self._one_logger_available:
-            self._log_event(event)
-        else:
+        if current_time_ms is None:
+            current_time_ms = get_current_time_msec()
+
+        event = {
+            'name': event_type,
+            'api_name': f'on_{event_type}',  # Add 'on_' prefix
+            'time_ms': current_time_ms
+        }
+
+
+        if not self._one_logger_available:
             self._pending_events.append(event)
+        else:
+            self._log_event(event)
     
 
     
@@ -134,66 +98,25 @@ class OneLoggerTimingTracker:
         """Log an event using OneLogger callbacks.
         
         Args:
-            event: Event data containing type, start_time_ms, and end_time_ms
+            event: Event data containing name, time_ms, api_name
         """
-        try:
-            # Import OneLogger callbacks
-            from nv_one_logger.training_telemetry.api import callbacks as one_logger_callbacks
-            from nv_one_logger.training_telemetry.api import training_telemetry_provider
-            
-            # Check if OneLogger is actually ready
-            if not training_telemetry_provider.TrainingTelemetryProvider.instance().one_logger_ready:
-                return
-            
-            event_type = event['type']
-            start_time_ms = event['start_time_ms']
-            end_time_ms = event.get('end_time_ms')
-            
-            # Handle start/end event pairs
-            if event_type.endswith('_start'):
-                # This is a start event - log the start
-                base_event_type = event_type[:-6]  # Remove '_start' suffix
-                if base_event_type == 'model_init':
-                    one_logger_callbacks.on_model_init_start(start_time_msec=start_time_ms)
-                elif base_event_type == 'dataloader_init':
-                    one_logger_callbacks.on_dataloader_init_start(start_time_msec=start_time_ms)
-                elif base_event_type == 'optimizer_init':
-                    one_logger_callbacks.on_optimizer_init_start(start_time_msec=start_time_ms)
-                elif base_event_type == 'load_checkpoint':
-                    one_logger_callbacks.on_load_checkpoint_start(start_time_msec=start_time_ms)
-                elif base_event_type == 'save_checkpoint':
-                    one_logger_callbacks.on_save_checkpoint_start(start_time_msec=start_time_ms)
-                elif base_event_type == 'app':
-                    one_logger_callbacks.on_app_start(start_time_msec=start_time_ms)
-                    
-            elif event_type.endswith('_end'):
-                # This is an end event - log the end
-                base_event_type = event_type[:-4]  # Remove '_end' suffix
-                if base_event_type == 'model_init':
-                    one_logger_callbacks.on_model_init_end(finish_time_msec=end_time_ms)
-                elif base_event_type == 'dataloader_init':
-                    one_logger_callbacks.on_dataloader_init_end(finish_time_msec=end_time_ms)
-                elif base_event_type == 'optimizer_init':
-                    one_logger_callbacks.on_optimizer_init_end(finish_time_msec=end_time_ms)
-                elif base_event_type == 'load_checkpoint':
-                    one_logger_callbacks.on_load_checkpoint_end(finish_time_msec=end_time_ms)
-                elif base_event_type == 'save_checkpoint':
-                    one_logger_callbacks.on_save_checkpoint_end(finish_time_msec=end_time_ms)
-                elif base_event_type == 'app':
-                    one_logger_callbacks.on_app_end(finish_time_msec=end_time_ms)
-                    
-            else:
-                raise 
-                elif event_type == 'app_end':
-                    # Log only end
-                    one_logger_callbacks.on_app_end(finish_time_msec=start_time_ms)
-                    
-        except ImportError:
-            # OneLogger not available, ignore
-            pass
-        except Exception as e:
-            # Log error but don't fail
-            logging.debug(f"Failed to log OneLogger event {event['type']}: {e}")
+        if not self._one_logger_available:
+            return
+
+        # Handle start/end event pairs
+        event_name = event['name']
+        attribute_name = event['api_name']
+        time_ms = event['time_ms']
+        
+        if not hasattr(CB, attribute_name):
+            raise ValueError(f"Invalid event name: {event_name}")
+        
+        if event_name.endswith('_start'):
+            getattr(self, attribute_name)(start_time_msec=time_ms)
+        elif event_name.endswith('_end'):
+            getattr(self, attribute_name)(finish_time_msec=time_ms)
+        else:
+            raise ValueError(f"Invalid event name: {event_name}")
 
 
 class OneLoggerNeMoCallback(Callback):
@@ -404,54 +327,6 @@ class OneLoggerNeMoCallback(Callback):
         print(f"OneLogger NeMo CB: on_app_end called")
         CB.on_app_end()
         print(f"  ✓ Called CB.on_app_end")
-
-    def on_dataloader_init_start(self) -> None:
-        """Called at the start of data loader initialization."""
-        print(f"OneLogger NeMo CB: on_dataloader_init_start called")
-        # OneLogger doesn't have a specific callback for this, but we can log it
-        print(f"  ✓ Data loader initialization started")
-
-    def on_dataloader_init_end(self) -> None:
-        """Called at the end of data loader initialization."""
-        print(f"OneLogger NeMo CB: on_dataloader_init_end called")
-        # OneLogger doesn't have a specific callback for this, but we can log it
-        print(f"  ✓ Data loader initialization completed")
-
-    def on_model_init_start(self) -> None:
-        """Called at the start of model initialization."""
-        print(f"OneLogger NeMo CB: on_model_init_start called")
-        # OneLogger doesn't have a specific callback for this, but we can log it
-        print(f"  ✓ Model initialization started")
-
-    def on_model_init_end(self) -> None:
-        """Called at the end of model initialization."""
-        print(f"OneLogger NeMo CB: on_model_init_end called")
-        # OneLogger doesn't have a specific callback for this, but we can log it
-        print(f"  ✓ Model initialization completed")
-
-    def on_optimizer_init_start(self) -> None:
-        """Called at the start of optimizer initialization."""
-        print(f"OneLogger NeMo CB: on_optimizer_init_start called")
-        # OneLogger doesn't have a specific callback for this, but we can log it
-        print(f"  ✓ Optimizer initialization started")
-
-    def on_optimizer_init_end(self) -> None:
-        """Called at the end of optimizer initialization."""
-        print(f"OneLogger NeMo CB: on_optimizer_init_end called")
-        # OneLogger doesn't have a specific callback for this, but we can log it
-        print(f"  ✓ Optimizer initialization completed")
-
-    def on_load_checkpoint_start(self) -> None:
-        """Called at the start of checkpoint loading."""
-        print(f"OneLogger NeMo CB: on_load_checkpoint_start called")
-        # OneLogger doesn't have a specific callback for this, but we can log it
-        print(f"  ✓ Checkpoint loading started")
-
-    def on_load_checkpoint_end(self) -> None:
-        """Called at the end of checkpoint loading."""
-        print(f"OneLogger NeMo CB: on_load_checkpoint_end called")
-        # OneLogger doesn't have a specific callback for this, but we can log it
-        print(f"  ✓ Checkpoint loading completed")
 
     def on_save_checkpoint_start(self, iteration: int = 0) -> None:
         """Called at the start of checkpoint saving."""
