@@ -99,9 +99,7 @@ class TestParallelHyenaOperator:
     """
 
     @pytest.fixture
-    def operator(
-        self, transformer_config: TransformerConfig, hyena_config: HyenaConfig
-    ) -> ParallelHyenaOperator:
+    def operator(self, transformer_config: TransformerConfig, hyena_config: HyenaConfig) -> ParallelHyenaOperator:
         """
         Pytest fixture to create a ParallelHyenaOperator instance within a simple parallel state.
         """
@@ -152,9 +150,7 @@ class TestParallelShortHyenaOperator:
     """
 
     @pytest.fixture
-    def operator(
-        self, transformer_config: TransformerConfig, hyena_config: HyenaConfig
-    ) -> ParallelShortHyenaOperator:
+    def operator(self, transformer_config: TransformerConfig, hyena_config: HyenaConfig) -> ParallelShortHyenaOperator:
         """
         Pytest fixture to create a ParallelShortHyenaOperator instance within a simple parallel state.
         """
@@ -207,9 +203,7 @@ class TestParallelShortHyenaOperatorWithConvBias:
     """
 
     @pytest.fixture
-    def operator(
-        self, transformer_config: TransformerConfig, hyena_config: HyenaConfig
-    ) -> ParallelShortHyenaOperator:
+    def operator(self, transformer_config: TransformerConfig, hyena_config: HyenaConfig) -> ParallelShortHyenaOperator:
         """
         Pytest fixture to create a ParallelShortHyenaOperator instance with conv bias within a simple parallel state.
         """
