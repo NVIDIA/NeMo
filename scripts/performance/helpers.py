@@ -19,6 +19,7 @@ from typing import List, Optional
 import nemo_run as run
 import pandas as pd
 from numpy import nan
+import nemo.lightning as nl
 
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.precision.mixed_precision import (
@@ -29,6 +30,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
 )
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
+from nemo.lightning import AutoResume
 from nemo.utils import logging
 
 from .utils import get_comm_overlap_callback_idx
@@ -97,6 +99,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
     enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
 
+    num_layers = args.num_layers
+    hidden_size = args.hidden_size
+
     use_mcore_fsdp = config.get("use_mcore_fsdp") if args.use_mcore_fsdp is None else args.use_mcore_fsdp
     use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
 
@@ -117,7 +122,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     else:
         recompute_modules = None
 
-    kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
+    kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, num_layers, hidden_size, etp_size
     kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
     kwargs += [enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules]
 
@@ -315,6 +320,8 @@ def set_primary_perf_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: Optional[int] = None,
+    hidden_size: Optional[int] = None,
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
@@ -326,6 +333,8 @@ def set_primary_perf_configs(
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
+    save_checkpoint: Optional[bool] = False,
+    load_checkpoint_path: Optional[str] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -350,6 +359,10 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
+    if num_layers:
+        recipe.model.config.num_layers = num_layers
+    if hidden_size:
+        recipe.model.config.hidden_size = hidden_size
     if nccl_communicator_config_path is not None:
         recipe.trainer.strategy.nccl_communicator_config_path = nccl_communicator_config_path
 
@@ -376,6 +389,27 @@ def set_primary_perf_configs(
         use_sharp,
         use_user_buffer_registration,
     )
+
+    recipe.trainer.enable_checkpointing = save_checkpoint
+    recipe.trainer.val_check_interval = max_steps
+
+    if recipe.trainer.enable_checkpointing or load_checkpoint_path is not None:
+        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = False
+
+    if load_checkpoint_path is not None:
+        recipe.resume = run.Config(
+            AutoResume,
+            resume_if_exists=True,
+            resume_ignore_no_checkpoint=False,
+            restore_config=run.Config(
+                nl.RestoreConfig,
+                path=load_checkpoint_path,
+                load_model_state=True,
+                load_optim_state=True,
+                load_artifacts=False,
+            ),
+        )
+
 
     return recipe
 
