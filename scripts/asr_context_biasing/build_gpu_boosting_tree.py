@@ -20,7 +20,10 @@ from omegaconf import MISSING
 from torch.nn.utils.rnn import pad_sequence
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel, BoostingTreeModelConfig
+from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import (
+    BoostingTreeModelConfig,
+    GPUBoostingTreeModel,
+)
 from nemo.collections.asr.parts.context_biasing.context_graph_universal import ContextGraph
 from nemo.collections.common.tokenizers import AggregateTokenizer
 from nemo.core.config import hydra_runner
