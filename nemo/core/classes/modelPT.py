@@ -85,15 +85,16 @@ class ModelPT(LightningModule, Model):
                 f"trainer constructor argument must be either None or lightning.pytorch.Trainer. "
                 f"But got {type(trainer)} instead."
             )
-        
+
         # Track app start time at the very beginning of model init
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
         self._timing_tracker = OneLoggerTimingTracker.get_instance()
         self._timing_tracker.track_event('app_start')
-        
+
         # Track model init start
         self._timing_tracker.track_event('model_init_start')
-            
+
         super().__init__()
 
         """
@@ -209,7 +210,7 @@ class ModelPT(LightningModule, Model):
                 )
 
         self._timing_tracker.track_event('dataloader_init_end')
-        
+
         # Create list of lists for val and test outputs to support multiple dataloaders
         # Initialize an empty list as sometimes self._validation_dl can be None at this stage
         self._validation_step_outputs = None
@@ -891,7 +892,7 @@ class ModelPT(LightningModule, Model):
     def configure_optimizers(self):
         # Track optimizer init start
         self._timing_tracker.track_event('optimizer_init_start')
-        
+
         self.setup_optimization()
 
         self._timing_tracker.track_event('optimizer_init_end')
@@ -1321,6 +1322,7 @@ class ModelPT(LightningModule, Model):
 
         """
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
         timing_tracker = OneLoggerTimingTracker.get_instance()
         timing_tracker.track_event('load_checkpoint_start')
         args = [
@@ -1458,7 +1460,6 @@ class ModelPT(LightningModule, Model):
 
         # Track load checkpoint end
         timing_tracker.track_event('load_checkpoint_end')
-
 
     def teardown(self, stage: str):
         """

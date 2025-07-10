@@ -512,11 +512,13 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
 
         import nv_one_logger.training_telemetry.api.callbacks as CB
         from nemo.lightning.one_logger_callback import get_current_time_msec
+
         CB.on_app_start(start_time_msec=get_current_time_msec())
-        
+
         # Mark OneLogger as available for the OneLoggerTimingTracker
         try:
             from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
             OneLoggerTimingTracker.mark_one_logger_available()
             print(f"OneLogger: ✓ Marked OneLogger as available for OneLoggerTimingTracker")
         except Exception as e:
@@ -533,9 +535,11 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
                 onelogger_callback = OneLoggerNeMoCallback(
                     callback_config=metadata, log_interval=cfg.get("log_interval", 10)
                 )
-                
+
                 trainer.callbacks.append(onelogger_callback)
-                print(f"OneLogger: ✓ OneLoggerNeMoCallback added to trainer. Total callbacks: {len(trainer.callbacks)}")
+                print(
+                    f"OneLogger: ✓ OneLoggerNeMoCallback added to trainer. Total callbacks: {len(trainer.callbacks)}"
+                )
                 print(f"OneLogger: Trainer callbacks after adding: {[type(cb).__name__ for cb in trainer.callbacks]}")
             else:
                 print(f"OneLogger: OneLoggerNeMoCallback already exists in trainer callbacks")
@@ -669,8 +673,6 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     if trainer.fast_dev_run:
         logging.info("Trainer was called with fast_dev_run. exp_manager will return without any functionality.")
         return
-
-
 
     # Ensure passed cfg is compliant with ExpManagerConfig
     schema = OmegaConf.structured(ExpManagerConfig)
