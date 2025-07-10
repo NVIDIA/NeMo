@@ -183,6 +183,7 @@ if __name__ == "__main__":
                 "NCCL_DEBUG": "INFO",
             }
         executor = slurm_executor(
+            args.gpu.lower(),
             args.account,
             args.partition,
             args.log_dir,
@@ -195,6 +196,7 @@ if __name__ == "__main__":
             hf_token=args.hf_token,
             nemo_home=args.nemo_home,
             wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
         )
 
     else:
@@ -211,6 +213,7 @@ if __name__ == "__main__":
         exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
 
         executor = slurm_executor(
+            args.gpu.lower(),
             args.account,
             args.partition,
             args.log_dir,
@@ -223,6 +226,7 @@ if __name__ == "__main__":
             hf_token=args.hf_token,
             nemo_home=args.nemo_home,
             wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
         )
 
     with run.Experiment(exp_name) as exp:
