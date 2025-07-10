@@ -528,7 +528,7 @@ class GPUBoostingTreeModel(NGramGPULanguageModel):
         if cfg.use_bpe_dropout:
             if is_aggregate_tokenizer:
                 logging.warning(
-                    f"Aggregated tokenizer does not support BPE dropout, only one default transcription will be used..."
+                    "Aggregated tokenizer does not support BPE dropout, only one default transcription will be used..."
                 )
             import sentencepiece as spm
 
