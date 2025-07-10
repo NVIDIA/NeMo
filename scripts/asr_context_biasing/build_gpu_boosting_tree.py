@@ -20,7 +20,7 @@ from omegaconf import MISSING
 from torch.nn.utils.rnn import pad_sequence
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel
+from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import GPUBoostingTreeModel, BoostingTreeModelConfig
 from nemo.collections.asr.parts.context_biasing.context_graph_universal import ContextGraph
 from nemo.collections.common.tokenizers import AggregateTokenizer
 from nemo.core.config import hydra_runner
@@ -28,36 +28,13 @@ from nemo.utils import logging
 
 
 @dataclass
-class BuildWordBoostingTreeConfig:
+class BuildWordBoostingTreeConfig(BoostingTreeModelConfig):
     """
     Build GPU-accelerated phrase boosting tree (btree) to be used with greedy and beam search decoders of ASR models.
     """
 
     asr_model_path: Optional[str] = None  # The path to '.nemo' ASR checkpoint
-    asr_pretrained_name: Optional[str] = None  # The name of pretrained ASR model (from NGC registry)
-    context_biasing_list: str = MISSING  # The path to the context-biasing list file (one phrase per line)
     save_to: str = MISSING  # The path to save the GPU-accelerated word boosting graph
-
-    context_score: float = 1.0  # The score for each arc transition in the context graph
-    depth_scaling: float = 1.0  # The scaling factor for the depth of the context graph
-    unk_score: float = (
-        0.0  # The score for unknown tokens (tokens that are not presented in the beginning of context-biasing phrases)
-    )
-    final_eos_score: float = (
-        1.0  # The score for eos token after detected end of context phrase to prevent hallucination for AED models
-    )
-    score_per_phrase: float = 0.0  # Custom score for each phrase in the context graph
-    source_lang: str = "en"  # The source language of the context-biasing phrases (for aggregate tokenizer)
-
-    use_triton: bool = False  # Whether to use Triton for inference.
-    uniform_weights: bool = False  # Whether to use uniform weights for the context-biasing tree as in Icefall
-
-    # generation of alternative transcriptions (optional)
-    use_bpe_dropout: bool = False  # Whether to use BPE dropout for generating alternative transcriptions
-    num_of_transcriptions: int = (
-        5  # The number of alternative transcriptions to generate for each context-biasing phrase
-    )
-    bpe_alpha: float = 0.3  # The alpha parameter for BPE dropout
 
     # evaluation of obtained boosting tree with test_sentences (optional)
     test_boosting_tree: bool = False  # Whether to test the GPU-accelerated word boosting tree after building it
@@ -79,71 +56,17 @@ def main(cfg: BuildWordBoostingTreeConfig):
 
     is_aggregate_tokenizer = isinstance(asr_model.tokenizer, AggregateTokenizer)
 
-    # 2. tokenize context-biasing phrases
-    cb_dict = {}
-    with open(cfg.context_biasing_list, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not is_aggregate_tokenizer:
-                cb_dict[line] = asr_model.tokenizer.text_to_ids(line)
-                if cfg.use_bpe_dropout:
-                    cb_dict[line] = [asr_model.tokenizer.text_to_ids(line)]
-                    trans_set = set()
-                    trans_set.add(" ".join(asr_model.tokenizer.text_to_tokens(line)))
-                    i = 1
-                    cur_step = 1
-                    while i < cfg.num_of_transcriptions and cur_step < cfg.num_of_transcriptions * 5:
-                        cur_step += 1
-                        trans = asr_model.tokenizer.tokenizer.encode(
-                            line, enable_sampling=True, alpha=cfg.bpe_alpha, nbest_size=-1
-                        )
-                        trans_text = asr_model.tokenizer.ids_to_tokens(trans)
-                        if trans_text[0] == "▁":
-                            continue
-                        trans_text = " ".join(trans_text)
-                        if trans_text not in trans_set:
-                            cb_dict[line].append(trans)
-                            trans_set.add(trans_text)
-                            i += 1
-            else:
-                cb_dict[line] = asr_model.tokenizer.text_to_ids(line, cfg.source_lang)
+    # 2. Build GPU-accelerated word boosting tree from config
+    gpu_boosting_model = GPUBoostingTreeModel.from_config(cfg, tokenizer=asr_model.tokenizer)
 
-    # 3. build context-biasing tree based on modified Icefall graph
-    contexts, scores, phrases = [], [], []
-    for phrase in cb_dict:
-        if cfg.use_bpe_dropout:
-            for trans in cb_dict[phrase]:
-                contexts.append(trans)
-                scores.append(round(cfg.score_per_phrase / len(phrase), 2))
-                phrases.append(phrase)
-        else:
-            contexts.append(cb_dict[phrase])
-            scores.append(round(cfg.score_per_phrase / len(phrase), 2))
-            phrases.append(phrase)
-
-    context_graph = ContextGraph(context_score=cfg.context_score, depth_scaling=cfg.depth_scaling)
-    context_graph.build(token_ids=contexts, scores=scores, phrases=phrases, uniform_weights=cfg.uniform_weights)
-
-    # 4. convert python context-biasing graph to gpu boosting tree
-    vocab_size = len(asr_model.tokenizer.vocab)
-
-    gpu_boosting_model = GPUBoostingTreeModel.from_context_graph(
-        context_graph=context_graph,
-        vocab_size=vocab_size,
-        unk_score=cfg.unk_score,
-        final_eos_score=cfg.final_eos_score,
-        use_triton=cfg.use_triton,
-        uniform_weights=cfg.uniform_weights,
-    )
-
-    # 5. save gpu boosting tree to nemo file
+    # 3. save gpu boosting tree to nemo file
     gpu_boosting_model.save_to(cfg.save_to)
 
-    # 6. test gpu boosting tree model
+    # 4. test gpu boosting tree model
     logging.info("testing gpu boosting tree model...")
     if cfg.test_boosting_tree and cfg.test_sentences:
         gpu_boosting_model_loaded = GPUBoostingTreeModel.from_nemo(
-            cfg.save_to, vocab_size=vocab_size, use_triton=cfg.use_triton
+            cfg.save_to, vocab_size=len(asr_model.tokenizer.vocab), use_triton=cfg.use_triton
         )
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         gpu_boosting_model_loaded = gpu_boosting_model_loaded.cuda()
