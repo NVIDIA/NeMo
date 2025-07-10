@@ -29,7 +29,7 @@ from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
-from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
+from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
@@ -568,7 +568,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ValueError: (mcore) async_save with EMA not supported
             ValueError: (mcore) Async save requires async compatible CheckpointIO
         """
-        CallbackGroup.get_instance().on_save_checkpoint_start()
+        # Call OneLogger checkpoint start callback
+        OneLoggerNeMoCallback.get_instance().on_save_checkpoint_start(iteration=trainer.global_step)
 
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -600,7 +601,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
                     rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
-            CallbackGroup.get_instance().on_save_checkpoint_success(global_step=trainer.global_step)
+            # Call OneLogger checkpoint success callback
+            OneLoggerNeMoCallback.get_instance().on_save_checkpoint_success(iteration=trainer.global_step)
         else:
             # Determine whether to include optimizer states in the checkpoint
             # optimizer states are included when
@@ -635,7 +637,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
-            CallbackGroup.get_instance().on_save_checkpoint_end(global_step=trainer.global_step)
+            # Call OneLogger checkpoint end callback
+            OneLoggerNeMoCallback.get_instance().on_save_checkpoint_end()
 
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'lightning.pytorch.Trainer', filepath: str, global_step: int
@@ -659,7 +662,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 return
 
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
-            CallbackGroup.get_instance().on_save_checkpoint_success(global_step=trainer.global_step)
+            # Call OneLogger checkpoint success callback
+            OneLoggerNeMoCallback.get_instance().on_save_checkpoint_success(iteration=trainer.global_step)
 
             if str(filepath) in self.ckpts_to_link:
                 self._link_checkpoint(trainer, filepath, self.ckpts_to_link.pop(filepath), override_async=True)

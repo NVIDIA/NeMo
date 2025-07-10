@@ -43,7 +43,6 @@ from nemo.core.classes.mixins.hf_io_mixin import HuggingFaceFileIO
 from nemo.core.config.templates.model_card import NEMO_DEFAULT_MODEL_CARD_TEMPLATE
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
-from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils.data_utils import resolve_cache_dir
@@ -741,7 +740,6 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         Returns:
             A model instance of a particular model class or its underlying config (if return_config is set).
         """
-        CallbackGroup.get_instance().on_load_checkpoint_start()
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
@@ -775,7 +773,6 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             trainer=trainer,
             save_restore_connector=save_restore_connector,
         )
-        CallbackGroup.get_instance().on_load_checkpoint_end()
         return instance
 
     @classmethod
