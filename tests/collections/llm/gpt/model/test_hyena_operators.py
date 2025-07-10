@@ -126,6 +126,7 @@ class TestParallelHyenaOperator:
                 init_method="small_init",
             )
 
+    @pytest.mark.run_only_on('GPU')
     def test_initialization(self, operator: ParallelHyenaOperator):
         """
         Test that the ParallelHyenaOperator is initialized with correct attributes and parameter count.
@@ -136,6 +137,7 @@ class TestParallelHyenaOperator:
         num_weights = sum(p.numel() for p in operator.parameters())
         assert num_weights == 111456
 
+    @pytest.mark.run_only_on('GPU')
     def test_gpu_forward(self, operator: ParallelHyenaOperator):
         """
         Test the forward pass of ParallelHyenaOperator on GPU.
@@ -183,6 +185,7 @@ class TestParallelShortHyenaOperator:
                 use_conv_bias=False,
             )
 
+    @pytest.mark.run_only_on('GPU')
     def test_initialization(self, operator: ParallelShortHyenaOperator):
         """
         Test that the ParallelShortHyenaOperator is initialized with correct attributes and parameter count.
@@ -193,6 +196,7 @@ class TestParallelShortHyenaOperator:
         num_weights = sum(p.numel() for p in operator.parameters())
         assert num_weights == 6048
 
+    @pytest.mark.run_only_on('GPU')
     def test_gpu_forward(self, operator: ParallelShortHyenaOperator):
         """
         Test the forward pass of ParallelShortHyenaOperator on GPU.
@@ -240,6 +244,7 @@ class TestParallelShortHyenaOperatorWithConvBias:
                 use_conv_bias=True,
             )
 
+    @pytest.mark.run_only_on('GPU')
     def test_initialization(self, operator: ParallelShortHyenaOperator):
         """
         Test that the ParallelShortHyenaOperator (with conv bias) is initialized with correct attributes and parameter count.
@@ -250,6 +255,7 @@ class TestParallelShortHyenaOperatorWithConvBias:
         num_weights = sum(p.numel() for p in operator.parameters())
         assert num_weights == 6912
 
+    @pytest.mark.run_only_on('GPU')
     def test_gpu_forward(self, operator: ParallelShortHyenaOperator):
         """
         Test the forward pass of ParallelShortHyenaOperator (with conv bias) on GPU.
@@ -296,6 +302,7 @@ class TestParallelCausalDepthwiseConv1d:
                 use_fast_causal_conv=hyena_config.fast_conv_proj,
             )
 
+    @pytest.mark.run_only_on('GPU')
     def test_initialization(self, operator: ParallelCausalDepthwiseConv1d):
         """
         Test that the ParallelCausalDepthwiseConv1d is initialized with correct attributes and parameter count.
@@ -306,6 +313,7 @@ class TestParallelCausalDepthwiseConv1d:
         num_weights = sum(p.numel() for p in operator.parameters())
         assert num_weights == 2592
 
+    @pytest.mark.run_only_on('GPU')
     def test_gpu_forward(self, operator: ParallelCausalDepthwiseConv1d):
         """
         Test the forward pass of ParallelCausalDepthwiseConv1d on GPU.
@@ -338,6 +346,7 @@ def setup_tensors():
     }
 
 
+@pytest.mark.run_only_on('GPU')
 def test_adjust_filter_shape_for_broadcast():
     """Test filter shape adjustment for broadcasting."""
     # Case: u: [B, D, L], h: [D, L]
@@ -353,6 +362,7 @@ def test_adjust_filter_shape_for_broadcast():
     assert adjusted_h.shape == (1, 1, 4, 8)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_fftconv_func(setup_tensors):
     """Test FFT convolution."""
     u = setup_tensors["u"]
@@ -365,6 +375,7 @@ def test_fftconv_func(setup_tensors):
     assert not torch.isnan(result).any()
 
 
+@pytest.mark.run_only_on('GPU')
 def test_parallel_fir_short_filter(setup_tensors):
     """Test parallel FIR with short filter (conv1d path)."""
     u = torch.randn(2, 8, 4)  # B L D
@@ -386,6 +397,7 @@ def test_parallel_fir_short_filter(setup_tensors):
     assert fir_state.shape == (2, 4, 2)  # fir_length - 1
 
 
+@pytest.mark.run_only_on('GPU')
 def test_parallel_fir_long_filter(setup_tensors):
     """Test parallel FIR with long filter (FFT path)."""
     u = torch.randn(2, 8, 4)
@@ -408,6 +420,7 @@ def test_parallel_fir_long_filter(setup_tensors):
     assert fir_state.shape == (2, 4, 8)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_parallel_fir_gated_bias(setup_tensors):
     """Test parallel FIR with gated bias."""
     u = torch.randn(2, 8, 4)
@@ -437,6 +450,7 @@ def test_parallel_fir_gated_bias(setup_tensors):
     assert not torch.allclose(z_gated, z_ungated)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_parallel_iir():
     """Test parallel IIR."""
     hidden_size = 4
@@ -462,6 +476,7 @@ def test_parallel_iir():
     assert iir_state.shape == (2, hidden_size, 2)  # B D state_dim
 
 
+@pytest.mark.run_only_on('GPU')
 def test_step_fir():
     """Test step FIR."""
     u = torch.randn(2, 4)
@@ -484,6 +499,7 @@ def test_step_fir():
     assert new_state.shape == (2, 4, 3)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_step_fir_flip_filter():
     """Test step FIR with flipped filter."""
     u = torch.randn(2, 4)
@@ -496,6 +512,7 @@ def test_step_fir_flip_filter():
     assert not torch.allclose(y_normal, y_flipped)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_step_iir():
     """Test step IIR."""
     x2 = torch.randn(2, 4)  # B D
@@ -520,6 +537,7 @@ def test_step_iir():
     assert new_state.shape == (2, 4, 4)
 
 
+@pytest.mark.run_only_on('GPU')
 def test_prefill_via_modal_fft():
     """Test prefill via modal FFT."""
     x1v = torch.randn(2, 4, 8)
