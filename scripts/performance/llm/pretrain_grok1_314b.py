@@ -34,15 +34,10 @@ import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 from scripts.performance.argument_parser import parse_cli_args
-from scripts.performance.utils import (
-    args_sanity_check,
-    get_comm_overlap_callback_idx,
-    get_user_configs,
-    hf_tokenizer,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..argument_parser import parse_cli_args
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import hf_tokenizer
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import pretrain
@@ -433,8 +428,14 @@ if __name__ == "__main__":
             "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
             "NCCL_DEBUG": "INFO",
         }
+        
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -448,6 +449,7 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
     )
 
     with run.Experiment(exp_name) as exp:
