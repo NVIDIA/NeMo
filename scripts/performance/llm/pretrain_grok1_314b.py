@@ -36,7 +36,7 @@ from megatron.core.distributed import DistributedDataParallelConfig
 from scripts.performance.argument_parser import parse_cli_args
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, get_comm_overlap_callback_idx
 from ..utils import hf_tokenizer
 
 from nemo import lightning as nl
@@ -428,7 +428,7 @@ if __name__ == "__main__":
             "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
             "NCCL_DEBUG": "INFO",
         }
-        
+
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
