@@ -16,7 +16,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from contextlib import contextmanager
 from datetime import timedelta
 
@@ -76,7 +75,6 @@ def simple_parallel_state():
         yield
 
     finally:
-        # Clean up
         parallel_state.destroy_model_parallel()
         if dist.is_initialized():
             dist.destroy_process_group()
