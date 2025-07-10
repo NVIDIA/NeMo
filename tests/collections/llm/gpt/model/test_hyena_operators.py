@@ -59,18 +59,13 @@ def simple_parallel_state():
         if dist.is_initialized():
             dist.destroy_process_group()
 
-        # Set up environment variables
-        os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "0"
-        os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
-        os.environ.setdefault("MASTER_ADDR", "localhost")
-        os.environ.setdefault("MASTER_PORT", "12355")
-        os.environ.setdefault("RANK", "0")
-        os.environ.setdefault("WORLD_SIZE", "1")
-
         # Initialize process group
         if not dist.is_initialized():
             timeout_timedelta = timedelta(seconds=1800)
-            dist.init_process_group(backend="nccl", timeout=timeout_timedelta)
+            if torch.cuda.is_available():
+                dist.init_process_group(backend="nccl", timeout=timeout_timedelta)
+            else:
+                dist.init_process_group(backend="gloo", timeout=timeout_timedelta)
 
         # Initialize parallel state
         parallel_state.initialize_model_parallel()
