@@ -24,7 +24,6 @@ from nemo.collections.asr.parts.context_biasing.boosting_graph_batched import (
     BoostingTreeModelConfig,
     GPUBoostingTreeModel,
 )
-from nemo.collections.asr.parts.context_biasing.context_graph_universal import ContextGraph
 from nemo.collections.common.tokenizers import AggregateTokenizer
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
