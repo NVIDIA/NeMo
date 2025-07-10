@@ -839,11 +839,11 @@ class ParallelHyenaOperator(nn.Module):
         conv_bias = self.conv_bias
         local_size = None
 
+        z = x2 * v
+
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
 
-            x1, x2, v = [
-                AllToAllSingleFunction.apply(tensor, cp_group, "split_to_full", True) for tensor in [x1, x2, v]
-            ]
+            z = AllToAllSingleFunction.apply(z, cp_group, "split_to_full", True)
             # the tensors are now split across channels, but have full length.
             # [ B, H // num_ranks, L]
 
@@ -862,7 +862,6 @@ class ParallelHyenaOperator(nn.Module):
 
         h = h.repeat_interleave(self.group_dim, dim=-2)
 
-        z = x2 * v
         # with torch.autocast("cuda"):
         z = fftconv_func(
             u=z.to(torch.float32),
@@ -873,11 +872,12 @@ class ParallelHyenaOperator(nn.Module):
             bidirectional=self.bidirectional,
         )
         z = z.to(v.dtype)
-        z = x1 * z
 
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
             z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
             # [ B, H, L // num_ranks]
+
+        z = x1 * z
         return z  # [B, (G, DG), L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
@@ -1262,19 +1262,16 @@ class B2BCausalConv1dModule(nn.Module):
 
             # Pad and rearrange
             x = rearrange(x, "b h (nc s) -> (nc b) h s", nc=2)
-            padding = torch.concat([received_a, received_b], dim=0)
+            padding = torch.concat([received_a, received_b], dim=0)  # non-zero padding
 
             x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
             result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
             result = result[..., self.effective_pad_size :]  # Remove padding from output
             result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
         else:
-            # Add proper causal padding for the non-CP case
-            x = torch.nn.functional.pad(x, (self.effective_pad_size, 0))
-
-            # Call the CUDA kernel and remove the padding from result
+            # Call the CUDA kernel
+            # Padding is not required and is handled in the CUDA kernel when CP=1 (padding=0)
             result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
-            result = result[..., self.effective_pad_size :]  # Remove padding from output
         return result
 
 
