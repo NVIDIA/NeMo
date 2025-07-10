@@ -177,6 +177,8 @@ if __name__ == "__main__":
     if use_mcore_fsdp:
         # Needed to enable CuDNN LN for FSDP overlap
         env_vars = {"NVTE_NORM_FWD_USE_CUDNN": "1", "NVTE_NORM_BWD_USE_CUDNN": "1"}
+    else:
+        env_vars = {}
 
     executor = slurm_executor(
         args.gpu.lower(),
