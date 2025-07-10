@@ -16,34 +16,34 @@ from typing import Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
-from nemo.collections.llm import OranginaModel, OranginaConfig
+from nemo.collections.llm import GPTOSSModel, GPTOSSConfig120B
 
 from nemo.collections.llm.api import finetune
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 
-NAME = "orangina_110b_a6b"
+NAME = "gpt_oss_120b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create an Orangina 110B-A6B model configuration.
+    Factory function to create an GPT-OSS 120B model configuration.
     This is a MoE (Mixture of Experts) model with 128 experts.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Orangina 110B-A6B model.
+        run.Config[pl.LightningModule]: Configuration for the GPT-OSS 120B model.
 
     Examples:
         CLI usage:
-            $ nemo llm pretrain model=orangina_110b_a6b ...
+            $ nemo llm pretrain model=gpt_oss_120b ...
 
         Python API usage:
             >>> model_config = model()
             >>> print(model_config)
     """
-    conf = run.Config(OranginaConfig)
-    return run.Config(OranginaModel, config=conf)
+    conf = run.Config(GPTOSSConfig120B)
+    return run.Config(GPTOSSModel, config=conf)
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
@@ -56,7 +56,7 @@ def finetune_recipe(
     packed_sequence: bool = False,
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Orangina 110B-A6B model.
+    Create a fine-tuning recipe for GPT-OSS 120B model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -79,10 +79,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory orangina_110b_a6b
+            $ nemo llm finetune --factory gpt_oss_120b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="orangina_110b_a6b_finetune", num_nodes=8)
+            >>> recipe = finetune_recipe(name="gpt_oss_120b_finetune", num_nodes=8)
             >>> print(recipe)
 
     Note:
