@@ -13,8 +13,8 @@
 # limitations under the License.
 
 from nemo.collections.vlm.vision.base import (
-    BaseCLIPViTModel,
     CLIPViTConfig,
+    CLIPViTModelWrapper,
     HFCLIPVisionConfig,
     MultimodalProjectorConfig,
 )
@@ -24,13 +24,14 @@ from nemo.collections.vlm.vision.intern_vit import (
     InternViT_300M_448px_Config,
     InternViTModel,
 )
+from nemo.collections.vlm.vision.radio import RADIO_25_g_Config, RADIO_25_h_Config, RADIOViTModel
 from nemo.collections.vlm.vision.siglip_vit import SigLIPViT400M_14_384_Config, SigLIPViTModel
 
 __all__ = [
     "MultimodalProjectorConfig",
     "HFCLIPVisionConfig",
     "CLIPViTConfig",
-    "BaseCLIPViTModel",
+    "CLIPViTModelWrapper",
     "CLIPViTL_14_336_Config",
     "SigLIPViTModel",
     "SigLIPViT400M_14_384_Config",
@@ -38,4 +39,7 @@ __all__ = [
     "InternViT_300M_448px_Config",
     "InternViT_6B_448px_Config",
     "CLIPViTModel",
+    "RADIO_25_h_Config",
+    "RADIO_25_g_Config",
+    "RADIOViTModel",
 ]

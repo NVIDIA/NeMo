@@ -30,14 +30,16 @@ from tensorrt_llm._common import check_max_num_tokens
 from tensorrt_llm.builder import BuildConfig, Builder
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.mapping import Mapping
-from tensorrt_llm.models import MLLaMAForCausalLM
+from tensorrt_llm.models import LLaMAForCausalLM, MLLaMAForCausalLM
 from tensorrt_llm.plugin import PluginConfig
-from transformers import AutoModel, AutoProcessor, MllamaForConditionalGeneration
+from transformers import AutoModel, AutoProcessor, AutoTokenizer, MllamaForConditionalGeneration
 
+from nemo.collections import llm
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
 from nemo.core.classes.common import typecheck
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
+from nemo.export.utils.constants import TRTLLM_ENGINE_DIR
 
 from .converter import convert_mllama_nemo_to_hf
 
@@ -81,9 +83,10 @@ def build_trtllm_engine(
     )
 
 
-def build_mllama_trtllm_engine(
+def build_trtllm_engine_from_hf(
     model_dir: str,
     hf_model_path: str,
+    model_type: str,
     tensor_parallelism_size: int = 1,
     max_input_len: int = 256,
     max_output_len: int = 256,
@@ -96,12 +99,6 @@ def build_mllama_trtllm_engine(
     lora_ckpt_list: List[str] = None,
 ):
     """Build mllama TRTLLM engine from HF"""
-    if max_batch_size < 4:
-        print(
-            "TensorRT LLM may hit a runtime issue with batch size is smaller than 4 on some models." " Force set to 4"
-        )
-        max_batch_size = 4
-
     plugin_config = PluginConfig()
     plugin_config.gpt_attention_plugin = "auto"
     plugin_config.gemm_plugin = "auto"
@@ -126,7 +123,6 @@ def build_mllama_trtllm_engine(
     build_dict = {
         'max_input_len': max_input_len,
         'max_output_len': max_output_len,
-        'max_encoder_input_len': max_multimodal_len,
         'max_batch_size': max_batch_size,
         'max_beam_width': 1,
         'max_seq_len': max_seq_len,
@@ -135,18 +131,27 @@ def build_mllama_trtllm_engine(
         'strongly_typed': True,
         'builder_opt': None,
     }
+
+    if model_type == "mllama":
+        model_cls = MLLaMAForCausalLM
+        build_dict['max_encoder_input_len'] = max_multimodal_len
+    elif model_type == "llama_nemotron":
+        model_cls = LLaMAForCausalLM
+        build_dict['max_prompt_embedding_table_size'] = max_multimodal_len
+
     build_config = BuildConfig.from_dict(build_dict, plugin_config=plugin_config)
 
+    engine_dir = os.path.join(model_dir, TRTLLM_ENGINE_DIR)
     for rank in range(tensor_parallelism_size):
         mapping = Mapping(world_size=tensor_parallelism_size, rank=rank, tp_size=tensor_parallelism_size)
-        model = MLLaMAForCausalLM.from_hugging_face(
+        model = model_cls.from_hugging_face(
             hf_model_path,
             dtype,
             mapping=mapping,
         )
 
         engine = build_trtllm(model, build_config)
-        engine.save(model_dir)
+        engine.save(engine_dir)
 
 
 def export_visual_wrapper_onnx(
@@ -632,6 +637,81 @@ def build_mllama_visual_engine(
     build_trt_engine("mllama", shapes, model_dir, vision_max_batch_size, model_dtype)
 
 
+def build_llama_nemotron_visual_engine(
+    model_dir: str,
+    hf_model_path: str,
+    vision_max_batch_size: int = 1,
+):
+    """Build Llama Nemotron visual engine"""
+    hf_model = AutoModel.from_pretrained(hf_model_path, trust_remote_code=True, torch_dtype=torch.bfloat16)
+    model_dtype = hf_model.dtype
+
+    class RadioWithNeck(torch.nn.Module):
+        # pylint: disable=C0115,C0116
+        def __init__(self, model):
+            super().__init__()
+            image_size = model.config.force_image_size
+            patch_size = model.config.patch_size
+            self.patch_size = patch_size
+            self.template = model.config.template
+            self.num_image_token = int((image_size // patch_size) ** 2 * (model.config.downsample_ratio**2))
+            self.downsample_ratio = model.config.downsample_ratio
+            self.ps_version = model.config.ps_version
+            self.image_tag_type = model.config.image_tag_type
+
+            self.vision_model = model.vision_model
+
+            self.mlp1 = model.mlp1
+
+            self.img_context_token_id = None
+
+        def pixel_shuffle(self, x, scale_factor=0.5):
+            n, w, h, c = x.size()
+            # N, W, H, C --> N, W, H * scale, C // scale
+            x = x.view(n, w, int(h * scale_factor), int(c / scale_factor))
+            # N, W, H * scale, C // scale --> N, H * scale, W, C // scale
+            x = x.permute(0, 2, 1, 3).contiguous()
+            # N, H * scale, W, C // scale --> N, H * scale, W * scale, C // (scale ** 2)
+            x = x.view(n, int(h * scale_factor), int(w * scale_factor), int(c / (scale_factor * scale_factor)))
+            if self.ps_version == 'v1':
+                logger.log(
+                    "In ps_version 'v1', the height and width have not been swapped back, "
+                    'which results in a transposed image.'
+                )
+            else:
+                x = x.permute(0, 2, 1, 3).contiguous()
+            return x
+
+        def extract_feature(self, pixel_values):
+            vit_embeds = self.vision_model(pixel_values).features
+            vit_embeds = vit_embeds.to(dtype=model_dtype)
+            h = w = int(vit_embeds.shape[1] ** 0.5)
+            vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], h, w, -1)
+            vit_embeds = self.pixel_shuffle(vit_embeds, scale_factor=self.downsample_ratio)
+            vit_embeds = vit_embeds.reshape(vit_embeds.shape[0], -1, vit_embeds.shape[-1])
+            vit_embeds = self.mlp1(vit_embeds)
+            return vit_embeds
+
+        @torch.no_grad
+        def forward(self, pixel_values):
+            return self.extract_feature(pixel_values)
+
+    wrapper = RadioWithNeck(hf_model).cuda().eval()
+    # temporary fix due to TRT onnx export bug
+    for block in wrapper.vision_model.model.blocks:
+        block.attn.fused_attn = False
+
+    image_size = hf_model.config.force_image_size
+    inputs = torch.randn((1, 3, image_size, image_size), dtype=model_dtype).cuda()
+    export_visual_wrapper_onnx(wrapper, inputs, model_dir)
+    build_trt_engine(
+        "llama_nemotron",
+        [3, image_size, image_size],
+        model_dir,
+        vision_max_batch_size,
+    )
+
+
 def build_visual_engine(
     model_dir: str,
     visual_checkpoint_path: str,
@@ -716,9 +796,10 @@ def build_mllama_engine(
             hf_model_path,
             vision_max_batch_size=vision_max_batch_size,
         )
-        build_mllama_trtllm_engine(
+        build_trtllm_engine_from_hf(
             os.path.join(model_dir, "llm_engine"),
             hf_model_path,
+            "mllama",
             tensor_parallelism_size,
             max_input_len,
             max_output_len,
@@ -726,3 +807,51 @@ def build_mllama_engine(
             max_multimodal_len,
             dtype,
         )
+
+
+def build_llama_nemotron_engine(
+    model_dir: str,
+    checkpoint_path: str,
+    vision_max_batch_size: int = 1,
+    tensor_parallelism_size: int = 1,
+    max_input_len: int = 256,
+    max_output_len: int = 256,
+    max_batch_size: int = 1,
+    max_multimodal_len: int = 1024,
+    dtype: str = "bfloat16",
+    use_lora_plugin: str = None,
+    lora_target_modules: List[str] = None,
+    max_lora_rank: int = 64,
+    lora_ckpt_list: List[str] = None,
+):
+    """Build Llama Nemotron engine"""
+    hf_model_path = os.path.join(model_dir, "hf_llama_nemotron")
+
+    llm.export_ckpt(
+        path=checkpoint_path,
+        target='hf',
+        output_path=hf_model_path,
+    )
+
+    build_llama_nemotron_visual_engine(
+        os.path.join(model_dir, "visual_engine"),
+        hf_model_path,
+        vision_max_batch_size=vision_max_batch_size,
+    )
+    build_trtllm_engine_from_hf(
+        os.path.join(model_dir, "llm_engine"),
+        hf_model_path,
+        "llama_nemotron",
+        tensor_parallelism_size,
+        max_input_len,
+        max_output_len,
+        max_batch_size,
+        max_multimodal_len,
+        dtype,
+    )
+
+    tokenizer = AutoTokenizer.from_pretrained(hf_model_path)
+    tokenizer_path = os.path.join(model_dir, "llm_engine")
+    tokenizer.save_pretrained(tokenizer_path)
+
+    shutil.rmtree(hf_model_path)

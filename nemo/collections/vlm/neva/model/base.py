@@ -23,6 +23,7 @@ from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
+from megatron.core.models.multimodal.llava_model import pixel_shuffle
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -32,6 +33,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
+from nemo.collections.vlm.vision import CLIPViTModelWrapper
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
@@ -176,6 +178,7 @@ class NevaConfig(TransformerConfig, io.IOMixin):
     vision_projection_config: Optional[TransformerConfig] = None
 
     drop_vision_class_token: bool = True
+    pixel_shuffle: bool = False
     vision_feature_layer: int = -2
 
     encoder_pipeline_model_parallel_size: int = 0
@@ -316,9 +319,14 @@ class MCoreNevaModel(MCoreLLaVAModel):
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
 
         self.vision_model_from_hf = hasattr(vision_transformer_config, "image_size")
+        self._pixel_shuffle = getattr(config, "pixel_shuffle", False)
         self._img_seq_len = vision_transformer_config.num_image_embeddings_per_tile
         if drop_vision_class_token and vision_transformer_config.add_class_token:
             self._img_seq_len -= vision_transformer_config.class_token_len
+        if self._pixel_shuffle:
+            # TODO (yuya): Assuming scale_factor=0.5 in pixel shuffle,
+            # the sequence length will be divided by 4, and the hidden dimension will be multiplied by 4.
+            self._img_seq_len //= 4
 
     def forward(
         self,
@@ -388,11 +396,21 @@ class MCoreNevaModel(MCoreLLaVAModel):
                     self.config.vision_feature_layer
                 ]  # [num_images, img_seq_len, h_vision]
             else:
-                # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
-                image_embeddings = self.vision_model(images, num_unused_layers=-self.config.vision_feature_layer - 1)
+                # MCore Clip path not yet support taking a specific layer hidden states, so we implemented nemo wrapper
+                if isinstance(self.vision_model, CLIPViTModelWrapper):
+                    image_embeddings = self.vision_model(
+                        images, num_unused_layers=-self.config.vision_feature_layer - 1
+                    )
+                else:
+                    image_embeddings = self.vision_model(images)
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
                 image_embeddings = image_embeddings[:, class_token_len:, :]
+
+            if self._pixel_shuffle:
+                image_embeddings = pixel_shuffle(
+                    image_embeddings
+                )  # [num_tiles, img_seq_len_shuffled, h_vision_shuffled]
 
             # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
             image_embeddings = image_embeddings.permute(1, 0, 2).contiguous()  # [img_seq_len, num_tiles, h_vision]
@@ -446,14 +464,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            if (
-                self.context_parallel_lm > 1
-                and packed_seq_params is not None
-                and packed_seq_params.qkv_format == "thd"
-            ):
-                # _process_embedding_token_parallel expects input in shape bshd for cp + thd
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
-
             combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
                     combined_embeddings, final_labels, final_loss_mask, packed_seq_params
@@ -578,7 +588,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             seq_lens = num_image_tiles_batch * img_seq_len - num_images_per_sample + text_seq_len
             max_seq_len = seq_lens.max()
             # padding for SP and CP
-            shard_factor, _ = self._get_shard_factor(packed_seq_params)
+            shard_factor, _ = self._get_shard_factor()
             max_seq_len = (max_seq_len - 1) // shard_factor * shard_factor + shard_factor
             # Pipeline parallel expects fixed input size. Check if we need to pad.
             if self._language_is_pipeline_parallel and max_seq_len < self._language_max_sequence_length:
@@ -661,7 +671,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_image_indices]
 
             # Put image embeddings to image positions.
-            final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+            if image_embeddings.size(0) > 0:
+                final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
 
         # Create the final labels and loss mask (if this is the last language model stage).
         final_labels, final_loss_mask = None, None
@@ -739,13 +750,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
-    def _get_shard_factor(self, packed_seq_params):
+    def _get_shard_factor(self):
         """Get shard factor of sequence dimension"""
 
-        if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
-            seq_dim = 1
-        else:
-            seq_dim = 0
+        seq_dim = 0
         if self.context_parallel_lm > 1 and self.sequence_parallel_lm:
             shard_factor = self.tensor_model_parallel_size_lm * self.context_parallel_lm * 2
         elif self.context_parallel_lm > 1:
@@ -754,7 +762,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             shard_factor = self.tensor_model_parallel_size_lm
         else:
             shard_factor = 1
-            seq_dim = 0
 
         return shard_factor, seq_dim
 
@@ -766,7 +773,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
             return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
         if self.pre_process:
-            shard_factor, seq_dim = self._get_shard_factor(packed_seq_params)
+            shard_factor, seq_dim = self._get_shard_factor()
 
             assert (
                 combined_embeddings.shape[seq_dim] % shard_factor == 0
@@ -793,14 +800,11 @@ class MCoreNevaModel(MCoreLLaVAModel):
                         "new_loss_mask": new_loss_mask,
                     }
                 )
-            # Distribute sequence across CP ranks
-            if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
-                from megatron.core.utils import get_batch_on_this_cp_rank
+            if self.pre_process:
+                batch["combined_embeddings"] = batch["combined_embeddings"].transpose(0, 1)
 
-                if self.pre_process:
-                    batch["combined_embeddings"] = batch["combined_embeddings"].transpose(0, 1)
-                batch = get_batch_on_this_cp_rank(batch)
-            else:
+            # Distribute sequence across CP ranks
+            if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
                 try:
                     import transformer_engine_torch as tex
                 except ModuleNotFoundError as e:
@@ -816,6 +820,10 @@ class MCoreNevaModel(MCoreLLaVAModel):
                         packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
                     )
                     batch[key] = data.index_select(1, index)
+            else:
+                from megatron.core.utils import get_batch_on_this_cp_rank
+
+                batch = get_batch_on_this_cp_rank(batch)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
@@ -825,8 +833,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 new_loss_mask = batch["new_loss_mask"]
 
         if self.sequence_parallel_lm and self.pre_process:
-            if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
                 combined_embeddings
             )  # [S/(CP*TP),B,H]
