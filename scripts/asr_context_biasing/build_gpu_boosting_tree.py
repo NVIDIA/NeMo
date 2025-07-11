@@ -35,6 +35,7 @@ class BuildWordBoostingTreeConfig(BoostingTreeModelConfig):
     Build GPU-accelerated phrase boosting tree (btree) to be used with greedy and beam search decoders of ASR models.
     """
 
+    asr_pretrained_name: Optional[str] = None # Name of a pretrained model
     asr_model_path: Optional[str] = None  # The path to '.nemo' ASR checkpoint
     save_to: str = MISSING  # The path to save the GPU-accelerated word boosting graph
 
