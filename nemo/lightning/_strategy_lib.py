@@ -103,6 +103,7 @@ def init_parallel_ranks(
         use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
         num_distributed_optimizer_instances=getattr(parallel_config, "num_distributed_optimizer_instances", 1),
         nccl_communicator_config_path=getattr(parallel_config, "nccl_communicator_config_path", None),
+        use_gloo_process_groups=getattr(parallel_config, "use_gloo_process_groups", True),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -138,6 +139,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
                 num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
                 nccl_communicator_config_path=app_state.nccl_communicator_config_path,
+                create_gloo_process_groups=app_state.use_gloo_process_groups,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -653,6 +655,9 @@ def setup_megatron_optimizer(
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 
     from nemo.core.optim import McoreDistributedOptimizer
+    from nemo.utils import AppState
+
+    app_state = AppState()
 
     assert isinstance(config, OptimizerConfig), f"Expected OptimizerConfig, got {type(config)}"
 
@@ -683,6 +688,7 @@ def setup_megatron_optimizer(
         no_weight_decay_cond=no_weight_decay_cond,
         scale_lr_cond=scale_lr_cond,
         lr_mult=lr_mult,
+        use_gloo_process_groups=app_state.use_gloo_process_groups,
     )
     # Pytorch does not have the concept of an `lr_mult` or a `wd_mult` but these are added to param
     # groups in megatron to control which sub-modules have different learning rates or weight
