@@ -16,7 +16,6 @@ import argparse
 
 import nemo_run as run
 
-import nemo
 from nemo.collections import avlm
 
 
