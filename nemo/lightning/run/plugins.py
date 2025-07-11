@@ -412,7 +412,7 @@ class PerfEnvPlugin(run.Plugin):
             if self.user_buffer_registration:
                 # Enable NCCL NVLS ALGO, which could increase GPU memory usage
                 executor.env_vars["NCCL_NVLS_ENABLE"] = "1"
-                # This option makes NCCL to prefer SM efficient ALGOS if available 
+                # This option makes NCCL to prefer SM efficient ALGOS if available
                 # With this option, NCCL will use NVLS if user buffer is registered
                 executor.env_vars["NCCL_CTA_POLICY"] = "1"
                 if "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
