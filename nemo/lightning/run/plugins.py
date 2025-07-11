@@ -416,8 +416,8 @@ class PerfEnvPlugin(run.Plugin):
                     pytorch_cuda_alloc_conf = executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"].split(',')
                     if "expandable_segments:True" in pytorch_cuda_alloc_conf:
                         logging.warning(
-                            "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True is not compatible with user buffer registration."
-                            "Removing expandable_segments:True from the list."
+                            "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True is not compatible with"
+                            "user buffer registration. Removing expandable_segments:True from the list."
                         )
                         pytorch_cuda_alloc_conf.remove("expandable_segments:True")
                         executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"] = ",".join(pytorch_cuda_alloc_conf)
