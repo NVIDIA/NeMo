@@ -81,8 +81,6 @@ def test_init_parallel_ranks() -> None:
     mock_parallel_config.context_parallel_size = 2
     mock_parallel_config.expert_model_parallel_size = 2
     mock_parallel_config.expert_tensor_parallel_size = None
-    mock_parallel_config.encoder_tensor_model_parallel_size = 0
-    mock_parallel_config.encoder_pipeline_model_parallel_size = 0
     mock_parallel_config.tp_comm_overlap = False
     mock_parallel_config.pipeline_model_parallel_split_rank = None
     mock_parallel_config.use_te_rng_tracker = False
@@ -105,8 +103,6 @@ def test_init_parallel_ranks() -> None:
         "context_parallel_size": 2,
         "expert_model_parallel_size": 2,
         "pipeline_model_parallel_split_rank": None,
-        "encoder_pipeline_model_parallel_size": 0,
-        "encoder_tensor_model_parallel_size": 0,
         "use_fp8": False,
         "init_mpi_proc_group": False,
     }
@@ -147,8 +143,6 @@ def test_init_model_parallel(mock_mpu, *args):
         virtual_pipeline_model_parallel_size=None,
         pipeline_model_parallel_split_rank=None,
         pipeline_model_parallel_comm_backend=None,
-        encoder_pipeline_model_parallel_size=None,
-        encoder_tensor_model_parallel_size=None,
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
@@ -189,8 +183,6 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
         virtual_pipeline_model_parallel_size=None,
         pipeline_model_parallel_split_rank=None,
         pipeline_model_parallel_comm_backend=None,
-        encoder_pipeline_model_parallel_size=None,
-        encoder_tensor_model_parallel_size=None,
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
