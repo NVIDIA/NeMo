@@ -17,9 +17,10 @@ from typing import List, Literal, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from megatron.core.tokenizers import MegatronTokenizer
 from torch import Tensor
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoModel
 from transformers.cache_utils import Cache
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 from transformers.modeling_outputs import SequenceClassifierOutputWithPast
@@ -295,7 +296,11 @@ def get_llama_bidirectional_hf_model(
     """Returns the adapter for the Llama bidirectional HF model."""
 
     # check that the tokenizer matches the requirements of the pooling mode
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=trust_remote_code)
+    tokenizer = MegatronTokenizer.from_pretrained(
+        tokenizer_path=self.save_hf_tokenizer_assets(str(self)),
+        metadata_path={"library": "huggingface"},
+        trust_remote_code=trust_remote_code,
+    )
     pooling_mode = pooling_mode or "avg"
     if pooling_mode == "last" and tokenizer.padding_side == "right":
         pooling_mode = "last__right"  # type: ignore

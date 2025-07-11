@@ -19,8 +19,8 @@ from typing import Literal, Mapping, Optional
 import datasets
 import numpy as np
 import torch
+from megatron.core.tokenizers import MegatronTokenizerBase
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import _get_samples_mapping, _JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
@@ -40,7 +40,7 @@ def get_dataset_root(name: str) -> Path:
 
 def create_sft_dataset(
     path: Path,
-    tokenizer: "TokenizerSpec",
+    tokenizer: "MegatronTokenizerBase",
     seq_length: int = 2048,
     add_bos: bool = False,
     add_eos: bool = True,
@@ -76,7 +76,7 @@ class BertEmbeddingDataset(Dataset):
     def __init__(
         self,
         file_path: str,
-        tokenizer: TokenizerSpec,
+        tokenizer: MegatronTokenizerBase,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
         add_bos: bool = True,
@@ -94,7 +94,7 @@ class BertEmbeddingDataset(Dataset):
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
-        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec.
+        tokenizer: Tokenizer for the dataset. Instance of a class that inherits MegatronTokenizerBase.
         max_seq_length (int): maximum sequence length for each dataset examples.
             Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset.
@@ -119,6 +119,7 @@ class BertEmbeddingDataset(Dataset):
         """
         # TODO: lot of copy-paste from GPTSFDDataset, should refactor both to use a common base class (@adithyare)
         self.tokenizer = tokenizer
+        self.legacy_tokenizer = not isinstance(self.tokenizer, MegatronTokenizerBase)
         self.file_path = file_path
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -230,8 +231,12 @@ class BertEmbeddingDataset(Dataset):
 
         metadata = {k: v for k, v in example.items()}
         if self.data_type == 'train':
-            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
-            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            if self.legacy_tokenizer:
+                q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+                d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            else:
+                q = self.tokenizer.tokenize("query: " + example['query'].strip())
+                d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
             # handle cases where the required number of hard negatives are not present
             if len(example['neg_doc']) < self.num_hard_negatives:
                 nd = example['neg_doc']
@@ -246,15 +251,24 @@ class BertEmbeddingDataset(Dataset):
                     # Choose the first self.num_hard_negatives samples
                     nd = example['neg_doc'][: self.num_hard_negatives]
             assert len(nd) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
-            nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
+            if self.legacy_tokenizer:
+                nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
+            else:
+                nd = [self.tokenizer.tokenize("passage: " + ex.strip()) for ex in nd]
 
         elif self.data_type == 'query':
-            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+            if self.legacy_tokenizer:
+                q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+            else:
+                q = self.tokenizer.tokenize("query: " + example['query'].strip())
             d, nd = None, None
             assert "query_id" in example, "query_id is required for query dataset"
             assert "doc_id" in example, "doc_id is required for query dataset"
         elif self.data_type == 'doc':
-            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            if self.legacy_tokenizer:
+                d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            else:
+                d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
             assert "doc_id" in example, "doc_id is required for doc dataset"
             q, nd = None, None
         else:
