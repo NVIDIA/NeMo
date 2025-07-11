@@ -117,19 +117,39 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     else:
         recompute_modules = None
 
-    keep_fsdp_fp8_transpose_cache = config.get("keep_fsdp_fp8_transpose_cache") if args.keep_fsdp_fp8_transpose_cache is None else args.keep_fsdp_fp8_transpose_cache
-    keep_fsdp_fp8_transpose_cache = False if keep_fsdp_fp8_transpose_cache is None else bool(int(keep_fsdp_fp8_transpose_cache))
+    keep_fsdp_fp8_transpose_cache = (
+        config.get("keep_fsdp_fp8_transpose_cache")
+        if args.keep_fsdp_fp8_transpose_cache is None
+        else args.keep_fsdp_fp8_transpose_cache
+    )
+    keep_fsdp_fp8_transpose_cache = (
+        False if keep_fsdp_fp8_transpose_cache is None else bool(int(keep_fsdp_fp8_transpose_cache))
+    )
 
-    use_user_buffer_registration = config.get("use_user_buffer_registration") if args.use_user_buffer_registration is None else args.use_user_buffer_registration
-    use_user_buffer_registration = False if use_user_buffer_registration is None else bool(int(use_user_buffer_registration))
+    use_user_buffer_registration = (
+        config.get("use_user_buffer_registration")
+        if args.use_user_buffer_registration is None
+        else args.use_user_buffer_registration
+    )
+    use_user_buffer_registration = (
+        False if use_user_buffer_registration is None else bool(int(use_user_buffer_registration))
+    )
 
     use_sharp = config.get("use_sharp") if args.use_sharp is None else args.use_sharp
     use_sharp = False if use_sharp is None else bool(int(use_sharp))
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
     kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
-    kwargs += [enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules,
-               keep_fsdp_fp8_transpose_cache, use_user_buffer_registration, use_sharp]
+    kwargs += [
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
+        recompute_modules,
+        keep_fsdp_fp8_transpose_cache,
+        use_user_buffer_registration,
+        use_sharp,
+    ]
 
     # print the received arguments for users to debug
     logging.info("Received model parallel configs: ")
