@@ -577,6 +577,9 @@ In order to introduce a new checkpoint version, two steps are required:
 Note: Currently the content metadata is part of the "common" checkpoint state (and in consequence resides in ``common.pt`` file) but this is an implementation
 detail and could be changed in the future. Therefore it's recommended to save/load the content metadata with the API described at the beginning of this section.
 
+Note: currently in NeMo and Megatron-LM versioning content is stored only in global checkpoints. For local checkpoints,
+it is assumed that save and load content version are the same and thus `sharded_state_dict` uses runtime metadata in both cases.
+
 FAQs
 -----------------------
 
