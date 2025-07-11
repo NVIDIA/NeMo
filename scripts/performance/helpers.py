@@ -100,13 +100,6 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     use_mcore_fsdp = config.get("use_mcore_fsdp") if args.use_mcore_fsdp is None else args.use_mcore_fsdp
     use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
 
-    use_fsdp_double_buffer = (
-        config.get("use_fsdp_double_buffer") if args.use_fsdp_double_buffer is None else args.use_fsdp_double_buffer
-    )
-    use_fsdp_double_buffer = False if use_fsdp_double_buffer is None else bool(int(use_fsdp_double_buffer))
-    if use_fsdp_double_buffer:
-        assert use_mcore_fsdp == True, "use_fsdp_double_buffer requires use_mcore_fsdp to be True"
-
     recompute_layers = config.get("recompute_layers") if args.recompute_layers is None else args.recompute_layers
     recompute_layers = 0 if recompute_layers is None else int(recompute_layers)
     activation_offload_layers = (
@@ -124,9 +117,19 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     else:
         recompute_modules = None
 
+    keep_fsdp_fp8_transpose_cache = config.get("keep_fsdp_fp8_transpose_cache") if args.keep_fsdp_fp8_transpose_cache is None else args.keep_fsdp_fp8_transpose_cache
+    keep_fsdp_fp8_transpose_cache = False if keep_fsdp_fp8_transpose_cache is None else bool(int(keep_fsdp_fp8_transpose_cache))
+
+    use_user_buffer_registration = config.get("use_user_buffer_registration") if args.use_user_buffer_registration is None else args.use_user_buffer_registration
+    use_user_buffer_registration = False if use_user_buffer_registration is None else bool(int(use_user_buffer_registration))
+
+    use_sharp = config.get("use_sharp") if args.use_sharp is None else args.use_sharp
+    use_sharp = False if use_sharp is None else bool(int(use_sharp))
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
     kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
-    kwargs += [enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules]
+    kwargs += [enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules,
+               keep_fsdp_fp8_transpose_cache, use_user_buffer_registration, use_sharp]
 
     # print the received arguments for users to debug
     logging.info("Received model parallel configs: ")
@@ -142,10 +145,12 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     logging.info(f"{etp_size=}")
     logging.info(f"{enable_cuda_graphs=}")
     logging.info(f"{use_mcore_fsdp=}")
-    logging.info(f"{use_fsdp_double_buffer=}")
     logging.info(f"{recompute_layers=}")
     logging.info(f"{activation_offload_layers=}")
     logging.info(f"{recompute_modules=}")
+    logging.info(f"{keep_fsdp_fp8_transpose_cache=}")
+    logging.info(f"{use_user_buffer_registration=}")
+    logging.info(f"{use_sharp=}")
 
     return kwargs
 
