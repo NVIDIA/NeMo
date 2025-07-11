@@ -205,7 +205,9 @@ class NeMoLogger(IOMixin):
         if ckpt:
             _overwrite_i = None
             for i, callback in enumerate(trainer.callbacks):
-                if isinstance(callback, PTLModelCheckpoint) and not isinstance(callback, LocalCheckpointCallback):
+                if isinstance(callback, PTLModelCheckpoint) and (
+                    not HAVE_RES or not isinstance(callback, LocalCheckpointCallback)
+                ):
                     logging.warning(
                         "The Trainer already contains a ModelCheckpoint callback. " "This will be overwritten."
                     )
@@ -250,7 +252,9 @@ class NeMoLogger(IOMixin):
         from nemo.lightning import MegatronStrategy
 
         for callback in trainer.callbacks:
-            if isinstance(callback, PTLModelCheckpoint) and not isinstance(callback, LocalCheckpointCallback):
+            if isinstance(callback, PTLModelCheckpoint) and (
+                not HAVE_RES or not isinstance(callback, LocalCheckpointCallback)
+            ):
                 if callback.dirpath is None:
                     callback.dirpath = Path(log_dir / "checkpoints")
                 if callback.filename is None:
