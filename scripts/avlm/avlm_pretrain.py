@@ -72,7 +72,7 @@ def main(args):
                 "model_type": "whisper",
                 "window_stride": 0.01,
                 "sample_rate": 16000,
-                "fixed_max_audio_length": 29.9999 * 16000,
+                "fixed_max_audio_length": None,
                 "encoder_down_sampling": 2,
                 "num_mel_bins": None,
                 "patch_size": None,
