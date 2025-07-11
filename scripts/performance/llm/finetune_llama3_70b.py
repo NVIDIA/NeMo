@@ -92,12 +92,13 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_user_buffer_registration=args.use_user_buffer_registration,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
-        use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
     )
     recipe = set_exp_logging_configs(
@@ -117,12 +118,7 @@ def override_recipe_configs(
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
-    if (
-        finetuning_scheme == "lora"
-        and tp_size > 1
-        and args.compute_dtype.lower() == "fp8"
-        and args.fp8_recipe.lower() != "mxfp8"
-    ):
+    if finetuning_scheme == "lora" and tp_size > 1 and args.compute_dtype.lower() == "fp8":
         tp_comm_overlap_cfg = userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora if tp_size == 2 else None
         if tp_comm_overlap_cfg:
             # Enable TP comm overlap with the given config
@@ -137,9 +133,6 @@ def override_recipe_configs(
             # (instead of wgrad GEMMs which are not done when using LoRA)
             recipe.model.config.tp_comm_bulk_dgrad = False
             recipe.model.config.tp_comm_overlap_rs_dgrad = True
-    if args.compute_dtype.lower() == "fp8" and args.fp8_recipe.lower() == "mxfp8":
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     recipe.optim.config.use_distributed_optimizer = True
     recipe.model.config.disable_parameter_transpose_cache = True
