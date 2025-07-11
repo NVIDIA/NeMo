@@ -378,5 +378,12 @@ def parse_cli_args():
         action="store_true",
         required=False,
     )
+    parser.add_argument(
+        "-dcdfr",
+        "--dump_config_diff_from_base_recipe",
+        help="Dump the config diff from the base recipe. Defaults to False",
+        action="store_true",
+        required=False,
+    )
 
     return parser
