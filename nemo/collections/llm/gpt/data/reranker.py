@@ -301,7 +301,6 @@ class ReRankerDataset(Dataset):
         BOS, EOS, and SEP, are added if specified.
         """
         metadata = {k: v for k, v in example.items()}
-        print(example)
 
         question = example[self.question_key]
         pos_doc = example[self.pos_key]
