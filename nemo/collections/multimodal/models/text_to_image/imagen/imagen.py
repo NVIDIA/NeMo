@@ -26,7 +26,14 @@ from nemo.collections.multimodal.modules.imagen.diffusionmodules.nets import Eff
 from nemo.collections.multimodal.modules.imagen.encoder.t5encoder import T5Encoder
 from nemo.collections.multimodal.modules.imagen.sampler.sampler import DDPMSampler, EDMSampler
 from nemo.collections.multimodal.parts.imagen.utils import random_dropout
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+
+try:
+    from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronBaseModel = ABC
+
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization

@@ -38,8 +38,15 @@ from nemo.collections.multimodal.data.clip.clip_dataset import (
 )
 from nemo.collections.multimodal.losses.clip_loss import ClipLoss
 from nemo.collections.multimodal.losses.siglip_loss import SigLipLoss
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import get_specs, mcore_supports_moe
+
+try:
+    from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+    from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import get_specs, mcore_supports_moe
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronBaseModel = ABC
+
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule

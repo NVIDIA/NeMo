@@ -41,7 +41,14 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
     zero_module,
 )
 from nemo.collections.multimodal.parts.stable_diffusion.utils import exists, log_txt_as_img
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+
+try:
+    from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronBaseModel = ABC
+
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.utils import logging
 
