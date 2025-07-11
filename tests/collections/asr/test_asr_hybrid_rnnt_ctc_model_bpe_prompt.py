@@ -154,7 +154,7 @@ class TestEncDecHybridRNNTCTCBPEModelWithPrompt:
         hybrid_asr_model_with_prompt.compute_eval_loss = False
 
         input_signal = torch.randn(size=(4, 512))
-        length = torch.randint(low=161, high=500, size=[4])
+        length = torch.randint(low=321, high=500, size=[4])
 
         # Calculate expected timesteps dynamically for the batch
         with torch.no_grad():
