@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.language_modeling.l2r_lm_dataset import L2RLanguageModelingDataset
-from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
-    BertPretrainingDataset,
-    BertPretrainingPreprocessedDataloader,
+from nemo.collections.nlp.data.language_modeling.l2r_lm_dataset import L2RLanguageModelingDataset  # noqa: F401
+from nemo.collections.nlp.data.language_modeling.sentence_dataset import (  # noqa: F401
+    SentenceDataset,
+    TarredSentenceDataset,
 )
-from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset, TarredSentenceDataset
