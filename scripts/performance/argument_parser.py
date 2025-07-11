@@ -383,7 +383,7 @@ def parse_cli_args():
         help="Keep FSDP FP8 transpose cache. Disabled by default",
         type=bool_arg,
         required=False,
-        default=None
+        default=None,
     )
 
     return parser
