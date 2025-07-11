@@ -45,7 +45,7 @@ class BuildWordBoostingTreeConfig(BoostingTreeModelConfig):
     )  # The phrases to test boosting tree ["hello world","nvlink","nvlinz","omniverse cloud now","acupuncture"]
 
 
-@hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=BuildWordBoostingTreeConfig)
+@hydra_runner(config_path=None, config_name='BuildWordBoostingTreeConfig', schema=BuildWordBoostingTreeConfig)
 def main(cfg: BuildWordBoostingTreeConfig):
 
     # 1. load asr model to obtain tokenizer
