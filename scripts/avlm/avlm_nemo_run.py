@@ -31,7 +31,7 @@ def configure_recipe(
 ):
     """Configure the recipe"""
     if pretrain:
-        recipe = nemo.collections.avlm.avlm_8b.pretrain_recipe(
+        recipe = avlm.avlm_8b.pretrain_recipe(
             dir=output_dir,  # Path to store checkpoints
             name="avlm_pretrain",
             num_nodes=nodes,
@@ -40,7 +40,7 @@ def configure_recipe(
             freeze_modules=freeze_modules,
         )
     else:
-        recipe = nemo.collections.avlm.avlm_8b.finetune_recipe(
+        recipe = avlm.avlm_8b.finetune_recipe(
             checkpoint_path=checkpoint_path,
             dir=output_dir,  # Path to store checkpoints
             name="avlm_finetune",
