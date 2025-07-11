@@ -194,7 +194,7 @@ if __name__ == "__main__":
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-            user_buffer_registration=args.use_user_buffer_registration,
+            user_buffer_registration=use_user_buffer_registration,
         )
     ]
     if args.enable_nsys:
