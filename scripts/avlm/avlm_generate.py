@@ -231,7 +231,7 @@ def main(args) -> None:
         audio_projection_config=audio_projection_config,
         language_model_from_pretrained=language_model_from_pretrained,
         vision_model_from_pretrained=vision_model_from_pretrained,
-        audio_model_from_pretrained=None,
+        audio_model_from_pretrained=audio_model_from_pretrained,
         freeze_language_model=True,
         freeze_vision_model=True,
         freeze_vision_projection=True,
