@@ -70,4 +70,7 @@ jobs:
         # Commit changes. Nothing is committed if no changes.
         with:
           message: Apply isort and black reformatting
+          committer_name: hoangtran
+          committer_email: hoang.tch@namitech.io
           commit: --signoff
+          token: ${{ secrets.NEMO_REFORMAT_TOKEN }}
