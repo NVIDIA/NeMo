@@ -70,7 +70,7 @@ from nemo.collections.nlp.parts import utils_funcs
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.core.optim.optimizers import init_optimizer_states
-from nemo.utils import AppState, logging
+from nemo.utils import AppState, logging, secure
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
 try:
@@ -1061,7 +1061,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             )
         super().__init__()
 
-    def save_to(self, model, save_path: str):
+    def save_to(self, model, save_path: str, safe: bool = False):
         """Save model to save path."""
         app_state = AppState()
 
@@ -1119,7 +1119,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                             f'{app_state.pipeline_model_parallel_rank:03d}_' + self.model_weights_ckpt,
                         )
 
-                    self._save_state_dict_to_disk(model.state_dict(), mp_model_weights)
+                    self._save_state_dict_to_disk(model.state_dict(), mp_model_weights, safe=safe)
 
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
@@ -1187,7 +1187,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 torch.distributed.barrier()
 
         else:
-            return super().save_to(model, save_path)
+            return super().save_to(model, save_path, safe)
 
     def modify_state_dict(self, conf, state_dict):
         """Remap keys in state dict."""
@@ -1303,14 +1303,14 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
         return state_dict
 
-    def _load_state_dict_from_disk(self, model_weights, map_location=None):
+    def _load_state_dict_from_disk(self, model_weights, map_location=None, safe=False):
         # if model_weights with the extension removed is a directory, we assume it is a distributed checkpoint
         # we need to defer loading the state dict so we return None
         uninject_model_weights = uninject_model_parallel_rank(model_weights)
 
         # legacy model_weights will have mp rank injected
-        if os.path.isfile(model_weights):
-            return super()._load_state_dict_from_disk(model_weights, map_location)
+        if os.path.isfile(model_weights) or os.path.isfile(model_weights + secure.SAFE_EXTENSION):
+            return super()._load_state_dict_from_disk(model_weights, map_location, safe=safe)
 
         # dist checkpoint will be a dir
         elif os.path.isdir(os.path.splitext(uninject_model_weights)[0]):
@@ -1329,6 +1329,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         trainer: Trainer = None,
         validate_access_integrity: bool = True,
         replace_sharded_tensor_key: Optional[str] = None,
+        safe: bool = False,
     ):
         """
         Restores model instance (weights and configuration) into .nemo file
@@ -1342,7 +1343,8 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             strict: Passed to load_state_dict. By default True
             return_config: If set to true, will return just the underlying config of the restored
                 model as an OmegaConf DictConfig object without instantiating the model.
-
+            safe: Boolean value, when safe=True pytorch state dictionaries will not be allowed to load,
+                  and only safetensors will be allowed
         Example:
             ```
             model = nemo.collections.nlp.models.TextClassification.restore_from('asr.nemo')
@@ -1364,6 +1366,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             return_config,
             trainer,
             validate_access_integrity,
+            safe=safe,
         )
         if not isinstance(loaded_params, tuple) or return_config is True:
             return loaded_params
