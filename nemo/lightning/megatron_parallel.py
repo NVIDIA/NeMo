@@ -54,6 +54,7 @@ from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.training.full_cuda_graph import FullCGWrapper
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -160,6 +161,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         cpu (bool): Whether model should reside on CPU.
         convert_module_fn (Optional[Callable[[ModelT], nn.Module]]): An optional function to
             apply to the model parameters after initialization.
+        full_cuda_graph (bool): Whether Full iteration (FWD+BWD) CUDAgraph should be enabled.
 
     Examples
     --------
@@ -194,6 +196,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         fsdp: Optional[str] = None,
         cpu: bool = False,
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
+        full_cuda_graph: bool = False,
     ) -> None:
         from megatron.core import parallel_state
 
@@ -226,6 +229,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.fsdp = fsdp
         self.convert_module_fn = convert_module_fn
         self.vp_size = vp_size
+        self.full_cuda_graph = full_cuda_graph
 
     def forward(
         self,
@@ -289,6 +293,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             num_microbatches=num_microbatches,
             seq_length=seq_length,
             step_i=step_i,
+            full_cuda_graph=self.full_cuda_graph,
         )
         _forward_context["step"] = step
         step = self.callbacks.transform_event("on_megatron_step_start", step)
@@ -583,7 +588,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         # Skip init_ddp for inference i.e testing as it can lead to OOM.
         try:
             if not self.trainer.state.fn == TrainerFn.TESTING:
-                self.init_ddp()
+                with torch.cuda.stream(torch.cuda.Stream()):
+                    self.init_ddp()
         except RuntimeError as e:
             # Don't fail if trainer is not attached, re-raise any other RuntimeError
             if "is not attached to a `Trainer`" not in str(e):
@@ -1150,6 +1156,7 @@ class MegatronStep(Generic[ModelT, DataT]):
     num_microbatches: Optional[int] = None
     step_i: Optional[int] = None
     decoder_seq_length: Optional[int] = None
+    full_cuda_graph: bool = False
 
     @classmethod
     def infer(
@@ -1162,6 +1169,7 @@ class MegatronStep(Generic[ModelT, DataT]):
         seq_length: Optional[int] = None,
         num_microbatches: Optional[int] = None,
         step_i: Optional[int] = None,
+        full_cuda_graph: bool = False,
     ) -> "MegatronStep[ModelT, DataT]":
         """
         Creates a MegatronStep instance, inferring missing parameters if possible.
@@ -1193,6 +1201,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             seq_length=seq_length or cls.infer_seq_length(data),
             num_microbatches=num_microbatches or cls.infer_num_microbatches(data),
             step_i=step_i,
+            full_cuda_graph=full_cuda_graph,
         )
 
     def __call__(self) -> List[Any]:
@@ -1373,6 +1382,8 @@ class MegatronStep(Generic[ModelT, DataT]):
         """
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
+        if self.full_cuda_graph:
+            return FullCGWrapper(get_forward_backward_func())
         return get_forward_backward_func()
 
     @property
