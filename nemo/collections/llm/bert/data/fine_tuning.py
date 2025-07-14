@@ -72,9 +72,10 @@ class FineTuningDataModule(pl.LightningDataModule):
         dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
         tracker = OneLoggerTimingTracker.get_instance()
         tracker.track_event("on_dataloader_init_start")
-        
+
         super().__init__()
         self.seq_length = seq_length
         self.seed = seed
@@ -90,7 +91,7 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.data_sampler = None
         self.max_train_samples = None
         self.dataset_kwargs = dataset_kwargs or {}
-        
+
         tracker.track_event("on_dataloader_init_end")
 
     def setup(self, stage: str):

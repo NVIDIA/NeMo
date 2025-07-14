@@ -517,9 +517,10 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         seed: int = 1234,
     ) -> None:
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
         tracker = OneLoggerTimingTracker.get_instance()
         tracker.track_event("on_dataloader_init_start")
-        
+
         super().__init__()
         if not isinstance(paths, (list, tuple)):
             paths = [paths]
@@ -579,7 +580,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             global_batch_size=global_batch_size,
             dataloader_type="cyclic",
         )
-        
+
         tracker.track_event("on_dataloader_init_end")
 
     def setup(self, stage: str = "") -> None:
