@@ -486,6 +486,9 @@ def export_hf_checkpoint(
         with torch.inference_mode():
             with tempfile.TemporaryDirectory() as tmp_dir:
                 exporter.config.save_pretrained(tmp_dir)
+                # For llama4, we only deal with the language_model, vision_model and multi_modal_projector will be acquired from the huggingface checkpoint
+                if hasattr(unwrapped_model, 'language_model'):
+                    unwrapped_model = unwrapped_model.language_model
                 mte.export_mcore_gpt_to_hf(
                     unwrapped_model, pretrained_model_name_or_path=tmp_dir, export_dir=str(export_dir), **kwargs
                 )
