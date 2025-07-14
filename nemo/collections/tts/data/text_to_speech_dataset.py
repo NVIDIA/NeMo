@@ -44,7 +44,7 @@ from nemo.utils.decorators import experimental
 class DatasetMeta:
     manifest_path: Path
     audio_dir: Path
-    feature_dir: Path
+    feature_dir: Path = None
     sample_weight: float = 1.0
     tokenizer_names: List[str] = None
 
@@ -195,8 +195,8 @@ class TextToSpeechDataset(Dataset):
             sample = DatasetSample(
                 dataset_name=dataset_name,
                 manifest_entry=entry,
-                audio_dir=Path(dataset.audio_dir),
-                feature_dir=Path(dataset.feature_dir) if dataset.feature_dir is not None else None,
+                audio_dir=dataset.audio_dir,
+                feature_dir=dataset.feature_dir,
                 text=text,
                 speaker=speaker,
                 speaker_index=speaker_index,

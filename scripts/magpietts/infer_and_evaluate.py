@@ -17,6 +17,7 @@ import glob
 import json
 import os
 import shutil
+import time
 
 import scripts.magpietts.evalset_config as evalset_config
 import scripts.magpietts.evaluate_generated_audio as evaluate_generated_audio
@@ -62,6 +63,11 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
     if hasattr(model_cfg, 'decoder') and hasattr(model_cfg.decoder, 'prior_eps'):
         # Added to prevent crash after removing arg from transformer_2501.py in https://github.com/blisc/NeMo/pull/56
         del model_cfg.decoder.prior_eps
+    if hasattr(model_cfg, 'use_local_transformer') and model_cfg.use_local_transformer:
+        # For older checkpoints trained with a different parameter name
+        model_cfg.local_transformer_type = "autoregressive"
+        del model_cfg.use_local_transformer
+
     if legacy_codebooks:
         # Added to address backward compatibility arising from
         #  https://github.com/blisc/NeMo/pull/64
@@ -137,13 +143,18 @@ def run_inference(
         fixed_schedule_n_unmasked=None,
         sampling_type=None,
         clean_up_disk=False,
-        log_exp_name=False
+        hparams_file_from_wandb=False,
+        log_exp_name=False,
+        compute_fcd=False,
     ):
     # Load model
-    if hparams_file is not None:
+    if hparams_file is not None and checkpoint_file is not None:
         model_cfg = OmegaConf.load(hparams_file)
         if "cfg" in model_cfg:
             model_cfg = model_cfg.cfg
+
+        if hparams_file_from_wandb:
+            model_cfg = model_cfg.value
 
         with open_dict(model_cfg):
             model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
@@ -165,7 +176,7 @@ def run_inference(
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
     else:
-        raise ValueError("Need a checkpoint")
+        raise ValueError("Need either a checkpoint and hparams file, or a nemo file.")
 
     if cfg_sample_rate is not None and cfg_sample_rate != model.sample_rate:
         raise ValueError("Sample rate in config and model do not match")
@@ -201,7 +212,6 @@ def run_inference(
         "".join([str(l) for l in fixed_schedule_n_unmasked]) if fixed_schedule_n_unmasked is not None else "None"
     )
 
-
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
     cer_per_dataset = []
@@ -209,24 +219,38 @@ def run_inference(
         print(f"Evaluating dataset {dataset}")
         metrics_n_repeated = []
         manifest_records = read_manifest(dataset_meta_info[dataset]['manifest_path'])
+        language = dataset_meta_info[dataset].get('whisper_language', 'en')
+        dataset_meta_for_dl = copy.deepcopy(dataset_meta_info[dataset])
+        for key in ["whisper_language", "load_cached_codes_if_available"]:
+            if key in dataset_meta_for_dl:
+                del dataset_meta_for_dl[key]
+
+        dataset_meta = {dataset: dataset_meta_for_dl}
+
+        eval_dir = os.path.join(out_dir, f"{checkpoint_name}_{dataset}")
+        audio_dir = os.path.join(eval_dir, "audio")
+        all_experiment_csv = os.path.join(eval_dir, "all_experiment_metrics.csv")
+        os.makedirs(eval_dir, exist_ok=True)
+
+        if not os.path.exists(all_experiment_csv):
+            with open(all_experiment_csv, "w") as f:
+                header = "checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative"
+                if compute_fcd:
+                    header += ",frechet_codec_distance"
+                header += "\n"
+                f.write(header)
+
+        context_duration_min = model.cfg.get('context_duration_min', 5.0)
+        context_duration_max = model.cfg.get('context_duration_max', 5.0)
+        if context_duration_min < 5.0 and context_duration_max > 5.0:
+            context_duration_min = 5.0
+            context_duration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
+
         for repeat_idx in range(num_repeats):
-            eval_dir = os.path.join(out_dir, "{}_{}".format(checkpoint_name, dataset))
-            audio_dir = os.path.join(eval_dir, "audio")
             pred_audio_dir = os.path.join(audio_dir, f"repeat_{repeat_idx}")
             os.makedirs(pred_audio_dir, exist_ok=True)
             delete_old_generated_files(pred_audio_dir)
-            language = dataset_meta_info[dataset].get('whisper_language', 'en')
-            dataset_meta_for_dl = copy.deepcopy(dataset_meta_info[dataset])
-            for key in ["whisper_language", "load_cached_codes_if_available"]:
-                if key in dataset_meta_for_dl:
-                    del dataset_meta_for_dl[key]
-
-            dataset_meta = {dataset: dataset_meta_for_dl}
-            context_durration_min = model.cfg.get('context_duration_min', 5.0)
-            context_durration_max = model.cfg.get('context_duration_max', 5.0)
-            if context_durration_min < 5.0 and context_durration_max > 5.0:
-                context_durration_min = 5.0
-                context_durration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
+            
             test_dataset = MagpieTTSDataset(
                 dataset_meta=dataset_meta,
                 sample_rate=model.sample_rate,
@@ -247,10 +271,10 @@ def run_inference(
                 load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
                 use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
                 pad_context_text_to_max_duration=model.pad_context_text_to_max_duration,
-                context_duration_min=context_durration_min,
-                context_duration_max=context_durration_max,
+                context_duration_min=context_duration_min,
+                context_duration_max=context_duration_max,
             )
-            assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
+            assert len(test_dataset) == len(manifest_records), f"Dataset length and manifest length should be the same. Dataset length: {len(test_dataset)}, Manifest length: {len(manifest_records)}"
 
             test_dataset.text_tokenizer = model.tokenizer
             test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
@@ -260,24 +284,23 @@ def run_inference(
                 batch_size=batch_size,
                 collate_fn=test_dataset.collate_fn,
                 num_workers=2,
-                shuffle=False
+                shuffle=False,
             )
 
             item_idx = 0
             all_rtf_metrics = []
             codec_file_paths = []
             for bidx, batch in enumerate(test_data_loader):
-                print("Processing batch {} out of {} of dataset {}".format(bidx, len(test_data_loader), dataset))
-                batch_cuda ={}
+                print(f"Processing batch {bidx} out of {len(test_data_loader)} of dataset {dataset}")
+                batch_cuda = {}
                 for key in batch:
                     if isinstance(batch[key], torch.Tensor):
                         batch_cuda[key] = batch[key].cuda()
                     else:
                         batch_cuda[key] = batch[key]
 
-                import time
                 st = time.time()
-                predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics, cross_attention_maps, _  = model.infer_batch(
+                predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics, cross_attention_maps, _ = model.infer_batch(
                     batch_cuda,
                     max_decoder_steps=440,
                     temperature=temperature,
@@ -336,7 +359,7 @@ def run_inference(
                 language=language,
                 sv_model_type=sv_model,
                 asr_model_name=asr_model_name,
-                codecmodel_path=codecmodel_path
+                codecmodel_path=codecmodel_path if compute_fcd else None
             )
             metrics_n_repeated.append(metrics)
             with open(os.path.join(eval_dir, f"{dataset}_metrics_{repeat_idx}.json"), "w") as f:
@@ -349,13 +372,14 @@ def run_inference(
             with open(os.path.join(eval_dir, f"{dataset}_rtf_metrics_{repeat_idx}.json"), "w") as f:
                 json.dump(mean_rtf_metrics, f, indent=4)
 
-            all_experiment_csv = os.path.join(eval_dir, "all_experiment_metrics.csv")
-            if not os.path.exists(all_experiment_csv):
-                with open(all_experiment_csv, "w") as f:
-                    f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n")
             with open(all_experiment_csv, "a") as f:
-                f.write(f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']},{metrics['frechet_codec_distance']}\n")
+                data = f"{checkpoint_name},{dataset},{metrics['cer_filewise_avg']},{metrics['wer_filewise_avg']},{metrics['cer_cumulative']},{metrics['wer_cumulative']},{metrics['ssim_pred_gt_avg']},{metrics['ssim_pred_context_avg']},{metrics['ssim_gt_context_avg']},{metrics['ssim_pred_gt_avg_alternate']},{metrics['ssim_pred_context_avg_alternate']},{metrics['ssim_gt_context_avg_alternate']},{metrics['cer_gt_audio_cumulative']},{metrics['wer_gt_audio_cumulative']}"
+                if compute_fcd:
+                    data += f",{metrics['frechet_codec_distance']}"
+                data += "\n"
+                f.write(data)
                 print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
+
             # Clean up temporary codec files
             for codes_file in codec_file_paths:
                 os.remove(codes_file)
@@ -363,15 +387,25 @@ def run_inference(
         metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative',
                        'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg',
                        'ssim_pred_gt_avg_alternate', 'ssim_pred_context_avg_alternate', 'ssim_gt_context_avg_alternate',
-                       'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative', 'frechet_codec_distance'
+                       'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative'
                        ]
+        if compute_fcd:
+            metric_keys.append('frechet_codec_distance')
         metrics_mean_ci = compute_mean_and_confidence_interval(metrics_n_repeated, metric_keys, confidence=confidence_level)
         all_experiment_csv_with_ci = os.path.join(out_dir, "all_experiment_metrics_with_ci.csv")
         if not os.path.exists(all_experiment_csv_with_ci):
             with open(all_experiment_csv_with_ci, "w") as f:
-                f.write("checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative,frechet_codec_distance\n")
+                header = "checkpoint_name,dataset,cer_filewise_avg,wer_filewise_avg,cer_cumulative,wer_cumulative,ssim_pred_gt_avg,ssim_pred_context_avg,ssim_gt_context_avg,ssim_pred_gt_avg_alternate,ssim_pred_context_avg_alternate,ssim_gt_context_avg_alternate,cer_gt_audio_cumulative,wer_gt_audio_cumulative"
+                if compute_fcd:
+                    header += ",frechet_codec_distance"
+                header += "\n"
+                f.write(header)
         with open(all_experiment_csv_with_ci, "a") as f:
-            f.write(f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']},{metrics_mean_ci['frechet_codec_distance']}\n")
+            data = f"{checkpoint_name},{dataset},{metrics_mean_ci['cer_filewise_avg']},{metrics_mean_ci['wer_filewise_avg']},{metrics_mean_ci['cer_cumulative']},{metrics_mean_ci['wer_cumulative']},{metrics_mean_ci['ssim_pred_gt_avg']},{metrics_mean_ci['ssim_pred_context_avg']},{metrics_mean_ci['ssim_gt_context_avg']},{metrics_mean_ci['ssim_pred_gt_avg_alternate']},{metrics_mean_ci['ssim_pred_context_avg_alternate']},{metrics_mean_ci['ssim_gt_context_avg_alternate']},{metrics_mean_ci['cer_gt_audio_cumulative']},{metrics_mean_ci['wer_gt_audio_cumulative']}"
+            if compute_fcd:
+                data += f",{metrics_mean_ci['frechet_codec_distance']}"
+            data += "\n"
+            f.write(data)
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
         
 
@@ -393,9 +427,10 @@ def run_inference(
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
     parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
+    parser.add_argument('--hparams_file_from_wandb', action='store_true')
     parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
-    parser.add_argument('--nemo_file', type=str, default=None)
-    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo")
+    parser.add_argument('--nemo_files', type=str, default=None)
+    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo", help="Path to codec model (used for FCD computation unless --disable_fcd is specified)")
     parser.add_argument('--datasets', type=str, default="libri_unseen_test_12.5")
     parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmountedresson/")
     parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTS_FixedPosEmb/AllKernselSize3/EdressonCodecExperiments/")
@@ -426,10 +461,14 @@ def main():
     parser.add_argument('--sampling_type', default=None, choices=["default", "alternate", "causal"])
 
     parser.add_argument('--clean_up_disk', action='store_true')
-    parser.add_argument('--cer_target', type=float, default=None)
-    parser.add_argument('--ssim_target', type=float, default=None)
-    parser.add_argument('--log_exp_name', action='store_true', help="Log the experiment name (deduced from the checkpoint path) in the output csv files.")
+    parser.add_argument('--cer_target', type=float, default=1.0)
+    parser.add_argument('--ssim_target', type=float, default=0.)
+    parser.add_argument('--log_exp_name', action='store_true', help="Include the experiment name (derived from the checkpoint path) in the output folder name.")
+    parser.add_argument('--disable_fcd', action='store_true', help="Disable Frechet Codec Distance computation")
     args = parser.parse_args()
+
+    # FCD computation is enabled by default, disabled only when --disable_fcd is specified
+    compute_fcd = not args.disable_fcd
 
     estimate_alignment_from_layers = None
     if args.estimate_alignment_from_layers is not None:
@@ -438,6 +477,7 @@ def main():
     if args.apply_prior_to_layers is not None:
         apply_prior_to_layers = [int(l.strip()) for l in args.apply_prior_to_layers.split(",")]
 
+    # Mode 1: Run inference from provided hparams and checkpoint files
     if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null") and (args.checkpoint_files != "null"):
         hparam_files = args.hparams_files.split(",")
         checkpoint_files = args.checkpoint_files.split(",")
@@ -472,50 +512,56 @@ def main():
                 maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks,
                 clean_up_disk=args.clean_up_disk,
+                hparams_file_from_wandb=args.hparams_file_from_wandb,
                 log_exp_name=args.log_exp_name,
+                compute_fcd=compute_fcd
                 fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
                 sampling_type=args.sampling_type
             )
         return
-    elif (args.nemo_file is not None):
-        nemo_file = args.nemo_file
-        print("Running inference for nemo file: ", nemo_file)
-        cer, ssim = run_inference(
-            hparams_file=None,
-            checkpoint_file=None,
-            nemo_file=nemo_file,
-            datasets=args.datasets.split(","),
-            out_dir=args.out_dir,
-            temperature=args.temperature,
-            topk=args.topk,
-            codecmodel_path=args.codecmodel_path,
-            use_cfg=args.use_cfg,
-            cfg_scale=args.cfg_scale,
-            batch_size=args.batch_size,
-            sv_model=args.sv_model,
-            asr_model_name=args.asr_model_name,
-            num_repeats=args.num_repeats,
-            apply_attention_prior=args.apply_attention_prior,
-            attention_prior_epsilon=args.attention_prior_epsilon,
-            attention_prior_lookahead_window=args.attention_prior_lookahead_window,
-            estimate_alignment_from_layers=estimate_alignment_from_layers,
-            apply_prior_to_layers=apply_prior_to_layers,
-            start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
-            confidence_level=args.confidence_level,
-            use_local_transformer=args.use_local_transformer,
-            maskgit_n_steps=args.maskgit_n_steps,
-            maskgit_noise_scale=args.maskgit_noise_scale,
-            legacy_codebooks=args.legacy_codebooks,
-            clean_up_disk=args.clean_up_disk,
-            log_exp_name=args.log_exp_name,
-            fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
-            sampling_type=args.sampling_type
-        )
-    else:
+    # Mode 2: Run inference from a .nemo file
+    elif args.nemo_files:
+        print(f"Running inference for nemo file: {args.nemo_files}")
+        for nemo_file in args.nemo_files.split(","):
+            cer, ssim = run_inference(
+                hparams_file=None,
+                checkpoint_file=None,
+                nemo_file=nemo_file,
+                datasets=args.datasets.split(","),
+                out_dir=args.out_dir,
+                temperature=args.temperature,
+                topk=args.topk,
+                codecmodel_path=args.codecmodel_path,
+                use_cfg=args.use_cfg,
+                cfg_scale=args.cfg_scale,
+                batch_size=args.batch_size,
+                sv_model=args.sv_model,
+                asr_model_name=args.asr_model_name,
+                num_repeats=args.num_repeats,
+                apply_attention_prior=args.apply_attention_prior,
+                attention_prior_epsilon=args.attention_prior_epsilon,
+                attention_prior_lookahead_window=args.attention_prior_lookahead_window,
+                estimate_alignment_from_layers=estimate_alignment_from_layers,
+                apply_prior_to_layers=apply_prior_to_layers,
+                start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
+                confidence_level=args.confidence_level,
+                use_local_transformer=args.use_local_transformer,
+                maskgit_n_steps=args.maskgit_n_steps,
+                legacy_codebooks=args.legacy_codebooks,
+                clean_up_disk=args.clean_up_disk,
+                hparams_file_from_wandb=args.hparams_file_from_wandb,
+                log_exp_name=args.log_exp_name,
+                compute_fcd=compute_fcd,
+                maskgit_noise_scale=args.maskgit_noise_scale,
+                fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
+                sampling_type=args.sampling_type
+            )
+    # Mode 3: Discover and run experiments from a base directory
+    #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
+    #   sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
+    elif args.base_exp_dir:
         BASE_EXP_DIR = args.base_exp_dir
         DRACO_EXP_DIR = args.draco_exp_dir
-        # Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
-        # sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
         if args.exp_names is None:
             exp_names = os.listdir(BASE_EXP_DIR)
         else:
@@ -574,10 +620,21 @@ def main():
                 maskgit_n_steps=args.maskgit_n_steps,
                 maskgit_noise_scale=args.maskgit_noise_scale,
                 legacy_codebooks=args.legacy_codebooks,
-                sampling_type=args.sampling_type,
                 clean_up_disk=args.clean_up_disk,
-                log_exp_name=args.log_exp_name
+                hparams_file_from_wandb=args.hparams_file_from_wandb,
+                log_exp_name=args.log_exp_name,
+                compute_fcd=compute_fcd,
+                maskgit_noise_scale=args.maskgit_noise_scale,
+                sampling_type=args.sampling_type,
+
             )
+    else:
+        parser.error(
+            "You must provide a model to run. Please specify either:\n"
+            "1. --hparams_files and --checkpoint_files\n"
+            "2. --nemo_file\n"
+            "3. --base_exp_dir to discover experiments"
+        )
     if cer > float(args.cer_target):
         raise ValueError()
     if ssim < float(args.ssim_target):

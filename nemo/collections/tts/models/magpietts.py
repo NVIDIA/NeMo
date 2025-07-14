@@ -211,6 +211,8 @@ class MagpieTTSModel(ModelPT):
             )
 
         if self.model_type == 'single_encoder_sv_tts':
+            # Context audio goes through Titanet to get speaker embedding
+            # Speaker embedding is added to the transcript encoder output
             self._speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
                 model_name='titanet_large'
             )
@@ -220,6 +222,8 @@ class MagpieTTSModel(ModelPT):
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
         elif self.model_type == 'multi_encoder_context_tts':
+            # Transcript and context audio/text go to different encoders.
+            # Output of the encoders goes to the decoder through the cross-attention layers
             self.transcript_decoder_layers = cfg.get('transcript_decoder_layers', [3, 4, 5, 6, 7, 8])
             self.context_decoder_layers = cfg.get(
                 'context_decoder_layers', [0, 1, 2, 9, 10, 11]
@@ -232,10 +236,20 @@ class MagpieTTSModel(ModelPT):
             self.multi_encoder_mapping = multi_encoder_mapping
             self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
         elif self.model_type == 'decoder_context_tts':
+            # Context audio/text goes directly to the decoder (before the target audio codes)
             self.transcript_decoder_layers = [
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
+        elif self.model_type == 'decoder_ce':
+            # Similar to decoder_context_tts, but we use context encoder
+            # Decoder gets output from context encoder instead of raw context tokens embeddings
+            self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
+            self.transcript_decoder_layers = [
+                idx for idx in range(cfg.decoder.n_layers)
+            ]  # All layers are used for text
+
         elif self.model_type == 'decoder_pretrain_synthesizer':
+            # This is for pretraining the decoder only on audio data using next frame prediction loss
             assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
         elif self.model_type == 'decoder_ce':
             # Similar to decoder_context_tts, but we don't use context encoder
@@ -1055,7 +1069,7 @@ class MagpieTTSModel(ModelPT):
         text_lens = None
 
         # self.model_type must be one of
-        # [single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts, decoder_pretrain_synthesizer]
+        # [single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts, decoder_ce, decoder_pretrain_synthesizer]
         if self.model_type != 'decoder_pretrain_synthesizer':
             text = batch['text']
             text_lens = batch['text_lens']

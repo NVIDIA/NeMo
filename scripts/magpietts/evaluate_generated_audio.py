@@ -107,7 +107,11 @@ def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_second
 @contextmanager
 def nemo_log_level(level):
     """
-    Temporarily sets the logging level for the nemo logger to the specified level.
+    A context manager that temporarily sets the logging level for the NeMo logger 
+    and restores the original level when the context manager is exited.
+
+    Args:
+        level (int): The logging level to set.
     """
     logger = logging.getLogger("nemo_logger")
     original_level = logger.level
@@ -144,12 +148,10 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
     device = "cuda"
 
     if language == "en":
-        if asr_model_name == "stt_en_conformer_transducer_large":
-            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_large")
-        elif asr_model_name == "nvidia/parakeet-ctc-0.6b":
-            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-ctc-0.6b")
-
-        # asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
+        if asr_model_name in ["nvidia/parakeet-tdt-1.1b", "nvidia/parakeet-ctc-0.6b", "stt_en_conformer_transducer_large"]:
+            asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=asr_model_name)
+        else:
+            raise ValueError(f"ASR model {asr_model_name} not supported")
         asr_model = asr_model.to(device)
         asr_model.eval()
     else:
