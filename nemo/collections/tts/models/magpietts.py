@@ -751,6 +751,11 @@ class MagpieTTSModel(ModelPT):
                 logits[item_idx, :, :] = float('-inf')
                 logits[item_idx, :, self.audio_eos_id] = 0.0
 
+            # HACK: disallow generation of MASK tokens. But is this happening?
+            logits[:,:,self.mask_token_id] = -200
+            logits[:,:,self.audio_bos_id] = -200
+            logits[:,:,self.context_audio_bos_id] = -200
+            logits[:,:,self.context_audio_eos_id] = -200
             # sample with top-k
             logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)
             indices_to_remove = logits < logits_topk[:, :, -1].unsqueeze(-1) # (B, C, num_audio_tokens_per_codebook)
