@@ -270,7 +270,7 @@ def export_ckpt(
             modelopt_export_kwargs = modelopt_export_kwargs or {}
             # First try to export via ModelOpt route. If rejected, return to the default route
             output = export_hf_checkpoint(path, _output_path, **modelopt_export_kwargs)
-        except:
+        except RuntimeError:
             output = None
         if output is not None:
             return output
