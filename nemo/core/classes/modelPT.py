@@ -90,10 +90,9 @@ class ModelPT(LightningModule, Model):
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 
         self._timing_tracker = OneLoggerTimingTracker.get_instance()
-        self._timing_tracker.track_event('app_start')
 
         # Track model init start
-        self._timing_tracker.track_event('model_init_start')
+        self._timing_tracker.track_event('on_model_init_start')
 
         super().__init__()
 
@@ -161,8 +160,8 @@ class ModelPT(LightningModule, Model):
         if torch.cuda.is_available() and torch.cuda.current_device() is not None:
             app_state.device_id = torch.cuda.current_device()
 
-        self._timing_tracker.track_event('model_init_end')
-        self._timing_tracker.track_event('dataloader_init_start')
+        self._timing_tracker.track_event('on_model_init_end')
+        self._timing_tracker.track_event('on_dataloader_init_start')
         if self._cfg is not None and not self._is_model_being_restored():
             # Setup data loaders now (default) or defer setup to `self.setup()`
             # if `defer_setup` is set in the config of the corresponding dataloader.
@@ -477,6 +476,8 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+        # OneLogger hook for checkpoint loading start
+        self._timing_tracker.track_event('on_load_checkpoint_start')
 
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
@@ -505,6 +506,10 @@ class ModelPT(LightningModule, Model):
         )
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
+
+        # OneLogger hook for checkpoint loading end
+        self._timing_tracker.track_event('on_load_checkpoint_end')
+
         return instance
 
     @classmethod
@@ -891,11 +896,11 @@ class ModelPT(LightningModule, Model):
 
     def configure_optimizers(self):
         # Track optimizer init start
-        self._timing_tracker.track_event('optimizer_init_start')
+        self._timing_tracker.track_event('on_optimizer_init_start')
 
         self.setup_optimization()
 
-        self._timing_tracker.track_event('optimizer_init_end')
+        self._timing_tracker.track_event('on_optimizer_init_end')
 
         if self._scheduler is None:
             return self._optimizer
@@ -1324,7 +1329,8 @@ class ModelPT(LightningModule, Model):
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 
         timing_tracker = OneLoggerTimingTracker.get_instance()
-        timing_tracker.track_event('load_checkpoint_start')
+        # TODO: there might be other ways to load checkpoints, need to cover them all
+        timing_tracker.track_event('on_load_checkpoint_start')
         args = [
             'init_from_nemo_model',
             'init_from_pretrained_model',
@@ -1459,7 +1465,7 @@ class ModelPT(LightningModule, Model):
                     raise TypeError("Invalid type: init_from_ptl_ckpt is not a string or a dict!")
 
         # Track load checkpoint end
-        timing_tracker.track_event('load_checkpoint_end')
+        timing_tracker.track_event('on_load_checkpoint_end')
 
     def teardown(self, stage: str):
         """

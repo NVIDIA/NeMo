@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Type
 
-import nv_one_logger.training_telemetry.api.callbacks as CB
+import nv_one_logger.training_telemetry.api.callbacks as CB # TODO: make the import safe -- the lib may not be installed, and it's ok to skip for users.
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import Trainer
@@ -49,6 +49,7 @@ class OneLoggerTimingTracker:
         """Initialize the timing tracker."""
         self._pending_events = []
         self._one_logger_available = False
+        self.track_event('on_app_start')
 
     def track_event(self, event_type: str, current_time_ms: float = None):
         """Track a timing event with automatic start/end timing.
@@ -62,7 +63,7 @@ class OneLoggerTimingTracker:
         if current_time_ms is None:
             current_time_ms = get_current_time_msec()
 
-        event = {'name': event_type, 'api_name': f'on_{event_type}', 'time_ms': current_time_ms}  # Add 'on_' prefix
+        event = {'name': event_type, 'time_ms': current_time_ms}
 
         if not self._one_logger_available:
             self._pending_events.append(event)
@@ -92,25 +93,24 @@ class OneLoggerTimingTracker:
         """Log an event using OneLogger callbacks.
 
         Args:
-            event: Event data containing name, time_ms, api_name
+            event: Event data containing name, time_ms
         """
         if not self._one_logger_available:
             return
 
         # Handle start/end event pairs
         event_name = event['name']
-        attribute_name = event['api_name']
         time_ms = event['time_ms']
 
-        if not hasattr(CB, attribute_name):
-            raise ValueError(f"Invalid event name: {event_name}")
+        if not hasattr(CB, event_name):
+            raise ValueError(f"Invalid event name for api: {event_name}")
 
         if event_name.endswith('_start'):
-            getattr(self, attribute_name)(start_time_msec=time_ms)
+            getattr(CB, event_name)(start_time_msec=time_ms)
         elif event_name.endswith('_end'):
-            getattr(self, attribute_name)(finish_time_msec=time_ms)
+            getattr(CB, event_name)(finish_time_msec=time_ms)
         else:
-            raise ValueError(f"Invalid event name: {event_name}")
+            raise ValueError(f"Invalid event name for api: {event_name}")
 
 
 class OneLoggerNeMoCallback(Callback):
@@ -137,7 +137,6 @@ class OneLoggerNeMoCallback(Callback):
             async_io_checkpoint_classes (List[Type]): Additional classes to identify as async checkpoints
         """
         super().__init__()
-        print(f"OneLogger NeMo CB: __init__ called with log_interval={log_interval}")
         self.log_interval = log_interval
         self.async_io_checkpoint_classes = async_io_checkpoint_classes or []
         self.state = {
@@ -174,49 +173,27 @@ class OneLoggerNeMoCallback(Callback):
         Raises:
             AttributeError: If the method is not found in the OneLogger callbacks
         """
-        print(f"OneLogger NeMo CB: __getattr__ called for '{name}'")
         # Check if the method exists in the OneLogger callbacks module
         if hasattr(CB, name):
             # Get the original method
             original_method = getattr(CB, name)
 
-            # Create a wrapper that adds rank_zero_only decorator
-            @functools.wraps(original_method)
-            def wrapper(*args, **kwargs):
-                print(f"OneLogger NeMo CB: Forwarding call to CB.{name}")
-                return rank_zero_only(original_method)(*args, **kwargs)
-
-            return wrapper
+            return original_method
 
         # If not found, raise AttributeError as normal
-        print(f"OneLogger NeMo CB: Attribute '{name}' not found in CB module")
-        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'") # TODO: remove this to not raise exception
 
-    @rank_zero_only
     def on_train_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called when training begins."""
-        print(f"OneLogger NeMo CB: on_train_start called")
         # Extract necessary information from the trainer
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
-        print(f"  ✓ Trainer info: current_step={current_step}, max_steps={max_steps}")
 
         CB.on_train_start(train_iterations_start=current_step, train_iterations_target_or_fn=max_steps)
-        print(f"  ✓ Called CB.on_train_start")
 
-    @rank_zero_only
-    def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        print(f"OneLogger NeMo CB: on_train_end called")
-        CB.on_train_end()
-        print(f"  ✓ Called CB.on_train_end")
-
-    @rank_zero_only
     def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
-        print(f"OneLogger NeMo CB: on_train_batch_start called with batch_idx={batch_idx}")
         CB.on_training_single_iteration_start()
-        print(f"  ✓ Called CB.on_training_single_iteration_start")
 
-    @rank_zero_only
     def on_train_batch_end(
         self,
         trainer: Trainer,
@@ -225,23 +202,14 @@ class OneLoggerNeMoCallback(Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
-        print(f"OneLogger NeMo CB: on_train_batch_end called with batch_idx={batch_idx}")
         CB.on_training_single_iteration_end()
-        print(f"  ✓ Called CB.on_training_single_iteration_end")
 
-    @rank_zero_only
     def on_validation_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        print(f"OneLogger NeMo CB: on_validation_start called")
         CB.on_validation_start()
-        print(f"  ✓ Called CB.on_validation_start")
 
-    @rank_zero_only
     def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        print(f"OneLogger NeMo CB: on_validation_end called")
         CB.on_validation_end()
-        print(f"  ✓ Called CB.on_validation_end")
 
-    @rank_zero_only
     def on_validation_batch_start(
         self,
         trainer: Trainer,
@@ -250,13 +218,8 @@ class OneLoggerNeMoCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        print(
-            f"OneLogger NeMo CB: on_validation_batch_start called with batch_idx={batch_idx}, dataloader_idx={dataloader_idx}"
-        )
         CB.on_validation_single_iteration_start()
-        print(f"  ✓ Called CB.on_validation_single_iteration_start")
 
-    @rank_zero_only
     def on_validation_batch_end(
         self,
         trainer: Trainer,
@@ -266,103 +229,35 @@ class OneLoggerNeMoCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        print(
-            f"OneLogger NeMo CB: on_validation_batch_end called with batch_idx={batch_idx}, dataloader_idx={dataloader_idx}"
-        )
         CB.on_validation_single_iteration_end()
-        print(f"  ✓ Called CB.on_validation_single_iteration_end")
 
-    @rank_zero_only
-    def setup(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
-        """Called when fit, test, or predict begins."""
-        print(f"OneLogger NeMo CB: setup called with stage={stage}")
-        super().setup(trainer, pl_module, stage)
-        print(f"  ✓ Called super().setup")
 
-    @rank_zero_only
-    def teardown(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
-        """Called when fit, test, or predict ends."""
-        print(f"OneLogger NeMo CB: teardown called with stage={stage}")
-        super().teardown(trainer, pl_module, stage)
-        print(f"  ✓ Called super().teardown")
+def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) -> None:
+    """Hook a class's __init__ method with start and end callbacks.
 
-    @rank_zero_only
-    def on_fit_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        """Called when fit begins."""
-        print(f"OneLogger NeMo CB: on_fit_start called")
-        super().on_fit_start(trainer, pl_module)
-        print(f"  ✓ Called super().on_fit_start")
-
-    @rank_zero_only
-    def on_fit_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        """Called when fit ends."""
-        print(f"OneLogger NeMo CB: on_fit_end called")
-        super().on_fit_end(trainer, pl_module)
-        print(f"  ✓ Called super().on_fit_end")
-
-    @rank_zero_only
-    def on_save_checkpoint(self, trainer: Trainer, pl_module: LightningModule, checkpoint: Dict[str, Any]) -> None:
-        """Called when a checkpoint is saved."""
-        print(f"OneLogger NeMo CB: on_save_checkpoint called")
-        super().on_save_checkpoint(trainer, pl_module, checkpoint)
-        print(f"  ✓ Called super().on_save_checkpoint")
-
-    @rank_zero_only
-    def on_load_checkpoint(self, trainer: Trainer, pl_module: LightningModule, checkpoint: Dict[str, Any]) -> None:
-        """Called when a checkpoint is loaded."""
-        print(f"OneLogger NeMo CB: on_load_checkpoint called")
-        super().on_load_checkpoint(trainer, pl_module, checkpoint)
-        print(f"  ✓ Called super().on_load_checkpoint")
-
-    def on_app_start(self, start_time_msec: float = None) -> None:
-        """Called at the start of the application."""
-        print(f"OneLogger NeMo CB: on_app_start called with start_time_msec={start_time_msec}")
-        if start_time_msec is None:
-            start_time_msec = get_current_time_msec()
-        CB.on_app_start(start_time_msec=start_time_msec)
-        print(f"  ✓ Called CB.on_app_start")
-
-    def on_app_end(self) -> None:
-        """Called at the end of the application."""
-        print(f"OneLogger NeMo CB: on_app_end called")
-        CB.on_app_end()
-        print(f"  ✓ Called CB.on_app_end")
-
-    def on_save_checkpoint_start(self, iteration: int = 0) -> None:
-        """Called at the start of checkpoint saving."""
-        print(f"OneLogger NeMo CB: on_save_checkpoint_start called with iteration={iteration}")
-        try:
-            CB.on_save_checkpoint_start(global_step=iteration)
-            print(f"  ✓ Called CB.on_save_checkpoint_start")
-        except ImportError:
-            # OneLogger not available, ignore
-            pass
-        except Exception as e:
-            # Log error but don't fail
-            print(f"  ✗ Failed to call OneLogger on_save_checkpoint_start: {e}")
-
-    def on_save_checkpoint_end(self, iteration: int = 0) -> None:
-        """Called at the end of checkpoint saving."""
-        print(f"OneLogger NeMo CB: on_save_checkpoint_end called with iteration={iteration}")
-        try:
-            CB.on_save_checkpoint_end()
-            print(f"  ✓ Called CB.on_save_checkpoint_end")
-        except ImportError:
-            # OneLogger not available, ignore
-            pass
-        except Exception as e:
-            # Log error but don't fail
-            print(f"  ✗ Failed to call OneLogger on_save_checkpoint_end: {e}")
-
-    def on_save_checkpoint_success(self, iteration: int = 0) -> None:
-        """Called when checkpoint saving is successful."""
-        print(f"OneLogger NeMo CB: on_save_checkpoint_success called with iteration={iteration}")
-        try:
-            CB.on_save_checkpoint_success(global_step=iteration)
-            print(f"  ✓ Called CB.on_save_checkpoint_success")
-        except ImportError:
-            # OneLogger not available, ignore
-            pass
-        except Exception as e:
-            # Log error but don't fail
-            print(f"  ✗ Failed to call OneLogger on_save_checkpoint_success: {e}")
+    Args:
+        cls (type): The class to hook the __init__ method of.
+        start_callback (str): The name of the callback to call at the start of __init__.
+        end_callback (str): The name of the callback to call at the end of __init__.
+    """
+    if not hasattr(cls, '__init__'):
+        return
+    
+    original_init = cls.__init__
+    
+    # Check if already wrapped to avoid double wrapping
+    if getattr(original_init, '_one_logger_wrapped', False):
+        return
+    
+    tracker = OneLoggerTimingTracker.get_instance()
+    
+    @functools.wraps(original_init)
+    def wrapped_init(self, *args, **kwargs):
+        tracker.track_event(start_callback)
+        result = original_init(self, *args, **kwargs)
+        tracker.track_event(end_callback)
+        return result
+    
+    # Mark as wrapped to prevent double wrapping
+    wrapped_init._one_logger_wrapped = True
+    cls.__init__ = wrapped_init

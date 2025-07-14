@@ -68,6 +68,10 @@ class MockDataModule(pl.LightningDataModule):
         vocab_file: Optional[str] = None,
         merges_file: Optional[str] = None,
     ):
+        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+        tracker = OneLoggerTimingTracker.get_instance()
+        tracker.track_event("on_dataloader_init_start")
+        
         super().__init__()
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
@@ -95,6 +99,8 @@ class MockDataModule(pl.LightningDataModule):
             global_batch_size=self.global_batch_size,
             rampup_batch_size=rampup_batch_size,
         )
+        
+        tracker.track_event("on_dataloader_init_end")
 
     def setup(self, stage: str = "") -> None:
         """
