@@ -196,7 +196,7 @@ def main(args) -> None:
             if next_token_ids.item() in stop_tokens:
                 break
 
-    generated_texts = hf_tokenizer.decode(list(generated_ids[0]),  skip_special_tokens=True)
+    generated_texts = hf_tokenizer.decode(list(generated_ids[0]), skip_special_tokens=True)
     if torch.distributed.get_rank() == 0:
         print("======== GENERATED TEXT OUTPUT ========")
         print(f"{generated_texts}")

@@ -14,20 +14,20 @@
 
 from functools import partial
 
-from nemo.collections.vlm.inference.base import _setup_trainer_and_restore_model
-from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.collections import vlm
-from nemo.utils import logging
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
-from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
-from megatron.core.dist_checkpointing.validation import StrictHandling
-from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-
-from nemo import lightning as nl
 import lightning.pytorch as L
 import torch
+from megatron.core.dist_checkpointing.validation import StrictHandling
+from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.transformer.transformer_config import TransformerConfig
+
+from nemo import lightning as nl
+from nemo.collections import vlm
+from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
+from nemo.collections.vlm.inference.base import _setup_trainer_and_restore_model
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.lightning.io.pl import ckpt_to_weights_subdir
+from nemo.utils import logging
 
 
 def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> None:
