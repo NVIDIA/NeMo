@@ -430,6 +430,11 @@ def hyena_no_weight_decay_cond(name, param):
     return no_wd
 
 
+def hyena_no_weight_decay_cond_embedding(name, param):
+    """Condition for no weight decay for Hyena embedding parameters."""
+    return hyena_no_weight_decay_cond(name, param) or 'embedding' in name
+
+
 def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=False):
     """Apply a 1D convolution to the input sequence u using the filter k and the shortcut D."""
     seqlen = u.shape[-1]

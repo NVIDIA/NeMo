@@ -52,6 +52,7 @@ class MegatronOptimizerModule(OptimizerModule):
         no_weight_decay_cond: Optional[Callable] = None,
         scale_lr_cond: Optional[Callable] = None,
         lr_mult: float = 1.0,
+        default_skip_embedding_weight_decay: bool = False,
     ):
         """Initializes the MegatronOptimizerModule.
 
@@ -61,6 +62,10 @@ class MegatronOptimizerModule(OptimizerModule):
             no_weight_decay_cond (Optional[Callable]): Condition for no weight decay.
             scale_lr_cond (Optional[Callable]): Condition for scaling learning rate.
             lr_mult (float): Learning rate multiplier.
+            default_skip_embedding_weight_decay (bool): Whether to skip weight decay for
+                embedding parameters by default, if no_weight_decay_cond is not provided.
+                This is useful if you do not want embeddings to shrink to zero in training
+                as recommended in https://arxiv.org/abs/2312.16903
         """
 
         super().__init__(lr_scheduler=lr_scheduler)
@@ -68,6 +73,7 @@ class MegatronOptimizerModule(OptimizerModule):
         self.no_weight_decay_cond = no_weight_decay_cond
         self.scale_lr_cond = scale_lr_cond
         self.lr_mult = lr_mult
+        self.default_skip_embedding_weight_decay = default_skip_embedding_weight_decay
 
     def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"):
         """We will add the finalize_model_grads function to the model config.
@@ -103,6 +109,7 @@ class MegatronOptimizerModule(OptimizerModule):
             no_weight_decay_cond=self.no_weight_decay_cond,
             scale_lr_cond=self.scale_lr_cond,
             lr_mult=self.lr_mult,
+            default_skip_embedding_weight_decay=self.default_skip_embedding_weight_decay,
         )
 
         return [optimizer]

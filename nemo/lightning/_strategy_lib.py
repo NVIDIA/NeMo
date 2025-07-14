@@ -644,8 +644,22 @@ def setup_megatron_optimizer(
     no_weight_decay_cond: Optional[Callable] = None,
     scale_lr_cond: Optional[Callable] = None,
     lr_mult: float = 1.0,
+    default_skip_embedding_weight_decay: bool = False,
 ):
-    """ """
+    """
+    Setup the megatron optimizer for the model.
+
+    Args:
+        model: The model to optimize.
+        config: The optimizer config.
+        no_weight_decay_cond: The lambda function for determining whether to skip weight decay for a parameter.
+        scale_lr_cond: The lambda function for determining whether to skip weight decay for a parameter.
+        lr_mult: The learning rate multiplier.
+        default_skip_embedding_weight_decay: Whether to skip weight decay for
+            embedding parameters by default, if no_weight_decay_cond is not provided.
+            This is useful if you do not want embeddings to shrink to zero in training
+            as recommended in https://arxiv.org/abs/2312.16903
+    """
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 
     from nemo.core.optim import McoreDistributedOptimizer
@@ -676,6 +690,23 @@ def setup_megatron_optimizer(
 
     # megatron optimizer expects McoreDDP
     ddp_modules = [m.module for m in model]
+    get_megatron_optimizer_sig = inspect.signature(get_megatron_optimizer).parameters
+    get_megatron_optimizer_extra_kwargs = {}
+    if "default_skip_embedding_weight_decay" in get_megatron_optimizer_sig:
+        # Case 1: We have a new enough megatron that supports this parameter, so pass it through.
+        get_megatron_optimizer_extra_kwargs["default_skip_embedding_weight_decay"] = (
+            default_skip_embedding_weight_decay
+        )
+    elif default_skip_embedding_weight_decay:
+        # Case 2: Our installed version of megatron does not support this parameter, but the user has requested
+        #  that we skip weight decay for embedding parameters by default, so we need to warn the user that the option
+        #  will be ignored until they upgrade Megatron-LM.
+        logging.warning(
+            "default_skip_embedding_weight_decay is not supported in this version of Megatron-LM. "
+            "Please upgrade Megatron-LM to the latest version."
+        )
+        # Case 3: We do not need to check the final case of default_skip_embedding_weight_decay=False against this
+        #  parameter missing in the function signature since that was the prior baseline behavior of Megatron-LM.
     mcore_opt = get_megatron_optimizer(
         config,
         ddp_modules,
@@ -683,6 +714,7 @@ def setup_megatron_optimizer(
         scale_lr_cond=scale_lr_cond,
         lr_mult=lr_mult,
         use_gloo_process_groups=app_state.use_gloo_process_groups,
+        **get_megatron_optimizer_extra_kwargs,
     )
     # Pytorch does not have the concept of an `lr_mult` or a `wd_mult` but these are added to param
     # groups in megatron to control which sub-modules have different learning rates or weight

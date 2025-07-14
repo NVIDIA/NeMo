@@ -217,6 +217,7 @@ class FabricMegatronStrategy(DDPStrategy):
         no_weight_decay_cond: Optional[Callable] = None,
         scale_lr_cond: Optional[Callable] = None,
         lr_mult: float = 1.0,
+        default_skip_embedding_weight_decay: bool = False,
     ) -> Optimizer:
         """
         Setup the Megatron optimizer.
@@ -232,6 +233,7 @@ class FabricMegatronStrategy(DDPStrategy):
             no_weight_decay_cond=no_weight_decay_cond,
             scale_lr_cond=scale_lr_cond,
             lr_mult=lr_mult,
+            default_skip_embedding_weight_decay=default_skip_embedding_weight_decay,
         )
 
     @override
