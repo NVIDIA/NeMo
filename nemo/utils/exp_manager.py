@@ -513,16 +513,10 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
         import nv_one_logger.training_telemetry.api.callbacks as CB
         from nemo.lightning.one_logger_callback import get_current_time_msec
 
-        CB.on_app_start(start_time_msec=get_current_time_msec())
-
         # Mark OneLogger as available for the OneLoggerTimingTracker
-        try:
-            from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 
-            OneLoggerTimingTracker.mark_one_logger_available()
-            print(f"OneLogger: ✓ Marked OneLogger as available for OneLoggerTimingTracker")
-        except Exception as e:
-            print(f"OneLogger: Failed to mark OneLogger as available for OneLoggerTimingTracker: {e}")
+        OneLoggerTimingTracker.mark_one_logger_available()
 
         # Add the OneLogger callback to the trainer if provided
         if trainer is not None:
@@ -530,28 +524,13 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
             has_onelogger_callback = any(isinstance(callback, OneLoggerNeMoCallback) for callback in trainer.callbacks)
 
             if not has_onelogger_callback:
-                print(f"OneLogger: Creating OneLoggerNeMoCallback with metadata: {metadata}")
                 # Create the callback with metadata
                 onelogger_callback = OneLoggerNeMoCallback(
                     callback_config=metadata, log_interval=cfg.get("log_interval", 10)
                 )
 
                 trainer.callbacks.append(onelogger_callback)
-                print(
-                    f"OneLogger: ✓ OneLoggerNeMoCallback added to trainer. Total callbacks: {len(trainer.callbacks)}"
-                )
-                print(f"OneLogger: Trainer callbacks after adding: {[type(cb).__name__ for cb in trainer.callbacks]}")
-            else:
-                print(f"OneLogger: OneLoggerNeMoCallback already exists in trainer callbacks")
-        else:
-            print(f"OneLogger: No trainer provided, skipping callback registration")
-
-        logging.info("OneLogger v2 callback configured with training telemetry (direct v2 logic, no adapter)")
-
-    except ImportError as e:
-        logging.warning(f"OneLogger v2 not available, skipping configuration. ImportError: {e}")
     except Exception as e:
-        logging.error(f"OneLogger v2 configuration failed: {e}")
         raise
 
 
@@ -795,9 +774,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         )
 
     # Configure OneLogger callback
-    print(f"OneLogger: Calling configure_onelogger with trainer: {trainer}")
     configure_onelogger(cfg, trainer)
-    print(f"OneLogger: configure_onelogger completed")
 
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:

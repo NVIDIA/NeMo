@@ -76,6 +76,10 @@ class FineTuningDataModule(pl.LightningDataModule):
         packed_sequence_specs: Optional["PackedSequenceSpecs"] = None,
         dataset_kwargs: Optional[Dict[str, Any]] = None,
     ):
+        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+        tracker = OneLoggerTimingTracker.get_instance()
+        tracker.track_event("on_dataloader_init_start")
+        
         super().__init__()
         self.seq_length = seq_length
         self.seed = seed
@@ -96,6 +100,8 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.dataset_kwargs = dataset_kwargs or {}
         self._pad_cu_seqlens = False if not packed_sequence_specs else packed_sequence_specs.pad_cu_seqlens
         self.init_global_step = 0
+        
+        tracker.track_event("on_dataloader_init_end")
 
     def validate_batch_size_for_packed_sequence(self):
         """

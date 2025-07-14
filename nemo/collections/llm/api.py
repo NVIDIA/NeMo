@@ -53,6 +53,7 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
+from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -1163,6 +1164,7 @@ def _setup(
     tokenizer: Optional[TokenizerType],
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]],
 ) -> Any:  # Return type is Any because app_state's type is not specified
+    timing_tracker = OneLoggerTimingTracker.get_instance()
     configure_no_restart_validation_training_loop(trainer)
     _log = log or NeMoLogger()
     if resume and isinstance(model_transform, PEFT) and _log.ckpt:
@@ -1175,10 +1177,14 @@ def _setup(
         task_config=getattr(train, "__io__", None),
     )
     if resume is not None:
+        timing_tracker.track_event('on_load_checkpoint_start')
         resume.setup(trainer, model)
+        timing_tracker.track_event('on_load_checkpoint_end')
 
     if optim:
+        timing_tracker.track_event('on_optimizer_init_start')
         optim.connect(model)
+        timing_tracker.track_event('on_optimizer_init_end')
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
