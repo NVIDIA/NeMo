@@ -130,6 +130,7 @@ class ParallelismConfig:
     nccl_communicator_config_path: str = None
     use_sharp: bool = False
     pipeline_model_parallel_layout: Optional[Union[str, List[List[str]]]] = None
+    use_gloo_process_groups: bool = True
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -221,6 +222,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         use_sharp (bool): Whether to use SHARP. Defaults to False.
         pipeline_model_parallel_layout (Optional[Union[str, List[List[str]]]]): The layout of all layers among
             different PP and VP stages.
+        use_gloo_process_groups (bool): Whether to use Gloo process groups. Defaults to True.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -281,6 +283,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         num_distributed_optimizer_instances: int = 1,
         nccl_communicator_config_path: Optional[str] = None,
         pipeline_model_parallel_layout: Optional[Union[str, List[List[str]]]] = None,
+        use_gloo_process_groups: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -338,6 +341,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
         self.nccl_communicator_config_path = nccl_communicator_config_path
+        self.use_gloo_process_groups = use_gloo_process_groups
         self.restore_config = restore_config
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
         self.pipeline_model_parallel_layout = pipeline_model_parallel_layout
@@ -1136,6 +1140,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             nccl_communicator_config_path=self.nccl_communicator_config_path,
             use_sharp=self.use_sharp,
             pipeline_model_parallel_layout=self.pipeline_model_parallel_layout,
+            use_gloo_process_groups=self.use_gloo_process_groups,
         )
 
     @contextmanager

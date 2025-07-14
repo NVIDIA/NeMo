@@ -29,7 +29,7 @@ from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.import_utils import safe_import
 
-LocalCheckpointCallback, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency.local_checkpoint_callback')
+lcp, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency.local_checkpoint_callback')
 
 
 @dataclass
@@ -205,7 +205,7 @@ class NeMoLogger(IOMixin):
         if ckpt:
             _overwrite_i = None
             for i, callback in enumerate(trainer.callbacks):
-                if isinstance(callback, PTLModelCheckpoint) and not isinstance(callback, LocalCheckpointCallback):
+                if isinstance(callback, PTLModelCheckpoint) and not isinstance(callback, lcp.LocalCheckpointCallback):
                     logging.warning(
                         "The Trainer already contains a ModelCheckpoint callback. " "This will be overwritten."
                     )
@@ -250,7 +250,7 @@ class NeMoLogger(IOMixin):
         from nemo.lightning import MegatronStrategy
 
         for callback in trainer.callbacks:
-            if isinstance(callback, PTLModelCheckpoint) and not isinstance(callback, LocalCheckpointCallback):
+            if isinstance(callback, PTLModelCheckpoint) and not isinstance(callback, lcp.LocalCheckpointCallback):
                 if callback.dirpath is None:
                     callback.dirpath = Path(log_dir / "checkpoints")
                 if callback.filename is None:
