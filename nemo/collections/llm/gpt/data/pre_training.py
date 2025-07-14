@@ -103,7 +103,7 @@ def validate_dataset_asset_accessibility(paths):
             raise PermissionError(f"Expected {str(path)} to be readable.")
         return
     for suffix in suffices:
-        file_path = path.with_suffix(suffix)
+        file_path = path.with_name(path.name + suffix)
         if not file_path.exists():
             raise FileNotFoundError(f"Expected {str(file_path)} to exist.")
         if not os.access(file_path, os.R_OK):
