@@ -130,6 +130,7 @@ class ParallelismConfig:
     nccl_communicator_config_path: str = None
     use_sharp: bool = False
     use_gloo_process_groups: bool = True
+    pipeline_model_parallel_layout: Optional[Union[str, List[List[str]]]] = None
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -220,6 +221,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             `min_ctas`, `max_ctas`, and `cga_cluster_size` can be set for each communicator.
         use_sharp (bool): Whether to use SHARP. Defaults to False.
         use_gloo_process_groups (bool): Whether to use Gloo process groups. Defaults to True.
+        pipeline_model_parallel_layout (Optional[Union[str, List[List[str]]]]): The layout of all layers among
+            different PP and VP stages.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -280,6 +283,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         num_distributed_optimizer_instances: int = 1,
         nccl_communicator_config_path: Optional[str] = None,
         use_gloo_process_groups: bool = True,
+        pipeline_model_parallel_layout: Optional[Union[str, List[List[str]]]] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -340,6 +344,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.use_gloo_process_groups = use_gloo_process_groups
         self.restore_config = restore_config
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
+        self.pipeline_model_parallel_layout = pipeline_model_parallel_layout
 
         self._ddp = ddp
         if ddp == "megatron":
@@ -1135,6 +1140,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             nccl_communicator_config_path=self.nccl_communicator_config_path,
             use_sharp=self.use_sharp,
             use_gloo_process_groups=self.use_gloo_process_groups,
+            pipeline_model_parallel_layout=self.pipeline_model_parallel_layout,
         )
 
     @contextmanager
