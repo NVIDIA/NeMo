@@ -20,6 +20,7 @@ from typing import Any, Dict, Optional
 
 import nemo_run.config as run
 from omegaconf import OmegaConf
+import torch
 
 
 class MetaInfoManager:
@@ -114,13 +115,7 @@ class MetaInfoManager:
             # Project information
             "app_name": project_name or self._get_config_value("project_name", "default-project"),
             # Environment information - check config first, then fallback to env vars
-            "world_size": (
-                self._get_config_value(
-                    "trainer.world_size",
-                    self._get_config_value("trainer.devices", -1) * self._get_config_value("trainer.num_nodes", 1),
-                )
-                or self._get_env("WORLD_SIZE", -1)
-            ),
+            "world_size": torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1,
             "rank": self._get_config_value("trainer.global_rank", None) or self._get_env("RANK", "0"),
         }
 
@@ -130,15 +125,12 @@ class MetaInfoManager:
                 {
                     # Batch size information
                     "enable_for_current_rank": (
-                        int(metadata.get('rank', 0)) == int(metadata.get('world_size', 1)) - 1
+                        int(metadata.get('rank', -1)) == int(metadata.get('world_size', 1)) - 1
                     ),
                     "global_batch_size": self._get_config_value("model.global_batch_size", 1),
                     "micro_batch_size": self._get_config_value("model.micro_batch_size", 1),
                     "seq_length": self._get_config_value("model.seq_length", 1),
                     "train_iterations_target": self._get_config_value("trainer.max_steps", 1),
-                    # Training targets
-                    "max_steps": self._get_config_value("trainer.max_steps", 1),
-                    "max_epochs": self._get_config_value("trainer.max_epochs", None),
                     "train_samples_target": (
                         self._get_config_value("trainer.max_steps", 1)
                         * self._get_config_value("model.global_batch_size", 1)
@@ -162,7 +154,7 @@ class MetaInfoManager:
                         "exp_manager.create_checkpoint_callback", True
                     ),
                     "is_log_throughput_enabled": self._get_config_value(
-                        "exp_manager.log_tflops_per_sec_per_gpu", True
+                        "exp_manager.log_tflops_per_sec_per_gpu", False
                     ),
                 }
             )
