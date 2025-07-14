@@ -394,6 +394,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
 
+        if self.ckpt_load_optimizer and self.ckpt_load_main_params:
+            raise ValueError("ckpt_load_optimizer and ckpt_load_main_params cannot be both set to True.")
+
         if isinstance(self.ddp_config, DistributedDataParallelConfig):
             self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
 
