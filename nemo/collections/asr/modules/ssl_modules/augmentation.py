@@ -83,8 +83,6 @@ class SpeakerNoiseAugmentation(object):
 
         noise = batch.noise
         noise_len = batch.noise_len
-        noisy_audio = batch.noisy_audio
-        noisy_audio_len = batch.noisy_audio_len
         for i in range(batch_size):
             if np.random.rand() > self.prob:
                 continue
@@ -129,9 +127,6 @@ class SpeakerNoiseAugmentation(object):
             noise_signal = torch.zeros_like(audio_signal[i])
             noise_signal[mix_start_idx : mix_start_idx + mix_len] = mix_scale * noise_clip
 
-            # add noise to audio
-            noisy_audio[i] = audio_signal[i] + noise_signal
-            noisy_audio_len[i] = audio_lengths[i]
             noise[i] = noise_signal
             noise_len[i] = audio_lengths[i]
 
@@ -139,10 +134,10 @@ class SpeakerNoiseAugmentation(object):
             sample_id=batch.sample_id,
             audio=batch.audio,
             audio_len=batch.audio_len,
-            noise=noise,
-            noise_len=noise_len,
-            noisy_audio=noisy_audio,
-            noisy_audio_len=noisy_audio_len,
+            noise=None,
+            noise_len=None,
+            noisy_audio=batch.audio + noise,
+            noisy_audio_len=noise_len,
         )
 
 
@@ -184,8 +179,6 @@ class MultiSpeakerNoiseAugmentation(SpeakerNoiseAugmentation):
 
         noise = batch.noise
         noise_len = batch.noise_len
-        noisy_audio = batch.noisy_audio
-        noisy_audio_len = batch.noisy_audio_len
         for i in range(batch_size):
             if np.random.rand() > self.prob:
                 continue
@@ -232,10 +225,6 @@ class MultiSpeakerNoiseAugmentation(SpeakerNoiseAugmentation):
 
             # get the residual signal to be added to original audio
             noise_signal = mix_scale * noise_signal
-
-            # add noise to audio
-            noisy_audio[i] = audio_signal[i] + noise_signal
-            noisy_audio_len[i] = audio_lengths[i]
             noise[i] = noise_signal
             noise_len[i] = audio_lengths[i]
 
@@ -243,10 +232,10 @@ class MultiSpeakerNoiseAugmentation(SpeakerNoiseAugmentation):
             sample_id=batch.sample_id,
             audio=batch.audio,
             audio_len=batch.audio_len,
-            noise=noise,
-            noise_len=noise_len,
-            noisy_audio=noisy_audio,
-            noisy_audio_len=noisy_audio_len,
+            noise=None,
+            noise_len=None,
+            noisy_audio=batch.audio + noise,
+            noisy_audio_len=noise_len,
         )
 
     def get_noise_segments(self, batch_idx, batch, segment_lens, num_speakers, mode):

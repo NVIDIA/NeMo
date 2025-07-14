@@ -1018,8 +1018,6 @@ class EncDecDenoiseMaskedTokenPredModel(EncDecMaskedTokenPredModel):
         log_probs, encoded_len, masks, tokens = self.forward(
             input_signal=batch.audio,
             input_signal_length=batch.audio_len,
-            noise_signal=batch.noise,
-            noise_signal_length=batch.noise_len,
             noisy_input_signal=batch.noisy_audio,
             noisy_input_signal_length=batch.noisy_audio_len,
             apply_mask=True,
