@@ -19,8 +19,8 @@ import os
 from typing import Any, Dict, Optional
 
 import nemo_run.config as run
-from omegaconf import OmegaConf
 import torch
+from omegaconf import OmegaConf
 
 
 class MetaInfoManager:

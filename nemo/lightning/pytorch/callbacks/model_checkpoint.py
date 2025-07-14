@@ -21,6 +21,7 @@ from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 
 import lightning
 import lightning.pytorch as pl
+import nv_one_logger.training_telemetry.api.callbacks as CB
 import torch
 from _weakref import proxy
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
@@ -32,7 +33,6 @@ from nemo.lightning.io.pl import TrainerContext
 from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-import nv_one_logger.training_telemetry.api.callbacks as CB
 
 
 class ModelCheckpoint(PTLModelCheckpoint):
