@@ -252,7 +252,7 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
             return base
 
         assert getattr(source, 'rope_scaling', None), 'Llama-Nemotron model should have rope scaling'
-        if getattr(source, 'block_configs') is not None:
+        if getattr(source, 'block_configs', None) is not None:
             # Convert heterogeneous model (Llama-Nemotron Super/Ultra)
             target_class = (
                 Llama33NemotronSuper49BConfig if source.num_hidden_layers == 80 else Llama31NemotronUltra253BConfig
