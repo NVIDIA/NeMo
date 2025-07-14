@@ -437,9 +437,9 @@ def deepseekv3(config: FLOPSConfig):
     return (per_input_attention_flops + per_input_linear_flops + per_input_vocab_flops) * config.gbs
 
 
-def _mlp_layer_flops(config: FLOPSConfig):
-    """Model FLOPs for MLP layer"""
-    return 6 * config.gbs * config.enc_seq_len * config.hs * config.ffn_hs * (2 if config.gated_linear_unit else 1)
+def _nemotronh_mlp_layer_flops(config: FLOPSConfig):
+    """Model FLOPs for MLP layer. Assume gated linear unit."""
+    return 6 * config.gbs * config.enc_seq_len * config.hs * config.ffn_hs * 3
 
 
 def _non_mla_attn_layer_flops(config: FLOPSConfig):
@@ -498,7 +498,7 @@ def _hybrid_model_flops(config: FLOPSConfig):
     return (
         num_attn_layers * _non_mla_attn_layer_flops(config)
         + num_mamba_layers * _mamba_layer_flops(config)
-        + num_mlp_layers * _mlp_layer_flops(config)
+        + num_mlp_layers * _nemotronh_mlp_layer_flops(config)
         + 6 * config.gbs * config.enc_seq_len * config.hs * config.vocab_size
     )
 
