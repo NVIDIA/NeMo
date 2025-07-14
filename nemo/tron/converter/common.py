@@ -70,6 +70,9 @@ def temporary_distributed_context():
 
     dist.init_process_group(backend="gloo", init_method=init_method, world_size=1, rank=0)
     parallel_state.initialize_model_parallel()
+    # Needed for Nemotron-H
+    from megatron.core.tensor_parallel import model_parallel_cuda_manual_seed
+    model_parallel_cuda_manual_seed(0)
     try:
         yield
     finally:
@@ -130,6 +133,21 @@ def dtype_from_hf(config) -> torch.dtype:
         return dtype_from_str(torch_dtype)
     else:
         raise ValueError("torch_dtype is not of type str/torch.dtype")
+
+# Copied from NeMo/nemo/lightning/pytorch/utils.py (to avoid dependency)
+def extract_dtypes(ckpt):
+    """
+    Extracts dtype from the input iterator
+    ckpt can be module.named_parameters or module.state_dict().items()
+    """
+    dtypes = {}
+    for key, val in ckpt:
+        if hasattr(val, 'dtype'):
+            dtypes[key] = val.dtype
+        elif hasattr(val, 'data') and hasattr(val.data, 'dtype'):
+            # if it's ShardedTensor populated with data.
+            dtypes[key] = val.data.dtype
+    return dtypes
 
 
 class _ModelState:
@@ -196,11 +214,15 @@ class BaseImporter(ABC):
     def tron_config(self) -> GPTConfig | T5Config:
         raise NotImplementedError
 
-    def apply(self) -> Path:
+    def apply(self, dtype: torch.dtype | None = None) -> Path:
         """Run the conversion from HF to NeMo format.
 
         Args:
             output_path: Path where the converted model will be saved
+            dtype: If provided, convert the source and target models to the given dtype. This is
+               useful in cases like Nemotron-H where the HF model is all bf16 or fp32 based on the
+               torch_dtype parameter and the dtype in the config.json, but the Megatron model is
+               heterogeneous in type since the A_log/D parameters are always fp32.
 
         Returns:
             Path: Path to the saved NeMo model
@@ -209,6 +231,20 @@ class BaseImporter(ABC):
 
         with temporary_distributed_context():
             target = self.init_tron_model(self.tron_config)
+
+            if dtype is not None:
+                logger.info(f"Converting source (HF) and target (MCore) models to {dtype}")
+                source = source.to(dtype)
+                target = [target[0].to(dtype)]
+
+            # Do a coarse check to see if the dtypes match.
+            target_dtypes = set(x.dtype if isinstance(x, torch.Tensor) else x for k, x in target[0].named_parameters())
+            source_dtypes = set(x.dtype if isinstance(x, torch.Tensor) else x for k, x in source.named_parameters())
+            if source_dtypes != target_dtypes:
+                source_param_dtypes = extract_dtypes(source.named_parameters())
+                target_param_dtypes = extract_dtypes(target[0].named_parameters())
+                raise TypeError(f"Source and target dtypes mismatch: {source_param_dtypes} != {target_param_dtypes}. Consider setting dtype={dtype} when applying the importer.")
+                
             self.convert_state(source, target[0])
             state = GlobalState()
             state.cfg = ConfigContainer(

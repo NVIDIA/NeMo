@@ -22,6 +22,7 @@ import torch.nn.functional as F
 from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
+from nemo.collections.llm.fn.activation import squared_relu
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
@@ -212,10 +213,22 @@ class SSMConfig(TransformerConfig, io.IOMixin):
         """
         Configures the model for training or inference.
         """
+        if hasattr(tokenizer, 'vocab_size'):
+            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+        elif hasattr(self, 'vocab_size'):
+            # This is the path taken in nemo.tron since the vocab_size
+            # is added into the config. This happens in the application.
+            vocab_size = self.vocab_size
+        else:
+            raise ValueError(
+                "Unable to find vocab size. Either pass in a tokenizer with vocab size, "
+                "or set vocab size in the model config"
+            )
+        
         return MCoreMambaModel(
             self,
             mamba_stack_spec=mamba_stack_spec,
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            vocab_size=vocab_size,
             max_sequence_length=self.seq_length,
             hybrid_attention_ratio=self.hybrid_attention_ratio,
             hybrid_mlp_ratio=self.hybrid_mlp_ratio,
@@ -560,7 +573,20 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
         elif "56B" in source._name_or_path:
             nemotron_h_config = NemotronHConfig56B()
         else:
-            raise ValueError(f"Unsupported model size: {source._name_or_path}")
+            # LHS mcore | RHS HF
+            nemotron_h_config = NemotronHConfigBase()
+            nemotron_h_config.hybrid_override_pattern = source.hybrid_override_pattern
+            nemotron_h_config.num_layers = source.num_hidden_layers
+            nemotron_h_config.hidden_size = source.hidden_size
+            nemotron_h_config.mamba_state_dim = source.ssm_state_size
+            nemotron_h_config.ffn_hidden_size = source.intermediate_size
+            nemotron_h_config.num_attention_heads = source.num_attention_heads
+
+            nemotron_h_config.kv_channels = source.hidden_size // source.num_attention_heads
+            nemotron_h_config.mamba_num_heads = source.mamba_num_heads
+            nemotron_h_config.mamba_head_dim = source.mamba_head_dim
+            # https://github.com/NVIDIA/Megatron-LM/blob/e11d28592f19c122859be764b7afe7c208d9acc1/megatron/core/ssm/mamba_mixer.py#L144
+            #assert source.chunk_size == 128 # HARD_CODED to 128
 
         return nemotron_h_config
 
@@ -945,7 +971,7 @@ class NemotronHConfigBase(SSMConfig):
     mamba_head_dim: int = 64
     num_query_groups: int = 8
     make_vocab_size_divisible_by: int = 128
-    activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
+    activation_func: Callable = squared_relu
     tokenizer_library: str = 'tiktoken'
     tokenizer_name: str = "TiktokenTokenizer"
     mapping_type: str = "nvidia-hybrid-nemotronh"
