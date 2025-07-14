@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Type
 
-import nv_one_logger.training_telemetry.api.callbacks as CB # TODO: make the import safe -- the lib may not be installed, and it's ok to skip for users.
+import nv_one_logger.training_telemetry.api.callbacks as CB  # TODO: make the import safe -- the lib may not be installed, and it's ok to skip for users.
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning import Trainer
@@ -181,7 +181,9 @@ class OneLoggerNeMoCallback(Callback):
             return original_method
 
         # If not found, raise AttributeError as normal
-        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'") # TODO: remove this to not raise exception
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{name}'"
+        )  # TODO: remove this to not raise exception
 
     def on_train_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called when training begins."""
@@ -242,22 +244,22 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
     """
     if not hasattr(cls, '__init__'):
         return
-    
+
     original_init = cls.__init__
-    
+
     # Check if already wrapped to avoid double wrapping
     if getattr(original_init, '_one_logger_wrapped', False):
         return
-    
+
     tracker = OneLoggerTimingTracker.get_instance()
-    
+
     @functools.wraps(original_init)
     def wrapped_init(self, *args, **kwargs):
         tracker.track_event(start_callback)
         result = original_init(self, *args, **kwargs)
         tracker.track_event(end_callback)
         return result
-    
+
     # Mark as wrapped to prevent double wrapping
     wrapped_init._one_logger_wrapped = True
     cls.__init__ = wrapped_init

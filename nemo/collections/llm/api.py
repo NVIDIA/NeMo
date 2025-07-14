@@ -50,10 +50,10 @@ from nemo.lightning import (
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
-from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -630,6 +630,7 @@ def deploy(
         trtllm backend).
     """
     import os
+
     import uvicorn
 
     from nemo.deploy import DeployPyTriton

@@ -511,10 +511,9 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
         TrainingTelemetryProvider.instance().configure(training_telemetry_config, exporters)
 
         import nv_one_logger.training_telemetry.api.callbacks as CB
-        from nemo.lightning.one_logger_callback import get_current_time_msec
 
         # Mark OneLogger as available for the OneLoggerTimingTracker
-        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker, get_current_time_msec
 
         OneLoggerTimingTracker.mark_one_logger_available()
 
