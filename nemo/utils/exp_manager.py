@@ -74,6 +74,7 @@ try:
     from nv_one_logger.api.config import ApplicationType, OneLoggerErrorHandlingStrategy
     from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
+
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError) as e:
     HAVE_ONELOGGER = False
@@ -453,11 +454,11 @@ class DeltaTimingCallback(Callback):
 
 def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trainer] = None) -> None:
     """Configure OneLogger using v1 adapter for compatibility with existing downstream consumers."""
-    
+
     # Check if OneLogger is available
     if not HAVE_ONELOGGER:
         return
-    
+
     try:
         from nv_one_logger.training_telemetry.v1_adapter import configure_v2_adapter
         from pytorch_lightning.plugins.io import AsyncCheckpointIO
@@ -472,7 +473,7 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
             metadata = MetaInfoManager(cfg).get_metadata()
         except Exception as e:
             metadata = {}
-        
+
         world_size = metadata.get("world_size", -1)
 
         # Override enable_for_current_rank to use rank 0 logic instead of MetaInfoManager's
@@ -493,22 +494,18 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
             "one_logger_async": False,  # Use sync exporter for simplicity
             "one_logger_project": metadata.get("app_name", "nemo-training"),
             "one_logger_run_name": f"nemo-session-{uuid.uuid4()}",
-            
             # Logging configuration
             "log_every_n_train_iterations": cfg.get("log_interval", 10),
             "app_tag_run_version": "1.0.0",
             "summary_data_schema_version": "1.0.0",
             "app_run_type": "training",
-            
             # Training configuration
             "world_size": metadata.get("world_size", 1),
             "global_batch_size": metadata.get("global_batch_size", 1),
             "micro_batch_size": metadata.get("micro_batch_size", 1),
-            
             # Training targets
             "train_iterations_target": metadata.get("train_iterations_target", 1),
             "train_samples_target": metadata.get("train_samples_target", 1),
-            
             # Feature flags
             "is_train_iterations_enabled": metadata.get("is_train_iterations_enabled", True),
             "is_baseline_run": False,
@@ -516,20 +513,15 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
             "is_validation_iterations_enabled": metadata.get("is_validation_iterations_enabled", True),
             "is_save_checkpoint_enabled": metadata.get("is_save_checkpoint_enabled", True),
             "is_log_throughput_enabled": metadata.get("is_log_throughput_enabled", False),
-            
             # Checkpoint strategy
             "save_checkpoint_strategy": save_checkpoint_strategy,
-            
             # Performance metrics
             "flops_per_sample": metadata.get("flops_per_sample", None),
-            
             # App tags
             "app_tag": metadata.get("perf_tag", "default"),
             "app_tag_run_name": metadata.get("session_tag", "nemo-session"),
-            
             # Metadata - pass all metadata for custom_metadata
             "metadata": metadata,
-            
             # Error handling
             "quiet": False,  # Don't suppress errors
         }
@@ -539,6 +531,7 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
 
         # Mark OneLogger as available for the OneLoggerTimingTracker
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
         OneLoggerTimingTracker.mark_one_logger_available()
 
         # Add the OneLogger callback to the trainer if provided
@@ -552,7 +545,7 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
                     callback_config=metadata, log_interval=cfg.get("log_interval", 10)
                 )
                 trainer.callbacks.append(onelogger_callback)
- 
+
     except Exception as e:
         raise
 
