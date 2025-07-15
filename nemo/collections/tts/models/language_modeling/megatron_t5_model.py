@@ -18,7 +18,13 @@ import math
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
 
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import build_train_valid_test_datasets
+
+    HAVE_NLP = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_NLP = False
+
 from nemo.collections.tts.models.language_modeling.megatron_lm_encoder_decoder_model import (
     MegatronLMEncoderDecoderModel,
 )
