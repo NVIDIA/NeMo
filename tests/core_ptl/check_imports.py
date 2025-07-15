@@ -147,6 +147,7 @@ def test_domain_asr(args):
     if not all_passed:
         exit(1)
 
+
 def test_domain_tts(args):
     import nemo.collections.tts as nemo_tts
 
