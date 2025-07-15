@@ -28,7 +28,9 @@ from flask_restful import Api, Resource
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 try:
-    from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
+    from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
+        MMapRetrievalIndexedDataset,
+    )
 except (ImportError, ModuleNotFoundError):
     from abc import ABC
 
@@ -44,7 +46,12 @@ class FaissRetrievalResource(Resource):
     """
 
     def __init__(
-        self, index, tokenizer, ds, query_bert_ip, query_bert_port,
+        self,
+        index,
+        tokenizer,
+        ds,
+        query_bert_ip,
+        query_bert_port,
     ):
         # server
         self.index = index
