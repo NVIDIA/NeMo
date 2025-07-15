@@ -517,6 +517,7 @@ class NeMoMultimodalConversationJsonlAdapter:
     token_equivalent_duration: float = None
     shuffle_shards: bool = False
     shard_seed: Union[int, Literal["trng", "randomized"]] = "trng"
+    system_prompt: str | None = None
 
     def __post_init__(self):
         self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
@@ -559,24 +560,27 @@ class NeMoMultimodalConversationJsonlAdapter:
                     ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}.\nBad inputs in: {jsonl_path=} {tar_path=}"
                     cuts.append(cut)
                 cuts = deque(cuts)
+                turns = [
+                    (
+                        TextTurn(
+                            value=turn["value"],
+                            role=turn["from"].lower(),
+                        )
+                        if turn["type"] == "text"
+                        else AudioTurn(
+                            cut=(c := cuts.popleft()),
+                            text=c.supervisions[0].text if c.supervisions else None,
+                            role=turn["from"].lower(),
+                            audio_locator_tag=self.audio_locator_tag,
+                        )
+                    )
+                    for turn in data["conversations"]
+                ]
+                if self.system_prompt is not None and turns[0].role != "system":
+                    turns = [TextTurn(role="system", value=self.system_prompt)] + turns
                 yield NeMoMultimodalConversation(
                     id=data["id"],
-                    turns=[
-                        (
-                            TextTurn(
-                                value=turn["value"],
-                                role=turn["from"].lower(),
-                            )
-                            if turn["type"] == "text"
-                            else AudioTurn(
-                                cut=(c := cuts.popleft()),
-                                text=c.supervisions[0].text if c.supervisions else None,
-                                role=turn["from"].lower(),
-                                audio_locator_tag=self.audio_locator_tag,
-                            )
-                        )
-                        for turn in data["conversations"]
-                    ],
+                    turns=turns,
                     token_equivalent_duration=self.token_equivalent_duration,
                     custom=data.get("custom"),
                 )
@@ -590,24 +594,27 @@ class NeMoMultimodalConversationJsonlAdapter:
             for data in load_jsonl(path):
                 if self._should_skip(data):
                     continue
+                turns = [
+                    (
+                        TextTurn(
+                            value=turn["value"],
+                            role=turn["from"].lower(),
+                        )
+                        if turn["type"] == "text"
+                        else AudioTurn(
+                            cut=(cut := Recording.from_file(get_full_path(turn["value"], path)).to_cut()),
+                            text=cut.supervisions[0].text if cut.supervisions else None,
+                            role=turn["from"].lower(),
+                            audio_locator_tag=self.audio_locator_tag,
+                        )
+                    )
+                    for turn in data["conversations"]
+                ]
+                if self.system_prompt is not None and turns[0].role != "system":
+                    turns = [TextTurn(role="system", value=self.system_prompt)] + turns
                 yield NeMoMultimodalConversation(
                     id=data["id"],
-                    turns=[
-                        (
-                            TextTurn(
-                                value=turn["value"],
-                                role=turn["from"].lower(),
-                            )
-                            if turn["type"] == "text"
-                            else AudioTurn(
-                                cut=(cut := Recording.from_file(get_full_path(turn["value"], path)).to_cut()),
-                                text=cut.supervisions[0].text if cut.supervisions else None,
-                                role=turn["from"].lower(),
-                                audio_locator_tag=self.audio_locator_tag,
-                            )
-                        )
-                        for turn in data["conversations"]
-                    ],
+                    turns=turns,
                     token_equivalent_duration=self.token_equivalent_duration,
                     custom=data.get("custom"),
                 )

@@ -291,6 +291,7 @@ def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool
             token_equivalent_duration=config.get("token_equivalent_duration"),
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
+            system_prompt=config.get("tags", {}).get("system_prompt"),
         )
     )
     if not config.get("force_finite", False):
@@ -564,6 +565,8 @@ def s2s_cut_to_conversation(
         else:
             raise ValueError(f"Speaker '{turn_speaker}' not found in user or agent roles for cut {cut.id}")
         idx += 1
+    if hasattr(cut, "system_prompt") and all(t.role != "system" for t in turns):
+        turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
 
     return NeMoMultimodalConversation(
         id=cut.id,
