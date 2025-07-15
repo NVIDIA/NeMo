@@ -102,8 +102,9 @@ def initialize_model_parallel_for_nemo(
     use_gloo_process_groups: bool = True,
 ):
     """Initialize model parallel groups in NeMo."""
-    assert pipeline_model_parallel_split_rank is None or pipeline_model_parallel_split_rank == 0, \
-        "pipeline_model_parallel_split_rank is deprecated."
+    assert (
+        pipeline_model_parallel_split_rank is None or pipeline_model_parallel_split_rank == 0
+    ), "pipeline_model_parallel_split_rank is deprecated."
     assert encoder_pipeline_model_parallel_size == 0 and (
         encoder_tensor_model_parallel_size == 0 or encoder_tensor_model_parallel_size == tensor_model_parallel_size
     ), (
