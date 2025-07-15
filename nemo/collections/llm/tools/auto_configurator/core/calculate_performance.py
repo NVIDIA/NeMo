@@ -369,7 +369,9 @@ def get_config(run_name: str) -> tuple:
         vp = int(params["vp"]) if params.get("vp") is not None else None
         gbs = int(params.get("gbs"))
     except (ValueError, KeyError, TypeError) as e:
-        raise ValueError(f"Missing or invalid configuration parameters in '{run_name}': {e}. Expected integer values for all parallelism settings.")
+        raise ValueError(
+            f"Missing or invalid configuration parameters in '{run_name}': {e}. Expected integer values for all parallelism settings."
+        )
 
     return (tp, pp, cp, ep, mbs, vp, gbs)
 
