@@ -26,7 +26,14 @@ from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
+
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MMapRetrievalIndexedDataset = ABC
+
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
 
 

@@ -27,10 +27,15 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
 )
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
+
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+    from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+        MegatronPretrainingBatchSampler,
+    )
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
 from nemo.utils import logging
 
 

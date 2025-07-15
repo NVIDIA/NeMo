@@ -24,10 +24,17 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+        MegatronPretrainingRandomSampler,
+        MegatronPretrainingSampler,
+    )
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronPretrainingRandomSampler = ABC
+    MegatronPretrainingSampler = ABC
+
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (

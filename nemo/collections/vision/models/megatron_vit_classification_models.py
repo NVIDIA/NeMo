@@ -24,7 +24,13 @@ from lightning.pytorch.accelerators import CPUAccelerator
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
 
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronPretrainingSampler = ABC
+
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (

@@ -22,10 +22,16 @@ import torch
 from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import (
-    _get_header_conversation_type_mask_role,
-    get_prompt_template_example,
-)
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import (
+        _get_header_conversation_type_mask_role,
+        get_prompt_template_example,
+    )
+
+    HAVE_NLP = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_NLP = False
+
 from nemo.collections.nlp.modules.common.retro_inference_strategies import (
     RetroModelTextGenerationStrategy,
     RetroQAModelTextGenerationStrategy,
