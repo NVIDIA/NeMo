@@ -34,11 +34,11 @@ class ToAudio(torch.utils.data.Dataset):
             return audios, audio_lens, tokens, token_lens
 
 
-def get_lhotse_dataloader(cuts, batch_size, return_dict=False):
+def get_lhotse_dataloader(cuts, batch_size, return_dict=False,num_workers=1):
     dloader = torch.utils.data.DataLoader(
         dataset=ToAudio(return_dict=return_dict),
         sampler=lhotse.dataset.DynamicCutSampler(cuts, max_cuts=batch_size),
-        num_workers=1,
+        num_workers=num_workers,
         batch_size=None,
     )
     return dloader

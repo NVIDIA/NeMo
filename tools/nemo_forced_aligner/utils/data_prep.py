@@ -730,6 +730,7 @@ def get_batch_variables(
 
         # audio_filepaths_batch = [manifest_lines_batch['cuts'][i].id for i in range(manifest_lines_batch['audios'].shape[0])]
         audio_filepaths_batch = [cut.id for cut in manifest_lines_batch]
+        audio_durations = {cut.id: cut.duration for cut in manifest_lines_batch}
         B = len(manifest_lines_batch)
         # text_batch = [ {"text": manifest_lines_batch['text'][i]} for i in range(len(manifest_lines_batch['text']))]
 
@@ -864,9 +865,11 @@ def get_batch_variables(
                 "Don't have attribute 'sample_rate' in 'model.cfg.preprocessor' => cannot calculate start "
                 " and end time of segments => stopping process"
             )
-
-        with sf.SoundFile(audio_filepaths_batch[0]) as f:
-            audio_dur = f.frames / f.samplerate
+        if load_lhotse_tarred:
+            audio_dur = audio_durations[audio_filepaths_batch[0]]
+        else:
+            with sf.SoundFile(audio_filepaths_batch[0]) as f:
+                audio_dur = f.frames / f.samplerate
         n_input_frames = audio_dur / model.cfg.preprocessor.window_stride
         model_downsample_factor = round(n_input_frames / int(T_batch[0]))
 
