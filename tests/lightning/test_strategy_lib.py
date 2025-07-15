@@ -146,6 +146,7 @@ def test_init_model_parallel(mock_mpu, *args):
         order="tp-cp-ep-dp-pp",
         num_distributed_optimizer_instances=1,
         nccl_communicator_config_path=None,
+        create_gloo_process_groups=True,
     )
 
 
@@ -184,6 +185,7 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
         order="tp-cp-ep-pp-dp",
         num_distributed_optimizer_instances=1,
         nccl_communicator_config_path=None,
+        create_gloo_process_groups=True,
     )
 
 
