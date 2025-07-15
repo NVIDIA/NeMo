@@ -1046,14 +1046,26 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
 
 def model_inference_strategy_dispatcher(model, **args):
     from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-        MegatronGPTPromptLearningModel,
-    )
-    from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
-    from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
-    from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-    from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
+
+    try:
+        from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+        from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
+            MegatronGPTPromptLearningModel,
+        )
+        from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
+        from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
+        from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
+        from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
+    except (ImportError, ModuleNotFoundError):
+        from abc import ABC
+
+        MegatronGPTModel = ABC
+        MegatronGPTPromptLearningModel = ABC
+        MegatronGriffinModel = ABC
+        MegatronMambaModel = ABC
+        MegatronRetrievalModel = ABC
+        MegatronRetroModel = ABC
+    
     from nemo.collections.nlp.modules.common.retro_inference_strategies import (
         RetroFileQAModelTextGenerationStrategy,
         RetroModelTextGenerationStrategy,

@@ -34,7 +34,14 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPTextTransformer,
     CLIPVisionTransformer,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+
+try:
+    from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronBaseModel = ABC
+
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank, torch_dtype_from_precision

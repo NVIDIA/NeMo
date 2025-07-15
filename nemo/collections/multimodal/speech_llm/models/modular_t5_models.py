@@ -39,9 +39,18 @@ from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
     AudioPerceptionModule,
     MultiAudioPerceptionModule,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
+
+try:
+    from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
+    from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
+    from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronT5LoraModel = ABC
+    MegatronT5Model = ABC
+    MegatronT5SFTModel = ABC
+
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,

@@ -20,7 +20,7 @@ from omegaconf.dictconfig import DictConfig
 from torch import Tensor
 
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.tts.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common import (
     PromptEncoder,
     PromptEncoderType,

@@ -35,8 +35,8 @@ from omegaconf.omegaconf import open_dict
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceSpeechLLMTTSTokenizer
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
+from nemo.collections.tts.models.language_modeling.megatron_t5_model import MegatronT5Model
+from nemo.collections.tts.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
     MegatronTokenLevelEncoderDecoderSpeechLLMModule,
 )
