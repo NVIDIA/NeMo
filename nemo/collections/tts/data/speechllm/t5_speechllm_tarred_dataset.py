@@ -30,9 +30,9 @@ from nemo.collections.asr.data.audio_to_text import (
     shard_manifests_if_needed,
 )
 from nemo.collections.common.parts.preprocessing import collections
-from nemo.collections.tts.models.language_modeling.megatron_t5_model import T5Sentinel
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.tts.models.language_modeling.megatron_t5_model import T5Sentinel
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.collections.tts.parts.utils.tts_dataset_utils import beta_binomial_prior_distribution, general_padding
 from nemo.core.classes import IterableDataset

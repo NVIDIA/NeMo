@@ -28,7 +28,6 @@ from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
     MegatronPretrainingRandomSampler,
     MegatronPretrainingSampler,
 )
-from nemo.collections.tts.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
@@ -43,6 +42,7 @@ from nemo.collections.nlp.modules.common.text_generation_utils import (
     get_sampling_token_fn,
 )
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.tts.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.utils import AppState, logging
 
 try:

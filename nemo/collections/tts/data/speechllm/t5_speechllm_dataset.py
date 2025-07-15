@@ -30,9 +30,9 @@ from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import get_ipa_punctuation_list
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import any_locale_text_preprocessing
 from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import BasePromptLearningDataset
-from nemo.collections.tts.models.language_modeling.megatron_t5_model import T5Sentinel
 from nemo.collections.nlp.modules.common import VirtualPromptSource
 from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.tts.models.language_modeling.megatron_t5_model import T5Sentinel
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     BetaBinomialInterpolator,
