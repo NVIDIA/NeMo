@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,10 @@ from collections.abc import Mapping, Sequence
 from io import BytesIO
 from pathlib import Path
 from typing import Generator, Iterable, List, Literal
+import urllib3
 
+import requests
+import aistore
 import soundfile
 from cytoolz import groupby
 from lhotse import AudioSource, MonoCut, Recording, SupervisionSegment
@@ -33,6 +36,9 @@ from lhotse.utils import compute_num_samples, ifnone
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging
 from nemo.utils.data_utils import is_datastore_path
+
+import torch
+import torch.distributed
 
 
 class LazyNeMoIterator:
@@ -306,6 +312,8 @@ class LazyNeMoTarredIterator:
 
         self.tar_paths = expand_sharded_filepaths(tar_paths)
         tar_pattern = re.compile(r"audio[^/]*_(\d+)[^/]*\.tar")
+        tar_pattern = re.compile(r"(?:audio|manifest)[^/]*_(\d+)[^/]*\.tar")
+
         shard_ids = []
         for p in self.tar_paths:
             m = tar_pattern.search(p)
@@ -359,20 +367,47 @@ class LazyNeMoTarredIterator:
         return sorted(self.shard_id_to_manifest.keys())
 
     def _iter_sequential(self, tar_path, shard_manifest, manifest_path) -> Generator[tuple[dict, bytes], None, None]:
-        with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
-            for tar_info in tar:
-                try:
-                    data = shard_manifest[tar_info.name]
-                    raw_audio = tar.extractfile(tar_info).read()
-                    yield data, raw_audio, tar_info
-                except KeyError as e:
-                    if self.skip_missing_manifest_entries:
-                        continue
-                    else:
-                        raise RuntimeError(
-                            f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                            f"Cannot locate JSON entry for tar file '{tar_info.name}'"
-                        ) from e
+        try:
+            with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
+                for tar_info in tar:
+                    try:
+                        data = shard_manifest[tar_info.name]
+                        raw_audio = tar.extractfile(tar_info).read()
+                        yield data, raw_audio, tar_info
+                    except KeyError as e:
+                        if self.skip_missing_manifest_entries:
+                            continue
+                        else:
+                            raise RuntimeError(
+                                f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
+                                f"Cannot locate JSON entry for tar file '{tar_info.name}'"
+                            ) from e
+        except (aistore.sdk.errors.ErrObjNotFound, requests.exceptions.RequestException, urllib3.exceptions.HTTPError, ValueError) as e:
+            # # Get worker info to identify which worker is having trouble
+            # worker_info = torch.utils.data.get_worker_info()
+            # worker_id = worker_info.id if worker_info is not None else 0
+            # num_workers = worker_info.num_workers if worker_info is not None else 1
+            
+            # # Include process rank information
+            # rank = 0
+            # if torch.distributed.is_initialized():
+            #     rank = torch.distributed.get_rank()
+                
+            # logging.warning(f"Tar file {tar_path} not found. [worker {worker_id}/{num_workers}, rank {rank}] {e}")
+            logging.warning(f"Tar file {tar_path} not found. {e}")
+
+        # except Exception as e:
+        #     # Get worker info to identify which worker is having trouble
+        #     worker_info = torch.utils.data.get_worker_info()
+        #     worker_id = worker_info.id if worker_info is not None else 0
+        #     num_workers = worker_info.num_workers if worker_info is not None else 1
+            
+        #     # Include process rank information
+        #     rank = 0
+        #     if torch.distributed.is_initialized():
+        #         rank = torch.distributed.get_rank()
+                
+        #     logging.warning(f"Error reading tar file {tar_path}: {e} [worker {worker_id}/{num_workers}, rank {rank}]")
 
     def __iter__(self) -> Generator[Cut, None, None]:
         shard_ids = self.shard_ids
@@ -402,7 +437,23 @@ class LazyNeMoTarredIterator:
             tar_path = self.shard_id_to_tar_path[sid]
             try:
                 for data, raw_audio, tar_info in self._iter_sequential(tar_path, shard_manifest, manifest_path):
-                    meta = soundfile.info(BytesIO(raw_audio))
+                    try:
+                        meta = soundfile.info(BytesIO(raw_audio))
+                    except Exception as e:
+                        # Get worker info to identify which worker is having trouble
+                        worker_info = torch.utils.data.get_worker_info()
+                        worker_id = worker_info.id if worker_info is not None else 0
+                        num_workers = worker_info.num_workers if worker_info is not None else 1
+                        
+                        # Include process rank information
+                        rank = 0
+                        if torch.distributed.is_initialized():
+                            rank = torch.distributed.get_rank()
+                            
+                        logging.warning(
+                            f"Skipping audio file due to read errors (unstable storage or bad file? here): {tar_info.name} [worker {worker_id}/{num_workers}, rank {rank}]"
+                        )
+                        continue
                     recording = Recording(
                         id=tar_info.path,
                         sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
@@ -439,8 +490,18 @@ class LazyNeMoTarredIterator:
                     del raw_audio
                     yield from cuts_for_recording
             except tarfile.ReadError:
+                # Get worker info to identify which worker is having trouble
+                worker_info = torch.utils.data.get_worker_info()
+                worker_id = worker_info.id if worker_info is not None else 0
+                num_workers = worker_info.num_workers if worker_info is not None else 1
+                
+                # Include process rank information
+                rank = 0
+                if torch.distributed.is_initialized():
+                    rank = torch.distributed.get_rank()
+                
                 logging.warning(
-                    f"Skipping tar file due to read errors (unstable storage or bad file?): {tar_path=}",
+                    f"Skipping tar file due to read errors (unstable storage or bad file?): {tar_path=} [worker {worker_id}/{num_workers}, rank {rank}]",
                 )
 
     def __len__(self) -> int:
