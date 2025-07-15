@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,9 +99,11 @@ def init_parallel_ranks(
         init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
         and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
         use_te_rng_tracker=getattr(parallel_config, "use_te_rng_tracker", False),
+        use_sharp=getattr(parallel_config, "use_sharp", False),
         use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
         num_distributed_optimizer_instances=getattr(parallel_config, "num_distributed_optimizer_instances", 1),
         nccl_communicator_config_path=getattr(parallel_config, "nccl_communicator_config_path", None),
+        use_gloo_process_groups=getattr(parallel_config, "use_gloo_process_groups", True),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -133,9 +135,11 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
+                use_sharp=app_state.use_sharp,
                 order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
                 num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
                 nccl_communicator_config_path=app_state.nccl_communicator_config_path,
+                create_gloo_process_groups=app_state.use_gloo_process_groups,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -651,6 +655,9 @@ def setup_megatron_optimizer(
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 
     from nemo.core.optim import McoreDistributedOptimizer
+    from nemo.utils import AppState
+
+    app_state = AppState()
 
     assert isinstance(config, OptimizerConfig), f"Expected OptimizerConfig, got {type(config)}"
 
@@ -681,6 +688,7 @@ def setup_megatron_optimizer(
         no_weight_decay_cond=no_weight_decay_cond,
         scale_lr_cond=scale_lr_cond,
         lr_mult=lr_mult,
+        use_gloo_process_groups=app_state.use_gloo_process_groups,
     )
     # Pytorch does not have the concept of an `lr_mult` or a `wd_mult` but these are added to param
     # groups in megatron to control which sub-modules have different learning rates or weight

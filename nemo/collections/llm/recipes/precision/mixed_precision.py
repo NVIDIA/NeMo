@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,7 +98,7 @@ def bf16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg = bf16_mixed()
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = "mxfp8"
-    cfg.fp8_param_gather = False
+    cfg.fp8_param_gather = True
     return cfg
 
 
@@ -111,7 +111,7 @@ def fp16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg = fp16_mixed()
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = "mxfp8"
-    cfg.fp8_param_gather = False
+    cfg.fp8_param_gather = True
     return cfg
 
 

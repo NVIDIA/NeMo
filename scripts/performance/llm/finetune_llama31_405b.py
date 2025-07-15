@@ -18,24 +18,20 @@ import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
 
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama31_405b import finetune_recipe, model
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_h100_h16384_tp4_mbs1_seqlen2048_lora,
 )
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
 from ..utils import (
-    args_sanity_check,
     get_comm_overlap_callback_idx,
-    get_user_configs,
     hf_tokenizer,
     import_ckpt_experiment,
-    isfile_train_pack_metadata,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
+    prepare_squad_dataset_experiment,
 )
 
 HF_MODEL_URI = "meta-llama/Llama-3.1-405B"
@@ -45,6 +41,10 @@ HF_MODEL_URI = "meta-llama/Llama-3.1-405B"
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
 SKIP_IMPORT = False
+
+# Set this to True if dataset is already downloaded. If set to False,
+# dataset will be downloaded from HuggingFace
+SKIP_DATASET_DOWNLOAD = False
 
 
 def override_recipe_configs(
@@ -85,10 +85,14 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_user_buffer_registration=args.use_user_buffer_registration,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        nccl_communicator_config_path=args.nccl_communicator_config_path,
+        use_sharp=args.use_sharp,
     )
     recipe = set_exp_logging_configs(
         recipe,
@@ -103,18 +107,13 @@ def override_recipe_configs(
 
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
-        # flag is valid only for SquadDataModule
-        recipe.data.force_redownload = True
+
+    comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
+    assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
     if finetuning_scheme == "lora" and tp_size > 1 and args.compute_dtype.lower() == "fp8":
         tp_comm_overlap_cfg = userbuffers_fp8_h100_h16384_tp4_mbs1_seqlen2048_lora if tp_size == 4 else None
         if tp_comm_overlap_cfg:
-            comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-            assert (
-                comm_overlap_callback_idx is not None
-            ), "MegatronCommOverlapCallback missing. Required for performance."
-
             # Enable TP comm overlap with the given config
             recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = True
             tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
@@ -175,6 +174,7 @@ if __name__ == "__main__":
     exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -187,6 +187,7 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
     )
 
     plugins = [
@@ -198,11 +199,18 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+        if not SKIP_DATASET_DOWNLOAD:
+            exp.add(
+                *prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home)
+            )
         exp.add(
             recipe,
             executor=executor,

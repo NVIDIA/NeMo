@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ def test_mixtral_config():
     assert config.num_moe_experts == 8
     assert config.moe_aux_loss_coeff == 0.01
     assert config.moe_router_topk == 2
-    assert config.moe_router_pre_softmax is True
+    assert config.moe_router_pre_softmax is False
     assert config.moe_token_dispatcher_type == "alltoall"
     assert config.moe_router_load_balancing_type == "aux_loss"
     assert config.init_method_std == 0.02

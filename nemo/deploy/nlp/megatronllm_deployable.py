@@ -80,6 +80,9 @@ class MegatronLLMDeploy:
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         context_parallel_size: int = 1,
+        max_batch_size: int = 32,
+        random_seed: Optional[int] = None,
+        enable_flash_decode: bool = False,
         legacy_ckpt: bool = False,
     ):
         """
@@ -92,6 +95,7 @@ class MegatronLLMDeploy:
             tensor_model_parallel_size (int): Size of the tensor model parallelism.
             pipeline_model_parallel_size (int): Size of the pipeline model parallelism.
             context_parallel_size (int): Size of the context parallelism.
+            enable_flash_decode (bool): Whether to enable flash decode for inference.
 
         Returns:
             ITritonDeployable: An instance of a deployable class compatible with Triton inference server.
@@ -104,10 +108,20 @@ class MegatronLLMDeploy:
                 tensor_model_parallel_size=tensor_model_parallel_size,
                 pipeline_model_parallel_size=pipeline_model_parallel_size,
                 context_parallel_size=context_parallel_size,
+                max_batch_size=max_batch_size,
+                random_seed=random_seed,
+                enable_flash_decode=enable_flash_decode,
                 legacy_ckpt=legacy_ckpt,
             )
         else:
             raise Exception("Only NeMo 2.0 checkpoint is supported.")
+
+
+def dict_to_str(messages):
+    """
+    Serializes dict to str
+    """
+    return json.dumps(messages)
 
 
 class MegatronLLMDeployableNemo2(ITritonDeployable):
@@ -125,6 +139,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         inference_batch_times_seqlen_threshold (int): squence threshold.
         inference_max_seq_length (int): max_seq_length for inference. Required by MCoreEngine (>=0.12). Defaults to
         4096.
+        max_batch_size (int): max batch size for inference. Defaults to 32.
+        random_seed (Optional[int]): random seed for inference. Defaults to None.
+        enable_flash_decode (bool): enable flash decode for inference. Defaults to False.
     """
 
     def __init__(
@@ -140,6 +157,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         params_dtype: torch.dtype = torch.bfloat16,
         inference_batch_times_seqlen_threshold: int = 1000,
         inference_max_seq_length: int = 4096,
+        max_batch_size: int = 32,
+        random_seed: Optional[int] = None,
+        enable_flash_decode: bool = True,
         legacy_ckpt: bool = False,
     ):
         self.nemo_checkpoint_filepath = nemo_checkpoint_filepath
@@ -170,42 +190,35 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             ),
         )
 
-        self.inference_wrapped_model, self.mcore_tokenizer = inference.setup_model_and_tokenizer(
+        self.mcore_engine, self.inference_wrapped_model, self.mcore_tokenizer = inference.setup_mcore_engine(
             path=Path(nemo_checkpoint_filepath),
             trainer=trainer,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             inference_max_seq_length=inference_max_seq_length,
+            max_batch_size=max_batch_size,
+            random_seed=random_seed,
+            enable_flash_decode=enable_flash_decode,
         )
 
     def generate(
-        self,
-        prompts: List[str],
-        max_batch_size: int = 4,
-        inference_params: Optional[CommonInferenceParams] = None,
-        random_seed: Optional[int] = None,
+        self, prompts: List[str], inference_params: Optional[CommonInferenceParams] = None
     ) -> List[InferenceRequest]:
         """
         Generates text based on the provided input prompts.
 
         Args:
             prompts (List[str]): A list of input strings.
-            max_batch_size (int): The maximum batch size used for inference.
             inference_params (Optional[CommonInferenceParams]): Parameters for controlling the inference process.
-            random_seed (Optional[int]): A random seed for reproducibility.
-
         Returns:
             List[InferenceRequest]: A list containing the generated results.
         """
 
         inference_params = inference_params or CommonInferenceParams()
-        results = inference.generate(
-            model=self.inference_wrapped_model,
-            tokenizer=self.mcore_tokenizer,
+        results = self.mcore_engine.generate(
             prompts=prompts,
-            max_batch_size=max_batch_size,
-            random_seed=random_seed,
-            inference_params=inference_params,
+            add_BOS=False,
+            common_inference_params=inference_params,
         )
         return list(results)
 
@@ -219,19 +232,17 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             torch.distributed.broadcast(message, src=0)
             if message == 0:
                 prompts = broadcast_list(data=[None], src=0)
-                max_batch_size, random_seed, temperature, top_k, top_p, num_tokens_to_generate, log_probs = (
-                    broadcast_list(data=[None], src=0)
-                )
+                temperature, top_k, top_p, num_tokens_to_generate, log_probs = broadcast_list(data=[None], src=0)
 
                 inference_params = CommonInferenceParams(
                     temperature=temperature,
-                    top_k=top_k,
-                    top_p=top_p,
+                    top_k=int(top_k),
+                    top_p=float(top_p),
                     num_tokens_to_generate=num_tokens_to_generate,
                     return_log_probs=log_probs,
                 )
 
-                self.generate(prompts, max_batch_size, inference_params, random_seed)
+                self.generate(prompts, inference_params)
             else:
                 return
 
@@ -288,6 +299,8 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="compute_logprob", shape=(-1,), dtype=np.bool_, optional=True),
             Tensor(name="apply_chat_template", shape=(-1,), dtype=np.bool_, optional=True),
+            Tensor(name="n_top_logprobs", shape=(-1,), dtype=np.int_, optional=True),
+            Tensor(name="echo", shape=(-1,), dtype=np.bool_, optional=True),
         )
         return inputs
 
@@ -296,6 +309,7 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         return (
             Tensor(name="sentences", shape=(-1,), dtype=bytes),
             Tensor(name="log_probs", shape=(-1,), dtype=np.single),
+            Tensor(name="top_logprobs", shape=(-1,), dtype=bytes),
         )
 
     @batch
@@ -308,18 +322,20 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         "random_seed",
         "compute_logprob",
         "apply_chat_template",
+        "n_top_logprobs",
+        "echo",
     )
     def triton_infer_fn(self, **inputs: np.ndarray):
         output_infer = {}
         prompts = str_ndarray2list(inputs.pop("prompts"))
-        max_batch_size = inputs.pop("max_batch_size", 32)
-        random_seed = inputs.pop("random_seed", None)
         temperature = inputs.pop("temperature", 1.0)
         top_k = inputs.pop("top_k", 1)
         top_p = inputs.pop("top_p", 0.0)
         num_tokens_to_generate = inputs.pop("max_length", 256)
         log_probs = inputs.pop("compute_logprob", False)
         apply_chat_template = inputs.pop("apply_chat_template", False)
+        top_logprobs = inputs.pop("n_top_logprobs", 0)
+        echo = inputs.pop("echo", False)
         text_only = True
 
         if apply_chat_template:
@@ -334,8 +350,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 broadcast_list(prompts, src=0)
                 broadcast_list(
                     data=[
-                        max_batch_size,
-                        random_seed,
                         temperature,
                         top_k,
                         top_p,
@@ -347,14 +361,18 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
 
         inference_params = CommonInferenceParams(
             temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
+            top_k=int(top_k),
+            top_p=float(top_p),
             num_tokens_to_generate=num_tokens_to_generate,
             return_log_probs=log_probs,
+            top_n_logprobs=top_logprobs,
         )
 
-        results = self.generate(prompts, max_batch_size, inference_params, random_seed)
-        output_texts = [r.generated_text if text_only else r for r in results]
+        results = self.generate(prompts, inference_params)
+        if echo:
+            output_texts = [r.prompt + r.generated_text if text_only else r for r in results]
+        else:
+            output_texts = [r.generated_text if text_only else r for r in results]
         output_texts = self.remove_eos_token(output_texts)
         output_infer = {"sentences": cast_output(output_texts, np.bytes_)}
         if log_probs:
@@ -362,11 +380,35 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             for r in results:
                 # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
                 # to cpu otherwise
-                lp = torch.tensor(r.generated_log_probs).cpu().detach().numpy()
+                if echo:
+                    lp = torch.tensor(r.prompt_log_probs + r.generated_log_probs).cpu().detach().numpy()
+                else:
+                    lp = torch.tensor(r.generated_log_probs).cpu().detach().numpy()
                 if len(lp) == 0:
                     output_log_probs.append([0])
                 else:
                     output_log_probs.append(lp)
-            output_infer["log_probs"] = np.array(output_log_probs)
+            if echo:
+                # if echo, arrays in output_log_probs can have diff len due to diff num of prompt tokens. Pad the
+                # tokens in that case
+                # Find the maximum length
+                max_len = max(len(arr) for arr in output_log_probs)
+                # Pad each array to the maximum length. Pads 0.
+                padded = np.array(
+                    [np.pad(arr, (0, max_len - len(arr)), constant_values=0) for arr in output_log_probs]
+                )
+
+                output_infer["log_probs"] = padded
+            else:
+                output_infer["log_probs"] = np.array(output_log_probs)
+        if top_logprobs:
+            output_top_n_log_probs = []
+            for r in results:
+                # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
+                # to cpu otherwise
+                # TODO: if echo=True add top_logprobs for input tokens once supported
+                top_n_lp = dict_to_str(r.generated_top_n_logprobs)
+                output_top_n_log_probs.append(top_n_lp)
+            output_infer["top_logprobs"] = cast_output(output_top_n_log_probs, np.bytes_)
 
         return output_infer

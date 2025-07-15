@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -182,9 +182,13 @@ class T5Config(TransformerConfig, io.IOMixin):
     vocab_size: Optional[int] = None
     tp_comm_overlap_cfg: Optional[Union[str, dict[str, Any]]] = None
 
-    def configure_model(self, tokenizer) -> "MCoreT5Model":
+    def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreT5Model":
         """Setup the T5 Model based on config definition."""
 
+        assert self.virtual_pipeline_model_parallel_size is None and vp_stage is None, (
+            "Virtual pipeline model parallelism is temporarily unsupported in T5 "
+            "due to upstream MCore T5Model API dependency"
+        )
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -659,17 +663,25 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             "decoder.final_layernorm.weight": "decoder.final_layer_norm.weight",
         }
 
+        if source.config.share_embeddings_and_output_weights:
+            del mapping["lm_head.output_layer.weight"]
+        if source.config.position_embedding_type != 'relative':
+            del mapping["encoder_relative_pos_emb.relative_attention_bias.weight"]
+            del mapping["decoder_relative_pos_emb.relative_attention_bias.weight"]
+
+        transforms = [_export_encoder_qkv, _export_decoder_qkv, _export_decoder_kv]
+        if source.config.gated_linear_unit:
+            transforms.append(_export_encoder_linear_fc1)
+            transforms.append(_export_decoder_linear_fc1)
+        else:
+            mapping['encoder.layers.*.mlp.linear_fc1.weight'] = 'encoder.block.*.layer.1.DenseReluDense.wi.weight'
+            mapping['decoder.layers.*.mlp.linear_fc1.weight'] = 'decoder.block.*.layer.2.DenseReluDense.wi.weight'
+
         return io.apply_transforms(
             source,
             target,
             mapping=mapping,
-            transforms=[
-                _export_encoder_qkv,
-                _export_encoder_linear_fc1,
-                _export_decoder_qkv,
-                _export_decoder_kv,
-                _export_decoder_linear_fc1,
-            ],
+            transforms=transforms,
             state_dict_ignored_entries=["encoder.embed_tokens.weight", "decoder.embed_tokens.weight"],
         )
 
@@ -686,7 +698,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
     @property
     def config(self) -> "HFT5Config":
         """Generate NeMo Config based on HF config"""
-        source: T5Config = io.load_context(str(self)).model.config
+        source: T5Config = io.load_context(str(self), subpath="model.config")
 
         from transformers import T5Config as HFT5Config
 
@@ -713,10 +725,8 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             relative_attention_max_distance=source.relative_attention_max_distance,
             initializer_factor=source.init_method_std,
             layer_norm_epsilon=source.layernorm_epsilon,
-            vocab_size=round_up_to_divisible(
-                self.tokenizer.vocab_size + len(self.tokenizer.additional_special_tokens), 128
-            ),
-            feed_forward_proj="gated-gelu",
+            vocab_size=round_up_to_divisible(self.tokenizer.vocab_size, source.make_vocab_size_divisible_by),
+            feed_forward_proj="gated-gelu" if source.gated_linear_unit else 'gelu',
             tie_word_embeddings=source.share_embeddings_and_output_weights,
             decoder_start_token_id=bos_id,
             pad_token_id=pad_id,

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -62,10 +62,6 @@ Example usage to prune depth by dropping specific model layers (1-indexed):
 
 import argparse
 import os
-
-# Import modelopt first to avoid circular import causing pruning to fail
-# TODO: This can be removed in modelopt 0.27 once modelopt pruning imports nemo inside a function
-import modelopt.torch.prune  # noqa: F401
 
 from nemo.collections import llm
 from nemo.collections.llm.modelopt.prune import PruningConfig

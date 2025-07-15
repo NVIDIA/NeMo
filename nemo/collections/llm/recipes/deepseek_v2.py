@@ -20,12 +20,14 @@ import nemo_run as run
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2Config
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.deepseek import trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "deepseek_v2"
@@ -106,6 +108,10 @@ def pretrain_recipe(
     recipe.model.config.recompute_granularity = "full"
     recipe.model.config.recompute_method = "uniform"
     recipe.model.config.recompute_num_layers = 1
+
+    # Use DeepEP
+    deepep_callback = run.Config(DeepEPCallback)
+    recipe.trainer.callbacks.append(deepep_callback)
 
     return recipe
 
@@ -192,6 +198,7 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        raise ValueError("Packed sequence for DeepSeek is not yet supported. Please set packed_sequence=False.")
+        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
+        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
 
     return recipe

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -94,6 +94,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
         rotary_percent: float = 1.0,
         rotary_base: int = 10000,
         seq_len_interpolation_factor: Optional[float] = None,
+        vp_stage: Optional[int] = None,
     ):
         super().__init__(
             config,
@@ -109,6 +110,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
             rotary_percent,
             rotary_base,
             seq_len_interpolation_factor,
+            vp_stage=vp_stage,
         )
 
         # Overwrite the self.decoder

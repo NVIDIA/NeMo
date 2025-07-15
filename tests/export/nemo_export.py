@@ -108,7 +108,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                         inference_params=CommonInferenceParams(
                             temperature=0.1,
                             top_k=1,
-                            top_p=0,
+                            top_p=0.0,
                             num_tokens_to_generate=1,
                             return_log_probs=False,
                         ),
@@ -119,7 +119,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                         input_texts=[prompt],
                         max_output_len=1,
                         top_k=1,
-                        top_p=0,
+                        top_p=0.0,
                         temperature=0.1,
                         task_ids=task_ids,
                         lora_uids=lora_uids,
@@ -145,7 +145,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                         prompts=[prompt],
                         max_length=1,
                         top_k=1,
-                        top_p=0,
+                        top_p=0.0,
                         temperature=0.1,
                     )
                     # Accessing [0][0] of "text" is to get a raw string entry from a NumPy array
@@ -156,7 +156,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                         prompts=[prompt],
                         max_output_len=1,
                         top_k=1,
-                        top_p=0,
+                        top_p=0.0,
                         temperature=0.1,
                         task_id=task_ids,
                     )
@@ -466,6 +466,7 @@ def run_in_framework_inference(
     run_accuracy=False,
     debug=True,
     test_data_path=None,
+    enable_flash_decode=True,
     legacy_ckpt=False,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if Path(checkpoint_path).exists():
@@ -479,7 +480,9 @@ def run_in_framework_inference(
 
             print("Path: {0} and model: {1} will be tested".format(checkpoint_path, model_name))
 
-        deployed_model = MegatronLLMDeploy.get_deployable(checkpoint_path, num_gpus, legacy_ckpt=legacy_ckpt)
+        deployed_model = MegatronLLMDeploy.get_deployable(
+            checkpoint_path, num_gpus, enable_flash_decode=enable_flash_decode, legacy_ckpt=legacy_ckpt
+        )
 
         nm = DeployPyTriton(
             model=deployed_model,
@@ -661,6 +664,11 @@ def get_args():
         default="False",
     )
     parser.add_argument(
+        "--enable_flash_decode",
+        type=str,
+        default="False",
+    )
+    parser.add_argument(
         "--in_framework",
         type=str,
         default="False",
@@ -729,6 +737,7 @@ def get_args():
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.use_huggingface = str_to_bool("use_huggingface", args.use_huggingface)
+    args.enable_flash_decode = str_to_bool("enable_flash_decode", args.enable_flash_decode)
     args.lora = str_to_bool("lora", args.lora)
     args.ptuning = str_to_bool("ptuning", args.ptuning)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
@@ -794,6 +803,7 @@ def run_inference_tests(args):
                 run_accuracy=args.run_accuracy,
                 debug=args.debug,
                 test_data_path=args.test_data_path,
+                enable_flash_decode=args.enable_flash_decode,
                 legacy_ckpt=args.legacy_ckpt,
             )
         else:

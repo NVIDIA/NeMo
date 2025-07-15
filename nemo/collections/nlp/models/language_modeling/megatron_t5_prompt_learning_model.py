@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
 
 import itertools
 from typing import Any, List
@@ -347,6 +350,9 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         prefix = "test" if self.trainer.testing else "val"
         outputs = self.validation_step_outputs if prefix == 'val' else self.test_step_outputs
 
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss

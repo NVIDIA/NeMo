@@ -52,6 +52,7 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
+from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
 get_current_global_batch_size, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
     "megatron.core.num_microbatches_calculator", "get_current_global_batch_size"
@@ -909,7 +910,8 @@ def check_resume(
 
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank
         # to avoid throttling S3.
-        if is_global_rank_zero() or not is_s3_url(dirpath):
+
+        if is_global_rank_zero() or not (is_s3_url(dirpath) and is_multistorageclient_url(dirpath)):
             checkpoint_dir_exists = False
             if is_s3_url(dirpath):
                 checkpoint_dir = dirpath
@@ -921,6 +923,17 @@ def check_resume(
                     all_keys = S3Utils.find_files_with_suffix(checkpoint_dir, suffix=None, return_key_only=False)
                     end_checkpoints = [k for k in all_keys if k.endswith('end.ckpt')]
                     last_checkpoints = [k for k in all_keys if k.endswith('last.ckpt')]
+                else:
+                    end_checkpoints = []
+                    last_checkpoints = []
+            elif is_multistorageclient_url(dirpath):
+                msc = import_multistorageclient()
+                checkpoint_dir = dirpath
+                all_keys = msc.glob(f"{dirpath}**/*.ckpt")
+                checkpoint_dir_exists = True if all_keys else False
+                if all_keys:
+                    end_checkpoints = sorted([k for k in all_keys if k.endswith('end.ckpt')], reverse=True)
+                    last_checkpoints = sorted([k for k in all_keys if k.endswith('last.ckpt')], reverse=True)
                 else:
                     end_checkpoints = []
                     last_checkpoints = []

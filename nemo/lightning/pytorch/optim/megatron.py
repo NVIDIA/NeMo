@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 from typing import Callable, List, Optional
 
 import lightning.pytorch as pl
@@ -109,4 +108,5 @@ class MegatronOptimizerModule(OptimizerModule):
         return [optimizer]
 
     def finalize_model_grads(self, *args, **kwargs):
+        """Return function to finalize the model gradients."""
         return finalize_model_grads(*args, **kwargs)

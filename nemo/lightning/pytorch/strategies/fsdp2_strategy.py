@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -61,11 +61,7 @@ _logger = _logging.getLogger(__name__)
 
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
-    """FSDP2Strategy implementing FSDP via FSDP 2.
-
-    Notes:
-    - TP + FSDP2 is currently not supported.
-    """
+    """FSDP2Strategy implementing FSDP via FSDP 2."""
 
     def __init__(
         self,
@@ -78,6 +74,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         checkpoint_io=None,
         mp_policy=None,
         parallelize_fn=fsdp2_strategy_parallelize,
+        use_hf_tp_plan: bool = True,
         custom_tp_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
         **kwargs,
     ):
@@ -87,8 +84,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             data_parallel_size (Union[Literal["auto"], int]): Size of data parallel. Defaults to "auto".
             tensor_parallel_size (Union[Literal["auto"], int]): Size of tensor parallel. Defaults to "auto".
             context_parallel_size (optional): Number of context-parallel groups. Defaults to 1.
-            sequence_parallel (bool): Whether to enable sequence parallelism. Defaults to False.
-                Only effective when tensor_parallel_size > 1.
+            sequence_parallel (bool): Whether to enable sequence parallelism when use_hf_tp_plan is False and
+                custom_tp_plan is not provided. Defaults to False. Only effective when tensor_parallel_size > 1.
             data_sampler (optional): Custom data sampler to process dataloaders.
             mp_policy (optional): Mixed precision policy for parameter and operation casting.
                 Defaults to:
@@ -101,7 +98,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 )
                 ```
             parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
-            custom_tp_plan (Optional[Dict[str, Any]]): Custom tensor parallel plan for the model.
+            use_hf_tp_plan (bool, optional): Whether to use the huggingface TP plan. This will be used if
+                custom_tp_plan is not provided. Also, sequence_parallel option will be ignored if use_hf_tp_plan
+                is set to True. Defaults to True.
+            custom_tp_plan (Optional[Dict[str, Any]], optional): Custom tensor parallel plan for the model.
                 tensor_parallel_size need to be > 1 to use this option. If provided, it overrides the
                 default tensor parallel plan. sequence_parallel option will be ignored if custom_tp_plan
                 is provided.
@@ -125,12 +125,19 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self.parallelize_fn = parallelize_fn
         self.offload_policy = offload_policy
         self.sequence_parallel = sequence_parallel
+        self.use_hf_tp_plan = use_hf_tp_plan
 
+        self.tp_shard_plan = None
         if custom_tp_plan is not None:
             self.tp_shard_plan = custom_tp_plan
-            logging.warning(
+            logging.info(
                 "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would ",
                 "not raise errors if the custom TP plan is not compatible. SP option will also be ignored.",
+            )
+        elif self.use_hf_tp_plan:
+            logging.info(
+                "You are using a huggingface TP plan. Make sure your model is a huggingface model. Certain ",
+                "parallelizations might not be supported. SP option will also be ignored.",
             )
         else:
             # Parallelize the first embedding and the last linear out projection
@@ -162,7 +169,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
             self.tp_shard_plan = base_model_tp_plan
             logging.info(
-                "Using default TP plan for parallelization. It is compatible with huggingface llama-style models."
+                "Using default TP plan for parallelization. It is compatible with huggingface llama3-style models."
             )
 
     @property
@@ -225,14 +232,14 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
 
-        # No TP currently
         mesh_shape = []
         mesh_dim_names = []
+        # TP needs to be the last dimension as innermost dimension, DP-CP-TP
         for dim, name in zip(
-            [self._data_parallel_size, self._tensor_parallel_size, self.context_parallel_size],
-            ["data_parallel", "tensor_parallel", "context_parallel"],
+            [self._data_parallel_size, self.context_parallel_size, self._tensor_parallel_size],
+            ["data_parallel", "context_parallel", "tensor_parallel"],
         ):
-            mesh_shape.append(dim)
+            mesh_shape.append(int(dim))
             mesh_dim_names.append(name)
 
         self._device_mesh = init_device_mesh(
@@ -280,6 +287,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 self.lightning_module.model,
                 device_mesh=self._device_mesh,
                 mp_policy=self.mp_policy,
+                use_hf_tp_plan=self.use_hf_tp_plan,
                 tp_shard_plan=self.tp_shard_plan,
                 offload_policy=self.offload_policy,
             )
@@ -526,18 +534,31 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         assert self.lightning_module is not None
-        state_dict = self.lightning_module.state_dict()
-        is_adapter_only = getattr(self._checkpoint_io, 'adapter_only', False)
-        name_has_lora = lambda x: 'lora' in x.lower()
+        tmp_sd = self.lightning_module.state_dict()
+        # Get adapter_only value from checkpoint io. There's two cases:
+        # - nemo.lightning.pytorch.callbacks.peft.WrappedAdapterIO
+        #   In this case, the self._checkpoint_io object is a wrapper and holds a `checkpoint_io`
+        #   attribute which we query for the `adapter_only` attribute
+        # - otherwise, it's the base case which has the adapter_only attribute directly accesible.
+        is_adapter_only = getattr(
+            self._checkpoint_io,
+            'adapter_only',
+            getattr(getattr(self._checkpoint_io, 'checkpoint_io', {}), 'adapter_only', False),
+        )
 
-        module_names = list(state_dict.keys())
-        for name in module_names:
-            param = state_dict.pop(name)
-            # @akoumparouli: refactor this.
+        if is_adapter_only:
             # if any key has "lora" in FQN, then it will only move lora keys to cpu, since only
             # the adapter weights are saved.
-            if (is_adapter_only and name_has_lora(name)) or not is_adapter_only:
-                state_dict[name] = to_cpu(param)
+            name_has_lora = lambda x: 'lora' in x.lower()
+            module_names = list(filter(name_has_lora, tmp_sd.keys()))
+        else:
+            module_names = list(tmp_sd.keys())
+
+        state_dict = {}
+        for name in module_names:
+            param = tmp_sd.pop(name)
+            state_dict[name] = to_cpu(param)
+
         dist.barrier()
         return state_dict
 
