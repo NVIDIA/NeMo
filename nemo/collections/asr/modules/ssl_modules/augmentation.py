@@ -91,13 +91,13 @@ class SpeakerNoiseAugmentation(object):
             # randomly select the length of mixing segment
             if 0 <= self.min_mix_rate < self.max_mix_rate <= 1:
                 mix_len = random.randint(
-                    int(audio_lengths[i] * self.min_mix_rate), int(audio_lengths[i] * self.max_mix_rate)
+                    int(audio_lengths[i] * self.min_mix_rate), int(audio_lengths[i] * self.max_mix_rate) - 1
                 )
             else:
                 mix_len = max(1, int(audio_lengths[i] * self.min_mix_rate))
 
             # randomly select position to start the mixing
-            mix_start_idx = random.randint(0, audio_lengths[i] - mix_len)
+            mix_start_idx = random.randint(0, audio_lengths[i] - mix_len - 1)
 
             # randomly select the energy ratio between speech and noise
             if random.random() < self.noise_ratio or batch_size == 1:
@@ -116,7 +116,7 @@ class SpeakerNoiseAugmentation(object):
                 noise_len[i] = mix_len
             else:
                 # randomly select a segment of noise
-                noise_start_idx = random.randint(0, noise_len[i] - mix_len)
+                noise_start_idx = random.randint(0, noise_len[i] - mix_len - 1)
 
             # calculate the scale factor for noise
             audio_energy = torch.sum(audio_signal[i, : audio_lengths[i]] ** 2) / audio_lengths[i]
@@ -190,8 +190,8 @@ class MultiSpeakerNoiseAugmentation(SpeakerNoiseAugmentation):
             mix_len = max(1, int(audio_lengths[i] * mix_rate))
 
             # randomly select the number of segments
-            num_segments = random.randint(self.min_num_segments, self.max_num_segments + 1)
-            num_speakers = random.randint(self.min_num_speakers, self.max_num_speakers + 1)
+            num_segments = random.randint(self.min_num_segments, self.max_num_segments)
+            num_speakers = random.randint(self.min_num_speakers, self.max_num_speakers)
             num_speakers = min(num_speakers, batch_size)
 
             # randomly chunk mix_len into num_segments
@@ -212,7 +212,7 @@ class MultiSpeakerNoiseAugmentation(SpeakerNoiseAugmentation):
             for j in range(num_segments):
                 start_idx = min_start_idx
                 if min_start_idx < max_start_idx:
-                    start_idx = random.randint(min_start_idx, max_start_idx)
+                    start_idx = random.randint(min_start_idx, max_start_idx - 1)
                 noise_signal[start_idx : start_idx + segment_lens[j]] = noise_segments[j]
                 min_start_idx = start_idx + segment_lens[j]
                 max_start_idx += segment_lens[j]
@@ -266,11 +266,11 @@ class MultiSpeakerNoiseAugmentation(SpeakerNoiseAugmentation):
                     self.repeat_noise(audio_signal[bid], audio_lengths[bid], seg_len), seg_len
                 )
             else:
-                start_idx = random.randint(0, audio_lengths[bid] - seg_len) if audio_lengths[bid] > seg_len else 0
+                start_idx = random.randint(0, audio_lengths[bid] - seg_len - 1) if audio_lengths[bid] > seg_len else 0
                 audio_segment = audio_signal[bid][start_idx : start_idx + seg_len].clone()
             noise_segments.append(audio_segment)
             sid += 1
             if sid >= len(speaker_candidates):
-                sid = random.randint(0, len(speaker_candidates))
+                sid = random.randint(0, len(speaker_candidates) - 1)
 
         return noise_segments
