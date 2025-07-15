@@ -34,7 +34,9 @@ from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import get_ip
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import any_locale_text_preprocessing
 
 try:
-    from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import BasePromptLearningDataset
+    from nemo.collections.nlp.data.language_modeling.megatron.base_prompt_learning_dataset import (
+        BasePromptLearningDataset,
+    )
 except (ImportError, ModuleNotFoundError):
     from abc import ABC
 
