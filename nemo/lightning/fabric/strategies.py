@@ -425,8 +425,6 @@ class FabricMegatronStrategy(DDPStrategy):
         metadata = {}
         if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer:
             metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
-        # This ensures correct sharding logic for ChainedOptimizer:
-        metadata['chained_optim_avoid_prefix'] = True
         return metadata
 
     @contextmanager

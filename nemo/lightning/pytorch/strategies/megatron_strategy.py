@@ -1013,8 +1013,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
             else:
                 metadata["distrib_optim_sharding_type"] = "dp_zero_gather_scatter"
-        # This ensures correct sharding logic for ChainedOptimizer:
-        metadata['chained_optim_avoid_prefix'] = True
         return metadata
 
     def selective_restore(self) -> None:
