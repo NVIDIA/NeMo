@@ -24,7 +24,7 @@ from nemo.core import Model
 from nemo.utils import model_utils
 from nemo.utils.import_utils import UnavailableError
 
-DOMAINS = ['asr', 'tts', 'nlp']
+DOMAINS = ['asr', 'tts']
 
 
 def process_args():
