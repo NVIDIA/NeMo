@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# flake8: noqa
+# pylint: skip-file
+
 """
 https://github.com/timothybrooks/instruct-pix2pix/blob/2afcb7e45bd350765f21a58a0c135871e9dc5a78/stable_diffusion/ldm/models/diffusion/ddpm_edit.py
 """
