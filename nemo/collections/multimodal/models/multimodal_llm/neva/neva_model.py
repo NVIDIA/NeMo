@@ -44,11 +44,22 @@ from nemo.collections.multimodal.parts.utils import create_image_processor, load
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
     get_datasets_weights_and_num_samples,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, get_specs
-from nemo.collections.nlp.models.nlp_model import NLPModel
+
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+    from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
+    from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
+    from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, get_specs
+    from nemo.collections.nlp.models.nlp_model import NLPModel
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    BlendableDataset = ABC
+    MegatronPretrainingSampler = ABC
+    GPTModel = ABC
+    MegatronGPTModel = ABC
+    NLPModel = ABC
+
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName,
     MultimodalProjectorAdapterConfig,
