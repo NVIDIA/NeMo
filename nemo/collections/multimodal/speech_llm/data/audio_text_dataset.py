@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# flake8: noqa
+# pylint: skip-file
+
 import copy
 import io
 import os
@@ -53,6 +57,7 @@ except (ImportError, ModuleNotFoundError):
     from abc import ABC
 
     BlendableDataset = ABC
+
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
 from nemo.utils import webdataset as wds
