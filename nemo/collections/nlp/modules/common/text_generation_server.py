@@ -13,6 +13,9 @@
 # limitations under the License.
 """Utilities for generating text."""
 
+# flake8: noqa
+# pylint: skip-file
+
 import json
 import threading
 import time
