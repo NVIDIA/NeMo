@@ -12,6 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Example of PTQ for Llama4:
+  torchrun --nproc_per_node=8 \
+    scripts/vlm/llama4/llama4_ptq.py \
+    --calibration_tp 8 \
+    --nemo_checkpoint "path/to/nemo_checkpoint" \
+    --output_path "path/to/quantized_nemo_checkpoint" \
+    --algorithm fp8 \
+    --batch_size 1 \
+    --export_format nemo \
+    --legacy_ckpt \
+"""
+
 import argparse
 
 import requests

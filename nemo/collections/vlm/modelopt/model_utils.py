@@ -30,6 +30,9 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
 
 
+__all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
+
+
 def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> None:
     """Set model.config.transformer_layer_spec to modelopt spec if modelopt_state exists in the checkpoint."""
     path = str(path).removeprefix("nemo://")  # Remove nemo:// prefix added by finetune_recipe
