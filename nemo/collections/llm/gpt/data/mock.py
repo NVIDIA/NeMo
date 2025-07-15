@@ -37,7 +37,7 @@ class MockDataModule(pl.LightningDataModule):
         seq_length (int): Sequence length.
         tokenizer (Optional["TokenizerSpec"]): An instance of a TokenizerSpec object.
         micro_batch_size (int): Batch size per GPU.
-        global_batch_size (int): Global batch size per GPU
+        global_batch_size (int): Global batch size
         rampup_batch_size (Optional[List[int]]): Rampup batch size, should be in format of
             [start_global_batch_size, batch_size_increment, ramup_samples].
         num_workers (int): See ``torch.utils.data.DataLoader`` documentation.
