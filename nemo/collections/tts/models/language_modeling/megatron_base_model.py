@@ -30,7 +30,6 @@ from lightning.pytorch.utilities.exceptions import MisconfigurationException
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 
-from nemo.collections.tts.models.language_modeling.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
     clip_grad_norm_distributed_optimizer,
@@ -43,6 +42,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
 from nemo.collections.nlp.parts.utils_funcs import activation_to_func
+from nemo.collections.tts.models.language_modeling.nlp_model import NLPModel
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging, str_to_dtype
 from nemo.utils.get_rank import is_global_rank_zero

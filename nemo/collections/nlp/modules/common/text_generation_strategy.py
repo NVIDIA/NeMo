@@ -1065,7 +1065,7 @@ def model_inference_strategy_dispatcher(model, **args):
         MegatronMambaModel = ABC
         MegatronRetrievalModel = ABC
         MegatronRetroModel = ABC
-    
+
     from nemo.collections.nlp.modules.common.retro_inference_strategies import (
         RetroFileQAModelTextGenerationStrategy,
         RetroModelTextGenerationStrategy,

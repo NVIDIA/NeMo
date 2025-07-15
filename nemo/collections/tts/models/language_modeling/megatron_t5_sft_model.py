@@ -36,10 +36,10 @@ except ModuleNotFoundError:
     SequenceToSequenceDataset = ABC
 
 from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
-from nemo.collections.tts.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.tts.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.utils import AppState, logging
 
 try:
