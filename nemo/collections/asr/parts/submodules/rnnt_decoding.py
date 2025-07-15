@@ -346,15 +346,20 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         if strategy in {TransducerDecodingStrategyType.GREEDY, TransducerDecodingStrategyType.GREEDY_BATCH}:
             ngram_lm_model = self.cfg.greedy.get('ngram_lm_model', None)
+            boosting_tree = self.cfg.greedy.get('boosting_tree', None)
         else:
             ngram_lm_model = self.cfg.beam.get('ngram_lm_model', None)
+            boosting_tree = self.cfg.beam.get('boosting_tree', None)
+        # if boosting_tree.model_path is None and boosting_tree.key_phrases_file is None and boosting_tree.key_phrases_list is None:
+        #     boosting_tree = None
 
         match strategy, model_type:
             # greedy strategy
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.RNNT:
-                if ngram_lm_model is not None:
+                # TODO: add boosting tree for the check
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models."
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended greedy strategy with LM is `greedy_batch`."
                     )
                 self.decoding = rnnt_greedy_decoding.GreedyRNNTInfer(
@@ -369,9 +374,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     confidence_method_cfg=self.confidence_method_cfg,
                 )
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.TDT:
-                if ngram_lm_model is not None:
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree. "
                         f"Recommended greedy strategy with LM is `greedy_batch`."
                     )
                 self.decoding = rnnt_greedy_decoding.GreedyTDTInfer(
@@ -389,9 +394,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     confidence_method_cfg=self.confidence_method_cfg,
                 )
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.MULTI_BLANK:
-                if ngram_lm_model is not None:
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models."
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                     )
                 self.decoding = rnnt_greedy_decoding.GreedyMultiblankRNNTInfer(
                     decoder_model=decoder,
@@ -421,6 +426,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
                     ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
+                    boosting_tree=boosting_tree,
+                    boosting_tree_alpha=self.cfg.greedy.get('boosting_tree_alpha', 0),
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.TDT:
                 self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
@@ -439,11 +446,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     use_cuda_graph_decoder=self.cfg.greedy.get('use_cuda_graph_decoder', True),
                     ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
+                    boosting_tree=boosting_tree,
+                    boosting_tree_alpha=self.cfg.greedy.get('boosting_tree_alpha', 0),
+                    tokenizer=self.tokenizer,
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.MULTI_BLANK:
-                if ngram_lm_model is not None:
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                     )
                 self.decoding = rnnt_greedy_decoding.GreedyBatchedMultiblankRNNTInfer(
                     decoder_model=decoder,
@@ -459,9 +469,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 )
             # beam, maes, alsd, tsd strategies
             case TransducerDecodingStrategyType.BEAM, TransducerModelType.RNNT:
-                if ngram_lm_model is not None:
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
                     )
                 logging.warning(
@@ -479,9 +489,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.BEAM, TransducerModelType.TDT:
-                if ngram_lm_model is not None:
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
                     )
                 logging.warning(
@@ -500,9 +510,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.TSD, TransducerModelType.RNNT:
-                if ngram_lm_model is not None:
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models"
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
                     )
                 logging.warning(
@@ -521,9 +531,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.ALSD, TransducerModelType.RNNT:
-                if ngram_lm_model is not None:
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
-                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models. "
+                        f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
                     )
                 logging.warning(
@@ -598,11 +608,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                     ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                    boosting_tree_model=boosting_tree,
+                    boosting_tree_alpha=self.cfg.beam.get('boosting_tree_alpha', 0.0),
                     blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
                     pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                     score_norm=self.cfg.beam.get('score_norm', True),
                     allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                     return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                    tokenizer=self.tokenizer,
                 )
             case TransducerDecodingStrategyType.MALSD_BATCH, TransducerModelType.TDT:
                 self.decoding = tdt_beam_decoding.BeamBatchedTDTInfer(
@@ -616,11 +629,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                     ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                    boosting_tree=boosting_tree,
+                    boosting_tree_alpha=self.cfg.beam.get('boosting_tree_alpha', 0.0),
                     blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
                     pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                     score_norm=self.cfg.beam.get('score_norm', True),
                     allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                     return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
+                    tokenizer=self.tokenizer,
                 )
             case TransducerDecodingStrategyType.MAES_BATCH, TransducerModelType.RNNT:
                 self.decoding = rnnt_beam_decoding.BeamBatchedRNNTInfer(

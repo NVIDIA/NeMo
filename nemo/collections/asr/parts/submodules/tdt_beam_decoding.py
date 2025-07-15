@@ -38,6 +38,9 @@ from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import pack_hypoth
 from nemo.collections.asr.parts.submodules.tdt_malsd_batched_computer import ModifiedALSDBatchedTDTComputer
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BlankLMScoreMode, PruningMode
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel, BoostingTreeModelConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
@@ -852,10 +855,13 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
+        boosting_tree: Optional[BoostingTreeModelConfig] = None,
+        boosting_tree_alpha: float = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE,
         pruning_mode: Optional[str | PruningMode] = PruningMode.EARLY,
         allow_cuda_graphs: Optional[bool] = True,
         return_best_hypothesis: Optional[str] = True,
+        tokenizer: Optional[TokenizerSpec] = None,
     ):
         """
         Init method.
@@ -889,6 +895,20 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
+
+        # load fusion models from paths (ngram_lm_model and boosting_tree_model)
+        fusion_models, fusion_models_alpha = [], []
+        if ngram_lm_model is not None:
+            fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
+            fusion_models_alpha.append(ngram_lm_alpha)
+        if boosting_tree is not None and (
+            boosting_tree.model_path or boosting_tree.key_phrases_file or boosting_tree.key_phrases_list
+        ):
+            fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
+            fusion_models_alpha.append(boosting_tree_alpha)
+        if not fusion_models:
+            fusion_models = None
+            fusion_models_alpha = None
 
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support
