@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# flake8: noqa
+# pylint: skip-file
+
 from abc import ABC, abstractclassmethod
 from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple, Union
