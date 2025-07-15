@@ -43,6 +43,8 @@ class AudioNoiseItem:
     audio_len: Union[Tensor, None] = None
     noise: Union[Tensor, None] = None
     noise_len: Union[Tensor, None] = None
+    noisy_audio: Union[Tensor, None] = None
+    noisy_audio_len: Union[Tensor, None] = None
 
 
 @dataclass
