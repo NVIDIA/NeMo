@@ -361,15 +361,15 @@ def get_config(run_name: str) -> tuple:
 
     # Convert string values to appropriate types
     try:
-        tp = int(params.get("tp", "1"))
-        pp = int(params.get("pp", "1"))
-        cp = int(params.get("cp", "1"))
-        ep = int(params.get("ep", "1"))
-        mbs = int(params.get("mbs", "1"))
-        vp = params.get("vp", "None")
-        gbs = int(params.get("gbs", "512"))
-    except (ValueError, KeyError) as e:
-        raise ValueError(f"Could not parse configuration from {run_name}: {e}")
+        tp = int(params.get("tp"))
+        pp = int(params.get("pp"))
+        cp = int(params.get("cp"))
+        ep = int(params.get("ep"))
+        mbs = int(params.get("mbs"))
+        vp = int(params["vp"]) if params.get("vp") is not None else None
+        gbs = int(params.get("gbs"))
+    except (ValueError, KeyError, TypeError) as e:
+        raise ValueError(f"Missing or invalid configuration parameters in '{run_name}': {e}. Expected integer values for all parallelism settings.")
 
     return (tp, pp, cp, ep, mbs, vp, gbs)
 

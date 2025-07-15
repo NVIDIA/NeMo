@@ -229,7 +229,7 @@ def _set_activations_checkpoint_params(
 
 @dataclass
 class GPT3GridSearch:
-    """Selects grid search space for TP, PP, CP, EP, MBS, gbs parameters for GPT-3 and 80GB GPUs.
+    """Selects grid search space for TP, PP, CP, EP, MBS, GBS parameters for GPT-3 and 80GB GPUs.
 
     Args:
         model_size_in_b (float): number of parameters in the model.
