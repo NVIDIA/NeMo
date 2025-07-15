@@ -201,7 +201,7 @@ class MegatronBaseModel(NLPModel):
             pipeline_model_parallel_size=cfg.get('pipeline_model_parallel_size', 1),
             pipeline_model_parallel_comm_backend=cfg.get('pipeline_model_parallel_comm_backend', None),
             virtual_pipeline_model_parallel_size=vp_size,
-            pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', 0),
+            pipeline_model_parallel_split_rank=cfg.get('pipeline_model_parallel_split_rank', None),
             use_tp_pp_dp_mapping=cfg.get('use_tp_pp_dp_mapping', False),
             num_distributed_optimizer_instances=self.cfg.optim.get('num_distributed_optimizer_instances', 1),
             context_parallel_size=cfg.get('context_parallel_size', 1),
