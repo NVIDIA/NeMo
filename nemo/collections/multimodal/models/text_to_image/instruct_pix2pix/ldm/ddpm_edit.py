@@ -23,10 +23,18 @@ from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm 
     LatentDiffusion,
     MegatronLatentDiffusion,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
+
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
+        MegatronPretrainingRandomSampler,
+        MegatronPretrainingSampler,
+    )
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronPretrainingRandomSampler = ABC
+    MegatronPretrainingSampler = ABC
+
 from nemo.utils import logging
 
 try:

@@ -16,7 +16,13 @@ from typing import Optional
 import torch
 from torch.utils.data import Dataset
 
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronPretrainingRandomSampler = ABC
+
 from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 
 

@@ -40,10 +40,23 @@ from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     get_num_samples_from_files,
     maybe_cast_to_list,
 )
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
+        get_datasets_weights_and_num_samples,
+    )
+
+    HAVE_NLP = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_NLP = False
+
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    BlendableDataset = ABC
+
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging, logging_mode
 from nemo.utils import webdataset as wds

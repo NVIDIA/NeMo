@@ -39,6 +39,9 @@ try:
     )
 except (ImportError, ModuleNotFoundError):
     from abc import ABC
+    
+    BlendableDataset = ABC
+    MegatronPretrainingBatchSampler = ABC
 
 from nemo.utils import logging
 
