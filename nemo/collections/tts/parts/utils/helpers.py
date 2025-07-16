@@ -525,17 +525,6 @@ def plot_alignment_to_numpy_for_speechllm(
     return data
 
 
-def plot_codec_to_numpy(codes, title=''):
-    fig, ax = plt.subplots(figsize=(10, 3))
-    sns.heatmap(codes, ax=ax)
-
-    plt.tight_layout()
-    fig.canvas.draw()
-    data = save_figure_to_numpy(fig)
-    plt.close()
-    return data
-
-
 def plot_pitch_to_numpy(pitch, ylim_range=None):
     fig, ax = plt.subplots(figsize=(12, 3))
     plt.plot(pitch)
