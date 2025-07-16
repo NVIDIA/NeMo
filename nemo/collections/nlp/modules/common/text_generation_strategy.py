@@ -14,8 +14,6 @@
 
 # pylint: disable=C0301,C0115,C0116
 import abc
-import copy
-import re
 import warnings
 from typing import List, Set, Tuple
 
