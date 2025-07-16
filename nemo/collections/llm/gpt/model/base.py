@@ -24,7 +24,7 @@ from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper 
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.transformer.dot_product_attention import DotProductAttention
+from megatron.core.transformer.dot_product_attention import DotProductAttention as MCoreDotProductAttention
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import get_batch_on_this_cp_rank
@@ -367,9 +367,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             kwargs = {}
 
-        if self.attention_softmax_denominator_offset is not None:
+        if getattr(self, "attention_softmax_denominator_offset", None) is not None:
             if hasattr(transformer_layer_spec, 'submodules'):
-                transformer_layer_spec.submodules.self_attention.submodules.core_attention = DotProductAttention
+                transformer_layer_spec.submodules.self_attention.submodules.core_attention = MCoreDotProductAttention
         with model_init_device_context():
             # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
             # non-None when using virtual pipeline model parallelism
