@@ -330,8 +330,29 @@ class Quantizer:
                 unwrapped_model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
             )
 
-        if is_global_rank_zero():
-            mtq.print_quant_summary(unwrapped_model)
+        # Print quantization summary with both tensor and pipeline parallelism awareness
+        from megatron.core import parallel_state
+
+        if parallel_state.is_initialized():
+            pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+            pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+            tp_rank = parallel_state.get_tensor_model_parallel_rank()
+            tp_size = parallel_state.get_tensor_model_parallel_world_size()
+
+            if pp_size > 1:
+                # For pipeline parallelism
+                if tp_rank == 0:
+                    print(f"[PP Rank {pp_rank}/{pp_size}, Quantization Summary:")
+                    mtq.print_quant_summary(unwrapped_model)
+                torch.distributed.barrier()  # Ensure ordered printing across all ranks
+            else:
+                # For single PP, tensor parallelism case
+                if is_global_rank_zero():
+                    mtq.print_quant_summary(unwrapped_model)
+        else:
+            # Non-distributed case
+            if is_global_rank_zero():
+                mtq.print_quant_summary(unwrapped_model)
 
         if self.export_config.generate_sample:
             logging.info("Generating a sample output after model quantization.")
