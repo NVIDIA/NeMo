@@ -14,10 +14,10 @@
 
 import copy
 import os
+import signal
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
-import signal 
 
 import nemo_run as run
 import yaml
