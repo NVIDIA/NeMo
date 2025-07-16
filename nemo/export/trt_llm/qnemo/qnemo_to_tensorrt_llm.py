@@ -112,8 +112,6 @@ def qnemo_to_tensorrt_llm(
     if speculative_decoding_mode:
         build_cmd.extend(["--speculative_decoding_mode", speculative_decoding_mode])
 
-    build_cmd = build_cmd.replace("--", "\\\n  --")  # Separate parameters line by line
-
     print("trtllm-build command:")
     print("".join(itertools.chain.from_iterable(zip(build_cmd, itertools.cycle(["\n ", " "])))).strip())
 
