@@ -263,5 +263,3 @@ class ZarrPathStore(BaseStore):
         Returns an iterator over the keys in the store.
         """
         return self._path.iterdir()
-
-
