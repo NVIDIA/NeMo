@@ -1,0 +1,41 @@
+diff --git a/scripts/performance/llm/pretrain_nemotronh_56b.py b/scripts/performance/llm/pretrain_nemotronh_56b.py
+index f1da4b09f..7508fff3d 100644
+--- a/scripts/performance/llm/pretrain_nemotronh_56b.py
++++ b/scripts/performance/llm/pretrain_nemotronh_56b.py
+@@ -71,8 +71,6 @@ def override_recipe_configs(
+         compute_dtype=args.compute_dtype,
+         fp8_recipe=args.fp8_recipe,
+         nccl_communicator_config_path=args.nccl_communicator_config_path,
+-        save_checkpoint=args.checkpoint_save,
+-        load_checkpoint_path=args.checkpoint_load_path,
+     )
+     recipe = set_exp_logging_configs(
+         recipe, "pre_train", "llm", "nemotronh", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+@@ -90,7 +88,6 @@ def override_recipe_configs(
+         recipe.model.tokenizer = recipe.data.tokenizer
+ 
+     recipe.model.config.attention_backend = "auto"
+-    recipe.trainer.enable_checkpointing = True
+     return recipe
+ 
+ 
+@@ -138,10 +135,6 @@ if __name__ == "__main__":
+     exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
+     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+ 
+-
+-    if args.gpu.lower() == 'gb200':
+-        custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+-
+     plugins = [
+         PerfEnvPlugin(
+             enable_vboost=True,
+@@ -150,7 +143,7 @@ if __name__ == "__main__":
+         )
+     ]
+ 
+-    custom_env_vars = {"NVTE_FUSED_ATTN": "0", "TRANSFORMERS_OFFLINE": "0"}
++    custom_env_vars = {"TRANSFORMERS_OFFLINE": "0"}
+ 
+     if args.gpu.lower() == 'gb200':
+         custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}

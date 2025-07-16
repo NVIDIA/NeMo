@@ -88,6 +88,8 @@ def override_recipe_configs(
         recipe.model.tokenizer = recipe.data.tokenizer
 
     recipe.model.config.attention_backend = "auto"
+    recipe.model.config.enable_cuda_graph = True
+    recipe.trainer.strategy.use_te_rng_tracker = True
     return recipe
 
 
