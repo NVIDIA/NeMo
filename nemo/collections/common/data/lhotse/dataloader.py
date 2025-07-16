@@ -45,6 +45,7 @@ from nemo.collections.common.data.lhotse.cutset import (
 )
 from nemo.collections.common.data.lhotse.sampling import (
     BucketingFilter,
+    ValidationStatusFilter,
     CERFilter,
     ContextSpeakerSimilarityFilter,
     DurationFilter,
@@ -135,6 +136,9 @@ class LhotseDataLoadingConfig:
     # 2.3 Filters on CER and/or cosine speaker similarity of the context audio serving for TTS use cases.
     max_cer: float | None = float("inf")
     min_context_speaker_similarity: float | None = -1
+
+    # 2.4 Filters on validation status. If the validation status is not "pass", the cut will be filtered out.
+    keep: str = "pass"
 
     # 3. Supported existing NeMo options.
     shuffle: bool = False
@@ -546,6 +550,8 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
         TokenCountFilter(config.min_tokens, config.max_tokens, measure_total_length=config.measure_total_length)
     )
 
+    # validation status filtering
+    cuts = cuts.filter(ValidationStatusFilter(config.keep))
     # CER filtering, same as native NeMo dataloaders.
     cuts = cuts.filter(CERFilter(config.max_cer))
     # Context speaker similarity filtering, same as native NeMo dataloaders.
