@@ -557,6 +557,7 @@ class BaseMegatronBatchSampler:
 
 class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
     """ """
+
     def get_start_end_idx(self) -> Tuple[int, int]:
         start_idx = self.data_parallel_rank * self._global_batch_size_on_this_data_parallel_rank
         end_idx = start_idx + self._global_batch_size_on_this_data_parallel_rank
