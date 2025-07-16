@@ -91,7 +91,7 @@ def finetune_recipe(
     recipe = default_finetune_recipe(
         model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
     )
-    recipe.data.dataset_kwargs = {'add_bos': True}
+    # recipe.data.dataset_kwargs = {'add_bos': True, "get_attention_mask_from_fusion": True}
     recipe.trainer.strategy.expert_tensor_parallel_size = 1
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 1

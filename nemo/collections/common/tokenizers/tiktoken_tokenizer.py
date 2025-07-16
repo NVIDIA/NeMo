@@ -92,22 +92,22 @@ class TiktokenTokenizer(TokenizerSpec):
             if not vocab_file or not os.path.exists(vocab_file):
                 raise ValueError(f"vocab_file: {vocab_file} is invalid")
 
-        if special_tokens is None:
-            special_tokens = SPECIAL_TOKENS.copy()
-
-        assert len(special_tokens) == len(set(special_tokens)), f"Special tokens should be unique: {special_tokens}"
-        assert len(special_tokens) <= num_special_tokens < vocab_size
-        assert set(SPECIAL_TOKENS) <= set(special_tokens), f"Custom special tokens should include {SPECIAL_TOKENS}"
-
-        self._unk_id = special_tokens.index("<unk>")
-        self._bos_id = special_tokens.index("<s>")
-        self._eos_id = special_tokens.index("</s>")
-        self._mask_id = special_tokens.index("<mask>")
-        self._pad_id = special_tokens.index("<pad>")
-        self._cls_id = special_tokens.index("<cls>")
-        self._sep_id = special_tokens.index("<sep>")
-
         if vocab_file is not None:
+            if special_tokens is None:
+                special_tokens = SPECIAL_TOKENS.copy()
+
+            assert len(special_tokens) == len(set(special_tokens)), f"Special tokens should be unique: {special_tokens}"
+            assert len(special_tokens) <= num_special_tokens < vocab_size
+            assert set(SPECIAL_TOKENS) <= set(special_tokens), f"Custom special tokens should include {SPECIAL_TOKENS}"
+
+            self._unk_id = special_tokens.index("<unk>")
+            self._bos_id = special_tokens.index("<s>")
+            self._eos_id = special_tokens.index("</s>")
+            self._mask_id = special_tokens.index("<mask>")
+            self._pad_id = special_tokens.index("<pad>")
+            self._cls_id = special_tokens.index("<cls>")
+            self._sep_id = special_tokens.index("<sep>")
+
             # reload vocab
             self.token2id = reload_mergeable_ranks(vocab_file, max_vocab=self.inner_vocab_size)
             tokenizer_name = Path(vocab_file).parent.name
@@ -123,8 +123,16 @@ class TiktokenTokenizer(TokenizerSpec):
                 print(f"Adding special tokens {special_filler[0]}, ..., {special_filler[-1]}")
             self.special_tokens = special_tokens + special_filler
             assert len(set(self.special_tokens)) == len(self.special_tokens) == num_special_tokens, self.special_tokens
-
+            encoding_special_tokens = {},  # special tokens are handled manually
         else:
+            self._unk_id = -1
+            self._bos_id = 200006
+            self._eos_id = 200007
+            self._mask_id = -1
+            self._pad_id = 200007
+            self._cls_id = -1
+            self._sep_id = -1
+
             tokenizer_base = tiktoken.get_encoding(encoding_name)  # "o200k_base"
             self.token2id = tokenizer_base._mergeable_ranks
             pattern = tokenizer_base._pat_str
@@ -134,6 +142,27 @@ class TiktokenTokenizer(TokenizerSpec):
             self._vocab_size = self.inner_vocab_size
             self.special_filler = []
             self.special_tokens = []
+            encoding_special_tokens = {
+                **tokenizer_base._special_tokens,
+                "<|startoftext|>": 199998,
+                "<|endoftext|>": 199999,
+                "<|reserved_200000|>": 200000,
+                "<|reserved_200001|>": 200001,
+                "<|return|>": 200002,
+                "<|constrain|>": 200003,
+                "<|reserved_200004|>": 200004,
+                "<|channel|>": 200005,
+                "<|start|>": 200006,
+                "<|end|>": 200007,
+                "<|message|>": 200008,
+                "<|reserved_200009|>": 200009,
+                "<|reserved_200010|>": 200010,
+                "<|reserved_200011|>": 200011,
+                "<|call|>": 200012,
+                "<|refusal|>": 200013,
+            } | {
+                f"<|reserved_{i}|>": i for i in range(200014, 201088)
+            }
 
         id2token = {v: k for k, v in self.token2id.items()}
         assert set(range(self.inner_vocab_size)) == set(id2token.keys())
@@ -146,7 +175,7 @@ class TiktokenTokenizer(TokenizerSpec):
             name=tokenizer_name,
             pat_str=pattern,
             mergeable_ranks=self.token2id,
-            special_tokens={},  # special tokens are handled manually
+            special_tokens=encoding_special_tokens,
         )
 
     def text_to_tokens(self, text: str):
