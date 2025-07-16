@@ -299,7 +299,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 confidence_method_cfg=self.confidence_method_cfg,
                 ngram_lm_model=self.cfg.greedy.get("ngram_lm_model", None),
                 ngram_lm_alpha=self.cfg.greedy.get("ngram_lm_alpha", 0.0),
+                boosting_tree=self.cfg.greedy.get("boosting_tree", None),
+                boosting_tree_alpha=self.cfg.greedy.get("boosting_tree_alpha", 0.0),
                 allow_cuda_graphs=self.cfg.greedy.get("allow_cuda_graphs", True),
+                tokenizer=self.tokenizer,
             )
 
         elif self.cfg.strategy == 'beam':
@@ -375,6 +378,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
             self.decoding.override_fold_consecutive_value = False
 
         elif self.cfg.strategy == 'beam_batch':
+
             self.decoding = ctc_beam_decoding.BeamBatchedCTCInfer(
                 blank_index=blank_id,
                 beam_size=self.cfg.beam.get('beam_size', 1),
@@ -385,7 +389,10 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 beam_beta=self.cfg.beam.get('beam_beta', 0.0),
                 beam_threshold=self.cfg.beam.get('beam_threshold', 20.0),
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                boosting_tree=self.cfg.beam.get("boosting_tree", None),
+                boosting_tree_alpha=self.cfg.beam.get("boosting_tree_alpha", 0.0),
                 allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
+                tokenizer=self.tokenizer,
             )
 
             self.decoding.override_fold_consecutive_value = False

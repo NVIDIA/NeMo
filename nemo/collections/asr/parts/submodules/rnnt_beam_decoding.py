@@ -1733,7 +1733,7 @@ class BeamRNNTInferConfig:
     preserve_alignments: bool = False
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: Optional[float] = 0.0
-    oosting_tree: BoostingTreeModelConfig = field(default_factory=BoostingTreeModelConfig)
+    boosting_tree: BoostingTreeModelConfig = field(default_factory=BoostingTreeModelConfig)
     boosting_tree_alpha: Optional[float] = 0.0
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0

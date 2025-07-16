@@ -616,8 +616,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         use_cuda_graph_decoder: bool = True,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        boosting_tree_model: Optional[str | Path] = None,
+        boosting_tree: Optional[BoostingTreeModelConfig] = None,
         boosting_tree_alpha: float = 0.0,
+        tokenizer: Optional[TokenizerSpec] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -643,8 +644,10 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 if ngram_lm_model is not None:
                     fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
                     fusion_models_alpha.append(ngram_lm_alpha)
-                if boosting_tree_model is not None:
-                    fusion_models.append(GPUBoostingTreeModel.from_file(lm_path=boosting_tree_model, vocab_size=self._blank_index))
+                if boosting_tree is not None and (
+                    boosting_tree.model_path or boosting_tree.key_phrases_file or boosting_tree.key_phrases_list
+                ):
+                    fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
                     fusion_models_alpha.append(boosting_tree_alpha)
                 if not fusion_models:
                     fusion_models = None
@@ -666,7 +669,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 )
             else:
                 # Frame-Looping algorithm
-                if ngram_lm_model is not None or boosting_tree_model is not None:
+                if ngram_lm_model is not None or boosting_tree is not None:
                     raise NotImplementedError(
                         "N-Gram Language Model and Boosting Tree fusion is not implemented with frame-looping algorithm"
                     )
@@ -698,7 +701,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     else:
                         self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
-            if ngram_lm_model is not None or boosting_tree_model is not None:
+            if ngram_lm_model is not None or boosting_tree is not None:
                 raise NotImplementedError("N-Gram Language Model and Boosting Tree fusion is not implemented with `blank_as_pad=False`")
             self._greedy_decode = self._greedy_decode_masked
 
@@ -2846,10 +2849,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
         self.decoding_computer = None
-
-        # logging.warning(f"***********************")
-        # logging.warning(f"boosting_tree: {boosting_tree}")
-        # logging.warning(f"***********************")
 
         # load fusion models from paths (ngram_lm_model and boosting_tree_model)
         fusion_models, fusion_models_alpha = [], []

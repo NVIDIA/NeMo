@@ -428,6 +428,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     boosting_tree=boosting_tree,
                     boosting_tree_alpha=self.cfg.greedy.get('boosting_tree_alpha', 0),
+                    tokenizer=self.tokenizer,
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.TDT:
                 self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
