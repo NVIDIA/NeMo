@@ -88,11 +88,6 @@ def get_model_from_config(
     if not isinstance(model, list):
         model = [model]
 
-    if model_post_init_fns:
-        for model_module in model:
-            for post_init_fn in model_post_init_fns:
-                post_init_fn(model_module)
-
     # Set tensor model parallel attributes if not set.
     # Only parameters that are already tensor model parallel have these
     # attributes set for them. We should make sure the default attributes
@@ -119,6 +114,11 @@ def get_model_from_config(
     # Fp16 conversion.
     if model_config.fp16 or model_config.bf16:
         model = [Float16Module(model_config, model_module) for model_module in model]
+
+    if model_post_init_fns:
+        for model_module in model:
+            for post_init_fn in model_post_init_fns:
+                post_init_fn(model_module)
 
     # The model_module.bfloat16()/model_module.half() above will call the inplace copy of TE's
     # Float8Tensor, which will write an unwanted value (amax calculated from the current fp8
