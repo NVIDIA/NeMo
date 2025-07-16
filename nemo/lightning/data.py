@@ -16,14 +16,14 @@ import abc
 import logging
 import os
 from itertools import chain
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Tuple
 
 import torch
 from lightning.pytorch.overrides.distributed import _IndexBatchSamplerWrapper
 from torch.utils.data import DataLoader, Dataset
 
 
-## TODO: remove? unused
+# TODO: remove? unused
 def create_dataloader(
     dataset: "Dataset", drop_last: bool = True, pad_samples_to_global_batch_size=False, **kwargs
 ) -> DataLoader:
@@ -567,6 +567,7 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
     """ """
 
     def get_start_end_idx(self) -> Tuple[int, int]:
+        """ """
         start_idx = self.data_parallel_rank * self._global_batch_size_on_this_data_parallel_rank
         end_idx = start_idx + self._global_batch_size_on_this_data_parallel_rank
         return start_idx, end_idx
