@@ -544,10 +544,10 @@ class ModelPT(LightningModule, Model):
 
         finally:
             cls._set_model_restore_state(is_being_restored=False)
-            
+
         # OneLogger hook for checkpoint loading end
         self._timing_tracker.track_event('on_load_checkpoint_end')
-        
+
         return checkpoint
 
     @abstractmethod

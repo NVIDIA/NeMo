@@ -53,8 +53,8 @@ from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
-from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.exp_manager import configure_onelogger
+from nemo.utils.get_rank import is_global_rank_zero
 
 if TYPE_CHECKING:
     from megatron.core.inference.common_inference_params import CommonInferenceParams
@@ -631,6 +631,7 @@ def deploy(
         trtllm backend).
     """
     import os
+
     import uvicorn
 
     from nemo.deploy import DeployPyTriton
@@ -1177,10 +1178,10 @@ def _setup(
         resume_if_exists=getattr(resume, "resume_if_exists", False),
         task_config=getattr(train, "__io__", None),
     )
-    
+
     # Configure OneLogger callback
     configure_onelogger(trainer=trainer, name=_log.name)
-    
+
     if resume is not None:
         timing_tracker.track_event('on_load_checkpoint_start')
         resume.setup(trainer, model)

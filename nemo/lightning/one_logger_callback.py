@@ -237,6 +237,7 @@ class OneLoggerNeMoCallback(Callback):
         """Called when training ends."""
         CB.on_train_end()
 
+
 def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) -> None:
     """Hook a class's __init__ method with start and end callbacks.
 
@@ -270,23 +271,23 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
 
 class OneLoggerAppContext:
     """Context manager for automatically handling OneLogger app lifecycle.
-    
+
     This context manager ensures that on_app_end is called when the context exits,
     providing a general solution for all NeMo entry points.
-    
+
     Usage:
         with OneLoggerAppContext():
             # Your training code here
             trainer.fit(model)
     """
-    
+
     def __init__(self):
         self.timing_tracker = OneLoggerTimingTracker.get_instance()
-    
+
     def __enter__(self):
         """Enter the context - app_start is already called by OneLoggerTimingTracker.__init__"""
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context - always call on_app_end"""
         try:
