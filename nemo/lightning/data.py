@@ -542,6 +542,7 @@ class BaseMegatronBatchSampler:
 
     @property
     def global_batch_size(self) -> int:
+        """ """
         return self._global_batch_size
 
     @global_batch_size.setter
