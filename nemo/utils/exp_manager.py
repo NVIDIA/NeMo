@@ -74,7 +74,9 @@ try:
     from nv_one_logger.api.config import ApplicationType, OneLoggerErrorHandlingStrategy
     from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-
+    from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
+    from nv_one_logger.training_telemetry.v1_adapter.v1_compatible_wandb_exporter import V1CompatibleWandbExporterAsync
+    from nv_one_logger.wandb.exporter.wandb_exporter import Config as WandBConfig
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError) as e:
     HAVE_ONELOGGER = False
@@ -460,7 +462,6 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
         return
 
     try:
-        from nv_one_logger.training_telemetry.v1_adapter import configure_v2_adapter
         from pytorch_lightning.plugins.io import AsyncCheckpointIO
 
         try:
@@ -526,8 +527,15 @@ def configure_onelogger(cfg: OmegaConf, trainer: Optional[lightning.pytorch.Trai
             "quiet": False,  # Don't suppress errors
         }
 
-        # Configure OneLogger using v1 adapter
-        configure_v2_adapter(v1_config)
+        # Convert v1 config to v2 config using the adapter
+        training_telemetry_config, wandb_config = ConfigAdapter.convert_to_v2_config(v1_config)
+
+        # Configure OneLogger using v1 adapter with async wandb exporter
+        exporter = V1CompatibleWandbExporterAsync(
+            training_telemetry_config=training_telemetry_config,
+            wandb_config=wandb_config,
+        )
+        TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(exporter).configure()
 
         # Mark OneLogger as available for the OneLoggerTimingTracker
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
