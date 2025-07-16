@@ -134,6 +134,7 @@ def hydra_runner(
                     config_name=config_name,
                 )
                 from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
                 tracker = OneLoggerTimingTracker.get_instance()
                 tracker.track_event('on_app_end')
 

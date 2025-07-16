@@ -77,6 +77,7 @@ try:
     from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
     from nv_one_logger.training_telemetry.v1_adapter.v1_compatible_wandb_exporter import V1CompatibleWandbExporterAsync
     from nv_one_logger.wandb.exporter.wandb_exporter import Config as WandBConfig
+
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError) as e:
     HAVE_ONELOGGER = False
@@ -454,10 +455,13 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
-def configure_onelogger(cfg: Optional[OmegaConf] = None, trainer: Optional[lightning.pytorch.Trainer] = None, 
-                       name: Optional[str] = None,) -> None:
+def configure_onelogger(
+    cfg: Optional[OmegaConf] = None,
+    trainer: Optional[lightning.pytorch.Trainer] = None,
+    name: Optional[str] = None,
+) -> None:
     """Configure OneLogger using v1 adapter for compatibility with existing downstream consumers.
-    
+
     Args:
         cfg: OmegaConf configuration object. If None, a minimal config will be created.
         trainer: PyTorch Lightning trainer instance.
@@ -471,15 +475,9 @@ def configure_onelogger(cfg: Optional[OmegaConf] = None, trainer: Optional[light
     # If no config is provided, create a minimal one
     if cfg is None:
         from omegaconf import OmegaConf
+
         cfg = OmegaConf.create(
-            {
-                "exp_manager": {
-                    "wandb_logger_kwargs": {
-                        "project": "nemo_experiments",
-                        "name": name or "default"
-                    }
-                }
-            }
+            {"exp_manager": {"wandb_logger_kwargs": {"project": "nemo_experiments", "name": name or "default"}}}
         )
 
     from pytorch_lightning.plugins.io import AsyncCheckpointIO
@@ -555,7 +553,9 @@ def configure_onelogger(cfg: Optional[OmegaConf] = None, trainer: Optional[light
         training_telemetry_config=training_telemetry_config,
         wandb_config=wandb_config,
     )
-    TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(exporter).configure()
+    TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(
+        exporter
+    ).configure()
 
     # Mark OneLogger as available for the OneLoggerTimingTracker
     from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
