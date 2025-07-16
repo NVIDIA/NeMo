@@ -201,7 +201,7 @@ class AudioText(_Collection):
         logging.info("Dataset loaded with %d files totalling %.2f hours", len(data), total_duration / 3600)
         logging.info("%d files were filtered totalling %.2f hours", num_filtered, duration_filtered / 3600)
         if not all_has_duration:
-            logging.info(f"Not all audios have duration information, the total number of hours is inaccurate.")
+            logging.info("Not all audios have duration information, the total number of hours is inaccurate.")
         super().__init__(data)
 
 
@@ -1422,6 +1422,7 @@ class EndtoEndDiarizationSpeechLabel(EndtoEndDiarizationLabel):
 
         # Audio file handling depending on the types
         if isinstance(item['audio_file'], list):
+            audio_file_list = []
             for single_audio_file in item['audio_file']:
                 audio_file_list.append(get_full_path(audio_file=single_audio_file, manifest_file=manifest_file))
             item['audio_file'] = audio_file_list
