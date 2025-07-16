@@ -229,3 +229,7 @@ if __name__ == "__main__":
         base_recipe = pretrain_recipe(performance_mode=False)
         file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
         dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)
+        # dump difference from default perf recipe
+        default_perf_recipe = pretrain_recipe(performance_mode=True)
+        file_name = f"diff_from_default_perf_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(default_perf_recipe, recipe, output_dir, file_name=file_name)
