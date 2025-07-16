@@ -115,11 +115,6 @@ def get_model_from_config(
     if model_config.fp16 or model_config.bf16:
         model = [Float16Module(model_config, model_module) for model_module in model]
 
-    if model_post_init_fns:
-        for model_module in model:
-            for post_init_fn in model_post_init_fns:
-                post_init_fn(model_module)
-
     # The model_module.bfloat16()/model_module.half() above will call the inplace copy of TE's
     # Float8Tensor, which will write an unwanted value (amax calculated from the current fp8
     # param) to its amax_history. The following logic will correct the amax_history back.
@@ -155,6 +150,13 @@ def get_model_from_config(
         if data_parallel_random_init:
             for model_module in model:
                 model_module.broadcast_params()
+
+    if model_post_init_fns:
+        for model_module in model:
+            for post_init_fn in model_post_init_fns:
+                post_init_fn(model_module)
+    print(f"[check dtype] in nemo.tron.model.py, rank: {torch.distributed.get_rank()}, model_post_init_fns done", flush=True)
+
     return model
 
 
