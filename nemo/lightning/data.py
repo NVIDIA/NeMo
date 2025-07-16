@@ -240,6 +240,7 @@ class WrappedDataLoader(DataLoader):
 # TODO: Replace this with megatron.core.data.data_samplers after we upgrade
 class BaseMegatronSampler:
     """ """
+
     def __init__(
         self,
         total_samples: int,
@@ -310,6 +311,7 @@ class BaseMegatronSampler:
 
 class MegatronPretrainingSampler(BaseMegatronSampler):
     """ """
+
     def __init__(
         self,
         total_samples: int,
@@ -369,6 +371,7 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
 
 class MegatronPretrainingRandomSampler(BaseMegatronSampler):
     """ """
+
     def __init__(
         self,
         total_samples: int,
