@@ -410,7 +410,6 @@ def set_primary_perf_configs(
             ),
         )
 
-
     return recipe
 
 
