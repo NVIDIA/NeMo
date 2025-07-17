@@ -117,6 +117,18 @@ def main(args):
         language_model_from_pretrained=args.language_model_path,
         freeze_language_model=False,
         freeze_vision_model=True,
+        enable_cuda_graph=True,
+        use_te_rng_tracker=True,
+        gradient_accumulation_fusion=True,
+        cross_entropy_loss_fusion=True,
+        bias_activation_fusion=True,
+        bias_dropout_fusion=True,
+        masked_softmax_fusion=True,
+        attention_softmax_in_fp32=True,
+        apply_rope_fusion=True,
+        tp_comm_overlap=True,
+        tp_comm_overlap_rs_dgrad=True,
+        overlap_p2p_comm=True,
     )
 
     model = vlm.Qwen2VLModel(qwen25vl_config, model_version="qwen25-vl", tokenizer=data.tokenizer)
@@ -126,6 +138,7 @@ def main(args):
     # Training strategy setup
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
+        context_parallel_size=args.cp_size,
         pipeline_model_parallel_size=args.pp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
@@ -137,6 +150,7 @@ def main(args):
             overlap_param_gather=True,
             average_in_collective=True,
         ),
+        use_te_rng_tracker=True,
     )
 
     # Checkpoint callback setup
@@ -148,6 +162,16 @@ def main(args):
         dirpath=args.log_dir,
     )
 
+    # nsys callback
+    from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
+    nsys_callback = NsysCallback(start_step=10, end_step=11, gen_shape=True)
+
+    # tp_comm_overlap callback
+    from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+    tp_comm_overlap_callback = MegatronCommOverlapCallback(tp_comm_overlap=True,
+                                                           tp_comm_bootstrap_backend='nccl')
+
+
     # Trainer setup
     trainer = nl.Trainer(
         num_nodes=args.num_nodes,
@@ -156,7 +180,7 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback, TimingCallback()],
+        callbacks=[checkpoint_callback, TimingCallback(), nsys_callback, tp_comm_overlap_callback],
         val_check_interval=gbs,
         limit_val_batches=0.0,
         log_every_n_steps=1,
@@ -247,6 +271,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
+    parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
     parser.add_argument("--name", type=str, required=False, default="qwen25vl_pretrain")

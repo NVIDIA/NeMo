@@ -279,6 +279,7 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
         self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
+        self.language_transformer_config.context_parallel_size = self.context_parallel_size
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
@@ -293,6 +294,33 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
             if self.encoder_tensor_model_parallel_size > 0:
                 self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
                 self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+
+        # Define common config attributes to set
+        config_attrs = [
+            'cross_entropy_loss_fusion',
+            'enable_cuda_graph',
+            'use_te_rng_tracker',
+            'gradient_accumulation_fusion',
+            'bias_activation_fusion',
+            'bias_dropout_fusion',
+            'masked_softmax_fusion',
+            'attention_softmax_in_fp32',
+            'apply_rope_fusion',
+            'overlap_p2p_comm',
+            'batch_p2p_comm',
+        ]
+
+        # Set configs for all transformer components
+        for config in [self.language_transformer_config,
+                      self.vision_transformer_config,
+                      self.vision_projection_config]:
+            for attr in config_attrs:
+                setattr(config, attr, getattr(self, attr))
+
+        # Set tp_comm_overlap only for language transformer
+        self.language_transformer_config.tp_comm_overlap = self.tp_comm_overlap
+        self.vision_transformer_config.tp_comm_overlap = False
+        self.vision_projection_config.tp_comm_overlap = False
 
         # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
         # non-None when using virtual pipeline model parallelism
@@ -336,6 +364,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         self.model_version = vision_transformer_config.model_version
         assert self.model_version is not None
 
+        self.config = config
         self.pre_process = pre_process
         self.post_process = post_process
         self.add_encoder = add_encoder
@@ -349,6 +378,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         self.sequence_parallel_lm = language_transformer_config.sequence_parallel
         self.tp_comm_overlap_lm = language_transformer_config.tp_comm_overlap
+        self.context_parallel_lm = language_transformer_config.context_parallel_size
 
         self.share_embeddings_and_output_weights = False
 
@@ -637,7 +667,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         has_images = pixel_values is not None
         has_videos = pixel_values_videos is not None
-
+        torch.cuda.nvtx.range_push("vision_model_forward")
         image_embeddings = None
         if use_inference_kv_cache:
             # If running inference, we can skip media token computation if they were computed already earlier
@@ -648,7 +678,11 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             image_embeddings = None
         elif self.add_encoder and has_images:
             pixel_values = pixel_values.to(next(self.vision_model.parameters()).dtype)
-            image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
+            if self.config.freeze_vision_model:
+                with torch.no_grad():
+                    image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
+            else:
+                image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
             window_index = self.vision_model.window_index if self.model_version == "qwen25-vl" else None
 
             if self._drop_vision_class_token:
@@ -677,13 +711,21 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         video_embeddings = None
         if self.add_encoder and has_videos:
             pixel_values_videos = pixel_values_videos.to(next(self.vision_model.parameters()).dtype)
-            video_embeddings = self.vision_model(
-                pixel_values_videos, grid_thw=video_grid_thw
-            )  # [bs, img_seq_len, h_vision]
+            if self.config.freeze_vision_model:
+                with torch.no_grad():
+                    video_embeddings = self.vision_model(
+                        pixel_values_videos, grid_thw=video_grid_thw
+                    )  # [bs, img_seq_len, h_vision]
+            else:
+                video_embeddings = self.vision_model(
+                    pixel_values_videos, grid_thw=video_grid_thw
+                )  # [bs, img_seq_len, h_vision]
             video_embeddings = self.vision_projection(video_embeddings)
         if not self.add_decoder:
             return image_embeddings
+        torch.cuda.nvtx.range_pop()  # end of vision_model_forward
 
+        torch.cuda.nvtx.range_push("language_model_forward")
         # language_embeddings is a container for text, image and video embeddings; to feed to decoder
         language_embeddings = None
 
@@ -757,6 +799,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
         )  # output shape: [batch_size, seq length, vocab_size]
+        torch.cuda.nvtx.range_pop()  # end of language_model_forward
 
         if labels is None or loss_mask is None:
             return output
@@ -901,7 +944,16 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
             # TODO: check and add self.context_parallel_lm to MCoreQwen2VLModel
             # # Transpose to [s,b,h] if not using CP because CP Sharding expects seq in dim=1
-            final_embedding = final_embedding.transpose(1, 0).contiguous()  #  [seq_len, bs, h_language]
+            if self.context_parallel_lm == 1:
+                final_embedding = final_embedding.transpose(1, 0).contiguous()  #  [seq_len, bs, h_language]
+            else:
+                # pad to multiple of cp_size * 2
+                target_seq_len = ((final_embedding.shape[1] + 2 * self.context_parallel_lm - 1) // (2 * self.context_parallel_lm)) * (2 * self.context_parallel_lm)
+                if final_embedding.shape[1] < target_seq_len:
+                    padded_seq_len = target_seq_len - final_embedding.shape[1]
+                    # Pad sequence dimension (dim=1) on the right
+                    final_embedding = torch.nn.functional.pad(final_embedding, (0, 0, 0, padded_seq_len))
+                
             if self.sequence_parallel_lm:
                 final_embedding = scatter_to_sequence_parallel_region(final_embedding)
         truncate_labels = final_labels is not None and final_labels.shape[1] > self._language_max_sequence_length
