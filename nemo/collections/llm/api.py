@@ -631,7 +631,6 @@ def deploy(
         trtllm backend).
     """
     import os
-
     import uvicorn
 
     from nemo.deploy import DeployPyTriton
