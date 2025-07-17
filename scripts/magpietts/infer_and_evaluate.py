@@ -18,6 +18,9 @@ import json
 import os
 import shutil
 import time
+from typing import List
+from pathlib import Path
+from functools import partial
 
 import scripts.magpietts.evalset_config as evalset_config
 import scripts.magpietts.evaluate_generated_audio as evaluate_generated_audio
@@ -27,6 +30,8 @@ import soundfile as sf
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
 from PIL import Image
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
@@ -114,6 +119,53 @@ def delete_old_generated_files(output_dir):
     for f in glob.glob(f"{output_dir}/predicted_audio*.wav"):
         os.remove(f)
 
+def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png: str):
+    # Create dataframe from list of dicts
+    df = pd.DataFrame(metrics)
+
+    # Plot the violin plots for all DataFrames side by side
+    num_columns = len(metric_keys)
+    width = num_columns * 5
+    fig, axs = plt.subplots(1, num_columns, figsize=(width, 4))
+
+    for i, column in enumerate(metric_keys):
+        assert column in df
+        # Create empty lists to store the parts objects for each DataFrame
+        tags_list = []
+
+        # Plot the violin plots for each DataFrame
+        axs[i].violinplot(
+            df[column], showmedians=True, positions=[i], widths=0.5
+        )
+        tags_list.append(column)
+
+        axs[i].set_title(column)
+        axs[i].set_xticks([i])
+        axs[i].set_xticklabels(tags_list)
+        axs[i].grid(True, linestyle="dotted")
+
+        # Calculate and display the mean value for each DataFrame
+        mean = df[column].mean()
+        sem = df[column].sem()
+        axs[i].plot(
+            i,
+            mean,
+            "o",
+            color="red",
+            markersize=4,
+            label="Mean (95%CI)"
+        )
+
+        label_numeric = f"{mean:.2f}±{1.96 * sem:.2f}"
+        axs[i].text(i + 0.06, mean, label_numeric, ha="center", va="top")
+
+    # Create a single legend for all subplots
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper left")
+
+    plt.tight_layout()
+    plt.savefig(output_png, format="png", bbox_inches="tight")
+
 
 def run_inference(
         hparams_file,
@@ -144,6 +196,7 @@ def run_inference(
         hparams_file_from_wandb=False,
         log_exp_name=False,
         compute_fcd=False,
+        violin_plot_metrics=['cer', 'pred_context_ssim']
     ):
     # Load model
     if hparams_file is not None and checkpoint_file is not None:
@@ -382,6 +435,9 @@ def run_inference(
                 f.write(data)
                 print(f"Wrote metrics for {checkpoint_name} and {dataset} to {all_experiment_csv}")
 
+            output_png_file = Path(eval_dir) / f"{dataset}_violin_{repeat_idx}.png"
+            create_violin_plots(filewise_metrics, violin_plot_metrics, output_png_file)
+
             # Clean up temporary codec files
             for codes_file in codec_file_paths:
                 os.remove(codes_file)
@@ -463,6 +519,7 @@ def main():
     parser.add_argument('--ssim_target', type=float, default=None)
     parser.add_argument('--log_exp_name', action='store_true', help="Include the experiment name (derived from the checkpoint path) in the output folder name.")
     parser.add_argument('--disable_fcd', action='store_true', help="Disable Frechet Codec Distance computation")
+    parser.add_argument('--violin_plot_metrics', type=str, nargs='*', default=['cer','pred_context_ssim'], help="Which metrics to add the violin plot.")
     args = parser.parse_args()
 
     # FCD computation is enabled by default, disabled only when --disable_fcd is specified
@@ -475,6 +532,36 @@ def main():
     if args.apply_prior_to_layers is not None:
         apply_prior_to_layers = [int(l.strip()) for l in args.apply_prior_to_layers.split(",")]
 
+    run_inference_w_args = partial(
+        run_inference,
+        datasets=args.datasets.split(","),
+        out_dir=args.out_dir,
+        temperature=args.temperature,
+        topk=args.topk,
+        codecmodel_path=args.codecmodel_path,
+        use_cfg=args.use_cfg,
+        cfg_scale=args.cfg_scale,
+        batch_size=args.batch_size,
+        sv_model=args.sv_model,
+        asr_model_name=args.asr_model_name,
+        num_repeats=args.num_repeats,
+        apply_attention_prior=args.apply_attention_prior,
+        attention_prior_epsilon=args.attention_prior_epsilon,
+        attention_prior_lookahead_window=args.attention_prior_lookahead_window,
+        estimate_alignment_from_layers=estimate_alignment_from_layers,
+        apply_prior_to_layers=apply_prior_to_layers,
+        start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
+        confidence_level=args.confidence_level,
+        use_local_transformer=args.use_local_transformer,
+        maskgit_n_steps=args.maskgit_n_steps,
+        legacy_codebooks=args.legacy_codebooks,
+        clean_up_disk=args.clean_up_disk,
+        hparams_file_from_wandb=args.hparams_file_from_wandb,
+        log_exp_name=args.log_exp_name,
+        compute_fcd=compute_fcd,
+        violin_plot_metrics=args.violin_plot_metrics
+    )
+
     # Mode 1: Run inference from provided hparams and checkpoint files
     if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null") and (args.checkpoint_files != "null"):
         hparam_files = args.hparams_files.split(",")
@@ -483,75 +570,25 @@ def main():
         print("Running inference for checkpoint files: ", checkpoint_files)
         assert len(hparam_files) == len(checkpoint_files), "Number of hparams files and checkpoint files should be the same."
         for hparams_file, checkpoint_file in zip(hparam_files, checkpoint_files):
-            cer, ssim = run_inference(
+            cer, ssim = run_inference_w_args(
                 hparams_file=hparams_file,
                 checkpoint_file=checkpoint_file,
                 nemo_file=None,
-                datasets=args.datasets.split(","),
-                out_dir=args.out_dir,
-                temperature=args.temperature,
-                topk=args.topk,
-                codecmodel_path=args.codecmodel_path,
-                use_cfg=args.use_cfg,
-                cfg_scale=args.cfg_scale,
-                batch_size=args.batch_size,
-                sv_model=args.sv_model,
-                asr_model_name=args.asr_model_name,
-                num_repeats=args.num_repeats,
-                apply_attention_prior=args.apply_attention_prior,
-                attention_prior_epsilon=args.attention_prior_epsilon,
-                attention_prior_lookahead_window=args.attention_prior_lookahead_window,
-                estimate_alignment_from_layers=estimate_alignment_from_layers,
-                apply_prior_to_layers=apply_prior_to_layers,
-                start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
-                confidence_level=args.confidence_level,
-                use_local_transformer=args.use_local_transformer,
-                maskgit_n_steps=args.maskgit_n_steps,
-                legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk,
-                hparams_file_from_wandb=args.hparams_file_from_wandb,
-                log_exp_name=args.log_exp_name,
-                compute_fcd=compute_fcd
             )
         return
     # Mode 2: Run inference from a .nemo file
     elif args.nemo_files:
         print(f"Running inference for nemo file: {args.nemo_files}")
         for nemo_file in args.nemo_files.split(","):
-            cer, ssim = run_inference(
+            cer, ssim = run_inference_w_args(
                 hparams_file=None,
                 checkpoint_file=None,
                 nemo_file=nemo_file,
-                datasets=args.datasets.split(","),
-                out_dir=args.out_dir,
-                temperature=args.temperature,
-                topk=args.topk,
-                codecmodel_path=args.codecmodel_path,
-                use_cfg=args.use_cfg,
-                cfg_scale=args.cfg_scale,
-                batch_size=args.batch_size,
-                sv_model=args.sv_model,
-                asr_model_name=args.asr_model_name,
-                num_repeats=args.num_repeats,
-                apply_attention_prior=args.apply_attention_prior,
-                attention_prior_epsilon=args.attention_prior_epsilon,
-                attention_prior_lookahead_window=args.attention_prior_lookahead_window,
-                estimate_alignment_from_layers=estimate_alignment_from_layers,
-                apply_prior_to_layers=apply_prior_to_layers,
-                start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
-                confidence_level=args.confidence_level,
-                use_local_transformer=args.use_local_transformer,
-                maskgit_n_steps=args.maskgit_n_steps,
-                legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk,
-                hparams_file_from_wandb=args.hparams_file_from_wandb,
-                log_exp_name=args.log_exp_name,
-                compute_fcd=compute_fcd
             )
-    # Mode 3: Discover and run experiments from a base directory
+    # Mode 1: Discover and run experiments from a base directory
     #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
     #   sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
-    elif args.base_exp_dir:
+    if args.base_exp_dir:
         BASE_EXP_DIR = args.base_exp_dir
         DRACO_EXP_DIR = args.draco_exp_dir
         if args.exp_names is None:
@@ -586,35 +623,10 @@ def main():
             print("Copied hparams file.")
             print("Hparams file path: ", hparams_copy_path)
             print("Checkpoint file path: ", checkpoint_copy_path)
-            run_inference(
+            run_inference_w_args(
                 hparams_copy_path,
                 checkpoint_copy_path,
                 nemo_file=None,
-                datasets=args.datasets.split(","),
-                out_dir=args.out_dir,
-                temperature=args.temperature,
-                topk=args.topk,
-                codecmodel_path=args.codecmodel_path,
-                use_cfg=args.use_cfg,
-                cfg_scale=args.cfg_scale,
-                batch_size=args.batch_size,
-                sv_model=args.sv_model,
-                asr_model_name=args.asr_model_name,
-                num_repeats=args.num_repeats,
-                apply_attention_prior=args.apply_attention_prior,
-                attention_prior_epsilon=args.attention_prior_epsilon,
-                attention_prior_lookahead_window=args.attention_prior_lookahead_window,
-                estimate_alignment_from_layers=estimate_alignment_from_layers,
-                apply_prior_to_layers=apply_prior_to_layers,
-                start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
-                confidence_level=args.confidence_level,
-                use_local_transformer=args.use_local_transformer,
-                maskgit_n_steps=args.maskgit_n_steps,
-                legacy_codebooks=args.legacy_codebooks,
-                clean_up_disk=args.clean_up_disk,
-                hparams_file_from_wandb=args.hparams_file_from_wandb,
-                log_exp_name=args.log_exp_name,
-                compute_fcd=compute_fcd
             )
     else:
         parser.error(
