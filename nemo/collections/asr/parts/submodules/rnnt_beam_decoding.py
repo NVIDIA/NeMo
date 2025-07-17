@@ -50,6 +50,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import (
 )
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel, BoostingTreeModelConfig
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -1553,12 +1554,13 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
         preserve_alignments: bool = False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        boosting_tree_model: Optional[str | Path] = None,
+        boosting_tree: Optional[BoostingTreeModelConfig] = None,
         boosting_tree_alpha: Optional[float] = 0.0,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.LM_WEIGHTED_FULL,
         pruning_mode: Optional[str | PruningMode] = PruningMode.LATE,
         allow_cuda_graphs: Optional[bool] = True,
         return_best_hypothesis: Optional[str] = True,
+        tokenizer: Optional[TokenizerSpec] = None,
     ):
         """
         Init method.
@@ -1586,12 +1588,13 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
             preserve_alignments: if alignments are needed
             ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
             ngram_lm_alpha: weight for the n-gram LM scores
-            boosting_tree_model: path to the Boosting Tree model: .nemo format
+            boosting_tree: Boosting Tree model config
             boosting_tree_alpha: weight for the Boosting Tree scores
             blank_lm_score_mode: mode for scoring blank symbol with LM
             pruning_mode: mode for pruning hypotheses with LM
             allow_cuda_graphs: whether to allow CUDA graphs
             return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses
+            tokenizer: tokenizer for the model
         """
 
         super().__init__()
@@ -1616,8 +1619,10 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin):
             if ngram_lm_model is not None:
                 fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
                 fusion_models_alpha.append(ngram_lm_alpha)
-            if boosting_tree_model is not None:
-                fusion_models.append(GPUBoostingTreeModel.from_file(lm_path=boosting_tree_model, vocab_size=self._blank_index))
+            if boosting_tree is not None and (
+                boosting_tree.model_path or boosting_tree.key_phrases_file or boosting_tree.key_phrases_list
+            ):
+                fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
                 fusion_models_alpha.append(boosting_tree_alpha)
             if not fusion_models:
                 fusion_models = None

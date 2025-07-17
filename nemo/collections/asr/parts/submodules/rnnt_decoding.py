@@ -428,7 +428,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     boosting_tree=boosting_tree,
                     boosting_tree_alpha=self.cfg.greedy.get('boosting_tree_alpha', 0),
-                    tokenizer=self.tokenizer,
+                    tokenizer=getattr(self, 'tokenizer', None),
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.TDT:
                 self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
@@ -449,7 +449,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     ngram_lm_alpha=self.cfg.greedy.get('ngram_lm_alpha', 0),
                     boosting_tree=boosting_tree,
                     boosting_tree_alpha=self.cfg.greedy.get('boosting_tree_alpha', 0),
-                    tokenizer=self.tokenizer,
+                    tokenizer=getattr(self, 'tokenizer', None),
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.MULTI_BLANK:
                 if ngram_lm_model is not None or boosting_tree is not None:
@@ -609,14 +609,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                     ngram_lm_model=ngram_lm_model,
                     ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
-                    boosting_tree_model=boosting_tree,
+                    boosting_tree=boosting_tree,
                     boosting_tree_alpha=self.cfg.beam.get('boosting_tree_alpha', 0.0),
                     blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
                     pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                     score_norm=self.cfg.beam.get('score_norm', True),
                     allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                     return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
-                    tokenizer=self.tokenizer,
+                    tokenizer=getattr(self, 'tokenizer', None),
                 )
             case TransducerDecodingStrategyType.MALSD_BATCH, TransducerModelType.TDT:
                 self.decoding = tdt_beam_decoding.BeamBatchedTDTInfer(
@@ -637,7 +637,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     score_norm=self.cfg.beam.get('score_norm', True),
                     allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
                     return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
-                    tokenizer=self.tokenizer,
+                    tokenizer=getattr(self, 'tokenizer', None),
                 )
             case TransducerDecodingStrategyType.MAES_BATCH, TransducerModelType.RNNT:
                 self.decoding = rnnt_beam_decoding.BeamBatchedRNNTInfer(
