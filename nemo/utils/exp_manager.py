@@ -42,6 +42,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.lightning.one_logger_callback import init_one_logger
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
@@ -54,7 +55,6 @@ from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerP
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.meta_info_manager import MetaInfoManager
 from nemo.utils.model_utils import uninject_model_parallel_rank
-from nemo.lightning.one_logger_callback import init_one_logger
 
 get_current_global_batch_size, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
     "megatron.core.num_microbatches_calculator", "get_current_global_batch_size"
@@ -457,7 +457,7 @@ def configure_onelogger(
             - enable_onelogger: bool - Whether to enable OneLogger (default: True)
         trainer: PyTorch Lightning trainer instance.
         name: Experiment name for the config. Used if cfg is None.
-        
+
     Note:
         OneLogger can be disabled by setting cfg.enable_onelogger = False
     """
@@ -465,7 +465,7 @@ def configure_onelogger(
     # Check if OneLogger is available
     if not HAVE_ONELOGGER:
         return
-    
+
     # Check if OneLogger is disabled via config
     if cfg is not None and hasattr(cfg, 'enable_onelogger') and not cfg.enable_onelogger:
         logging.info("OneLogger disabled via configuration")

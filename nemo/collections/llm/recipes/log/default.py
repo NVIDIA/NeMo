@@ -52,7 +52,7 @@ def default_log(
     enable_onelogger: bool = True,
 ) -> Config[nl.NeMoLogger]:
     """Factory function to configure NemoLogger.
-    
+
     Args:
         dir: Directory for logs
         name: Name of the experiment
