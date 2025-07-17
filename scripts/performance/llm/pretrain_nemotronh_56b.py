@@ -143,7 +143,7 @@ if __name__ == "__main__":
         )
     ]
 
-    custom_env_vars = {"TRANSFORMERS_OFFLINE": "0"}
+    custom_env_vars = {}
 
     if args.gpu.lower() == 'gb200':
         custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
