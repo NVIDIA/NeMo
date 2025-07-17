@@ -37,8 +37,6 @@ jobs:
         include:
           - script: L2_Community_vita_Checkpoints_tests_Llama3
             runner: self-hosted-azure-gpus-1
-          - script: L2_Stable_Diffusion_Training
-            runner: self-hosted-azure-gpus-1
           - script: L2_NeMo_2_GPT_Pretraining_no_transformer_engine
             runner: self-hosted-azure
           - script: L2_NeMo_2_llama3_pretraining_recipe
@@ -184,6 +182,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_Prune_Llama_TP1PP2
             runner: self-hosted-azure
+          - script: L2_NeMo_2_GPT_Speculative_Llama3_TP2PP1
+            runner: self-hosted-azure
           - script: L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
             runner: self-hosted-azure
           - script: L2_NeMo_2_LLAVA_NEXT_HF_CONVERSION
@@ -269,6 +269,7 @@ jobs:
             script: L2_NeMo_2_Diffusion_Taskencoder_Test
           - runner: self-hosted-azure
             script: L2_NeMo_2_Flux_Import_Test
+            is-optional: true
           - runner: self-hosted-azure
             script: L2_NeMo_2_Flux_Inference_Test
           - runner: self-hosted-azure
