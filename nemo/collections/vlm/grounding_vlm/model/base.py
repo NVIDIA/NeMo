@@ -30,6 +30,7 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import get_batch_on_this_cp_rank
 from megatron.core.transformer.transformer_block import TransformerBlockSubmodules
 from megatron.core.enums import AttnMaskType
+from megatron.core.utils import WrappedTensor, deprecate_inference_params
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
@@ -41,14 +42,18 @@ from nemo.collections.vlm.layer_specs import get_layer_spec_te
 from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, restore_model_weights
 from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, VIDEO_TOKEN_INDEX
 from nemo.collections.vlm.qwen2vl.model.vision import Qwen2VisionModel, Qwen25VisionModel
+from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen25VLConfig, Qwen2VLVisionConfig, Qwen25VLVisionConfig
 from nemo.collections.vlm.vision import MultimodalProjectorConfig
 from nemo.collections.vlm.vision.base import get_image_sequence_length
 from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
-from nemo.collections.vlm.grounding_vlm.model.thinker import ThinkingAttnRefineModule
 
+
+# grounding vlm
+from nemo.collections.vlm.grounding_vlm.model.thinker import ThinkingAttnRefineModuleConfig
+from nemo.collections.vlm.grounding_vlm.model.tokens import generate_extra_grounding_tokens
 
 def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]:
     """Qwen2VL Data Step"""
@@ -95,7 +100,6 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
     output = get_batch_on_this_cp_rank(_batch)
     return output
 
-
 def qwen2vl_forward_step(model, batch) -> torch.Tensor:
     # pylint: disable=C0115,C0116
     forward_args = {
@@ -112,180 +116,13 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
         forward_args['packed_seq_params'] = get_packed_seq_params(batch)
     return model(**forward_args)
 
-
 def set_input_tensor(self, tensor):
     # pylint: disable=C0115,C0116
     pass
 
-
-@dataclass
-class Qwen2VLVisionConfig(TransformerConfig, io.IOMixin):
-    """Qwen2VL Vision Model Config"""
-
-    add_class_token: bool = False
-    class_token_len: int = 1
-    patch_dim: int = 14
-    img_h: int = 336
-    img_w: int = 336
-    num_layers: int = 32
-    num_attention_heads: int = 16
-    add_bias_linear: bool = True
-    add_qkv_bias: bool = True
-    embed_dim: int = 1280
-    hidden_size: int = 1280
-    spatial_merge_size: int = 2
-    spatial_patch_size: int = 14
-    temporal_patch_size: int = 2
-    hidden_dropout: float = 0.0
-    attention_dropout: float = 0.0
-    ffn_hidden_size: int = 5120  # 1280 * 4
-    gated_linear_unit: bool = False
-    activation_func: Callable = quick_gelu
-    kv_channels: int = 80
-    num_query_groups: int = 16
-    layernorm_zero_centered_gamma: bool = False
-    apply_query_key_layer_scaling: bool = False
-    bias_activation_fusion: bool = False
-    bias_dropout_fusion: bool = False
-    attention_softmax_in_fp32: bool = True
-    normalization: str = 'LayerNorm'
-    apply_rope_fusion: bool = False
-    layernorm_epsilon: float = 1e-6
-    transformer_layer_spec: ModuleSpec = None
-    model_version: str = "qwen2-vl"
-
-    def configure_model(self) -> "Qwen2VisionModel":
-        # pylint: disable=C0115,C0116
-        transformer_layer_spec = self.transformer_layer_spec
-        if not isinstance(transformer_layer_spec, ModuleSpec):
-            transformer_layer_spec = get_layer_spec_te(is_vit=True)
-
-        model = Qwen2VisionModel(
-            self,
-            transformer_layer_spec,
-            add_class_token=self.add_class_token,
-            class_token_len=self.class_token_len,
-            patch_dim=self.patch_dim,
-            temporal_patch_size=self.temporal_patch_size,
-            spatial_merge_size=self.spatial_merge_size,
-            spatial_patch_size=self.spatial_patch_size,
-            img_h=self.img_h,
-            img_w=self.img_w,
-        )
-
-        return model
-
-
-@dataclass
-class Qwen25VLVisionConfig(TransformerConfig, io.IOMixin):
-    """Qwen2.5VL Vision Model Config"""
-
-    add_class_token: bool = False
-    class_token_len: int = 1
-    patch_dim: int = 14
-    img_h: int = 336
-    img_w: int = 336
-    num_layers: int = 32
-    num_attention_heads: int = 16
-    add_bias_linear: bool = True
-    add_qkv_bias: bool = True
-    embed_dim: int = 1280
-    hidden_size: int = 1280
-    spatial_merge_size: int = 2
-    spatial_patch_size: int = 14
-    temporal_patch_size: int = 2
-    hidden_dropout: float = 0.0
-    attention_dropout: float = 0.0
-    ffn_hidden_size: int = 3420
-    gated_linear_unit: bool = True
-    activation_func: Callable = torch.nn.functional.silu  # Qwen 2.5-VL uses swiGLU as activation function
-    kv_channels: int = 80
-    num_query_groups: int = 16
-    layernorm_zero_centered_gamma: bool = False
-    apply_query_key_layer_scaling: bool = False
-    bias_activation_fusion: bool = False
-    bias_dropout_fusion: bool = False
-    attention_softmax_in_fp32: bool = True
-    normalization: str = 'RMSNorm'  # set the normalization to RMSNorm for Qwen2.5-VL
-    apply_rope_fusion: bool = False
-    layernorm_epsilon: float = 1e-6
-    transformer_layer_spec: ModuleSpec = None
-    fullatt_block_indexes: List[int] = field(default_factory=lambda: [7, 15, 23, 31])
-    model_version: str = "qwen25-vl"
-
-    def configure_model(self) -> "Qwen25VisionModel":
-        # pylint: disable=C0115,C0116
-        transformer_layer_spec = self.transformer_layer_spec
-        if not isinstance(transformer_layer_spec, ModuleSpec):
-            transformer_layer_spec = get_layer_spec_te(is_vit=True)
-
-        model = Qwen25VisionModel(
-            self,
-            transformer_layer_spec,
-            add_class_token=self.add_class_token,
-            class_token_len=self.class_token_len,
-            patch_dim=self.patch_dim,
-            temporal_patch_size=self.temporal_patch_size,
-            spatial_merge_size=self.spatial_merge_size,
-            spatial_patch_size=self.spatial_patch_size,
-            img_h=self.img_h,
-            img_w=self.img_w,
-        )
-
-        return model
-
-@dataclass
-class ThinkingAttnRefineModuleConfig(TransformerConfig, io.IOMixin):
-    """Configuration for the Thinking Attention Refinement Module.
-    
-    This module implements a cross attention transformer that allows the model to 
-    refine its understanding by attending between vision features (from encoder) and 
-    language features (from decoder's penultimate layer).
-    
-    The cross attention mechanism enables:
-    1. Vision features to attend to relevant language tokens
-    2. Language features to attend to relevant image patches
-    """
-    
-    # Cross attention specific
-    num_layers: int = 4
-    hidden_size: int = 1280
-    num_attention_heads: int = 16
-    attention_dropout: float = 0.0
-    ffn_hidden_size: int = 5120
-    activation_func: Callable = quick_gelu
-    kv_channels: int = 80
-    num_query_groups: int = 16
-    layernorm_zero_centered_gamma: bool = False
-    apply_query_key_layer_scaling: bool = False
-
-    def configure_model(self) -> ThinkingAttnRefineModule:
-        """Configure and return a ThinkingAttnRefineModule instance.
-        
-        This creates a cross-attention transformer model that refines the understanding
-        between vision encoder features and <|img_think|> features.
-        
-        Returns:
-            ThinkingAttnRefineModule: The configured cross-attention transformer model
-        """
-        transformer_layer_spec = self.transformer_layer_spec
-        if not isinstance(transformer_layer_spec, ModuleSpec):
-            from nemo.collections.vlm.grounding_vlm.model.thinker import get_layer_spec_thinker
-            transformer_layer_spec = get_layer_spec_thinker()
-            
-        model = ThinkingAttnRefineModule(
-            config=self,
-            spec=transformer_layer_spec,
-            pre_process=False,
-            post_process=False,
-        )
-        
-        return model
-
-
 @dataclass
 class Qwen2VLGroundingConfig(TransformerConfig, io.IOMixin):
-    """Qwen2VL Model Base Config"""
+    """Qwen2/2.5VL Model Base Config"""
 
     language_transformer_config: Optional[Qwen2Config] = None
     vision_transformer_config: Optional[Qwen2VLVisionConfig | Qwen25VLVisionConfig] = None
@@ -315,7 +152,6 @@ class Qwen2VLGroundingConfig(TransformerConfig, io.IOMixin):
     # grounding modules
     thinking_attn_refine_module_config: Optional[ThinkingAttnRefineModuleConfig] = None
 
-
     def __post_init__(self):
         # pylint: disable=C0115,C0116
         if self.language_transformer_config is not None:
@@ -329,7 +165,7 @@ class Qwen2VLGroundingConfig(TransformerConfig, io.IOMixin):
             # https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct/blob/main/config.json
             self.language_transformer_config.mrope_section = [16, 24, 24]
 
-    def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreQwen2VLModel":
+    def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreQwen2GroundingVLModel":
         # pylint: disable=C0115,C0116
         self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
@@ -337,6 +173,9 @@ class Qwen2VLGroundingConfig(TransformerConfig, io.IOMixin):
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+
+        # thinker
+        self.thinking_attn_refine_module_config.tensor_model_parallel_size = self.tensor_model_parallel_size
 
         if self.encoder_pipeline_model_parallel_size > 0:
             assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
@@ -407,14 +246,33 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
 
         self.share_embeddings_and_output_weights = False
 
+        # add thinker module
+        assert self.thinking_attn_refine_module_config is not None, "thinking_attn_refine_module_config is required"
+        self.thinking_attn_refine_module = self.thinking_attn_refine_module_config.configure_model()
+
+        # add extra tokens
+        self.extra_tokens = None
+        self.extra_tokens_ids = None
+        if tokenizer is not None:
+            tokenizer, extra_tokens, extra_tokens_ids, metadata = generate_extra_grounding_tokens(tokenizer)
+            self.extra_tokens = extra_tokens
+            self.extra_tokens_ids = extra_tokens_ids
+            self.extra_token_id_mapping = {
+                k: v for k, v in zip(extra_tokens, extra_tokens_ids)
+            }
+            self.metadata = metadata
+
         if self.add_decoder:
+            # TODO: this will have a different vocab size than the original model, how to handle this?
+            # tokenizer is modified already
             self.language_model = language_transformer_config.configure_model(
                 tokenizer=tokenizer,
                 pre_process=pre_process,
                 post_process=post_process,
                 vp_stage=vp_stage,
             )
-
+            self.language_model.post_process = False  # get the hidden state instead of logits
+            # extend the embeddings
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
             self._language_max_sequence_length = self.language_model.max_sequence_length
             self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
@@ -655,11 +513,21 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         labels: Optional[torch.Tensor] = None,
         inference_params: Optional[InferenceParams] = None,
         pixel_values: Optional[torch.Tensor] = None,
-        pixel_values_videos: Optional[torch.FloatTensor] = None,
+        pixel_values_videos: Optional[torch.FloatTensor] = None,   # [seqlen_img, num_dims]
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
         runtime_gather_output: Optional[bool] = None,
         second_per_grid_ts: Optional[torch.FloatTensor] = None,
+        # grounding params
+        cls_token_ids: Optional[torch.Tensor] = None,  # [batch, seqlen', classes]
+        cls_labels: Optional[torch.Tensor] = None,  # [batch, classes]  # binary labels
+        cls_loss_mask: Optional[torch.Tensor] = None,  # [batch, classes]
+        # detection params
+        instance_det_ids: Optional[torch.Tensor] = None,  # [batch, num_instances, 4]    # boxes
+        instance_det_loss_mask: Optional[torch.Tensor] = None,  # [batch, num_instances]
+        # semantic segmentation params
+        # semseg_label_token_ids: Optional[torch.Tensor] = None,  # [batch, seqlen', ]
+
     ) -> torch.Tensor:
         """Forward function of the Qwen2VL model.
 
@@ -698,9 +566,11 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             # If running inference, we can skip media token computation if they were computed already earlier
             # for this sample.
             image_embeddings = None
+
         elif self.add_encoder and not has_images:
             # If no images provided, use an empty image embeddings tensor.
             image_embeddings = None
+
         elif self.add_encoder and has_images:
             pixel_values = pixel_values.to(next(self.vision_model.parameters()).dtype)
             image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
@@ -730,6 +600,7 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             image_embeddings = self.encoder_hidden_state
 
         video_embeddings = None
+        assert not has_videos, "video support is not implemented yet"
         if self.add_encoder and has_videos:
             pixel_values_videos = pixel_values_videos.to(next(self.vision_model.parameters()).dtype)
             video_embeddings = self.vision_model(
@@ -754,16 +625,31 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
                 loss_mask = loss_mask[:, : self._language_max_sequence_length]
 
         # Pipeline parallel expects fixed input size. Check if we need to pad.
-        if self._language_is_pipeline_parallel and language_seq_len < self._language_max_sequence_length:
-            padded_seq_len = self._language_max_sequence_length - language_seq_len
-            input_ids = torch.nn.functional.pad(input_ids, (0, padded_seq_len))
-            if position_ids is not None:
-                position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
+        assert not self._language_is_pipeline_parallel, "language is pipeline parallel is not supported yet"
+        # if self._language_is_pipeline_parallel and language_seq_len < self._language_max_sequence_length:
+        #     padded_seq_len = self._language_max_sequence_length - language_seq_len
+        #     input_ids = torch.nn.functional.pad(input_ids, (0, padded_seq_len))
+        #     if position_ids is not None:
+        #         position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
 
         if position_ids is None and input_ids is not None:
             position_ids, _ = self.get_rope_index(
                 input_ids, image_grid_thw, video_grid_thw, second_per_grid_ts, attention_mask
             )
+
+        ### Process classification tokens
+        cls_label_pos_ids_flat = None
+        cls_token_ids_flat = None
+        cls_embeddings = None
+        
+        # get cls label position ids
+        if cls_token_ids is not None:
+            batch_size_cls, seq_len_cls, num_classes_cls = cls_token_ids.shape
+            cls_token_ids_flat = cls_token_ids.transpose(0, 2, 1).reshape(batch_size_cls * num_classes_cls, seq_len_cls) 
+            cls_label_pos_ids_flat, _ = self.get_rope_index(
+                cls_token_ids_flat, None, None, None, None
+            )
+            # cls_token_ids_flat = self.language_model.embedding(cls_token_ids_flat)
 
         # Create the language_embeddings (if this is the first language model stage).
         if self.pre_process:
@@ -781,6 +667,16 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
                     if position_ids is not None:
                         position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
 
+                # pad cls tokens too
+                if cls_token_ids_flat is not None:
+                    padded_seq_len_cls = (
+                        int((cls_token_ids_flat.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size) - cls_token_ids_flat.shape[1]
+                    )
+                    if padded_seq_len_cls != 0:
+                        cls_token_ids_flat = torch.nn.functional.pad(cls_token_ids_flat, (0, padded_seq_len_cls))
+                        if cls_label_pos_ids_flat is not None:
+                            cls_label_pos_ids_flat = torch.nn.functional.pad(cls_label_pos_ids_flat, (0, padded_seq_len_cls))
+
             input_ids_text = input_ids.clone()
             # MultiModal Token indices are assumed to be values
             input_ids_text[input_ids_text < 0] = 0
@@ -790,6 +686,12 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             )  # [decoder_seq_len, b, h_language]
 
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, decoder_seq_len, h_language]
+
+            # get cls embeddings
+            if cls_token_ids is not None:
+                cls_embeddings = self.language_model.embedding(cls_token_ids_flat)  # [seqlen, batch*classes, h_language]
+                cls_embeddings = cls_embeddings[-1].reshape(batch_size_cls, num_classes_cls, -1).contiguous()  # [batch, classes, h_language]
+                # cls_embeddings = self.thinking_attn_refine_module.cls_head_forward(cls_embeddings)  # [batch, classes, h_cls_head]
 
         # Preprocess input, labels and loss mask.
         combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
@@ -802,7 +704,7 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             attention_mask=attention_mask,
         )  # [decoder_seq_len, b, h_language], [b, decoder_seq_len], [b, decoder_seq_len]
 
-        output = self.language_model(
+        hidden_states = self.language_model(
             input_ids=None,
             position_ids=position_ids,
             attention_mask=final_attention_mask,
@@ -810,12 +712,61 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             labels=final_labels,
             inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
-        )  # output shape: [batch_size, seq length, vocab_size]
+        )  # output shape: [seq length, batch_size, hidden_size]
 
-        if labels is None or loss_mask is None:
-            return output
-        else:
-            return output, final_loss_mask.contiguous()
+        # get thinking token indices
+        batch_size = input_ids.shape[0]
+        think_hidden_states_indices = torch.nonzero(input_ids >= self.extra_token_id_mapping["<|img_think_0|>"] and input_ids <= self.extra_token_id_mapping["<|img_think_end|>"], as_tuple=False)
+        think_hidden_states_indices = torch.flip(think_hidden_states_indices, dims=[1])  # list of [(b, s) -> (s, b)]
+
+        # get indices and get counts for each 'b_idx'
+        seq_idx, batch_idx = think_hidden_states_indices.T  # [num_thinking_tokens, batch_size]
+        _, count_b = torch.unique(batch_idx, return_counts=True)
+        assert (count_b[0] == count_b).all(), "each batch should have the same number of thinking tokens"
+
+        # get thinking states from hidden states
+        think_states = hidden_states[think_hidden_states_indices, :]  # [cu_seqlens, hidden_size]
+        # reshaped to batch_size first because the indices will be grouped by batch_size
+
+        # get thinking states from all hidden states
+        # think_states = hidden_states[hidden_states_indices, :]  # [cu_seqlens, hidden_size]
+        # run thinking attention refine module
+        image_embeddings_refined, think_states_refined = self.thinking_attn_refine_module(image_embeddings, think_states, image_grid_thw, think_hidden_states_indices)
+        # think_states_refined = think_states_refined.reshape(batch_size, -1, think_states_refined.shape[-1])  # [batch_size, num_thinking_tokens, hidden_size]
+
+        # run classification classes
+        cls_logits = None
+        if cls_token_ids is not None:  # at least one sample has some cls tokens
+            cls_logits = self.thinking_attn_refine_module.cls_head_forward(cls_embeddings, think_states_refined, think_hidden_states_indices)  # [batch, classes]
+
+        # obtain detection states
+        instance_state_indices = torch.nonzero(input_ids >= self.extra_token_id_mapping["<|bbox_0|>"] and input_ids <= self.extra_token_id_mapping[f"<|bbox_{self.extra_token_id_mapping['num_bbox_tokens'] - 1}|>"], as_tuple=False)
+        instance_state_indices = torch.flip(instance_state_indices, dims=[1])  # list of [(b, s) -> (s, b)]
+        instance_states = hidden_states[instance_state_indices, :]  # [cu_num_instances, hidden_size]
+        # run detection attention refine module
+        instance_logits = None
+        if instance_det_ids is not None:  # at least one sample has some instance tokens
+            max_instances_per_batch = instance_det_ids.shape[1]
+            instance_logits = self.thinking_attn_refine_module.detection_head_forward(instance_states, think_states_refined, instance_state_indices, think_hidden_states_indices, max_instances_per_batch)  # [cu_num_instances, 4]
+
+        # language model forward
+        output_weight = None
+        if self.share_embeddings_and_output_weights:
+            output_weight = self.shared_embedding_or_output_weight()
+        # get language model logits
+        logits, _ = self.output_layer(hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output)  # [s, b, vocab_size]
+        logits = logits.transpose(0, 1).contiguous()  # [b, s, vocab_size]
+        token_loss = None
+        if labels is not None:
+            token_loss = self.language_model.compute_language_model_loss(labels, logits)
+
+        return {
+            'token_loss': token_loss, # [b, s]
+            'final_loss_mask': final_loss_mask, # [b, s]
+            'cls_logits': cls_logits, # [b, classes]
+            'instance_logits': instance_logits, # [b, num_instances, 4]
+        }
+
 
     # override _preprocess_data() in megatron-lm/megatron/core/models/multimodal/llava_model.py
     def _preprocess_data(
@@ -928,7 +879,6 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         final_labels, final_loss_mask = None, None
 
         if self.post_process and has_labels:
-
             # Pipeline parallel expects fixed input size. Check if we need to pad
             if self._language_is_pipeline_parallel and labels.shape[1] < self._language_max_sequence_length:
                 max_seq_len = self._language_max_sequence_length
@@ -962,6 +912,7 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         if truncate_labels:
             final_labels = final_labels[:, : self._language_max_sequence_length]
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
+
         return final_embedding, final_labels, final_loss_mask, attention_mask
 
     def set_input_tensor(self, input_tensor) -> None:
@@ -982,12 +933,12 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             self.language_model.set_input_tensor(input_tensor[0])
 
 
-class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+class Qwen2GroundingVLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     """Lightning Wrapper for Qwen2VL Model"""
 
     def __init__(
         self,
-        config: Qwen2VLConfig,
+        config: Qwen2VLGroundingConfig,
         model_version: str,
         optim: Optional[OptimizerModule] = None,
         tokenizer: Optional["TokenizerSpec"] = None,
