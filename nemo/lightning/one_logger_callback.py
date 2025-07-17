@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Type
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
+
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
     HAVE_ONELOGGER = False
@@ -34,8 +35,9 @@ __all__ = [
     'hook_class_init_with_callbacks',
     'HAVE_ONELOGGER',
     'get_onelogger_callbacks',
-    'init_one_logger'
+    'init_one_logger',
 ]
+
 
 def get_current_time_msec() -> float:
     """Get current time in milliseconds since epoch.
@@ -45,12 +47,15 @@ def get_current_time_msec() -> float:
     """
     return time.time() * 1000
 
+
 # Wrapper functions for OneLogger callbacks
 def get_onelogger_callbacks(name: str):
     """Get the OneLogger callbacks module if available."""
     if not HAVE_ONELOGGER:
+
         def _noop(*args, **kwargs):
             pass
+
         return _noop
     if hasattr(CB, name):
         return getattr(CB, name)
@@ -211,7 +216,9 @@ class OneLoggerNeMoCallback(Callback):
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
 
-        get_onelogger_callbacks("on_train_start")(train_iterations_start=current_step, train_iterations_target_or_fn=max_steps)
+        get_onelogger_callbacks("on_train_start")(
+            train_iterations_start=current_step, train_iterations_target_or_fn=max_steps
+        )
 
     def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
         get_onelogger_callbacks("on_training_single_iteration_start")()
@@ -319,7 +326,7 @@ class OneLoggerAppContext:
 
 def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None):
     """Initialize OneLogger with v1 config and optionally add callback to trainer.
-    
+
     Args:
         v1_config: V1-style configuration dictionary
         trainer: Optional PyTorch Lightning trainer to add callback to
@@ -327,10 +334,10 @@ def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None):
     if not HAVE_ONELOGGER:
         logging.warning("OneLogger not available, skipping initialization")
         return
-        
+
+    from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
     from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
     from nv_one_logger.training_telemetry.v1_adapter.v1_compatible_wandb_exporter import V1CompatibleWandbExporterAsync
-    from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
 
     # Convert v1 config to v2 config using the adapter
     training_telemetry_config, wandb_config = ConfigAdapter.convert_to_v2_config(v1_config)
@@ -359,7 +366,7 @@ def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None):
                 "session_tag": v1_config.get("app_tag_run_name", "nemo-session"),
                 "global_batch_size": v1_config.get("global_batch_size", 1),
             }
-            
+
             # Create the callback with metadata
             onelogger_callback = OneLoggerNeMoCallback(
                 callback_config=metadata, log_interval=v1_config.get("log_every_n_train_iterations", 10)
