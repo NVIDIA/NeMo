@@ -1180,7 +1180,7 @@ def _setup(
     )
 
     # Configure OneLogger callback
-    configure_onelogger(trainer=trainer, name=_log.name)
+    configure_onelogger(trainer=trainer, name=_log.name, enable_onelogger=getattr(_log, 'enable_onelogger', True))
 
     if resume is not None:
         timing_tracker.track_event('on_load_checkpoint_start')
