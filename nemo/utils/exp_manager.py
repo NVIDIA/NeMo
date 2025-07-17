@@ -36,9 +36,9 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.callbacks.timer import Interval, Timer
 from lightning.pytorch.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLogger, WandbLogger
 from lightning.pytorch.loops import _TrainingEpochLoop
+from lightning.pytorch.plugins.io import AsyncCheckpointIO
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
-from lightning.pytorch.plugins.io import AsyncCheckpointIO
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
