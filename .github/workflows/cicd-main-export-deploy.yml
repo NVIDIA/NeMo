@@ -49,7 +49,7 @@ jobs:
             runner: self-hosted-azure
     needs: [build]
     runs-on: ${{ matrix.runner }}
-    name: ${{ matrix.script }}
+    name: ${{ matrix.is-optional && 'PLEASEFIXME_' || '' }}${{ matrix.script }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,6 +64,7 @@ jobs:
           tests_to_run: ${{ inputs.test_to_run }}
           image: ${{ inputs.image-name }}
           cpu-only: ${{ matrix.cpu-only || false }}
+          is_optional: ${{ matrix.is-optional || false }}
   e2e-tests:
     strategy:
       fail-fast: false
