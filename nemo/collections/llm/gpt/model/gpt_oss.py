@@ -49,6 +49,8 @@ class GPTOSSConfig(GPTConfig):
     add_bias_linear: bool = True
     share_embeddings_and_output_weights: bool = False
     vocab_size: int = 201088
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
 
     position_embedding_type: str = "yarn"
     rotary_base: int = 150000
