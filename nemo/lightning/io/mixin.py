@@ -198,9 +198,6 @@ class IOMixin:
 
                 hook_class_init_with_callbacks(cls, "on_dataloader_init_start", "on_dataloader_init_end")
 
-        except Exception as e:
-            pass
-
         super().__init_subclass__()
 
     def io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
