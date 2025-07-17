@@ -225,18 +225,20 @@ def fp8_test(custom_fsdp=True) -> run.Partial:
     recipe.trainer.max_steps = 100
     return recipe
 
+
 def configure_custom_fsdp(recipe) -> run.Partial:
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
         use_custom_fsdp=True,
-        data_parallel_sharding_strategy='optim_grads_params', # Custom FSDP
+        data_parallel_sharding_strategy='optim_grads_params',  # Custom FSDP
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
-        overlap_param_gather=True, # Custom FSDP requires this
-        overlap_grad_reduce=True, # Custom FSDP requires this
+        overlap_param_gather=True,  # Custom FSDP requires this
+        overlap_grad_reduce=True,  # Custom FSDP requires this
     )
     recipe.trainer.strategy.fsdp = 'megatron'
     return recipe
+
 
 def configure_ddp(recipe) -> run.Partial:
     recipe.trainer.strategy.ddp = run.Config(
@@ -247,8 +249,9 @@ def configure_ddp(recipe) -> run.Partial:
     recipe.trainer.strategy.fsdp = None
     return recipe
 
+
 @run.cli.factory(target=llm.train)
-def unit_test(custom_fsdp = True) -> run.Partial:
+def unit_test(custom_fsdp=True) -> run.Partial:
     '''
     Basic functional test, with mock dataset,
     text/vae encoders not initialized, ddp strategy,

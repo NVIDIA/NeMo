@@ -14,19 +14,16 @@
 
 import lightning.pytorch as pl
 import nemo_run as run
+from scripts.flux.flux_controlnet_training import unit_test as flux_control_training_unit_test
+from scripts.flux.flux_training import unit_test as flux_training_unit_test
+
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
-from nemo.collections.diffusion.models.flux.model import (
-    FluxConfig,
-    FluxModelParams,
-    MegatronFluxModel,
-    T5Config,
-)
+from nemo.collections.diffusion.models.flux.model import FluxConfig, FluxModelParams, MegatronFluxModel, T5Config
 from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig, MegatronFluxControlNetModel
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
-from scripts.flux.flux_training import unit_test as flux_training_unit_test
-from scripts.flux.flux_controlnet_training import unit_test as flux_control_training_unit_test
+
 
 @run.cli.factory
 @run.autoconvert
@@ -56,14 +53,15 @@ def flux_controlnet_training_fsdp() -> run.Partial:
             save_last=False,
         )
     ]
-    recipe.log = log=run.Config(
-            nl.NeMoLogger,
-            ckpt=None,
-            name='flux_controlnet_training_test',
-            tensorboard=tensorboard_logger(name='flux_controlnet_training'),
-            log_dir='/tmp/flux_controlnet_training',
-        )
+    recipe.log = log = run.Config(
+        nl.NeMoLogger,
+        ckpt=None,
+        name='flux_controlnet_training_test',
+        tensorboard=tensorboard_logger(name='flux_controlnet_training'),
+        log_dir='/tmp/flux_controlnet_training',
+    )
     return recipe
+
 
 @run.cli.factory(target=llm.train, name='flux_controlnet_training_ddp_test')
 def flux_controlnet_training_ddp(
@@ -101,14 +99,15 @@ def flux_controlnet_training_ddp(
         )
     ]
     recipe.data = flux_mock_datamodule()
-    recipe.log = log=run.Config(
-            nl.NeMoLogger,
-            ckpt=None,
-            name='flux_controlnet_training_test',
-            tensorboard=tensorboard_logger(name='flux_controlnet_training'),
-            log_dir='/tmp/flux_controlnet_training',
-        )
+    recipe.log = log = run.Config(
+        nl.NeMoLogger,
+        ckpt=None,
+        name='flux_controlnet_training_test',
+        tensorboard=tensorboard_logger(name='flux_controlnet_training'),
+        log_dir='/tmp/flux_controlnet_training',
+    )
     return recipe
+
 
 @run.cli.factory(target=llm.train, name='flux_training_ddp_test')
 def flux_training_ddp(
@@ -133,20 +132,21 @@ def flux_training_ddp(
     recipe.trainer.num_sanity_val_steps = 0
     recipe.trainer.limit_val_batches = 0
     recipe.trainer.max_steps = 10
-    recipe.trainer.callbacks =[
+    recipe.trainer.callbacks = [
         run.Config(
             nl.ModelCheckpoint,
             save_last=False,
         )
     ]
-    recipe.log=run.Config(
-            nl.NeMoLogger,
-            ckpt=None,
-            name='flux_training_test',
-            tensorboard=tensorboard_logger(name='flux_training'),
-            log_dir='/tmp/flux_training',
+    recipe.log = run.Config(
+        nl.NeMoLogger,
+        ckpt=None,
+        name='flux_training_test',
+        tensorboard=tensorboard_logger(name='flux_training'),
+        log_dir='/tmp/flux_training',
     )
     return recipe
+
 
 @run.cli.factory(target=llm.train, name='flux_training_fsdp_test')
 def flux_training_fsdp() -> run.Partial:
@@ -155,18 +155,18 @@ def flux_training_fsdp() -> run.Partial:
     recipe.trainer.num_sanity_val_steps = 0
     recipe.trainer.limit_val_batches = 0
     recipe.trainer.max_steps = 10
-    recipe.trainer.callbacks =[
+    recipe.trainer.callbacks = [
         run.Config(
             nl.ModelCheckpoint,
             save_last=False,
         )
     ]
-    recipe.log=run.Config(
-            nl.NeMoLogger,
-            ckpt=None,
-            name='flux_training_test',
-            tensorboard=tensorboard_logger(name='flux_training'),
-            log_dir='/tmp/flux_training',
+    recipe.log = run.Config(
+        nl.NeMoLogger,
+        ckpt=None,
+        name='flux_training_test',
+        tensorboard=tensorboard_logger(name='flux_training'),
+        log_dir='/tmp/flux_training',
     )
     return recipe
 

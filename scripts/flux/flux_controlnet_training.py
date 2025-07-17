@@ -288,18 +288,20 @@ def unit_test(custom_fsdp=True) -> run.Partial:
 
     return recipe
 
+
 def configure_custom_fsdp(recipe) -> run.Partial:
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
         use_custom_fsdp=True,
-        data_parallel_sharding_strategy='optim_grads_params', # Custom FSDP
+        data_parallel_sharding_strategy='optim_grads_params',  # Custom FSDP
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
-        overlap_param_gather=True, # Custom FSDP requires this
-        overlap_grad_reduce=True, # Custom FSDP requires this
+        overlap_param_gather=True,  # Custom FSDP requires this
+        overlap_grad_reduce=True,  # Custom FSDP requires this
     )
     recipe.trainer.strategy.fsdp = 'megatron'
     return recipe
+
 
 def configure_ddp(recipe) -> run.Partial:
     recipe.trainer.strategy.ddp = run.Config(
@@ -309,6 +311,7 @@ def configure_ddp(recipe) -> run.Partial:
     )
     recipe.trainer.strategy.fsdp = None
     return recipe
+
 
 if __name__ == "__main__":
     run.cli.main(llm.train, default_factory=unit_test)
