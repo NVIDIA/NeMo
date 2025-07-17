@@ -476,7 +476,6 @@ def configure_onelogger(
     metadata = MetaInfoManager(cfg).get_metadata()
     
     world_size = metadata.get("world_size", -1)
-    metadata["enable_for_current_rank"] = enable_for_current_rank
 
     # Determine checkpoint strategy
     if trainer is not None and isinstance(trainer.strategy.checkpoint_io, AsyncCheckpointIO):
