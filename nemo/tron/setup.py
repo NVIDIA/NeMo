@@ -244,7 +244,7 @@ def _update_model_config_funcs(
     model: MegatronModule,
     model_config: GPTConfig | T5Config,
     ddp_config: DistributedDataParallelConfig,
-    optimizer: MegatronOptimizer,
+    optimizer: MegatronOptimizer | None = None,
     *,
     align_grad_reduce: bool = True,
 ) -> None:
@@ -266,4 +266,5 @@ def _update_model_config_funcs(
         if len(model) == 1:
             model_config.param_sync_func = model_config.param_sync_func[0]
     model_config.finalize_model_grads_func = finalize_model_grads
-    model_config.grad_scale_func = optimizer.scale_loss
+    if optimizer is not None:
+        model_config.grad_scale_func = optimizer.scale_loss
