@@ -1333,11 +1333,8 @@ class ModelPT(LightningModule, Model):
                 (from the pretrained model or checkpoint) will be loaded.
 
         """
-        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
-
-        timing_tracker = OneLoggerTimingTracker.get_instance()
         # TODO: there might be other ways to load checkpoints, need to cover them all
-        timing_tracker.track_event('on_load_checkpoint_start')
+        self._timing_tracker.track_event('on_load_checkpoint_start')
         args = [
             'init_from_nemo_model',
             'init_from_pretrained_model',
@@ -1472,7 +1469,7 @@ class ModelPT(LightningModule, Model):
                     raise TypeError("Invalid type: init_from_ptl_ckpt is not a string or a dict!")
 
         # Track load checkpoint end
-        timing_tracker.track_event('on_load_checkpoint_end')
+        self._timing_tracker.track_event('on_load_checkpoint_end')
 
     def teardown(self, stage: str):
         """

@@ -5,35 +5,29 @@ This module provides a callback that integrates OneLogger telemetry with NeMo tr
 """
 
 import functools
-import logging
 import time
 from typing import Any, Dict, List, Optional, Type
 
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
-
     HAVE_ONELOGGER = True
+    from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
+    from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
+    from nv_one_logger.training_telemetry.v1_adapter.v1_compatible_wandb_exporter import V1CompatibleWandbExporterAsync
 except (ImportError, ModuleNotFoundError):
     HAVE_ONELOGGER = False
-    CB = None
-
-import pytorch_lightning as pl
-import torch
-from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import Callback
-from pytorch_lightning.core import LightningModule
-from pytorch_lightning.plugins.io import AsyncCheckpointIO
-from pytorch_lightning.utilities import rank_zero_only
-from pytorch_lightning.utilities.types import STEP_OUTPUT
+from lightning.pytorch import Trainer
+from lightning.pytorch.callbacks import Callback
+from lightning.pytorch.core import LightningModule
+from lightning.pytorch.utilities import rank_zero_only
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 
 # Export OneLogger availability flag
 __all__ = [
     'OneLoggerNeMoCallback',
     'OneLoggerTimingTracker',
-    'OneLoggerAppContext',
     'hook_class_init_with_callbacks',
-    'HAVE_ONELOGGER',
     'get_onelogger_callbacks',
     'init_one_logger',
 ]
@@ -137,13 +131,10 @@ class OneLoggerTimingTracker:
         event_name = event['name']
         time_ms = event['time_ms']
 
-        if not hasattr(CB, event_name):
-            raise ValueError(f"Invalid event name for api: {event_name}")
-
         if event_name.endswith('_start'):
-            getattr(CB, event_name)(start_time_msec=time_ms)
+            get_onelogger_callbacks(event_name)(start_time_msec=time_ms)
         elif event_name.endswith('_end'):
-            getattr(CB, event_name)(finish_time_msec=time_ms)
+            get_onelogger_callbacks(event_name)(finish_time_msec=time_ms)
         else:
             raise ValueError(f"Invalid event name for api: {event_name}")
 
@@ -155,45 +146,6 @@ class OneLoggerNeMoCallback(Callback):
     This callback implements NeMo's callback group API and internally
     uses OneLogger's training telemetry functionality to track metrics.
     """
-
-    def __init__(
-        self,
-        callback_config: Optional[Dict[str, Any]] = None,
-        log_interval: int = 1,
-        async_io_checkpoint_classes: List[Type[Any]] | None = None,
-    ):
-        """
-        Initialize the OneLogger NeMo callback.
-
-        Args:
-            callback_config (dict): Configuration dictionary with metadata
-                from MetaInfoManager(cfg).get_metadata()
-            log_interval (int): How often to log metrics
-            async_io_checkpoint_classes (List[Type]): Additional classes to identify as async checkpoints
-        """
-        super().__init__()
-        self.log_interval = log_interval
-        self.async_io_checkpoint_classes = async_io_checkpoint_classes or []
-        self.state = {
-            "is_async_checkpoint": None,
-        }
-
-        # Extract configuration values
-        if callback_config is not None:
-            self.app_name = callback_config.get("app_name", "")
-            self.perf_tag = callback_config.get("perf_tag", "")
-            self.session_tag = callback_config.get("session_tag", "")
-            self.global_batch_size = callback_config.get("global_batch_size", 0)
-            print(
-                f"  ✓ Config loaded: app_name={self.app_name}, perf_tag={self.perf_tag}, global_batch_size={self.global_batch_size}"
-            )
-        else:
-            self.app_name = ""
-            self.perf_tag = ""
-            self.session_tag = ""
-            self.global_batch_size = 0
-            print(f"  ⚠ No callback_config provided, using defaults")
-
     def __getattr__(self, name: str) -> Any:
         """Automatically forward any undefined method calls to the OneLogger v2 callbacks mainly for non-trainer methods.
 
@@ -296,34 +248,6 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
     cls.__init__ = wrapped_init
 
 
-class OneLoggerAppContext:
-    """Context manager for automatically handling OneLogger app lifecycle.
-
-    This context manager ensures that on_app_end is called when the context exits,
-    providing a general solution for all NeMo entry points.
-
-    Usage:
-        with OneLoggerAppContext():
-            # Your training code here
-            trainer.fit(model)
-    """
-
-    def __init__(self):
-        self.timing_tracker = OneLoggerTimingTracker.get_instance()
-
-    def __enter__(self):
-        """Enter the context - app_start is already called by OneLoggerTimingTracker.__init__"""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Exit the context - always call on_app_end"""
-        try:
-            self.timing_tracker.track_event('on_app_end')
-        except Exception:
-            # Don't let OneLogger errors prevent normal cleanup
-            pass
-
-
 def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None, enable_onelogger: bool = True):
     """Initialize OneLogger with v1 config and optionally add callback to trainer.
 
@@ -333,12 +257,7 @@ def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None, enable_o
         enable_onelogger: Whether to enable OneLogger (default: True)
     """
     if not HAVE_ONELOGGER or not enable_onelogger:
-        logging.warning("OneLogger not available, skipping initialization")
         return
-
-    from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-    from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
-    from nv_one_logger.training_telemetry.v1_adapter.v1_compatible_wandb_exporter import V1CompatibleWandbExporterAsync
 
     # Convert v1 config to v2 config using the adapter
     training_telemetry_config, wandb_config = ConfigAdapter.convert_to_v2_config(v1_config)
@@ -360,16 +279,6 @@ def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None, enable_o
         has_onelogger_callback = any(isinstance(callback, OneLoggerNeMoCallback) for callback in trainer.callbacks)
 
         if not has_onelogger_callback:
-            # Extract metadata from v1_config for the callback
-            metadata = {
-                "app_name": v1_config.get("one_logger_project", "nemo-training"),
-                "perf_tag": v1_config.get("app_tag", "default"),
-                "session_tag": v1_config.get("app_tag_run_name", "nemo-session"),
-                "global_batch_size": v1_config.get("global_batch_size", 1),
-            }
-
             # Create the callback with metadata
-            onelogger_callback = OneLoggerNeMoCallback(
-                callback_config=metadata, log_interval=v1_config.get("log_every_n_train_iterations", 10)
-            )
+            onelogger_callback = OneLoggerNeMoCallback()
             trainer.callbacks.append(onelogger_callback)

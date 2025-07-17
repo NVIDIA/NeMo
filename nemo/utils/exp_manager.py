@@ -473,13 +473,9 @@ def configure_onelogger(
         )
 
     # Extract metadata from config
-    try:
-        metadata = MetaInfoManager(cfg).get_metadata()
-    except Exception as e:
-        metadata = {}
-
+    metadata = MetaInfoManager(cfg).get_metadata()
+    
     world_size = metadata.get("world_size", -1)
-
     metadata["enable_for_current_rank"] = enable_for_current_rank
 
     # Determine checkpoint strategy
@@ -547,7 +543,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     exp_manager additionally has a resume feature (resume_if_exists) which can be used to
     continuing training from the constructed log_dir. When you need to continue the training
     repeatedly (like on a cluster which you need multiple consecutive jobs), you need to avoid
-    creating the version folders. Therefore from v1.0.0, when resume_if_exists is True,
+    creating the version folders. Therefore from v1.0.0, when resume_if_exists is set to True,
     creating the version folders is ignored.
 
     Args:
