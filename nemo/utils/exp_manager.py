@@ -54,6 +54,7 @@ from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerP
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.meta_info_manager import MetaInfoManager
 from nemo.utils.model_utils import uninject_model_parallel_rank
+from nemo.lightning.one_logger_callback import init_one_logger
 
 get_current_global_batch_size, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
     "megatron.core.num_microbatches_calculator", "get_current_global_batch_size"
@@ -67,20 +68,6 @@ try:
     HAVE_STRAGGLER_DET = True
 except (ImportError, ModuleNotFoundError):
     HAVE_STRAGGLER_DET = False
-
-# Check OneLogger availability at module level
-try:
-    import nv_one_logger
-    from nv_one_logger.api.config import ApplicationType, OneLoggerErrorHandlingStrategy
-    from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
-    from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-    from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
-    from nv_one_logger.training_telemetry.v1_adapter.v1_compatible_wandb_exporter import V1CompatibleWandbExporterAsync
-    from nv_one_logger.wandb.exporter.wandb_exporter import Config as WandBConfig
-
-    HAVE_ONELOGGER = True
-except (ImportError, ModuleNotFoundError) as e:
-    HAVE_ONELOGGER = False
 
 try:
     from ptl_resiliency import FaultToleranceCallback
@@ -279,6 +266,8 @@ class ExpManagerConfig:
     fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
     # logs TFLOPs per sec per gpu
     log_tflops_per_sec_per_gpu: Optional[bool] = True
+    # OneLogger configuration
+    enable_onelogger: Optional[bool] = True
 
 
 class TimingCallback(Callback):
@@ -464,12 +453,22 @@ def configure_onelogger(
 
     Args:
         cfg: OmegaConf configuration object. If None, a minimal config will be created.
+            Can contain OneLogger configuration:
+            - enable_onelogger: bool - Whether to enable OneLogger (default: True)
         trainer: PyTorch Lightning trainer instance.
         name: Experiment name for the config. Used if cfg is None.
+        
+    Note:
+        OneLogger can be disabled by setting cfg.enable_onelogger = False
     """
 
     # Check if OneLogger is available
     if not HAVE_ONELOGGER:
+        return
+    
+    # Check if OneLogger is disabled via config
+    if cfg is not None and hasattr(cfg, 'enable_onelogger') and not cfg.enable_onelogger:
+        logging.info("OneLogger disabled via configuration")
         return
 
     # If no config is provided, create a minimal one
@@ -545,36 +544,7 @@ def configure_onelogger(
         "quiet": False,  # Don't suppress errors
     }
 
-    # Convert v1 config to v2 config using the adapter
-    training_telemetry_config, wandb_config = ConfigAdapter.convert_to_v2_config(v1_config)
-
-    # Configure OneLogger using v1 adapter with async wandb exporter
-    exporter = V1CompatibleWandbExporterAsync(
-        training_telemetry_config=training_telemetry_config,
-        wandb_config=wandb_config,
-    )
-    TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(
-        exporter
-    ).configure()
-
-    # Mark OneLogger as available for the OneLoggerTimingTracker
-    from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
-
-    OneLoggerTimingTracker.mark_one_logger_available()
-
-    # Add the OneLogger callback to the trainer if provided
-    if trainer is not None:
-        # Check if OneLoggerNeMoCallback is already in the trainer's callbacks
-        has_onelogger_callback = any(isinstance(callback, OneLoggerNeMoCallback) for callback in trainer.callbacks)
-
-        if not has_onelogger_callback:
-            # Create the callback with metadata
-            onelogger_callback = OneLoggerNeMoCallback(
-                callback_config=metadata, log_interval=cfg.get("log_interval", 10)
-            )
-            trainer.callbacks.append(onelogger_callback)
-
-    logging.info("OneLogger configured successfully")
+    init_one_logger(v1_config)
 
 
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:

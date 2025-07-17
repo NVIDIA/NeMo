@@ -21,7 +21,6 @@ from typing import Any, Dict, Iterable, List, Literal, Optional, Union
 
 import lightning
 import lightning.pytorch as pl
-import nv_one_logger.training_telemetry.api.callbacks as CB
 import torch
 from _weakref import proxy
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
@@ -33,6 +32,7 @@ from nemo.lightning.io.pl import TrainerContext
 from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.lightning.one_logger_callback import get_onelogger_callbacks
 
 
 class ModelCheckpoint(PTLModelCheckpoint):
@@ -570,7 +570,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ValueError: (mcore) Async save requires async compatible CheckpointIO
         """
         # Call OneLogger checkpoint start callback
-        CB.on_save_checkpoint_start(iteration=trainer.global_step)
+        get_onelogger_callbacks("on_save_checkpoint_start")(iteration=trainer.global_step)
 
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -603,7 +603,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
             # Call OneLogger checkpoint success callback
-            CB.on_save_checkpoint_success(iteration=trainer.global_step)
+            get_onelogger_callbacks("on_save_checkpoint_success")(iteration=trainer.global_step)
         else:
             # Determine whether to include optimizer states in the checkpoint
             # optimizer states are included when
@@ -639,7 +639,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             else:
                 finalize_fn()
             # Call OneLogger checkpoint end callback
-            CB.on_save_checkpoint_end()
+            get_onelogger_callbacks("on_save_checkpoint_end")()
 
     def _get_finalize_save_checkpoint_callback(
         self, trainer: 'lightning.pytorch.Trainer', filepath: str, global_step: int
@@ -664,7 +664,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
             # Call OneLogger checkpoint success callback
-            CB.on_save_checkpoint_success(iteration=trainer.global_step)
+            get_onelogger_callbacks("on_save_checkpoint_success")(iteration=trainer.global_step)
 
             if str(filepath) in self.ckpts_to_link:
                 self._link_checkpoint(trainer, filepath, self.ckpts_to_link.pop(filepath), override_async=True)
