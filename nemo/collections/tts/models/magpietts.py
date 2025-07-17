@@ -21,7 +21,7 @@ import wandb
 from hydra.utils import instantiate
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import nn
 from torch.utils.data import get_worker_info
 
@@ -128,7 +128,7 @@ class MagpieTTSModel(ModelPT):
 
         self.model_type = cfg.get('model_type', None)
 
-        self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
+        self.pad_context_text_to_max_duration = self.model_type in ['decoder_context_tts', 'decoder_ce']
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
 
         super().__init__(cfg=cfg, trainer=trainer)
@@ -173,6 +173,7 @@ class MagpieTTSModel(ModelPT):
             self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
+        
         self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
 
         self.local_transformer_type = LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
@@ -208,6 +209,8 @@ class MagpieTTSModel(ModelPT):
             )
 
         if self.model_type == 'single_encoder_sv_tts':
+            # Context audio goes through Titanet to get speaker embedding
+            # Speaker embedding is added to the transcript encoder output
             self._speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
                 model_name='titanet_large'
             )
@@ -217,6 +220,8 @@ class MagpieTTSModel(ModelPT):
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
         elif self.model_type == 'multi_encoder_context_tts':
+            # Transcript and context audio/text go to different encoders.
+            # Output of the encoders goes to the decoder through the cross-attention layers
             self.transcript_decoder_layers = cfg.get('transcript_decoder_layers', [3, 4, 5, 6, 7, 8])
             self.context_decoder_layers = cfg.get(
                 'context_decoder_layers', [0, 1, 2, 9, 10, 11]
@@ -229,10 +234,20 @@ class MagpieTTSModel(ModelPT):
             self.multi_encoder_mapping = multi_encoder_mapping
             self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
         elif self.model_type == 'decoder_context_tts':
+            # Context audio/text goes directly to the decoder (before the target audio codes)
             self.transcript_decoder_layers = [
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
+        elif self.model_type == 'decoder_ce':
+            # Similar to decoder_context_tts, but we use context encoder
+            # Decoder gets output from context encoder instead of raw context tokens embeddings
+            self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
+            self.transcript_decoder_layers = [
+                idx for idx in range(cfg.decoder.n_layers)
+            ]  # All layers are used for text
+
         elif self.model_type == 'decoder_pretrain_synthesizer':
+            # This is for pretraining the decoder only on audio data using next frame prediction loss
             assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
@@ -283,6 +298,22 @@ class MagpieTTSModel(ModelPT):
                 del state_dict[key]
         return state_dict
 
+    def update_ckpt(self, state_dict):
+        """
+        Backward compatibility for checkpoints saved with old model names.
+        """
+        new_state_dict = {}
+        for key in state_dict.keys():
+            if 't5_encoder' in key:
+                new_key = key.replace('t5_encoder', 'encoder')
+                new_state_dict[new_key] = state_dict[key]
+            elif 't5_decoder' in key:
+                new_key = key.replace('t5_decoder', 'decoder')
+                new_state_dict[new_key] = state_dict[key]
+            else:
+                new_state_dict[key] = state_dict[key]
+        return new_state_dict
+    
     def load_state_dict(self, state_dict, strict=True):
         """
         Modify load_state_dict so that we don't restore weights to _speaker_verification_model and _codec_model when
@@ -290,10 +321,14 @@ class MagpieTTSModel(ModelPT):
         When strict is False, we can call pytorch's load_state_dict.
         When strict is True, we loop through all parameters and rename them to enable loading.
         """
+        state_dict = self.update_ckpt(state_dict)
         if strict == False:
             super().load_state_dict(state_dict, strict=False)
         for name, child in self.named_children():
-            if name in ['_speaker_verification_model', '_codec_model']:
+            if name in ['_speaker_verification_model', '_codec_model', '_reference_model', 
+                        'eval_asr_model', 'eval_speaker_verification_model', 
+                        'whisper_model', 'squim_objective_model'
+                        ]:
                 continue
             if any(param.numel() > 0 for param in child.parameters()):
                 # If the module has parameters, we want to change the default mapping so that the state_dict gets
@@ -868,7 +903,7 @@ class MagpieTTSModel(ModelPT):
         text_lens = None
 
         # self.model_type must be one of
-        # [single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts, decoder_pretrain_synthesizer]
+        # [single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts, decoder_ce, decoder_pretrain_synthesizer]
         if self.model_type != 'decoder_pretrain_synthesizer':
             text = batch['text']
             text_lens = batch['text_lens']
@@ -887,7 +922,7 @@ class MagpieTTSModel(ModelPT):
             cond_mask = text_mask
             multi_encoder_mapping = None
             attn_prior = _attn_prior
-        elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts']:
+        elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts', 'decoder_ce']:
             if 'context_audio_codes' in batch:
                 context_audio_codes = batch['context_audio_codes']
                 context_audio_codes_lens = batch['context_audio_codes_lens']
@@ -941,9 +976,14 @@ class MagpieTTSModel(ModelPT):
                 multi_encoder_mapping = self.multi_encoder_mapping
                 attn_prior = [_attn_prior, None]
 
-            elif self.model_type == 'decoder_context_tts':
+            elif self.model_type in ['decoder_context_tts', 'decoder_ce']:
                 dec_context_size = context_mask.size(1)
-                context_embeddings = context_input_embedded
+                if self.model_type == 'decoder_context_tts':
+                    context_embeddings = context_input_embedded
+                elif self.model_type == 'decoder_ce':
+                    context_embeddings = self.context_encoder(
+                        context_input_embedded, context_mask, cond=None, cond_mask=None
+                    )['output']
                 attn_prior = _attn_prior
                 if attn_prior is not None:
                     # B, audio_timesteps, text_timesteps
@@ -1020,13 +1060,13 @@ class MagpieTTSModel(ModelPT):
     def get_binarized_prior_matrix(self, aligner_attn_soft, audio_lens, text_lens):
         # aligner_attn_soft B, 1, audio_timesteps, text_timesteps
         if self.binarize_attn_method == 'nemo_binarize':
-            logging.info("Binarizing attention using nemo_binarize")
+            logging.debug("Binarizing attention using nemo_binarize")
             binarize_repeat_audio_factor = self.binarize_repeat_audio_factor
             aligner_attn_soft_repeated = aligner_attn_soft.repeat_interleave(binarize_repeat_audio_factor, dim=2) # B, 1, 2*audio_timesteps, text_timesteps
             aligner_attn_hard = binarize_attention_parallel(aligner_attn_soft_repeated, text_lens, audio_lens*binarize_repeat_audio_factor).squeeze(1) # B, 2*audio_timesteps, text_timesteps
             aligner_attn_hard = aligner_attn_hard[:, ::2, :] # B, audio_timesteps, text_timesteps
         elif self.binarize_attn_method == 'argmax':
-            logging.info("Binarizing attention using argmax")
+            logging.debug("Binarizing attention using argmax")
             aligner_attn_hard = torch.argmax(aligner_attn_soft.squeeze(1), dim=-1)
             aligner_attn_hard = torch.nn.functional.one_hot(aligner_attn_hard, num_classes=aligner_attn_soft.size(-1)).float()
         else:
@@ -1265,7 +1305,7 @@ class MagpieTTSModel(ModelPT):
         batch_info_dict = {
             "train/batch_size": batch_size,
             "train/text_token_max_len": text_token_max_len,
-            "train/text_token_total_num_in_batch": text_token_total_num,
+            "train/text_token_total_num_in_batch": text_token_total_num.item(),
             "train/text_token_pad_ratio_percent_in_batch": 100 * (1 - text_token_total_num / (batch_size * text_token_max_len)),
         }
 
@@ -1274,7 +1314,7 @@ class MagpieTTSModel(ModelPT):
             audio_codes_total_num = batch["audio_codes_lens"].sum()
             batch_info_dict.update({
                 "train/audio_codes_max_len": audio_codes_max_len,
-                "train/audio_codes_total_num_in_batch": audio_codes_total_num,
+                "train/audio_codes_total_num_in_batch": audio_codes_total_num.item(),
                 "train/audio_codes_pad_ratio_percent_in_batch": 100 * (1 - audio_codes_total_num / (batch_size * audio_codes_max_len)),
             })
         else:
@@ -1282,7 +1322,7 @@ class MagpieTTSModel(ModelPT):
             audio_samples_total_num = batch["audio_lens"].sum()
             batch_info_dict.update({
                 "train/audio_samples_max_len": audio_samples_max_len,
-                "train/audio_samples_total_num_in_batch": audio_samples_total_num,
+                "train/audio_samples_total_num_in_batch": audio_samples_total_num.item(),
                 "train/audio_samples_pad_ratio_percent_in_batch": 100 * (1 - audio_samples_total_num / (batch_size * audio_samples_max_len)),
             })
 
@@ -1698,9 +1738,9 @@ class MagpieTTSModel(ModelPT):
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
-                        pred_token = all_codes_next_argmax[item_idx][0].item()
-                        pred_token_multinomial = audio_codes_next[item_idx][0].item()
-                        if (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id):
+                        eos_in_pred_tokens_argmax = (all_codes_next_argmax[item_idx] == self.audio_eos_id).any().item()
+                        eos_in_pred_tokens_multinomial = (audio_codes_next[item_idx] == self.audio_eos_id).any().item()
+                        if eos_in_pred_tokens_argmax or eos_in_pred_tokens_multinomial:
                             print("End detected for item {} at timestep {}".format(item_idx, idx))
                             end_indices[item_idx] = idx
 
@@ -1846,7 +1886,6 @@ class MagpieTTSModel(ModelPT):
             sample_rate=self.sample_rate,
             volume_norm=dataset_cfg.volume_norm,
             codec_model_samples_per_frame=self.codec_model_samples_per_frame,
-            codec_model_name=self.cfg.codec_model_name,
             audio_bos_id=self.audio_bos_id,
             audio_eos_id=self.audio_eos_id,
             context_audio_bos_id=self.context_audio_bos_id,
@@ -1874,6 +1913,14 @@ class MagpieTTSModel(ModelPT):
         if dataset_cfg.get("use_lhotse", False):
             # TODO @xueyang: better to distinguish cfg. self.cfg is the model cfg, while cfg here is train_ds cfg. Also
             #   cfg is a classifier-free guidance.
+
+            # specify target sampling rate the same as codec model's because lhotse config defaults 16_000.
+            if not isinstance(dataset_cfg, DictConfig):
+                dataset_cfg = OmegaConf.create(dataset_cfg)
+            OmegaConf.set_struct(dataset_cfg.dataset, False)
+            dataset_cfg.dataset.update({"sample_rate": self.sample_rate})
+            OmegaConf.set_struct(dataset_cfg.dataset, True)
+
             self._train_dl = self.get_lhotse_dataloader(dataset_cfg, mode='train')
         else:
             dataset = self.get_dataset(dataset_cfg, dataset_type='train')
@@ -1898,6 +1945,12 @@ class MagpieTTSModel(ModelPT):
 
     def _setup_test_dataloader(self, dataset_cfg) -> torch.utils.data.DataLoader:
         if dataset_cfg.get("use_lhotse", False):
+            # specify target sampling rate the same as codec model's because lhotse config defaults 16_000.
+            if not isinstance(dataset_cfg, DictConfig):
+                dataset_cfg = OmegaConf.create(dataset_cfg)
+            OmegaConf.set_struct(dataset_cfg.dataset, False)
+            dataset_cfg.dataset.update({"sample_rate": self.sample_rate})
+            OmegaConf.set_struct(dataset_cfg.dataset, True)
             data_loader = self.get_lhotse_dataloader(dataset_cfg, mode='test')
         else:
             dataset = self.get_dataset(dataset_cfg, dataset_type='test')
@@ -1920,11 +1973,11 @@ class MagpieTTSModel(ModelPT):
             )
         return data_loader
 
-    def setup_validation_data(self, cfg):
-        self._validation_dl = self._setup_test_dataloader(cfg)
+    def setup_validation_data(self, dataset_cfg):
+        self._validation_dl = self._setup_test_dataloader(dataset_cfg)
 
-    def setup_test_data(self, cfg):
-        self._test_dl = self._setup_test_dataloader(cfg)
+    def setup_test_data(self, dataset_cfg):
+        self._test_dl = self._setup_test_dataloader(dataset_cfg)
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:

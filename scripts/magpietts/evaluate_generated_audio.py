@@ -16,7 +16,10 @@ import json
 import os
 import pprint
 import string
+import logging
+from contextlib import contextmanager
 
+import numpy as np
 import torch
 
 import nemo.collections.asr as nemo_asr
@@ -73,7 +76,7 @@ def process_text(input_text):
 def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, language, device):
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
     # Set the language task (optional, improves performance for specific languages)
-    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language) if language else None
+    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
     inputs = whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
     inputs = inputs.to(device)
     # Generate transcription
@@ -85,9 +88,44 @@ def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, langua
     result = transcription[0]
     return result
 
+def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_seconds: float) -> np.ndarray:
+    """
+    Pad audio to make it at least `min_seconds` long by adding silence at the end if needed.
+    """
+    if audio_np.ndim != 1:
+        raise ValueError("Audio array must be 1D")
+
+    n_samples = len(audio_np)
+    min_samples = round(min_seconds * sampling_rate)
+    
+    if n_samples < min_samples:
+        print(f"Padding audio from {n_samples/sampling_rate} seconds to {min_samples/sampling_rate} seconds")
+        padding_needed = min_samples - n_samples
+        audio_np = np.pad(audio_np, (0, padding_needed), mode='constant', constant_values=0)
+    return audio_np
+
+@contextmanager
+def nemo_log_level(level):
+    """
+    A context manager that temporarily sets the logging level for the NeMo logger 
+    and restores the original level when the context manager is exited.
+
+    Args:
+        level (int): The logging level to set.
+    """
+    logger = logging.getLogger("nemo_logger")
+    original_level = logger.level
+    logger.setLevel(level)
+    try:
+        yield
+    finally:
+        # restore the original level when the context manager is exited (even if an exception was raised)
+        logger.setLevel(original_level)
+
 def extract_embedding(model, extractor, audio_path, device, sv_model_type):
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
-
+    # pad to 0.5 seconds as the extractor may not be able to handle very short signals
+    speech_array = pad_audio_to_min_length(speech_array, int(sampling_rate), min_seconds=0.5)
     if sv_model_type == "wavlm":
         inputs = extractor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_values.to(device)
         with torch.no_grad():
@@ -110,12 +148,10 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
     device = "cuda"
 
     if language == "en":
-        if asr_model_name == "stt_en_conformer_transducer_large":
-            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_large")
-        elif asr_model_name == "nvidia/parakeet-ctc-0.6b":
-            asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-ctc-0.6b")
-
-        # asr_model = nemo_asr.models.EncDecCTCModelBPE.from_pretrained(model_name="nvidia/parakeet-tdt-1.1b")
+        if asr_model_name in ["nvidia/parakeet-tdt-1.1b", "nvidia/parakeet-ctc-0.6b", "stt_en_conformer_transducer_large"]:
+            asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=asr_model_name)
+        else:
+            raise ValueError(f"ASR model {asr_model_name} not supported")
         asr_model = asr_model.to(device)
         asr_model.eval()
     else:
@@ -132,8 +168,10 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
         speaker_verification_model = speaker_verification_model.to(device)
         speaker_verification_model.eval()
-
-    speaker_verification_model_alternate = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_small')
+    with nemo_log_level(logging.ERROR):
+        # The model `titanet_small` prints thousands of lines during initialization, so suppress logs temporarily
+        print("Loading `titanet_small` model...")
+        speaker_verification_model_alternate = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_small')
     speaker_verification_model_alternate = speaker_verification_model_alternate.to(device)
     speaker_verification_model_alternate.eval()
 
@@ -186,7 +224,9 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
             pred_text = ""
             gt_audio_text = ""
 
-        if 'normalized_text' in record:
+        if "original_text" in record:
+            gt_text = process_text(record['original_text'])
+        elif 'normalized_text' in record:
             gt_text = process_text(record['normalized_text'])
         else:
             gt_text = process_text(record['text'])

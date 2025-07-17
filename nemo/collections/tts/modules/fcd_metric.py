@@ -23,10 +23,7 @@ The frames are currently considered independently, i.e. temporal relationships b
 be useful to explore).
 """
 
-import warnings
-
 import torch
-import torch.nn.functional as F
 from torch import nn, Tensor
 from torchmetrics import Metric
 import numpy as np
@@ -171,6 +168,14 @@ class FrechetCodecDistance(Metric):
         """
         assert codes.ndim == 3
 
+        if codes.numel() == 0:
+            logging.warning(f"\nFCD metric received an empty batch of codes - skipping update\n")
+            return
+
+        if codes.shape[1] != self.model.codec.num_codebooks:
+            logging.warning(f"\nFCD metric received a batch of codes of shape {codes.shape}, but the model has {self.model.codec.num_codebooks} codebooks - skipping update\n")
+            return
+        
         # Dequantize the codes to a continuous representation
         embeddings = self.model.codes_to_embedding(
             codes, codes_len

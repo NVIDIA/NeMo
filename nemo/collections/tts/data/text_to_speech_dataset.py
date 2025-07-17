@@ -44,7 +44,7 @@ from nemo.utils.decorators import experimental
 class DatasetMeta:
     manifest_path: Path
     audio_dir: Path
-    feature_dir: Path
+    feature_dir: Path = None
     sample_weight: float = 1.0
     tokenizer_names: List[str] = None
 
@@ -195,8 +195,8 @@ class TextToSpeechDataset(Dataset):
             sample = DatasetSample(
                 dataset_name=dataset_name,
                 manifest_entry=entry,
-                audio_dir=Path(dataset.audio_dir),
-                feature_dir=Path(dataset.feature_dir) if dataset.feature_dir is not None else None,
+                audio_dir=dataset.audio_dir,
+                feature_dir=dataset.feature_dir,
                 text=text,
                 speaker=speaker,
                 speaker_index=speaker_index,
@@ -606,7 +606,14 @@ class MagpieTTSDataset(TextToSpeechDataset):
             align_prior = torch.tensor(align_prior, dtype=torch.float32)
             example["align_prior"] = align_prior
 
-        example['raw_text'] = data.text
+        if "original_text" in data.manifest_entry:
+            # Raw Text is used as the GT for CER/WER computation in DPO pref data generation
+            # and GRPO reward setup. For manifests in which the 'text' field is phonemized,
+            # we use the 'original_text' field as the raw text. Otherwise, we use the regular text field.
+            example['raw_text'] = data.manifest_entry['original_text']
+        else:
+            example['raw_text'] = data.text
+            
         example['language'] = data.manifest_entry.get('language', 'en')
 
         if "reward" in data.manifest_entry:

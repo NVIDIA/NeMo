@@ -45,6 +45,8 @@ from nemo.collections.common.data.lhotse.cutset import (
 )
 from nemo.collections.common.data.lhotse.sampling import (
     BucketingFilter,
+    CERFilter,
+    ContextSpeakerSimilarityFilter,
     DurationFilter,
     FixedBucketBatchSizeConstraint2D,
     MultimodalFixedBucketBatchSizeConstraint2D,
@@ -129,6 +131,10 @@ class LhotseDataLoadingConfig:
     measure_total_length: bool = True
     min_tpt: int = -1  # allowed tokens per token (text-only)
     max_tpt: Any = float("inf")  # float | list[float]
+
+    # 2.3 Filters on CER and/or cosine speaker similarity of the context audio serving for TTS use cases.
+    max_cer: float | None = float("inf")
+    min_context_speaker_similarity: float | None = -1
 
     # 3. Supported existing NeMo options.
     shuffle: bool = False
@@ -539,6 +545,11 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     cuts = cuts.filter(
         TokenCountFilter(config.min_tokens, config.max_tokens, measure_total_length=config.measure_total_length)
     )
+
+    # CER filtering, same as native NeMo dataloaders.
+    cuts = cuts.filter(CERFilter(config.max_cer))
+    # Context speaker similarity filtering, same as native NeMo dataloaders.
+    cuts = cuts.filter(ContextSpeakerSimilarityFilter(config.min_context_speaker_similarity))
 
     if tokenizer is not None and config.pretokenize:
         cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
