@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Type
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
+
     HAVE_ONELOGGER = True
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
     from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
@@ -146,6 +147,7 @@ class OneLoggerNeMoCallback(Callback):
     This callback implements NeMo's callback group API and internally
     uses OneLogger's training telemetry functionality to track metrics.
     """
+
     def __getattr__(self, name: str) -> Any:
         """Automatically forward any undefined method calls to the OneLogger v2 callbacks mainly for non-trainer methods.
 

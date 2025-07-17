@@ -474,7 +474,7 @@ def configure_onelogger(
 
     # Extract metadata from config
     metadata = MetaInfoManager(cfg).get_metadata()
-    
+
     world_size = metadata.get("world_size", -1)
 
     # Determine checkpoint strategy
