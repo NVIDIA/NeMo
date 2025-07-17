@@ -27,7 +27,6 @@ from nemo.lightning.fabric.fabric import Fabric
 from nemo.lightning.fabric.plugins import FabricMegatronMixedPrecision
 from nemo.lightning.fabric.strategies import FabricMegatronStrategy
 from nemo.lightning.nemo_logger import NeMoLogger
-from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nemo.lightning.pytorch.optim import (
     LRSchedulerModule,
@@ -73,7 +72,6 @@ __all__ = [
     "lr_scheduler",
     "NeMoLogger",
     "ModelCheckpoint",
-    "OneLoggerNeMoCallback",
     "OptimizerModule",
     "Trainer",
     "configure_no_restart_validation_training_loop",

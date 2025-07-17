@@ -29,7 +29,7 @@ from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
-from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback, get_onelogger_callbacks
+from nemo.lightning.one_logger_callback import get_onelogger_callbacks
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
