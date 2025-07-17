@@ -481,11 +481,6 @@ def configure_onelogger(
 
     from pytorch_lightning.plugins.io import AsyncCheckpointIO
 
-    try:
-        from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
-    except ImportError as e:
-        raise
-
     # Extract metadata from config
     try:
         metadata = MetaInfoManager(cfg).get_metadata()
