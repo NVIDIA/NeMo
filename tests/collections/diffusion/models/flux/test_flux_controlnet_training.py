@@ -53,7 +53,7 @@ def flux_controlnet_training_fsdp() -> run.Partial:
             save_last=False,
         )
     ]
-    recipe.log = log = run.Config(
+    recipe.log = run.Config(
         nl.NeMoLogger,
         ckpt=None,
         name='flux_controlnet_training_test',
@@ -99,7 +99,7 @@ def flux_controlnet_training_ddp(
         )
     ]
     recipe.data = flux_mock_datamodule()
-    recipe.log = log = run.Config(
+    recipe.log = run.Config(
         nl.NeMoLogger,
         ckpt=None,
         name='flux_controlnet_training_test',
@@ -172,6 +172,4 @@ def flux_training_fsdp() -> run.Partial:
 
 
 if __name__ == "__main__":
-    recipe = flux_controlnet_training_ddp()
-
     run.cli.main(llm.train, default_factory=flux_controlnet_training_ddp)
