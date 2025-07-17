@@ -36,7 +36,7 @@ class TestOneLoggerCallback:
         time_before = time.time() * 1000
         result = get_current_time_msec()
         time_after = time.time() * 1000
-        
+
         assert isinstance(result, float)
         assert time_before <= result <= time_after
 
@@ -60,11 +60,11 @@ class TestOneLoggerCallback:
     def test_one_logger_nemo_callback_getattr(self):
         """Test __getattr__ method of OneLoggerNeMoCallback."""
         callback = OneLoggerNeMoCallback()
-        
+
         with patch('nemo.lightning.one_logger_callback.get_onelogger_callbacks') as mock_get_callback:
             mock_callback = MagicMock()
             mock_get_callback.return_value = mock_callback
-            
+
             result = callback.test_method
             mock_get_callback.assert_called_with('test_method')
             assert result == mock_callback
@@ -79,15 +79,16 @@ class TestOneLoggerCallback:
         pl_module = MagicMock()
         batch = MagicMock()
         outputs = MagicMock()
-        
+
         # Track all callback calls in order
         callback_calls = []
-        
+
         def mock_get_callback(callback_name):
             def mock_callback(*args, **kwargs):
                 callback_calls.append(callback_name)
+
             return mock_callback
-        
+
         with patch('nemo.lightning.one_logger_callback.get_onelogger_callbacks', side_effect=mock_get_callback):
             # Simulate training cycle
             callback.on_train_start(trainer, pl_module)
@@ -98,7 +99,7 @@ class TestOneLoggerCallback:
             callback.on_validation_batch_end(trainer, pl_module, outputs, batch, 0, 0)
             callback.on_validation_end(trainer, pl_module)
             callback.on_train_end(trainer, pl_module)
-            
+
             # Verify all callbacks were called in the expected order
             expected_calls = [
                 "on_train_start",
@@ -110,29 +111,31 @@ class TestOneLoggerCallback:
                 "on_validation_end",
                 "on_train_end",
             ]
-            
+
             assert callback_calls == expected_calls
 
     @pytest.mark.unit
     def test_hook_class_init_with_callbacks_no_init(self):
         """Test hook_class_init_with_callbacks with class that has no __init__."""
+
         class TestClass:
             pass
-        
+
         hook_class_init_with_callbacks(TestClass, "start_callback", "end_callback")
         # Should not raise any exception
 
     @pytest.mark.unit
     def test_hook_class_init_with_callbacks(self):
         """Test hook_class_init_with_callbacks functionality."""
+
         class TestClass:
             def __init__(self, value=0):
                 self.value = value
-        
+
         original_init = TestClass.__init__
-        
+
         hook_class_init_with_callbacks(TestClass, "test_start", "test_end")
-        
+
         # Check that __init__ was wrapped
         assert TestClass.__init__ != original_init
         assert hasattr(TestClass.__init__, '_one_logger_wrapped')
@@ -141,15 +144,16 @@ class TestOneLoggerCallback:
     @pytest.mark.unit
     def test_hook_class_init_with_callbacks_double_wrap(self):
         """Test that hook_class_init_with_callbacks doesn't double wrap."""
+
         class TestClass:
             def __init__(self, value=0):
                 self.value = value
-        
+
         hook_class_init_with_callbacks(TestClass, "test_start", "test_end")
         wrapped_init = TestClass.__init__
-        
+
         # Try to wrap again
         hook_class_init_with_callbacks(TestClass, "test_start2", "test_end2")
-        
+
         # Should still be the same wrapped function
-        assert TestClass.__init__ == wrapped_init 
+        assert TestClass.__init__ == wrapped_init
