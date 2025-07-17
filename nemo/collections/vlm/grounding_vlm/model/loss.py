@@ -54,7 +54,7 @@ class GroundedVLMLossReduction(MaskedTokenLossReduction):
         cls_logits = forward_out['cls_logits']    
         cls_labels = batch['cls_labels']
         cls_loss_mask = batch['cls_loss_mask']
-        cls_loss = 0.0
+        cls_loss = torch.tensor(0.0, device=cls_logits.device)
 
         if cls_logits is not None:
             cls_loss = F.binary_cross_entropy_with_logits(cls_logits, cls_labels, weight=cls_loss_mask, reduction="mean")
@@ -67,7 +67,7 @@ class GroundedVLMLossReduction(MaskedTokenLossReduction):
         gt_quads = batch['instance_det_ids']
         pred_quads = forward_out['instance_logits']
         instance_det_loss_mask = batch['instance_det_loss_mask']
-        instance_det_loss = 0.0
+        instance_det_loss = torch.tensor(0.0, device=pred_quads.device)
 
         if pred_quads is not None:
             instance_det_loss = self._hungarian_matching_loss(gt_quads, pred_quads, instance_det_loss_mask)
@@ -89,8 +89,8 @@ class GroundedVLMLossReduction(MaskedTokenLossReduction):
 
         return total_loss, token_loss_info
 
-    def _hungarian_matching_loss(self, gt_quads: torch.Tensor, pred_quads: torch.Tensor, loss_mask: torch.Tensor) -> torch.Tensor:
+    def _hungarian_matching_loss(self, gt_quads: torch.Tensor, pred_quads: torch.Tensor, det_loss_mask: torch.Tensor) -> torch.Tensor:
         """
         Calculate hungarian matching loss between gt_quads and pred_quads.
         """
-        return self.hungarian_matching_loss(gt_quads, pred_quads, loss_mask)
+        return self.hungarian_matching_loss(gt_quads, pred_quads, det_loss_mask)

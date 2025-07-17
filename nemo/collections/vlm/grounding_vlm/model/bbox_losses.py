@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import numpy as np
+from typing import Tuple
+
 def box_giou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
     """
     Compute generalized intersection over union between two sets of boxes.

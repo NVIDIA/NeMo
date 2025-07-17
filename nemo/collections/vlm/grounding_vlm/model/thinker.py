@@ -128,6 +128,31 @@ class ClassifierHeadModuleConfig(TransformerConfig, io.IOMixin):
     projector_config: TransformerConfig = None
     projector_submodules: MLPSubmodules = None
 
+    def __post_init__(self):
+        """Initialize default configurations if not provided."""
+        super().__post_init__()
+        
+        if self.projector_config is None:
+            # Default projector config for classification MLP
+            self.projector_config = TransformerConfig(
+                hidden_size=self.hidden_size,
+                num_layers=2,  # Two layer MLP
+                ffn_hidden_size=self.hidden_size * 4,  # Standard 4x expansion
+                num_attention_heads=1,  # Not used for MLP
+                attention_dropout=0.1,  # Some dropout for regularization
+                hidden_dropout=0.1,
+                layernorm_epsilon=1e-5,
+                init_method=lambda x: torch.nn.init.trunc_normal_(x, mean=0.0, std=0.02),
+                output_layer_init_method=lambda x: torch.nn.init.trunc_normal_(x, mean=0.0, std=0.02),
+            )
+            
+        if self.projector_submodules is None:
+            # Default to standard MLP modules
+            self.projector_submodules = MLPSubmodules(
+                linear_fc1=TELayerNormColumnParallelLinear,
+                linear_fc2=TERowParallelLinear,
+                dropout=torch.nn.Dropout,
+            )
 
 class ClassifierHeadModule(MegatronModule):
     """

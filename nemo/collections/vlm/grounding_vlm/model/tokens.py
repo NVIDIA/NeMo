@@ -45,5 +45,8 @@ def generate_extra_grounding_tokens(tokenizer, num_image_think_tokens=16, num_bb
     # get ids
     extra_tokens_ids = tokenizer.encode("".join(extra_tokens))
     assert len(extra_tokens_ids) == len(extra_tokens), "Number of tokens and ids do not match"
+    print(f"Extra tokens added: ")
+    for token, token_id in zip(extra_tokens, extra_tokens_ids):
+        print(f"\t\t{token}: {token_id}")
     # add them to the model
     return tokenizer, extra_tokens, extra_tokens_ids, metadata
