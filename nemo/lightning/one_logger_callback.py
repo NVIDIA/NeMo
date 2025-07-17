@@ -324,14 +324,15 @@ class OneLoggerAppContext:
             pass
 
 
-def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None):
+def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None, enable_onelogger: bool = True):
     """Initialize OneLogger with v1 config and optionally add callback to trainer.
 
     Args:
         v1_config: V1-style configuration dictionary
         trainer: Optional PyTorch Lightning trainer to add callback to
+        enable_onelogger: Whether to enable OneLogger (default: True)
     """
-    if not HAVE_ONELOGGER:
+    if not HAVE_ONELOGGER or not enable_onelogger:
         logging.warning("OneLogger not available, skipping initialization")
         return
 

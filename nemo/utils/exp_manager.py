@@ -38,6 +38,7 @@ from lightning.pytorch.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLo
 from lightning.pytorch.loops import _TrainingEpochLoop
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
+from lightning.pytorch.plugins.io import AsyncCheckpointIO
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
@@ -448,6 +449,7 @@ def configure_onelogger(
     cfg: Optional[OmegaConf] = None,
     trainer: Optional[lightning.pytorch.Trainer] = None,
     name: Optional[str] = None,
+    enable_onelogger: bool = True,
 ) -> None:
     """Configure OneLogger using v1 adapter for compatibility with existing downstream consumers.
 
@@ -457,20 +459,11 @@ def configure_onelogger(
             - enable_onelogger: bool - Whether to enable OneLogger (default: True)
         trainer: PyTorch Lightning trainer instance.
         name: Experiment name for the config. Used if cfg is None.
+        enable_onelogger: Whether to enable OneLogger (default: True)
 
     Note:
-        OneLogger can be disabled by setting cfg.enable_onelogger = False
+        OneLogger can be disabled by setting enable_onelogger = False
     """
-
-    # Check if OneLogger is available
-    if not HAVE_ONELOGGER:
-        return
-
-    # Check if OneLogger is disabled via config
-    if cfg is not None and hasattr(cfg, 'enable_onelogger') and not cfg.enable_onelogger:
-        logging.info("OneLogger disabled via configuration")
-        return
-
     # If no config is provided, create a minimal one
     if cfg is None:
         from omegaconf import OmegaConf
@@ -478,8 +471,6 @@ def configure_onelogger(
         cfg = OmegaConf.create(
             {"exp_manager": {"wandb_logger_kwargs": {"project": "nemo_experiments", "name": name or "default"}}}
         )
-
-    from pytorch_lightning.plugins.io import AsyncCheckpointIO
 
     # Extract metadata from config
     try:
@@ -489,9 +480,6 @@ def configure_onelogger(
 
     world_size = metadata.get("world_size", -1)
 
-    # Override enable_for_current_rank to use rank 0 logic instead of MetaInfoManager's
-    current_rank = os.environ.get("RANK", '0')
-    enable_for_current_rank = current_rank == '0'  # Only enable on rank 0 for WandB logging
     metadata["enable_for_current_rank"] = enable_for_current_rank
 
     # Determine checkpoint strategy
@@ -539,7 +527,7 @@ def configure_onelogger(
         "quiet": False,  # Don't suppress errors
     }
 
-    init_one_logger(v1_config)
+    init_one_logger(v1_config, trainer=trainer, enable_onelogger=enable_onelogger)
 
 
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
@@ -782,7 +770,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         )
 
     # Configure OneLogger callback
-    configure_onelogger(cfg, trainer)
+    configure_onelogger(cfg, trainer, enable_onelogger=cfg.enable_onelogger)
 
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:
