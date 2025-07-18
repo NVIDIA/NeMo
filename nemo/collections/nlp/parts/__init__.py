@@ -13,5 +13,4 @@
 # limitations under the License.
 
 
-from nemo.collections.nlp.parts.megatron_lr_schedulers import CosineAnnealingExp
 from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list

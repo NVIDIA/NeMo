@@ -25,7 +25,12 @@ import numpy as np
 import webdataset as wds
 from torch.utils.data import IterableDataset
 
-from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
+try:
+    from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
+    HAVE_NLP = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_NLP = False
+
 from nemo.core import Dataset
 from nemo.utils.distributed import webdataset_split_by_workers
 

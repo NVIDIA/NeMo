@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# flake8: noqa
+# pylint: skip-file
+
 import array
 import os
 import pickle
@@ -23,7 +26,12 @@ import numpy as np
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm import tqdm
 
-from nemo.collections.nlp.data.data_utils.data_preprocessing import find_newlines, load_data_indices
+try:
+    from nemo.collections.nlp.data.data_utils.data_preprocessing import find_newlines, load_data_indices
+    HAVE_NLP = True
+except (ImportError, ModuleNotFoundError):
+    HAVE_NLP = False
+
 from nemo.core.classes import Dataset
 
 __all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataloader']
