@@ -652,7 +652,7 @@ class ExplicitSingleDecayFilter(nn.Module):
         """
         return self.filter(L, *args, **kwargs)
 
-    @torch.compile(mode="max-autotune")
+    #@torch.compile(mode="max-autotune")
     def filter(self, L, *args, **kwargs):
         """Compute the filter as a function of h and decay for the requested sequence length."""
         if self._full_filter_kernel is None:
