@@ -644,9 +644,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 if ngram_lm_model is not None:
                     fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
                     fusion_models_alpha.append(ngram_lm_alpha)
-                if boosting_tree is not None and (
-                    boosting_tree.model_path or boosting_tree.key_phrases_file or boosting_tree.key_phrases_list
-                ):
+                if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
                     fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
                     fusion_models_alpha.append(boosting_tree_alpha)
                 if not fusion_models:
@@ -2828,7 +2826,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         use_cuda_graph_decoder: bool = True,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        # boosting_tree: BoostingTreeModelConfig = field(default_factory=BoostingTreeModelConfig),
         boosting_tree: Optional[BoostingTreeModelConfig] = None,
         boosting_tree_alpha: float = 0.0,
         tokenizer: Optional[TokenizerSpec] = None,
@@ -2855,9 +2852,7 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         if ngram_lm_model is not None:
             fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
             fusion_models_alpha.append(ngram_lm_alpha)
-        if boosting_tree is not None and (
-            boosting_tree.model_path or boosting_tree.key_phrases_file or boosting_tree.key_phrases_list
-        ):
+        if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
             fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
             fusion_models_alpha.append(boosting_tree_alpha)
         if not fusion_models:

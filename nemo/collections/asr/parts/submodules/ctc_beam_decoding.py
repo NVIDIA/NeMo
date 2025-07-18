@@ -942,9 +942,7 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             assert blank_index != 0, "Blank should not be the first token in the vocabulary"
             fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=blank_index))
             fusion_models_alpha.append(ngram_lm_alpha)
-        if boosting_tree is not None and (
-                boosting_tree.model_path or boosting_tree.key_phrases_file or boosting_tree.key_phrases_list
-        ):
+        if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
             assert blank_index != 0, "Blank should not be the first token in the vocabulary"
             fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
             fusion_models_alpha.append(boosting_tree_alpha)

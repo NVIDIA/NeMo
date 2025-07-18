@@ -29,6 +29,7 @@ from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BlankLM
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig
 from nemo.utils import logging, logging_mode
 from nemo.utils.enum import PrettyStrEnum
 
@@ -350,8 +351,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         else:
             ngram_lm_model = self.cfg.beam.get('ngram_lm_model', None)
             boosting_tree = self.cfg.beam.get('boosting_tree', None)
-        # if boosting_tree.model_path is None and boosting_tree.key_phrases_file is None and boosting_tree.key_phrases_list is None:
-        #     boosting_tree = None
+        if boosting_tree and BoostingTreeModelConfig.is_empty(boosting_tree):
+            boosting_tree = None
 
         match strategy, model_type:
             # greedy strategy
