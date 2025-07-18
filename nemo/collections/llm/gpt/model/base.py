@@ -162,6 +162,8 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     }
     if getattr(config, "use_transformer_engine_op_fuser", None) is not None:
         kwargs["use_te_op_fuser"] = config.use_transformer_engine_op_fuser
+    if getattr(config, "use_te_activation_func", None) is not None:
+        kwargs["use_te_activation_func"] = config.use_te_activation_func
     return gpt_layer_specs.get_gpt_layer_with_transformer_engine_spec(**kwargs)
 
 
