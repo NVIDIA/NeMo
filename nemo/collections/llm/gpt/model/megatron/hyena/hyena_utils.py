@@ -1472,7 +1472,7 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
         if fir_state is None:
             z_pre, fir_state = engine.parallel_fir(
                 u=u,
-                weight=torch.tensor(weight),  # self.short_filter_weight,
+                weight=weight,
                 bias=None,
                 L=L,
                 gated_bias=False,
