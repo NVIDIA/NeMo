@@ -28,6 +28,7 @@ from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel, Boo
 from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
 from nemo.collections.asr.parts.submodules.wfst_decoder import RivaDecoderConfig, WfstNbestHypothesis
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
@@ -880,7 +881,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         return self.k2_decoder.decode(x.to(device=self.device), out_len.to(device=self.device))
 
 
-class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
+class BeamBatchedCTCInfer(AbstractBeamCTCInfer, WithOptionalCudaGraphs):
     """
     A batched beam CTC decoder.
 
@@ -963,6 +964,16 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             beam_threshold=beam_threshold,
             allow_cuda_graphs=allow_cuda_graphs,
         )
+
+    def disable_cuda_graphs(self):
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if isinstance(self.search_algorithm, WithOptionalCudaGraphs):
+            self.search_algorithm.disable_cuda_graphs()
+
+    def maybe_enable_cuda_graphs(self):
+        """Enable CUDA graphs (if allowed)"""
+        if isinstance(self.search_algorithm, WithOptionalCudaGraphs):
+            self.search_algorithm.maybe_enable_cuda_graphs()
 
     @typecheck()
     def forward(

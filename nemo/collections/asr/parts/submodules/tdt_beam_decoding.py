@@ -42,6 +42,7 @@ from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel, BoostingTreeModelConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -832,7 +833,7 @@ class BeamTDTInfer(Typing):
             return sorted(hyps, key=lambda x: x.score, reverse=True)
 
 
-class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
+class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs):
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
@@ -912,6 +913,16 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             )
         else:
             raise Exception(f"Decoding strategy {search_type} nor implemented.")
+
+    def disable_cuda_graphs(self):
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if isinstance(self._decoding_computer, WithOptionalCudaGraphs):
+            self._decoding_computer.disable_cuda_graphs()
+
+    def maybe_enable_cuda_graphs(self):
+        """Enable CUDA graphs (if allowed)"""
+        if isinstance(self._decoding_computer, WithOptionalCudaGraphs):
+            self._decoding_computer.maybe_enable_cuda_graphs()
 
     @property
     def output_types(self):
