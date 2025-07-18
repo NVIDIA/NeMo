@@ -131,7 +131,12 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
 
     logging.debug("Histogram of sequence lengths")
     logging.debug(counts)
-    return sequences, counts
+
+    histogram = []
+    for seq_len in range(truncate_seq_len + 1):
+        histogram.append(len(sequences[seq_len]))
+
+    return sequences, histogram
 
 
 def create_packing_strategy(

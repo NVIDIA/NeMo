@@ -178,7 +178,6 @@ if __name__ == "__main__":
             use_hf_tokenizer_chat_template=True,
             packed_sequence_specs=ps if args.pack_sequence else None,
         )
-        data.prepare_data()  # sequence packing
     else:
         data = llm.PreTrainingDataModule(
             paths=args.data_paths,

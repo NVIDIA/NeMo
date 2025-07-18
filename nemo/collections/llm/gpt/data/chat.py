@@ -107,7 +107,10 @@ class ChatDataModule(FineTuningDataModule):
                     max_seq_length=self.seq_length,
                     seed=self.seed,
                     output_metadata_path=self.pack_metadata,
-                    chat=True,
+                    dataset_kwargs=dict(
+                        chat=True,
+                        use_hf_tokenizer_chat_template=True,
+                    ),
                 )
 
             if not self.validation_path_packed.is_file():
@@ -119,5 +122,8 @@ class ChatDataModule(FineTuningDataModule):
                     max_seq_length=self.seq_length,
                     seed=self.seed,
                     output_metadata_path=self.pack_metadata,
-                    chat=True,
+                    dataset_kwargs=dict(
+                        chat=True,
+                        use_hf_tokenizer_chat_template=True,
+                    ),
                 )

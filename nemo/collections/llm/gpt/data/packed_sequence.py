@@ -29,7 +29,6 @@ def tokenize_dataset(
     tokenizer: TokenizerSpec,
     max_seq_length: int,
     seed: int,
-    chat: bool = False,
     dataset_kwargs: Optional[dict] = None,
 ):
     """
@@ -65,8 +64,6 @@ def tokenize_dataset(
         seq_length=max_seq_length,
         seed=seed,
         is_test=True,
-        chat=chat,
-        use_hf_tokenizer_chat_template=chat,
         **dataset_kwargs,
     )
     return np.array([dataset[i] for i in range(len(dataset))])
