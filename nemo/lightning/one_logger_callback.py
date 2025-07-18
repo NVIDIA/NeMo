@@ -147,6 +147,7 @@ class OneLoggerNeMoCallback(Callback):
     This callback implements NeMo's callback group API and internally
     uses OneLogger's training telemetry functionality to track metrics.
     """
+
     def __init__(self):
         super().__init__()
         self._validation_batch_exists = False
