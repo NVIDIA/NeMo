@@ -107,29 +107,29 @@ class TestOneLoggerCallback:
                 return MagicMock()
             
             with patch('nemo.lightning.one_logger_callback.get_onelogger_callbacks', side_effect=side_effect):
-            # Simulate training cycle
-            callback.on_train_start(trainer, pl_module)
-            callback.on_train_batch_start(trainer, pl_module, batch, 0)
-            callback.on_train_batch_end(trainer, pl_module, outputs, batch, 0)
-            callback.on_validation_start(trainer, pl_module)
-            callback.on_validation_batch_start(trainer, pl_module, batch, 0, 0)
-            callback.on_validation_batch_end(trainer, pl_module, outputs, batch, 0, 0)
-            callback.on_validation_end(trainer, pl_module)
-            callback.on_train_end(trainer, pl_module)
+                # Simulate training cycle
+                callback.on_train_start(trainer, pl_module)
+                callback.on_train_batch_start(trainer, pl_module, batch, 0)
+                callback.on_train_batch_end(trainer, pl_module, outputs, batch, 0)
+                callback.on_validation_start(trainer, pl_module)
+                callback.on_validation_batch_start(trainer, pl_module, batch, 0, 0)
+                callback.on_validation_batch_end(trainer, pl_module, outputs, batch, 0, 0)
+                callback.on_validation_end(trainer, pl_module)
+                callback.on_train_end(trainer, pl_module)
 
-            # Verify all callbacks were called in the expected order
-            expected_calls = [
-                "on_train_start",
-                "on_training_single_iteration_start",
-                "on_training_single_iteration_end",
-                "on_validation_start",
-                "on_validation_single_iteration_start",
-                "on_validation_single_iteration_end",
-                "on_validation_end",
-                "on_train_end",
-            ]
+                # Verify all callbacks were called in the expected order
+                expected_calls = [
+                    "on_train_start",
+                    "on_training_single_iteration_start",
+                    "on_training_single_iteration_end",
+                    "on_validation_start",
+                    "on_validation_single_iteration_start",
+                    "on_validation_single_iteration_end",
+                    "on_validation_end",
+                    "on_train_end",
+                ]
 
-            assert callback_calls == expected_calls
+                assert callback_calls == expected_calls
 
     @pytest.mark.unit
     def test_hook_class_init_with_callbacks_no_init(self):
