@@ -59,8 +59,10 @@ class TestOneLoggerCallback:
         """Test __getattr__ method of OneLoggerNeMoCallback."""
         callback = OneLoggerNeMoCallback()
 
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True), \
-             patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
+        with (
+            patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True),
+            patch('nemo.lightning.one_logger_callback.CB') as mock_cb,
+        ):
             mock_callback = MagicMock()
             mock_cb.test_method = mock_callback
 
@@ -87,8 +89,10 @@ class TestOneLoggerCallback:
 
             return mock_callback
 
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True), \
-             patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
+        with (
+            patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True),
+            patch('nemo.lightning.one_logger_callback.CB') as mock_cb,
+        ):
             # Mock the CB module to return our mock callback
             mock_cb.test_start = MagicMock()
             mock_cb.test_end = MagicMock()
@@ -100,12 +104,12 @@ class TestOneLoggerCallback:
             mock_cb.on_validation_single_iteration_end = MagicMock()
             mock_cb.on_validation_end = MagicMock()
             mock_cb.on_train_end = MagicMock()
-            
+
             # Set up the side effect to track calls
             def side_effect(callback_name, *args, **kwargs):
                 callback_calls.append(callback_name)
                 return MagicMock()
-            
+
             with patch('nemo.lightning.one_logger_callback.get_onelogger_callbacks', side_effect=side_effect):
                 # Simulate training cycle
                 callback.on_train_start(trainer, pl_module)

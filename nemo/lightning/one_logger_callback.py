@@ -45,14 +45,16 @@ def get_current_time_msec() -> float:
 
 def _get_onelogger_callbacks_function(name: str):
     """Get the OneLogger callback function without calling it.
-    
+
     Args:
         name: The name of the callback to get
     Returns:
         The callback function or a no-op function if OneLogger is not available
     """
+
     def _noop(*args, **kwargs):
         pass
+
     if not HAVE_ONELOGGER:
         return _noop
     if hasattr(CB, name):
@@ -65,7 +67,7 @@ def _get_onelogger_callbacks_function(name: str):
 # Wrapper functions for OneLogger callbacks
 def get_onelogger_callbacks(name: str, *args, **kwargs):
     """Get and call the OneLogger callbacks module if available.
-    
+
     Args:
         name: The name of the callback to call
         *args: Positional arguments to pass to the callback
@@ -192,8 +194,8 @@ class OneLoggerNeMoCallback(Callback):
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
 
-        get_onelogger_callbacks("on_train_start",
-            train_iterations_start=current_step, train_iterations_target_or_fn=max_steps
+        get_onelogger_callbacks(
+            "on_train_start", train_iterations_start=current_step, train_iterations_target_or_fn=max_steps
         )
 
     def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
