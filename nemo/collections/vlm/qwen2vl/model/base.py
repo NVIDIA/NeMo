@@ -89,8 +89,9 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_cp_rank(_batch)
-    return output
+    _batch_cp = {k: v for k, v in _batch.items() if k in ['input_ids', ['labels'], ['loss_mask']]}
+    _batch.update(get_batch_on_this_cp_rank(_batch_cp))
+    return _batch
 
 
 def qwen2vl_forward_step(model, batch) -> torch.Tensor:

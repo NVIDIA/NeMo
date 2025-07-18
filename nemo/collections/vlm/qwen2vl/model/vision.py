@@ -573,7 +573,9 @@ class Qwen25VisionModel(VisionModule):
             spec=transformer_layer_spec,
             pre_process=True,
             post_process=True,
+            vp_stage=0,  # Vision transformer does not support VPP
         )
+        self.decoder.model_comm_pgs.cp = torch.distributed.ProcessGroup(0, 1)
 
         self.window_index = None
 
