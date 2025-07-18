@@ -81,7 +81,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ['MegatronT5SFTModel']
 
 
-class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
+class MegatronT5SFTModel(MegatronT5Model):
     """T5 Finetuning model in the same format as MegatronGPTSFTModel"""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
