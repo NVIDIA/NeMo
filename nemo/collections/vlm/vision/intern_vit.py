@@ -13,12 +13,13 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from functools import partial
 from pathlib import Path
 from typing import Callable, Optional
 
 import lightning.pytorch as L
 import torch
+
+from nemo.collections.vlm.vision.layer_scaling import LayerScalingTransformerLayer, get_bias_dropout_add_layer_scaling
 
 try:
     from megatron.core.extensions.transformer_engine import (
@@ -55,7 +56,7 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.transformer_layer import TransformerLayerSubmodules
 
 from nemo.collections.vlm.vision.base import CLIPViTConfig
 from nemo.lightning import io, teardown
@@ -168,50 +169,6 @@ def get_mlp_module_spec(use_te: bool = True) -> ModuleSpec:
     )
 
 
-def _bias_dropout_add_func_internvit(ls, x_with_bias, residual, prob, training):
-    """Handle InternViT's layer scaling."""
-    x, bias = x_with_bias  # unpack
-    residual = residual if residual.dtype == x.dtype else residual.to(x.dtype)
-    if bias is not None:
-        x = x + bias
-        out = torch.nn.functional.dropout(x, p=prob, training=training)
-        out = residual + out * ls
-        return out
-    else:
-        out = torch.nn.functional.dropout(x, p=prob, training=training)
-        out = residual + out * ls
-        return out
-
-
-def bias_dropout_add_unfused_internvit(ls, training):
-    """Bias-dropout-add as in Megatron but with added LayerScaling handling."""
-
-    def _bias_dropout_add(x_with_bias, residual, prob):
-        #
-        return _bias_dropout_add_func_internvit(ls, x_with_bias, residual, prob, training)
-
-    return _bias_dropout_add
-
-
-def get_bias_dropout_add_internvit(ls, training, fused):
-    """Bias-dropout-add as in Megatron but with added LayerScaling handling."""
-    assert not fused, "Fused bias-dropout-add not implemented for InternViT."
-    return bias_dropout_add_unfused_internvit(ls, training)
-
-
-class InternViTTransformerLayer(TransformerLayer):
-    """Add InternViT specialties to our default TransformerLayer."""
-
-    def __init__(self, *args, **kwargs):
-        # pylint: disable=C0115,C0116
-        super().__init__(*args, **kwargs)
-        self.ls1 = torch.nn.Parameter(torch.ones(self.config.hidden_size))
-        self.ls2 = torch.nn.Parameter(torch.ones(self.config.hidden_size))
-
-        self.self_attn_bda = partial(self.self_attn_bda, self.ls1)
-        self.mlp_bda = partial(self.mlp_bda, self.ls2)
-
-
 class InternViTSelfAttention(SelfAttention):
     """Override a few things that are special in InternViT and not supported by the SelfAttention class."""
 
@@ -287,7 +244,7 @@ def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> M
     mlp = get_mlp_module_spec(use_te)  # no norm
 
     return ModuleSpec(
-        module=InternViTTransformerLayer,
+        module=LayerScalingTransformerLayer,
         submodules=TransformerLayerSubmodules(
             input_layernorm=NORM2FN[norm_type],
             self_attention=ModuleSpec(
@@ -301,10 +258,10 @@ def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> M
                     k_layernorm=NORM2FN[norm_type] if add_qk_norm else IdentityOp,
                 ),
             ),
-            self_attn_bda=get_bias_dropout_add_internvit,
+            self_attn_bda=get_bias_dropout_add_layer_scaling,
             pre_mlp_layernorm=NORM2FN[norm_type],
             mlp=mlp,
-            mlp_bda=get_bias_dropout_add_internvit,
+            mlp_bda=get_bias_dropout_add_layer_scaling,
         ),
     )
 
