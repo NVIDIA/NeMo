@@ -33,7 +33,6 @@ __all__ = [
     'init_one_logger',
 ]
 
-
 def get_current_time_msec() -> float:
     """Get current time in milliseconds since epoch.
 
@@ -191,6 +190,9 @@ class OneLoggerNeMoCallback(Callback):
         get_onelogger_callbacks("on_validation_start")()
 
     def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        if self._validation_batch_exists:
+            get_onelogger_callbacks("on_validation_single_iteration_end")()
+            self._validation_batch_exists = False
         get_onelogger_callbacks("on_validation_end")()
 
     def on_validation_batch_start(
@@ -201,6 +203,9 @@ class OneLoggerNeMoCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
+        if self._validation_batch_exists:
+            get_onelogger_callbacks("on_validation_single_iteration_end")()
+        self._validation_batch_exists = True
         get_onelogger_callbacks("on_validation_single_iteration_start")()
 
     def on_validation_batch_end(
@@ -216,7 +221,9 @@ class OneLoggerNeMoCallback(Callback):
 
     def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called when training ends."""
-        get_onelogger_callbacks("on_train_end")()
+        if self._train_active:
+            get_onelogger_callbacks("on_train_end")()
+            self._train_active = False
 
 
 def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) -> None:
@@ -240,6 +247,16 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
 
     @functools.wraps(original_init)
     def wrapped_init(self, *args, **kwargs):
+        # Check if this instance has already been initialized to prevent duplicate callbacks
+        # in inheritance chains
+        if hasattr(self, '_one_logger_init_started'):
+            # This instance is already being initialized, skip the callbacks
+            return original_init(self, *args, **kwargs)
+        
+        # Mark this instance as being initialized
+        self._one_logger_init_started = True
+        
+        print("NeMo CB: wrapped_init for class", cls.__name__)
         tracker.track_event(start_callback)
         result = original_init(self, *args, **kwargs)
         tracker.track_event(end_callback)
@@ -271,7 +288,7 @@ def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None, enable_o
     )
     TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(
         exporter
-    ).configure()
+    ).configure_provider()
 
     OneLoggerTimingTracker.mark_one_logger_available()
 
