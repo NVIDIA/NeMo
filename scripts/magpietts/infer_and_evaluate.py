@@ -585,10 +585,10 @@ def main():
                 checkpoint_file=None,
                 nemo_file=nemo_file,
             )
-    # Mode 1: Discover and run experiments from a base directory
+    # Mode 3: Discover and run experiments from a base directory
     #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
     #   sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
-    if args.base_exp_dir:
+    elif args.base_exp_dir:
         BASE_EXP_DIR = args.base_exp_dir
         DRACO_EXP_DIR = args.draco_exp_dir
         if args.exp_names is None:
