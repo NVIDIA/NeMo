@@ -25,6 +25,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 try:
     from nemo.collections.nlp.data.data_utils import dataset_to_ids
+
     HAVE_NLP = True
 except (ImportError, ModuleNotFoundError):
     HAVE_NLP = False
