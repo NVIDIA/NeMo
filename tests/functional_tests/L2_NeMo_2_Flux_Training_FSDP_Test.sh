@@ -12,7 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v
-
-
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v --factory flux_training
+TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v --factory flux_training_fsdp
