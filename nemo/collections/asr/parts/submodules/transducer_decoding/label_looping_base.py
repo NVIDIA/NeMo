@@ -15,7 +15,7 @@
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import Any, Optional, List
+from typing import Any, List, Optional
 
 import torch
 

@@ -35,8 +35,8 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.modules import rnnt_abstract
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.transducer_decoding import (
     GreedyBatchedRNNTLabelLoopingComputer,
     GreedyBatchedTDTLabelLoopingComputer,
@@ -45,9 +45,9 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.parts.rnn import label_collate
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging
 
 
@@ -684,7 +684,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                         self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
             if fusion_models:
-                raise NotImplementedError("N-Gram Language Model and Boosting Tree fusion is not implemented with `blank_as_pad=False`")
+                raise NotImplementedError(
+                    "N-Gram Language Model and Boosting Tree fusion is not implemented with `blank_as_pad=False`"
+                )
             self._greedy_decode = self._greedy_decode_masked
 
     def disable_cuda_graphs(self):

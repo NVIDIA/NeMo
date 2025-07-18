@@ -20,12 +20,12 @@ import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel, BoostingTreeModelConfig
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodConfig, ConfidenceMethodMixin
 from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
+from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.core.utils.cuda_python_utils import (
@@ -500,7 +500,9 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraph
         # load fusion models from paths (ngram_lm_model and boosting_tree_model)
         self.fusion_models, self.fusion_models_alpha = [], []
         if ngram_lm_model is not None:
-            self.fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id))
+            self.fusion_models.append(
+                NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id)
+            )
             self.fusion_models_alpha.append(ngram_lm_alpha)
         if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
             self.fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
@@ -549,7 +551,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraph
         decoder_lengths = decoder_lengths.to(decoder_output.device)
 
         if decoder_output.ndim == 2:
-            if self.fusion_models is not None: 
+            if self.fusion_models is not None:
                 raise NotImplementedError
             hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
         else:
@@ -577,8 +579,8 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraph
                 fusion_model.to(x.device)
             # decoding with NGPU-LM and Boosting Tree
             if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-                predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_fusion_models_cuda_graphs(
-                    logits=x, out_len=out_len
+                predictions_labels, predictions_logprobs = (
+                    self._greedy_decode_logprobs_batched_fusion_models_cuda_graphs(logits=x, out_len=out_len)
                 )
             else:
                 predictions_labels, predictions_logprobs = self._greedy_decode_logprobs_batched_fusion_models_torch(
@@ -698,8 +700,10 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraph
 
             # Step 3: Get fusion scores
             fusion_states_candidates_list = []
-            for  fusion_idx, fusion_model in enumerate(self.fusion_models):
-                fusion_scores, batch_fusion_states_candidates = fusion_model.advance(states=batch_fusion_states_list[fusion_idx])
+            for fusion_idx, fusion_model in enumerate(self.fusion_models):
+                fusion_scores, batch_fusion_states_candidates = fusion_model.advance(
+                    states=batch_fusion_states_list[fusion_idx]
+                )
                 fusion_scores = fusion_scores.to(dtype=float_dtype)
                 log_probs_w_fusion[:, :-1] += self.fusion_models_alpha[fusion_idx] * fusion_scores
                 fusion_states_candidates_list.append(batch_fusion_states_candidates)
@@ -741,9 +745,13 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraph
         self.state.fusion_states_candidates_list = []
 
         for fusion_model in self.fusion_models:
-            self.state.fusion_states_list.append(fusion_model.get_init_states(batch_size=self.state.batch_size, bos=True))
-            self.state.fusion_states_candidates_list.append(torch.zeros(
-                [self.state.batch_size, fusion_model.vocab_size], dtype=torch.long, device=self.state.device)
+            self.state.fusion_states_list.append(
+                fusion_model.get_init_states(batch_size=self.state.batch_size, bos=True)
+            )
+            self.state.fusion_states_candidates_list.append(
+                torch.zeros(
+                    [self.state.batch_size, fusion_model.vocab_size], dtype=torch.long, device=self.state.device
+                )
             )
 
         self.state.last_labels.fill_(self.blank_id)
@@ -765,7 +773,9 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraph
 
         # Step 3: Get fusion scores
         for fusion_idx, fusion_model in enumerate(self.fusion_models):
-            fusion_scores, fusion_states_candidates = fusion_model.advance(states=self.state.fusion_states_list[fusion_idx])
+            fusion_scores, fusion_states_candidates = fusion_model.advance(
+                states=self.state.fusion_states_list[fusion_idx]
+            )
             fusion_scores = fusion_scores.to(dtype=self.state.float_dtype)
             log_probs_w_fusion[:, :-1] += self.fusion_models_alpha[fusion_idx] * fusion_scores
             self.state.fusion_states_candidates_list[fusion_idx].copy_(fusion_states_candidates)
@@ -789,7 +799,9 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraph
             torch.where(
                 blank_or_repeated,
                 self.state.fusion_states_list[fusion_idx],
-                self.state.fusion_states_candidates_list[fusion_idx][self.state.batch_indices, labels * ~blank_or_repeated],
+                self.state.fusion_states_candidates_list[fusion_idx][
+                    self.state.batch_indices, labels * ~blank_or_repeated
+                ],
                 out=self.state.fusion_states_list[fusion_idx],
             )
 

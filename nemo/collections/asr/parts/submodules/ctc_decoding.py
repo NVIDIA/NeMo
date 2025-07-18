@@ -1403,7 +1403,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
                     boosting_tree:
                         BoostingTreeModelConfig, config for the boosting tree model
-                        
+
                     boosting_tree_alpha:
                         float, the strength of the boosting tree model on the final score of a token.
                         final_score = acoustic_score + boosting_tree_alpha * boosting_tree_score + beam_beta * seq_length.

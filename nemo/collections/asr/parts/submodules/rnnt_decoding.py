@@ -23,14 +23,14 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding, rnnt_greedy_decoding, tdt_beam_decoding
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BlankLMScoreMode, PruningMode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.utils import logging, logging_mode
 from nemo.utils.enum import PrettyStrEnum
 
@@ -363,7 +363,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id))
             fusion_models_alpha.append(ngram_lm_alpha)
         if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
-            fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=getattr(self, 'tokenizer', None)))
+            fusion_models.append(
+                GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=getattr(self, 'tokenizer', None))
+            )
             fusion_models_alpha.append(boosting_tree_alpha)
         if not fusion_models:
             fusion_models = None

@@ -13,7 +13,7 @@
 # limitations under the License.
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Union, List
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import torch
@@ -309,7 +309,6 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             self.fusion_models = None
             self.blank_lm_score_mode = None
 
-
     def force_cuda_graphs_mode(self, mode: Optional[Union[str, CudaGraphsMode]]):
         """
         Method to set graphs mode. Use only for testing purposes.
@@ -424,11 +423,12 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             for fusion_model_idx, fusion_model in enumerate(self.fusion_models):
                 fusion_model.to(device)
                 fusion_states = fusion_model.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
-                fusion_scores, fusion_states_candidates = fusion_model.advance(
-                    states=fusion_states
+                fusion_scores, fusion_states_candidates = fusion_model.advance(states=fusion_states)
+
+                fusion_scores = (
+                    fusion_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1)
+                    * self.fusion_models_alpha[fusion_model_idx]
                 )
-                
-                fusion_scores = fusion_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.fusion_models_alpha[fusion_model_idx]
                 fusion_states_list.append(fusion_states)
                 fusion_states_candidates_list.append(fusion_states_candidates)
                 fusion_scores_list.append(fusion_scores)
@@ -468,7 +468,9 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             )  # [(B x Beam), V]
 
             if self.fusion_models is not None:
-                log_probs_top_k, labels_top_k, durations_top_k = self.topk_fusion_model(fusion_scores_list, log_probs, duration_log_probs)
+                log_probs_top_k, labels_top_k, durations_top_k = self.topk_fusion_model(
+                    fusion_scores_list, log_probs, duration_log_probs
+                )
             else:
                 total_log_probs = (
                     log_probs[:, :, :, None] + duration_log_probs[:, :, None, :]
@@ -600,19 +602,22 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                         ),
                     )
                     fusion_states_prev = torch.gather(
-                        fusion_states_list[fusion_model_idx].view(batch_size, self.beam_size), dim=1, index=hyps_indices
+                        fusion_states_list[fusion_model_idx].view(batch_size, self.beam_size),
+                        dim=1,
+                        index=hyps_indices,
                     )
                     last_labels_wb_blank_replaced = torch.where(preserve_state, 0, last_labels_wb)
-                    
+
                     fusion_states = torch.gather(
                         fusion_states_candidates, dim=-1, index=last_labels_wb_blank_replaced.unsqueeze(-1)
                     ).squeeze(-1)
                     fusion_states = torch.where(preserve_state, fusion_states_prev, fusion_states).view(-1)
 
-                    fusion_scores, fusion_states_candidates = fusion_model.advance(
-                        states=fusion_states
+                    fusion_scores, fusion_states_candidates = fusion_model.advance(states=fusion_states)
+                    fusion_scores = (
+                        fusion_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1)
+                        * self.fusion_models_alpha[fusion_model_idx]
                     )
-                    fusion_scores = fusion_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.fusion_models_alpha[fusion_model_idx]
                     fusion_states_list[fusion_model_idx] = fusion_states
                     fusion_states_candidates_list[fusion_model_idx] = fusion_states_candidates
                     fusion_scores_list[fusion_model_idx] = fusion_scores
@@ -660,7 +665,9 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
             case PruningMode.LATE, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 blank_logprob = log_probs[..., -1]
-                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-2)) # 1e-2 is a small value to avoid numerical instability for bf16
+                non_blank_logprob = torch.log1p(
+                    -torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-2)
+                )  # 1e-2 is a small value to avoid numerical instability for bf16
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * fusion_scores_sum_alpha + fusion_scores_sum
                 log_probs[..., -1] *= 1 + fusion_scores_sum_alpha
 
@@ -873,18 +880,18 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
 
         # setup fusion models if available
         if self.fusion_models is not None:
-            
+
             device = encoder_output_projected.device
 
             self.state.init_fusion_states_list = []
             self.state.init_fusion_states_candidates_list = []
             self.state.init_fusion_scores_list = []
-            
+
             self.state.fusion_states_list = []
             self.state.fusion_states_candidates_list = []
             self.state.fusion_scores_list = []
             self.state.fusion_states_prev_list = []
-            
+
             for fusion_model_idx, fusion_model in enumerate(self.fusion_models):
                 fusion_model.to(device)
 
@@ -898,13 +905,15 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                     init_fusion_scores.to(dtype=self.state.float_dtype).view(self.state.batch_size, self.beam_size, -1)
                     * self.fusion_models_alpha[fusion_model_idx]
                 )
-                self.state.init_fusion_states_candidates_list.append(init_fusion_states_candidates.view(
-                    self.state.batch_size, self.beam_size, -1
-                ))
+                self.state.init_fusion_states_candidates_list.append(
+                    init_fusion_states_candidates.view(self.state.batch_size, self.beam_size, -1)
+                )
                 self.state.init_fusion_states_list.append(init_fusion_states)
 
                 self.state.fusion_states_list.append(init_fusion_states.clone())
-                self.state.fusion_states_candidates_list.append(self.state.init_fusion_states_candidates_list[fusion_model_idx].clone())
+                self.state.fusion_states_candidates_list.append(
+                    self.state.init_fusion_states_candidates_list[fusion_model_idx].clone()
+                )
                 self.state.fusion_scores_list.append(self.state.init_fusion_scores_list[fusion_model_idx].clone())
                 self.state.fusion_states_prev_list.append(init_fusion_states.clone())
 
@@ -993,7 +1002,9 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
         if self.fusion_models is not None:
             for fusion_idx, fusion_model in enumerate(self.fusion_models):
                 self.state.fusion_states_list[fusion_idx].copy_(self.state.init_fusion_states_list[fusion_idx])
-                self.state.fusion_states_candidates_list[fusion_idx].copy_(self.state.init_fusion_states_candidates_list[fusion_idx])
+                self.state.fusion_states_candidates_list[fusion_idx].copy_(
+                    self.state.init_fusion_states_candidates_list[fusion_idx]
+                )
                 self.state.fusion_scores_list[fusion_idx].copy_(self.state.init_fusion_scores_list[fusion_idx])
                 self.state.fusion_states_prev_list[fusion_idx].copy_(self.state.init_fusion_states_list[fusion_idx])
 
@@ -1226,15 +1237,20 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                         self.state.fusion_states_candidates_list[fusion_idx],
                         dim=1,
                         index=self.state.next_idx[:, :, None].expand(
-                            self.state.batch_size, self.beam_size, self.state.fusion_states_candidates_list[fusion_idx].shape[-1]
+                            self.state.batch_size,
+                            self.beam_size,
+                            self.state.fusion_states_candidates_list[fusion_idx].shape[-1],
                         ),
                     )
                 )
                 torch.gather(
-                    self.state.fusion_states_list[fusion_idx], dim=1, index=self.state.next_idx, out=self.state.fusion_states_prev_list[fusion_idx]
+                    self.state.fusion_states_list[fusion_idx],
+                    dim=1,
+                    index=self.state.next_idx,
+                    out=self.state.fusion_states_prev_list[fusion_idx],
                 )
                 last_labels_wb_blank_replaced = torch.where(preserve_state, 0, self.state.last_labels_wb)
-                
+
                 torch.gather(
                     self.state.fusion_states_candidates_list[fusion_idx],
                     dim=-1,
