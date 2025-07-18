@@ -18,6 +18,7 @@ from typing import List
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
 
+import nemo.lightning as nl
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel
@@ -113,7 +114,6 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=Non
     dataset_root.mkdir(parents=True, exist_ok=True)
 
     tokenizer = AutoTokenizer(pretrained_model_name=model_name)
-
     # Configure SquadDataModule with packing specs
     datamodule = SquadDataModule(
         dataset_root=dataset_root,
@@ -161,7 +161,6 @@ def prepare_squad_dataset_experiment(
         dataset_executor,
         "prepare_squad_dataset_exp",
     )
-
 
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
     """

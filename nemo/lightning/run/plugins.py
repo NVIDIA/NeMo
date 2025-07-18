@@ -158,7 +158,9 @@ class NsysPlugin(run.Plugin):
     end_step: int
     ranks: Optional[list[int]] = None
     nsys_trace: Optional[list[str]] = None
+    nsys_extra_args: Optional[list[str]] = None
     gen_shape: bool = False
+    nsys_gpu_metrics: bool = False
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         """Set up the nsys profiling plugin."""
@@ -179,6 +181,21 @@ class NsysPlugin(run.Plugin):
         if isinstance(executor, run.SlurmExecutor):
             # NOTE: DO NOT change to f-string, `%q{}` is Slurm placeholder
             launcher.nsys_filename = "profile_%p_%q{SLURM_JOB_ID}_node%q{SLURM_NODEID}_rank%q{SLURM_PROCID}"
+            launcher.nsys_extra_args = self.nsys_extra_args or [
+            "--force-overwrite=true",
+            "--capture-range=cudaProfilerApi",
+            "--capture-range-end=stop",
+            "--cuda-graph-trace=node",
+            "--cuda-event-trace=false",
+            "--nvtx-domain-include=NCCL",
+        ]
+        if self.nsys_gpu_metrics:
+            if hasattr(launcher, "nsys_gpu_metrics"):
+                launcher.nsys_gpu_metrics = self.nsys_gpu_metrics
+            else:
+                logging.warning(
+                    "Unable to enable nsys gpu metrics collection. Please upgrade Nemo-Run to include commit 70a0df4."
+                )
 
 
 @dataclass(kw_only=True)

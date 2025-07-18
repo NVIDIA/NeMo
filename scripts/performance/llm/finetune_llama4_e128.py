@@ -21,16 +21,9 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    hf_tokenizer,
-    import_ckpt_experiment,
-    prepare_squad_dataset_experiment,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import hf_tokenizer, import_ckpt_experiment, prepare_squad_dataset_experiment
 
 HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 
@@ -44,7 +37,6 @@ SKIP_IMPORT = False
 # dataset will be downloaded from HuggingFace
 SKIP_DATASET_DOWNLOAD = False
 
-
 def override_recipe_configs(
     args: str,
     num_nodes: int,
@@ -55,6 +47,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     etp_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
@@ -83,6 +77,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
@@ -119,7 +115,6 @@ def override_recipe_configs(
     recipe.model.config.moe_permute_fusion = True
     return recipe
 
-
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
@@ -134,13 +129,16 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[0:13]
+    ) = kwargs[0:15]
 
+    custom_env_vars = {}
     recipe = override_recipe_configs(
         args,
         num_nodes,
@@ -151,6 +149,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -170,11 +170,26 @@ if __name__ == "__main__":
         )
     ]
 
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+
+    if args.enable_nsys:
+            plugins.append(
+                NsysPlugin(
+                    start_step=args.profiling_start_step,
+                    end_step=args.profiling_stop_step,
+                    ranks=list(range(num_nodes * args.gpus_per_node)),
+                    nsys_gpu_metrics=args.profiling_gpu_metrics,
+                )
+            )
+    # nsys takes precedent over ncclttrace
+    elif args.enable_nccltrace:
+        exp_name = exp_name + "_nccltrace"
+        custom_env_vars |= {
+            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+            "NCCL_DEBUG": "INFO",
+        }
 
     executor = slurm_executor(
         args.account,
@@ -185,7 +200,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=custom_env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
@@ -195,10 +210,12 @@ if __name__ == "__main__":
         if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+            exp_name += "_import_checkpoint"
         if not SKIP_DATASET_DOWNLOAD:
             exp.add(
                 *prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home)
             )
+            exp_name += "_dataset_download"
         exp.add(
             recipe,
             executor=executor,

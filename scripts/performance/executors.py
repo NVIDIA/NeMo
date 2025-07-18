@@ -94,10 +94,17 @@ def slurm_executor(
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         PERF_ENV_VARS["NEMO_HOME"] = nemo_home
         mounts.extend([f"{nemo_home}:{nemo_home}"])
+        # Extra location mount for checkpointing support
+        NEMORUN_HOME = os.getenv('NEMORUN_HOME')
+        mounts.extend([f"{NEMORUN_HOME}:{NEMORUN_HOME}"])
     if hf_token is not None:
         PERF_ENV_VARS.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
 
     PERF_ENV_VARS |= custom_env_vars
+    # add all environment variables to container environment
+    container_env_args = ["--container-env=" + ",".join(list(PERF_ENV_VARS.keys()))]
+    srun_args.extend(container_env_args)
+
     mounts.extend(custom_mounts)
 
     # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
@@ -130,10 +137,63 @@ def slurm_executor(
         time=time_limit,
         mem="0",
         exclusive=True,
-        packager=run.GitArchivePackager(),
+        packager=run.Packager(),
         segment=segment,
         network=network,
         launcher=launcher,
     )
 
     return executor
+
+def runai_executor(
+    base_url: str,
+    app_id: str,
+    app_secret: str,
+    project_name: str,
+    pvc_nemo_run_dir: str,
+    nodes: int,
+    num_gpus_per_node: int,
+    launched_from_cluster: bool = False,
+    container_image: str = "nvcr.io/nvidia/nemo:dev",
+    custom_mounts: List[dict[str, any]] = [],
+    custom_env_vars: Dict[str, str] = {},
+    hf_token: str = None,
+    wandb_key: str = None,
+) -> run.DGXCloudExecutor:
+    """
+    DGXC Create cluster definition with appropriate cluster params and NeMo container params needed for pre-training
+    and fine-tuning experiments
+    """
+    env_vars = {
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
+    }
+
+    if wandb_key is not None:
+        env_vars["WANDB_API_KEY"] = wandb_key
+    if hf_token is not None:
+        env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
+    env_vars |= custom_env_vars
+
+    executor = run.DGXCloudExecutor(
+        base_url=base_url,
+        app_id=app_id,
+        app_secret=app_secret,
+        project_name=project_name,
+        nodes=nodes,
+        gpus_per_node=num_gpus_per_node,
+        container_image=container_image,
+        pvc_nemo_run_dir=pvc_nemo_run_dir,
+        env_vars=env_vars,
+        launcher="torchrun",  # Use torchrun to launch the processes
+        launched_from_cluster=launched_from_cluster,
+        pvcs=custom_mounts,
+    )
+
+    return executor
+
