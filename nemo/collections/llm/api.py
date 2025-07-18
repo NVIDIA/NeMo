@@ -50,7 +50,7 @@ from nemo.lightning import (
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+from nemo.lightning.one_logger_callback import OneLoggerTimingTracker, get_onelogger_callbacks
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.exp_manager import configure_onelogger
@@ -127,6 +127,9 @@ def train(
     )
 
     trainer.fit(model, data)
+
+    # Track app end for NeMo v2 recipe-based applications
+    get_onelogger_callbacks("on_app_end")()
 
     return app_state.exp_dir
 
