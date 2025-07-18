@@ -478,7 +478,7 @@ def configure_onelogger(
     world_size = metadata.get("world_size", -1)
 
     # Determine checkpoint strategy
-    if trainer is not None and isinstance(trainer.strategy.checkpoint_io, AsyncCheckpointIO):
+    if trainer is not None and getattr(trainer.strategy, "async_save", False):
         save_checkpoint_strategy = "async"
     else:
         save_checkpoint_strategy = "sync"
