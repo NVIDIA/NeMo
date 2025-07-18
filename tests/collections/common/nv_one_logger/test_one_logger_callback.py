@@ -44,11 +44,9 @@ class TestOneLoggerCallback:
     def test_get_onelogger_callbacks_no_onelogger(self):
         """Test get_onelogger_callbacks when OneLogger is not available."""
         with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', False):
-            callback = get_onelogger_callbacks("test_callback")
-            # Should return a no-op function
-            assert callable(callback)
-            # Should not raise any exception
-            callback()
+            # Should return None when OneLogger is not available
+            result = get_onelogger_callbacks("test_callback")
+            assert result is None
 
     @pytest.mark.unit
     def test_one_logger_nemo_callback_initialization(self):
@@ -61,12 +59,12 @@ class TestOneLoggerCallback:
         """Test __getattr__ method of OneLoggerNeMoCallback."""
         callback = OneLoggerNeMoCallback()
 
-        with patch('nemo.lightning.one_logger_callback.get_onelogger_callbacks') as mock_get_callback:
+        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True), \
+             patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
             mock_callback = MagicMock()
-            mock_get_callback.return_value = mock_callback
+            mock_cb.test_method = mock_callback
 
             result = callback.test_method
-            mock_get_callback.assert_called_with('test_method')
             assert result == mock_callback
 
     @pytest.mark.unit
@@ -89,7 +87,26 @@ class TestOneLoggerCallback:
 
             return mock_callback
 
-        with patch('nemo.lightning.one_logger_callback.get_onelogger_callbacks', side_effect=mock_get_callback):
+        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True), \
+             patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
+            # Mock the CB module to return our mock callback
+            mock_cb.test_start = MagicMock()
+            mock_cb.test_end = MagicMock()
+            mock_cb.on_train_start = MagicMock()
+            mock_cb.on_training_single_iteration_start = MagicMock()
+            mock_cb.on_training_single_iteration_end = MagicMock()
+            mock_cb.on_validation_start = MagicMock()
+            mock_cb.on_validation_single_iteration_start = MagicMock()
+            mock_cb.on_validation_single_iteration_end = MagicMock()
+            mock_cb.on_validation_end = MagicMock()
+            mock_cb.on_train_end = MagicMock()
+            
+            # Set up the side effect to track calls
+            def side_effect(callback_name, *args, **kwargs):
+                callback_calls.append(callback_name)
+                return MagicMock()
+            
+            with patch('nemo.lightning.one_logger_callback.get_onelogger_callbacks', side_effect=side_effect):
             # Simulate training cycle
             callback.on_train_start(trainer, pl_module)
             callback.on_train_batch_start(trainer, pl_module, batch, 0)

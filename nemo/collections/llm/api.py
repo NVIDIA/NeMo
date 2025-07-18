@@ -129,7 +129,7 @@ def train(
     trainer.fit(model, data)
 
     # Track app end for NeMo v2 recipe-based applications
-    get_onelogger_callbacks("on_app_end")()
+    get_onelogger_callbacks("on_app_end")
 
     return app_state.exp_dir
 
