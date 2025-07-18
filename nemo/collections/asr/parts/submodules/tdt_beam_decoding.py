@@ -853,15 +853,12 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
         score_norm: bool = True,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
-        ngram_lm_model: Optional[str | Path] = None,
-        ngram_lm_alpha: float = 0.0,
-        boosting_tree: Optional[BoostingTreeModelConfig] = None,
-        boosting_tree_alpha: float = 0.0,
+        fusion_models: Optional[List[NGramGPULanguageModel]] = None,
+        fusion_models_alpha: Optional[List[float]] = None,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE,
         pruning_mode: Optional[str | PruningMode] = PruningMode.EARLY,
         allow_cuda_graphs: Optional[bool] = True,
         return_best_hypothesis: Optional[str] = True,
-        tokenizer: Optional[TokenizerSpec] = None,
     ):
         """
         Init method.
@@ -873,8 +870,8 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             beam_size: beam size
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
             preserve_alignments: if alignments are needed
-            ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
-            ngram_lm_alpha: weight for the n-gram LM scores
+            fusion_models: list of fusion models to use for decoding
+            fusion_models_alpha: list of alpha values for fusion models
             blank_lm_score_mode: mode for scoring blank symbol with LM
             pruning_mode: mode for pruning hypotheses with LM
             allow_cuda_graphs: whether to allow CUDA graphs
@@ -895,18 +892,6 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
-
-        # load fusion models from paths (ngram_lm_model and boosting_tree_model)
-        fusion_models, fusion_models_alpha = [], []
-        if ngram_lm_model is not None:
-            fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
-            fusion_models_alpha.append(ngram_lm_alpha)
-        if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
-            fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
-            fusion_models_alpha.append(boosting_tree_alpha)
-        if not fusion_models:
-            fusion_models = None
-            fusion_models_alpha = None
 
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support

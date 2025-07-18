@@ -599,8 +599,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             which makes it especially useful for scaling the prediction network.
         use_cuda_graph_decoder: if CUDA graphs should be enabled for decoding
                                 (currently recommended only for inference)
-        ngram_lm_model: optional n-gram language model (LM) file to use for decoding
-        ngram_lm_alpha: LM weight
+        fusion_models: list of fusion models to use for decoding
+        fusion_models_alpha: list of alpha values for fusion models
     """
 
     def __init__(
@@ -614,11 +614,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         confidence_method_cfg: Optional[DictConfig] = None,
         loop_labels: bool = True,
         use_cuda_graph_decoder: bool = True,
-        ngram_lm_model: Optional[str | Path] = None,
-        ngram_lm_alpha: float = 0.0,
-        boosting_tree: Optional[BoostingTreeModelConfig] = None,
-        boosting_tree_alpha: float = 0.0,
-        tokenizer: Optional[TokenizerSpec] = None,
+        fusion_models: Optional[List[NGramGPULanguageModel | GPUBoostingTreeModel]] = None,
+        fusion_models_alpha: Optional[List[float]] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -638,19 +635,6 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         self.decoding_computer = None
         if self.decoder.blank_as_pad:
             if self.loop_labels:
-
-                # load fusion models from paths (ngram_lm_model and boosting_tree_model)
-                fusion_models, fusion_models_alpha = [], []
-                if ngram_lm_model is not None:
-                    fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
-                    fusion_models_alpha.append(ngram_lm_alpha)
-                if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
-                    fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
-                    fusion_models_alpha.append(boosting_tree_alpha)
-                if not fusion_models:
-                    fusion_models = None
-                    fusion_models_alpha = None
-
                 # Label-Looping algorithm (default, faster)
                 self._greedy_decode = self._greedy_decode_blank_as_pad_loop_labels
                 self.decoding_computer = GreedyBatchedRNNTLabelLoopingComputer(
@@ -667,7 +651,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 )
             else:
                 # Frame-Looping algorithm
-                if ngram_lm_model is not None or boosting_tree is not None:
+                if fusion_models:
                     raise NotImplementedError(
                         "N-Gram Language Model and Boosting Tree fusion is not implemented with frame-looping algorithm"
                     )
@@ -699,7 +683,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     else:
                         self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
         else:
-            if ngram_lm_model is not None or boosting_tree is not None:
+            if fusion_models:
                 raise NotImplementedError("N-Gram Language Model and Boosting Tree fusion is not implemented with `blank_as_pad=False`")
             self._greedy_decode = self._greedy_decode_masked
 
@@ -2824,11 +2808,8 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         include_duration_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
         use_cuda_graph_decoder: bool = True,
-        ngram_lm_model: Optional[str | Path] = None,
-        ngram_lm_alpha: float = 0.0,
-        boosting_tree: Optional[BoostingTreeModelConfig] = None,
-        boosting_tree_alpha: float = 0.0,
-        tokenizer: Optional[TokenizerSpec] = None,
+        fusion_models: Optional[List[NGramGPULanguageModel]] = None,
+        fusion_models_alpha: Optional[List[float]] = None,
     ):
         super().__init__(
             decoder_model=decoder_model,
@@ -2846,18 +2827,6 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         # Depending on availability of `blank_as_pad` support
         # switch between more efficient batch decoding technique
         self.decoding_computer = None
-
-        # load fusion models from paths (ngram_lm_model and boosting_tree_model)
-        fusion_models, fusion_models_alpha = [], []
-        if ngram_lm_model is not None:
-            fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index))
-            fusion_models_alpha.append(ngram_lm_alpha)
-        if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
-            fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
-            fusion_models_alpha.append(boosting_tree_alpha)
-        if not fusion_models:
-            fusion_models = None
-            fusion_models_alpha = None
 
         if self.decoder.blank_as_pad:
             # batched "loop frames" is not implemented for TDT
