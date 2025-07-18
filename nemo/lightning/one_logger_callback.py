@@ -33,6 +33,7 @@ __all__ = [
     'init_one_logger',
 ]
 
+
 def get_current_time_msec() -> float:
     """Get current time in milliseconds since epoch.
 
@@ -252,10 +253,10 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
         if hasattr(self, '_one_logger_init_started'):
             # This instance is already being initialized, skip the callbacks
             return original_init(self, *args, **kwargs)
-        
+
         # Mark this instance as being initialized
         self._one_logger_init_started = True
-        
+
         print("NeMo CB: wrapped_init for class", cls.__name__)
         tracker.track_event(start_callback)
         result = original_init(self, *args, **kwargs)
