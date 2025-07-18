@@ -145,6 +145,7 @@ def slurm_executor(
 
     return executor
 
+
 def runai_executor(
     base_url: str,
     app_id: str,
@@ -196,4 +197,3 @@ def runai_executor(
     )
 
     return executor
-

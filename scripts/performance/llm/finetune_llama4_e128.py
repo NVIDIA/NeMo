@@ -37,6 +37,7 @@ SKIP_IMPORT = False
 # dataset will be downloaded from HuggingFace
 SKIP_DATASET_DOWNLOAD = False
 
+
 def override_recipe_configs(
     args: str,
     num_nodes: int,
@@ -115,6 +116,7 @@ def override_recipe_configs(
     recipe.model.config.moe_permute_fusion = True
     return recipe
 
+
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
@@ -175,14 +177,14 @@ if __name__ == "__main__":
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     if args.enable_nsys:
-            plugins.append(
-                NsysPlugin(
-                    start_step=args.profiling_start_step,
-                    end_step=args.profiling_stop_step,
-                    ranks=list(range(num_nodes * args.gpus_per_node)),
-                    nsys_gpu_metrics=args.profiling_gpu_metrics,
-                )
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+                nsys_gpu_metrics=args.profiling_gpu_metrics,
             )
+        )
     # nsys takes precedent over ncclttrace
     elif args.enable_nccltrace:
         exp_name = exp_name + "_nccltrace"
