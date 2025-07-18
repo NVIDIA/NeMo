@@ -35,6 +35,7 @@ from ..utils import (
 
 HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 
+
 def override_recipe_configs(
     args: str,
     num_nodes: int,
@@ -112,6 +113,7 @@ def override_recipe_configs(
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
     return recipe
+
 
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
