@@ -23,6 +23,7 @@ import lightning.pytorch as pl
 import nemo_run as run
 import torch
 from megatron.core import parallel_state
+from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from rich.console import Console
 from torch.distributed import all_gather_object
 from typing_extensions import Annotated
@@ -1362,6 +1363,9 @@ def _validate_config(
                     assert (
                         model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
                     ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+                if isinstance(data, FineTuningDataModule):
+                    assert model.config.calculate_per_token_loss, ("When finetuning with CP>1, "
+                                                                   "model.config.calculate_per_token_loss must be True")
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:
