@@ -131,17 +131,14 @@ def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png:
     for i, column in enumerate(metric_keys):
         assert column in df
         # Create empty lists to store the parts objects for each DataFrame
-        tags_list = []
-
         # Plot the violin plots for each DataFrame
         axs[i].violinplot(
             df[column], showmedians=True, positions=[i], widths=0.5
         )
-        tags_list.append(column)
 
         axs[i].set_title(column)
         axs[i].set_xticks([i])
-        axs[i].set_xticklabels(tags_list)
+        axs[i].set_xticklabels([column])
         axs[i].grid(True, linestyle="dotted")
 
         # Calculate and display the mean value for each DataFrame
