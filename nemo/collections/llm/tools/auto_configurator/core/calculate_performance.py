@@ -366,7 +366,7 @@ def get_config(run_name: str) -> tuple:
         cp = int(params.get("cp"))
         ep = int(params.get("ep"))
         mbs = int(params.get("mbs"))
-        vp = int(params["vp"]) if params.get("vp") is not None else None
+        vp = int(params["vp"]) if params.get("vp") not in [None, 'None'] else None
         gbs = int(params.get("gbs"))
     except (ValueError, KeyError, TypeError) as e:
         raise ValueError(
