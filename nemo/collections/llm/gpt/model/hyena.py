@@ -32,7 +32,10 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec, hyena_stack_spec_no_te
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_model import HyenaModel as MCoreHyenaModel
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import hyena_no_weight_decay_cond
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
+    hyena_no_weight_decay_cond,
+    hyena_no_weight_decay_cond_embedding,
+)
 from nemo.lightning import get_vocab_size, io, teardown
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.io.state import TransformFns
@@ -226,6 +229,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     hyena_init_method: str = None
     hyena_output_layer_init_method: str = None
     hyena_filter_no_wd: bool = True
+    hyena_no_weight_decay_embedding: bool = False
     remove_activation_post_first_layer: bool = True
     add_attn_proj_bias: bool = True
     cross_entropy_loss_fusion: bool = False  # Faster but lets default to False for more precision
@@ -246,7 +250,13 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
         Post-initialization hook that sets up weight decay conditions.
         """
         super().__post_init__()
-        self.hyena_no_weight_decay_cond_fn = hyena_no_weight_decay_cond if self.hyena_filter_no_wd else None
+        if self.hyena_filter_no_wd:
+            if self.hyena_no_weight_decay_embedding:
+                self.hyena_no_weight_decay_cond_fn = hyena_no_weight_decay_cond_embedding
+            else:
+                self.hyena_no_weight_decay_cond_fn = hyena_no_weight_decay_cond
+        else:
+            self.hyena_no_weight_decay_cond_fn = None
 
     def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreHyenaModel":
         """
