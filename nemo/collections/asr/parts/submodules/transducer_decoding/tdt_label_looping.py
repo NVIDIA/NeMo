@@ -90,9 +90,7 @@ class LabelLoopingState:
     fusion_states_list: Optional[List[torch.Tensor]] = None
     fusion_states_candidates_list: Optional[List[torch.Tensor]] = None
     fusion_scores_list: Optional[List[torch.Tensor]] = None
-    # batch_lm_states: Optional[torch.Tensor] = None
-    # lm_scores: Optional[torch.Tensor] = None
-    # batch_lm_states_candidates: Optional[torch.Tensor] = None
+
 
     def __init__(
         self,
@@ -202,7 +200,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
     separate_graphs: Optional[SeparateGraphsLabelLooping]
     full_graph: Optional[torch.cuda.CUDAGraph]
     state: Optional[LabelLoopingState]
-    ngram_lm_batch: Optional[NGramGPULanguageModel]
+    fusion_models: Optional[List[NGramGPULanguageModel]]
 
     def __init__(
         self,
@@ -309,8 +307,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
         if self.fusion_models is not None:
             for fusion_model in self.fusion_models:
                 fusion_model.to(device)  # fusion_models is nn.Module, but self is not; need to move manually
-        # if self.ngram_lm_batch is not None:
-        #     self.ngram_lm_batch.to(device)  # ngram_lm_batch is nn.Module, but self is not; need to move manually
 
         # do not recalculate joint projection, project only once
         encoder_output_projected = self.joint.project_encoder(encoder_output)
@@ -375,15 +371,9 @@ class GreedyBatchedTDTLabelLoopingComputer(
                     fusion_states_list.append(fusion_model.get_init_states(batch_size=batch_size, bos=True))
             else:
                 fusion_states_list = None
-            # # ngram lm
-            # if self.ngram_lm_batch is not None:
-            #     batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
-            # else:
-            #     batch_lm_states = None
         else:
             decoder_output = prev_batched_state.predictor_outputs
             state = prev_batched_state.predictor_states
-            # batch_lm_states = prev_batched_state.lm_states
             fusion_states_list = prev_batched_state.fusion_states_list
 
         # loop while there are active utterances
@@ -421,19 +411,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 # preserve "blank" / "non-blank" category
                 torch.where(labels == self._blank_index, labels, fusion_labels_max, out=labels)
                 torch.where(labels == self._blank_index, scores, fusion_scores_max, out=scores)
-
-            # if self.ngram_lm_batch is not None:
-            #     lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
-            #         states=batch_lm_states
-            #     )  # vocab_size_no_blank
-            #     lm_scores = lm_scores.to(dtype=float_dtype)
-            #     # combined scores with LM - without blank
-            #     scores_w_lm, labels_w_lm = (logits[:, : -num_durations - 1] + self.ngram_lm_alpha * lm_scores).max(
-            #         dim=-1
-            #     )
-            #     # preserve "blank" / "non-blank" category
-            #     torch.where(labels == self._blank_index, labels, labels_w_lm, out=labels)
-            #     torch.where(labels == self._blank_index, scores, scores_w_lm, out=scores)
 
             jump_durations_indices = logits[:, -num_durations:].argmax(dim=-1)
             durations = model_durations[jump_durations_indices]
@@ -486,14 +463,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                     more_scores_w_fusion, more_labels_w_fusion = logits_with_fusion[:, : -num_durations - 1].max(dim=-1)
                     # preserve "blank" / "non-blank" category
                     torch.where(more_labels == self._blank_index, more_labels, more_labels_w_fusion, out=more_labels)
-
-                # if self.ngram_lm_batch is not None:
-                #     # combined scores with LM - without blank
-                #     more_scores_w_lm, more_labels_w_lm = (
-                #         logits[:, : -num_durations - 1] + self.ngram_lm_alpha * lm_scores
-                #     ).max(dim=-1)
-                #     # preserve "blank" / "non-blank" category
-                #     torch.where(more_labels == self._blank_index, more_labels, more_labels_w_lm, out=more_labels)
 
                 # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
                 torch.where(advance_mask, more_labels, labels, out=labels)
@@ -574,15 +543,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                         out=fusion_states_list[fusion_idx],
                     )
 
-            # if self.ngram_lm_batch is not None:
-            #     # select necessary LM states based on chosen labels
-            #     torch.where(
-            #         active_mask,
-            #         batch_lm_states_candidates[batch_indices, labels * found_labels_mask],
-            #         batch_lm_states,
-            #         out=batch_lm_states,
-            #     )
-
             # stage 4: to avoid infinite looping, go to the next frame after max_symbols emission
             if self.max_symbols is not None:
                 # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
@@ -625,7 +585,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 else encoder_output_length + prev_batched_state.decoded_lengths
             ),
             fusion_states_list=fusion_states_list,
-            # lm_states=batch_lm_states,
             time_jumps=time_indices - encoder_output_length,
         )
         if use_alignments:
@@ -661,11 +620,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 if self.fusion_models is not None 
                 else None
             ),
-            # lm_states=(
-            #     self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True).to(device)
-            #     if self.ngram_lm_batch
-            #     else None
-            # ),
             time_jumps=torch.zeros([batch_size], dtype=torch.long, device=device),
         )
         return state
@@ -693,8 +647,9 @@ class GreedyBatchedTDTLabelLoopingComputer(
         )
         torch.where(mask, state_after_sos.labels, state.labels, out=state.labels)
         torch.where(mask, state_after_sos.decoded_lengths, state.decoded_lengths, out=state.decoded_lengths)
-        if self.ngram_lm_batch is not None:
-            torch.where(mask, state_after_sos.lm_states, state.lm_states, out=state.lm_states)
+        if self.fusion_models is not None:
+            for fusion_idx, fusion_states in enumerate(state.fusion_states_list):
+                torch.where(mask, state_after_sos.fusion_states_list[fusion_idx], fusion_states, out=state.fusion_states_list[fusion_idx])
         torch.where(mask, state_after_sos.time_jumps, state.time_jumps, out=state.time_jumps)
         return state
 
@@ -715,7 +670,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                     label=state.labels[i],
                     decoded_length=state.decoded_lengths[i],
                     fusion_state_list=[fusion_state[i] for fusion_state in state.fusion_states_list] if state.fusion_states_list is not None else None,
-                    # lm_state=state.lm_states[i] if state.lm_states is not None else None,
                     time_jump=state.time_jumps[i],
                 )
             )
@@ -738,17 +692,18 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 if item is None:
                     state_items[i] = start_item
 
+        fusion_states_list = []
+        for fusion_idx in range(len(self.fusion_models)):
+            fusion_states_list.append(torch.stack([item.fusion_state_list[fusion_idx] for item in state_items])
+                                      if any(item.fusion_state_list[fusion_idx] is not None for item in state_items)
+                                      else None)
+
         batched_state = BatchedLabelLoopingState(
             predictor_states=self.decoder.batch_unsplit_states([item.predictor_state for item in state_items]),
             predictor_outputs=torch.stack([item.predictor_output for item in state_items]),
             labels=torch.stack([item.label for item in state_items]),
             decoded_lengths=torch.stack([item.decoded_length for item in state_items]),
-            # TODO: add fusion states
-            lm_states=(
-                torch.stack([item.lm_state for item in state_items])
-                if any(item.lm_state is not None for item in state_items)
-                else None
-            ),
+            fusion_states_list=fusion_states_list,
             time_jumps=torch.stack([item.time_jump for item in state_items]),
         )
         return batched_state
@@ -845,7 +800,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 + F.pad(prev_batched_state.decoded_lengths, (0, pad_batch_size), value=0)
             ),
             fusion_states_list=fusion_states_list if self.fusion_models is not None else None,
-            # lm_states=self.state.batch_lm_states.clone() if self.state.batch_lm_states is not None else None,
             time_jumps=self.state.time_indices - self.state.encoder_output_length,
         )
 
@@ -943,7 +897,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
 
             for fusion_model in self.fusion_models:
                 vocab_size = fusion_model.vocab_size
-                fusion_model.to(device) # ngram_lm_batch is nn.Module, but self is not; need to move manually
+                fusion_model.to(device) # fusion_models is nn.Module, but self is not; need to move manually
                 self.state.fusion_states_list.append(fusion_model.get_init_states(
                     batch_size=self.state.batch_size, bos=True)
                 )
@@ -954,19 +908,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 self.state.fusion_scores_list.append(torch.zeros(
                     [batch_size, vocab_size], dtype=float_dtype, device=device)
                 )
-
-        # if self.ngram_lm_batch is not None:
-        #     device = encoder_output_projected.device
-        #     float_dtype = encoder_output_projected.dtype
-        #     vocab_size = self.ngram_lm_batch.vocab_size
-        #     self.ngram_lm_batch.to(device)  # ngram_lm_batch is nn.Module, but self is not; need to move manually
-        #     self.state.batch_lm_states = self.ngram_lm_batch.get_init_states(
-        #         batch_size=self.state.batch_size, bos=True
-        #     )
-        #     self.state.batch_lm_states_candidates = torch.zeros(
-        #         [batch_size, vocab_size], dtype=torch.long, device=device
-        #     )
-        #     self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
 
         # warmup before graph compilation
         if self.cuda_graphs_mode is not self.CudaGraphsMode.NO_GRAPHS:
@@ -1113,11 +1054,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                         fusion_model.get_init_states(batch_size=self.state.batch_size, bos=True)
                     )
 
-            # # initial state - lm
-            # if self.ngram_lm_batch is not None:
-            #     self.state.batch_lm_states.copy_(
-            #         self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
-            #     )
             self.state.time_indices.fill_(0)
         else:
             # labels
@@ -1139,11 +1075,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                         prev_batched_state.fusion_states_list[fusion_model_idx][:current_batch_size]
                     )
 
-            # # initial state - lm
-            # if self.ngram_lm_batch is not None:
-            #     self.state.batch_lm_states[:current_batch_size].copy_(
-            #         prev_batched_state.lm_states[:current_batch_size]
-            #     )
             self.state.time_indices[:current_batch_size].copy_(prev_batched_state.time_jumps[:current_batch_size])
 
     def _before_outer_loop(self):
@@ -1203,20 +1134,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
             torch.where(self.state.labels == self._blank_index, self.state.labels, labels_w_fusion, out=self.state.labels)
             torch.where(self.state.labels == self._blank_index, self.state.scores, scores_w_fusion, out=self.state.scores)  
 
-        # if self.ngram_lm_batch is not None:
-        #     # get lm scores/states
-        #     lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
-        #         states=self.state.batch_lm_states
-        #     )  # vocab_size_no_blank
-        #     self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
-        #     self.state.lm_scores.copy_(lm_scores.to(dtype=self.state.float_dtype))
-        #     # combined scores with LM - without blank
-        #     scores_w_lm, labels_w_lm = (
-        #         logits[:, : -self.state.model_durations.shape[0] - 1] + self.ngram_lm_alpha * self.state.lm_scores
-        #     ).max(dim=-1)
-        #     # preserve "blank" / "non-blank" category
-        #     torch.where(self.state.labels == self._blank_index, self.state.labels, labels_w_lm, out=self.state.labels)
-        #     torch.where(self.state.labels == self._blank_index, self.state.scores, scores_w_lm, out=self.state.scores)
         jump_durations_indices = logits[:, -self.state.model_durations.shape[0] :].argmax(dim=-1)
         self.state.durations.copy_(self.state.model_durations[jump_durations_indices])
 
@@ -1284,14 +1201,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
             torch.where(more_labels == self._blank_index, more_labels, more_labels_w_fusion, out=more_labels)
             torch.where(more_labels == self._blank_index, more_scores, more_scores_w_fusion, out=more_scores)
 
-        # if self.ngram_lm_batch is not None:
-        #     # combined scores with LM - without blank
-        #     more_scores_w_lm, more_labels_w_lm = (
-        #         logits[:, : -self.state.model_durations.shape[0] - 1] + self.ngram_lm_alpha * self.state.lm_scores
-        #     ).max(dim=-1)
-        #     # preserve "blank" / "non-blank" category
-        #     torch.where(more_labels == self._blank_index, more_labels, more_labels_w_lm, out=more_labels)
-        #     torch.where(more_labels == self._blank_index, more_scores, more_scores_w_lm, out=more_scores)
         jump_durations_indices = logits[:, -self.state.model_durations.shape[0] :].argmax(dim=-1)
         more_durations = self.state.model_durations[jump_durations_indices]
         # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
@@ -1330,7 +1239,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
         torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
     def _after_inner_loop_step(self):
-        """After inner loop: store labels, query decoder/LM, force max symbols"""
+        """After inner loop: store labels, query decoder/fusion models, force max symbols"""
         self._after_inner_loop_store_labels()
         self._after_inner_loop_select_fusion_states()
         self._after_inner_loop_get_decoder_output()
@@ -1363,16 +1272,6 @@ class GreedyBatchedTDTLabelLoopingComputer(
                     out=self.state.fusion_states_list[fusion_model_idx],
                 )
 
-        # if self.ngram_lm_batch is not None:
-        #     # select necessary LM states based on chosen labels
-        #     torch.where(
-        #         self.state.active_mask,
-        #         self.state.batch_lm_states_candidates[
-        #             self.state.batch_indices, self.state.labels * self.state.found_labels_mask
-        #         ],
-        #         self.state.batch_lm_states,
-        #         out=self.state.batch_lm_states,
-        #     )
 
     def _after_inner_loop_get_decoder_output(self):
         """Stage 3.3: Get decoder (prediction network) output using new labels"""

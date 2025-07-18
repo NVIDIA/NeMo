@@ -932,7 +932,6 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         if self.preserve_alignments:
             raise ValueError("`Preserve alignments` is not supported for batched beam search.")
 
-        # self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
 

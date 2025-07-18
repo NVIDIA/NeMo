@@ -264,8 +264,8 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
             preserve_alignments: if alignments are needed
             fusion_models: list of fusion models (ngram_lm_model and boosting_tree_model)
             fusion_models_alpha: list of weights for the fusion models scores
-            blank_lm_score_mode: mode for scoring blank symbol with LM
-            pruning_mode: mode for pruning hypotheses with LM
+            blank_lm_score_mode: mode for scoring blank symbol with fusion models
+            pruning_mode: mode for pruning hypotheses with fusion models
             allow_cuda_graphs: whether to allow CUDA graphs
         """
 

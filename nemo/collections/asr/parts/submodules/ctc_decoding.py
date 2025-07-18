@@ -192,6 +192,13 @@ class AbstractCTCDecoding(ConfidenceMixin):
                         of calculation of beam search, so that users may update / change the decoding strategy
                         to point to the correct file.
 
+                    boosting_tree:
+                        BoostingTreeModelConfig, config for the boosting tree model
+
+                    boosting_tree_alpha:
+                        float, the strength of the boosting tree model on the final score of a token.
+                        final_score = acoustic_score + boosting_tree_alpha * boosting_tree_score + beam_beta * seq_length.
+
         blank_id:
             The id of the RNNT blank token.
         supported_punctuation:
@@ -1393,6 +1400,13 @@ class CTCBPEDecoding(AbstractCTCDecoding):
                         If the path is invalid (file is not found at path), will raise a deferred error at the moment
                         of calculation of beam search, so that users may update / change the decoding strategy
                         to point to the correct file.
+
+                    boosting_tree:
+                        BoostingTreeModelConfig, config for the boosting tree model
+                        
+                    boosting_tree_alpha:
+                        float, the strength of the boosting tree model on the final score of a token.
+                        final_score = acoustic_score + boosting_tree_alpha * boosting_tree_score + beam_beta * seq_length.
 
         tokenizer: NeMo tokenizer object, which inherits from TokenizerSpec.
     """

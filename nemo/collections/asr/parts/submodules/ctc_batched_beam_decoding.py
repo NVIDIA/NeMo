@@ -210,7 +210,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.allow_cuda_graphs = allow_cuda_graphs
         self.return_best_hypothesis = return_best_hypothesis
 
-        # self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
 
@@ -315,7 +314,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]
             repeated_or_blank_mask = repeated_mask | vocab_blank_mask[None, None, :]
 
-            # step 2.1: getting the log probs and updating with LM scores
+            # step 2.1: getting the log probs and updating with fusion scores
             log_probs = decoder_outputs[:, frame_idx, :].unsqueeze(1).repeat(1, self.beam_size, 1)
             log_probs += batched_beam_hyps.scores.unsqueeze(-1)
 

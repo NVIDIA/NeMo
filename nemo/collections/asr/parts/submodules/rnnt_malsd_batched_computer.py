@@ -262,8 +262,8 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             preserve_alignments: if alignments are needed
             fusion_models: list of fusion models (ngram_lm_model and boosting_tree_model)
             fusion_models_alpha: list of weights for the fusion models scores
-            blank_lm_score_mode: mode for scoring blank symbol with LM
-            pruning_mode: mode for pruning hypotheses with LM
+            blank_lm_score_mode: mode for scoring blank symbol with fusion models
+            pruning_mode: mode for pruning hypotheses with fusion models
             allow_cuda_graphs: whether to allow CUDA graphs
         """
 
@@ -598,11 +598,10 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
         return batched_hyps
 
-    # def topk_lm(self, lm_scores, log_probs):
     def topk_fusion_model(self, fusion_scores_list, log_probs):
         """
         Computes the top-k log probabilities and corresponding labels for hypotheses,
-        incorporating language model (LM) scores based on the pruning and blank scoring modes.
+        incorporating fusion models scores based on the pruning and blank scoring modes.
 
         Args:
             fusion_scores_list (List[torch.Tensor]): List of fusion model scores for hypotheses, shape [batch_size, beam_size, vocab_size].
@@ -838,42 +837,6 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 self.state.fusion_scores_list.append(self.state.init_fusion_scores_list[fusion_model_idx].clone())
                 self.state.fusion_states_prev_list.append(init_fusion_states.clone())
 
-        # if self.fusion_models is not None:
-            
-        #     device = encoder_output_projected.device
-
-        #     self.state.init_fusion_states_list = []
-        #     self.state.init_fusion_states_candidates_list = []
-        #     self.state.init_fusion_scores_list = []
-            
-        #     self.state.fusion_states_list = []
-        #     self.state.fusion_states_candidates_list = []
-        #     self.state.fusion_scores_list = []
-        #     self.state.fusion_states_prev_list = []
-            
-        #     for fusion_model_idx, fusion_model in enumerate(self.fusion_models):
-        #         fusion_model.to(device)
-
-        #         init_fusion_states = fusion_model.get_init_states(
-        #             batch_size=self.state.batch_size * self.beam_size, bos=True
-        #         ).view(self.state.batch_size, self.beam_size)
-        #         init_fusion_scores, init_fusion_states_candidates = fusion_model.advance(
-        #             states=init_fusion_states.view(-1)
-        #         )
-        #         self.state.init_fusion_scores_list.append(
-        #             init_fusion_scores.to(dtype=self.state.float_dtype).view(self.state.batch_size, self.beam_size, -1)
-        #             * self.fusion_models_alpha[fusion_model_idx]
-        #         )
-        #         self.state.init_fusion_states_candidates_list.append(init_fusion_states_candidates.view(
-        #             self.state.batch_size, self.beam_size, -1
-        #         ))
-        #         self.state.init_fusion_states_list.append(init_fusion_states)
-
-        #         self.state.fusion_states_list.append(init_fusion_states.clone())
-        #         self.state.fusion_states_candidates_list.append(self.state.init_fusion_states_candidates_list[fusion_model_idx].clone())
-        #         self.state.fusion_scores_list.append(self.state.init_fusion_scores_list[fusion_model_idx].clone())
-        #         self.state.fusion_states_prev_list.append(init_fusion_states.clone())
-
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self._full_graph_compile()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
@@ -1088,11 +1051,11 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
     def _loop_update_decoder(self):
         """
-        Updates the decoder state, decoder output, and optionally the language model (LM) state
+        Updates the decoder state, decoder output, and optionally the fusion models state
         for the next iteration of the decoding loop in a batched RNNT (Recurrent Neural Network Transducer) setup.
         """
 
-        # step 5: update decoder state + decoder output (+ lm state/scores)
+        # step 5: update decoder state + decoder output (+ fusion models state/scores)
         # step 5.1: mask invalid value labels with blank to avoid errors (refer to step 2.2)
         torch.where(
             self.state.next_labels >= 0, self.state.next_labels, self.state.BLANK_TENSOR, out=self.state.last_labels_wb
@@ -1101,7 +1064,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
         # size: decoder_output [(B x Beam), 1, Dim]
         # size: state tuple, each is of [Layers, (BxBeam), Dim]
-        # step 5.2: update decoder + lm state
+        # step 5.2: update decoder + fusion models state
         # step 5.2.1: storing current decoder output and states of extended hypotheses
         torch.gather(
             self.state.decoder_output.view(self.state.batch_size, self.beam_size, 1, -1),
