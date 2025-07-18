@@ -27,6 +27,7 @@ from torch.utils.data import IterableDataset
 
 try:
     from nemo.collections.nlp.data.data_utils.data_preprocessing import dataset_to_ids
+
     HAVE_NLP = True
 except (ImportError, ModuleNotFoundError):
     HAVE_NLP = False
