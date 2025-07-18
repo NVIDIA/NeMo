@@ -569,7 +569,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ValueError: (mcore) Async save requires async compatible CheckpointIO
         """
         # Call OneLogger checkpoint start callback
-        get_onelogger_callbacks("on_save_checkpoint_start")(iteration=trainer.global_step)
+        get_onelogger_callbacks("on_save_checkpoint_start")(global_step=trainer.global_step)
 
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -602,7 +602,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
             # Call OneLogger checkpoint success callback
-            get_onelogger_callbacks("on_save_checkpoint_success")(iteration=trainer.global_step)
+            get_onelogger_callbacks("on_save_checkpoint_success")(global_step=trainer.global_step)
         else:
             # Determine whether to include optimizer states in the checkpoint
             # optimizer states are included when
@@ -637,6 +637,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
+                # Call OneLogger checkpoint success callback for sync checkpointing
+                get_onelogger_callbacks("on_save_checkpoint_success")(global_step=trainer.global_step)
             # Call OneLogger checkpoint end callback
             get_onelogger_callbacks("on_save_checkpoint_end")()
 
@@ -662,8 +664,8 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 return
 
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
-            # Call OneLogger checkpoint success callback
-            get_onelogger_callbacks("on_save_checkpoint_success")(iteration=trainer.global_step)
+            # Call OneLogger checkpoint success callback for async checkpointing
+            get_onelogger_callbacks("on_save_checkpoint_success")(global_step=trainer.global_step)
 
             if str(filepath) in self.ckpts_to_link:
                 self._link_checkpoint(trainer, filepath, self.ckpts_to_link.pop(filepath), override_async=True)
