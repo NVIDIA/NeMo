@@ -16,9 +16,9 @@ from typing import List, Optional, Union
 
 import torch
 
-from nemo.collections.tts.models.language_modeling.nlp_model import NLPModel
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin, replace_prefix
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig, PtuningPEFTConfig
+from nemo.collections.tts.models.language_modeling.nlp_model import NLPModel
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging, model_utils
 
