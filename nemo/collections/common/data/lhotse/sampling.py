@@ -262,6 +262,20 @@ class DurationFilter:
         else:
             return True  # does not apply to text etc.
 
+class ValidationStatusFilter:
+    """
+    Callable, returns ``True`` if a cut's validation status is equal to keep and ``False`` otherwise.
+    Acts as a pass-through for objects of other type than Cut.
+    """
+    def __init__(self, keep: str = "pass") -> None:
+        self.keep = keep
+
+    def __call__(self, example) -> bool:
+        if isinstance(example, Cut) and example.has_custom("validation_status") and example.validation_status != self.keep:
+            return False
+        else:
+            return True
+
 class CERFilter:
     """
     Callable, returns ``True`` if a cut's CER is less than max_cer and ``False`` otherwise.
