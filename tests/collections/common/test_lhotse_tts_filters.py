@@ -14,14 +14,15 @@
 import pytest
 from lhotse import SupervisionSegment
 from lhotse.array import Array, TemporalArray
-from lhotse.audio import Recording, AudioSource
+from lhotse.audio import AudioSource, Recording
 from lhotse.cut import MonoCut
 
 from nemo.collections.common.data.lhotse.sampling import (
-    ContextSpeakerSimilarityFilter,
     CERFilter,
-    ValidationStatusFilter
+    ContextSpeakerSimilarityFilter,
+    ValidationStatusFilter,
 )
+
 
 @pytest.fixture
 def cut_example():
@@ -54,9 +55,9 @@ def cut_example():
                     'context_audio_offset': 7001.95659375,
                     'context_audio_duration': 14.64,
                     'context_audio_text': 'Uat gives an excellent illustration of the effects of a course of selection, which may be considered as unconscious, insofar that the breeders could never have expected, or even wished, to produce the result which ensued,',
-                    'context_recording_id': 'rec-Zdud2gXLTXY'
+                    'context_recording_id': 'rec-Zdud2gXLTXY',
                 },
-                alignment=None
+                alignment=None,
             )
         ],
         features=None,
@@ -67,7 +68,7 @@ def cut_example():
             num_samples=952064173,
             duration=43177.51351473923,
             channel_ids=[0],
-            transforms=None
+            transforms=None,
         ),
         custom={
             'validation_status': 'pass',
@@ -78,7 +79,7 @@ def cut_example():
                 num_samples=151704,
                 duration=6.88,
                 channel_ids=[0],
-                transforms=None
+                transforms=None,
             ),
             'context_audio': Recording(
                 id='context_cut-rec-Zdud2gXLTXY-7001.96-14.64',
@@ -87,24 +88,24 @@ def cut_example():
                 num_samples=322812,
                 duration=14.64,
                 channel_ids=[0],
-                transforms=None
+                transforms=None,
             ),
             'target_codes': TemporalArray(
                 array=Array(storage_type='memory_npy', storage_path='', storage_key='<binary-data>', shape=[8, 149]),
                 temporal_dim=-1,
                 frame_shift=0.046511627906976744,
-                start=0
+                start=0,
             ),
             'context_codes': TemporalArray(
                 array=Array(storage_type='memory_npy', storage_path='', storage_key='<binary-data>', shape=[8, 316]),
                 temporal_dim=-1,
                 frame_shift=0.046511627906976744,
-                start=0
+                start=0,
             ),
             'shard_origin': '/cuts/cuts.000001.jsonl.gz',
             'shar_epoch': 0,
-            'tokenizer_names': ['english_phoneme']
-        }
+            'tokenizer_names': ['english_phoneme'],
+        },
     )
     return cut
 
@@ -129,6 +130,7 @@ def test_cut_context_speaker_similarity_filter(cut_example):
 
     f = ContextSpeakerSimilarityFilter(-1)
     assert f(cut_example) == True
+
 
 def test_cut_validation_status_filter(cut_example):
     f = ValidationStatusFilter("pass")
