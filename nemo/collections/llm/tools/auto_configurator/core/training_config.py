@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
@@ -67,10 +67,10 @@ def generate_grid_search_configs(
         train_cfg=train_cfg,
     )
 
+
     max_steps = train_cfg.max_steps_per_run
     num_nodes = train_cfg.num_nodes
     valid_tp_pp_list = []
-
     # Generate valid TP, PP, CP, EP combinations first
     for tp in params.tp:
         for pp in params.pp:
@@ -92,6 +92,7 @@ def generate_grid_search_configs(
                         and params.min_model_parallel <= model_parallelism <= params.max_model_parallel
                     ):
                         valid_tp_pp_list.append((tp, pp, cp, ep))
+    
 
     # Generate grid search configs.
     configs = {}
@@ -243,13 +244,12 @@ class GPT3GridSearch:
     seq_length: int
     gpu_memory_gb: int
 
-    tp = [1, 2, 4, 8]
-    pp = [1]
-    cp = [1]
-    ep = [1]
-    mbs = [1, 2, 4, 8]
-
-    gbs = [1024]
+    tp: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    pp: List[int] = field(default_factory=lambda: [1])
+    cp: List[int] = field(default_factory=lambda: [1])
+    ep: List[int] = field(default_factory=lambda: [1])
+    mbs: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    gbs: List[int] = field(default_factory=lambda: [1024])
     min_model_parallel: int = 1
     max_model_parallel: int = 8
 
@@ -259,7 +259,6 @@ class GPT3GridSearch:
         model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
-
         if gpu_memory_gb == 80:
             if seq_length == 2048:
                 if model_size_in_b <= 1.0:
@@ -559,13 +558,13 @@ class T5GridSearch:
     gpu_memory_gb: int
     valid_pp: List[int]
 
-    tp = [1, 2, 4, 8]
-    pp = [1]
-    cp = [None]
-    ep = [None]
-    mbs = [1, 2, 4, 6, 8, 12, 16]
+    tp: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    pp: List[int] = field(default_factory=lambda: [1])
+    cp: List[int] = field(default_factory=lambda: [None])
+    ep: List[int] = field(default_factory=lambda: [None])
+    mbs: List[int] = field(default_factory=lambda: [1, 2, 4, 6, 8, 12, 16])
 
-    gbs = [1920]
+    gbs: List[int] = field(default_factory=lambda: [1920])
     min_model_parallel: int = 1
     max_model_parallel: int = 8
 
@@ -700,13 +699,13 @@ class BertGridSearch:
     gpu_memory_gb: int
     valid_pp: List[int]
 
-    tp = [1, 2, 4, 8]
-    pp = [1]
-    cp = [None]
-    ep = [None]
-    mbs = [1, 2, 4, 6, 8, 12, 16]
+    tp: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    pp: List[int] = field(default_factory=lambda: [1])
+    cp: List[int] = field(default_factory=lambda: [None])
+    ep: List[int] = field(default_factory=lambda: [None])
+    mbs: List[int] = field(default_factory=lambda: [1, 2, 4, 6, 8, 12, 16])
 
-    gbs = [1920]
+    gbs: List[int] = field(default_factory=lambda: [1920])
     min_model_parallel: int = 1
     max_model_parallel: int = 8
 
