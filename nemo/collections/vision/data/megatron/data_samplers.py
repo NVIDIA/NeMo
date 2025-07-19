@@ -11,12 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# flake8: noqa
+# pylint: skip-file
+
 from typing import Optional
 
 import torch
 from torch.utils.data import Dataset
 
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingRandomSampler
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronPretrainingRandomSampler = ABC
+
 from nemo.collections.vision.data.megatron.vit_dataset import RandomSeedDataset
 
 

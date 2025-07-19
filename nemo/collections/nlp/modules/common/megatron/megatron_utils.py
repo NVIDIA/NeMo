@@ -120,7 +120,13 @@ def get_megatron_pretrained_bert_models() -> List[str]:
     Returns:
         List[str]: A list of pretrained Megatron-BERT model names.
     """
-    from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+
+    try:
+        from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
+    except (ImportError, ModuleNotFoundError):
+        from abc import ABC
+
+        MegatronBertModel = ABC
 
     all_pretrained_megatron_bert_models = [
         model.pretrained_model_name for model in MegatronBertModel.list_available_models()

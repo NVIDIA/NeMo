@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# flake8: noqa
+# pylint: skip-file
+
 import copy
 from pathlib import Path
 
@@ -27,10 +31,18 @@ from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
 )
 from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
+
+try:
+    from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
+    from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
+        MegatronPretrainingBatchSampler,
+    )
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    BlendableDataset = ABC
+    MegatronPretrainingBatchSampler = ABC
+
 from nemo.utils import logging
 
 
