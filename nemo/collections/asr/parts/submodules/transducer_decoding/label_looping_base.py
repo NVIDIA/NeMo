@@ -15,7 +15,7 @@
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import torch
 
@@ -43,7 +43,7 @@ class BatchedLabelLoopingState:
     predictor_outputs: torch.Tensor
     labels: torch.Tensor
     decoded_lengths: torch.Tensor
-    lm_states: Optional[torch.Tensor] = None
+    fusion_states_list: Optional[List[torch.Tensor]] = None
     time_jumps: Optional[torch.Tensor] = None
 
 
@@ -55,7 +55,7 @@ class LabelLoopingStateItem:
     predictor_output: torch.Tensor
     label: torch.Tensor
     decoded_length: torch.Tensor
-    lm_state: Optional[torch.Tensor] = None
+    fusion_state_list: Optional[List[torch.Tensor]] = None
     time_jump: Optional[torch.Tensor] = None
 
 
