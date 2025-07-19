@@ -55,7 +55,7 @@ Note that only one of gpuRIR or pyroomacoustics is required for RIR simulation.
 ```bash
 pip install cmake
 pip install https://github.com/DavidDiazGuerra/gpuRIR/zipball/master
-pip install pyroomacoustics
+pip install pyroomacoustics==0.7.7
 ```
 
 Parameters
