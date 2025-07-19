@@ -67,7 +67,6 @@ def generate_grid_search_configs(
         train_cfg=train_cfg,
     )
 
-
     max_steps = train_cfg.max_steps_per_run
     num_nodes = train_cfg.num_nodes
     valid_tp_pp_list = []
@@ -92,7 +91,6 @@ def generate_grid_search_configs(
                         and params.min_model_parallel <= model_parallelism <= params.max_model_parallel
                     ):
                         valid_tp_pp_list.append((tp, pp, cp, ep))
-    
 
     # Generate grid search configs.
     configs = {}
