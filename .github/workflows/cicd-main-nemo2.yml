@@ -274,7 +274,14 @@ jobs:
           - runner: self-hosted-azure
             script: L2_NeMo_2_Flux_Inference_Test
           - runner: self-hosted-azure
-            script: L2_NeMo_2_Flux_Training_Test
+            script: L2_NeMo_2_Flux_Training_DDP_Test
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_Flux_Training_FSDP_Test
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_Flux_ControlNet_Training_DDP_Test
+          - runner: self-hosted-azure
+            script: L2_NeMo_2_Flux_ControlNet_Training_FSDP_Test
+
 
     needs: [build]
     runs-on: ${{ matrix.runner }}
