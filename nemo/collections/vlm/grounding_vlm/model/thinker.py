@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from typing import Optional, Union, Callable
-import io
+from nemo.lightning import io
 
 import torch
 from torch import Tensor
+from torch import nn
 
 from megatron.core.models.vision.multimodal_projector import MultimodalProjector
 from megatron.core.transformer.module import MegatronModule
@@ -29,8 +30,7 @@ from megatron.core.extensions.transformer_engine import (
     TERowParallelLinear,
 )
 from megatron.core.transformer.identity_op import IdentityOp
-from megatron.core.transformer.wrapped_tensor import WrappedTensor
-
+from megatron.core.utils import WrappedTensor
 
 from nemo.collections.llm.fn.activation import quick_gelu
 from nemo.collections.vlm.layer_specs import get_norm_mlp_module_spec_te
@@ -95,6 +95,23 @@ class ThinkingAttnRefineModuleConfig(TransformerConfig, io.IOMixin):
 
     # classification head config
     cls_head: ModuleSpec = None
+
+    # detection head config
+    det_head: ModuleSpec = None
+
+    def __post_init__(self):
+
+        # init default configs
+        if self.cls_head is None:
+            self.cls_head = ClassifierHeadModuleConfig(  # projector config is automatically initialized
+                hidden_size=self.hidden_size,
+            )
+        
+        if self.det_head is None:
+            self.det_head = DetectionHeadModuleConfig(  # projector config is automatically initialized
+                hidden_size=self.hidden_size,
+            )
+
 
     def configure_model(self) -> ThinkingAttnRefineModule:
         """Configure and return a ThinkingAttnRefineModule instance.
@@ -181,7 +198,7 @@ class ClassifierHeadModule(MegatronModule):
             b_idx_mask = b_idx == b
             # if there is no thinking tokens for this batch, skip
             if b_idx_mask.sum() == 0:
-                ret.append(torch.zeros(cls_embeddings.shape[1]))
+                ret.append(torch.zeros(cls_embeddings.shape[1], device=cls_embeddings.device, dtype=cls_embeddings.dtype))
                 continue
             # aggregate think states by b_idx
             b_think_states = think_states[b_idx_mask].mean(dim=0, keepdim=True) # [1, h]
@@ -273,17 +290,25 @@ class DetectionHeadModule(MegatronModule):
         # detection head
         self.det_head = MultimodalProjector(config=config.projector_config, submodules=config.projector_submodules,
                                            projector_type='mlp', input_size=config.hidden_size)
+        self.det_head_linear = nn.Linear(config.hidden_size, 4)
         
-    def forward(self, det_embeddings: Tensor, think_states: Tensor, instance_det_indices: Tensor, think_indices: Tensor, max_instances_per_batch: int):
+    def forward(self, det_embeddings: Tensor, think_states: Tensor, instance_det_indices: Tensor, think_indices: Tensor):
         '''
         Given detection embeddings and think states, run detection head
+
+        det_embeddings: [cu_num_instances, h]
+        think_states: [cu_num_thinking_tokens, h]
+        instance_det_indices: [cu_num_instances, 2]  # [seq_idx, b_idx]
+        think_indices: [cu_num_thinking_tokens, 2]  # [seq_idx, b_idx]
         '''
         det_embeddings = self.det_mlp(det_embeddings)  # [cu_num_instances, h]
         # aggregate think_states by b_idx
         seq_idx, b_idx = think_indices.T
         batch_size = b_idx.max() + 1
 
-        ret = torch.zeros(batch_size, max_instances_per_batch, 8)
+        # get total number of instances
+        cu_num_instances = instance_det_indices.shape[0]
+        ret = torch.zeros(cu_num_instances, 4, device=det_embeddings.device, dtype=det_embeddings.dtype)
 
         for b in range(batch_size):
             b_think_mask = b_idx == b
@@ -295,8 +320,8 @@ class DetectionHeadModule(MegatronModule):
             b_think_states = think_states[b_think_mask].unsqueeze(1)   # [s, 1, h]
             b_det_states = det_embeddings[b_det_mask].unsqueeze(0)   # [si, 1, h]
             b_ret = self.transformer(hidden_states=b_det_states, attention_mask=None, context=b_think_states, context_mask=None) # [si, 1, h]
-            b_ret = self.det_head(b_ret).squeeze(1) # [si, h]
-            ret[b, :b_det_states.shape[0], :] = b_ret
+            b_ret = self.det_head_linear(self.det_head(b_ret).squeeze(1)) # [si, 4]
+            ret[b_det_mask] = b_ret
         
         return ret
             
@@ -340,14 +365,21 @@ class ThinkingAttnRefineModule(TransformerBlock):
         )
 
         # classification head
-        if config.cls_head is not None:
-            self.cls_head = config.cls_head.configure_model()
+        self.cls_head = config.cls_head.configure_model()
+        # detection head
+        self.det_head = config.det_head.configure_model()
 
     def cls_head_forward(self, cls_embeddings: Tensor, think_states: Tensor, hidden_states_indices: Tensor):
         '''
         Given classification embeddings and think states, run classification head
         '''
         return self.cls_head(cls_embeddings, think_states, hidden_states_indices)
+    
+    def det_head_forward(self, det_embeddings: Tensor, think_states: Tensor, instance_det_indices: Tensor, think_indices: Tensor):
+        '''
+        Given detection embeddings and think states, run detection head
+        '''
+        return self.det_head(det_embeddings, think_states, instance_det_indices, think_indices)
 
     def forward(
         self,
@@ -425,7 +457,7 @@ class ThinkingAttnRefineModule(TransformerBlock):
         start_idx = 0
 
         # generate attention mask (think query mask is just a transpose of img query mask)
-        img_query_mask = torch.zeros((1, 1, img_cu_len, think_cu_len))
+        img_query_mask = torch.zeros((1, 1, img_cu_len, think_cu_len), device=image_embeddings.device, dtype=image_embeddings.dtype)
 
         # create attention mask
         for b in range(batch_size):

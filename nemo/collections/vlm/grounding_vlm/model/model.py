@@ -3,23 +3,10 @@ from typing import Callable, Dict, Optional
 
 import lightning.pytorch as L
 import torch
-import torch.distributed
-from megatron.core import dist_checkpointing
-from megatron.core import parallel_state as ps
-from megatron.core.enums import ModelType
 from megatron.core.inference_params import InferenceParams
-from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.tensor_parallel import scatter_to_sequence_parallel_region
-from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.utils import get_batch_on_this_cp_rank
-from megatron.core.transformer.transformer_block import TransformerBlockSubmodules
-from megatron.core.enums import AttnMaskType
-from megatron.core.utils import WrappedTensor, deprecate_inference_params
 from torch import nn
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.lightning import io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask

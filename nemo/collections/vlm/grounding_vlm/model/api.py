@@ -14,7 +14,7 @@
 
 import lightning.pytorch as pl
 
-from nemo.collections.vlm.grounding_vlm.model import (
+from nemo.collections.vlm.grounding_vlm.model.config import (
     Qwen2VLConfig2B,
     Qwen2VLConfig7B,
     Qwen2VLConfig72B,

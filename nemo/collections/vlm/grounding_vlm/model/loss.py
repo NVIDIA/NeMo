@@ -64,13 +64,14 @@ class GroundedVLMLossReduction(MaskedTokenLossReduction):
         total_loss = total_loss + cls_loss
 
         # detection loss
-        gt_quads = batch['instance_det_ids']
-        pred_quads = forward_out['instance_logits']
-        instance_det_loss_mask = batch['instance_det_loss_mask']
+        gt_quads = batch['instance_det_ids']  # [cu_num_instances, 4]
+        instance_cu_seqlen = batch['instance_cu_seqlen']
+        pred_quads = forward_out['instance_logits'] # [cu_num_instances, 4]
+        
         instance_det_loss = torch.tensor(0.0, device=pred_quads.device)
 
         if pred_quads is not None:
-            instance_det_loss = self._hungarian_matching_loss(gt_quads, pred_quads, instance_det_loss_mask)
+            instance_det_loss = self._hungarian_matching_loss(gt_quads, pred_quads, instance_cu_seqlen)
             instance_det_loss = self.instance_det_loss_weight * instance_det_loss
             reduced_instance_det_loss = average_losses_across_data_parallel_group([instance_det_loss])
 
@@ -89,8 +90,11 @@ class GroundedVLMLossReduction(MaskedTokenLossReduction):
 
         return total_loss, token_loss_info
 
-    def _hungarian_matching_loss(self, gt_quads: torch.Tensor, pred_quads: torch.Tensor, det_loss_mask: torch.Tensor) -> torch.Tensor:
+    def _hungarian_matching_loss(self, gt_quads: torch.Tensor, pred_quads: torch.Tensor, instance_cu_seqlen: torch.Tensor, loss_only: bool = True) -> torch.Tensor:
         """
         Calculate hungarian matching loss between gt_quads and pred_quads.
         """
-        return self.hungarian_matching_loss(gt_quads, pred_quads, det_loss_mask)
+        loss, metadata = self.hungarian_matching_loss(gt_quads, pred_quads, instance_cu_seqlen)
+        if loss_only:
+            return loss
+        return loss, metadata

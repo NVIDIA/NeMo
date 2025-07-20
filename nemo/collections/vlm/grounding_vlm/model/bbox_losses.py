@@ -65,65 +65,63 @@ class HungarianMatchingLoss(nn.Module):
         self,
         pred_boxes: torch.Tensor,
         gt_boxes: torch.Tensor,
-        valid_mask: torch.Tensor,
+        instance_cu_seqlen: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute cost matrix for matching predicted and ground truth boxes.
         
         Args:
-            pred_boxes: Predicted boxes (batch_size, num_queries, 4)
-            gt_boxes: Ground truth boxes (batch_size, num_queries, 4)
-            valid_mask: Boolean mask for valid boxes (batch_size, num_queries)
+            pred_boxes: Predicted boxes (cu_num_instances, 4)
+            gt_boxes: Ground truth boxes (cu_num_instances, 4)
+            instance_cu_seqlen: Cumulative sequence length of instances (batch_size, )
             
         Returns:
             cost_matrix: Cost matrix of shape (batch_size, num_queries, num_queries)
             iou_matrix: IoU matrix of shape (batch_size, num_queries, num_queries)
         """
-        batch_size, num_queries, _ = pred_boxes.shape
+        cu_num_instances = pred_boxes.shape[0]
         
         # Compute costs for each pair in the batch
         cost_giou = []
         iou_matrix = []
-        
-        for b in range(batch_size):
-            # Get boxes for current batch
-            valid = torch.nonzero(valid_mask[b], as_tuple=False)
-            num_valid_queries = valid.shape[0]
-            if num_valid_queries == 0:
+
+        start_idx = 0
+        for end_idx in instance_cu_seqlen:
+            pred_b = pred_boxes[start_idx:end_idx]
+            gt_b = gt_boxes[start_idx:end_idx]
+            if pred_b.shape[0] == 0 or gt_b.shape[0] == 0:
                 iou_matrix.append(None)
                 cost_giou.append(None)
                 continue
-
-            pred_b = pred_boxes[b, valid]  # (num_valid_queries, 4)
-            gt_b = gt_boxes[b, valid]  # (num_valid_queries, 4)
-            
             # Compute pairwise GIoU and IoU
-            giou_b, iou_b = box_giou(pred_b.unsqueeze(1).expand(-1, num_valid_queries, -1),
-                           gt_b.unsqueeze(0).expand(num_valid_queries, -1, -1))
+            giou_b, iou_b = box_giou(pred_b.unsqueeze(1), gt_b.unsqueeze(0))
             # Store IoU for return
             iou_matrix.append(iou_b)
             # Convert to cost (negative GIoU)
             cost_giou.append(-giou_b)
-        
+            # update start_idx
+            start_idx = end_idx
+
         return cost_giou, iou_matrix
+
 
     def forward(
         self,
         pred_boxes: torch.Tensor,
         gt_boxes: torch.Tensor,
-        valid_mask: torch.Tensor,
+        instance_cu_seqlen: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute Hungarian matching loss between predicted and ground truth boxes.
         
         Args:
-            pred_boxes: Predicted boxes (batch_size, num_queries, 4)
-            gt_boxes: Ground truth boxes (batch_size, num_queries, 4)
-            valid_mask: Boolean mask for valid boxes (batch_size, num_queries)
+            pred_boxes: Predicted boxes (cu_num_instances, 4)
+            gt_boxes: Ground truth boxes (cu_num_instances, 4)
+            instance_cu_seqlen: Cumulative sequence length of instances (batch_size, )
             
         Returns:
             loss: Scalar loss value
-            matched_ious: IoU values for matched pairs (batch_size, num_queries)
+            matched_ious: IoU values for matched pairs (cu_num_instances, cu_num_instances)
                          with -1 for invalid pairs
         """
         batch_size = pred_boxes.shape[0]
@@ -131,46 +129,28 @@ class HungarianMatchingLoss(nn.Module):
         
         # Compute cost matrix and IoU matrix
         cost_matrix, iou_matrix = self.compute_matching_cost_matrix(
-            pred_boxes, gt_boxes, valid_mask
+            pred_boxes, gt_boxes, instance_cu_seqlen
         )
-        
+
+        max_indices = max(instance_cu_seqlen[0], torch.maximum(instance_cu_seqlen[:-1] - instance_cu_seqlen[1:]))
+
         # Initialize total loss and IoU tracking
         total_loss = torch.tensor(0., device=device)
-        total_valid_pairs = 0
-        matched_ious = torch.full((batch_size, pred_boxes.shape[1]), -1., device=device)
-        
-        # Process each batch independently
-        for b in range(batch_size):
-            # Get valid boxes for this batch
-            valid_count = valid_mask[b].sum()
-            
-            if valid_count == 0:
+        matched_ious = torch.full((max_indices, max_indices), -1., device=device)
+        count = 0
+
+        for cost_b, iou_b in zip(cost_matrix, iou_matrix):
+            if cost_b is None or iou_b is None:
                 continue
-                
-            # Get cost matrix for current batch
-            cost_b = cost_matrix[b]
-            
-            # Use Hungarian algorithm to find optimal matching
-            # Note: We use -cost because linear_sum_assignment minimizes cost
-            matched_indices = linear_sum_assignment_with_inf(-cost_b.detach().cpu().numpy())
+            matched_indices = linear_sum_assignment_with_inf(cost_b.detach().cpu().numpy())
             matched_indices = torch.as_tensor(matched_indices, dtype=torch.long, device=device)
-            
-            # Compute loss and store IoUs for matched pairs
-            pred_idx, gt_idx = matched_indices
-            matched_cost = cost_b[pred_idx, gt_idx].sum()
-            
-            # Store IoUs for valid matched pairs
-            # valid_pairs = valid_mask[b, pred_idx] & valid_mask[b, gt_idx]
-            # matched_ious[b, pred_idx[valid_pairs]] = iou_matrix[b, pred_idx[valid_pairs], gt_idx[valid_pairs]]
-            matched_ious[b, :valid_count, :valid_count] = iou_matrix[b]
-            
-            # Add to total loss (only for valid pairs)
-            total_loss += matched_cost
-            total_valid_pairs += valid_count.item()
-        
+            matched_ious[matched_indices] = iou_b[matched_indices]
+            total_loss += cost_b[matched_indices].sum() / cost_b.shape[0]
+            count += 1
+
         # Return average loss and matched IoUs
-        avg_loss = total_loss / max(total_valid_pairs, 1)
-        return avg_loss, matched_ious
+        avg_loss = total_loss / count
+        return avg_loss, {}   # write better metadata 
 
 
 def linear_sum_assignment_with_inf(cost_matrix: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
