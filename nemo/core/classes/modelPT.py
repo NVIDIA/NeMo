@@ -53,6 +53,7 @@ from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import get_rank, is_global_rank_zero
+from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 
 __all__ = ['ModelPT']
 
@@ -88,8 +89,6 @@ class ModelPT(LightningModule, Model):
             )
 
         # Track app start time at the very beginning of model init
-        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
-
         self._timing_tracker = OneLoggerTimingTracker.get_instance()
 
         # Track model init start
@@ -483,7 +482,7 @@ class ModelPT(LightningModule, Model):
             An instance of type cls or its underlying config (if return_config is set).
         """
         # OneLogger hook for checkpoint loading start
-        self._timing_tracker.track_event('on_load_checkpoint_start')
+        OneLoggerTimingTracker.get_instance().track_event('on_load_checkpoint_start')
 
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
@@ -519,7 +518,7 @@ class ModelPT(LightningModule, Model):
             instance._save_restore_connector = save_restore_connector
 
         # OneLogger hook for checkpoint loading end
-        self._timing_tracker.track_event('on_load_checkpoint_end')
+        OneLoggerTimingTracker.get_instance().track_event('on_load_checkpoint_end')
 
         return instance
 
@@ -538,7 +537,7 @@ class ModelPT(LightningModule, Model):
         For documentation, please refer to LightningModule.load_from_checkpoint() documentation.
         """
         # OneLogger hook for checkpoint loading start
-        self._timing_tracker.track_event('on_load_checkpoint_start')
+        OneLoggerTimingTracker.get_instance().track_event('on_load_checkpoint_start')
 
         checkpoint = None
         try:
@@ -557,7 +556,7 @@ class ModelPT(LightningModule, Model):
             cls._set_model_restore_state(is_being_restored=False)
 
         # OneLogger hook for checkpoint loading end
-        self._timing_tracker.track_event('on_load_checkpoint_end')
+        OneLoggerTimingTracker.get_instance().track_event('on_load_checkpoint_end')
 
         return checkpoint
 
