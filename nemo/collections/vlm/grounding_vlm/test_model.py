@@ -1,5 +1,6 @@
-from nemo.collections.vlm.grounding_vlm.model import Qwen25VLGroundingConfig3B, Qwen25VLGroundingConfig7B, Qwen25VLGroundingConfig32B, Qwen25VLGroundingConfig72B
 from transformers import AutoTokenizer
+
+from nemo.collections.vlm.grounding_vlm.model import Qwen25VLGroundingConfig3B, Qwen2GroundingVLModel
 
 if __name__ == "__main__":
 
@@ -8,5 +9,10 @@ if __name__ == "__main__":
     
     # init model config
     model_cfg = Qwen25VLGroundingConfig3B()
-    model = model_cfg.configure_model(tokenizer)
-    print(model)
+    model = Qwen2GroundingVLModel(model_cfg, model_version="qwen25-vl", tokenizer=tokenizer)
+    model.configure_model()
+
+    print(model.module)
+    # model = model_cfg.configure_model(tokenizer)
+    # print(model)
+

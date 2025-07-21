@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Any
 
 import lightning.pytorch as L
 import torch
@@ -138,6 +138,12 @@ class Qwen2VLGroundingConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = qwen2vl_forward_step
     data_step_fn: Callable = qwen2vl_data_step
 
+    # tokens
+    extra_tokens: Optional[List[str]] = None
+    extra_tokens_ids: Optional[List[int]] = None
+    extra_tokens_metadata: Optional[List[Dict[str, Any]]] = None
+    extra_token_id_mapping: Optional[Dict[str, int]] = None
+
     # grounding modules
     thinking_attn_refine_module_config: Optional[ThinkingAttnRefineModuleConfig] = None
 
@@ -203,7 +209,6 @@ class Qwen2VLGroundingConfig(TransformerConfig, io.IOMixin):
             add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage)
             or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
-            vp_stage=vp_stage,
         )
 
         return model
@@ -252,18 +257,20 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         assert self.thinking_attn_refine_module_config is not None, "thinking_attn_refine_module_config is required"
         self.thinking_attn_refine_module = self.thinking_attn_refine_module_config.configure_model()
 
-        # add extra tokens
-        self.extra_tokens = None
-        self.extra_tokens_ids = None
-        self.extra_token_metadata = None
-        if tokenizer is not None:
+        # add extra tokens from config
+        self.extra_tokens = config.extra_tokens
+        self.extra_tokens_ids = config.extra_tokens_ids
+        self.extra_tokens_metadata = config.extra_tokens_metadata
+        self.extra_token_id_mapping = config.extra_token_id_mapping
+        # if none is specified, it means the tokenizer is a "base tokenizer"
+        if self.extra_tokens is None:
             tokenizer, extra_tokens, extra_tokens_ids, metadata = generate_extra_grounding_tokens(tokenizer)
             self.extra_tokens = extra_tokens
             self.extra_tokens_ids = extra_tokens_ids
             self.extra_token_id_mapping = {
                 k: v for k, v in zip(extra_tokens, extra_tokens_ids)
             }
-            self.extra_token_metadata = metadata
+            self.extra_tokens_metadata = metadata
 
         if self.add_decoder:
             # TODO: this will have a different vocab size than the original model, how to handle this?

@@ -25,6 +25,8 @@ from nemo.collections.vlm.grounding_vlm.model.config import (
     Qwen25VLGroundingConfig32B,
     Qwen25VLGroundingConfig72B,
 )
+from nemo.collections.vlm.grounding_vlm.model.model import Qwen2GroundingVLModel
+
 __all__ = [
     "Qwen2VLGroundingConfig",
     "Qwen2VLGroundingConfig2B",
@@ -34,4 +36,6 @@ __all__ = [
     "Qwen25VLGroundingConfig7B",
     "Qwen25VLGroundingConfig32B",
     "Qwen25VLGroundingConfig72B",
+    "Qwen2GroundingVLModel",
+    "MCoreQwen2GroundingVLModel",
 ]

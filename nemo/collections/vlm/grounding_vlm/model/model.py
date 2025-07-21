@@ -15,7 +15,7 @@ from nemo.collections.vlm.neva.model.base import NevaModel
 from nemo.collections.vlm.grounding_vlm.model.loss import GroundedVLMLossReduction
 
 
-class Qwen2GroundingVLModel(NevaModel, L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+class Qwen2GroundingVLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     """Lightning Wrapper for Qwen2VLGrounding Model"""
 
     def __init__(
@@ -57,10 +57,11 @@ class Qwen2GroundingVLModel(NevaModel, L.LightningModule, io.IOMixin, io.Connect
         video_grid_thw: Optional[torch.LongTensor] = None,
         second_per_grid_ts: Optional[torch.FloatTensor] = None,
         # Grounding VLM specific arguments
-        instance_det_ids: Optional[torch.Tensor] = None,
-        instance_det_loss_mask: Optional[torch.Tensor] = None,
         cls_labels: Optional[torch.Tensor] = None,
         cls_loss_mask: Optional[torch.Tensor] = None,
+        # detection params
+        instance_det_ids: Optional[torch.Tensor] = None,
+        instance_cu_seqlen: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         # pylint: disable=C0115,C0116
         output_tensor = self.module(
@@ -76,10 +77,10 @@ class Qwen2GroundingVLModel(NevaModel, L.LightningModule, io.IOMixin, io.Connect
             video_grid_thw=video_grid_thw,
             second_per_grid_ts=second_per_grid_ts,
             # Grounding VLM specific arguments
-            instance_det_ids=instance_det_ids,
-            instance_det_loss_mask=instance_det_loss_mask,
             cls_labels=cls_labels,
             cls_loss_mask=cls_loss_mask,
+            instance_det_ids=instance_det_ids,
+            instance_cu_seqlen=instance_cu_seqlen,
         )
 
         return output_tensor

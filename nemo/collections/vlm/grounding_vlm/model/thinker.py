@@ -31,6 +31,7 @@ from megatron.core.extensions.transformer_engine import (
 )
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.utils import WrappedTensor
+from megatron.core.transformer.transformer_block import LayerNormImpl
 
 from nemo.collections.llm.fn.activation import quick_gelu
 from nemo.collections.vlm.layer_specs import get_norm_mlp_module_spec_te
@@ -105,11 +106,13 @@ class ThinkingAttnRefineModuleConfig(TransformerConfig, io.IOMixin):
         if self.cls_head is None:
             self.cls_head = ClassifierHeadModuleConfig(  # projector config is automatically initialized
                 hidden_size=self.hidden_size,
+                num_attention_heads=self.num_attention_heads,
             )
         
         if self.det_head is None:
             self.det_head = DetectionHeadModuleConfig(  # projector config is automatically initialized
                 hidden_size=self.hidden_size,
+                num_attention_heads=self.num_attention_heads,
             )
 
 
@@ -144,23 +147,30 @@ class ClassifierHeadModuleConfig(TransformerConfig, io.IOMixin):
     hidden_size: int = 1280
     projector_config: TransformerConfig = None
     projector_submodules: MLPSubmodules = None
+    num_layers: int = 2
+    num_attention_heads: int = 1
+    attention_dropout: float = 0.1
+    hidden_dropout: float = 0.1
+    layernorm_epsilon: float = 1e-5
+    init_method: Callable = lambda x: torch.nn.init.trunc_normal_(x, mean=0.0, std=0.02)
+    output_layer_init_method: Callable = lambda x: torch.nn.init.trunc_normal_(x, mean=0.0, std=0.02)
 
     def __post_init__(self):
         """Initialize default configurations if not provided."""
-        super().__post_init__()
+        super(TransformerConfig, self).__post_init__()
         
         if self.projector_config is None:
             # Default projector config for classification MLP
             self.projector_config = TransformerConfig(
                 hidden_size=self.hidden_size,
-                num_layers=2,  # Two layer MLP
+                num_layers=self.num_layers,  # Two layer MLP
                 ffn_hidden_size=self.hidden_size * 4,  # Standard 4x expansion
-                num_attention_heads=1,  # Not used for MLP
-                attention_dropout=0.1,  # Some dropout for regularization
-                hidden_dropout=0.1,
-                layernorm_epsilon=1e-5,
-                init_method=lambda x: torch.nn.init.trunc_normal_(x, mean=0.0, std=0.02),
-                output_layer_init_method=lambda x: torch.nn.init.trunc_normal_(x, mean=0.0, std=0.02),
+                num_attention_heads=self.num_attention_heads,  # Not used for MLP
+                attention_dropout=self.attention_dropout,  # Some dropout for regularization
+                hidden_dropout=self.hidden_dropout,
+                layernorm_epsilon=self.layernorm_epsilon,
+                init_method=self.init_method,
+                output_layer_init_method=self.output_layer_init_method,
             )
             
         if self.projector_submodules is None:
@@ -168,7 +178,6 @@ class ClassifierHeadModuleConfig(TransformerConfig, io.IOMixin):
             self.projector_submodules = MLPSubmodules(
                 linear_fc1=TELayerNormColumnParallelLinear,
                 linear_fc2=TERowParallelLinear,
-                dropout=torch.nn.Dropout,
             )
 
 class ClassifierHeadModule(MegatronModule):
@@ -217,6 +226,13 @@ class DetectionHeadModuleConfig(TransformerConfig, io.IOMixin):
     """
     # Base config
     hidden_size: int = 1280
+    num_layers: int = 2
+    num_attention_heads: int = 1
+    attention_dropout: float = 0.0
+    hidden_dropout: float = 0.0
+    layernorm_epsilon: float = 1e-5
+    init_method: Callable = lambda x: torch.nn.init.trunc_normal_(x, mean=0.0, std=0.02)
+    output_layer_init_method: Callable = lambda x: torch.nn.init.trunc_normal_(x, mean=0.0, std=0.02)
     
     # Projector config for detection MLP
     projector_config: TransformerConfig = None
@@ -228,55 +244,74 @@ class DetectionHeadModuleConfig(TransformerConfig, io.IOMixin):
     
     def __post_init__(self):
         """Initialize default configurations if not provided."""
-        super().__post_init__()
+        super(TransformerConfig, self).__post_init__()
         
         if self.projector_config is None:
             # Default projector config
             self.projector_config = TransformerConfig(
                 hidden_size=self.hidden_size,
-                num_layers=2,
+                num_layers=self.num_layers,
                 ffn_hidden_size=self.hidden_size * 4,
-                num_attention_heads=1,  # Not used for MLP
-                attention_dropout=0.0,
-                hidden_dropout=0.0,
-                layernorm_epsilon=1e-5,
+                num_attention_heads=self.num_attention_heads,  # Not used for MLP
+                attention_dropout=self.attention_dropout,
+                hidden_dropout=self.hidden_dropout,
+                layernorm_epsilon=self.layernorm_epsilon,
+            )
+        
+        if self.projector_submodules is None:
+            # Default to standard MLP modules
+            self.projector_submodules = MLPSubmodules(
+                linear_fc1=TELayerNormColumnParallelLinear,
+                linear_fc2=TERowParallelLinear,
             )
             
         if self.transformer_config is None:
             # Default transformer config with cross attention only
             self.transformer_config = TransformerConfig(
-                num_layers=2,
+                num_layers=self.num_layers,
                 hidden_size=self.hidden_size,
-                num_attention_heads=16,
-                attention_dropout=0.0,
-                hidden_dropout=0.0,
+                num_attention_heads=self.num_attention_heads,
+                attention_dropout=self.attention_dropout,
+                hidden_dropout=self.hidden_dropout,
                 ffn_hidden_size=self.hidden_size * 4,
                 kv_channels=80,
                 apply_query_key_layer_scaling=False,
-                layernorm_epsilon=1e-5,
+                layernorm_epsilon=self.layernorm_epsilon,
             )
             
         if self.transformer_spec is None:
             # Create transformer spec with cross attention only
-            self.transformer_spec = ModuleSpec(
-                module=TransformerBlock,
-                submodules=TransformerBlockSubmodules(
-                    cross_attention=ModuleSpec(
-                        module=CrossAttention,
-                        params={"attn_mask_type": AttnMaskType.no_mask},
-                        submodules=CrossAttentionSubmodules(
-                            linear_q=TELayerNormColumnParallelLinear,
-                            linear_kv=TELayerNormColumnParallelLinear,
-                            core_attention=TEDotProductAttention,
-                            linear_proj=TERowParallelLinear,
-                        ),
+            layer_spec = TransformerLayerSubmodules(
+                input_layernorm=LayerNormImpl,
+                pre_cross_attn_layernorm=LayerNormImpl,
+                cross_attention=ModuleSpec(
+                    module=CrossAttention,
+                    params={"attn_mask_type": AttnMaskType.no_mask},
+                    submodules=CrossAttentionSubmodules(
+                        linear_q=TELayerNormColumnParallelLinear,
+                        linear_kv=TELayerNormColumnParallelLinear,
+                        core_attention=TEDotProductAttention,
+                        linear_proj=TERowParallelLinear,
                     ),
-                    cross_attn_bda=get_bias_dropout_add,
-                    pre_mlp_layernorm=IdentityOp,
-                    mlp=get_norm_mlp_module_spec_te(),
-                    mlp_bda=get_bias_dropout_add,
                 ),
+                cross_attn_bda=get_bias_dropout_add,
+                pre_mlp_layernorm=IdentityOp,
+                mlp=get_norm_mlp_module_spec_te(),
+                mlp_bda=get_bias_dropout_add,
             )
+            # convert this into a module spec to import it
+            layer_spec = ModuleSpec(
+                module=TransformerLayer,
+                submodules=layer_spec,
+            )
+
+            # transformer block contains list of submodules spec 
+            block_spec = TransformerBlockSubmodules(
+                layer_specs=[layer_spec] * self.num_layers,
+                layer_norm=LayerNormImpl,
+            )
+            self.transformer_spec = block_spec
+
 
 class DetectionHeadModule(MegatronModule):
     """
@@ -288,9 +323,7 @@ class DetectionHeadModule(MegatronModule):
                                            projector_type='mlp', input_size=config.hidden_size)
         self.transformer = TransformerBlock(config=config.transformer_config, spec=config.transformer_spec)
         # detection head
-        self.det_head = MultimodalProjector(config=config.projector_config, submodules=config.projector_submodules,
-                                           projector_type='mlp', input_size=config.hidden_size)
-        self.det_head_linear = nn.Linear(config.hidden_size, 4)
+        self.det_head = nn.Linear(config.hidden_size, 4)
         
     def forward(self, det_embeddings: Tensor, think_states: Tensor, instance_det_indices: Tensor, think_indices: Tensor):
         '''
@@ -320,7 +353,7 @@ class DetectionHeadModule(MegatronModule):
             b_think_states = think_states[b_think_mask].unsqueeze(1)   # [s, 1, h]
             b_det_states = det_embeddings[b_det_mask].unsqueeze(0)   # [si, 1, h]
             b_ret = self.transformer(hidden_states=b_det_states, attention_mask=None, context=b_think_states, context_mask=None) # [si, 1, h]
-            b_ret = self.det_head_linear(self.det_head(b_ret).squeeze(1)) # [si, 4]
+            b_ret = self.det_head(b_ret).squeeze(1) # [si, 4]
             ret[b_det_mask] = b_ret
         
         return ret
