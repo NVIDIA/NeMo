@@ -1,3 +1,17 @@
+# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 OneLogger callback for NeMo training.
 
@@ -11,11 +25,10 @@ from typing import Any, Dict
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
-
-    HAVE_ONELOGGER = True
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
     from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
     from nv_one_logger.training_telemetry.v1_adapter.v1_compatible_wandb_exporter import V1CompatibleWandbExporterAsync
+    HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
     HAVE_ONELOGGER = False
 from lightning.pytorch import Trainer
