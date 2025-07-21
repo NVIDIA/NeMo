@@ -18,7 +18,6 @@ from typing import Any, List, Optional, Union
 
 from transformers import AutoTokenizer
 
-
 class SeparatorStyle(Enum):
     """Different separator style."""
 

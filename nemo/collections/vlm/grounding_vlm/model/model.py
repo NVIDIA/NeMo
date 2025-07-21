@@ -33,8 +33,8 @@ class Qwen2GroundingVLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn
         self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
-        self._training_loss_reduction = None
-        self._validation_loss_reduction = None
+        self._training_loss_reduction = GroundedVLMLossReduction()
+        self._validation_loss_reduction = GroundedVLMLossReduction(validation_step=True)
         self.model_version = model_version
         assert self.model_version in ["qwen2-vl", "qwen25-vl"], "model_version only supports qwen2-vl and qwen25-vl."
 

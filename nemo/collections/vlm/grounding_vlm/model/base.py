@@ -58,19 +58,13 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
         _batch = batch
 
     required_keys = set()
-    if model_version == "qwen2-vl":
-        required_keys.update(("input_ids", "pixel_values", "image_grid_thw", "pixel_values_videos", "video_grid_thw"))
-    elif model_version == "qwen25-vl":
-        required_keys.update(
-            (
-                "input_ids",
-                "pixel_values",
-                "image_grid_thw",
-                "pixel_values_videos",
-                "video_grid_thw",
-                "second_per_grid_ts",
-            )
-        )
+    required_keys.update(
+        "input_ids",
+        "attention_mask",
+        "pixel_values",
+        "image_grid_thw",
+    )
+
     if parallel_state.is_pipeline_first_stage():
         required_keys.update(("position_ids",))
     if parallel_state.is_pipeline_last_stage():
@@ -78,6 +72,11 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
             (
                 "labels",
                 "loss_mask",
+                "cls_token_ids",
+                "cls_labels",
+                "cls_loss_mask",
+                "instance_det_ids",
+                "instance_cu_seqlen",
             )
         )
 
@@ -93,16 +92,20 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
     # pylint: disable=C0115,C0116
     forward_args = {
         "input_ids": batch["input_ids"],
+        "attention_mask": batch["attention_mask"],
         "pixel_values": batch.get("pixel_values", None),
         "image_grid_thw": batch.get("image_grid_thw", None),
-        "pixel_values_videos": batch.get("pixel_values_videos", None),
-        "video_grid_thw": batch.get("video_grid_thw", None),
-        "second_per_grid_ts": batch.get("second_per_grid_ts", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
+        "cls_token_ids": batch.get("cls_token_ids", None),
+        "cls_labels": batch.get("cls_labels", None),
+        "cls_loss_mask": batch.get("cls_loss_mask", None),
+        "instance_det_ids": batch.get("instance_det_ids", None),
+        "instance_cu_seqlen": batch.get("instance_cu_seqlen", None),
     }
-    if 'cu_seqlens' in batch:
-        forward_args['packed_seq_params'] = get_packed_seq_params(batch)
+    # disable packed seq params for now
+    # if 'cu_seqlens' in batch:
+    #     forward_args['packed_seq_params'] = get_packed_seq_params(batch)
     return model(**forward_args)
 
 def set_input_tensor(self, tensor):
@@ -529,11 +532,12 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         runtime_gather_output: Optional[bool] = None,
         second_per_grid_ts: Optional[torch.FloatTensor] = None,
         # grounding params
-        cls_token_ids: Optional[torch.Tensor] = None,  # [batch, seqlen', classes]
+        cls_token_ids: Optional[torch.Tensor] = None,  # [batch, classes, seqlen']
+        cls_attention_mask: Optional[torch.Tensor] = None,  # [batch, classes, seqlen']
         cls_labels: Optional[torch.Tensor] = None,  # [batch, classes]  # binary labels
         cls_loss_mask: Optional[torch.Tensor] = None,  # [batch, classes]
         # detection params
-        instance_det_ids: Optional[torch.Tensor] = None,  # [batch, num_instances, 4]    # boxes
+        instance_det_ids: Optional[torch.Tensor] = None,  # [cu_num_instances, 4]    # boxes
         instance_cu_seqlen: Optional[torch.Tensor] = None,  # [batch, ]
         # semantic segmentation params
         # semseg_label_token_ids: Optional[torch.Tensor] = None,  # [batch, seqlen', ]

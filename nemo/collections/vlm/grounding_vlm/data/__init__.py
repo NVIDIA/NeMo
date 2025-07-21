@@ -12,16 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.qwen2vl.data.config import Qwen2VLDataConfig  # noqa: F401
-from nemo.collections.vlm.qwen2vl.data.mock import Qwen2VLMockDataModule  # noqa: F401
-from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (  # noqa: F401
-    MultiModalToken,
-    Qwen2VLImageToken,
-    Qwen2VLVideoToken,
-)
-from nemo.collections.vlm.qwen2vl.data.preloaded import Qwen2VLPreloadedDataModule  # noqa: F401
+from nemo.collections.vlm.grounding_vlm.data.mock import ClassificationDetectionMockDataModule
 
 __all__ = [
-    "Qwen2VLMockDataModule",
-    "Qwen2VLPreloadedDataModule",
+    "ClassificationDetectionMockDataModule",
 ]
