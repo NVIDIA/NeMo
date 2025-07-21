@@ -24,7 +24,7 @@ from nemo.automodel.misc_utils import calculate_valid_accumulate_grad_batches
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-
+from nemo.utils.decorators import deprecated
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
 #   examples/llm/finetune/automodel.py \
@@ -212,6 +212,10 @@ def logger(ckpt_folder, save_every_n_train_steps) -> nl.NeMoLogger:
 
 def main():
     """Example script to run SFT/PEFT with a HF transformers-instantiated model on squad."""
+    deprecated_warning(
+        old_method="Automodel on NVIDIA/NeMo", new_method="NVIDIA-NeMo/automodel repo",
+        wait_seconds=2
+    )
     import argparse
 
     parser = argparse.ArgumentParser()

@@ -19,6 +19,7 @@ from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.utils.decorators import deprecated_warning
+from nemo.utils.decorators import deprecated
 
 def mk_hf_vlm_dataset(processor, mbs, gbs):
     """Creates vlm dataset"""
@@ -82,7 +83,10 @@ if __name__ == '__main__':
         wait_seconds=2
     )
     import argparse
-
+    deprecated_warning(
+        old_method="Automodel on NVIDIA/NeMo", new_method="NVIDIA-NeMo/automodel repo",
+        wait_seconds=2
+    )
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='Qwen/Qwen2-VL-2B-Instruct')
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
