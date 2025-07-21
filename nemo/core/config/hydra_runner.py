@@ -22,6 +22,8 @@ from hydra.core.config_store import ConfigStore
 from hydra.types import TaskFunction
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.lightning.one_logger_callback import get_onelogger_callbacks
+
 
 def _get_gpu_name():
     try:
@@ -132,10 +134,7 @@ def hydra_runner(
                     config_path=config_path,
                     config_name=config_name,
                 )
-                from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
-
-                tracker = OneLoggerTimingTracker.get_instance()
-                tracker.track_event('on_app_end')
+                get_onelogger_callbacks('on_app_end')
 
         return wrapper
 
