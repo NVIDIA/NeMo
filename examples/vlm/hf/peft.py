@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from nemo.utils.decorators import deprecated_warning
+
 deprecated_warning(
-   old_method="Automodel on NVIDIA/NeMo", new_method="https://github.com/NVIDIA-NeMo/Automodel repo",
-   wait_seconds=2
+    old_method="Automodel on NVIDIA/NeMo", new_method="https://github.com/NVIDIA-NeMo/Automodel repo", wait_seconds=2
 )
 
 import fiddle as fdl
@@ -25,9 +25,11 @@ from lightning.pytorch.loggers import WandbLogger
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 
+
 def mk_hf_vlm_dataset(processor, mbs, gbs):
     """Creates vlm dataset"""
     skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
+
     def collate_fn(examples, processor):
         def fmt(sample):
             instruction = "Describe accurately the given image."
