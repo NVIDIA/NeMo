@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, List, Optional, Union
 
 import numpy as np
@@ -667,7 +666,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(
                     -torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-2)
-                )  # 1e-2 is a small value to avoid numerical instability for bf16
+                )  # 1e-2 is used here instead of 1e-6 to address numerical instability with bf16 precision.
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * fusion_scores_sum_alpha + fusion_scores_sum
                 log_probs[..., -1] *= 1 + fusion_scores_sum_alpha
 
@@ -712,7 +711,7 @@ class ModifiedALSDBatchedTDTComputer(WithOptionalCudaGraphs, ConfidenceMethodMix
                 )
 
                 blank_logprob = log_probs[..., -1]
-                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
+                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-2))
 
                 masked_labels = torch.where(labels_top_k == self._blank_index, 0, labels_top_k)
                 log_probs_top_k = torch.where(

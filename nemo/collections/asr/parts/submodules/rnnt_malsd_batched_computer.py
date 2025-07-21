@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, List, Optional, Union
 
 import numpy as np
@@ -104,15 +103,6 @@ class MALSDState:
     init_fusion_states_candidates_list: Optional[List[torch.Tensor]] = None  # list of initial fusion states candidates
     init_fusion_scores_list: Optional[List[torch.Tensor]] = None  # list of initial fusion scores
 
-    # # LM-related fields
-    # ngram_lm_batch: Optional[NGramGPULanguageModel] = None  # N-gram LM for hypotheses
-    # lm_scores: Optional[torch.Tensor] = None  # LM scores for hypotheses
-    # batch_lm_states: Optional[torch.Tensor] = None  # LM states for hypotheses
-    # batch_lm_states_candidates: Optional[torch.Tensor] = None  # LM states for hypotheses candidates
-    # batch_lm_states_prev: Optional[torch.Tensor] = None  # previous LM states for hypotheses
-    # init_lm_scores: Optional[torch.Tensor] = None  # initial LM scores for hypotheses
-    # init_batch_lm_states: Optional[torch.Tensor] = None  # initial LM states for hypotheses
-    # init_batch_lm_states_candidates: Optional[torch.Tensor] = None  # initial LM states for hypotheses candidates
 
     def __init__(
         self,
@@ -632,7 +622,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(
                     -torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-2)
-                )  # 1e-2 to tackle the precision issue with bf16
+                )  # 1e-2 is used here instead of 1e-6 to address numerical instability with bf16 precision.
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * fusion_scores_alpha_sum + fusion_scores_sum
                 log_probs[..., -1] *= 1 + fusion_scores_alpha_sum
                 log_probs_top_k, labels_top_k = torch.topk(
@@ -654,7 +644,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 log_probs_top_k, labels_top_k = log_probs.topk(self.beam_size, dim=-1, largest=True, sorted=True)
 
                 blank_logprob = log_probs[..., -1]
-                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
+                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-2))
 
                 masked_labels = torch.where(labels_top_k == self._blank_index, 0, labels_top_k)
                 log_probs_top_k = torch.where(
