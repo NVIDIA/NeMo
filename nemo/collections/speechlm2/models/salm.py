@@ -38,6 +38,7 @@ from transformers import GenerationConfig
 
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.speechlm2.data.salm_dataset import left_collate_vectors
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
@@ -369,7 +370,7 @@ class SALM(LightningModule, HFHubMixin):
                 ), "Audios cannot be provided via ``prompts`` and ``audios``/``audio_lens`` arguments simultaneously."
                 audios, audio_lens = maybe_audio
             formatter = PromptFormatter.resolve(self.cfg.prompt_format)(self.tokenizer)
-            tokens = collate_vectors(
+            tokens = left_collate_vectors(
                 [formatter.encode_dialog(turns=prompt)["input_ids"] for prompt in prompts],
                 padding_value=self.text_pad_id,
             ).to(self.device)
