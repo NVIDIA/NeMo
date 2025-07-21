@@ -236,11 +236,13 @@ class LogitsKLLoss(BaseLoss):
 
         return self.post_forward(loss, tp_reduce=True)
 
-class MFTLoss(BaseLoss):
-    """Calculates the Minifinetuning loss between two logits tensors and with the presence of labels without reducing the sequence dim. This function implements the distillation loss found in the paper: https://arxiv.org/abs/2506.15702.
-    """
 
-    def __init__(self, model_config: "TransformerConfig", threshold: float, temperature: float = 1.0, reverse: bool = False):
+class MFTLoss(BaseLoss):
+    """Calculates the Minifinetuning loss between two logits tensors and with the presence of labels without reducing the sequence dim. This function implements the distillation loss found in the paper: https://arxiv.org/abs/2506.15702."""
+
+    def __init__(
+        self, model_config: "TransformerConfig", threshold: float, temperature: float = 1.0, reverse: bool = False
+    ):
         """Constructor.
 
         Args:
@@ -288,12 +290,8 @@ class MFTLoss(BaseLoss):
         p_label = torch.gather(distribution, 1, labels.unsqueeze(1)).squeeze(1)  # (batch,)
 
         # correction of the distribution at the tokens where the argmax is incorrect
-        mixin_factor = (p_argmax - p_label + threshold) / (
-            1 + p_argmax - p_label + 1e-7
-        )  # (batch,)
-        adjusted_incorrect_distribution = distribution * (
-            1 - mixin_factor.unsqueeze(1)
-        )  # (batch, channels)
+        mixin_factor = (p_argmax - p_label + threshold) / (1 + p_argmax - p_label + 1e-7)  # (batch,)
+        adjusted_incorrect_distribution = distribution * (1 - mixin_factor.unsqueeze(1))  # (batch, channels)
         _ = adjusted_incorrect_distribution.scatter_add_(
             1, labels.unsqueeze(1), mixin_factor.unsqueeze(1)
         )  # (batch, channels)
@@ -301,16 +299,10 @@ class MFTLoss(BaseLoss):
         if apply_threshold_to_all:
             # correction of the distribution at the tokens where the argmax is correct but
             #  the separation may not be large enough
-            capped_targets = torch.where(
-                p_label > 1 - threshold, 1, p_label + threshold
-            )  # (batch,)
+            capped_targets = torch.where(p_label > 1 - threshold, 1, p_label + threshold)  # (batch,)
             mixin_factor = (capped_targets - p_argmax) / (1 - p_argmax + 1e-7)  # (batch,)
-            adjusted_correct_distribution = distribution * (
-                1 - mixin_factor.unsqueeze(1)
-            )  # (batch, channels)
-            _ = adjusted_correct_distribution.scatter_add_(
-                1, labels.unsqueeze(1), mixin_factor.unsqueeze(1)
-            )
+            adjusted_correct_distribution = distribution * (1 - mixin_factor.unsqueeze(1))  # (batch, channels)
+            _ = adjusted_correct_distribution.scatter_add_(1, labels.unsqueeze(1), mixin_factor.unsqueeze(1))
         else:
             adjusted_correct_distribution = distribution
 
@@ -319,7 +311,6 @@ class MFTLoss(BaseLoss):
             adjusted_incorrect_distribution,
             adjusted_correct_distribution,
         )  # (batch, channels)
-
 
     def forward(self, predictions: Tensor, targets: Tensor, labels: Tensor) -> Tensor:
         """Forward function.
