@@ -236,6 +236,147 @@ class LogitsKLLoss(BaseLoss):
 
         return self.post_forward(loss, tp_reduce=True)
 
+class MFTLoss(BaseLoss):
+    """Calculates the Minifinetuning loss between two logits tensors and with the presence of labels without reducing the sequence dim. This function implements the distillation loss found in the paper: https://arxiv.org/abs/2506.15702.
+    """
+
+    def __init__(self, model_config: "TransformerConfig", threshold: float, temperature: float = 1.0, reverse: bool = False):
+        """Constructor.
+
+        Args:
+            model_config: MCore transformer config.
+            threshold: Threshold for the MFT loss, used to determine the correction factor for the teacher probability given the ground truth labels.
+            temperature: Divide tensors by this value prior to calculating loss.
+            reverse: Whether to reverse the loss as KLD(teacher, student) instead of KLD(student, teacher)
+        """
+        super().__init__(model_config)
+        self._temperature = temperature
+        self._reverse = reverse
+        self._threshold = threshold
+
+    def _prepare_corrected_distributions(
+        self,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+        threshold: float,
+        apply_threshold_to_all: bool = True,
+    ) -> torch.Tensor:
+        """Prepare the corrected distributions for MFT loss.
+
+        Args:
+            logits: The logits from the teacher model, shape (batch, channels) # e.g. (batch_size * seq_len, vocab_size)
+                in case of LMs
+            labels: The ground truth labels, shape (batch) # e.g. (batch_size * seq_len) in case of LMs
+            threshold: The threshold value for the MFT correction.
+            apply_threshold_to_all: If True, apply the threshold correction to all tokens,
+                not just the incorrect argmax tokens. Defaults to True.
+
+        Returns:
+            A tensor containing the corrected distributions, shape (batch_size * seq_len, vocab_size).
+        """
+        # Ensure logits is a 2D tensor and labels is a 1D tensor
+        if logits.dim() != 2 or labels.dim() != 1:
+            raise ValueError("Logits must be a 2D tensor and labels must be a 1D tensor.")
+        # logits: (batch, channels)
+        # labels: (batch)
+        distribution = F.softmax(logits, dim=-1)  # (batch, channels)
+
+        argmax = distribution.argmax(dim=-1)  # (batch,)
+        incorrect_argmax = argmax != labels  # (batch,)
+
+        p_argmax = torch.gather(distribution, 1, argmax.unsqueeze(1)).squeeze(1)  # (batch,)
+        p_label = torch.gather(distribution, 1, labels.unsqueeze(1)).squeeze(1)  # (batch,)
+
+        # correction of the distribution at the tokens where the argmax is incorrect
+        mixin_factor = (p_argmax - p_label + threshold) / (
+            1 + p_argmax - p_label + 1e-7
+        )  # (batch,)
+        adjusted_incorrect_distribution = distribution * (
+            1 - mixin_factor.unsqueeze(1)
+        )  # (batch, channels)
+        _ = adjusted_incorrect_distribution.scatter_add_(
+            1, labels.unsqueeze(1), mixin_factor.unsqueeze(1)
+        )  # (batch, channels)
+
+        if apply_threshold_to_all:
+            # correction of the distribution at the tokens where the argmax is correct but
+            #  the separation may not be large enough
+            capped_targets = torch.where(
+                p_label > 1 - threshold, 1, p_label + threshold
+            )  # (batch,)
+            mixin_factor = (capped_targets - p_argmax) / (1 - p_argmax + 1e-7)  # (batch,)
+            adjusted_correct_distribution = distribution * (
+                1 - mixin_factor.unsqueeze(1)
+            )  # (batch, channels)
+            _ = adjusted_correct_distribution.scatter_add_(
+                1, labels.unsqueeze(1), mixin_factor.unsqueeze(1)
+            )
+        else:
+            adjusted_correct_distribution = distribution
+
+        return torch.where(
+            incorrect_argmax.unsqueeze(1),
+            adjusted_incorrect_distribution,
+            adjusted_correct_distribution,
+        )  # (batch, channels)
+
+
+    def forward(self, predictions: Tensor, targets: Tensor, labels: Tensor) -> Tensor:
+        """Forward function.
+
+        Args:
+            predictions: Student model tensors (size [s, b, h])
+            targets: Teacher model tensors (size [s, b, h])
+            labels: Ground truth labels (size [b, s])
+
+        Returns:
+            KLD loss of tensors (size [b, s])
+        """
+        predictions, targets = self.pre_forward(predictions, targets)
+
+        # Division by temp should happen prior to finding max for both student and teacher.
+        # Currently we don't use temperature in any of ours runs (temp=1.0)
+        output_teacher = targets.float() / self._temperature
+        output_student = predictions.float() / self._temperature
+
+        # Compute local softmax, and the reweight to compute global softmax.
+        if self._config.tensor_model_parallel_size > 1:
+            raise NotImplementedError(
+                "MFTLoss does not support tensor model parallelism. Please use sequence parallelism instead."
+            )
+
+        else:
+            if self._reverse:
+                teacher_log_softmax: Tensor = F.log_softmax(output_teacher, dim=-1)
+                student_softmax: Tensor = F.softmax(output_student, dim=-1)
+                corrected_student_distribution = self._prepare_corrected_distributions(
+                    student_softmax, labels, self._threshold, apply_threshold_to_all=True
+                )
+                loss = torch.sum(
+                    F.kl_div(
+                        teacher_log_softmax,
+                        corrected_student_distribution,
+                        reduction="none",
+                    ),
+                    dim=-1,
+                )
+            else:
+                student_log_softmax: Tensor = F.log_softmax(output_student, dim=-1)
+                teacher_softmax: Tensor = F.softmax(output_teacher, dim=-1)
+                corrected_teacher_distribution = self._prepare_corrected_distributions(
+                    teacher_softmax, labels, self._threshold, apply_threshold_to_all=True
+                )
+                loss = torch.sum(
+                    F.kl_div(
+                        student_log_softmax,
+                        corrected_teacher_distribution,
+                        reduction="none",
+                    ),
+                    dim=-1,
+                )
+
+        return self.post_forward(loss, tp_reduce=True)
+
 
 class LogitsAndIntermediatesLossBalancer(DistillationLossBalancer):
     """

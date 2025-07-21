@@ -30,7 +30,7 @@ from nemo.collections import llm
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import, safe_import_from
 
-from .loss import HiddenStateCosineLoss, LogitsAndIntermediatesLossBalancer, LogitsKLLoss, ProjectionLayer
+from .loss import HiddenStateCosineLoss, LogitsAndIntermediatesLossBalancer, LogitsKLLoss, MFTLoss, ProjectionLayer
 
 if TYPE_CHECKING:
     from megatron.core.dist_checkpointing.mapping import ShardedStateDict
@@ -53,19 +53,24 @@ class DistillationConfig:
         logit_layers: Tuple of logit layer names.
         skip_lm_loss: Whether to skip computing the standard language model loss (default: ``True``).
         kd_loss_scale: Relative scaling factor for the distillation loss if ``skip_lm_loss`` is ``False``.
+        use_mft: Whether to use MFT (Minifinetuning) for distillation.
+        mft_threshold: Threshold for MFT loss, used to determine the correction factor for the teacher probability given the ground truth labels.
     """
 
     intermediate_layer_pairs: List[Tuple[str, str]] = field(default_factory=list)
     logit_layers: Tuple[str, str] = ("output_layer", "output_layer")
     skip_lm_loss: bool = True
     kd_loss_scale: float = 1.0
+    use_mft: bool = False
+    mft_threshold: float|None = None
     criterion: Optional[Dict[Tuple[str, str], torch.nn.Module]] = None
     loss_balancer: Optional[DistillationLossBalancer] = None
-
+    
     def __post_init__(self):
         assert len(self.logit_layers) == 2, f"{self.logit_layers=}"
         assert all(len(pair) == 2 for pair in self.intermediate_layer_pairs), f"{self.intermediate_layer_pairs=}"
         assert self.kd_loss_scale > 0, f"{self.kd_loss_scale=}"
+        assert not self.use_mft or (self.mft_threshold is not None and 1 >= self.mft_threshold >= 0), f"{self.use_mft=} & {self.mft_threshold=}"
 
 
 def load_distillation_config(
@@ -91,7 +96,7 @@ def load_distillation_config(
 
     criterion = {}
     if student_cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage():
-        criterion[tuple(cfg.logit_layers)] = LogitsKLLoss(student_cfg)
+        criterion[tuple(cfg.logit_layers)] = LogitsKLLoss(student_cfg) if not cfg.use_mft else MFTLoss(model_config=student_cfg, threshold=cfg.mft_threshold)
         # NOTE: Projection layer shared among intermediate layer pairs.
         projection_layer = ProjectionLayer(student_cfg, teacher_cfg)
 
