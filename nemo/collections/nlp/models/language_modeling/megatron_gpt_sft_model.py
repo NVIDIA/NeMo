@@ -82,7 +82,7 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronGPTSFTModel"]
 
 
-class MegatronGPTSFTModel(NLPAdapterModelMixin, MegatronGPTModel):
+class MegatronGPTSFTModel(MegatronGPTModel):
     """
     Megatron GPT Supervised Fine-Tuning
     """
