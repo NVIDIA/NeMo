@@ -484,6 +484,7 @@ class ModelPT(LightningModule, Model):
         """
         # OneLogger hook for checkpoint loading start
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
         tracker = OneLoggerTimingTracker.get_instance()
         tracker.track_event('on_load_checkpoint_start')
 
@@ -541,6 +542,7 @@ class ModelPT(LightningModule, Model):
         """
         # OneLogger hook for checkpoint loading start
         from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+
         tracker = OneLoggerTimingTracker.get_instance()
         tracker.track_event('on_load_checkpoint_start')
 
