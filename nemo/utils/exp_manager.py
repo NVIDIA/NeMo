@@ -36,7 +36,7 @@ from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.callbacks.timer import Interval, Timer
 from lightning.pytorch.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLogger, WandbLogger
 from lightning.pytorch.loops import _TrainingEpochLoop
-from lightning.pytorch.plugins.io import AsyncCheckpointIO
+
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -475,8 +475,6 @@ def configure_onelogger(
 
     # Extract metadata from config
     metadata = MetaInfoManager(cfg).get_metadata()
-
-    world_size = metadata.get("world_size", -1)
 
     # Determine checkpoint strategy
     if trainer is not None and getattr(trainer.strategy, "async_save", False):

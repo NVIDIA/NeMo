@@ -483,7 +483,9 @@ class ModelPT(LightningModule, Model):
             An instance of type cls or its underlying config (if return_config is set).
         """
         # OneLogger hook for checkpoint loading start
-        self._timing_tracker.track_event('on_load_checkpoint_start')
+        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+        tracker = OneLoggerTimingTracker.get_instance()
+        tracker.track_event('on_load_checkpoint_start')
 
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
@@ -519,7 +521,7 @@ class ModelPT(LightningModule, Model):
             instance._save_restore_connector = save_restore_connector
 
         # OneLogger hook for checkpoint loading end
-        self._timing_tracker.track_event('on_load_checkpoint_end')
+        tracker.track_event('on_load_checkpoint_end')
 
         return instance
 
@@ -538,7 +540,9 @@ class ModelPT(LightningModule, Model):
         For documentation, please refer to LightningModule.load_from_checkpoint() documentation.
         """
         # OneLogger hook for checkpoint loading start
-        self._timing_tracker.track_event('on_load_checkpoint_start')
+        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
+        tracker = OneLoggerTimingTracker.get_instance()
+        tracker.track_event('on_load_checkpoint_start')
 
         checkpoint = None
         try:
@@ -557,7 +561,7 @@ class ModelPT(LightningModule, Model):
             cls._set_model_restore_state(is_being_restored=False)
 
         # OneLogger hook for checkpoint loading end
-        self._timing_tracker.track_event('on_load_checkpoint_end')
+        tracker.track_event('on_load_checkpoint_end')
 
         return checkpoint
 
