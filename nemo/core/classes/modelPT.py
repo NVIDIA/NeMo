@@ -48,12 +48,12 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import McoreDistributedOptimizer, prepare_lr_scheduler
+from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
 from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import get_rank, is_global_rank_zero
-from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
 
 __all__ = ['ModelPT']
 
