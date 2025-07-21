@@ -206,6 +206,7 @@ class OneLoggerNeMoCallback(Callback):
         # Extract necessary information from the trainer
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
+        self._train_active = True
 
         get_onelogger_callbacks(
             "on_train_start", train_iterations_start=current_step, train_iterations_target_or_fn=max_steps
@@ -261,6 +262,7 @@ class OneLoggerNeMoCallback(Callback):
         dataloader_idx: int = 0,
     ) -> None:
         """Called at the end of each validation batch."""
+        self._validation_batch_exists = False
         get_onelogger_callbacks("on_validation_single_iteration_end")
 
     def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
