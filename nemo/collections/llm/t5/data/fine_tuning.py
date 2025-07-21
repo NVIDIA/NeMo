@@ -30,28 +30,28 @@ if TYPE_CHECKING:
 class FineTuningDataModule(pl.LightningDataModule):
     """Base class for fine-tuning an LLM.
 
-    This class provides a foundation for building custom data modules for fine-tuning Nemo NLP models. 
-    It inherits from `pl.LightningDataModule` from the PyTorch Lightning library and handles data loading, 
+    This class provides a foundation for building custom data modules for fine-tuning Nemo NLP models.
+    It inherits from `pl.LightningDataModule` from the PyTorch Lightning library and handles data loading,
     preprocessing, and batch creation for training, validation, and testing.
 
     Args:
         dataset_root (Union[str, Path]): The root directory containing the training, validation, and test data.
         seq_length (int, optional): The maximum sequence length for the input and output text. Defaults to 2048.
-        tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text. 
+        tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text.
             Defaults to None. If not provided, a BertWordPieceCase tokenizer will be used.
         micro_batch_size (int, optional): The micro batch size for training. Defaults to 4.
         global_batch_size (int, optional): The global batch size for training. Defaults to 8.
-        rampup_batch_size (Optional[List[int]], optional): A list of batch sizes for ramping up during training. 
+        rampup_batch_size (Optional[List[int]], optional): A list of batch sizes for ramping up during training.
             Defaults to None.
         seed (int, optional): The random seed for data shuffling. Defaults to 1234.
-        memmap_workers (int, optional): The number of worker processes for loading data using TextMemMapDataset. 
+        memmap_workers (int, optional): The number of worker processes for loading data using TextMemMapDataset.
             Defaults to 1.
         num_workers (int, optional): The number of worker processes for data loading. Defaults to 8.
-        pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training. 
+        pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training.
             Defaults to True.
-        persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. 
+        persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs.
             Defaults to False.
-        max_train_steps (int, optional): Maximum number of steps to train. Used to calculate samples mapping 
+        max_train_steps (int, optional): Maximum number of steps to train. Used to calculate samples mapping
             for the mmap dataset
     """
 
