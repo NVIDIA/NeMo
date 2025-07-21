@@ -6,7 +6,7 @@ This module provides a callback that integrates OneLogger telemetry with NeMo tr
 
 import functools
 import time
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict
 
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
@@ -21,7 +21,6 @@ except (ImportError, ModuleNotFoundError):
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.core import LightningModule
-from lightning.pytorch.utilities import rank_zero_only
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 
 # Export OneLogger availability flag
@@ -173,7 +172,7 @@ class OneLoggerNeMoCallback(Callback):
         self._train_active = False
 
     def __getattr__(self, name: str) -> Any:
-        """Automatically forward any undefined method calls to the OneLogger v2 callbacks mainly for non-trainer methods.
+        """Automatically forward any undefined method calls to the OneLogger v2 callbacks.
 
         This eliminates the need for manually writing pass-through methods for each OneLogger API.
         Only methods that need custom logic (like those interacting with the trainer) need to be
@@ -199,6 +198,7 @@ class OneLoggerNeMoCallback(Callback):
         )
 
     def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
+        """Called at the beginning of each training batch."""
         get_onelogger_callbacks("on_training_single_iteration_start")
 
     def on_train_batch_end(
@@ -209,12 +209,15 @@ class OneLoggerNeMoCallback(Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        """Called at the end of each training batch."""
         get_onelogger_callbacks("on_training_single_iteration_end")
 
     def on_validation_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        """Called when validation begins."""
         get_onelogger_callbacks("on_validation_start")
 
     def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        """Called when validation ends."""
         if self._validation_batch_exists:
             get_onelogger_callbacks("on_validation_single_iteration_end")
             self._validation_batch_exists = False
@@ -228,6 +231,7 @@ class OneLoggerNeMoCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
+        """Called at the beginning of each validation batch."""
         if self._validation_batch_exists:
             get_onelogger_callbacks("on_validation_single_iteration_end")
         self._validation_batch_exists = True
@@ -242,6 +246,7 @@ class OneLoggerNeMoCallback(Callback):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
+        """Called at the end of each validation batch."""
         get_onelogger_callbacks("on_validation_single_iteration_end")
 
     def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
