@@ -103,7 +103,6 @@ class MALSDState:
     init_fusion_states_candidates_list: Optional[List[torch.Tensor]] = None  # list of initial fusion states candidates
     init_fusion_scores_list: Optional[List[torch.Tensor]] = None  # list of initial fusion scores
 
-
     def __init__(
         self,
         batch_size: int,
