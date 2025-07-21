@@ -18,12 +18,15 @@ from lightning.pytorch.loggers import WandbLogger
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-
+from nemo.utils.decorators import deprecated_warning
 
 def mk_hf_vlm_dataset(processor, mbs, gbs):
     """Creates vlm dataset"""
     skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
-
+    deprecated_warning(
+        old_method="Automodel on NVIDIA/NeMo", new_method="NVIDIA-NeMo/automodel repo",
+        wait_seconds=2
+    )
     def collate_fn(examples, processor):
         def fmt(sample):
             instruction = "Describe accurately the given image."
@@ -74,6 +77,10 @@ def mk_hf_vlm_dataset(processor, mbs, gbs):
 
 
 if __name__ == '__main__':
+    deprecated_warning(
+        old_method="Automodel on NVIDIA/NeMo", new_method="NVIDIA-NeMo/automodel repo",
+        wait_seconds=2
+    )
     import argparse
 
     parser = argparse.ArgumentParser()
