@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
 
 import functools
 import itertools
@@ -214,6 +217,9 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         def forward_step(dataloader_iter, model):
             images, labels = next(dataloader_iter)
 
+            assert (
+                self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+            ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
             if (
                 parallel_state.get_pipeline_model_parallel_world_size() == 1
                 or parallel_state.is_pipeline_first_stage()
@@ -305,6 +311,9 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         self.validation_metrics = None
 
         averaged_metrics = 0
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
         if parallel_state.is_pipeline_last_stage():
             averaged_metrics = torch.stack(self.validation_step_outputs).mean()
             torch.distributed.broadcast(averaged_metrics, get_last_rank())

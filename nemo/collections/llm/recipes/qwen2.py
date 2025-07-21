@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen2Config500M,
     Qwen2Model,
     Qwen25Config1P5B,
+    Qwen25Config3B,
     Qwen25Config7B,
     Qwen25Config14B,
     Qwen25Config32B,
@@ -56,6 +57,8 @@ def qwen2_model(version: str) -> run.Config[pl.LightningModule]:
         config = run.Config(Qwen2Config1P5B)
     elif version == "qwen25_1p5b":
         config = run.Config(Qwen25Config1P5B)
+    elif version == "qwen25_3b":
+        config = run.Config(Qwen25Config3B)
     elif version == "qwen2_7b":
         config = run.Config(Qwen2Config7B)
     elif version == "qwen25_7b":

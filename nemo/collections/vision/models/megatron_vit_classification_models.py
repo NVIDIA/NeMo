@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
 
 import itertools
 from functools import partial
@@ -387,6 +390,9 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             # launch grad reductions
             # Note: grads in first pipeline stage have already been
             # reduced
+            assert (
+                self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+            ), "vpp is not supported yet in MegatronVitClassificationModel"
             if not parallel_state.is_pipeline_first_stage():
                 self.reduce_overlap_gradients()
         elif self.megatron_amp_O2:
@@ -484,8 +490,11 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 tokens, labels = batch
             else:
                 # Vision transformer doesn't need attention mask
+                assert (
+                    self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+                ), "vpp is not supported yet in MegatronVitClassificationModel"
                 if parallel_state.is_pipeline_first_stage():
-                    # Fist pipeline stage needs only the tokens and position_ids
+                    # First pipeline stage needs only the tokens and position_ids
                     tokens = batch[0].cuda(non_blocking=True)
                     labels = None
                 elif parallel_state.is_pipeline_last_stage():
@@ -534,6 +543,9 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         if not self.validation_step_outputs:
             return None
 
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "vpp is not supported yet in MegatronVitClassificationModel"
         if parallel_state.is_pipeline_last_stage():
             loss_outputs = [output[0] for output in self.validation_step_outputs]
             acc_outputs = [output[1] for output in self.validation_step_outputs]
@@ -669,13 +681,6 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         self.setup_validation_data(self.cfg.data)
         self.setup_test_data(self.cfg.data)
 
-        # when using pipeline model parallel the final stage need to initialize word embeddings
-        if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if isinstance(self.model, list):
-                for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
-
     def setup_training_data(self, cfg):
         if hasattr(self, '_train_ds') and self._train_ds is not None:
             consumed_samples = self.compute_consumed_samples(0)
@@ -736,9 +741,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         """
         if isinstance(self.model, list):
             for i in range(len(self.model)):
-                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
-            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
@@ -746,9 +749,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         """
         if isinstance(self.model, list):
             for i in range(len(self.model)):
-                parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                 self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
-            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def parameters(self):
         if isinstance(self.model, list):

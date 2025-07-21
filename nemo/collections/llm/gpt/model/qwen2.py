@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,6 +89,21 @@ class Qwen2Config1P5B(Qwen2Config):
     num_attention_heads: int = 12
     num_query_groups: int = 2
     ffn_hidden_size: int = 8960
+
+
+@dataclass
+class Qwen25Config3B(Qwen2Config):
+    """
+    Config for Qwen 2.5 3B: https://huggingface.co/Qwen/Qwen2.5-3B
+    """
+
+    num_layers: int = 36
+    hidden_size: int = 2048
+    num_attention_heads: int = 16
+    num_query_groups: int = 2
+    ffn_hidden_size: int = 11008
+    vocab_size: int = 151936
+    share_embeddings_and_output_weights: bool = True
 
 
 @dataclass
@@ -371,7 +386,7 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
     def config(self) -> "HFQwen2Config":
         from transformers import Qwen2Config as HFQwen2Config
 
-        source: Qwen2Config = io.load_context(str(self)).model.config
+        source: Qwen2Config = io.load_context(str(self), subpath="model.config")
 
         return HFQwen2Config(
             architectures=["Qwen2ForCausalLM"],
@@ -399,6 +414,7 @@ __all__ = [
     "Qwen2Config",
     "Qwen2Config500M",
     "Qwen2Config1P5B",
+    "Qwen25Config3B",
     "Qwen2Config7B",
     "Qwen2Config72B",
     "Qwen25Config500M",

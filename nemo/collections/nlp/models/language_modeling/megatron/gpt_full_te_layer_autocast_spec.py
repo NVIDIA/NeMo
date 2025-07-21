@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ try:
     from megatron.core.transformer.module import MegatronModule
     from megatron.core.transformer.spec_utils import ModuleSpec
     from megatron.core.transformer.transformer_block import TransformerBlockSubmodules, get_num_layers_to_build
-    from megatron.core.transformer.transformer_layer import BaseTransformerLayer
+    from megatron.core.transformer.transformer_layer import BaseTransformerLayer, get_transformer_layer_offset
     from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
 
     HAVE_MEGATRON_CORE = True
@@ -192,18 +192,29 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
     A MegatronModule that wraps the AutocastTransformerLayer.
     """
 
-    def __init__(self, config, layer_number=1, hidden_dropout=None):
+    def __init__(self, config, layer_number=1, hidden_dropout=None, **kwargs):
         assert (
             HAVE_MEGATRON_CORE and HAVE_TE
         ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
 
         # to make type check happy
         if HAVE_MEGATRON_CORE:
-            kwargs = {'config': config}
+            init_kwargs = {'config': config}
         else:
-            kwargs = {}
-        super().__init__(**kwargs)
-        self.layer_number = layer_number + self._get_layer_offset()
+            init_kwargs = {}
+        super().__init__(**init_kwargs)
+
+        # since mcore 0.13.0, vp_stage must be provided in layer initialization when PP and VPP are used
+        vp_stage = kwargs.get('vp_stage', None)
+        if (
+            parallel_state.get_pipeline_model_parallel_world_size is not None
+            and parallel_state.get_pipeline_model_parallel_world_size() > 1
+            and parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
+            and parallel_state.get_virtual_pipeline_model_parallel_world_size() > 1
+            and vp_stage is None
+        ):
+            raise ValueError("vp_stage must be provided if virtual pipeline model parallel is enabled")
+        self.layer_number = layer_number + get_transformer_layer_offset(config, vp_stage=vp_stage)
 
         self.config = config
         self.is_first_microbatch = True
@@ -218,7 +229,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
             "output_layer_init_method": config.output_layer_init_method,
             "hidden_dropout": config.hidden_dropout,
             "attention_dropout": config.attention_dropout,
-            "layer_number": layer_number + self._get_layer_offset(),
+            "layer_number": self.layer_number,
             "kv_channels": config.kv_channels,
             "tp_size": parallel_state.get_tensor_model_parallel_world_size(),
             "params_dtype": config.params_dtype,
@@ -302,6 +313,9 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
             self.config.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
         )
 
+        assert (
+            self.config.virtual_pipeline_model_parallel_size is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             vp_rank = parallel_state.get_virtual_pipeline_model_parallel_rank()
             vp_size = parallel_state.get_virtual_pipeline_model_parallel_world_size()
@@ -350,14 +364,14 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
     def __call__(self, *args, **kwargs):
         if hasattr(self, 'cudagraph_manager'):
             return self.cudagraph_manager(self, args, kwargs)
-        return self.transformer_layer(*args, **kwargs)
+        return super().__call__(*args, **kwargs)
 
 
 # Use this spec to use the full Transformer layer from Transformer Engine
-def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
+def get_gpt_full_te_layer_autocast_spec(transformer_config, vp_stage: Optional[int] = None) -> ModuleSpec:
     """Get the ModuleSpec for full Transformer layer from Transformer Engine."""
     assert HAVE_MEGATRON_CORE and HAVE_TE, "Please ensure Megatron Core and Transformer Engine are installed."
-    num_layers = get_num_layers_to_build(transformer_config)
+    num_layers = get_num_layers_to_build(transformer_config, vp_stage=vp_stage)
     return TransformerBlockSubmodules(
         layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers, layer_norm=FusedLayerNorm
     )

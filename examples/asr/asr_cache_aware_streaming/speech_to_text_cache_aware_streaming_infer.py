@@ -286,7 +286,19 @@ def main():
         help="Sets the att_context_size for the models which support multiple lookaheads",
     )
 
+    parser.add_argument(
+        "--matmul-precision",
+        type=str,
+        default="high",
+        choices=["highest", "high", "medium"],
+        help="Set torch matmul precision",
+    )
+
+    parser.add_argument("--strategy", type=str, default="greedy_batch", help="decoding strategy to use")
+
     args = parser.parse_args()
+
+    torch.set_float32_matmul_precision(args.matmul_precision)
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
     ):
@@ -318,12 +330,17 @@ def main():
     # configure the decoding config
     decoding_cfg = asr_model.cfg.decoding
     with open_dict(decoding_cfg):
-        decoding_cfg.strategy = "greedy"
+        decoding_cfg.strategy = args.strategy
         decoding_cfg.preserve_alignments = False
         if hasattr(asr_model, 'joint'):  # if an RNNT model
-            decoding_cfg.greedy.max_symbols = 10
             decoding_cfg.fused_batch_size = -1
-        asr_model.change_decoding_strategy(decoding_cfg)
+            if not (max_symbols := decoding_cfg.greedy.get("max_symbols")) or max_symbols <= 0:
+                decoding_cfg.greedy.max_symbols = 10
+        if hasattr(asr_model, "cur_decoder"):
+            # hybrid model, explicitly pass decoder type, otherwise it will be set to "rnnt"
+            asr_model.change_decoding_strategy(decoding_cfg, decoder_type=asr_model.cur_decoder)
+        else:
+            asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to(args.device)
     asr_model.eval()

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,9 @@ from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.utils.import_utils import safe_import
+
+lcp, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency.local_checkpoint_callback')
 
 
 @dataclass
@@ -202,7 +205,7 @@ class NeMoLogger(IOMixin):
         if ckpt:
             _overwrite_i = None
             for i, callback in enumerate(trainer.callbacks):
-                if isinstance(callback, PTLModelCheckpoint):
+                if isinstance(callback, PTLModelCheckpoint) and not isinstance(callback, lcp.LocalCheckpointCallback):
                     logging.warning(
                         "The Trainer already contains a ModelCheckpoint callback. " "This will be overwritten."
                     )
@@ -247,7 +250,7 @@ class NeMoLogger(IOMixin):
         from nemo.lightning import MegatronStrategy
 
         for callback in trainer.callbacks:
-            if isinstance(callback, PTLModelCheckpoint):
+            if isinstance(callback, PTLModelCheckpoint) and not isinstance(callback, lcp.LocalCheckpointCallback):
                 if callback.dirpath is None:
                     callback.dirpath = Path(log_dir / "checkpoints")
                 if callback.filename is None:

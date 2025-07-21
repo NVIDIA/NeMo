@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -204,6 +204,8 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
                 preserve_alignments=self.preserve_alignments,
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                boosting_tree=self.cfg.beam.get('boosting_tree', None),
+                boosting_tree_alpha=self.cfg.beam.get('boosting_tree_alpha', 0.0),
             )
 
         else:

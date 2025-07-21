@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -363,9 +363,15 @@ def finetune_recipe(
     )
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 2
+        recipe.trainer.strategy.sequence_parallel = True
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
+        recipe.trainer.strategy.expert_tensor_model_parallel_size = 8
+        recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.optim.config.lr = 2e-05
     elif peft_scheme.lower() == 'lora':
+        recipe.trainer.strategy.sequence_parallel = True
+        recipe.trainer.strategy.tensor_model_parallel_size = 8
+        recipe.trainer.strategy.expert_tensor_model_parallel_size = 8
         recipe.peft = run.Config(
             vlm.LoRA,
             freeze_vision_model=False,

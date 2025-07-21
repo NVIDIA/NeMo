@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,8 +37,9 @@ from nemo.collections.asr.modules import rnnt_abstract
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import pack_hypotheses
 from nemo.collections.asr.parts.submodules.tdt_malsd_batched_computer import ModifiedALSDBatchedTDTComputer
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
-from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import BlankLMScoreMode, PruningMode
+from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BlankLMScoreMode, PruningMode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses, is_prefix
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -829,7 +830,7 @@ class BeamTDTInfer(Typing):
             return sorted(hyps, key=lambda x: x.score, reverse=True)
 
 
-class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
+class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs):
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
@@ -909,6 +910,16 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin):
             )
         else:
             raise Exception(f"Decoding strategy {search_type} nor implemented.")
+
+    def disable_cuda_graphs(self):
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if isinstance(self._decoding_computer, WithOptionalCudaGraphs):
+            self._decoding_computer.disable_cuda_graphs()
+
+    def maybe_enable_cuda_graphs(self):
+        """Enable CUDA graphs (if allowed)"""
+        if isinstance(self._decoding_computer, WithOptionalCudaGraphs):
+            self._decoding_computer.maybe_enable_cuda_graphs()
 
     @property
     def output_types(self):

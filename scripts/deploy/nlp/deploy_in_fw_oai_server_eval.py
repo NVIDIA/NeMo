@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,6 +75,12 @@ def get_parser():
         default=8,
         help="Max batch size for the underlying Triton server",
     )
+    parser.add_argument(
+        "--max_input_len",
+        type=int,
+        default=4096,
+        help="Max input length for the underlying Triton server",
+    )
     return parser
 
 
@@ -91,4 +97,5 @@ if __name__ == "__main__":
         expert_model_parallel_size=args.expert_model_parallel_size,
         expert_tensor_parallel_size=args.expert_tensor_parallel_size,
         max_batch_size=args.max_batch_size,
+        max_input_len=args.max_input_len,
     )

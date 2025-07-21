@@ -26,7 +26,8 @@ __all__ = [
 
 class AutoTokenizer(TokenizerSpec):
     """
-    Wrapper of HuggingFace AutoTokenizer https://huggingface.co/transformers/model_doc/auto.html#autotokenizer.
+    Wrapper of HuggingFace AutoTokenizer
+    https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.
 
     """
 
@@ -46,13 +47,14 @@ class AutoTokenizer(TokenizerSpec):
         use_fast: Optional[bool] = True,
         trust_remote_code: Optional[bool] = False,
         include_special_tokens: bool = False,
+        chat_template: Optional[str] = None,
     ):
         """
         Args:
             pretrained_model_name: corresponds to HuggingFace-AutoTokenizer's 'pretrained_model_name_or_path' input
-                argument. For more details please refer to
-            https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.from_pretrained.
-                The list of all supported models can be found here: ALL_PRETRAINED_CONFIG_ARCHIVE_MAP
+                argument. For more details please refer to the documentation of the `from_pretrained` method here:
+                https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer.
+                The list of all supported models can be found here: https://huggingface.co/models
             vocab_file: path to file with vocabulary which consists
                 of characters separated by newlines.
             mask_token: mask token
@@ -67,14 +69,18 @@ class AutoTokenizer(TokenizerSpec):
             use_fast: whether to use fast HuggingFace tokenizer
             include_special_tokens: when True, converting text to ids will include special tokens / prompt tokens (if
                 any), yielding self.tokenizer(text).input_ids
+            chat_template: The chat template string to format "messages" with against the underlying HF tokneizer with
+                apply_chat_template function
         """
         try:
-            self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code)
+            self._initialize_tokenizer(
+                pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code, chat_template
+            )
             assert self.tokenizer, "tokenizer not initialized"
         except Exception:
             try:
                 self._initialize_tokenizer(
-                    pretrained_model_name, vocab_file, merges_file, not use_fast, trust_remote_code
+                    pretrained_model_name, vocab_file, merges_file, not use_fast, trust_remote_code, chat_template
                 )
                 assert self.tokenizer, "tokenizer not initialized"
             except Exception as e:
@@ -167,6 +173,7 @@ class AutoTokenizer(TokenizerSpec):
         merges_file: Optional[str] = None,
         use_fast: Optional[bool] = False,
         trust_remote_code: Optional[bool] = False,
+        chat_template: Optional[str] = None,
     ):
         # this logic deals with different huggingface tokenizers having different positional args
         if vocab_file is None:
@@ -190,6 +197,12 @@ class AutoTokenizer(TokenizerSpec):
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
             )
+
+        if chat_template is not None:
+            if getattr(self.tokenizer, 'chat_template', None) is not None:
+                logging.info("You are overwriting tokenizer's chat template, confirm this is intended.")
+            self.tokenizer.chat_template = chat_template
+            self.tokenizer.chat_template_format = "jinja"
 
     @property
     def vocab_size(self):

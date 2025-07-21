@@ -52,7 +52,7 @@ def test_tokenize_dataset(mock_tokenizer, sample_data_file):
     seed = 42
 
     result = tokenize_dataset(
-        path=sample_data_file, tokenizer=mock_tokenizer, max_seq_length=max_seq_length, seed=seed
+        path=sample_data_file, tokenizer=mock_tokenizer, max_seq_length=max_seq_length, seed=seed, dataset_kwargs=None
     )
 
     assert isinstance(result, np.ndarray)

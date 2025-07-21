@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,7 +47,10 @@ class ContextState:
     """The state in ContextGraph"""
 
     def __init__(
-        self, index: int, is_end: bool = False, word: Optional[str] = None,
+        self,
+        index: int,
+        is_end: bool = False,
+        word: Optional[str] = None,
     ):
         """Create a ContextState.
         Args:
@@ -86,14 +89,14 @@ class ContextGraphCTC:
         self.root = ContextState(index=self.num_nodes, is_end=False)
         self.blank_token = blank_id
 
-    def add_to_graph(self, word_items: List[tuple[str, List[List[tuple[str, int]]]]]):
+    def add_to_graph(self, word_items: List[tuple[str, List[List[int]]]]):
         """
         Adding nodes to the context graph based on given word_items.
 
         Args:
             word_items: a list of word items, each word item is a tuple of (word, tokenizations)
                         word: the word to be inserted into the context graph
-                        tokenizations: a list of BPE word tokenizations
+                        tokenizations: a list of possible BPE word tokenizations
                         (each word can have several tokenizations to improve the recognition accuracy)
 
         """
@@ -154,7 +157,11 @@ class ContextGraphCTC:
                         prev_node = prev_node.next[self.blank_token].next[token]
                     prev_token = token
 
-    def draw(self, title: Optional[str] = None, symbol_table: Optional[Dict[int, str]] = None,) -> "graphviz.Digraph":
+    def draw(
+        self,
+        title: Optional[str] = None,
+        symbol_table: Optional[Dict[int, str]] = None,
+    ) -> "graphviz.Digraph":
         """Visualize a ContextGraph via graphviz.
 
         Render ContextGraph as an image via graphviz, and return the Digraph object

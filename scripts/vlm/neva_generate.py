@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -305,7 +305,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--top_p",
         type=float,
-        default=0,
+        default=0.0,
         help="""top_p to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
     )
     parser.add_argument(

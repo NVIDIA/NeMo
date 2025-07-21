@@ -23,6 +23,7 @@ from typing import Callable, Literal, Optional, Type
 
 import torch
 from megatron.core import parallel_state
+from megatron.core.inference.contexts import StaticInferenceContext
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.transformer.enums import AttnBackend
@@ -36,6 +37,18 @@ from nemo.lightning import get_vocab_size, io, teardown
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.io.state import TransformFns
 from nemo.utils import logging
+
+
+class HyenaInferenceContext(StaticInferenceContext):
+    """Hyena-specific inference context."""
+
+    def reset(self):
+        """Reset the inference context."""
+        super().reset()  # standard state reset for GPT models
+        for key in dir(self):
+            # Remove all of the state that we add in hyena.py
+            if "filter_state_dict" in key:
+                delattr(self, key)
 
 
 class HyenaModel(GPTModel):
@@ -88,9 +101,11 @@ class HyenaModel(GPTModel):
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=vocab_size,
             inference_max_seq_length=inference_max_seq_length,
+            inference_max_requests=1,
         )
 
-        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
+        inference_context = HyenaInferenceContext.from_config(inference_wrapper_config)
+        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config, inference_context)
         return model_inference_wrapper
 
     def forward(
@@ -101,7 +116,7 @@ class HyenaModel(GPTModel):
         labels: Optional[torch.Tensor] = None,
         decoder_input: Optional[torch.Tensor] = None,
         loss_mask: Optional[torch.Tensor] = None,
-        inference_params=None,
+        inference_context=None,
         packed_seq_params=None,
     ) -> torch.Tensor:
         """
@@ -114,7 +129,7 @@ class HyenaModel(GPTModel):
             labels: Optional labels for loss computation
             decoder_input: Optional decoder input
             loss_mask: Optional loss mask
-            inference_params: Optional inference parameters
+            inference_context: Optional inference parameters
             packed_seq_params: Optional parameters for packed sequences
 
         Returns:
@@ -127,7 +142,7 @@ class HyenaModel(GPTModel):
             attention_mask,
             decoder_input=decoder_input,
             labels=labels,
-            inference_params=inference_params,
+            inference_context=inference_context,
             loss_mask=loss_mask,
             **extra_kwargs,
         )
@@ -224,6 +239,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     # Use this if you want to turn FP8 on for the linear layer in the mixer only. When using this, do not set
     #  Fp8 in the mixed precision plugin.
     vortex_style_fp8: bool = False
+    use_b2b_causal_conv1d: bool = False
 
     def __post_init__(self):
         """
@@ -232,17 +248,22 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
         super().__post_init__()
         self.hyena_no_weight_decay_cond_fn = hyena_no_weight_decay_cond if self.hyena_filter_no_wd else None
 
-    def configure_model(self, tokenizer) -> "MCoreHyenaModel":
+    def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreHyenaModel":
         """
         Configures and returns a Hyena model instance based on the config settings.
 
         Args:
             tokenizer: Tokenizer to use for the model
+            vp_stage: Virtual pipeline stage
 
         Returns:
             MCoreHyenaModel: Configured Hyena model instance
         """
         self.bias_activation_fusion = False if self.remove_activation_post_first_layer else self.bias_activation_fusion
+
+        assert (
+            getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
+        ), "Virtual pipeline model parallelism is temporarily unsupported in Hyena."
 
         model = MCoreHyenaModel(
             self,
@@ -300,6 +321,7 @@ class HyenaTestConfig(HyenaConfig):
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
     use_short_conv_bias: bool = False
+    use_b2b_causal_conv1d: bool = False
 
 
 @dataclass
@@ -460,6 +482,7 @@ class Hyena7bARCLongContextConfig(Hyena7bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 11264
+    seq_len_interpolation_factor: float = 128
 
 
 @dataclass
@@ -468,6 +491,7 @@ class Hyena40bARCLongContextConfig(Hyena40bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 22528
+    seq_len_interpolation_factor: float = 128
 
 
 @io.model_importer(HyenaModel, "pytorch")

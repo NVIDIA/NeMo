@@ -12,6 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
 
 """Transformer."""
 from contextlib import nullcontext
@@ -1210,7 +1213,10 @@ class ParallelTransformer(MegatronModule):
                     use_flash_attention=use_flash_attention,
                 )
 
-        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+        assert (
+            config.get('virtual_pipeline_model_parallel_size', None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
+        if config.virtual_pipeline_model_parallel_size is not None:
             assert num_layers % parallel_state.get_virtual_pipeline_model_parallel_world_size() == 0, (
                 'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
             )
@@ -1234,7 +1240,7 @@ class ParallelTransformer(MegatronModule):
         else:
             # Each stage gets a contiguous set of layers.
             if (
-                self.model_type == ModelType.encoder_and_decoder
+                self.model_type == ModelType.encoder_or_decoder
                 and parallel_state.get_pipeline_model_parallel_world_size() > 1
             ):
                 pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
@@ -1301,7 +1307,7 @@ class ParallelTransformer(MegatronModule):
     def get_num_layers(self, num_layers):
         """Compute the number of transformer layers resident on the current rank."""
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
-            if self.model_type == ModelType.encoder_and_decoder:
+            if self.model_type == ModelType.encoder_or_decoder:
                 assert parallel_state.get_pipeline_model_parallel_split_rank() is not None
                 num_ranks_in_encoder = parallel_state.get_pipeline_model_parallel_split_rank()
                 num_ranks_in_decoder = parallel_state.get_pipeline_model_parallel_world_size() - num_ranks_in_encoder

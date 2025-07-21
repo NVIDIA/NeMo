@@ -124,13 +124,13 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
                 on_cpu=True,
-                model_type=ModelType.encoder_and_decoder,
+                model_type=ModelType.encoder_or_decoder,
             )[0]
         else:
             self.enc_dec_model = build_model(
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
-                model_type=ModelType.encoder_and_decoder,
+                model_type=ModelType.encoder_or_decoder,
             )[0]
 
         # We don't need to call it explicitly? Since it is a pytorch lightning hook function
@@ -154,7 +154,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
         )
 
-        self.enc_dec_model.model_type = ModelType.encoder_and_decoder
+        self.enc_dec_model.model_type = ModelType.encoder_or_decoder
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
@@ -1526,6 +1526,9 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
                 micro_batch_size=get_micro_batch_size(),
             )
             # get output tensor
+            assert (
+                self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+            ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
             if parallel_state.is_pipeline_last_stage():
                 output_tensor = output_tensor[0]['logits']
                 output_tensor = tensor_parallel.gather_from_tensor_model_parallel_region(output_tensor)
@@ -1802,18 +1805,12 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
             module_prefix = f'{prefix}model.'
             sharded_state_dict = {}
             for index, module in enumerate(self.get_model_module_list()):
-                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                    # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+                if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                     module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
                     sharded_state_dict[f'model_{index}'] = module_sharded_state_dict
                 else:
                     module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
                     sharded_state_dict.update(module_sharded_state_dict)
-
-            # reset vp rank
-            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
             return sharded_state_dict
 
@@ -1826,9 +1823,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             if isinstance(self.enc_dec_model, list):
                 for i in range(len(self.enc_dec_model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     checkpoint[f'model{i}'] = self.enc_dec_model[i].module.state_dict_for_save_checkpoint()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
@@ -1869,9 +1864,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         else:
             if isinstance(self.enc_dec_model, list):
                 for i in range(len(self.enc_dec_model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     self.enc_dec_model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def build_transformer_config(self) -> TransformerConfig:
         """Builds the megatron core gpt transformer config for the model.

@@ -12,6 +12,7 @@ this page cover each of these in more detail.
 Example configuration files for all of the NeMo ASR scripts can be found in the
 `config directory of the examples <https://github.com/NVIDIA/NeMo/tree/stable/examples/asr/conf>`_.
 
+.. _asr-configs-dataset-configuration:
 
 Dataset Configuration
 ---------------------
@@ -22,7 +23,7 @@ of the audio files, the vocabulary of the dataset (for character prediction), wh
 also decide to leave fields such as the ``manifest_filepath`` blank, to be specified via the command-line at runtime.
 
 Any initialization parameter that is accepted for the Dataset class used in the experiment can be set in the config file.
-Refer to the `Datasets <./api.html#Datasets>`__ section of the API for a list of Datasets and their respective parameters.
+Refer to the :ref:`Datasets <asr-api-datasets>` section of the API for a list of Datasets and their respective parameters.
 
 An example ASR train and validation configuration should look similar to the following:
 
@@ -95,6 +96,103 @@ For example, training data setup can be deferred as follows:
       defer_setup: true
 
 
+.. _asr-configs-metric-configuration:
+
+Metric Configurations
+---------------------
+
+NeMo ASR models supports WER and BLEU metric logging during training and validation. All metrics are based on the TorchMetrics backend, allowing for distributed training without additional code.
+
+Word Error Rate (WER)
+~~~~~~~~~~~~~~~~~~~~~
+
+WER is the default metric for all ASR models and measures transcription accuracy at the word or character level.
+
+.. code-block:: yaml
+
+  model:
+    use_cer: false                  # Set to true for Character Error Rate instead (default: false)
+    log_prediction: true            # Whether to log a sample prediction during training (default: true)
+    batch_dim_index: 0              # Index of batch dimension in prediction tensors output. Set to 1 for RNNT models.
+
+BLEU Score
+~~~~~~~~~~
+
+BLEU score can be used for ASR models to evaluate translation quality. NeMo's BLEU implementation is based on SacreBLEU for standardized, reproducible scoring:
+
+.. code-block:: yaml
+
+  model:
+    bleu_tokenizer: "13a"        # SacreBLEU tokenizer type (see below). (default: "13a")
+    n_gram: 4                    # Maximum n-gram order for BLEU calculation. (default: 4)
+    lowercase: false             # Whether to lowercase before computing BLEU. (default: False)
+    weights: null                # Optional custom weights for n-gram orders. (default: null)
+    smooth: false                # Whether to apply smoothing to BLEU calculation. (default: False)
+    check_cuts_for_bleu_tokenizers: false  # Enable per-sample tokenizer selection. (See below for more details.) (default: False)
+    log_prediction: true         # Whether to log sample predictions. (default: True)
+    batch_dim_index: 0           # Index of batch dimension in prediction tensors output. Set to 1 for RNNT models. (default: 0)
+
+BLEU score relies on TorchMetrics' SacreBLEU implementation and supports all SacreBLEU tokenization options. Valid strings may be passed to ``bleu_tokenizer`` parameter to configure base tokenizer behavior during BLEU calculation. Available options are:
+
+* ``"13a"`` - Default WMT tokenizer (mteval-v13a script compatible)
+* ``"none"`` - No tokenization applied
+* ``"intl"`` - International tokenization (mteval-v14 script compatible)  
+* ``"char"`` - Character-level tokenization (language-agnostic)
+* ``"zh"`` - Chinese tokenization (separates Chinese characters, uses 13a for non-Chinese)
+* ``"ja-mecab"`` - Japanese tokenization using MeCab morphological analyzer
+* ``"ko-mecab"`` - Korean tokenization using MeCab-ko morphological analyzer
+* ``"flores101"`` / ``"flores200"`` - SentencePiece models from Flores datasets
+
+**Note** Due to their unique orthographies, it is highly recommended to use ``zh``, ``ja-mecab``, or ``ko-mecab`` tokenizers for Chinese, Japanese, and Korean target evaluations, respectively. For more information on SacreBLEU tokenizers, please refer to the `SacreBLEU documentation <https://github.com/mjpost/sacrebleu>`__.
+
+**Dynamic Tokenizer Selection**
+
+In multilingual training scenarios, it is somtimes desireable to configure the BLEU tokenizer per sample to avoid sub-optimal parsing (e.g. tokenizing Chinese characters as English words). This can be toggled with ``check_cuts_for_bleu_tokenizers: true``. When enabled with Lhotse dataloading, BLEU will check individual ``cuts`` in a batch's Lhotse ``CutSet`` for the ``bleu_tokenizer`` attribute. If found, the tokenizer will be used for that sample. If not, the default ``bleu_tokenizer`` from config will be used.
+
+MultiTask Metrics
+~~~~~~~~~~~~~~~~~
+
+Multiple metrics can be configured simultaneously using a ``MultiTaskMetric`` config. This is done by specifying in the config each desired metric as a DictConfig entry with a custom key name and ``_target_`` path, along with desired properties. All properties specified within a metric config will be passed only to the metric class. All properties specified at the top level of the config will be inherited by all submetrics.
+
+.. code-block:: yaml
+
+  model:
+    multitask_metrics_config:
+      log_prediction: true
+      metrics:
+        wer:
+          _target_: nemo.collections.asr.metrics.wer.WER
+          use_cer: true
+          constraint: ".task==transcribe"  # Only apply WER to transcription samples
+        bleu:
+          _target_: nemo.collections.asr.metrics.bleu.BLEU
+          bleu_tokenizer: flores101
+          lowercase: true
+          check_cuts_for_bleu_tokenizers: true
+          constraint: ".task==translate"   # Only apply BLEU to translation samples
+
+**Metric Constraints**
+
+Each metric within ``MultiTaskMetric`` can be configured with an optional boolean ``constraint`` pattern that filters batch samples before metric computation. This allows validation to be limited to only applicable samples in a batch (e.g. only apply WER to transcription samples, only apply BLEU to translation samples). Constraint patterns match against property keywords in the batch's Lhotse CutSet.
+
+.. code-block:: yaml
+
+  model:
+    multitask_metrics_config:
+      metrics:
+        pnc_wer:
+          _target_: nemo.collections.asr.metrics.wer.WER
+          constraint: ".task==transcribe and .pnc==true"
+
+        multilingual_bleu:
+          _target_: nemo.collections.asr.metrics.bleu.BLEU
+          constraint: "(.source_lang!=.target_lang) or .task==translate"
+
+**Note:** MultiTaskMetric is currently only supported for AED multitask models.
+
+
+.. _asr-configs-preprocessor-configuration:
+
 Preprocessor Configuration
 --------------------------
 
@@ -116,8 +214,10 @@ An example of specifying a preprocessor is as follows:
       ...
       # Other parameters for the preprocessor
 
-Refer to the `Audio Preprocessors <./api.html#Audio Preprocessors>`__ API section for the preprocessor options, expected arguments,
+Refer to the :ref:`Audio Preprocessors <asr-audio-preprocessors>` API section for the preprocessor options, expected arguments,
 and defaults.
+
+.. _asr-configs-augmentation-configurations:
 
 Augmentation Configurations
 ---------------------------
@@ -171,7 +271,7 @@ picked from the manifest file provided for ``impulse`` augmentation in the confi
                 prob: 0.3
                 manifest_path: /path/to/impulse_manifest.json
 
-Refer to the `Audio Augmentors <./api.html#Audio Augmentors>`__ API section for more details.
+Refer to the :ref:`Audio Augmentors <asr-api-audio-augmentors>` API section for more details.
 
 Tokenizer Configurations
 ------------------------
@@ -301,7 +401,7 @@ For more information about the ASR models, refer to the :doc:`Models <./models>`
 Jasper and QuartzNet
 ~~~~~~~~~~~~~~~~~~~~
 
-The `Jasper <./models.html#Jasper>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the components in their
+The :ref:`Jasper <Jasper_model>` and :ref:`QuartzNet <Quartznet_model>` models are very similar, and as such the components in their
 configs are very similar as well.
 
 Both architectures use the ``ConvASREncoder`` for the ``encoder``, with parameters detailed in the table below. The encoder parameters
@@ -431,7 +531,7 @@ For example, a decoder config corresponding to the encoder above should look sim
 Citrinet
 ~~~~~~~~
 
-The `Citrinet <./models.html#Citrinet>`__ and `QuartzNet <./models.html#QuartzNet>`__ models are very similar, and as such the
+The :ref:`Citrinet <Citrinet_model>` and :ref:`QuartzNet <Quartznet_model>` models are very similar, and as such the
 components in their configs are very similar as well. Citrinet utilizes Squeeze and Excitation, as well as sub-word tokenization, in
 contrast to QuartzNet. Depending on the dataset, we utilize different tokenizers. For Librispeech, we utilize the HuggingFace WordPiece
 tokenizer, and for all other datasets we utilize the Google Sentencepiece tokenizer - usually the ``unigram`` tokenizer type.
@@ -554,12 +654,15 @@ The ``SqueezeExcite`` block within a :class:`~nemo.collections.asr.modules.conv_
     # This is equivalent to 128 * 0.01s context window for `SqueezeExcite`
     model.change_conv_asr_se_context_window(context_window=128, update_config=True)
 
+
+.. _asr-configs-conformer-ctc:
+
 Conformer-CTC
 ~~~~~~~~~~~~~
 
 The config files for Conformer-CTC model contain character-based encoding and sub-word encoding at
 ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/conformer/conformer_ctc_bpe.yaml``
-respectively. Some components of the configs of `Conformer-CTC <./models.html#Conformer-CTC>`__ include the following datasets:
+respectively. Some components of the configs of :ref:`Conformer-CTC <Conformer-CTC_model>` include the following datasets:
 
 * ``train_ds``, ``validation_ds``, and ``test_ds``
 * opimizer (``optim``)
@@ -568,19 +671,21 @@ respectively. Some components of the configs of `Conformer-CTC <./models.html#Co
 * ``trainer``
 * ``exp_manager``
 
-These datasets are similar to other ASR models like `QuartzNet <./models.html#QuartzNet>`__. There should be a tokenizer section where you can
+These datasets are similar to other ASR models like :ref:`QuartzNet <Quartznet_model>`. There should be a tokenizer section where you can
 specify the tokenizer if you want to use sub-word encoding instead of character-based encoding.
 
 
 The encoder section includes the details about the Conformer-CTC encoder architecture. You may find more information in the
 config files and also :ref:`nemo.collections.asr.modules.ConformerEncoder <conformer-encoder-api>`.
 
+.. _asr-configs-squeezeformer-ctc:
+
 Squeezeformer-CTC
 ~~~~~~~~~~~~~~~~~
 
 The config files for Squeezeformer-CTC model contain character-based encoding and sub-word encoding at
 ``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_char.yaml`` and ``<NeMo_git_root>/examples/asr/conf/squeezeformer/squeezeformer_ctc_bpe.yaml``
-respectively. Components of the configs of `Squeezeformer-CTC <./models.html#Squeezeformer-CTC>`__ are similar to Conformer config - `QuartzNet <./configs.html#Conformer-CTC>`__.
+respectively. Components of the configs of :ref:`Squeezeformer-CTC <Squeezeformer-CTC_model>` are similar to :ref:`Conformer config <asr-configs-conformer-ctc>`.
 
 The encoder section includes the details about the Squeezeformer-CTC encoder architecture. You may find more information in the
 config files and also :ref:`nemo.collections.asr.modules.SqueezeformerEncoder <squeezeformer-encoder-api>`.
@@ -589,12 +694,14 @@ config files and also :ref:`nemo.collections.asr.modules.SqueezeformerEncoder <s
 ContextNet
 ~~~~~~~~~~
 
-Please refer to the model page of `ContextNet <./models.html#ContextNet>`__ for more information on this model.
+Please refer to the model page of :ref:`ContextNet <ContextNet_model>` for more information on this model.
 
 Conformer-Transducer
 ~~~~~~~~~~~~~~~~~~~~
 
-Please refer to the model page of `Conformer-Transducer <./models.html#Conformer-Transducer>`__ for more information on this model.
+Please refer to the model page of :ref:`Conformer-Transducer <Conformer-Transducer_model>` for more information on this model.
+
+.. _asr-configs-lstm-transducer-and-ctc:
 
 LSTM-Transducer and LSTM-CTC
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -699,7 +806,7 @@ The only condition that needs to be met is that **the final layer of the acousti
 Decoder / Prediction Model
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The Prediction model is generally an autoregressive, causal model that consumes text tokens and returns embeddings that will be used by the Joint model. The base config for an LSTM based Prediction network can be found in the the ``decoder`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+The Prediction model is generally an autoregressive, causal model that consumes text tokens and returns embeddings that will be used by the Joint model. The base config for an LSTM based Prediction network can be found in the the ``decoder`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -726,7 +833,7 @@ Let us discuss some of the important arguments:
 Joint Model
 ~~~~~~~~~~~
 
-The Joint model is a simple feed-forward Multi-Layer Perceptron network. This MLP accepts the output of the Acoustic and Prediction models and computes a joint probability distribution over the entire vocabulary space. The base config for the Joint network can be found in the the ``joint`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+The Joint model is a simple feed-forward Multi-Layer Perceptron network. This MLP accepts the output of the Acoustic and Prediction models and computes a joint probability distribution over the entire vocabulary space. The base config for the Joint network can be found in the the ``joint`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -842,7 +949,7 @@ The fused operation goes as follows :
 Transducer Decoding
 ~~~~~~~~~~~~~~~~~~~
 
-Models which have been trained with CTC can transcribe text simply by performing a regular argmax over the output of their decoder. For transducer-based models, the three networks must operate in a synchronized manner in order to transcribe the acoustic features. The base config for the Transducer decoding step can be found in the the ``decoding`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+Models which have been trained with CTC can transcribe text simply by performing a regular argmax over the output of their decoder. For transducer-based models, the three networks must operate in a synchronized manner in order to transcribe the acoustic features. The base config for the Transducer decoding step can be found in the the ``decoding`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
@@ -891,7 +998,7 @@ The most important component at the top level is the ``strategy``. It can take o
 Transducer Loss
 ~~~~~~~~~~~~~~~
 
-This section configures the type of Transducer loss itself, along with possible sub-sections. By default, an optimized implementation of Transducer loss will be used which depends on Numba for CUDA acceleration. The base config for the Transducer loss section can be found in the the ``loss`` section of `ContextNet <./models.html#ContextNet>`__ or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
+This section configures the type of Transducer loss itself, along with possible sub-sections. By default, an optimized implementation of Transducer loss will be used which depends on Numba for CUDA acceleration. The base config for the Transducer loss section can be found in the the ``loss`` section of :ref:`ContextNet <ContextNet_model>` or other Transducer architectures. For further information refer to the ``Intro to Transducers`` tutorial in the ASR tutorial section.
 
 **This config can be copy-pasted into any custom transducer model with no modification.**
 
