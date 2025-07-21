@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoMod
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.layer_freezer import LayerFreezer
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "hf_auto_model_for_causal_lm"
@@ -118,9 +119,8 @@ def trainer(
         accumulate_grad_batches=10,
         callbacks=callbacks,
         gradient_clip_val=gradient_clip_val,
-        use_distributed_sampler=False,
+        use_distributed_sampler=True,  # for PL compatibility
     )
-
     return trainer
 
 
@@ -186,6 +186,7 @@ def finetune_recipe(
     trust_remote_code: bool = False,
     attn_implementation: str = 'sdpa',
     use_linear_ce_loss: bool = True,
+    freeze_modules: Optional[dict] = None,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for a HFAutoModelForCausalLM model.
@@ -216,6 +217,11 @@ def finetune_recipe(
     Note:
         This recipe uses the SQuAD dataset for fine-tuning.
     """
+    callbacks = [run.Config(TimingCallback)]
+    if freeze_modules is not None:
+        assert isinstance(freeze_modules, list), "Expected freeze_modules to be a list"
+        assert len(freeze_modules) > 0, "Expected freeze_modules to be non-empty"
+        callbacks.append(run.Config(LayerFreezer, freeze_modules))
     recipe = run.Partial(
         finetune,
         model=model(
@@ -229,7 +235,7 @@ def finetune_recipe(
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             max_steps=max_steps,
-            callbacks=[run.Config(TimingCallback)],
+            callbacks=callbacks,
         ),
         data=run.Config(
             SquadHFDataModule,

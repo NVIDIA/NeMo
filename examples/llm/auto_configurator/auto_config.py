@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ def get_args():
     parser.add_argument("--run_number", type=int, help="Number of config to run")
     parser.add_argument("--log_dir", type=str, help="Path where to save training logs")
     parser.add_argument("--get_results", action="store_true")
+    parser.add_argument("--extra_metrics", action="store_true")
 
     return parser.parse_args()
 
@@ -104,6 +105,20 @@ def train_config(args):
 
         # Run pre-training
         pretrain_cfg = partials[args.run_number - 1]
+        if args.extra_metrics:
+            from nemo.lightning.pytorch.callbacks import (
+                MemoryMonitor,
+                OptimizerMonitor,
+                RuntimeEstimator,
+                SpeedMonitor,
+            )
+
+            # add callbacks
+            pretrain_cfg.trainer.callbacks.append(run.Config(SpeedMonitor, window_size=5))
+            pretrain_cfg.trainer.callbacks.append(run.Config(RuntimeEstimator))
+            pretrain_cfg.trainer.callbacks.append(run.Config(OptimizerMonitor))
+            pretrain_cfg.trainer.callbacks.append(run.Config(MemoryMonitor))
+
         pretrain = fdl.build(pretrain_cfg)
         pretrain()
     else:

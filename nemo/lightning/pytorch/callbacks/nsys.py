@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,13 @@ from typing import List, Optional
 
 import torch
 from lightning.pytorch.callbacks.callback import Callback
+
+try:
+    from megatron.core.utils import configure_nvtx_profiling
+
+    HAVE_MCORE_UTILS = True
+except ImportError:
+    HAVE_MCORE_UTILS = False
 
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
@@ -79,6 +86,8 @@ class NsysCallback(Callback):
 
         app_state = AppState()
         app_state._nvtx_ranges = nvtx_ranges
+        if nvtx_ranges and HAVE_MCORE_UTILS:
+            configure_nvtx_profiling(True)  # Enable NVTX profiling in MCore
 
         logging.info(
             f'Nsys profiling setup with start_step: {self._nsys_profile_start_step},'

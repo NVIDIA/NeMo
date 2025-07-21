@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from functools import cached_property, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
@@ -26,6 +26,7 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
 from safetensors.torch import load_file
 from torch import nn
+from transformers import AutoConfig
 
 from nemo.collections.llm.gpt.model.base import (
     HAVE_TE,
@@ -44,9 +45,13 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from megatron.core.transformer import ModuleSpec
     from transformers import AutoModelForCausalLM
+    from transformers import DeepseekV3Config as HFDeepseekV3Config
 
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+
+if HAVE_TE:
+    from megatron.core.utils import is_te_min_version
 
 
 @dataclass
@@ -86,6 +91,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     moe_token_dispatcher_type: str = "alltoall"
     moe_router_load_balancing_type: str = 'seq_aux_loss'
     moe_shared_expert_overlap: bool = True
+    moe_router_dtype: Optional[str] = 'fp32'
 
     # MLA
     q_lora_rank: int = 1536
@@ -116,6 +122,9 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     bias_dropout_fusion: bool = True
     masked_softmax_fusion: bool = True
     gradient_accumulation_fusion: bool = True
+    cross_entropy_loss_fusion: bool = True
+    cross_entropy_fusion_impl: str = "te"
+    moe_permute_fusion: bool = is_te_min_version("2.1.0") if HAVE_TE else False
 
     def __post_init__(self):
         super().__post_init__()
@@ -220,6 +229,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         from transformers import AutoModelForCausalLM
 
         self.convert_mtp = convert_mtp
+        self._verify_source()
         source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -232,6 +242,15 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         del trainer, target
 
         return output_path
+
+    def _verify_source(self):
+        source_config = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
+        assert 'quantization_config' not in source_config, (
+            "HuggingFace cannot load DeepSeek V3's FP8 checkpoint directly. You must convert the checkpoint "
+            "to BF16. See NeMo documentation for more details: "
+            "https://nemo-framework-tme.gitlab-master-pages.nvidia.com/documentation/user-guide/latest/llms/"
+            "deepseek_v3.html#nemo-2-0-finetuning-recipes "
+        )
 
     def _modify_source_state(self, source: nn.Module) -> _ModelState:
         """
@@ -419,7 +438,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             moe_router_num_groups=source.n_group,
             moe_router_group_topk=source.topk_group,
             moe_router_topk_scaling_factor=source.routed_scaling_factor,
-            moe_aux_loss_coeff=source.aux_loss_alpha,
+            moe_aux_loss_coeff=getattr(source, "aux_loss_alpha", 0.001),
             kv_lora_rank=source.kv_lora_rank,
             qk_head_dim=source.qk_nope_head_dim,
             qk_pos_emb_head_dim=source.qk_rope_head_dim,
@@ -437,20 +456,44 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"]):
     # pylint: disable=C0115,C0116
     def init(self, dtype=torch.bfloat16, model_name="deepseek-ai/DeepSeek-V3") -> "AutoModelForCausalLM":
-        from transformers import AutoModelForCausalLM
+        from transformers import AutoConfig, AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
             # Since DeepSeek is not importable from transformers, we can only initialize the HF model
-            # from a known checkpoint. The model_name will need to be passed in.
-            hf_model = AutoModelForCausalLM.from_pretrained(
-                model_name,
+            # from a known checkpoint folder containing the config file and modeling files.
+            # The model_name will need to be passed in.
+            config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+            hf_model = AutoModelForCausalLM.from_config(
+                config,
                 trust_remote_code=True,
                 torch_dtype=dtype,
             )
             # Register the AutoModel Hook so that the custom modeling files are saved during save_pretrained()
             type(hf_model).register_for_auto_class("AutoModelForCausalLM")
             return hf_model
+
+    def _detect_hf_deepseek_version(self, source_config: Dict[str, Any]) -> str:
+        """
+        Detect the HF DeepSeek version based on the source NeMo config.
+
+        Args:
+            source_config (Dict[str, Any]): The source NeMo model config.
+
+        Returns:
+            str: The DeepSeek version in the Hugging Face Hub convention.
+        """
+        if source_config['moe_router_enable_expert_bias']:
+            target_model_name = "deepseek-ai/DeepSeek-V3"
+        elif source_config['q_lora_rank'] is not None:
+            target_model_name = "deepseek-ai/DeepSeek-V2"
+        else:
+            target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
+        logging.info(
+            f"Your model is determined to be {target_model_name} based on the config. If this is not correct, "
+            f"please pass in a local HF checkpoint."
+        )
+        return target_model_name
 
     def ckpt_load(self, path: Path) -> Tuple[Dict, Dict]:
         """
@@ -491,21 +534,12 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
         logging.info("DeepSeek NeMo checkpoint loaded.")
         if target_model_name is None:
             # Before DeepSeek is fully supported by HF, it is necessary to pass in a local HF checkpoint that
-            # is used to initialize the HF model. The following
+            # is used to initialize the HF model.
             logging.warning(
                 "Before DeepSeek is officially supported in HF, you should pass in a local HF "
                 "checkpoint using llm.export_ckpt(..., target_model_name=<local hf path>)"
             )
-            if source_config['moe_router_enable_expert_bias']:
-                target_model_name = "deepseek-ai/DeepSeek-V3"
-            elif source_config['q_lora_rank'] is not None:
-                target_model_name = "deepseek-ai/DeepSeek-V2"
-            else:
-                target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
-            logging.info(
-                f"Your model is determined to be {target_model_name} based on the config. If this is not correct, "
-                f"please pass in a local HF checkpoint."
-            )
+            target_model_name = self._detect_hf_deepseek_version(source_config)
 
         target = self.init(torch_dtype_from_dict_config(source_config), model_name=target_model_name)
         target = self.convert_state(source, target, source_config)
@@ -618,6 +652,60 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
     @property
     def tokenizer(self) -> 'AutoTokenizer':
         return io.load_context(self, subpath="model").tokenizer
+
+    @property
+    def config(self) -> "HFDeepseekV3Config":
+        """Create a HF DeepseekV3Config from the NeMo model config.
+
+        Translates the NeMo configuration parameters to the equivalent HF
+        configuration.
+
+        Currently only supports DeepseekV3Config based on availability
+        in the Transformers library.
+
+        Returns:
+            HFDeepseekV3Config: HF configuration for DeepSeekV3 models
+        """
+        # TODO: Get config for all DeepSeek model variants once available in transformers
+
+        from transformers import DeepseekV3Config as HFDeepseekV3Config
+
+        source: DeepSeekV3Config = io.load_context(str(self)).model.config
+
+        target_model_name = self._detect_hf_deepseek_version(asdict(source))
+        if target_model_name != "deepseek-ai/DeepSeek-V3":
+            raise ValueError(f"Getting config for model other than {target_model_name} is not supported.")
+
+        # Figure out the number of zeros in the prefix of moe_layer_freq array
+        # for the HF first_k_dense_replace parameter and validate the reminder:
+        k = 0
+        while k < len(source.moe_layer_freq) and source.moe_layer_freq[k] == 0:
+            k += 1
+        assert all(x == 1 for x in source.moe_layer_freq[k:])
+
+        return HFDeepseekV3Config(
+            architectures=["DeepseekV3ForCausalLM"],
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            q_lora_rank=source.q_lora_rank,
+            qk_nope_head_dim=source.qk_head_dim,
+            qk_rope_head_dim=source.qk_pos_emb_head_dim,
+            v_head_dim=source.v_head_dim,
+            kv_lora_rank=source.kv_lora_rank,
+            num_key_value_heads=source.kv_channels,
+            n_routed_experts=source.num_moe_experts,
+            moe_intermediate_size=source.moe_ffn_hidden_size,
+            first_k_dense_replace=k,
+            num_experts_per_tok=source.moe_router_topk,
+            n_group=source.moe_router_num_groups,
+            topk_group=source.moe_router_group_topk,
+            routed_scaling_factor=source.moe_router_topk_scaling_factor,
+            aux_loss_alpha=source.moe_aux_loss_coeff,
+            max_position_embeddings=source.max_position_embeddings,
+            vocab_size=self.tokenizer.vocab_size,
+        )
 
 
 __all__ = [

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,13 +30,14 @@ from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.mlp import MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import get_batch_on_this_cp_rank
 from PIL import Image as PIL_Image
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
-from nemo.collections.llm.gpt.model.base import get_batch_on_this_context_parallel_rank, get_packed_seq_params
+from nemo.collections.llm.gpt.model.base import get_packed_seq_params
 from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
 from nemo.collections.vlm.mllama.model.language import CrossAttentionTextModel
 from nemo.collections.vlm.mllama.model.utils import _generate_cross_attention_mask, _pad_attention_masks
@@ -93,7 +94,7 @@ def mllama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
-    output = get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_cp_rank(_batch)
 
     return output
 
@@ -188,7 +189,7 @@ class CrossAttentionTextConfig(Llama31Config):
         k = math.ceil(len(mllama_layers) / num_layers)
         return mllama_layers[::-1][::k][:num_layers][::-1]
 
-    def configure_model(self, tokenizer, pre_process=True, post_process=True):
+    def configure_model(self, tokenizer, pre_process=True, post_process=True, vp_stage: Optional[int] = None):
         """Configure mllama text model."""
         self.fusion_schedule = self._init_fusion_schedule(self.num_cross_attention_layers)
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -211,6 +212,9 @@ class CrossAttentionTextConfig(Llama31Config):
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         model = CrossAttentionTextModel(
             self,
             transformer_layer_spec=transformer_layer_spec,
@@ -225,6 +229,7 @@ class CrossAttentionTextConfig(Llama31Config):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=pre_process,
             post_process=post_process,
+            vp_stage=vp_stage,
         )
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
             model.rotary_pos_emb.inv_freq,
@@ -260,7 +265,7 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
             for attr in MODEL_CONFIG_ATTR:
                 setattr(self, attr, getattr(self.language_model_config, attr))
 
-    def configure_model(self, tokenizer) -> "MLlamaBaseModel":
+    def configure_model(self, tokenizer, vp_stage=None) -> "MLlamaBaseModel":
         """Configure mllama model."""
         from megatron.core import parallel_state as ps
 
@@ -275,15 +280,19 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
             if self.encoder_tensor_model_parallel_size > 0:
                 self.vision_model_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         model = MLlamaBaseModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage()
+            pre_process=ps.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage)
             or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
-            post_process=ps.is_pipeline_last_stage(),
-            add_encoder=ps.is_pipeline_first_stage(),
-            add_decoder=ps.is_pipeline_last_stage()
+            post_process=ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage),
+            add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage),
+            add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage)
             or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            vp_stage=vp_stage,
         )
 
         return model
@@ -347,6 +356,7 @@ class MLlamaBaseModel(MegatronModule):
         post_process: bool = True,
         add_encoder: bool = True,
         add_decoder: bool = True,
+        vp_stage: Optional[int] = None,
     ) -> None:
         super().__init__(config=config)
 
@@ -362,17 +372,18 @@ class MLlamaBaseModel(MegatronModule):
         self.share_embeddings_and_output_weights = False
         self.add_decoder = (language_model_config is not None) and add_decoder
         self.add_encoder = (vision_model_config is not None) and add_encoder
+        self.vp_stage = vp_stage
 
         if self.add_decoder:
             self.language_model = language_model_config.configure_model(
-                tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
+                tokenizer=tokenizer, pre_process=pre_process, post_process=post_process, vp_stage=vp_stage
             )
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
 
         if self.add_encoder:
             self.vision_model = vision_model_config.configure_model()
 
-        self.model_type = ModelType.encoder_and_decoder
+        self.model_type = ModelType.encoder_or_decoder
         self.xattn_needed = True
 
         self.patch_size = 14
@@ -538,10 +549,10 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
-    def configure_model(self) -> None:
+    def configure_model(self, vp_stage: Optional[int] = None) -> None:
         """Configure mllama model"""
         if not hasattr(self, "module"):
-            self.module: MLlamaBaseModel = self.config.configure_model(self.tokenizer)
+            self.module: MLlamaBaseModel = self.config.configure_model(self.tokenizer, vp_stage=vp_stage)
 
     def forward(
         self,

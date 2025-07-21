@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ def main(args) -> None:
     if args.load_from_hf:
         model = fabric.import_model("hf://Qwen/Qwen2-VL-2B-Instruct", Qwen2VLModel)
     else:
-        model = Qwen2VLModel(Qwen2VLConfig2B(), tokenizer=hf_tokenizer)
+        model = Qwen2VLModel(Qwen2VLConfig2B(), model_version="qwen2-vl", tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
     model = model.module.cuda()
     model.eval()

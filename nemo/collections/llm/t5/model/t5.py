@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -182,9 +182,13 @@ class T5Config(TransformerConfig, io.IOMixin):
     vocab_size: Optional[int] = None
     tp_comm_overlap_cfg: Optional[Union[str, dict[str, Any]]] = None
 
-    def configure_model(self, tokenizer) -> "MCoreT5Model":
+    def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreT5Model":
         """Setup the T5 Model based on config definition."""
 
+        assert self.virtual_pipeline_model_parallel_size is None and vp_stage is None, (
+            "Virtual pipeline model parallelism is temporarily unsupported in T5 "
+            "due to upstream MCore T5Model API dependency"
+        )
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -694,7 +698,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
     @property
     def config(self) -> "HFT5Config":
         """Generate NeMo Config based on HF config"""
-        source: T5Config = io.load_context(str(self)).model.config
+        source: T5Config = io.load_context(str(self), subpath="model.config")
 
         from transformers import T5Config as HFT5Config
 

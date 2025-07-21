@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Type, Union
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
@@ -29,6 +29,7 @@ from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.import_utils import safe_import
+from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -85,7 +86,12 @@ def validate_dataset_asset_accessibility(paths):
     if not isinstance(paths, str) and not isinstance(paths, Path):
         raise ValueError("Expected path to be of string or Path type.")
 
-    path = Path(paths)
+    if is_multistorageclient_url(paths):
+        msc = import_multistorageclient()
+        path = msc.Path(paths)
+    else:
+        path = Path(paths)
+
     suffices = (".bin", ".idx")
     if path.is_dir():
         if not os.access(path, os.R_OK):
@@ -97,7 +103,7 @@ def validate_dataset_asset_accessibility(paths):
             raise PermissionError(f"Expected {str(path)} to be readable.")
         return
     for suffix in suffices:
-        file_path = Path(str(path) + suffix)
+        file_path = path.with_name(path.name + suffix)
         if not file_path.exists():
             raise FileNotFoundError(f"Expected {str(file_path)} to exist.")
         if not os.access(file_path, os.R_OK):
@@ -135,7 +141,11 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         pin_memory (bool): See ``torch.utils.data.DataLoader`` documentation.
         persistent_workers (bool): See ``torch.utils.data.DataLoader`` documentation.
         reset_position_ids (bool): Option to reset the position IDs in the dataset at an interval.
+            Not supported with fused and flash attention.
+        create_attention_mask (bool): Option to enable the attention masks generation.
+            Not supported with fused and flash attention.
         reset_attention_mask (bool): Option to reset the attention mask from the dataset.
+            Not supported with fused and flash attention.
         eod_mask_loss (int): Option to enable the EOD mask loss.
         seed (int): Seed for generating the GPT dataset.
         split (str): A string of 3 comma-separated integers denoting how much of the distribution
@@ -149,6 +159,12 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total
             test steps times global batch size.
         dataset_cls (Optional[Type[MegatronDataset]]): The dataset class to use for the data module.
+        dataloader_type (Optional[Literal["single", "cyclic", "batch"]]): Data loading strategy.
+        init_consumed_samples: (Optional[int]): Number of samples already consumed at initialization.
+        init_global_step: (Optional[int]): Starting global training step count, used for resuming training.
+        output_log: (Optional[bool]): Whether to print logging/debug output during sampling.
+        mmap_bin_files: (Optional[bool]): Whether to mmap the .bin files or use file pointers.
+        object_storage_cache_path: (Optional[str]): Path for caching indices for s3 or msc dataloading.
     """
 
     def __init__(
@@ -173,7 +189,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_train_samples: Optional[int] = None,
         num_val_samples: Optional[int] = None,
         num_test_samples: Optional[int] = None,
+        dataloader_type: Optional[Literal["single", "cyclic", "batch"]] = "single",
+        init_consumed_samples: Optional[int] = 0,
+        init_global_step: Optional[int] = 0,
+        output_log: Optional[bool] = True,
         dataset_cls: Type[MegatronDataset] = GPTDataset,
+        mmap_bin_files: Optional[bool] = True,
+        object_storage_cache_path: Optional[str] = None,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
@@ -186,6 +208,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         validate_dataset_asset_accessibility(paths)
 
         build_kwargs = {}
+        build_kwargs["mmap_bin_files"] = mmap_bin_files
         if isinstance(paths, dict):
             if split is not None:
                 warnings.warn(
@@ -202,6 +225,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                 weights = None
             build_kwargs["blend"] = [paths, weights]
             build_kwargs["split"] = split
+
+        if object_storage_cache_path:
+            build_kwargs["object_storage_cache_path"] = object_storage_cache_path
+            build_kwargs["mmap_bin_files"] = False
 
         self.build_kwargs = build_kwargs
         self.seq_length = seq_length
@@ -223,6 +250,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
+        self.dataloader_type = dataloader_type
+        self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = init_global_step
+        self.output_log = output_log
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -232,6 +263,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
             rampup_batch_size=rampup_batch_size,
+            dataloader_type=self.dataloader_type,
+            init_consumed_samples=self.init_consumed_samples,
+            init_global_step=self.init_global_step,
+            output_log=self.output_log,
         )
 
     def build(
@@ -427,57 +462,22 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         """
         Reconfigure trainer.limit_train_batches and trainer.limit_val_batches in terms of num of microbatches.
         """
+        from nemo.collections.llm.gpt.data.utils import _reconfigure_limit_batches
+
         # Override limit_train_batches in terms of num of microbatches
-        self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds, "train")
+        self.trainer.limit_train_batches = _reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds)
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting
         #   in between a step
-        self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_ds, "val")
+        self.trainer.limit_val_batches = _reconfigure_limit_batches(
+            self.trainer.limit_val_batches, self._validation_ds
+        )
 
-    def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
-        """
-        Reconfigure trainer.limit_val_batches for pretraining
-        """
-        # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches
-        #   num of global batches
         try:
             from megatron.core.num_microbatches_calculator import get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
             from apex.transformer.pipeline_parallel.utils import get_num_microbatches
-
-        if isinstance(limit_batches, int):
-            limit_batches *= get_num_microbatches()
-        else:
-            assert isinstance(limit_batches, float)
-            # Don't reconfigure if limit_batches is 0.0 or if there's no dataloader
-            if limit_batches == 0.0 or dataloader is None:
-                return
-            # len(dataloader) returns len as num of microbatches
-            dl_len_in_micro_batches = len(dataloader)
-            if len(dataloader) != float("inf"):
-                if limit_batches == 1.0:
-                    limit_batches = dl_len_in_micro_batches
-                else:
-                    limit_micro_batches = int(dl_len_in_micro_batches * limit_batches)
-                    if limit_micro_batches == 0 and limit_batches > 0.0:
-                        min_percentage = 1.0 / len(dataloader)
-                        raise ValueError(
-                            f"You requested to check {limit_batches} of the val_dataloader but"
-                            f" {limit_batches} * {len(dataloader)} < 1. Please increase the"
-                            f" `limit_val_batches` argument. Try at least"
-                            f" `limit_val_batches={min_percentage}`"
-                        )
-                    # Make sure trainer.limit_val_batches is a multiple of num of microbatches
-                    if limit_micro_batches < get_num_microbatches():
-                        limit_batches = get_num_microbatches()
-                    else:
-                        limit_batches = limit_batches - limit_batches % get_num_microbatches()
-
-        if mode == "train":
-            self.trainer.limit_train_batches = limit_batches
-        else:
-            self.trainer.limit_val_batches = limit_batches
 
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()

@@ -36,11 +36,9 @@ try:
         set_expert_model_parallel_rank,
         set_expert_model_parallel_world_size,
         set_pipeline_model_parallel_rank,
-        set_pipeline_model_parallel_split_rank,
         set_pipeline_model_parallel_world_size,
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
-        set_virtual_pipeline_model_parallel_rank,
     )
 
     HAVE_MEGATRON_CORE = True
@@ -75,16 +73,6 @@ except (ImportError, ModuleNotFoundError):
     MCORE_MB_CALCULATOR = False
 
 
-try:
-    from megatron.core.parallel_state import set_virtual_pipeline_model_parallel_world_size
-
-    HAVE_INTERLEAVED = True
-
-except:
-
-    HAVE_INTERLEAVED = False
-
-
 def initialize_model_parallel_for_nemo(
     world_size,
     global_rank,
@@ -111,10 +99,18 @@ def initialize_model_parallel_for_nemo(
     num_distributed_optimizer_instances=1,
     nccl_communicator_config_path=None,
     use_sharp=False,
+    use_gloo_process_groups: bool = True,
 ):
     """Initialize model parallel groups in NeMo."""
-    if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
-        raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in megatron-core for interleaved.")
+    assert (
+        pipeline_model_parallel_split_rank is None or pipeline_model_parallel_split_rank == 0
+    ), "pipeline_model_parallel_split_rank is deprecated."
+    assert encoder_pipeline_model_parallel_size == 0 and (
+        encoder_tensor_model_parallel_size == 0 or encoder_tensor_model_parallel_size == tensor_model_parallel_size
+    ), (
+        "encoder_pipeline_model_parallel_size is temporarily "
+        "unavailable. We are working on a refactoring to add it back."
+    )
 
     # updating NeMo globals
     app_state = AppState()
@@ -136,6 +132,7 @@ def initialize_model_parallel_for_nemo(
     app_state.expert_tensor_parallel_size = expert_tensor_parallel_size
     app_state.num_distributed_optimizer_instances = num_distributed_optimizer_instances
     app_state.nccl_communicator_config_path = nccl_communicator_config_path
+    app_state.use_gloo_process_groups = use_gloo_process_groups
     (
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,
@@ -170,11 +167,7 @@ def initialize_model_parallel_for_nemo(
     set_pipeline_model_parallel_world_size(
         app_state.pipeline_model_parallel_size + app_state.encoder_pipeline_model_parallel_size
     )
-    set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
     set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
-    if HAVE_INTERLEAVED:
-        set_virtual_pipeline_model_parallel_world_size(app_state.virtual_pipeline_model_parallel_size)
-    set_virtual_pipeline_model_parallel_rank(app_state.virtual_pipeline_model_parallel_rank)
 
     tensor_parallel.random.initialize_rng_tracker(use_te_rng_tracker=use_te_rng_tracker)
     if seed is not None:
@@ -304,6 +297,13 @@ def fake_initialize_model_parallel(
     ranks 8 to 15 belong to the second box.
     """
 
+    assert pipeline_model_parallel_split_rank_ is None, "pipeline_model_parallel_split_rank is deprecated."
+    assert encoder_pipeline_model_parallel_size_ == 0 and (
+        encoder_tensor_model_parallel_size_ == 0 or encoder_tensor_model_parallel_size_ == tensor_model_parallel_size_
+    ), (
+        "encoder_pipeline_model_parallel_size is temporarily "
+        "unavailable. We are working on a refactoring to add it back."
+    )
     # Get world size and rank. Ensure some consistencies.
     tensor_model_parallel_size = min(tensor_model_parallel_size_, world_size)
     pipeline_model_parallel_size = min(pipeline_model_parallel_size_, world_size)

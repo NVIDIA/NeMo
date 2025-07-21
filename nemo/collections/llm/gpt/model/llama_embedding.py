@@ -22,6 +22,7 @@ import torch.nn.functional as F
 from megatron.core import parallel_state
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.spec_utils import ModuleSpec
+from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import Tensor, nn
 
 import nemo.collections.llm.gpt.model.base as GPTBase
@@ -35,7 +36,7 @@ from nemo.collections.llm.gpt.model.llama import (
     LlamaModel,
 )
 from nemo.collections.llm.utils import Config
-from nemo.lightning import OptimizerModule, io
+from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
 from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
@@ -91,7 +92,7 @@ def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
 
     _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
     # slice batch along sequence dimension for context parallelism
-    output = GPTBase.get_batch_on_this_context_parallel_rank(_batch)
+    output = get_batch_on_this_cp_rank(_batch)
 
     return output
 
@@ -129,9 +130,9 @@ class Llama32EmbeddingConfig1B(Llama32Config1B):
     add_bos: bool = True
     add_eos: bool = False
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+    def configure_model(self, tokenizer, pre_process=None, post_process=None, vp_stage=None) -> "MCoreGPTModel":
         """Configure the NV Embedding Llama3.2 1B Model"""
-        model = super().configure_model(tokenizer, pre_process, post_process)
+        model = super().configure_model(tokenizer, pre_process, post_process, vp_stage)
         # post_process need to be overwritten to False after model init because
         # final_layernorm is still needed and it will only be initialized when post_process is True in Mcore.
         # And for forward(), we do not want to run through output_layer thus setting post_process to False.
@@ -157,9 +158,9 @@ class Llama32EmbeddingConfig3B(Llama32Config3B):
     add_bos: bool = True
     add_eos: bool = False
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+    def configure_model(self, tokenizer, pre_process=None, post_process=None, vp_stage=None) -> "MCoreGPTModel":
         """Configure the NV Embedding Llama3.2 3B Model"""
-        model = super().configure_model(tokenizer, pre_process, post_process)
+        model = super().configure_model(tokenizer, pre_process, post_process, vp_stage)
         # post_process need to be overwritten to False after model init because
         # final_layernorm is still needed and it will only be initialized when post_process is True in Mcore.
         # And for forward(), we do not want to run through output_layer thus setting post_process to False.
@@ -301,6 +302,44 @@ class LlamaEmbeddingImporter(HFLlamaImporter):
         )
 
         return output
+
+    def apply(self, output_path: Path) -> Path:
+        """Apply the conversion from HF to NeMo format.
+        Args:
+            output_path: Path where the converted model will be saved
+        Returns:
+            Path: Path to the saved NeMo model
+        """
+        from transformers import AutoModel, AutoModelForCausalLM
+
+        try:
+            source = AutoModelForCausalLM.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
+        except:
+            source = AutoModel.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
+
+            # Wrap the source in a model for causal LM
+            class ModelWrapper(nn.Module):
+                """Wrap the source in a model so that the key mapping is consistent with LlamaModelImporter"""
+
+                def __init__(self, model, config):
+                    super().__init__()
+                    self.model = model
+                    self.config = config
+
+            source = ModelWrapper(source, source.config)
+
+        target = self.init()
+        trainer = self.nemo_setup(target)
+
+        self.convert_state(source, target)
+        self.nemo_save(output_path, trainer)
+
+        print(f"Converted LlamaEmbedding model to Nemo, model saved to {output_path}.")
+
+        teardown(trainer, target)
+        del trainer, target
+
+        return output_path
 
 
 @io.model_exporter(LlamaEmbeddingModel, "hf")

@@ -156,13 +156,15 @@ def init_model_parallel(
     if app_state.model_parallel_size is not None:
         # destroy groups in case they have already been created
         # this happens with multiple calls to trainer.test for example
+        assert (
+            app_state.pipeline_model_parallel_split_rank is None
+        ), "pipeline_model_parallel_split_rank is deprecated."
         parallel_state.destroy_model_parallel()
         if torch.distributed.is_initialized():
             parallel_state.initialize_model_parallel(
                 tensor_model_parallel_size=app_state.tensor_model_parallel_size,
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
-                pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
                 pipeline_model_parallel_comm_backend=app_state.pipeline_model_parallel_comm_backend,
                 context_parallel_size=app_state.context_parallel_size,
                 nccl_communicator_config_path=nccl_communicator_config_path,
@@ -595,7 +597,16 @@ class NLPDDPStrategy(DDPStrategy):
         else:
             # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
             checkpoint_path = inject_model_parallel_rank(checkpoint_path)
-            if not fs.exists(checkpoint_path):
+            max_error_count = 10
+            for error_count in range(1, max_error_count + 1):
+                if fs.exists(checkpoint_path):
+                    break
+                logging.warning(
+                    f"Checkpoint at {checkpoint_path} not found. Fail count {error_count} out of {max_error_count}."
+                )
+                # not adding jitter/anything complex since not concerned with stampede...
+                time.sleep(error_count * 5)
+            else:
                 raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
             torch.cuda.empty_cache()
             start_time = time.monotonic()

@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
+
 import itertools
 import json
 from typing import Dict, List
@@ -23,7 +27,14 @@ from omegaconf import DictConfig, ListConfig
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
 from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
+
+try:
+    from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
+except ModuleNotFoundError:
+    from abc import ABC
+
+    SequenceToSequenceDataset = ABC
+
 from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
 from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
 from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
@@ -443,6 +454,9 @@ class MegatronT5SFTModel(NLPAdapterModelMixin, MegatronT5Model):
             if len(loss_vals) == 0:
                 logging.warning("validation_epoch_end: outputs is empty")
                 return
+            assert (
+                self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+            ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
                 loss = torch.stack(loss_vals).mean()

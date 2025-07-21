@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
 
 """RETRO style dataset."""
 
@@ -97,7 +100,7 @@ class RETRODataset(Dataset):
         # note: 2x == neighbor, continuation
         neighbor_tokens = neighbor_tokens.view(-1, self.retro_config.retro_retrieved_length).long()
 
-        # Get the masks and postition ids for tokens and neighbor_tokens
+        # Get the masks and position ids for tokens and neighbor_tokens
         tokens = torch.unsqueeze(
             tokens, 0
         )  # get_ltor_masks_and_position_ids takes as input tokens arguments as a batch (2D tensor), so need to convert tokens from 1D to 2D
@@ -188,7 +191,7 @@ def build_train_valid_test_datasets(
 
         return train_ds, valid_ds, test_ds
     else:
-        logging.warn('Megatron core is not installed. Returning None')
+        logging.warning('Megatron core is not installed. Returning None')
         return
 
 

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -399,7 +399,7 @@ class HFStarcoder2Exporter(io.ModelConnector[Starcoder2Model, "Starcoder2ForCaus
         """
         from transformers import Starcoder2Config as HFStarcoder2Config
 
-        source: Starcoder2Config = io.load_context(str(self)).model.config
+        source: Starcoder2Config = io.load_context(str(self), subpath="model.config")
 
         return HFStarcoder2Config(
             architectures=["Starcoder2ForCausalLM"],

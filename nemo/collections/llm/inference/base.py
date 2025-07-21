@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -194,7 +194,8 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 2560,
-    enable_flash_decode: bool = True,
+    enable_flash_decode: bool = False,
+    **kwargs,
 ) -> tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
@@ -212,6 +213,7 @@ def setup_model_and_tokenizer(
         inference_max_seq_length (int, optional): max_seq_length for inference. Required by MCoreEngine(>=0.12).
         Necessary for CUDA graphs. Defaults to 2560.
         enable_flash_decode (bool, optional): Whether to enable flash decode. Defaults to True.
+        **kwargs: Additional keyword arguments to set in the model config.
     Returns:
         tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
             A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
@@ -219,9 +221,20 @@ def setup_model_and_tokenizer(
     model: GPTModel | T5Model = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
 
     if enable_flash_decode:
-        logging.info("Enabling Flash Decode for in-framework inference")
-        model.config.flash_decode = True
-        model.config.attention_backend = AttnBackend.flash
+        if params_dtype == torch.bfloat16 or params_dtype == torch.float16:
+            logging.info("Enabling Flash Decode for in-framework inference")
+            model.config.flash_decode = True
+            model.config.attention_backend = AttnBackend.flash
+        else:
+            logging.warning(
+                "Flash Decode is not supported for params_dtype %s, defaulting to MCore's attention backend",
+                params_dtype,
+            )
+    for key, value in kwargs.items():
+        if hasattr(model.config, key):
+            setattr(model.config, key, value)
+        else:
+            logging.warning(f"Config attribute {key} not found in model.config, ignoring in setup_model_and_tokenizer")
 
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 

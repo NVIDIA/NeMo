@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
 
 import os
 from functools import partial
@@ -652,11 +655,11 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
 
     def freeze_llm(self, mm_cfg):
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage():
             embedding_parameters = self.embedding.parameters()
         else:
             embedding_parameters = {}
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage():
             output_layer_parameters = self.output_layer.parameters()
         else:
             output_layer_parameters = {}
@@ -674,7 +677,7 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         **kwargs,
     ):
         media = kwargs.pop('media', None)
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage():
             self.embedding.word_embeddings.set_media(media)
         return MCoreGPTModel.forward(self, *args, **kwargs)
 
@@ -708,7 +711,7 @@ class NevaModel(GPTModel, NevaBaseModel):
         **kwargs,
     ):
         media = kwargs.pop('media', None)
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage():
             self.embedding.word_embeddings.set_media(media)
         return GPTModel.forward(self, *args, **kwargs)
 
@@ -1014,6 +1017,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     else:
                         batch[k] = batch[k].cuda(non_blocking=True)
             else:
+                assert (
+                    self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+                ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
                 if parallel_state.is_pipeline_first_stage():
                     # First pipeline stage needs tokens, position_ids, and attention_mask
                     for k in batch.keys():
@@ -1156,6 +1162,9 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if not self.validation_step_outputs:
             return
 
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
         if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
             if self.cfg.data.get('validation_drop_last', True):
@@ -1273,10 +1282,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     if self.cfg.get('share_embeddings_and_output_weights', True):
                         module.sync_initial_word_embeddings()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
                 if self.cfg.get('share_embeddings_and_output_weights', True):
                     self.model.sync_initial_word_embeddings()
@@ -1665,7 +1672,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if self.mcore_gpt and not self.use_fsdp:
             if 'state_dict' in checkpoint and checkpoint['state_dict']:
                 for index, module in enumerate(self.get_model_module_list()):
-                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                         checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
                     else:
                         checkpoint_state_dict = checkpoint['state_dict']
@@ -1684,9 +1691,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             if isinstance(self.model, list):
                 for i in range(len(self.model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
@@ -1700,8 +1705,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             if not hasattr(self._train_dl, "save_state"):
                 return False
             first_rank = (
-                parallel_state.is_pipeline_first_stage(ignore_virtual=True)
-                and parallel_state.get_tensor_model_parallel_rank() == 0
+                parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0
             )
             return first_rank
 
@@ -1727,9 +1731,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             if isinstance(self.model, list):
                 for i in range(len(self.model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def sharded_state_dict(self, prefix: str = ''):
         if self.use_peft:
