@@ -30,7 +30,7 @@ from nemo.automodel.misc_utils import calculate_valid_accumulate_grad_batches
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
-from nemo.utils.decorators import deprecated
+
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
 #   examples/llm/finetune/automodel.py \
