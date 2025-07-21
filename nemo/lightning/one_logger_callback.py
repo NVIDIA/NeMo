@@ -177,9 +177,7 @@ class OneLoggerNeMoCallback(Callback):
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
 
         get_onelogger_callbacks(
-            "on_train_start", 
-            train_iterations_start=current_step, 
-            train_iterations_target_or_fn=max_steps
+            "on_train_start", train_iterations_start=current_step, train_iterations_target_or_fn=max_steps
         )
 
     def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
