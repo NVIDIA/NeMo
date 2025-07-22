@@ -19,13 +19,17 @@ from typing import Optional, Tuple, Union
 from torchmetrics.text import SacreBLEUScore
 from torchmetrics.text.rouge import ROUGEScore
 
+from nemo.collections.asr.metrics.comet import CometScore
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
 from nemo.utils import logging
 from nemo.utils.nemo_logging import LogMode
 
+from normalizer import data_utils
+
 TEXT_METRICS_MAPPING = {
     'bleu': SacreBLEUScore,
     'rouge': ROUGEScore,
+    'comet': CometScore,
 }
 
 from omegaconf import DictConfig
@@ -78,10 +82,14 @@ def strip_spaces_before_punctuations(text: str) -> str:
     return result
 
 
-def remove_punctuations(text: str, punctuations: Optional[Union[list, str]] = None) -> str:
+def remove_punctuations(text: str, punctuations: Optional[Union[list, str]] = None, use_normalizer: bool = False) -> str:
     """
     Remove punctuations from a string
     """
+    if use_normalizer:
+        text = data_utils.normalizer(text)
+        return text
+    
     if not punctuations:
         punctuations = [char for char in '!"#$%&()*+,-./:;<=>?@[\\]^_`{|}~']
 
@@ -166,6 +174,7 @@ def cal_write_wer(
     ignore_punctuation: bool = False,
     punctuations: Optional[list] = None,
     strip_punc_space: bool = False,
+    use_normalizer: bool = False,
 ) -> Tuple[str, dict, str]:
     """
     Calculate wer, inserion, deletion and substitution rate based on groundtruth text and pred_text_attr_name (pred_text)
@@ -199,8 +208,8 @@ def cal_write_wer(
                 ref = clean_label(ref, langid=langid)
 
             if ignore_punctuation:
-                ref = remove_punctuations(ref, punctuations=punctuations)
-                hyp = remove_punctuations(hyp, punctuations=punctuations)
+                ref = remove_punctuations(ref, punctuations=punctuations, use_normalizer=use_normalizer)
+                hyp = remove_punctuations(hyp, punctuations=punctuations, use_normalizer=use_normalizer)
             elif strip_punc_space:
                 ref = strip_spaces_before_punctuations(ref)
                 hyp = strip_spaces_before_punctuations(hyp)
@@ -252,22 +261,26 @@ def cal_write_text_metric(
     pred_manifest: str = None,
     gt_text_attr_name: str = "text",
     pred_text_attr_name: str = "pred_text",
+    src_text_attr_name: str = "text",
     output_filename: str = None,
     ignore_capitalization: bool = False,
     ignore_punctuation: bool = False,
     punctuations: Optional[list] = None,
-    metric: str = 'bleu',
+    metrics: list[str] = ['bleu', 'comet'],
     metric_args: Optional[dict] = None,
     strip_punc_space: bool = False,
+    use_normalizer: bool = False,
 ):
     samples = []
     hyps = []
     refs = []
+    sources = []
 
-    if metric not in TEXT_METRICS_MAPPING:
+    metric_calculator = {metric: TEXT_METRICS_MAPPING[metric](**metric_args[metric]) if metric_args else TEXT_METRICS_MAPPING[metric]() for metric in metrics}
+
+    if any(metric not in TEXT_METRICS_MAPPING for metric in metrics):
         raise ValueError(f"metric {metric} is not supported! Please choose from {TEXT_METRICS_MAPPING.keys()}")
 
-    metric_calculator = TEXT_METRICS_MAPPING[metric](**metric_args) if metric_args else TEXT_METRICS_MAPPING[metric]()
     with open(pred_manifest, 'r') as fp:
         for line in fp.readlines():
             line = line.strip()
@@ -286,10 +299,11 @@ def cal_write_text_metric(
 
             hyp = sample[pred_text_attr_name].strip()
             ref = sample[gt_text_attr_name].strip()
+            src = sample[src_text_attr_name].strip()
 
             if ignore_punctuation:
-                ref = remove_punctuations(ref, punctuations=punctuations)
-                hyp = remove_punctuations(hyp, punctuations=punctuations)
+                ref = remove_punctuations(ref, punctuations=punctuations, use_normalizer=use_normalizer)
+                hyp = remove_punctuations(hyp, punctuations=punctuations, use_normalizer=use_normalizer)
             elif strip_punc_space:
                 ref = strip_spaces_before_punctuations(ref)
                 hyp = strip_spaces_before_punctuations(hyp)
@@ -298,19 +312,36 @@ def cal_write_text_metric(
                 ref = ref.lower()
                 hyp = hyp.lower()
 
-            if metric == 'bleu':
-                score = metric_calculator([hyp], [[ref]]).item()
-            else:
-                score = metric_calculator(hyp, ref).item()
-            sample[metric] = score  # evaluatin metric, could be word error rate of character error rate
+            for metric in metrics:
+                if metric == 'bleu':
+                    score = metric_calculator[metric]([hyp], [[ref]]).item()
+                elif metric == 'comet':
+                    continue
+                else:
+                    score = metric_calculator[metric](hyp, ref).item()
+                sample[metric] = score  # evaluatin metric, could be word error rate of character error rate
+
 
             samples.append(sample)
             hyps.append(hyp)
             refs.append(ref)
+            sources.append(src)
 
-    if metric == 'bleu':
-        refs = [[ref] for ref in refs]
-    total_score = metric_calculator(hyps, refs).item()
+    total_res = {
+        "samples": len(samples),
+    }
+
+    for metric in metrics:
+        if metric == 'bleu':
+            refs = [[ref] for ref in refs]
+
+        if metric == 'comet':
+            comet_scores = metric_calculator[metric](hyps, refs, sources)
+            total_score = sum(comet_scores) / len(comet_scores)
+        else:
+            total_score = metric_calculator[metric](hyps, refs).item()
+
+        total_res[metric] = total_score
 
     if not output_filename:
         output_manifest_w_wer = pred_manifest
@@ -318,13 +349,11 @@ def cal_write_text_metric(
         output_manifest_w_wer = output_filename
 
     with open(output_manifest_w_wer, 'w') as fout:
-        for sample in samples:
+        for i, sample in enumerate(samples):
+            if 'comet' in metrics:
+                sample['comet'] = comet_scores[i]
             json.dump(sample, fout)
             fout.write('\n')
             fout.flush()
-
-    total_res = {
-        "samples": len(samples),
-        metric: total_score,
-    }
+    
     return output_manifest_w_wer, total_res, metric
