@@ -73,6 +73,7 @@ def override_recipe_configs(
         use_mcore_fsdp=use_mcore_fsdp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
