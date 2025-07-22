@@ -11,6 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# flake8: noqa
+# pylint: skip-file
+
 import itertools
 import os
 import time
@@ -66,7 +70,14 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     mean_flat,
 )
 from nemo.collections.multimodal.parts.utils import randn_like
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+
+try:
+    from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronBaseModel = ABC
+
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig

@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# flake8: noqa
+# pylint: skip-file
+
 from abc import ABC, abstractclassmethod
 from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple, Union
@@ -43,7 +46,14 @@ from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     instantiate_from_config,
     log_txt_as_img,
 )
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+
+try:
+    from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+except (ImportError, ModuleNotFoundError):
+    from abc import ABC
+
+    MegatronBaseModel = ABC
+
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP, PEFTConfig
