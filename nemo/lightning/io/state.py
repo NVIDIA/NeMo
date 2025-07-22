@@ -67,6 +67,7 @@ def apply_transforms(
     mapping: Dict[str, str],
     transforms: Optional[List[Callable[[TransformCTX], TransformCTX]]] = [],
     state_dict_ignored_entries: List = [],
+    cast_dtype: Optional[torch.dtype] = None,
 ) -> TargetModuleT:
     """
     Applies a series of transformations to adapt the state dictionary of a source module to
@@ -89,6 +90,7 @@ def apply_transforms(
             E.g., model has multiple pointers pointing to one shared parameters (`encoder.embed_tokens.weight`,
             `decoder.embed_tokens.weight` and `shared.weight` all points to `shared.weight
             in T5 Huggingface implementation.). In these cases, ignore redundant entries.
+        cast_dtype Optional[torch.dtype]: case the output state dict to a certain precision.
 
     Returns
     -------
@@ -221,6 +223,17 @@ def apply_transforms(
         f"{meta_tensor_keys}\nThere are meta tensors in the model after conversion."
         f"Did you forget to include these parameters in the mapping or transforms in `convert_state`?"
     )
+
+    if cast_dtype:
+        logging.info(f"Casting model to {cast_dtype}...")
+        _target.to(cast_dtype)
+        logging.info(f"Casting model to {cast_dtype} complete.")
+    else:
+        assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
+            f"dtype mismatch between source and target state dicts. "
+            f"Left side is { {k: v for k, v in target_orig_dtypes.items() if v!=torch.bfloat16} }, "
+            f"Right side is { {k: v for k, v in extract_dtypes(_target.named_parameters()).items() if v!=torch.bfloat16} }"
+        )
 
     assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
         f"dtype mismatch between source and target state dicts. "
