@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskModel
+from nemo.collections.asr.models.hybrid_aed_multitask_models import EncDecHybridMultiTaskCTCModel
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.collections.asr.models.classification_models import (
     ClassificationInferConfig,

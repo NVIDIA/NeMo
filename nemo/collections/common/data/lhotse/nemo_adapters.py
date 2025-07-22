@@ -34,6 +34,10 @@ from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging
 from nemo.utils.data_utils import is_datastore_path
 
+import aistore
+import requests
+import urllib3
+
 
 class LazyNeMoIterator:
     """
@@ -359,20 +363,23 @@ class LazyNeMoTarredIterator:
         return sorted(self.shard_id_to_manifest.keys())
 
     def _iter_sequential(self, tar_path, shard_manifest, manifest_path) -> Generator[tuple[dict, bytes], None, None]:
-        with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
-            for tar_info in tar:
-                try:
-                    data = shard_manifest[tar_info.name]
-                    raw_audio = tar.extractfile(tar_info).read()
-                    yield data, raw_audio, tar_info
-                except KeyError as e:
-                    if self.skip_missing_manifest_entries:
-                        continue
-                    else:
-                        raise RuntimeError(
-                            f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
-                            f"Cannot locate JSON entry for tar file '{tar_info.name}'"
-                        ) from e
+        try:
+            with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
+                for tar_info in tar:
+                    try:
+                        data = shard_manifest[tar_info.name]
+                        raw_audio = tar.extractfile(tar_info).read()
+                        yield data, raw_audio, tar_info
+                    except KeyError as e:
+                        if self.skip_missing_manifest_entries:
+                            continue
+                        else:
+                            raise RuntimeError(
+                                f"Mismatched entry between JSON manifest ('{manifest_path}') and tar file ('{tar_path}'). "
+                                f"Cannot locate JSON entry for tar file '{tar_info.name}'"
+                            ) from e
+        except (aistore.sdk.errors.ErrObjNotFound, requests.exceptions.RequestException, urllib3.exceptions.HTTPError, ValueError) as e:
+            logging.warning(f"Tar file {tar_path} not found. {e}")
 
     def __iter__(self) -> Generator[Cut, None, None]:
         shard_ids = self.shard_ids
@@ -402,7 +409,14 @@ class LazyNeMoTarredIterator:
             tar_path = self.shard_id_to_tar_path[sid]
             try:
                 for data, raw_audio, tar_info in self._iter_sequential(tar_path, shard_manifest, manifest_path):
-                    meta = soundfile.info(BytesIO(raw_audio))
+                    try:
+                        meta = soundfile.info(BytesIO(raw_audio))
+
+                    except Exception as e:
+                        logging.warning(
+                            f"Skipping audio file due to read errors (unstable storage or bad file? here): {tar_info.name}"
+                        )
+                        continue
                     recording = Recording(
                         id=tar_info.path,
                         sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
