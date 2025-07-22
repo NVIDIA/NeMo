@@ -754,7 +754,8 @@ class ModelPT(LightningModule, Model):
 
         if optimizer_cls is None:
             # Try to get optimizer name for dynamic resolution, defaulting to Adam
-            optimizer_name = optim_config.get('name', 'adam')
+            # Use or instead of default as None will also results in default value not used.
+            optimizer_name = optim_config.get('name') or 'adam'
         else:
             if inspect.isclass(optimizer_cls):
                 optimizer_name = optimizer_cls.__name__.lower()
