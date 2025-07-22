@@ -74,6 +74,7 @@ class FineTuningDataModule(pl.LightningDataModule):
 
         tracker = OneLoggerTimingTracker.get_instance()
         tracker.track_event("on_dataloader_init_start")
+        self._one_logger_init_started = True
 
         super().__init__()
         self.seq_length = seq_length

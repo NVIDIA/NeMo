@@ -208,7 +208,7 @@ class ModelPT(LightningModule, Model):
                     f"Test config : \n{OmegaConf.to_yaml(self._cfg.test_ds)}"
                 )
 
-        self._timing_tracker.track_event('dataloader_init_end')
+        self._timing_tracker.track_event('on_dataloader_init_end')
 
         # Create list of lists for val and test outputs to support multiple dataloaders
         # Initialize an empty list as sometimes self._validation_dl can be None at this stage
