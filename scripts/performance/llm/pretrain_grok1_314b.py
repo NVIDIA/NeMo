@@ -439,7 +439,6 @@ if __name__ == "__main__":
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
-
     executor = slurm_executor(
         args.gpu.lower(),
         args.account,
