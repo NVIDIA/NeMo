@@ -183,7 +183,6 @@ class OneLoggerNeMoCallback(Callback):
     def __init__(self):
         super().__init__()
         self._validation_batch_exists = False
-        self._train_active = False
 
     def __getattr__(self, name: str) -> Any:
         """Automatically forward any undefined method calls to the OneLogger v2 callbacks.
@@ -206,7 +205,6 @@ class OneLoggerNeMoCallback(Callback):
         # Extract necessary information from the trainer
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
-        self._train_active = True
 
         get_onelogger_callbacks(
             "on_train_start", train_iterations_start=current_step, train_iterations_target_or_fn=max_steps
@@ -267,9 +265,7 @@ class OneLoggerNeMoCallback(Callback):
 
     def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called when training ends."""
-        if self._train_active:
-            get_onelogger_callbacks("on_train_end")
-            self._train_active = False
+        get_onelogger_callbacks("on_train_end")
 
 
 def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) -> None:
