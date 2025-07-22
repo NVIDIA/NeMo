@@ -22,7 +22,6 @@ import os
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import os
-
 from os.path import basename, splitext
 from typing import Callable, Optional
 
@@ -34,10 +33,6 @@ import torch
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core.distributed import DistributedDataParallelConfig
 from scripts.performance.argument_parser import parse_cli_args
-from ..argument_parser import parse_cli_args
-from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, get_comm_overlap_callback_idx
-from ..utils import hf_tokenizer
 
 from nemo import lightning as nl
 from nemo.collections.llm.api import pretrain
@@ -55,6 +50,17 @@ from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommO
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 from nemo.utils.exp_manager import TimingCallback
+
+from ..argument_parser import parse_cli_args
+from ..executors import slurm_executor
+from ..helpers import (
+    args_sanity_check,
+    get_comm_overlap_callback_idx,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+)
+from ..utils import hf_tokenizer
 
 NAME = "grok1_314b"
 
@@ -432,7 +438,6 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-
 
     executor = slurm_executor(
         args.gpu.lower(),
