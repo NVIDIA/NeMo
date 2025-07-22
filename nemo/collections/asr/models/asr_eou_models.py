@@ -317,7 +317,10 @@ class ASREOUModelMixin:
         output_file = Path(self.cfg.save_pred_to_file)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        output_file = output_file.with_suffix(f'.{dataloader_idx}.json')
+        if self._validation_names:
+            output_file = output_file.with_name(f"{self._validation_names[dataloader_idx]}_{output_file.name}")
+        else:
+            output_file = output_file.with_suffix(f'.{dataloader_idx}.json')
 
         manifest = []
         for output in outputs:
@@ -327,9 +330,15 @@ class ASREOUModelMixin:
                     "audio_filepath": output[f'{mode}_audio_filepath'][i],
                     "eou_text": output[f'{mode}_text_gt'][i],
                     "eou_pred_text": output[f'{mode}_text_pred'][i],
+                    "is_backchannel": bool(str(output[f'{mode}_text_gt'][i]).endswith(EOB_STRING)),
                 }
                 if f"{mode}_text_pred_ctc" in output:
                     item["eou_pred_text_ctc"] = output[f"{mode}_text_pred_ctc"][i]
+
+                eou_metrics = {f"eou_{k}": v for k, v in output[f"{mode}_eou_metrics"][i].to_dict().items()}
+                eob_metrics = {f"eob_{k}": v for k, v in output[f"{mode}_eob_metrics"][i].to_dict().items()}
+                item.update(eou_metrics)
+                item.update(eob_metrics)
                 manifest.append(item)
         write_manifest(output_file, manifest)
         logging.info(f"Predictions saved to {output_file}")

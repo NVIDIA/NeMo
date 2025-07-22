@@ -29,6 +29,23 @@ class EOUResult:
     num_predictions: int
     missing: int
 
+    def to_dict(self) -> Dict[str, float]:
+        """
+        Convert the EOUResult dataclass to a dictionary.
+        Returns:
+            Dict: A dictionary representation of the EOUResult.
+        """
+        return {
+            'latency': self.latency,
+            'early_cutoff': self.early_cutoff,
+            'true_positives': self.true_positives,
+            'false_negatives': self.false_negatives,
+            'false_positives': self.false_positives,
+            'num_utterances': self.num_utterances,
+            'num_predictions': self.num_predictions,
+            'missing': self.missing,
+        }
+
 
 def flatten_nested_list(nested_list: List[List[float]]) -> List[float]:
     """
