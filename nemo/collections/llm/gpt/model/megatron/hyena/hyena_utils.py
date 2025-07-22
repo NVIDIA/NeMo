@@ -502,7 +502,6 @@ class ImplicitModalFilter(nn.Module):
         self.t = torch.arange(L_cache, dtype=torch.float32, device=torch.cuda.current_device()).view(
             1, 1, -1
         )  # 1, 1, L_cache
-        self.use_cached_t = False
         with get_cuda_rng_tracker().fork():
             gamma = torch.rand(self.d_model, order, dtype=torch.float32) * (gamma_max - gamma_min) + gamma_min
             gamma = gamma.cuda().log()
@@ -515,17 +514,16 @@ class ImplicitModalFilter(nn.Module):
             setattr(self.R, 'tensor_model_parallel', True)
             setattr(self.p, 'tensor_model_parallel', True)
 
-    def get_t(self, L):
+    def get_t(self, L: int) -> torch.Tensor:
         """Get the t tensor."""
-        # Assumes L <= L_cache
-        if self.use_cached_t:
+        if self.t.shape[-1] >= L:
+            # When L <= maximum previously requested length, we can take a subset of the cached t.
             return self.t[..., :L]
-
-        t = torch.arange(L, dtype=torch.float32, device=self.t.device).view(1, 1, -1)  # 1, 1, L
-        self.t = t
-        self.use_cached_t = True
-
-        return t
+        else:
+            # We are requesting an L that is longer than the cached t, grow t to the requested length.
+            t = torch.arange(L, dtype=torch.float32, device=self.t.device).view(1, 1, -1)  # 1, 1, L
+            self.t = t
+            return self.t
 
     def get_logp(self):
         """Compute the log poles for the implicit modal filter."""
