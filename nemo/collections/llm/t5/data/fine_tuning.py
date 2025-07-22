@@ -70,12 +70,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         pin_memory: bool = True,
         persistent_workers: bool = False,
     ):
-        from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
-
-        tracker = OneLoggerTimingTracker.get_instance()
-        tracker.track_event("on_dataloader_init_start")
-        self._one_logger_init_started = True
-
         super().__init__()
         self.seq_length = seq_length
         self.seq_length_dec = seq_length_dec
@@ -104,8 +98,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.rampup_batch_size = rampup_batch_size
         self.data_sampler = None
         self.max_train_samples = None
-
-        tracker.track_event("on_dataloader_init_end")
 
     def setup(self, stage: str):
         """Set up the data module for the specified stage.
