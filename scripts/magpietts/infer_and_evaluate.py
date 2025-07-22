@@ -510,7 +510,7 @@ def main():
     parser.add_argument('--topk', type=int, default=80)
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--sv_model', type=str, default="titanet") # titanet, wavlm
-    parser.add_argument('--asr_model_name', type=str, default="stt_en_conformer_transducer_large") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
+    parser.add_argument('--asr_model_name', type=str, default="nvidia/parakeet-tdt-1.1b") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')

@@ -324,4 +324,24 @@ dataset_meta_info = {
         'audio_dir' : '/',
         'feature_dir' : None,
     },
+    'j_riva_digits': {
+        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-digits-RivaEnContext.ndjson',
+        'audio_dir' : '/',
+        'feature_dir' : None,
+    },
+    'j_riva_letters': {
+        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-letters-RivaEnContext.ndjson',
+        'audio_dir' : '/',
+        'feature_dir' : None,
+    },
+    'j_riva_money': {
+        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-digits-RivaEnContext.ndjson',
+        'audio_dir' : '/',
+        'feature_dir' : None,
+    },
+    'j_riva_short': {
+        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-short-RivaEnContext.ndjson',
+        'audio_dir' : '/',
+        'feature_dir' : None,
+    },
 }
