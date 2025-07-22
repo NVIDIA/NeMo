@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,8 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.language_modeling.l2r_lm_dataset import L2RLanguageModelingDataset  # noqa: F401
-from nemo.collections.nlp.data.language_modeling.sentence_dataset import (  # noqa: F401
-    SentenceDataset,
-    TarredSentenceDataset,
-)
+TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v --factory flux_controlnet_training_ddp

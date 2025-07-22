@@ -463,6 +463,13 @@ def parse_cli_args():
         action="store_true",
         required=False,
     )
+    parser.add_argument(
+        "--keep_fsdp_fp8_transpose_cache",
+        help="Keep FSDP FP8 transpose cache. Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
 
     parser.add_argument(
         "--skip_import_checkpoint",

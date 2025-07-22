@@ -58,6 +58,7 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     recipe = pretrain_recipe(performance_mode=True)
+
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -141,7 +142,10 @@ def override_recipe_configs(
     # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
     tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
-    # recipe.trainer.strategy.use_tp_pp_dp_mapping=True
+
+    if use_mcore_fsdp and gpu_type == 'gb200':
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) / 64
+
     return recipe
 
 
