@@ -309,7 +309,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 boosting_tree=self.cfg.greedy.get("boosting_tree", None),
                 boosting_tree_alpha=self.cfg.greedy.get("boosting_tree_alpha", 0.0),
                 allow_cuda_graphs=self.cfg.greedy.get("allow_cuda_graphs", True),
-                tokenizer=self.tokenizer,
+                tokenizer=getattr(self, 'tokenizer', None),
             )
 
         elif self.cfg.strategy == 'beam':
@@ -399,7 +399,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 boosting_tree=self.cfg.beam.get("boosting_tree", None),
                 boosting_tree_alpha=self.cfg.beam.get("boosting_tree_alpha", 0.0),
                 allow_cuda_graphs=self.cfg.beam.get('allow_cuda_graphs', True),
-                tokenizer=self.tokenizer,
+                tokenizer=getattr(self, 'tokenizer', None),
             )
 
             self.decoding.override_fold_consecutive_value = False
