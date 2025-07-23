@@ -12,6 +12,11 @@ conda env create -f environment.yml
 
 Activate the environment via `conda activate nemo-pipecat`
 
+### Configure the server
+
+Edit the `server/server_config.yaml` file to configure the server.
+
+
 ### Run the server
 
 ```bash
