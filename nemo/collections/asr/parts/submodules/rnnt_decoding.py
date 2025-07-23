@@ -1003,6 +1003,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             num_flattened_tokens += len([c for c in char_offsets[t]['char'] if c != self.blank_id])
 
         if num_flattened_tokens != len(hypothesis.text):
+            print(f"alignments: {alignments}")
+            print(f"token_repetitions: {token_repetitions}")
             raise ValueError(
                 f"`char_offsets`: {char_offsets} and `processed_tokens`: {hypothesis.text}"
                 " have to be of the same length, but are: "

@@ -1,0 +1,381 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+import asyncio
+import copy
+import os
+import signal
+import sys
+
+from loguru import logger
+from omegaconf import OmegaConf
+
+# Configure loguru to output to both console and file
+logger.remove()  # Remove default handler
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss.SSSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    level="DEBUG",
+)
+
+logger.add("bot_server.log", rotation="1 day", level="DEBUG")
+
+# Global flag for graceful shutdown
+shutdown_event = asyncio.Event()
+
+from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
+from pipecat.frames.frames import EndTaskFrame, MetricsFrame
+from pipecat.metrics.metrics import LLMUsageMetricsData, ProcessingMetricsData, TTFBMetricsData, TTSUsageMetricsData
+from pipecat.pipeline.pipeline import Pipeline
+from pipecat.pipeline.runner import PipelineRunner
+from pipecat.pipeline.task import PipelineParams, PipelineTask
+from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+from pipecat.processors.frame_processor import Frame, FrameDirection, FrameProcessor
+from pipecat.processors.frameworks.rtvi import RTVIAction, RTVIConfig, RTVIObserver, RTVIProcessor
+from pipecat.serializers.protobuf import ProtobufFrameSerializer
+
+from nemo.collections.voice_agent.pipecat.services.nemo.diar import NeMoDiarInputParams, NemoDiarService
+from nemo.collections.voice_agent.pipecat.services.nemo.llm import HuggingFaceLLMService
+from nemo.collections.voice_agent.pipecat.services.nemo.stt import NeMoSTTInputParams, NemoSTTService
+from nemo.collections.voice_agent.pipecat.services.nemo.tts import NeMoFastPitchHiFiGANTTSService
+from nemo.collections.voice_agent.pipecat.services.nemo.turn_taking import NeMoTurnTakingService
+from nemo.collections.voice_agent.pipecat.transports.network.websocket_server import (
+    WebsocketServerParams,
+    WebsocketServerTransport,
+)
+from nemo.collections.voice_agent.pipecat.utils.text.simple_text_aggregator import SimpleSegmentedTextAggregator
+
+SERVER_CONFIG_PATH = os.environ.get(
+    "SERVER_CONFIG_PATH", f"{os.path.dirname(os.path.abspath(__file__))}/server_config.yaml"
+)
+
+server_config = OmegaConf.load(SERVER_CONFIG_PATH)
+
+logger.info(f"Server config: {server_config}")
+
+# Default Configuration
+SAMPLE_RATE = 16000  # Standard sample rate for speech recognition
+RAW_AUDIO_FRAME_LEN_IN_SECS = 0.016  # 16ms for websocket transport
+BOT_PROMPT = """
+You are a helpful AI agent named Lisa. 
+Start by greeting the user warmly and introducing yourself within one sentence. 
+Your answer should be concise and to the point.
+"""
+
+################ Start of Configuration #################
+if server_config.get("bot_prompt", None) is not None:
+    bot_prompt = server_config.bot_prompt
+    if os.path.isfile(bot_prompt):
+        with open(bot_prompt, "r") as f:
+            bot_prompt = f.read()
+    BOT_PROMPT = bot_prompt
+
+logger.info(f"BOT_PROMPT: {BOT_PROMPT}")
+
+TRANSPORT_AUDIO_OUT_10MS_CHUNKS = server_config.transport.audio_out_10ms_chunks
+
+vad_params = VADParams(
+    confidence=server_config.vad.confidence,
+    start_secs=server_config.vad.start_secs,
+    stop_secs=server_config.vad.stop_secs,
+    min_volume=server_config.vad.min_volume,
+)
+
+STT_MODEL_PATH = server_config.stt.model
+STT_DEVICE = server_config.stt.device
+stt_params = NeMoSTTInputParams(
+    att_context_size=server_config.stt.att_context_size,
+    frame_len_in_secs=server_config.stt.frame_len_in_secs,
+    raw_audio_frame_len_in_secs=RAW_AUDIO_FRAME_LEN_IN_SECS,
+)
+
+DIAR_MODEL = server_config.diar.model
+USE_DIAR = server_config.diar.enabled
+diar_params = NeMoDiarInputParams(
+    frame_len_in_secs=server_config.diar.frame_len_in_secs,
+    threshold=server_config.diar.threshold,
+)
+
+TURN_TAKING_MAX_BUFFER_SIZE = server_config.turn_taking.max_buffer_size
+
+LLM_MODEL = server_config.llm.model
+LLM_DEVICE = server_config.llm.device
+LLM_TEMPERATURE = server_config.llm.temperature
+LLM_MAX_TOKENS = server_config.llm.max_tokens
+LLM_TOP_P = server_config.llm.top_p
+
+
+TTS_FASTPITCH_MODEL = server_config.tts.fastpitch_model
+TTS_HIFIGAN_MODEL = server_config.tts.hifigan_model
+TTS_DEVICE = server_config.tts.device
+
+EXTRA_SEPARATOR = server_config.tts.get("extra_separator", ":,!?")
+
+################ End of Configuration #################
+
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    shutdown_event.set()
+
+
+async def run_bot_websocket_server():
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    logger.info("Initializing WebSocket server transport...")
+    logger.info("Server configured to run indefinitely with no timeouts")
+
+    """
+    NO-TIMEOUT CONFIGURATION:
+    - session_timeout=None: Disables WebSocket session timeout
+    - idle_timeout=None: Disables pipeline idle timeout  
+    - asyncio.wait_for(timeout=None): No timeout on pipeline runner
+    - Server will run indefinitely until manually stopped (Ctrl+C)
+    """
+
+    vad_analyzer = SileroVADAnalyzer(
+        sample_rate=SAMPLE_RATE,
+        params=vad_params,
+    )
+    logger.info("VAD analyzer initialized")
+
+    ws_transport = WebsocketServerTransport(
+        params=WebsocketServerParams(
+            serializer=ProtobufFrameSerializer(),
+            audio_in_enabled=True,
+            audio_out_enabled=True,
+            add_wav_header=False,
+            vad_analyzer=vad_analyzer,
+            session_timeout=None,  # Disable session timeout
+            audio_in_sample_rate=SAMPLE_RATE,
+            can_create_user_frames=False,
+            audio_out_10ms_chunks=TRANSPORT_AUDIO_OUT_10MS_CHUNKS,
+        ),
+        host="0.0.0.0",  # Bind to all interfaces
+        port=8765,
+    )
+
+    logger.info("Initializing STT service...")
+
+    stt = NemoSTTService(
+        model=STT_MODEL_PATH,
+        device=STT_DEVICE,
+        params=stt_params,
+        sample_rate=SAMPLE_RATE,
+        audio_passthrough=True,
+        has_turn_taking=True,
+        backend="legacy",
+        decoder_type="rnnt",
+    )
+    logger.info("STT service initialized")
+
+    diar = NemoDiarService(
+        model=DIAR_MODEL,
+        device=STT_DEVICE,
+        params=diar_params,
+        sample_rate=SAMPLE_RATE,
+        backend="legacy",
+        enabled=USE_DIAR,
+    )
+    logger.info("Diarization service initialized")
+
+    turn_taking = NeMoTurnTakingService(
+        use_vad=True,
+        use_diar=USE_DIAR,
+        max_buffer_size=TURN_TAKING_MAX_BUFFER_SIZE,
+    )
+    logger.info("Turn taking service initialized")
+
+    logger.info("Initializing LLM service...")
+
+    llm = HuggingFaceLLMService(
+        model=LLM_MODEL,
+        device=LLM_DEVICE,
+        temperature=LLM_TEMPERATURE,
+        max_tokens=LLM_MAX_TOKENS,
+        top_p=LLM_TOP_P,
+    )
+    logger.info("LLM service initialized")
+
+    text_aggregator = SimpleSegmentedTextAggregator(punctuation_marks=EXTRA_SEPARATOR)
+
+    tts = NeMoFastPitchHiFiGANTTSService(
+        fastpitch_model=TTS_FASTPITCH_MODEL,
+        hifigan_model=TTS_HIFIGAN_MODEL,
+        device=TTS_DEVICE,
+        text_aggregator=text_aggregator,
+    )
+
+    logger.info("TTS service initialized")
+
+    context = OpenAILLMContext(
+        [
+            {
+                "role": "system",
+                "content": BOT_PROMPT,
+            }
+        ],
+    )
+
+    original_messages = copy.deepcopy(context.get_messages())
+    original_context = copy.deepcopy(context)
+    original_context.set_llm_adapter(llm.get_llm_adapter())
+
+    context_aggregator = llm.create_context_aggregator(context)
+    user_context_aggregator = context_aggregator.user()
+    assistant_context_aggregator = context_aggregator.assistant()
+
+    # RTVI events for Pipecat client UI
+    rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
+
+    # Add reset action to RTVI processor
+    async def reset_context_handler(rtvi_processor: RTVIProcessor, service: str, arguments: dict[str, any]) -> bool:
+        """Reset both user and assistant context aggregators"""
+        logger.info("Resetting conversation context...")
+        try:
+            user_context_aggregator.reset()
+            assistant_context_aggregator.reset()
+            user_context_aggregator.set_messages(copy.deepcopy(original_messages))
+            assistant_context_aggregator.set_messages(copy.deepcopy(original_messages))
+
+            logger.info("Conversation context reset successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Error resetting context: {e}")
+            return False
+
+    reset_action = RTVIAction(
+        service="context",
+        action="reset",
+        result="bool",
+        arguments=[],
+        handler=reset_context_handler,
+    )
+    rtvi.register_action(reset_action)
+
+    logger.info("Setting up pipeline...")
+
+    class MetricsLogger(FrameProcessor):
+        async def process_frame(self, frame: Frame, direction: FrameDirection):
+            await super().process_frame(frame, direction)
+
+            if isinstance(frame, MetricsFrame):
+                for d in frame.data:
+                    if isinstance(d, TTFBMetricsData):
+                        logger.debug(f"TTFB Metrics: {d.processor} = {d.value:.3f}s")
+                    elif isinstance(d, ProcessingMetricsData):
+                        logger.debug(f"Processing Metrics: {d.processor} = {d.value:.3f}s")
+                    elif isinstance(d, LLMUsageMetricsData):
+                        tokens = d.value
+                        logger.debug(
+                            f"LLM Usage: {d.processor} - prompt: {tokens.prompt_tokens}, completion: {tokens.completion_tokens}"
+                        )
+                    elif isinstance(d, TTSUsageMetricsData):
+                        logger.debug(f"TTS Usage: {d.processor} = {d.value} characters")
+            await self.push_frame(frame, direction)
+
+    pipeline = Pipeline(
+        [
+            ws_transport.input(),
+            rtvi,
+            stt,
+            diar,
+            turn_taking,
+            user_context_aggregator,
+            llm,  # LLM
+            tts,
+            ws_transport.output(),
+            assistant_context_aggregator,
+        ]
+    )
+
+    task = PipelineTask(
+        pipeline,
+        params=PipelineParams(
+            allow_interruptions=True,
+            enable_metrics=False,
+            enable_usage_metrics=False,
+            send_initial_empty_metrics=True,
+            report_only_initial_ttfb=True,
+            idle_timeout=None,  # Disable idle timeout
+        ),
+        observers=[RTVIObserver(rtvi)],
+        idle_timeout_secs=None,
+        cancel_on_idle_timeout=False,
+    )
+
+    # Track task state
+    task_running = True
+
+    @rtvi.event_handler("on_client_ready")
+    async def on_client_ready(rtvi: RTVIProcessor):
+        logger.info("Pipecat client ready.")
+        await rtvi.set_bot_ready()
+        # Kick off the conversation.
+        try:
+            await task.queue_frames([user_context_aggregator.get_context_frame()])
+        except Exception as e:
+            logger.error(f"Error queuing context frame: {e}")
+
+    @ws_transport.event_handler("on_client_connected")
+    async def on_client_connected(transport, client):
+        logger.info(f"Pipecat Client connected from {client.remote_address}")
+        # Reset RTVI state for new connection
+        rtvi._client_ready = False
+        rtvi._bot_ready = False
+
+    @ws_transport.event_handler("on_client_disconnected")
+    async def on_client_disconnected(transport, client):
+        logger.info(f"Pipecat Client disconnected from {client.remote_address}")
+        # Don't cancel the task immediately - let it handle the disconnection gracefully
+        # The task will continue running and can accept new connections
+        # Only send an EndTaskFrame to clean up the current session
+        if task_running:
+            try:
+                await task.queue_frames([EndTaskFrame()])
+            except Exception as e:
+                # Don't log warnings for normal connection closures
+                if "ConnectionClosedOK" not in str(e) and "1005" not in str(e):
+                    logger.warning(f"Error sending EndTaskFrame: {e}")
+                else:
+                    logger.debug(f"Normal connection closure: {e}")
+
+    @ws_transport.event_handler("on_session_timeout")
+    async def on_session_timeout(transport, client):
+        logger.info(f"Session timeout for {client.remote_address}")
+        # Don't cancel the task - keep server running indefinitely
+        logger.info("Session timeout occurred but keeping server running")
+        # Note: With session_timeout=None, this handler should never be called
+
+    logger.info("Starting pipeline runner...")
+
+    try:
+        runner = PipelineRunner()
+        # Run the task until shutdown is requested
+        await asyncio.wait_for(runner.run(task), timeout=None)  # No timeout - run indefinitely
+    except asyncio.TimeoutError:
+        logger.info("Pipeline runner timeout (should not happen with no timeout)")
+    except Exception as e:
+        logger.error(f"Pipeline runner error: {e}")
+        task_running = False
+    finally:
+        logger.info("Pipeline runner stopped")
+
+
+if __name__ == "__main__":
+    asyncio.run(run_bot_websocket_server())
