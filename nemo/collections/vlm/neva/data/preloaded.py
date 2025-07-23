@@ -518,6 +518,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
     ) -> None:
         if not hasattr(self, "_one_logger_init_started"):
             from nemo.lightning.one_logger_callback import get_onelogger_callbacks
+
             get_onelogger_callbacks("on_dataloader_init_start")
 
         super().__init__()
