@@ -89,7 +89,7 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
-    _batch_cp = {k: v for k, v in _batch.items() if k in ['input_ids', ['labels'], ['loss_mask']]}
+    _batch_cp = {k: v for k, v in _batch.items() if k in ['input_ids', 'labels', 'loss_mask']}
     _batch.update(get_batch_on_this_cp_rank(_batch_cp))
     return _batch
 
@@ -280,6 +280,7 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
         self.language_transformer_config.scatter_embedding_sequence_parallel = False
         self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
+        self.language_transformer_config.context_parallel_size = self.context_parallel_size
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
@@ -320,7 +321,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
     def __init__(
         self,
         config: Qwen2VLConfig,
-        tokenizer: Optional = None,
+        tokenizer: Optional[TokenizerSpec] = None,
         pre_process: bool = True,
         post_process: bool = True,
         add_encoder: bool = True,
@@ -349,6 +350,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         self.language_model = None
 
         self.sequence_parallel_lm = language_transformer_config.sequence_parallel
+        self.context_parallel_lm = language_transformer_config.context_parallel_size
+        self.tensor_model_parallel_size_lm = language_transformer_config.tensor_model_parallel_size
         self.tp_comm_overlap_lm = language_transformer_config.tp_comm_overlap
 
         self.share_embeddings_and_output_weights = False
@@ -567,7 +570,37 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                     llm_pos_ids_list.append(torch.arange(text_len).view(1, -1).expand(3, -1) + st_idx)
 
                 llm_positions = torch.cat(llm_pos_ids_list, dim=1).reshape(3, -1)
-                position_ids[..., i, attention_mask[i] == 1] = llm_positions.to(position_ids.device)
+                
+                # Handle context parallelism: only assign positions for the current rank's portion
+                if self.context_parallel_lm > 1:
+                    # Get the current rank's portion of the sequence
+                    cp_rank = ps.get_context_parallel_rank()
+                    cp_world_size = ps.get_context_parallel_world_size()
+                    
+                    # Calculate the start and end indices for this rank
+                    seq_len = llm_positions.shape[1]
+                    chunk_size = seq_len // cp_world_size
+                    start_idx = cp_rank * chunk_size
+                    end_idx = start_idx + chunk_size if cp_rank < cp_world_size - 1 else seq_len
+                    
+                    # Get this rank's portion of the position IDs
+                    rank_positions = llm_positions[:, start_idx:end_idx]
+                    
+                    # Only assign positions for this rank's portion
+                    valid_mask = attention_mask[i] == 1
+                    valid_indices = torch.where(valid_mask)[0]
+                    
+                    # Filter valid indices to only include this rank's portion
+                    rank_valid_indices = valid_indices[(valid_indices >= start_idx) & (valid_indices < end_idx)].to('cpu')
+                    
+                    if len(rank_valid_indices) > 0:
+                        # Adjust indices to be relative to this rank's portion
+                        rank_relative_indices = rank_valid_indices - start_idx
+                        position_ids[..., i, rank_valid_indices] = rank_positions[:, rank_relative_indices].to(position_ids.device)
+                else:
+                    # Original behavior for non-CP case
+                    position_ids[..., i, attention_mask[i] == 1] = llm_positions.to(position_ids.device)
+                
                 mrope_position_deltas.append(llm_positions.max() + 1 - len(total_input_ids[i]))
             mrope_position_deltas = torch.tensor(mrope_position_deltas, device=input_ids.device).unsqueeze(1)
             return position_ids, mrope_position_deltas
@@ -749,6 +782,28 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             attention_mask=attention_mask,
         )  # [decoder_seq_len, b, h_language], [b, decoder_seq_len], [b, decoder_seq_len]
 
+        # ------------------------------------------------------------------
+        # Handle context parallelism: shard sequence dimension to match CP rank
+        # ------------------------------------------------------------------
+        if self.context_parallel_lm > 1:
+            cp_rank = ps.get_context_parallel_rank()
+            cp_world_size = ps.get_context_parallel_world_size()
+
+            seq_len = combined_embeddings.shape[0]
+            chunk_size = seq_len // cp_world_size
+            start_idx = cp_rank * chunk_size
+            end_idx = start_idx + chunk_size if cp_rank < cp_world_size - 1 else seq_len
+
+            # Slice sequence dimension for current CP rank
+            combined_embeddings = combined_embeddings[start_idx:end_idx]
+            if final_attention_mask is not None:
+                final_attention_mask = final_attention_mask[:, start_idx:end_idx]
+            if final_labels is not None:
+                final_labels = final_labels[:, start_idx:end_idx]
+            if final_loss_mask is not None:
+                final_loss_mask = final_loss_mask[:, start_idx:end_idx]
+        # ------------------------------------------------------------------
+
         output = self.language_model(
             input_ids=None,
             position_ids=position_ids,
@@ -831,43 +886,109 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 n_image_tokens = (input_ids == IMAGE_TOKEN_INDEX).sum().item()
                 n_image_features = image_embeddings.shape[0]
 
-                if n_image_tokens != n_image_features:
-                    raise ValueError(
-                        f"Image features and image tokens do not match: tokens: {n_image_tokens}, "
-                        f"features {n_image_features}"
-                    )
+                # Handle context parallelism: image embeddings are computed for full sequence
+                # but tokens are sharded, so we need to adjust the validation
+                if self.context_parallel_lm > 1:
+                    cp_world_size = ps.get_context_parallel_world_size()
+                    # For context parallelism, image embeddings should match the full sequence
+                    # while tokens are sharded. We need to gather the total token count across ranks
+                    total_image_tokens = torch.tensor(n_image_tokens, device=input_ids.device, dtype=torch.long)
+                    torch.distributed.all_reduce(total_image_tokens, op=torch.distributed.ReduceOp.SUM, group=ps.get_context_parallel_group())
+                    total_image_tokens = total_image_tokens.item()
 
-                image_mask = (
-                    (input_ids == IMAGE_TOKEN_INDEX)
-                    .unsqueeze(-1)
-                    .expand_as(final_embedding)
-                    .to(final_embedding.device)
-                )
-                image_embeddings = image_embeddings.to(final_embedding.device, final_embedding.dtype)
-                final_embedding = final_embedding.masked_scatter(
-                    image_mask, image_embeddings
-                )  #  [b, seq_len, h_language]
+                    if total_image_tokens != n_image_features:
+                        raise ValueError(
+                            f"Image features and image tokens do not match: total tokens: {total_image_tokens}, "
+                            f"features {n_image_features} (context_parallel_size={cp_world_size})"
+                        )
+                else:
+                    # Original validation for non-CP case
+                    if n_image_tokens != n_image_features:
+                        raise ValueError(
+                            f"Image features and image tokens do not match: tokens: {n_image_tokens}, "
+                            f"features {n_image_features}"
+                        )
+
+                # Handle context parallelism for image embeddings
+                if self.context_parallel_lm > 1:
+                    # For context parallelism, image embeddings are NOT sharded
+                    # Each rank uses the same full image embeddings
+                    # Only text tokens are sharded, image tokens maintain their positions
+                    image_mask = (
+                        (input_ids == IMAGE_TOKEN_INDEX)
+                        .unsqueeze(-1)
+                        .expand_as(final_embedding)
+                        .to(final_embedding.device)
+                    )
+                    image_embeddings = image_embeddings.to(final_embedding.device, final_embedding.dtype)
+                    final_embedding = final_embedding.masked_scatter(
+                        image_mask, image_embeddings
+                    )  #  [b, seq_len, h_language]
+                else:
+                    # Original behavior for non-CP case
+                    image_mask = (
+                        (input_ids == IMAGE_TOKEN_INDEX)
+                        .unsqueeze(-1)
+                        .expand_as(final_embedding)
+                        .to(final_embedding.device)
+                    )
+                    image_embeddings = image_embeddings.to(final_embedding.device, final_embedding.dtype)
+                    final_embedding = final_embedding.masked_scatter(
+                        image_mask, image_embeddings
+                    )  #  [b, seq_len, h_language]
 
             # merge video embeddings into final_embedding
             if has_videos:
-                # has images, merge image_embeddings into final_embedding
+                # has videos, merge video_embeddings into final_embedding
                 n_video_tokens = (input_ids == VIDEO_TOKEN_INDEX).sum().item()
                 n_video_features = video_embeddings.shape[0]
 
-                if n_video_tokens != n_video_features:
-                    raise ValueError(
-                        f"Video features and video tokens do not match: tokens: {n_video_tokens}, "
-                        f"features {n_video_features}"
-                    )
+                # Handle context parallelism: video embeddings are computed for full sequence
+                # but tokens are sharded, so we need to adjust the validation
+                if self.context_parallel_lm > 1:
+                    cp_world_size = ps.get_context_parallel_world_size()
+                    # For context parallelism, video embeddings should match the full sequence
+                    # while tokens are sharded. We need to gather the total token count across ranks
+                    total_video_tokens = torch.tensor(n_video_tokens, device=input_ids.device, dtype=torch.long)
+                    torch.distributed.all_reduce(total_video_tokens, op=torch.distributed.ReduceOp.SUM, group=ps.get_context_parallel_group())
+                    total_video_tokens = total_video_tokens.item()
 
-                video_mask = (
-                    (input_ids == VIDEO_TOKEN_INDEX)
-                    .unsqueeze(-1)
-                    .expand_as(final_embedding)
-                    .to(final_embedding.device)
-                )
-                video_embeddings = video_embeddings.to(final_embedding.device, final_embedding.dtype)
-                final_embedding = final_embedding.masked_scatter(video_mask, video_embeddings)
+                    if total_video_tokens != n_video_features:
+                        raise ValueError(
+                            f"Video features and video tokens do not match: total tokens: {total_video_tokens}, "
+                            f"features {n_video_features} (context_parallel_size={cp_world_size})"
+                        )
+                else:
+                    # Original validation for non-CP case
+                    if n_video_tokens != n_video_features:
+                        raise ValueError(
+                            f"Video features and video tokens do not match: tokens: {n_video_tokens}, "
+                            f"features {n_video_features}"
+                        )
+
+                # Handle context parallelism for video embeddings
+                if self.context_parallel_lm > 1:
+                    # For context parallelism, video embeddings are NOT sharded
+                    # Each rank uses the same full video embeddings
+                    # Only text tokens are sharded, video tokens maintain their positions
+                    video_mask = (
+                        (input_ids == VIDEO_TOKEN_INDEX)
+                        .unsqueeze(-1)
+                        .expand_as(final_embedding)
+                        .to(final_embedding.device)
+                    )
+                    video_embeddings = video_embeddings.to(final_embedding.device, final_embedding.dtype)
+                    final_embedding = final_embedding.masked_scatter(video_mask, video_embeddings)
+                else:
+                    # Original behavior for non-CP case
+                    video_mask = (
+                        (input_ids == VIDEO_TOKEN_INDEX)
+                        .unsqueeze(-1)
+                        .expand_as(final_embedding)
+                        .to(final_embedding.device)
+                    )
+                    video_embeddings = video_embeddings.to(final_embedding.device, final_embedding.dtype)
+                    final_embedding = final_embedding.masked_scatter(video_mask, video_embeddings)
 
         #
         # Create the final labels and loss mask (if this is the last language model stage).
@@ -900,8 +1021,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             if final_embedding.shape[1] > self._language_max_sequence_length:
                 final_embedding = final_embedding[:, : self._language_max_sequence_length]
 
-            # TODO: check and add self.context_parallel_lm to MCoreQwen2VLModel
-            # # Transpose to [s,b,h] if not using CP because CP Sharding expects seq in dim=1
+            # Transpose to [s,b,h] if not using CP because CP Sharding expects seq in dim=1
             final_embedding = final_embedding.transpose(1, 0).contiguous()  #  [seq_len, bs, h_language]
             if self.sequence_parallel_lm:
                 final_embedding = scatter_to_sequence_parallel_region(final_embedding)
