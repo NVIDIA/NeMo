@@ -235,11 +235,10 @@ class HyenaStack(MegatronModule):
             # A method to further reduce memory usage reducing checkpoints.
             layer_idx = 0
             while layer_idx < self.num_layers_per_pipeline_rank:
-                hidden_states, context = checkpoint_handler(
-                    custom(layer_idx, layer_idx + self.config.recompute_num_layers)
-                )
-
-                layer_idx += self.config.recompute_num_layers
+                upper_layer_idx = min(layer_idx + self.config.recompute_num_layers, self.num_layers_per_pipeline_rank)
+                hidden_states, context = checkpoint_handler(custom(layer_idx, upper_layer_idx))
+                new_n_layers = upper_layer_idx - layer_idx
+                layer_idx += new_n_layers
 
         elif self.config.recompute_method == 'block':
             # Checkpoint the input activation of only a set number of individual
