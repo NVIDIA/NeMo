@@ -81,6 +81,7 @@ class HyenaLayer(MegatronModule):
             max_sequence_length,
             layer_number=layer_number,
             operator_type=operator_type,
+            model_comm_pgs=model_comm_pgs,
         )
         self.norm = build_module(
             submodules.norm,
@@ -155,3 +156,146 @@ class HyenaLayer(MegatronModule):
             )
 
         return hidden_states, context
+
+    # def get_layer_static_inputs(self, seq_length, micro_batch_size):
+    #     """
+    #     Get the static inputs for the transformer layer.
+
+    #     Returns:
+    #         Dict[str, torch.Tensor]: A dictionary containing the static inputs for the layer.
+    #     """
+    #     # Calculate data shape related values.
+    #     context_parallel_size = self.config.context_parallel_size
+    #     slen_per_cp = seq_length // context_parallel_size
+    #     sequence_parallel = self.config.sequence_parallel
+    #     tensor_model_parallel_size = self.config.tensor_model_parallel_size
+    #     slen_per_cptp = (
+    #         slen_per_cp // tensor_model_parallel_size if sequence_parallel else slen_per_cp
+    #     )
+
+    #     static_inputs = {}
+    #     static_inputs["hidden_states"] = torch.ones(
+    #         (slen_per_cptp, micro_batch_size, self.config.hidden_size),
+    #         dtype=torch.bfloat16,
+    #         requires_grad=True,
+    #         device=torch.cuda.current_device(),
+    #     )
+    #     return static_inputs
+
+    # def setup_manual_hooks(self, make_hook_func):
+    #     """
+    #     Set CUDA Graph manual hooks for the modules that contain direct parameters and are
+    #     covered by cudagraphs.
+    #     """
+    #     self.cuda_graph_manual_hooks = []
+
+    #     # Select the modules who contain direct parameters and are covered by cudagraphs.
+    #     # Add these modules to the `cuda_graph_manual_hooks` because their hooks will not
+    #     # be automatically triggered when they go through the CUDA Graph path.
+    #     high_level_modules = [self]
+
+    #     param_modules = []
+    #     for module in high_level_modules:
+    #         for submodule in module.modules():
+    #             if next(submodule.parameters(recurse=False), None) is not None:
+    #                 # Module contains direct parameters.
+    #                 param_modules.append(submodule)
+    #                 continue
+    #     if len(param_modules) > 0:
+    #         for module in param_modules:
+    #             self.cuda_graph_manual_hooks.append((make_hook_func(), (module,)))
+
+    # def _cuda_graph_capture(self, *args, **kwargs):
+    #     """
+    #     CUDA Graph capture for this layer. There are some differences from the normal pass:
+    #     1. In some conditions CUDA graph cannot cover the entire layer. The `cuda_graph_scope`
+    #        attribute can be set to control the scope of the CUDA graph.
+    #     2. If context is None, it cannot be returned as output.
+    #     """
+    #     hidden_states, context = self.forward(*args, **kwargs)
+
+    #     cuda_graph_outputs = [hidden_states]
+
+    #     if context is not None:
+    #         cuda_graph_outputs.append(context)
+    #     return tuple(cuda_graph_outputs)
+
+    # def _cuda_graph_replay(self, *args, **kwargs):
+    #     """
+    #     CUDA graph replay for this layer and microbatch
+    #     `self.current_microbatch`. TransformerEngine versions>=1.10
+    #     allow keyword arguments with CUDA graph. However, CUDA graph
+    #     acccepts only Tensor inputs and Tensor outputs. Hence,
+    #     `inference_context` and `packed_seq_params` are excluded from
+    #     input list while output is limited to `hidden_states`.
+    #     """
+
+    #     def _check_cuda_graph_replay_args(*args, **kwargs):
+    #         """Helper function to get optional tensor arguments for CUDA graph."""
+
+    #         assert len(args) <= 1, "At most one positional argument `hidden_states` is expected."
+    #         if len(args) == 1:
+    #             hidden_states = args[0]
+    #         else:
+    #             hidden_states = kwargs.pop("hidden_states")
+    #         cudagraph_args = [hidden_states]
+
+    #         optional_inputs = kwargs.copy()
+    #         optional_inputs['is_first_microbatch'] = self.current_microbatch == 0
+    #         try:
+    #             import transformer_engine.pytorch as te  # pylint: disable=unused-import
+
+    #         except ImportError:
+    #             raise RuntimeError("CUDAGraph requires TransformerEngine, but not installed")
+    #         return tuple(cudagraph_args), optional_inputs
+
+    #     cg_index = self.current_microbatch % len(self.cuda_graphs)
+    #     assert ('inference_context' not in kwargs or kwargs['inference_context'] is None) and (
+    #         'packed_seq_params' not in kwargs or kwargs['packed_seq_params'] is None
+    #     ), "CUDA graph accepts only Tensor inputs."
+    #     cudagraph_args, cudagraph_kwargs = _check_cuda_graph_replay_args(*args, **kwargs)
+
+    #     for hook, hook_args in self.cuda_graph_manual_hooks:
+    #         hook(*hook_args)
+    #     cuda_graph_output = self.cuda_graphs[cg_index](*cudagraph_args, **cudagraph_kwargs)
+
+    #     if cudagraph_kwargs['context'] is not None:
+    #         context = cuda_graph_output[-1]
+    #         cuda_graph_output = cuda_graph_output[:-1]
+    #     else:
+    #         context = None
+    #     output = cuda_graph_output[0]
+    #     return output, context
+
+    # def __call__(self, *args, **kwargs):
+    #     # Training and validation mode CUDA graphs
+    #     if hasattr(self, 'cudagraph_manager') and kwargs.get('inference_context') is None:
+    #         return self.cudagraph_manager(self, args, kwargs)
+    #     # Inference mode. CUDA graphs are used in the decode phase only, when attn mask is None
+    #     elif not self.training and (
+    #         hasattr(self, 'cudagraph_manager')
+    #         and kwargs['attention_mask'] is None
+    #         and (
+    #             (
+    #                 kwargs.get('inference_context') is not None
+    #                 and kwargs['inference_context'].is_decode_only()
+    #             )
+    #             or (
+    #                 kwargs.get('inference_params') is not None
+    #                 and kwargs['inference_params'].is_decode_only()
+    #             )
+    #         )
+    #     ):
+    #         assert (
+    #             kwargs.get('attention_mask') is None
+    #         ), f"Attention mask must not be set when using CUDA graphs for decode"
+    #         return self.cudagraph_manager(self, args, kwargs)
+    #     elif self.config.external_cuda_graph and self.training:
+    #         if not self.cuda_graphs:
+    #             # Do CUDA Graphs capture.
+    #             cuda_graph_func = self._cuda_graph_capture
+    #         else:
+    #             # Do CUDA Graphs replay.
+    #             cuda_graph_func = self._cuda_graph_replay
+    #         return cuda_graph_func(*args, **kwargs)
+    #     return super(MegatronModule, self).__call__(*args, **kwargs)

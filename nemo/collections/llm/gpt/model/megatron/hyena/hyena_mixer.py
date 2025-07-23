@@ -93,6 +93,7 @@ class HyenaMixer(MegatronModule):
         submodules,
         layer_number=1,
         operator_type="H",
+        model_comm_pgs=None,
     ):
 
         super().__init__(transformer_config)
@@ -155,6 +156,7 @@ class HyenaMixer(MegatronModule):
             skip_bias_add=False,
             is_expert=False,
             tp_comm_buffer_name='fc1',
+            tp_group=model_comm_pgs.tp,
         )
 
         hyena_proj_groups = self.proj_groups if not self.grouped_attention else 1
@@ -238,6 +240,7 @@ class HyenaMixer(MegatronModule):
             skip_bias_add=True,
             is_expert=False,
             tp_comm_buffer_name='fc2',
+            tp_group=model_comm_pgs.tp,
         )
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
