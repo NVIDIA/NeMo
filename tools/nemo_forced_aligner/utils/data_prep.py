@@ -20,6 +20,7 @@ from typing import List, Union
 import lhotse.dataset
 import soundfile as sf
 import torch
+from lhotse import CutSet
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
