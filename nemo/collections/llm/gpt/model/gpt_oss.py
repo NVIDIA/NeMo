@@ -66,6 +66,7 @@ class GPTOSSConfig(GPTConfig):
     moe_token_dispatcher_type: str = "alltoall"
     moe_permute_fusion: bool = True
     moe_ffn_hidden_size: int = 2880
+    moe_router_load_balancing_type: str = "none"
     seq_length: int = 131072
     window_size: Optional[Tuple[int, int]] = (128, 0)
     attention_softmax_denominator_offset: Optional[Union[Literal['learnable'], float]] = "learnable"
