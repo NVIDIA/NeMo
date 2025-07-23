@@ -15,12 +15,14 @@
 
 """MetaInfoManager module for handling experiment metadata configuration."""
 
-import os,uuid
+import os
+import uuid
 from typing import Any, Dict, Optional
 
 import nemo_run.config as run
 import torch
 from omegaconf import OmegaConf
+
 from nemo.utils.import_utils import safe_import_from
 
 enable_onelogger = True
@@ -41,24 +43,23 @@ def get_onelogger_init_config() -> Dict[str, Any]:
         # Required fields (from OneLoggerConfig) - no defaults
         "application_name": "nemo-application",
         "session_tag_or_fn": os.environ.get("SLURM_JOB_NAME", "nemo-run"),
-        
         # Important fields with defaults - provide if available from config
         "enable_for_current_rank": _should_enable_for_current_rank(),
         "is_train_iterations_enabled_or_fn": True,
         "is_validation_iterations_enabled_or_fn": True,
         "is_test_iterations_enabled_or_fn": False,
         "is_save_checkpoint_enabled_or_fn": True,
-        
         # Skip fields with safe defaults or handled in TrainingLoopConfig:
         # - is_log_throughput_enabled_or_fn: defaults to False (requires additional config)
-        "save_checkpoint_strategy": "async", # TODO: need to remove this in nv-one-logger side
+        "save_checkpoint_strategy": "async",  # TODO: need to remove this in nv-one-logger side
         # - summary_data_schema_version_or_fn: defaults to "1.0.0"
     }
 
     return init_config
 
+
 def get_onelogger_training_loop_config(
-    trainer: Any, 
+    trainer: Any,
     job_name: str,
     model: Optional[Any] = None,
 ) -> Dict[str, Any]:
@@ -83,7 +84,7 @@ def get_onelogger_training_loop_config(
     log_every_n_steps = getattr(trainer, 'log_every_n_steps', 10)
 
     # Extract values from model or provided global_batch_size
-    if model is not None:   
+    if model is not None:
         global_batch_size = getattr(model, 'global_batch_size', 1)
         micro_batch_size = global_batch_size // world_size or getattr(model, 'micro_batch_size', 1)
         seq_length = getattr(model, 'seq_length', 1)
@@ -93,15 +94,13 @@ def get_onelogger_training_loop_config(
         )
         global_batch_size = get_current_global_batch_size()
         micro_batch_size = global_batch_size // world_size
-        seq_length = getattr(trainer, 'datamodule', {}).get('seq_length', 1) # TODO: need to test this
+        seq_length = getattr(trainer, 'datamodule', {}).get('seq_length', 1)  # TODO: need to test this
 
     # Training loop specific configuration (TrainingLoopConfig fields)
     training_loop_config = {
         # Performance tag (REQUIRED in TrainingLoopConfig)
         "perf_tag_or_fn": (
-            f"{job_name}_{os.environ.get('PERF_VERSION_TAG', '0.0.0')}_"
-            f"{global_batch_size}_"
-            f"{world_size}"
+            f"{job_name}_{os.environ.get('PERF_VERSION_TAG', '0.0.0')}_" f"{global_batch_size}_" f"{world_size}"
         ),
         # World size and batch information (REQUIRED in TrainingLoopConfig)
         "world_size_or_fn": world_size,
@@ -117,6 +116,7 @@ def get_onelogger_training_loop_config(
     }
 
     return training_loop_config
+
 
 def _should_enable_for_current_rank() -> bool:
     """Determine if OneLogger should be enabled for the current rank.

@@ -809,7 +809,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     add_handlers_to_mcore_logger()
 
     update_one_logger_config(
-        trainer=trainer, 
+        trainer=trainer,
         job_name=cfg.name,
     )
 

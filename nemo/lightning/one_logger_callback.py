@@ -26,10 +26,10 @@ from typing import Any, Dict, Optional, Union
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
+    from nv_one_logger.training_telemetry.api.config import TrainingLoopConfig, TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-    from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
-    from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig, TrainingLoopConfig
     from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
+    from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
 
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
@@ -38,7 +38,12 @@ from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.core import LightningModule
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from nemo.utils.meta_info_manager import get_onelogger_init_config, get_onelogger_training_loop_config, enable_onelogger
+
+from nemo.utils.meta_info_manager import (
+    enable_onelogger,
+    get_onelogger_init_config,
+    get_onelogger_training_loop_config,
+)
 
 # Export OneLogger availability flag
 __all__ = [
@@ -239,11 +244,11 @@ def _init_one_logger() -> None:
     """
     if not HAVE_ONELOGGER:
         return
-    
+
     # Check if OneLogger is enabled
     if not enable_onelogger:
         return
-    
+
     # Check if OneLogger is already configured
     if TrainingTelemetryProvider.instance().one_logger_ready:
         return
@@ -260,7 +265,9 @@ def _init_one_logger() -> None:
     )
 
     # Configure the provider with exporter (this automatically calls on_app_start)
-    TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(exporter.exporter).configure_provider()
+    TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(
+        exporter.exporter
+    ).configure_provider()
     get_onelogger_callbacks("on_app_start", start_time_msec=app_start_time)
 
 
@@ -290,7 +297,7 @@ def update_one_logger_config(
 
     # Convert dict to TrainingLoopConfig
     training_loop_config = TrainingLoopConfig(**config)
-    
+
     # Training loop specific config update
     TrainingTelemetryProvider.instance().set_training_loop_config(training_loop_config)
 
