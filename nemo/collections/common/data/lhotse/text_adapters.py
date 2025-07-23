@@ -607,7 +607,7 @@ class NeMoMultimodalConversationJsonlAdapter:
 @dataclass
 class NeMoMultimodalConversationShareGPTJsonlAdapter:
     """
-    ``NeMoMultimodalConversationShareGPTJsonlAdapter`` is used to read a ShareGPT format multimodal
+    ``NeMoMultimodalConversationShareGPTJsonlAdapter`` is used to read a ShareGPT format multimodal 
     conversation JSONL and yield objects of type ``NeMoMultimodalConversation`` that can be sampled with Lhotse.
 
     We expect the following ShareGPT schema (contained in a single line per example)::
@@ -624,7 +624,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
             ],
             "ori_sound": str,  # optional original sound path
         }
-
+    
     Audio placeholders (<sound>, <speech>) in conversation text will be replaced with the audio from the "sound" field.
     By default, both <sound> and <speech> placeholders are supported.
     """
@@ -644,7 +644,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
             assert len(self.manifest_filepath) == len(
                 self.tarred_audio_filepaths
             ), f"{len(self.manifest_filepath)} != {len(self.tarred_audio_filepaths)}"
-
+        
         # Handle audio placeholders - default to both <sound> and <speech>
         if self.audio_placeholders is None:
             self.audio_placeholders = ["<sound>", "<speech>"]
@@ -667,16 +667,22 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
             for data in load_jsonl(jsonl_path):
                 # Transform ShareGPT format to standard format
                 conversations = self._transform_sharegpt_conversations(data)
-
+                
                 # Extract audio data from tar if needed
                 audio_turns = [t for t in conversations if t["type"] == "audio"]
                 cuts = []
                 for turn in audio_turns:
                     recording, audio_path = next(tar)
+                    audio_path = str(audio_path)
                     cut = recording.to_cut()
+                    assert (
+                        audio_path == turn['value']
+                    ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}"
+                    # Update the duration in the turn data with actual audio duration
+                    turn["duration"] = cut.duration
                     cuts.append(cut)
                 cuts = deque(cuts)
-
+                
                 yield NeMoMultimodalConversation(
                     id=data["id"],
                     turns=self._create_turns(conversations, cuts, jsonl_path),
@@ -692,7 +698,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
             for data in load_jsonl(path):
                 # Transform ShareGPT format to standard format
                 conversations = self._transform_sharegpt_conversations(data)
-
+                
                 yield NeMoMultimodalConversation(
                     id=data["id"],
                     turns=self._create_turns(conversations, None, path),
@@ -706,55 +712,66 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
         """
         conversations = []
         audio_path = data.get("sound") or data.get("ori_sound")
-
+        
         for turn in data["conversations"]:
             # Map ShareGPT roles to standard roles
             role = "user" if turn["from"].lower() == "human" else "assistant"
-
+            
             # Check if this turn contains any audio placeholder
             found_placeholder = None
             for placeholder in self.audio_placeholders:
                 if placeholder in turn["value"]:
                     found_placeholder = placeholder
                     break
-
+            
             if found_placeholder:
                 # Split text around audio placeholder
                 parts = turn["value"].split(found_placeholder)
-
+                
                 # Add text before audio (if any)
                 if parts[0].strip():
-                    conversations.append({"type": "text", "from": role.title(), "value": parts[0].strip()})
-
+                    conversations.append({
+                        "type": "text",
+                        "from": role.title(),
+                        "value": parts[0].strip()
+                    })
+                
                 # Add audio turn
                 if audio_path:
-                    conversations.append(
-                        {
-                            "type": "audio",
-                            "from": role.title(),
-                            "value": audio_path,
-                            "duration": 0.0,  # Will be set when loading actual audio
-                        }
-                    )
-
+                    conversations.append({
+                        "type": "audio", 
+                        "from": role.title(),
+                        "value": audio_path,
+                        "duration": 0.0  # Will be set when loading actual audio
+                    })
+                
                 # Add text after audio (if any)
                 if len(parts) > 1 and parts[1].strip():
-                    conversations.append({"type": "text", "from": role.title(), "value": parts[1].strip()})
+                    conversations.append({
+                        "type": "text",
+                        "from": role.title(),
+                        "value": parts[1].strip()
+                    })
             else:
                 # Regular text turn
-                conversations.append({"type": "text", "from": role.title(), "value": turn["value"]})
-
+                conversations.append({
+                    "type": "text",
+                    "from": role.title(),
+                    "value": turn["value"]
+                })
+        
         return conversations
 
-    def _create_turns(
-        self, conversations: list[dict], cuts: deque = None, manifest_path: str = None
-    ) -> list[Union[TextTurn, AudioTurn]]:
+    def _create_turns(self, conversations: list[dict], cuts: deque = None, manifest_path: str = None) -> list[Union[TextTurn, AudioTurn]]:
         """Create TextTurn and AudioTurn objects from conversation data."""
         turns = []
-
+        
         for turn in conversations:
             if turn["type"] == "text":
-                turns.append(TextTurn(value=turn["value"], role=turn["from"].lower()))
+                turns.append(TextTurn(
+                    value=turn["value"],
+                    role=turn["from"].lower()
+                ))
             else:  # audio turn
                 if cuts is not None:
                     # Using tarred audio
@@ -762,16 +779,14 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                 else:
                     # Load audio from file path
                     cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
-
-                turns.append(
-                    AudioTurn(
-                        cut=cut,
-                        text=cut.supervisions[0].text if cut.supervisions else None,
-                        role=turn["from"].lower(),
-                        audio_locator_tag=self.audio_locator_tag,
-                    )
-                )
-
+                
+                turns.append(AudioTurn(
+                    cut=cut,
+                    text=cut.supervisions[0].text if cut.supervisions else None,
+                    role=turn["from"].lower(),
+                    audio_locator_tag=self.audio_locator_tag,
+                ))
+        
         return turns
 
 
