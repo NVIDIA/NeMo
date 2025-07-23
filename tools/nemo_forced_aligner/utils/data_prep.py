@@ -17,11 +17,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Union
 
+import lhotse.dataset
 import soundfile as sf
 import torch
+from lhotse import CutSet
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
+from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoTarredIterator
 from nemo.utils import logging
 
 
@@ -112,6 +115,16 @@ def get_char_tokens(text, model):
             tokens.append(len(model.decoder.vocabulary))  # return unk token (same as blank token)
 
     return tokens
+
+
+def get_lhotse_dataloader(cuts, batch_size, return_dict=False):
+    dloader = torch.utils.data.DataLoader(
+        dataset=ToAudio(return_dict=return_dict),
+        sampler=lhotse.dataset.DynamicCutSampler(cuts, max_cuts=batch_size),
+        num_workers=1,
+        batch_size=None,
+    )
+    return dloader
 
 
 def is_sub_or_superscript_pair(ref_text, text):
@@ -231,7 +244,12 @@ class Utterance:
 
 
 def get_utt_obj(
-    text, model, separator, T, audio_filepath, utt_id,
+    text,
+    model,
+    separator,
+    T,
+    audio_filepath,
+    utt_id,
 ):
     """
     Function to create an Utterance object and add all necessary information to it except
@@ -258,7 +276,11 @@ def get_utt_obj(
     # remove any empty segments
     segments = [seg for seg in segments if len(seg) > 0]
 
-    utt = Utterance(text=text, audio_filepath=audio_filepath, utt_id=utt_id,)
+    utt = Utterance(
+        text=text,
+        audio_filepath=audio_filepath,
+        utt_id=utt_id,
+    )
 
     # build up lists: token_ids_with_blanks, segments_and_tokens.
     # The code for these is different depending on whether we use char-based tokens or not
@@ -289,7 +311,14 @@ def get_utt_obj(
             return utt
 
         # build up data structures containing segments/words/tokens
-        utt.segments_and_tokens.append(Token(text=BLANK_TOKEN, text_cased=BLANK_TOKEN, s_start=0, s_end=0,))
+        utt.segments_and_tokens.append(
+            Token(
+                text=BLANK_TOKEN,
+                text_cased=BLANK_TOKEN,
+                s_start=0,
+                s_end=0,
+            )
+        )
 
         segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
         word_s_pointer = 1  # first word will start at s=1 because s=0 is a blank
@@ -422,7 +451,14 @@ def get_utt_obj(
             return utt
 
         # build up data structures containing segments/words/tokens
-        utt.segments_and_tokens.append(Token(text=BLANK_TOKEN, text_cased=BLANK_TOKEN, s_start=0, s_end=0,))
+        utt.segments_and_tokens.append(
+            Token(
+                text=BLANK_TOKEN,
+                text_cased=BLANK_TOKEN,
+                s_start=0,
+                s_end=0,
+            )
+        )
 
         segment_s_pointer = 1  # first segment will start at s=1 because s=0 is a blank
         word_s_pointer = 1  # first word will start at s=1 because s=0 is a blank
@@ -589,9 +625,9 @@ def add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
     """
     Function to add t_start and t_end (representing time in seconds) to the Utterance object utt_obj.
     Args:
-        utt_obj: Utterance object to which we will add t_start and t_end for its 
+        utt_obj: Utterance object to which we will add t_start and t_end for its
             constituent segments/words/tokens.
-        alignment_utt: a list of ints indicating which token does the alignment pass through at each 
+        alignment_utt: a list of ints indicating which token does the alignment pass through at each
             timestep (will take the form [0, 0, 1, 1, ..., <num of tokens including blanks in uterance>]).
         output_timestep_duration: a float indicating the duration of a single output timestep from
             the ASR Model.
@@ -684,6 +720,7 @@ def get_batch_variables(
     simulate_cache_aware_streaming=False,
     use_buffered_chunked_streaming=False,
     buffered_chunk_params={},
+    load_lhotse_tarred=False,
 ):
     """
     Returns:
@@ -697,8 +734,20 @@ def get_batch_variables(
     # get hypotheses by calling 'transcribe'
     # we will use the output log_probs, the duration of the log_probs,
     # and (optionally) the predicted ASR text from the hypotheses
-    audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
-    B = len(audio_filepaths_batch)
+
+    if load_lhotse_tarred:
+        # convert batch tensor to list of tensors which is what expected by the transcribe function
+        # audio_batch = [manifest_lines_batch['audios'][i] for i in range(manifest_lines_batch['audios'].shape[0])]
+
+        # audio_filepaths_batch = [manifest_lines_batch['cuts'][i].id for i in range(manifest_lines_batch['audios'].shape[0])]
+        audio_filepaths_batch = [cut.id for cut in manifest_lines_batch]
+        audio_durations = {cut.id: cut.duration for cut in manifest_lines_batch}
+        B = len(manifest_lines_batch)
+        # text_batch = [ {"text": manifest_lines_batch['text'][i]} for i in range(len(manifest_lines_batch['text']))]
+
+    else:
+        audio_filepaths_batch = [line["audio_filepath"] for line in manifest_lines_batch]
+        B = len(audio_filepaths_batch)
     log_probs_list_batch = []
     T_list_batch = []
     pred_text_batch = []
@@ -706,7 +755,12 @@ def get_batch_variables(
     if not use_buffered_chunked_streaming:
         if not simulate_cache_aware_streaming:
             with torch.no_grad():
-                hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
+                if load_lhotse_tarred:
+                    hypotheses = model.transcribe(
+                        CutSet.from_cuts(manifest_lines_batch), return_hypotheses=True, batch_size=B
+                    )
+                else:
+                    hypotheses = model.transcribe(audio_filepaths_batch, return_hypotheses=True, batch_size=B)
         else:
             with torch.no_grad():
                 hypotheses = model.transcribe_simulate_cache_aware_streaming(
@@ -744,7 +798,10 @@ def get_batch_variables(
         if align_using_pred_text:
             gt_text_for_alignment = " ".join(pred_text_batch[i_line].split())
         else:
-            gt_text_for_alignment = line["text"]
+            if load_lhotse_tarred:
+                gt_text_for_alignment = manifest_lines_batch[i_line].supervisions[0].text
+            else:
+                gt_text_for_alignment = line["text"]
         utt_obj = get_utt_obj(
             gt_text_for_alignment,
             model,
@@ -755,6 +812,7 @@ def get_batch_variables(
         )
 
         # update utt_obj.pred_text or utt_obj.text
+
         if align_using_pred_text:
             utt_obj.pred_text = pred_text_batch[i_line]
             if len(utt_obj.pred_text) == 0:
@@ -765,7 +823,10 @@ def get_batch_variables(
             if "text" in line:
                 utt_obj.text = line["text"]  # keep the text as we will save it in the output manifest
         else:
-            utt_obj.text = line["text"]
+            if load_lhotse_tarred:
+                utt_obj.text = manifest_lines_batch[i_line].supervisions[0].text
+            else:
+                utt_obj.text = line["text"]
             if len(utt_obj.text) == 0:
                 logging.info(
                     f"'text' of utterance {utt_obj.utt_id} is empty - we will not generate"
@@ -815,9 +876,11 @@ def get_batch_variables(
                 "Don't have attribute 'sample_rate' in 'model.cfg.preprocessor' => cannot calculate start "
                 " and end time of segments => stopping process"
             )
-
-        with sf.SoundFile(audio_filepaths_batch[0]) as f:
-            audio_dur = f.frames / f.samplerate
+        if load_lhotse_tarred:
+            audio_dur = audio_durations[audio_filepaths_batch[0]]
+        else:
+            with sf.SoundFile(audio_filepaths_batch[0]) as f:
+                audio_dur = f.frames / f.samplerate
         n_input_frames = audio_dur / model.cfg.preprocessor.window_stride
         model_downsample_factor = round(n_input_frames / int(T_batch[0]))
 
@@ -839,3 +902,13 @@ def get_batch_variables(
         utt_obj_batch,
         output_timestep_duration,
     )
+
+
+def load_nemo_tarred_from_dir(manifest_path: str, tar_paths: str) -> CutSet:
+
+    # Initialize iterator
+    iterator = LazyNeMoTarredIterator(
+        manifest_path=manifest_path,
+        tar_paths=tar_paths,
+    )
+    return CutSet.from_cuts(iterator)

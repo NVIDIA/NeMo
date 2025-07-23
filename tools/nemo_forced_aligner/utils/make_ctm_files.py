@@ -12,16 +12,41 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import os
+import shutil
 
 import soundfile as sf
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
 from utils.data_prep import Segment, Word
+
 from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
 
 
+def combine_and_cleanup_ctms(output_dir, alignment_levels=("tokens", "words", "segments")):
+    ctm_dir = os.path.join(output_dir, "ctm")
+
+    for level in alignment_levels:
+        level_dir = os.path.join(ctm_dir, level)
+        combined_ctm_path = os.path.join(ctm_dir, f"{level}.combined.ctm")
+
+        if not os.path.exists(level_dir):
+            continue  # Skip if folder doesn't exist
+
+        # Combine all .ctm files into one
+        with open(combined_ctm_path, "w") as fout:
+            for ctm_file in glob.glob(os.path.join(level_dir, "*.ctm")):
+                with open(ctm_file, "r") as fin:
+                    fout.writelines(fin)
+
+        # Remove the entire per-level folder
+        shutil.rmtree(level_dir)
+
+
 def make_ctm_files(
-    utt_obj, output_dir_root, ctm_file_config,
+    utt_obj,
+    output_dir_root,
+    ctm_file_config,
 ):
     """
     Function to save CTM files for all the utterances in the incoming batch.
@@ -39,15 +64,37 @@ def make_ctm_files(
     else:
         audio_file_duration = None
 
-    utt_obj = make_ctm("tokens", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
-    utt_obj = make_ctm("words", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
-    utt_obj = make_ctm("segments", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
+    utt_obj = make_ctm(
+        "tokens",
+        utt_obj,
+        output_dir_root,
+        audio_file_duration,
+        ctm_file_config,
+    )
+    utt_obj = make_ctm(
+        "words",
+        utt_obj,
+        output_dir_root,
+        audio_file_duration,
+        ctm_file_config,
+    )
+    utt_obj = make_ctm(
+        "segments",
+        utt_obj,
+        output_dir_root,
+        audio_file_duration,
+        ctm_file_config,
+    )
 
     return utt_obj
 
 
 def make_ctm(
-    alignment_level, utt_obj, output_dir_root, audio_file_duration, ctm_file_config,
+    alignment_level,
+    utt_obj,
+    output_dir_root,
+    audio_file_duration,
+    ctm_file_config,
 ):
     output_dir = os.path.join(output_dir_root, "ctm", alignment_level)
     os.makedirs(output_dir, exist_ok=True)
