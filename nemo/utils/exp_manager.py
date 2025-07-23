@@ -42,7 +42,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
-from nemo.lightning.one_logger_callback import init_one_logger
+from nemo.lightning.one_logger_callback import update_one_logger_config
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
@@ -53,7 +53,6 @@ from nemo.utils.import_utils import safe_import_from
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
-from nemo.utils.meta_info_manager import MetaInfoManager
 from nemo.utils.model_utils import uninject_model_parallel_rank
 from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
@@ -445,84 +444,6 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
-def configure_onelogger(
-    cfg: Optional[OmegaConf] = None,
-    trainer: Optional[lightning.pytorch.Trainer] = None,
-    name: Optional[str] = None,
-    enable_onelogger: bool = True,
-) -> None:
-    """Configure OneLogger using v1 adapter for compatibility with existing downstream consumers.
-
-    Args:
-        cfg: OmegaConf configuration object. If None, a minimal config will be created.
-            Can contain OneLogger configuration:
-            - enable_onelogger: bool - Whether to enable OneLogger (default: True)
-        trainer: PyTorch Lightning trainer instance.
-        name: Experiment name for the config. Used if cfg is None.
-        enable_onelogger: Whether to enable OneLogger (default: True)
-
-    Note:
-        OneLogger can be disabled by setting enable_onelogger = False
-    """
-    # If no config is provided, create a minimal one
-    if cfg is None:
-        from omegaconf import OmegaConf
-
-        cfg = OmegaConf.create(
-            {"exp_manager": {"wandb_logger_kwargs": {"project": "nemo_experiments", "name": name or "default"}}}
-        )
-
-    # Extract metadata from config
-    metadata = MetaInfoManager(cfg).get_metadata()
-
-    # Determine checkpoint strategy
-    if trainer is not None and getattr(trainer.strategy, "async_save", False):
-        save_checkpoint_strategy = "async"
-    else:
-        save_checkpoint_strategy = "sync"
-
-    # Build v1-style config for the adapter
-    v1_config = {
-        # Basic configuration
-        "enable_for_current_rank": metadata.get("enable_for_current_rank", False),
-        "one_logger_async": False,  # Use sync exporter for simplicity
-        "one_logger_project": metadata.get("app_name", "nemo-training"),
-        "one_logger_run_name": f"nemo-session-{uuid.uuid4()}",
-        # Logging configuration
-        "log_every_n_train_iterations": cfg.get("log_interval", 10),
-        "app_tag_run_version": "1.0.0",
-        "summary_data_schema_version": "1.0.0",
-        "app_run_type": "training",
-        # Training configuration
-        "world_size": metadata.get("world_size", 1),
-        "global_batch_size": metadata.get("global_batch_size", 1),
-        "micro_batch_size": metadata.get("micro_batch_size", 1),
-        # Training targets
-        "train_iterations_target": metadata.get("train_iterations_target", 1),
-        "train_samples_target": metadata.get("train_samples_target", 1),
-        # Feature flags
-        "is_train_iterations_enabled": metadata.get("is_train_iterations_enabled", True),
-        "is_baseline_run": False,
-        "is_test_iterations_enabled": metadata.get("is_test_iterations_enabled", True),
-        "is_validation_iterations_enabled": metadata.get("is_validation_iterations_enabled", True),
-        "is_save_checkpoint_enabled": metadata.get("is_save_checkpoint_enabled", True),
-        "is_log_throughput_enabled": metadata.get("is_log_throughput_enabled", False),
-        # Checkpoint strategy
-        "save_checkpoint_strategy": save_checkpoint_strategy,
-        # Performance metrics
-        "flops_per_sample": metadata.get("flops_per_sample", None),
-        # App tags
-        "app_tag": metadata.get("perf_tag", "default"),
-        "app_tag_run_name": metadata.get("session_tag", "nemo-session"),
-        # Metadata - pass all metadata for custom_metadata
-        "metadata": metadata,
-        # Error handling
-        "quiet": False,  # Don't suppress errors
-    }
-
-    init_one_logger(v1_config, trainer=trainer, enable_onelogger=enable_onelogger)
-
-
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch
@@ -762,9 +683,6 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
             cfg.neptune_logger_kwargs,
         )
 
-    # Configure OneLogger callback
-    configure_onelogger(cfg, trainer, enable_onelogger=cfg.enable_onelogger)
-
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:
         timing_callback = DeltaTimingCallback(timer_kwargs=cfg.step_timing_kwargs or {})
@@ -889,6 +807,11 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         time.sleep(cfg.seconds_to_sleep)
 
     add_handlers_to_mcore_logger()
+
+    update_one_logger_config(
+        trainer=trainer, 
+        job_name=cfg.name,
+    )
 
     return log_dir
 

@@ -56,10 +56,10 @@ from nemo.lightning import (
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.one_logger_callback import OneLoggerTimingTracker, get_onelogger_callbacks
+from nemo.lightning.one_logger_callback import get_onelogger_callbacks
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
-from nemo.utils.exp_manager import configure_onelogger
+from nemo.lightning.one_logger_callback import update_one_logger_config
 from nemo.utils.get_rank import is_global_rank_zero
 
 if TYPE_CHECKING:
@@ -1231,7 +1231,7 @@ def _setup(
     tokenizer: Optional[TokenizerType],
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]],
 ) -> Any:  # Return type is Any because app_state's type is not specified
-    timing_tracker = OneLoggerTimingTracker.get_instance()
+    # OneLogger timing tracker replaced with direct callback calls
     configure_no_restart_validation_training_loop(trainer)
     _log = log or NeMoLogger()
     if resume and isinstance(model_transform, PEFT) and _log.ckpt:
@@ -1245,17 +1245,17 @@ def _setup(
     )
 
     # Configure OneLogger callback
-    configure_onelogger(trainer=trainer, name=_log.name, enable_onelogger=getattr(_log, 'enable_onelogger', True))
+    update_one_logger_config(trainer=trainer, model=model, job_name=_log.name)
 
     if resume is not None:
-        timing_tracker.track_event('on_load_checkpoint_start')
+        get_onelogger_callbacks('on_load_checkpoint_start')
         resume.setup(trainer, model)
-        timing_tracker.track_event('on_load_checkpoint_end')
+        get_onelogger_callbacks('on_load_checkpoint_end')
 
     if optim:
-        timing_tracker.track_event('on_optimizer_init_start')
+        get_onelogger_callbacks('on_optimizer_init_start')
         optim.connect(model)
-        timing_tracker.track_event('on_optimizer_init_end')
+        get_onelogger_callbacks('on_optimizer_init_end')
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
