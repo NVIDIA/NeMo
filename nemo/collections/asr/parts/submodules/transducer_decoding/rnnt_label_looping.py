@@ -634,13 +634,16 @@ class GreedyBatchedRNNTLabelLoopingComputer(
                 if item is None:
                     state_items[i] = start_item
 
-        fusion_states_list = []
-        for fusion_idx in range(len(self.fusion_models)):
-            fusion_states_list.append(
-                torch.stack([item.fusion_state_list[fusion_idx] for item in state_items])
-                if any(item.fusion_state_list[fusion_idx] is not None for item in state_items)
-                else None
-            )
+        if self.fusion_models is not None:
+            fusion_states_list = []
+            for fusion_idx in range(len(self.fusion_models)):
+                fusion_states_list.append(
+                    torch.stack([item.fusion_state_list[fusion_idx] for item in state_items])
+                    if any(item.fusion_state_list[fusion_idx] is not None for item in state_items)
+                    else None
+                )
+        else:
+            fusion_states_list = None
 
         batched_state = BatchedLabelLoopingState(
             predictor_states=self.decoder.batch_unsplit_states([item.predictor_state for item in state_items]),
