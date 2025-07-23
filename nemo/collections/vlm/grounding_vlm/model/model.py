@@ -42,7 +42,7 @@ class Qwen2GroundingVLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn
         # pylint: disable=C0115,C0116
         if not hasattr(self, "module"):
             self.module = self.config.configure_model(self.tokenizer, vp_stage=vp_stage)
-
+    
     def forward(
         self,
         input_ids: torch.Tensor,

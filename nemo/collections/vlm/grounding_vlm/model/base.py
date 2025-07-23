@@ -32,13 +32,17 @@ from megatron.core.utils import get_batch_on_this_cp_rank
 from nemo.collections.llm.gpt.model.base import get_packed_seq_params
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
 from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, restore_model_weights
-from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, VIDEO_TOKEN_INDEX
+# from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX, VIDEO_TOKEN_INDEX
 from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLVisionConfig, Qwen25VLVisionConfig
 from nemo.collections.vlm.vision import MultimodalProjectorConfig
 from nemo.collections.vlm.vision.base import get_image_sequence_length
 from nemo.lightning import io
 from nemo.utils import logging
 
+# indices here
+IMAGE_TOKEN_INDEX = 151655
+VIDEO_TOKEN_INDEX = 151656
+IGNORE_INDEX = 151643
 
 # grounding vlm
 from nemo.collections.vlm.grounding_vlm.model.thinker import ThinkingAttnRefineModuleConfig
@@ -55,20 +59,28 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
         _batch = batch[0]
     else:
         _batch = batch
+    
+    print(f"Pre batch keys: {_batch.keys()}")
+    for key, val in _batch.items():
+        print(f"{key}: {val.shape if isinstance(val, torch.Tensor) else val}")
+    print("--------------------------------")
 
     required_keys = set()
     required_keys.update(
-        "input_ids",
-        "attention_mask",
-        "pixel_values",
-        "image_grid_thw",
-        "loss_mask",
-        "labels",
-        "cls_token_ids",
-        "cls_labels",
-        "cls_loss_mask",
-        "instance_det_ids",
-        "instance_cu_seqlen",
+        (
+            "input_ids",
+            "attention_mask",
+            "position_ids",
+            "loss_mask",
+            "labels",
+            "pixel_values",
+            "image_grid_thw",
+            "cls_token_ids",
+            "cls_labels",
+            "cls_loss_mask",
+            "instance_det_ids",
+            "instance_cu_seqlen",
+        )
     )
 
     if parallel_state.is_pipeline_first_stage():
@@ -79,6 +91,7 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
                 "labels",
                 "loss_mask",
                 "cls_token_ids",
+                "cls_attention_mask",
                 "cls_labels",
                 "cls_loss_mask",
                 "instance_det_ids",
@@ -86,14 +99,27 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
             )
         )
 
+    print("Required keys: ", required_keys)
+    print("--------------------------------")
+    for key, val in _batch.items():
+        print(f"{key}: {val.shape if isinstance(val, torch.Tensor) else val}")
+    print("--------------------------------")
+
     _batch = {
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
     print("Calling qwen2vl data step with batch keys: ", _batch.keys())
+    for key, val in _batch.items():
+        print(f"{key}: {val.shape if isinstance(val, torch.Tensor) else val}")
+    print("--------------------------------")
 
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_cp_rank(_batch)
+    print("Output keys: ", output.keys())
+    for key, val in output.items():
+        print(f"{key}: {val.shape if isinstance(val, torch.Tensor) else val}")
+    print("--------------------------------")
     return output
 
 def qwen2vl_forward_step(model, batch) -> torch.Tensor:
@@ -101,17 +127,24 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
     forward_args = {
         "input_ids": batch["input_ids"],
         "attention_mask": batch["attention_mask"],
-        "pixel_values": batch.get("pixel_values", None),
-        "image_grid_thw": batch.get("image_grid_thw", None),
+        "position_ids": batch["position_ids"],
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
+        # image related
+        "pixel_values": batch.get("pixel_values", None),
+        "image_grid_thw": batch.get("image_grid_thw", None),
+        # class token related
         "cls_token_ids": batch.get("cls_token_ids", None),
+        "cls_attention_mask": batch.get("cls_attention_mask", None),
         "cls_labels": batch.get("cls_labels", None),
         "cls_loss_mask": batch.get("cls_loss_mask", None),
+        # instance token related
         "instance_det_ids": batch.get("instance_det_ids", None),
         "instance_cu_seqlen": batch.get("instance_cu_seqlen", None),
     }
     print("Calling qwen2vl forward step with batch keys: ", forward_args.keys())
+    for key, val in forward_args.items():
+        print(f"{key}: {val.shape if isinstance(val, torch.Tensor) else val}")
     # disable packed seq params for now
     # if 'cu_seqlens' in batch:
     #     forward_args['packed_seq_params'] = get_packed_seq_params(batch)
@@ -276,6 +309,10 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         self.extra_tokens_ids = config.extra_tokens_ids
         self.extra_tokens_metadata = config.extra_tokens_metadata
         self.extra_token_id_mapping = config.extra_token_id_mapping
+
+        self.inp_tokenizer = tokenizer
+        breakpoint()
+
         # if none is specified, it means the tokenizer is a "base tokenizer"
         if self.extra_tokens is None:
             tokenizer, extra_tokens, extra_tokens_ids, metadata = generate_extra_grounding_tokens(tokenizer)
@@ -285,7 +322,15 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
                 k: v for k, v in zip(extra_tokens, extra_tokens_ids)
             }
             self.extra_tokens_metadata = metadata
-
+        else:
+            pass # everything is already set (including the tokenizer)
+    
+        # save original and new vocab sizes
+        self.orig_vocab_size = tokenizer.vocab_size
+        self.vocab_size = len(tokenizer)
+        print(f"original vocab size: {self.orig_vocab_size}, new vocab size: {self.vocab_size}")
+        language_transformer_config.vocab_size = self.vocab_size
+        
         if self.add_decoder:
             # TODO: this will have a different vocab size than the original model, how to handle this?
             # tokenizer is modified already
@@ -535,13 +580,17 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         position_ids: Optional[torch.LongTensor] = None,
         loss_mask: Optional[torch.Tensor] = None,
         labels: Optional[torch.Tensor] = None,
+        # inference params
         inference_params: Optional[InferenceParams] = None,
+        # image/video related params
         pixel_values: Optional[torch.Tensor] = None,
         pixel_values_videos: Optional[torch.FloatTensor] = None,   # [seqlen_img, num_dims]
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
-        runtime_gather_output: Optional[bool] = None,
+        # temporal params
         second_per_grid_ts: Optional[torch.FloatTensor] = None,
+        # runtime 
+        runtime_gather_output: Optional[bool] = None,
         # grounding params
         cls_token_ids: Optional[torch.Tensor] = None,  # [batch, classes, seqlen']
         cls_attention_mask: Optional[torch.Tensor] = None,  # [batch, classes, seqlen']
@@ -583,8 +632,12 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
         )
 
+        position_ids = None
+
         has_images = pixel_values is not None
         has_videos = pixel_values_videos is not None
+
+        breakpoint()
 
         image_embeddings = None
         if use_inference_kv_cache:
@@ -670,7 +723,7 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         # get cls label position ids
         if cls_token_ids is not None:
             batch_size_cls, seq_len_cls, num_classes_cls = cls_token_ids.shape
-            cls_token_ids_flat = cls_token_ids.transpose(0, 2, 1).reshape(batch_size_cls * num_classes_cls, seq_len_cls) 
+            cls_token_ids_flat = cls_token_ids.reshape(batch_size_cls * num_classes_cls, seq_len_cls) 
             cls_label_pos_ids_flat, _ = self.get_rope_index(
                 cls_token_ids_flat, None, None, None, None
             )
@@ -707,14 +760,14 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             input_ids_text[input_ids_text < 0] = 0
 
             language_embeddings = self.language_model.embedding(
-                input_ids=input_ids_text, position_ids=None
+                input_ids=input_ids_text, position_ids=position_ids
             )  # [decoder_seq_len, b, h_language]
 
             language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, decoder_seq_len, h_language]
 
             # get cls embeddings
             if cls_token_ids is not None:
-                cls_embeddings = self.language_model.embedding(cls_token_ids_flat)  # [seqlen, batch*classes, h_language]
+                cls_embeddings = self.language_model.embedding(input_ids=cls_token_ids_flat, position_ids=cls_label_pos_ids_flat)  # [seqlen, batch*classes, h_language]
                 cls_embeddings = cls_embeddings[-1].reshape(batch_size_cls, num_classes_cls, -1).contiguous()  # [batch, classes, h_language]
                 # cls_embeddings = self.thinking_attn_refine_module.cls_head_forward(cls_embeddings)  # [batch, classes, h_cls_head]
 
@@ -750,6 +803,8 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
 
         # get indices and get counts for each 'b_idx'
         seq_idx, batch_idx = think_hidden_states_indices.T  # [num_thinking_tokens, batch_size]
+        breakpoint()
+
         _, count_b = torch.unique(batch_idx, return_counts=True)
         assert (count_b[0] == count_b).all(), "each batch should have the same number of thinking tokens"
 

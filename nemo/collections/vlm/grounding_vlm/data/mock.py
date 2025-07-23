@@ -231,6 +231,10 @@ class _Qwen2VLMockDataset(Dataset):
         pixel_values = inputs.pixel_values
         image_grid_thw = inputs.image_grid_thw.reshape(-1, 3)
 
+        print(f"pixel_values: {pixel_values.shape}")
+        print(f"image_grid_thw: {image_grid_thw.shape}")
+        print(f"input_ids: {len(input_ids)}, {input_ids}")
+
         # generate answers 
         answer = ""
         # generate the answer
@@ -257,6 +261,7 @@ class _Qwen2VLMockDataset(Dataset):
         print(f"answer: {answer}")
         answer_tokenized = self.tokenizer(answer)
         answer_input_ids = list(answer_tokenized.input_ids)
+        print(f"answer_input_ids: {answer_input_ids}")
 
         # make sure seq len is not exceeded
         final_tokens = input_ids + answer_input_ids + [self.tokenizer.pad_token_id]  # end with pad token
@@ -303,7 +308,7 @@ class _Qwen2VLMockDataset(Dataset):
         # Handle classification tokens and labels
         max_classes = max([0 if item["cls_token_ids"] is None else item["cls_token_ids"].shape[0] for item in batch])
         max_seq_len = max([0 if item["cls_token_ids"] is None else item["cls_token_ids"].shape[1] for item in batch])
-        
+
         # Initialize classification tensors
         batch_size = len(batch)
         cls_token_ids = torch.full((batch_size, max_classes, max_seq_len), self.tokenizer.pad_token_id, dtype=torch.long)
@@ -363,8 +368,8 @@ if __name__ == "__main__":
         num_train_samples=1000,
         num_val_samples=1000,
         num_test_samples=1000,
-        micro_batch_size=4,
-        global_batch_size=4,
+        micro_batch_size=1,
+        global_batch_size=1,
         num_workers=0,
     )
     data_module.setup()
@@ -373,4 +378,7 @@ if __name__ == "__main__":
         print(batch)
         for k, v in batch.items():
             print(k, v.shape)
-        input("Press Enter to continue...")
+        input_ids = batch["input_ids"]
+        print(f"input_ids: {input_ids.min()}, {input_ids.max()}")
+        print(f"{train_dataloader.dataset.extra_tokens_ids}")
+        breakpoint()

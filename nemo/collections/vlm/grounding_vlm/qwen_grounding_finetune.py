@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 Example:
   torchrun --nproc_per_node=8 scripts/vlm/grounding_vlm/qwen_grounding_finetune.py \
@@ -52,6 +51,7 @@ def main(args):
 
     model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    aug_tokenizer = deepcopy(tokenizer)  # this tokenizer is used for the data module
     image_processor = AutoProcessor.from_pretrained(model_name)
 
     if args.data_type == "energon":
@@ -96,7 +96,7 @@ def main(args):
             num_thinking_tokens=num_thinking_tokens,
             global_batch_size=gbs,
             micro_batch_size=mbs,
-            tokenizer=deepcopy(tokenizer),
+            tokenizer=aug_tokenizer,
             image_processor=image_processor,
             num_workers=0,
         )
@@ -120,7 +120,7 @@ def main(args):
         # thinking module
         cfg.thinking_attn_refine_module_config.num_layers = 1
 
-    model = gvlm.model.Qwen2GroundingVLModel(qwen2vl_grounding_config, model_version="qwen25-vl", tokenizer=tokenizer)
+    model = gvlm.model.Qwen2GroundingVLModel(qwen2vl_grounding_config, model_version="qwen25-vl", tokenizer=aug_tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
