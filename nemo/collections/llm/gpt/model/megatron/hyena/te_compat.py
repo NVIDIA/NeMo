@@ -1,0 +1,110 @@
+# Copyright (c) 2024-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024 Arc Institute. All rights reserved.
+# Copyright (c) 2024 Michael Poli. All rights reserved.
+# Copyright (c) 2024 Stanford University. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
+from megatron.core.transformer.dot_product_attention import DotProductAttention
+
+from megatron.core.extensions.transformer_engine import (
+    TEDotProductAttention,
+    TELayerNormColumnParallelLinear,
+    TENorm,
+    TELinear,
+    TERowParallelLinear,
+)
+
+import transformer_engine.pytorch as te
+from transformer_engine.common.recipe import DelayedScaling, Format
+
+from functools import lru_cache
+
+@lru_cache # Need to move this cache to inference context
+def get_pad_tensor(*, pad_shape, dtype, device):
+    return torch.zeros(pad_shape, device=device, dtype=dtype)
+
+def pad_to_multiple(x, multiple=8):
+    """Pad tensor to make sequence length divisible by multiple."""
+    seq_len, b, d = x.shape
+    if seq_len % multiple == 0:
+        return x
+    pad_len = multiple - (seq_len % multiple)
+    pad_shape = (pad_len, b, d)
+    pad_tensor = get_pad_tensor(pad_shape=pad_shape, dtype=x.dtype, device=x.device)
+    return torch.cat([x, pad_tensor], dim=0)
+
+def set_format_recipe():
+    """Set the fp8 format recipe. for Hyena."""
+    fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
+    fp8_recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
+    return fp8_recipe
+
+def fp8_padded_forward(cls, self, x):
+    L = x.shape[0]
+    x = pad_to_multiple(x)
+    with te.fp8_autocast(enabled=True, fp8_recipe=set_format_recipe()):
+        x, bias = cls.forward(x)
+    if x.shape[0] > L:
+        x = x[:L, :, :]
+    return x, bias
+
+def rmsnorm(self, x):
+    assert self.eps == 1e-6, self.eps
+    norm = x.norm(2, dim=-1, keepdim=True) * self.in_features ** (-0.5) + self.eps
+    return self.layer_norm_weight * x / norm
+
+import torch
+import torch.nn as nn
+
+class RMSNormLinear(TELayerNormColumnParallelLinear):
+    def forward(self, x):
+        x = rmsnorm(self, x)
+        return nn.functional.linear(x, self.weight, None), None
+
+class TELinearFp8(TELinear):
+    def forward(self, x): return fp8_padded_forward(super(), self, x)
+
+class TELayerNormColumnParallelLinearFp8(TELayerNormColumnParallelLinear):
+    def forward(self, x): return fp8_padded_forward(super(), self, x)
+
+class RMSNormTELinearFp8(TELinearFp8):
+    """
+    PyTorch-compatible drop-in for TELayerNormColumnParallelLinear.
+    Ignores parallelization, but signatures and parameter names are compatible.
+    """
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        *,
+        gather_output=False,
+        **kwargs,
+    ):
+        super().__init__(
+            input_size=input_size,
+            output_size=output_size,
+            parallel_mode=None,
+            skip_weight_param_allocation=False,
+            **kwargs
+        )
+        config = kwargs["config"]
+        self.register_parameter(
+            "layer_norm_weight", nn.Parameter(torch.empty(input_size, dtype=config.params_dtype))
+        )
+        self.eps = config.layernorm_epsilon
+
+    def forward(self, x):
+        x = rmsnorm(self, x)
+        return super().forward(x)
