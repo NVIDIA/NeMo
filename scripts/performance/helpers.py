@@ -19,8 +19,8 @@ from typing import List, Optional
 import nemo_run as run
 import pandas as pd
 from numpy import nan
-import nemo.lightning as nl
 
+import nemo.lightning as nl
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.precision.mixed_precision import (
     bf16_with_fp8_current_scaling_mixed,
@@ -28,9 +28,9 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
     bf16_with_fp8_subchannel_scaling_mixed,
     bf16_with_mxfp8_mixed,
 )
+from nemo.lightning import AutoResume
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
 from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
-from nemo.lightning import AutoResume
 from nemo.utils import logging
 
 from .utils import get_comm_overlap_callback_idx
@@ -454,7 +454,6 @@ def set_primary_perf_configs(
                 load_artifacts=False,
             ),
         )
-
 
     return recipe
 
