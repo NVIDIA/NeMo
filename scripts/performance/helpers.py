@@ -367,6 +367,7 @@ def set_primary_perf_configs(
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
+    use_fsdp_double_buffer: Optional[bool] = None,
     use_user_buffer_registration: bool = False,
     use_sharp: bool = False,
     recompute_layers: int = 0,
