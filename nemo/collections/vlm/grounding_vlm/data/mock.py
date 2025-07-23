@@ -250,9 +250,9 @@ class _Qwen2VLMockDataset(Dataset):
             answer += "Here are the classes:"
             for class_idx in range(num_classes):
                 if class_label_mask[class_idx]:
-                    answer += classes[class_idx] 
-                if class_idx < num_classes - 1:
-                    answer += ", "
+                    answer += classes[class_idx]  + ", "
+            answer = answer[:-2] # delete the last comma
+
         # tokenize the answer
         print(f"answer: {answer}")
         answer_tokenized = self.tokenizer(answer)

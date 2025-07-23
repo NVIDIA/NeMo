@@ -27,9 +27,10 @@ import argparse
 import torch
 from lightning.pytorch.loggers import WandbLogger
 from megatron.core.optimizer import OptimizerConfig
+from copy import deepcopy
 
 from nemo import lightning as nl
-from nemo.collections import llm, vlm
+from nemo.collections import llm
 from nemo.collections.vlm import grounding_vlm as gvlm
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -38,16 +39,20 @@ from nemo.utils.exp_manager import TimingCallback
 
 def main(args):
     # pylint: disable=C0115,C0116
+    from transformers import AutoTokenizer, AutoProcessor
 
     # Global and micro batch sizes
     gbs = args.gbs
     mbs = args.mbs
     max_steps = args.max_steps
 
-    decoder_seq_length = 4096
-
+    decoder_seq_length = 1024
     # specify number of thinking tokens for finetuning
-    num_thinking_tokens = 256
+    num_thinking_tokens = 16
+
+    model_name = "Qwen/Qwen2.5-VL-3B-Instruct"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    image_processor = AutoProcessor.from_pretrained(model_name)
 
     if args.data_type == "energon":
         raise NotImplementedError("Energon data module is not implemented yet")
@@ -91,19 +96,31 @@ def main(args):
             num_thinking_tokens=num_thinking_tokens,
             global_batch_size=gbs,
             micro_batch_size=mbs,
-            tokenizer=None,
-            image_processor=None,
-            num_workers=4,
+            tokenizer=deepcopy(tokenizer),
+            image_processor=image_processor,
+            num_workers=0,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
 
 
     # define the grounding config and add the extra tokens info here
-    qwen2vl_grounding_config = gvlm.Qwen2VLGroundingConfig2B()
-    qwen2vl_grounding_config.extra_tokens = data.
+    cfg = qwen2vl_grounding_config = gvlm.model.Qwen25VLGroundingConfig3B()
+    cfg.extra_tokens = data.extra_tokens
+    cfg.extra_tokens_ids = data.extra_tokens_ids
+    cfg.extra_tokens_metadata = data.extra_tokens_metadata
+    cfg.extra_token_id_mapping = data.extra_token_id_mapping
 
-    model = gvlm.Qwen2GroundingVLModel(qwen2vl_grounding_config, tokenizer=data.tokenizer)
+    # change num layers to 1 for testing
+    if args.dry_run:
+        print(f"Changing num layers to 1 for testing")
+        cfg.language_transformer_config.num_layers = 1
+        cfg.vision_transformer_config.num_layers = 1
+        cfg.vision_projection_config.num_layers = 1
+        # thinking module
+        cfg.thinking_attn_refine_module_config.num_layers = 1
+
+    model = gvlm.model.Qwen2GroundingVLModel(qwen2vl_grounding_config, model_version="qwen25-vl", tokenizer=tokenizer)
 
     # Training strategy setup
     strategy = nl.MegatronStrategy(
@@ -173,14 +190,15 @@ def main(args):
 
     # PEFT setup
     if args.peft == 'lora':
-        peft = vlm.peft.LoRA(
-            target_modules=[
-                "linear_qkv",
-                "linear_proj",
-                "linear_fc1",
-                "linear_fc2",
-            ]
-        )
+        raise NotImplementedError("LoRA is not implemented yet")
+        # peft = vlm.peft.LoRA(
+        #     target_modules=[
+        #         "linear_qkv",
+        #         "linear_proj",
+        #         "linear_fc1",
+        #         "linear_fc2",
+        #     ]
+        # )
     else:
         peft = None
 
@@ -202,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | energon")
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument(
-        "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
+        "--log_dir", type=str, required=False, default="/opt/results", help="Directory for logging and checkpoints"
     )
     parser.add_argument(
         "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
@@ -220,7 +238,7 @@ if __name__ == "__main__":
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
-    parser.add_argument("--tp_size", type=int, required=False, default=4)
+    parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
@@ -231,6 +249,7 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-05, help="Learning rate")
+    parser.add_argument("--dry_run", action="store_true", help="Dry run")
     parser.add_argument("--use_packed_sequence", action="store_true")
 
     args = parser.parse_args()

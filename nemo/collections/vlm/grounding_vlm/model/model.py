@@ -57,6 +57,8 @@ class Qwen2GroundingVLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn
         video_grid_thw: Optional[torch.LongTensor] = None,
         second_per_grid_ts: Optional[torch.FloatTensor] = None,
         # Grounding VLM specific arguments
+        cls_token_ids: Optional[torch.Tensor] = None,
+        cls_attention_mask: Optional[torch.Tensor] = None,
         cls_labels: Optional[torch.Tensor] = None,
         cls_loss_mask: Optional[torch.Tensor] = None,
         # detection params
@@ -77,6 +79,8 @@ class Qwen2GroundingVLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn
             video_grid_thw=video_grid_thw,
             second_per_grid_ts=second_per_grid_ts,
             # Grounding VLM specific arguments
+            cls_token_ids=cls_token_ids,
+            cls_attention_mask=cls_attention_mask,
             cls_labels=cls_labels,
             cls_loss_mask=cls_loss_mask,
             instance_det_ids=instance_det_ids,

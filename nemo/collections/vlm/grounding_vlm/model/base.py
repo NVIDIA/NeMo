@@ -47,7 +47,6 @@ from nemo.collections.vlm.grounding_vlm.model.tokens import generate_extra_groun
 def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]:
     """Qwen2VL Data Step"""
     from megatron.core import parallel_state
-
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
     batch = next(dataloader_iter)
@@ -63,6 +62,13 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
         "attention_mask",
         "pixel_values",
         "image_grid_thw",
+        "loss_mask",
+        "labels",
+        "cls_token_ids",
+        "cls_labels",
+        "cls_loss_mask",
+        "instance_det_ids",
+        "instance_cu_seqlen",
     )
 
     if parallel_state.is_pipeline_first_stage():
@@ -84,6 +90,8 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
         key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
         for key, val in _batch.items()
     }
+    print("Calling qwen2vl data step with batch keys: ", _batch.keys())
+
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_cp_rank(_batch)
     return output
@@ -103,6 +111,7 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
         "instance_det_ids": batch.get("instance_det_ids", None),
         "instance_cu_seqlen": batch.get("instance_cu_seqlen", None),
     }
+    print("Calling qwen2vl forward step with batch keys: ", forward_args.keys())
     # disable packed seq params for now
     # if 'cu_seqlens' in batch:
     #     forward_args['packed_seq_params'] = get_packed_seq_params(batch)
@@ -163,6 +172,18 @@ class Qwen2VLGroundingConfig(TransformerConfig, io.IOMixin):
             # https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct/blob/main/config.json
             self.language_transformer_config.mrope_section = [16, 24, 24]
 
+        # default thinker
+        if self.thinking_attn_refine_module_config is None:
+            self.thinking_attn_refine_module_config = ThinkingAttnRefineModuleConfig(
+                tensor_model_parallel_size=self.tensor_model_parallel_size,
+                pipeline_model_parallel_size=self.pipeline_model_parallel_size,
+                sequence_parallel=self.sequence_parallel,
+                hidden_size=self.language_transformer_config.hidden_size,
+                ffn_hidden_size=self.language_transformer_config.hidden_size * 4,
+            )
+        # thinker
+        self.thinking_attn_refine_module_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+
     def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreQwen2GroundingVLModel":
         # pylint: disable=C0115,C0116
         # language module
@@ -174,19 +195,6 @@ class Qwen2VLGroundingConfig(TransformerConfig, io.IOMixin):
         # vision module
         self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
         self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-
-        # default thinker
-        if self.thinking_attn_refine_module_config is None:
-            self.thinking_attn_refine_module_config = ThinkingAttnRefineModuleConfig(
-                tensor_model_parallel_size=self.tensor_model_parallel_size,
-                pipeline_model_parallel_size=self.pipeline_model_parallel_size,
-                sequence_parallel=self.sequence_parallel,
-                hidden_size=self.language_transformer_config.hidden_size,
-                ffn_hidden_size=self.language_transformer_config.hidden_size * 4,
-            )
-
-        # thinker
-        self.thinking_attn_refine_module_config.tensor_model_parallel_size = self.tensor_model_parallel_size
 
         if self.encoder_pipeline_model_parallel_size > 0:
             assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
@@ -237,6 +245,9 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         language_transformer_config = config.language_transformer_config
         vision_transformer_config = config.vision_transformer_config
         vision_projection_config = config.vision_projection_config
+        thinking_attn_refine_module_config = config.thinking_attn_refine_module_config
+        self.thinking_attn_refine_module_config = thinking_attn_refine_module_config
+
         self.model_version = vision_transformer_config.model_version
         assert self.model_version is not None
 
@@ -730,7 +741,11 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
 
         # get thinking token indices
         batch_size = input_ids.shape[0]
-        think_hidden_states_indices = torch.nonzero(input_ids >= self.extra_token_id_mapping["<|img_think_0|>"] and input_ids <= self.extra_token_id_mapping["<|img_think_end|>"], as_tuple=False)
+        think_hidden_states_indices = torch.nonzero(
+            (input_ids >= self.extra_token_id_mapping["<|img_think_0|>"]) & 
+            (input_ids <= self.extra_token_id_mapping["<|img_think_end|>"]), 
+            as_tuple=False
+        )
         think_hidden_states_indices = torch.flip(think_hidden_states_indices, dims=[1])  # list of [(b, s) -> (s, b)]
 
         # get indices and get counts for each 'b_idx'
@@ -740,28 +755,35 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
 
         # get thinking states from hidden states
         think_states = hidden_states[seq_idx, batch_idx, :]  # [cu_seqlens, hidden_size]
-        # reshaped to batch_size first because the indices will be grouped by batch_size
 
-        # get thinking states from all hidden states
-        # think_states = hidden_states[hidden_states_indices, :]  # [cu_seqlens, hidden_size]
         # run thinking attention refine module
-        image_embeddings_refined, think_states_refined = self.thinking_attn_refine_module(image_embeddings, think_states, image_grid_thw, think_hidden_states_indices)
+        image_embeddings_refined, think_states_refined = self.thinking_attn_refine_module(
+            image_embeddings, think_states, image_grid_thw, think_hidden_states_indices
+        )
 
-        # run classification classes
+        # run classification head
         cls_logits = None
         if cls_token_ids is not None:  # at least one sample has some cls tokens
-            cls_logits = self.thinking_attn_refine_module.cls_head_forward(cls_embeddings, think_states_refined, think_hidden_states_indices)  # [batch, classes]
+            cls_logits = self.thinking_attn_refine_module.cls_head_forward(
+                cls_embeddings, think_states_refined, think_hidden_states_indices
+            )  # [batch, classes]
 
         # obtain detection states
-        instance_state_indices = torch.nonzero(input_ids >= self.extra_token_id_mapping["<|bbox_0|>"] and input_ids <= self.extra_token_id_mapping[f"<|bbox_{self.extra_token_id_mapping['num_bbox_tokens'] - 1}|>"], as_tuple=False)
+        instance_state_indices = torch.nonzero(
+            (input_ids >= self.extra_token_id_mapping["<|bbox_0|>"]) & 
+            (input_ids <= self.extra_token_id_mapping[f"<|bbox_{self.extra_tokens_metadata['num_bbox_tokens'] - 1}|>"]), 
+            as_tuple=False
+        )
         instance_state_indices = torch.flip(instance_state_indices, dims=[1])  # list of [(b, s) -> (s, b)]
         instance_state_seq_idx, instance_state_batch_idx = instance_state_indices.T  # [cu_num_instances, 2]
         instance_states = hidden_states[instance_state_seq_idx, instance_state_batch_idx, :]  # [cu_num_instances, hidden_size]
 
-        # run detection attention refine module
+        # run detection head
         instance_logits = None
         if instance_det_ids is not None:  # at least one sample has some instance tokens
-            instance_logits = self.thinking_attn_refine_module.detection_head_forward(instance_states, think_states_refined, instance_state_indices, think_hidden_states_indices)  # [cu_num_instances, 4]
+            instance_logits = self.thinking_attn_refine_module.det_head_forward(
+                instance_states, think_states_refined, instance_state_indices, think_hidden_states_indices
+            )  # [cu_num_instances, 4]
 
         # language model forward
         output_weight = None

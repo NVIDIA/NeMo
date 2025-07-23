@@ -36,10 +36,6 @@ from megatron.core.transformer.transformer_block import LayerNormImpl
 from nemo.collections.llm.fn.activation import quick_gelu
 from nemo.collections.vlm.layer_specs import get_norm_mlp_module_spec_te
 
-# define a dummy class for the thinker config (it is redefined later)
-class ThinkingAttnRefineModule:
-    pass
-
 def get_layer_spec_thinker() -> ModuleSpec:
     """
     Cross-attention Transformer Layer Spec w/ TE Modules
@@ -116,7 +112,7 @@ class ThinkingAttnRefineModuleConfig(TransformerConfig, io.IOMixin):
             )
 
 
-    def configure_model(self) -> ThinkingAttnRefineModule:
+    def configure_model(self) -> "ThinkingAttnRefineModule":
         """Configure and return a ThinkingAttnRefineModule instance.
         
         This creates a cross-attention transformer model that refines the understanding
@@ -125,10 +121,10 @@ class ThinkingAttnRefineModuleConfig(TransformerConfig, io.IOMixin):
         Returns:
             ThinkingAttnRefineModule: The configured cross-attention transformer model
         """
-        transformer_layer_spec = self.transformer_layer_spec
-        if not isinstance(transformer_layer_spec, ModuleSpec):
-            from nemo.collections.vlm.grounding_vlm.model.thinker import get_layer_spec_thinker
-            transformer_layer_spec = get_layer_spec_thinker()
+        # transformer_layer_spec = self.transformer_layer_spec
+        # if not isinstance(transformer_layer_spec, ModuleSpec):
+        #     from nemo.collections.vlm.grounding_vlm.model.thinker import get_layer_spec_thinker
+        transformer_layer_spec = get_layer_spec_thinker()
             
         model = ThinkingAttnRefineModule(
             config=self,
@@ -179,6 +175,18 @@ class ClassifierHeadModuleConfig(TransformerConfig, io.IOMixin):
                 linear_fc1=TELayerNormColumnParallelLinear,
                 linear_fc2=TERowParallelLinear,
             )
+    
+    def configure_model(self) -> "ClassifierHeadModule":
+        """Configure and return a ClassifierHeadModule instance.
+        
+        This creates a simple MLP classifier head that uses the configured projector.
+        
+        Returns:
+            ClassifierHeadModule: The configured MLP classifier head    
+        """
+        model = ClassifierHeadModule(config=self)
+        return model
+
 
 class ClassifierHeadModule(MegatronModule):
     """
@@ -311,6 +319,17 @@ class DetectionHeadModuleConfig(TransformerConfig, io.IOMixin):
                 layer_norm=LayerNormImpl,
             )
             self.transformer_spec = block_spec
+    
+    def configure_model(self) -> "DetectionHeadModule":
+        """Configure and return a DetectionHeadModule instance.
+        
+        This creates a detection head that uses cross-attention to refine detection features.
+        
+        Returns:
+            DetectionHeadModule: The configured detection head    
+        """
+        model = DetectionHeadModule(config=self)
+        return model
 
 
 class DetectionHeadModule(MegatronModule):
@@ -494,8 +513,12 @@ class ThinkingAttnRefineModule(TransformerBlock):
 
         # create attention mask
         for b in range(batch_size):
-            think_idx = torch.nonzero(hidden_states_indices[:, 1] == b)
+            think_idx = torch.nonzero(hidden_states_indices[:, 1] == b, as_tuple=True)[0]
+            if think_idx.shape[0] == 0:  # no thinking tokens for this batch
+                continue
             img_len = image_grid_thw[b, 0] * image_grid_thw[b, 1] * image_grid_thw[b, 2]
+            if img_len == 0:  # no image tokens for this batch
+                continue
             img_query_mask[0, 0, start_idx:start_idx+img_len, think_idx] = 1
             start_idx += img_len
 
