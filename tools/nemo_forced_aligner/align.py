@@ -25,14 +25,13 @@ from utils.data_prep import (
     add_t_start_end_to_utt_obj,
     get_batch_starts_ends,
     get_batch_variables,
-    get_lhotse_dataloader,
     get_manifest_lines_batch,
     is_entry_in_all_lines,
     is_entry_in_any_lines,
     load_nemo_tarred_from_dir,
 )
 from utils.make_ass_files import make_ass_files
-from utils.make_ctm_files import make_ctm_files
+from utils.make_ctm_files import make_ctm_files, combine_and_cleanup_ctms
 from utils.make_output_manifest import write_manifest_out_line
 from utils.viterbi_decoding import viterbi_decoding
 
@@ -42,6 +41,7 @@ from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+
 
 """
 Align the utterances in manifest_filepath. 
@@ -140,6 +140,7 @@ class AlignmentConfig:
     use_local_attention: bool = True
     additional_segment_grouping_separator: Optional[str] = None
     audio_filepath_parts_in_utt_id: int = 1
+    combine_ctms: bool = False
 
     # Buffered chunked streaming configs
     use_buffered_chunked_streaming: bool = False
@@ -417,6 +418,9 @@ def main(cfg: AlignmentConfig):
                 )
 
         f_manifest_out.close()
+
+    if cfg.combine_ctms:
+        combine_and_cleanup_ctms(cfg.output_dir)
 
     return None
 
