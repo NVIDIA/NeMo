@@ -173,10 +173,10 @@ def sharegpt_conversations_path(tmp_path_factory):
                     "value": "Based on the audio analysis, I can hear various sounds including...",
                 },
             ],
-            "ori_sound": "/original/path/audio_123.wav"
+            "ori_sound": "/original/path/audio_123.wav",
         },
         {
-            "id": "sharegpt_convo_2", 
+            "id": "sharegpt_convo_2",
             "sound": "speech_456.wav",
             "conversations": [
                 {
@@ -188,7 +188,7 @@ def sharegpt_conversations_path(tmp_path_factory):
                     "value": "The transcription is: Hello, how are you today?",
                 },
             ],
-        }
+        },
     ]
     lhotse.serialization.save_to_jsonl(data, en_path)
     # Create dummy audio files
@@ -199,14 +199,14 @@ def sharegpt_conversations_path(tmp_path_factory):
 
 def test_multimodal_conversation_input_sharegpt(sharegpt_conversations_path):
     """Test ShareGPT format conversation input with audio placeholders."""
-    
+
     # Test the ShareGPT adapter directly since it's not integrated into the NeMo dataloader registry
     adapter = NeMoMultimodalConversationShareGPTJsonlAdapter(
         manifest_filepath=sharegpt_conversations_path,
         audio_locator_tag="[audio]",
         audio_placeholders=["<sound>", "<speech>"],
     )
-    
+
     conversations = list(adapter)
     assert len(conversations) == 2
 
@@ -215,13 +215,13 @@ def test_multimodal_conversation_input_sharegpt(sharegpt_conversations_path):
     assert isinstance(ex1, NeMoMultimodalConversation)
     assert ex1.id == "sharegpt_convo_1"
     assert len(ex1.turns) == 4  # text + audio + text + assistant response
-    
+
     # First turn: text before <sound>
     t = ex1.turns[0]
     assert isinstance(t, TextTurn)
     assert t.role == "user"
     assert t.value == "Please analyze the following audio"
-    
+
     # Second turn: audio from <sound> placeholder
     t = ex1.turns[1]
     assert isinstance(t, AudioTurn)
@@ -229,13 +229,13 @@ def test_multimodal_conversation_input_sharegpt(sharegpt_conversations_path):
     assert t.audio_locator_tag == "[audio]"
     assert t.cut.duration == 5.73
     assert t.cut.load_audio().shape == (1, 91680)
-    
+
     # Third turn: text after <sound>
     t = ex1.turns[2]
     assert isinstance(t, TextTurn)
     assert t.role == "user"
     assert t.value == "and tell me what you hear."
-    
+
     # Fourth turn: GPT response
     t = ex1.turns[3]
     assert isinstance(t, TextTurn)
@@ -247,13 +247,13 @@ def test_multimodal_conversation_input_sharegpt(sharegpt_conversations_path):
     assert isinstance(ex2, NeMoMultimodalConversation)
     assert ex2.id == "sharegpt_convo_2"
     assert len(ex2.turns) == 3  # text + audio + text
-    
+
     # First turn: text before <speech>
     t = ex2.turns[0]
     assert isinstance(t, TextTurn)
     assert t.role == "user"
     assert t.value == "Transcribe this speech:"
-    
+
     # Second turn: audio from <speech> placeholder
     t = ex2.turns[1]
     assert isinstance(t, AudioTurn)
@@ -261,7 +261,7 @@ def test_multimodal_conversation_input_sharegpt(sharegpt_conversations_path):
     assert t.audio_locator_tag == "[audio]"
     assert t.cut.duration == 3.45
     assert t.cut.load_audio().shape == (1, 55200)
-    
+
     # Third turn: GPT response
     t = ex2.turns[2]
     assert isinstance(t, TextTurn)
