@@ -240,7 +240,6 @@ class HyenaMixer(MegatronModule):
             tp_comm_buffer_name='fc2',
         )
 
-        self.pad_tensors = {}
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the HyenaMixer."""
@@ -276,34 +275,8 @@ class HyenaMixer(MegatronModule):
             _proj_use_cp = True
         else:
             _proj_use_cp = False
-        # Handle padding for FP8 if enabled
-        if self.transformer_config.vortex_style_fp8:
 
-            def pad_to_multiple(x, multiple=8):
-                """Pad tensor to make sequence length divisible by multiple."""
-                seq_len, b, d = x.shape
-                if seq_len % multiple == 0:
-                    return x
-                pad_len = multiple - (seq_len % multiple)
-                pad_shape = (pad_len, b, d)
-                pad_tensor = self.pad_tensors.get(pad_len)
-                if pad_tensor is None or pad_tensor.shape != pad_shape:
-                    pad_tensor = torch.zeros(pad_shape, device=x.device, dtype=x.dtype)
-                    self.pad_tensors[pad_len] = pad_tensor
-                return torch.cat([x, pad_tensor], dim=0)
-
-            # Direct padding without rearrange
-            L = x.shape[0]
-            x = pad_to_multiple(x)
-            with te.fp8_autocast(enabled=True, fp8_recipe=set_format_recipe()):
-                features, _ = self.dense_projection(x)
-
-            # Slice back to original sequence length if padding was added
-
-            if features.shape[0] > L:
-                features = features[:L, :, :]
-        else:
-            features, _ = self.dense_projection(x)
+        features, _ = self.dense_projection(x)
         features = features.permute(1, 2, 0).contiguous() # LBD -> BDL
 
         if (
