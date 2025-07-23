@@ -29,6 +29,7 @@ from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules import tdt_beam_decoding
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding, RNNTDecodingConfig
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
@@ -161,6 +162,8 @@ def check_tdt_greedy_decoding(test_data_dir, use_cuda_graph_decoder: bool, lm_pa
 
     model_config = model.to_config_dict()
 
+    lm_model = NGramGPULanguageModel.from_file(lm_path=lm_path, vocab_size=model.decoder.blank_idx) if lm_path is not None else None
+
     decoding_algo = greedy_decode.GreedyBatchedTDTInfer(
         model.decoder,
         model.joint,
@@ -170,8 +173,8 @@ def check_tdt_greedy_decoding(test_data_dir, use_cuda_graph_decoder: bool, lm_pa
         preserve_alignments=False,
         preserve_frame_confidence=False,
         use_cuda_graph_decoder=use_cuda_graph_decoder,
-        ngram_lm_model=str(lm_path) if lm_path else None,
-        ngram_lm_alpha=0.5 if lm_path else 0.0,
+        fusion_models=[lm_model] if lm_model else None,
+        fusion_models_alpha=[0.5] if lm_model else None,
     )
 
     enc_out = encoded
