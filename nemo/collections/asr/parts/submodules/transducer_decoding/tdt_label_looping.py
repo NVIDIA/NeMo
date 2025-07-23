@@ -712,10 +712,10 @@ class GreedyBatchedTDTLabelLoopingComputer(
             fusion_states_list = []
             for fusion_idx in range(len(self.fusion_models)):
                 fusion_states_list.append(
-                torch.stack([item.fusion_state_list[fusion_idx] for item in state_items])
-                if any(item.fusion_state_list[fusion_idx] is not None for item in state_items)
-                else None
-            )
+                    torch.stack([item.fusion_state_list[fusion_idx] for item in state_items])
+                    if any(item.fusion_state_list[fusion_idx] is not None for item in state_items)
+                    else None
+                )
         else:
             fusion_states_list = None
 
