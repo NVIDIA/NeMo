@@ -1,4 +1,4 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# flake8: noqa
-# pylint: skip-file
-
-from nemo.collections.nlp.parts.utils_funcs import list2str, tensor2list
+TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v --factory flux_controlnet_training_ddp
