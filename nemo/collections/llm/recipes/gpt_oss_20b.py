@@ -105,6 +105,7 @@ def finetune_recipe(
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.target_modules = ['linear_qkv', 'linear_proj']
         recipe.optim.config.lr = 1e-4
+        recipe.data.micro_batch_size = 2
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
     return recipe

@@ -124,10 +124,11 @@ class TiktokenTokenizer(TokenizerSpec):
             self.special_tokens = special_tokens + special_filler
             assert len(set(self.special_tokens)) == len(self.special_tokens) == num_special_tokens, self.special_tokens
             encoding_special_tokens = {},  # special tokens are handled manually
+            self.allowed_special = set()
         else:
             self._unk_id = -1
             self._bos_id = 200006
-            self._eos_id = 200007
+            self._eos_id = 200002
             self._mask_id = -1
             self._pad_id = 200007
             self._cls_id = -1
@@ -163,6 +164,7 @@ class TiktokenTokenizer(TokenizerSpec):
             } | {
                 f"<|reserved_{i}|>": i for i in range(200014, 201088)
             }
+            self.allowed_special = set(encoding_special_tokens.keys())
 
         id2token = {v: k for k, v in self.token2id.items()}
         assert set(range(self.inner_vocab_size)) == set(id2token.keys())
@@ -179,7 +181,7 @@ class TiktokenTokenizer(TokenizerSpec):
         )
 
     def text_to_tokens(self, text: str):
-        token_ids = self.tokenizer.encode(text)
+        token_ids = self.tokenizer.encode(text, allowed_special=self.allowed_special)
         return [self.tokenizer.decode_single_token_bytes(token) for token in token_ids]
 
     def tokens_to_text(self, tokens: List[int]):
@@ -211,7 +213,7 @@ class TiktokenTokenizer(TokenizerSpec):
         return tokens
 
     def text_to_ids(self, text: str):
-        tokens = self.tokenizer.encode(text)
+        tokens = self.tokenizer.encode(text, allowed_special=self.allowed_special)
         tokens = [t + self.num_special_tokens for t in tokens]
         return tokens
 
