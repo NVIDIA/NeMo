@@ -75,7 +75,7 @@ def main(args) -> None:
     if args.load_from_hf:
         model = fabric.import_model("hf://Qwen/Qwen2-VL-2B-Instruct", Qwen2VLModel)
     else:
-        model = Qwen2VLModel(Qwen2VLConfig2B(), tokenizer=hf_tokenizer)
+        model = Qwen2VLModel(Qwen2VLConfig2B(), model_version="qwen2-vl", tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
     model = model.module.cuda()
     model.eval()

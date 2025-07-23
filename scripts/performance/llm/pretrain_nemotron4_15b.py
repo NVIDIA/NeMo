@@ -61,6 +61,8 @@ def override_recipe_configs(
         vp_size,
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
+        use_mcore_fsdp=args.use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
@@ -68,7 +70,7 @@ def override_recipe_configs(
         nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe, "pre_train", "llm", "nemotron4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
     gpu_type = args.gpu.lower()
@@ -85,15 +87,10 @@ def override_recipe_configs(
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
     if gpu_type in ["b200", "gb200"]:
-        if args.fp8_recipe.lower() != "mxfp8":
-            tp_comm_overlap_cfg = userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096
-            # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
-            tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
-    if args.compute_dtype.lower() == "fp8" and args.fp8_recipe.lower() == "mxfp8":
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
-
+        tp_comm_overlap_cfg = userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096
+        # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
+        tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
     return recipe
 
 
