@@ -955,6 +955,29 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         else:
             self.validation_step_outputs.append(val_metrics)
         return val_metrics
+    
+    def test_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
+        """
+        Performs a single validation step.
+
+        This method processes a batch of data during the validation phase. It forward passes
+        the audio signal through the model, computes various validation metrics, and stores
+        these metrics for later aggregation.
+
+        Args:
+            batch (list): A list containing the following elements:
+                - audio_signal (torch.Tensor): The input audio signal.
+                - audio_signal_length (torch.Tensor): The length of each audio signal in the batch.
+                - targets (torch.Tensor): The target labels for the batch.
+                - target_lens (torch.Tensor): The length of each target sequence in the batch.
+            batch_idx (int): The index of the current batch.
+            dataloader_idx (int, optional): The index of the dataloader in case of multiple
+                                            validation dataloaders. Defaults to 0.
+
+        Returns:
+            dict: A dictionary containing various validation metrics for this batch.
+        """
+        return self.validation_step(batch, batch_idx, dataloader_idx)
 
     def multi_validation_epoch_end(self, outputs: list, dataloader_idx: int = 0):
         if not outputs:
