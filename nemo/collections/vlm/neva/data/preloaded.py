@@ -517,10 +517,8 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         seed: int = 1234,
     ) -> None:
         if not hasattr(self, "_one_logger_init_started"):
-            from nemo.lightning.one_logger_callback import OneLoggerTimingTracker
-
-            tracker = OneLoggerTimingTracker.get_instance()
-            tracker.track_event("on_dataloader_init_start")
+            from nemo.lightning.one_logger_callback import get_onelogger_callbacks
+            get_onelogger_callbacks("on_dataloader_init_start")
 
         super().__init__()
         if not isinstance(paths, (list, tuple)):
@@ -583,7 +581,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         )
 
         if not hasattr(self, "_one_logger_init_started"):
-            tracker.track_event("on_dataloader_init_end")
+            get_onelogger_callbacks("on_dataloader_init_end")
 
     def setup(self, stage: str = "") -> None:
         assert len(self.paths) == 1, "not yet support blend dataset in Neva 2.0!"

@@ -20,14 +20,16 @@ This module provides a callback that integrates OneLogger telemetry with NeMo tr
 
 import functools
 import time
-from typing import Any, Dict
+import uuid
+from typing import Any, Dict, Optional, Union
 
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
     from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
-    from nv_one_logger.training_telemetry.v1_adapter.v1_compatible_wandb_exporter import V1CompatibleWandbExporterAsync
+    from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig, TrainingLoopConfig
+    from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
 
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
@@ -36,14 +38,14 @@ from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.core import LightningModule
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+from nemo.utils.meta_info_manager import get_onelogger_init_config, get_onelogger_training_loop_config, enable_onelogger
 
 # Export OneLogger availability flag
 __all__ = [
     'OneLoggerNeMoCallback',
-    'OneLoggerTimingTracker',
     'hook_class_init_with_callbacks',
     'get_onelogger_callbacks',
-    'init_one_logger',
+    'update_one_logger_config',
 ]
 
 
@@ -88,88 +90,6 @@ def get_onelogger_callbacks(name: str, *args, **kwargs):
     """
     function = _get_onelogger_callbacks_function(name)
     return function(*args, **kwargs)
-
-
-class OneLoggerTimingTracker:
-    """A singleton class to track timing data for OneLogger callbacks.
-
-    This class stores timing data when OneLogger is not yet initialized and
-    logs it when OneLogger becomes available.
-    """
-
-    _instance = None
-
-    @classmethod
-    def get_instance(cls) -> 'OneLoggerTimingTracker':
-        """Get the singleton instance of the OneLoggerTimingTracker."""
-        if cls._instance is None:
-            cls._instance = OneLoggerTimingTracker()
-        return cls._instance
-
-    def __init__(self):
-        """Initialize the timing tracker."""
-        self._pending_events = []
-        self._one_logger_available = False
-        self.track_event('on_app_start')
-
-    def track_event(self, event_type: str, current_time_ms: float = None):
-        """Track a timing event with automatic start/end timing.
-
-        This method automatically handles the start and end timing for an event.
-        It detects start/end events based on event names ending with "_start" or "_end".
-
-        Args:
-            event_type: Type of event (e.g., 'model_init_start', 'model_init_end', 'dataloader_init')
-        """
-        if current_time_ms is None:
-            current_time_ms = get_current_time_msec()
-
-        event = {'name': event_type, 'time_ms': current_time_ms}
-
-        if not self._one_logger_available:
-            self._pending_events.append(event)
-        else:
-            self._log_event(event)
-
-    def set_one_logger_available(self, available: bool = True):
-        """Set whether OneLogger is available and process pending events.
-
-        Args:
-            available: Whether OneLogger is now available
-        """
-        self._one_logger_available = available
-        if available and self._pending_events:
-            # Process all pending events
-            for event in self._pending_events:
-                self._log_event(event)
-            self._pending_events.clear()
-
-    @classmethod
-    def mark_one_logger_available(cls):
-        """Class method to mark OneLogger as available globally."""
-        instance = cls.get_instance()
-        instance.set_one_logger_available(True)
-
-    def _log_event(self, event: Dict[str, Any]):
-        """Log an event using OneLogger callbacks.
-
-        Args:
-            event: Event data containing name, time_ms
-        """
-        # If nv-one-logger is not available, or OneLogger is not yet initialized, skip logging
-        if not HAVE_ONELOGGER or not self._one_logger_available:
-            return
-
-        # Handle start/end event pairs
-        event_name = event['name']
-        time_ms = event['time_ms']
-
-        if event_name.endswith('_start'):
-            get_onelogger_callbacks(event_name, start_time_msec=time_ms)
-        elif event_name.endswith('_end'):
-            get_onelogger_callbacks(event_name, finish_time_msec=time_ms)
-        else:
-            raise ValueError(f"Invalid event name for api: {event_name}")
 
 
 class OneLoggerNeMoCallback(Callback):
@@ -285,8 +205,6 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
     if getattr(original_init, '_one_logger_wrapped', False):
         return
 
-    tracker = OneLoggerTimingTracker.get_instance()
-
     @functools.wraps(original_init)
     def wrapped_init(self, *args, **kwargs):
         # Check if this instance has already been initialized to prevent duplicate callbacks
@@ -298,10 +216,9 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
         # Mark this instance as being initialized
         self._one_logger_init_started = True
 
-        print("NeMo CB: wrapped_init for class", cls.__name__)
-        tracker.track_event(start_callback)
+        get_onelogger_callbacks(start_callback, start_time_msec=get_current_time_msec())
         result = original_init(self, *args, **kwargs)
-        tracker.track_event(end_callback)
+        get_onelogger_callbacks(end_callback, finish_time_msec=get_current_time_msec())
         return result
 
     # Mark as wrapped to prevent double wrapping
@@ -309,30 +226,73 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
     cls.__init__ = wrapped_init
 
 
-def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None, enable_onelogger: bool = True):
-    """Initialize OneLogger with v1 config and optionally add callback to trainer.
+def _init_one_logger() -> None:
+    """Initialize OneLogger with configuration from OneLoggerMetaInfoManager.
 
-    Args:
-        v1_config: V1-style configuration dictionary
-        trainer: Optional PyTorch Lightning trainer to add callback to
-        enable_onelogger: Whether to enable OneLogger (default: True)
+    This function initializes OneLogger by reading all configuration from OneLoggerMetaInfoManager.
+    If OneLogger is already configured, this function will do nothing.
+
+    The function reads:
+    - Whether OneLogger is enabled
+    - Initialization configuration
+    - WandB configuration
     """
-    if not HAVE_ONELOGGER or not enable_onelogger:
+    if not HAVE_ONELOGGER:
+        return
+    
+    # Check if OneLogger is enabled
+    if not enable_onelogger:
+        return
+    
+    # Check if OneLogger is already configured
+    if TrainingTelemetryProvider.instance().one_logger_ready:
         return
 
-    # Convert v1 config to v2 config using the adapter
-    training_telemetry_config, wandb_config = ConfigAdapter.convert_to_v2_config(v1_config)
+    # Get initialization configuration
+    app_start_time = get_current_time_msec()
+    init_config = get_onelogger_init_config()
+    training_telemetry_config = TrainingTelemetryConfig(**init_config)
 
-    # Configure OneLogger using v1 adapter with async wandb exporter
-    exporter = V1CompatibleWandbExporterAsync(
+    # Get WandB configuration
+    exporter = V1CompatibleExporter(
         training_telemetry_config=training_telemetry_config,
-        wandb_config=wandb_config,
+        async_mode=False,
     )
-    TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(
-        exporter
-    ).configure_provider()
 
-    OneLoggerTimingTracker.mark_one_logger_available()
+    # Configure the provider with exporter (this automatically calls on_app_start)
+    TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(exporter.exporter).configure_provider()
+    get_onelogger_callbacks("on_app_start", start_time_msec=app_start_time)
+
+
+def update_one_logger_config(
+    trainer: Trainer,
+    job_name: str,
+    model: Optional[Any] = None,
+) -> None:
+    """Update OneLogger configuration with training loop config.
+
+    This function updates the OneLogger configuration that was initialized early.
+    It converts the provided dictionary to a TrainingLoopConfig instance.
+
+    Args:
+        config: Dict[str, Any] to construct TrainingLoopConfig
+        trainer: Optional PyTorch Lightning trainer to add callback to
+    """
+    # Check if TrainingTelemetryProvider is already configured
+    if not HAVE_ONELOGGER or not TrainingTelemetryProvider.instance().one_logger_ready:
+        return
+
+    config = get_onelogger_training_loop_config(
+        trainer=trainer,
+        job_name=job_name,
+        model=model,
+    )
+
+    # Convert dict to TrainingLoopConfig
+    training_loop_config = TrainingLoopConfig(**config)
+    
+    # Training loop specific config update
+    TrainingTelemetryProvider.instance().set_training_loop_config(training_loop_config)
 
     # Add the OneLogger callback to the trainer if provided
     if trainer is not None:
@@ -343,3 +303,7 @@ def init_one_logger(v1_config: Dict[str, Any], trainer: Trainer = None, enable_o
             # Create the callback with metadata
             onelogger_callback = OneLoggerNeMoCallback()
             trainer.callbacks.append(onelogger_callback)
+
+
+# Initialize OneLogger when this module is imported
+_init_one_logger()
