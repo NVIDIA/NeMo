@@ -208,7 +208,7 @@ class ClassifierHeadModule(MegatronModule):
         '''
         cls_embeddings = self.cls_mlp(cls_embeddings)  # [b, c, h]
         # aggregate think_states by b_idx
-        seq_idx, b_idx = hidden_states_indices
+        seq_idx, b_idx = hidden_states_indices.T
         batch_size = cls_embeddings.shape[0]
         ret = []
         for b in range(batch_size):
@@ -353,6 +353,7 @@ class DetectionHeadModule(MegatronModule):
         instance_det_indices: [cu_num_instances, 2]  # [seq_idx, b_idx]
         think_indices: [cu_num_thinking_tokens, 2]  # [seq_idx, b_idx]
         '''
+
         det_embeddings = self.det_mlp(det_embeddings)  # [cu_num_instances, h]
         # aggregate think_states by b_idx
         seq_idx, b_idx = think_indices.T
@@ -370,7 +371,7 @@ class DetectionHeadModule(MegatronModule):
                 continue
             # update ret
             b_think_states = think_states[b_think_mask].unsqueeze(1)   # [s, 1, h]
-            b_det_states = det_embeddings[b_det_mask].unsqueeze(0)   # [si, 1, h]
+            b_det_states = det_embeddings[b_det_mask].unsqueeze(1)   # [si, 1, h]
             b_ret = self.transformer(hidden_states=b_det_states, attention_mask=None, context=b_think_states, context_mask=None) # [si, 1, h]
             b_ret = self.det_head(b_ret).squeeze(1) # [si, 4]
             ret[b_det_mask] = b_ret
@@ -588,5 +589,5 @@ class ThinkingAttnRefineModule(TransformerBlock):
             image_embeddings = image_embeddings.clone()
             think_states = think_states.clone()
 
-        return image_embeddings, think_states
+        return image_embeddings.squeeze(1), think_states.squeeze(1)
 

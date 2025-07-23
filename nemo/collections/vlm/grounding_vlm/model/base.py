@@ -311,7 +311,6 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         self.extra_token_id_mapping = config.extra_token_id_mapping
 
         self.inp_tokenizer = tokenizer
-        breakpoint()
 
         # if none is specified, it means the tokenizer is a "base tokenizer"
         if self.extra_tokens is None:
@@ -637,8 +636,6 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         has_images = pixel_values is not None
         has_videos = pixel_values_videos is not None
 
-        breakpoint()
-
         image_embeddings = None
         if use_inference_kv_cache:
             # If running inference, we can skip media token computation if they were computed already earlier
@@ -722,7 +719,7 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
         
         # get cls label position ids
         if cls_token_ids is not None:
-            batch_size_cls, seq_len_cls, num_classes_cls = cls_token_ids.shape
+            batch_size_cls, num_classes_cls, seq_len_cls = cls_token_ids.shape
             cls_token_ids_flat = cls_token_ids.reshape(batch_size_cls * num_classes_cls, seq_len_cls) 
             cls_label_pos_ids_flat, _ = self.get_rope_index(
                 cls_token_ids_flat, None, None, None, None
@@ -768,6 +765,15 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             # get cls embeddings
             if cls_token_ids is not None:
                 cls_embeddings = self.language_model.embedding(input_ids=cls_token_ids_flat, position_ids=cls_label_pos_ids_flat)  # [seqlen, batch*classes, h_language]
+                cls_embeddings = self.language_model(
+                    input_ids=None,
+                    position_ids=cls_label_pos_ids_flat,
+                    attention_mask=cls_attention_mask,
+                    decoder_input=cls_embeddings,
+                    labels=None,
+                    inference_params=None,
+                    runtime_gather_output=None,
+                ) # [batch*classes, seqlen, h_language]
                 cls_embeddings = cls_embeddings[-1].reshape(batch_size_cls, num_classes_cls, -1).contiguous()  # [batch, classes, h_language]
                 # cls_embeddings = self.thinking_attn_refine_module.cls_head_forward(cls_embeddings)  # [batch, classes, h_cls_head]
 
@@ -803,10 +809,9 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
 
         # get indices and get counts for each 'b_idx'
         seq_idx, batch_idx = think_hidden_states_indices.T  # [num_thinking_tokens, batch_size]
-        breakpoint()
 
         _, count_b = torch.unique(batch_idx, return_counts=True)
-        assert (count_b[0] == count_b).all(), "each batch should have the same number of thinking tokens"
+        assert (count_b[0] == count_b).all().item(), "each batch should have the same number of thinking tokens"
 
         # get thinking states from hidden states
         think_states = hidden_states[seq_idx, batch_idx, :]  # [cu_seqlens, hidden_size]
@@ -846,12 +851,11 @@ class MCoreQwen2GroundingVLModel(MCoreLLaVAModel):
             output_weight = self.shared_embedding_or_output_weight()
 
         # get language model logits
-        logits, _ = self.output_layer(hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output)  # [s, b, vocab_size]
-        logits = logits.transpose(0, 1).contiguous()  # [b, s, vocab_size]
+        logits, _ = self.language_model.output_layer(hidden_states, weight=output_weight, runtime_gather_output=runtime_gather_output)  # [s, b, vocab_size]
         token_loss = None
         if labels is not None:
-            token_loss = self.language_model.compute_language_model_loss(labels, logits)
-
+            token_loss = self.language_model.compute_language_model_loss(labels, logits)  # logits must be in [s, b, vocab_size] but labels must be in [b, s] -- why??!!
+        
         return {
             'token_loss': token_loss, # [b, s]
             'final_loss_mask': final_loss_mask, # [b, s]

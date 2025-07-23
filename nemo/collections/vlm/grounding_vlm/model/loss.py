@@ -46,9 +46,13 @@ class GroundedVLMLossReduction(MaskedTokenLossReduction):
         final_loss_mask = forward_out['final_loss_mask']
 
         # token loss
-        token_loss, token_loss_info = super().forward(batch={"loss_mask": final_loss_mask}, forward_out=output)
+        token_loss, num_valid_tokens, token_loss_info = super().forward(batch={"loss_mask": final_loss_mask}, forward_out=output)
+        num_valid_tokens = int(num_valid_tokens.item()) if isinstance(num_valid_tokens, torch.Tensor) else num_valid_tokens
+        # compute average token loss (legacy)
+        token_loss_info['avg'] = token_loss / max(1, num_valid_tokens)
         just_token_loss = token_loss_info['avg'].clone().detach()
-        total_loss = token_loss
+
+        total_loss = token_loss / max(1, num_valid_tokens)
 
         # classification loss
         cls_logits = forward_out['cls_logits']    
@@ -57,7 +61,7 @@ class GroundedVLMLossReduction(MaskedTokenLossReduction):
         cls_loss = torch.tensor(0.0, device=cls_logits.device)
 
         if cls_logits is not None:
-            cls_loss = F.binary_cross_entropy_with_logits(cls_logits, cls_labels, weight=cls_loss_mask, reduction="mean")
+            cls_loss = F.binary_cross_entropy_with_logits(cls_logits, cls_labels.to(cls_logits.dtype), weight=cls_loss_mask.to(cls_logits.dtype), reduction="mean")
             cls_loss = self.cls_loss_weight * cls_loss
             reduced_cls_loss = average_losses_across_data_parallel_group([cls_loss])
 

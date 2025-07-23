@@ -26,10 +26,14 @@ def generate_extra_grounding_tokens(tokenizer, num_image_think_tokens=16, num_bb
     - <|count|>
     '''
 
-    img_think_end_token = "<|img_think_end|>"
-    extra_tokens = [img_think_end_token]
+    extra_tokens = []
+    # add image thinking tokens
     for i in range(num_image_think_tokens):
         extra_tokens.append(f"<|img_think_{i}|>")
+    # end thinking
+    img_think_end_token = "<|img_think_end|>"
+    extra_tokens.append(img_think_end_token)
+    # bboxes and count
     for i in range(num_bbox_tokens):
         extra_tokens.append(f"<|bbox_{i}|>")
     extra_tokens.append("<|count|>")

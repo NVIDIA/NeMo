@@ -121,8 +121,7 @@ class HungarianMatchingLoss(nn.Module):
             
         Returns:
             loss: Scalar loss value
-            matched_ious: IoU values for matched pairs (cu_num_instances, cu_num_instances)
-                         with -1 for invalid pairs
+            metadata: Dictionary containing metadata about the matching
         """
         batch_size = pred_boxes.shape[0]
         device = pred_boxes.device
@@ -132,11 +131,10 @@ class HungarianMatchingLoss(nn.Module):
             pred_boxes, gt_boxes, instance_cu_seqlen
         )
 
-        max_indices = max(instance_cu_seqlen[0], torch.maximum(instance_cu_seqlen[:-1] - instance_cu_seqlen[1:]))
+        max_indices = max(instance_cu_seqlen[0], torch.max(instance_cu_seqlen[1:] - instance_cu_seqlen[:-1]))
 
         # Initialize total loss and IoU tracking
         total_loss = torch.tensor(0., device=device)
-        matched_ious = torch.full((max_indices, max_indices), -1., device=device)
         count = 0
 
         for cost_b, iou_b in zip(cost_matrix, iou_matrix):
@@ -144,8 +142,8 @@ class HungarianMatchingLoss(nn.Module):
                 continue
             matched_indices = linear_sum_assignment_with_inf(cost_b.detach().cpu().numpy())
             matched_indices = torch.as_tensor(matched_indices, dtype=torch.long, device=device)
-            matched_ious[matched_indices] = iou_b[matched_indices]
-            total_loss += cost_b[matched_indices].sum() / cost_b.shape[0]
+            i, j = matched_indices
+            total_loss += cost_b[i, j].sum() / cost_b.shape[0]
             count += 1
 
         # Return average loss and matched IoUs
