@@ -13,8 +13,6 @@
 # limitations under the License.
 
 
-import sys
-
 from .diar import NemoDiarService
 from .llm import HuggingFaceLLMService
 from .stt import NemoSTTService

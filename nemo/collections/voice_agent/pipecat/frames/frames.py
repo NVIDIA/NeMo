@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import numpy as np
 from pipecat.frames.frames import DataFrame
 

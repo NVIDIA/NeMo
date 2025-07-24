@@ -14,26 +14,20 @@
 
 
 import asyncio
-import time
-from typing import AsyncGenerator, List, Mapping, Optional, Tuple
+from typing import AsyncGenerator, Optional
 
 import numpy as np
-import torch
 from loguru import logger
-from omegaconf import OmegaConf
 from pipecat.frames.frames import (
-    AudioRawFrame,
     CancelFrame,
     EndFrame,
     ErrorFrame,
     Frame,
-    InterimTranscriptionFrame,
     StartFrame,
-    TranscriptionFrame,
     VADUserStartedSpeakingFrame,
     VADUserStoppedSpeakingFrame,
 )
-from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+from pipecat.processors.frame_processor import FrameDirection
 from pipecat.services.stt_service import STTService
 from pipecat.transcriptions.language import Language
 from pipecat.utils.time import time_now_iso8601
@@ -42,22 +36,6 @@ from pydantic import BaseModel
 
 from nemo.collections.voice_agent.pipecat.frames.frames import DiarResultFrame
 from nemo.collections.voice_agent.pipecat.services.nemo.legacy_diar import DiarizationConfig, NeMoLegacyDiarService
-
-try:
-    import nemo.collections.asr as nemo_asr
-    from nemo.collections.asr.models import ASRModel
-
-    # disable nemo logging
-    from nemo.utils import logging
-
-    level = logging.getEffectiveLevel()
-    logging.setLevel(logging.CRITICAL)
-
-
-except ModuleNotFoundError as e:
-    logger.error(f"Exception: {e}")
-    logger.error('In order to use NVIDIA NeMo STT, you need to `pip install "nemo_toolkit[asr]"`.')
-    raise Exception(f"Missing module: {e}")
 
 
 class NeMoDiarInputParams(BaseModel):

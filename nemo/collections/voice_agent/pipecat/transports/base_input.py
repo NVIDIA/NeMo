@@ -29,8 +29,6 @@ class BaseInputTransport(_BaseInputTransport):
     async def _handle_vad(self, audio_frame: InputAudioRawFrame, vad_state: VADState):
         """Handle Voice Activity Detection results and generate appropriate frames."""
         new_vad_state = await self._vad_analyze(audio_frame)
-        # if new_vad_state != VADState.QUIET and vad_state != VADState.QUIET:
-        #     logger.debug(f"base_input: VAD state changed from {vad_state} to {new_vad_state}")
         if new_vad_state != vad_state and new_vad_state != VADState.STARTING and new_vad_state != VADState.STOPPING:
             frame = None
             # If the turn analyser is enabled, this will prevent:

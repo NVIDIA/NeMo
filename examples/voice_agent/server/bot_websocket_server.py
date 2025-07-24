@@ -270,25 +270,6 @@ async def run_bot_websocket_server():
 
     logger.info("Setting up pipeline...")
 
-    class MetricsLogger(FrameProcessor):
-        async def process_frame(self, frame: Frame, direction: FrameDirection):
-            await super().process_frame(frame, direction)
-
-            if isinstance(frame, MetricsFrame):
-                for d in frame.data:
-                    if isinstance(d, TTFBMetricsData):
-                        logger.debug(f"TTFB Metrics: {d.processor} = {d.value:.3f}s")
-                    elif isinstance(d, ProcessingMetricsData):
-                        logger.debug(f"Processing Metrics: {d.processor} = {d.value:.3f}s")
-                    elif isinstance(d, LLMUsageMetricsData):
-                        tokens = d.value
-                        logger.debug(
-                            f"LLM Usage: {d.processor} - prompt: {tokens.prompt_tokens}, completion: {tokens.completion_tokens}"
-                        )
-                    elif isinstance(d, TTSUsageMetricsData):
-                        logger.debug(f"TTS Usage: {d.processor} = {d.value} characters")
-            await self.push_frame(frame, direction)
-
     pipeline = Pipeline(
         [
             ws_transport.input(),

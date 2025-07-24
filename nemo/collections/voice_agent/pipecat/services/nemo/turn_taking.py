@@ -16,15 +16,12 @@ from typing import List
 
 from loguru import logger
 from pipecat.frames.frames import (
-    AudioRawFrame,
     BotStartedSpeakingFrame,
     BotStoppedSpeakingFrame,
     Frame,
     InterimTranscriptionFrame,
-    StartFrame,
     StartInterruptionFrame,
     StopInterruptionFrame,
-    TextFrame,
     TranscriptionFrame,
     UserStartedSpeakingFrame,
     UserStoppedSpeakingFrame,

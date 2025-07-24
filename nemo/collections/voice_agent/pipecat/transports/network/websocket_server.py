@@ -14,24 +14,10 @@
 
 
 import asyncio
-import io
-import time
-import wave
-from typing import Awaitable, Callable, Optional
+from typing import Optional
 
 from loguru import logger
-from pipecat.frames.frames import (
-    CancelFrame,
-    EndFrame,
-    Frame,
-    InputAudioRawFrame,
-    OutputAudioRawFrame,
-    StartFrame,
-    StartInterruptionFrame,
-    StopInterruptionFrame,
-    TransportMessageFrame,
-    TransportMessageUrgentFrame,
-)
+from pipecat.frames.frames import CancelFrame, EndFrame, InputAudioRawFrame, StartFrame
 from pipecat.serializers.base_serializer import FrameSerializer
 from pipecat.transports.base_transport import BaseTransport
 from pipecat.transports.network.websocket_server import (

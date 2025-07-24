@@ -14,14 +14,10 @@
 
 
 import asyncio
-from typing import AsyncGenerator, List, Mapping, Optional, Tuple
+from typing import AsyncGenerator, List, Optional
 
-import numpy as np
-import torch
 from loguru import logger
-from omegaconf import OmegaConf
 from pipecat.frames.frames import (
-    AudioRawFrame,
     CancelFrame,
     EndFrame,
     ErrorFrame,
@@ -32,7 +28,7 @@ from pipecat.frames.frames import (
     VADUserStoppedSpeakingFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection
-from pipecat.services.stt_service import SegmentedSTTService, STTService
+from pipecat.services.stt_service import STTService
 from pipecat.transcriptions.language import Language
 from pipecat.utils.time import time_now_iso8601
 from pipecat.utils.tracing.service_decorators import traced_stt
@@ -41,9 +37,6 @@ from pydantic import BaseModel
 from nemo.collections.voice_agent.pipecat.services.nemo.legacy_asr import NemoLegacyASRService
 
 try:
-    import nemo.collections.asr as nemo_asr
-    from nemo.collections.asr.models import ASRModel
-
     # disable nemo logging
     from nemo.utils import logging
 
@@ -53,7 +46,7 @@ try:
 
 except ModuleNotFoundError as e:
     logger.error(f"Exception: {e}")
-    logger.error('In order to use NVIDIA NeMo STT, you need to `pip install "nemo_toolkit[asr]"`.')
+    logger.error('In order to use NVIDIA NeMo STT, you need to `pip install "nemo_toolkit[all]"`.')
     raise Exception(f"Missing module: {e}")
 
 
@@ -158,6 +151,7 @@ class NemoSTTService(STTService):
         await self.start_processing_metrics()
 
         try:
+            is_final = False
             transcription = None
             self.audio_buffer.append(audio)
             if len(self.audio_buffer) >= self._params.buffer_size:

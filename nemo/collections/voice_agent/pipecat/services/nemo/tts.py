@@ -15,7 +15,7 @@
 import asyncio
 import inspect
 from collections.abc import AsyncGenerator
-from typing import Iterator, Union
+from typing import Iterator
 
 import numpy as np
 import torch

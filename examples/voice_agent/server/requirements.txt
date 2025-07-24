@@ -1,4 +1,0 @@
-fastapi[all]
-pipecat-ai[silero,websocket]
-python-dotenv
-uvicorn

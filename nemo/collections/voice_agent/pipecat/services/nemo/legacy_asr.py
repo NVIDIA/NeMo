@@ -207,8 +207,6 @@ class NemoLegacyASRService:
         # Convert bytes to numpy array
         audio_array = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
 
-        audio_len_in_secs = len(audio_array) / 16000
-
         self._audio_buffer.update(audio_array)
 
         features = self._audio_buffer.get_feature_buffer()
