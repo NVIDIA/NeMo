@@ -16,7 +16,7 @@ import warnings
 
 warnings.warn(
     "This evaluation script is deprecated and will be removed in NeMo FW 25.09 container release. "
-    "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA/NeMo-Eval",
+    "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
     DeprecationWarning,
     stacklevel=1,
 )
