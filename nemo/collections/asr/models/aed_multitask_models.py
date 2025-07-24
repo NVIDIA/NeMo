@@ -498,7 +498,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         **prompt,
     ) -> Union[List[str], List[Hypothesis]]:
         """
-        Uses greedy decoding to transcribe audio files. 
+        Uses greedy decoding to transcribe audio files.
         If a single audio file or batch_size==1 is used, enables dynamic caching/chunking for long-form audio.
         This allows the model to process long audio in manageable chunks and merge the results.
         """
