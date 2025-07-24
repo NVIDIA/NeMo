@@ -62,6 +62,11 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     Tokenized utterances will be extended with special prompt tokens according to ``prompt_format_fn`` logic.
     We support cuts with multiple supervision segments -- their tokenized texts will be concatenated before we add the prompt tokens.
     This is useful, for example, in code-switched scenarios where each segment is spoken in a different language.
+
+    Chunking:
+    If `do_dynamic_chunking` is True, each audio sample is split into optimally sized chunks
+    (see `find_optimal_chunk_size` and `chunk_waveform`). This is useful for long audio inputs,
+    allowing the model to process them in manageable segments.
     """
 
     def __init__(
@@ -80,16 +85,22 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
+        # --- CHUNKING LOGIC START ---
         if self.do_dynamic_chunking:
+            # If dynamic chunking is enabled, split each audio sample into chunks.
             new_audio = []
             new_audio_lens = []
             for i in range(audio.shape[0]):
                 waveform = audio[i, : audio_lens[i]]
+                # Split the waveform into chunks and get their lengths.
                 chunks, chunk_lens = self.chunk_waveform(waveform)
                 new_audio.extend(chunks)
                 new_audio_lens.extend(chunk_lens)
+            # Stack all chunks into a batch.
             audio = torch.stack(new_audio)
             audio_lens = torch.tensor(new_audio_lens, dtype=torch.long)
+        # --- CHUNKING LOGIC END ---
+
         # Fast-path: the tokenization and prompt formatting was already done before sampling.
         attrs = ("input_ids", "context_ids", "answer_ids")
         pre_formatted = all(hasattr(c, a) for c in cuts for a in attrs)
@@ -126,6 +137,20 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def find_optimal_chunk_size(
         self, total_len: int, min_sec: int = 30, max_sec: int = 40, sample_rate: int = 16000
     ) -> int:
+        """
+        Finds the optimal chunk size (in samples) for a given audio length.
+        The goal is to maximize the length of the last chunk (i.e., minimize padding)
+        while keeping chunk sizes between min_sec and max_sec seconds.
+
+        Args:
+            total_len: Total length of the audio in samples.
+            min_sec: Minimum chunk duration in seconds.
+            max_sec: Maximum chunk duration in seconds.
+            sample_rate: Audio sample rate.
+
+        Returns:
+            The optimal chunk size in samples.
+        """
         best_chunk_size = min_sec * sample_rate
         best_last_chunk_len = 0
         for sec in range(min_sec, max_sec + 1):
@@ -142,6 +167,20 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     def chunk_waveform(
         self, waveform: torch.Tensor, chunk_size: int = None, device=None
     ) -> tuple[list[torch.Tensor], list[int]]:
+        """
+        Splits a waveform into chunks of (approximately) chunk_size samples.
+        Pads the last chunk if necessary.
+
+        Args:
+            waveform: 1D tensor of audio samples.
+            chunk_size: Desired chunk size in samples. If None, will be determined automatically.
+            device: Device for the output tensors.
+
+        Returns:
+            A tuple (chunks, chunk_lens):
+                - chunks: list of chunk tensors (each of length chunk_size)
+                - chunk_lens: list of original (unpadded) lengths for each chunk
+        """
         # If chunk_size is None, find the optimal chunk size for this waveform
         total_len = waveform.shape[0]
         if chunk_size is None:
@@ -154,6 +193,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             chunk = waveform[start:end]
             length = chunk.shape[0]
             if length < chunk_size:
+                # Pad the last chunk if it's shorter than chunk_size
                 pad = torch.zeros(
                     chunk_size - length, dtype=chunk.dtype, device=chunk.device if device is None else device
                 )
