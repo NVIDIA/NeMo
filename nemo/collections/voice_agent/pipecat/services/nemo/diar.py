@@ -107,8 +107,9 @@ class NemoDiarService(STTService):
             self._vad_user_speaking = True
 
     def _load_model(self):
-        if not self._enabled:
+        if not self._enabled or not self._model_name:
             self._model = None
+            self._enabled = False
             return
 
         if self._backend == "legacy":

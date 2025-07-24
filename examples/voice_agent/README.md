@@ -8,13 +8,13 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 
 - Open-source, local deployment, and flexible customization.
 - Talk to most LLMs from HuggingFace, use different prompts to configure the agent. 
-- Speaker diarization up to 4 speakers.
 - Streaming speech recognition.
 - FastPitch-HiFiGAN TTS.
 - WebSocket server for easy deployment.
 
 
 ## 💡 Upcoming Next
+- Speaker diarization up to 4 speakers (checkpoint will be released verysoon).
 - More accurate and noise-robust streaming ASR and diarization models.
 - Faster EOU detection and backchannel handling (e.g., bot will not stop speaking when user is saying something like "uhuh", "wow", "i see").
 - Better streaming ASR and diarization pipeline.
@@ -83,7 +83,7 @@ npm run dev
 
 ### Connect to the client via browser
 
-Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button.
+Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button. If using chrome browser, you might need to allow microphone access in the browser settings and add the ip address of the machine to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
 
 
 ## 📑 Supported Models
@@ -114,7 +114,7 @@ We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to ge
 - If directly loading from HuggingFace and got I/O erros, you can set `llm.model=<local_path>`, where the model is downloaded via somehing like `huggingface-cli download Qwen/Qwen3-8B --local-dir <local_path>`.
 - The current ASR and diarization models are not noise-robust, you might need to use a noise-cancelling microphone or a quiet environment. But we will release better models soon.
 - The diarization model works best with speakers that have much more different voices from each other, while it might not work well on some accents due to the limited training data.
-- If using chrome browser, you might need to allow microphone access in the browser settings and add the ip address of the machine to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+
 
 
 

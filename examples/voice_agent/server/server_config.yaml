@@ -15,15 +15,15 @@ vad:
 
 stt:
   type: nemo
-  model: "/media/data3/pretrained_models/nemo_asr/stt_en_fastconformer_hybrid_large_streaming_80ms.nemo"  # "nvidia/stt_en_fastconformer_hybrid_large_streaming_multi"
+  model: "nvidia/stt_en_fastconformer_hybrid_large_streaming_multi"
   device: "cuda"
   att_context_size: [70, 1]
   frame_len_in_secs: 0.08  # default for FastConformer, do not change
 
 diar:
   type: nemo
-  enabled: true
-  model: "/home/heh/codes/niva-kunal/im417-normNA-ft3-mem14_epoch23-36.apr23_2025.nemo"
+  enabled: false
+  model: null
   device: "cuda"
   threshold: 0.4
   frame_len_in_secs: 0.08  # default for FastConformer, do not change
@@ -33,7 +33,7 @@ turn_taking:
 
 llm:
   type: hf
-  model: "/media/data/cache2/meta-llama/Meta-Llama-3-8B-Instruct"  # "meta-llama/Meta-Llama-3-8B-Instruct"
+  model: "meta-llama/Meta-Llama-3-8B-Instruct"
   device: "cuda"
   temperature: 0.7  # LLM sampling params
   top_p: 0.9  # LLM sampling params
@@ -42,7 +42,7 @@ llm:
 tts:
   type: nemo
   model: fastpitch-hifigan
-  fastpitch_model: "/media/data/cache2/nvidia/tts_en_fastpitch/tts_en_fastpitch.nemo"  # "nvidia/tts_en_fastpitch"
-  hifigan_model: "/media/data/cache2/nvidia/tts_hifigan/tts_hifigan.nemo"  # "nvidia/tts_hifigan"
+  fastpitch_model: "nvidia/tts_en_fastpitch"
+  hifigan_model: "nvidia/tts_hifigan"
   device: "cuda"
   extra_separator: ":,?!"  # some punctuations to chunk LLM response into segments for faster TTS output
