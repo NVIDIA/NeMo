@@ -133,9 +133,9 @@ def hydra_runner(
                     config_name=config_name,
                 )
                 # Import here to avoid circular import
-                from nemo.lightning.one_logger_callback import get_onelogger_callbacks
+                from nemo.lightning.one_logger_callback import get_one_logger_callbacks
 
-                get_onelogger_callbacks('on_app_end')
+                get_one_logger_callbacks('on_app_end')
 
         return wrapper
 

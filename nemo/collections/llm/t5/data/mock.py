@@ -49,9 +49,9 @@ class MockDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
         create_attention_mask: bool = False,
     ):
-        from nemo.lightning.one_logger_callback import get_onelogger_callbacks
+        from nemo.lightning.one_logger_callback import get_one_logger_callbacks
 
-        get_onelogger_callbacks("on_dataloader_init_start")
+        get_one_logger_callbacks("on_dataloader_init_start")
 
         super().__init__()
         self.seq_length = seq_length
@@ -76,7 +76,7 @@ class MockDataModule(pl.LightningDataModule):
             rampup_batch_size=rampup_batch_size,
         )
 
-        get_onelogger_callbacks("on_dataloader_init_end")
+        get_one_logger_callbacks("on_dataloader_init_end")
 
     def setup(self, stage: str = "") -> None:
         """Setup the datasets"""

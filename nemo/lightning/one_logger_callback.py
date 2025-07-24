@@ -47,7 +47,7 @@ from nemo.utils.meta_info_manager import (
 __all__ = [
     'OneLoggerNeMoCallback',
     'hook_class_init_with_callbacks',
-    'get_onelogger_callbacks',
+    'get_one_logger_callbacks',
     'update_one_logger_config',
 ]
 
@@ -82,7 +82,7 @@ def _get_onelogger_callbacks_function(name: str):
 
 
 # Wrapper functions for OneLogger callbacks
-def get_onelogger_callbacks(name: str, *args, **kwargs):
+def get_one_logger_callbacks(name: str, *args, **kwargs):
     """Get and call the OneLogger callbacks module if available.
 
     Args:
@@ -128,13 +128,13 @@ class OneLoggerNeMoCallback(Callback):
         current_step = trainer.global_step
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
 
-        get_onelogger_callbacks(
+        get_one_logger_callbacks(
             "on_train_start", train_iterations_start=current_step, train_iterations_target_or_fn=max_steps
         )
 
     def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
         """Called at the beginning of each training batch."""
-        get_onelogger_callbacks("on_training_single_iteration_start")
+        get_one_logger_callbacks("on_training_single_iteration_start")
 
     def on_train_batch_end(
         self,
@@ -145,18 +145,18 @@ class OneLoggerNeMoCallback(Callback):
         batch_idx: int,
     ) -> None:
         """Called at the end of each training batch."""
-        get_onelogger_callbacks("on_training_single_iteration_end")
+        get_one_logger_callbacks("on_training_single_iteration_end")
 
     def on_validation_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called when validation begins."""
-        get_onelogger_callbacks("on_validation_start")
+        get_one_logger_callbacks("on_validation_start")
 
     def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called when validation ends."""
         if self._validation_batch_exists:
-            get_onelogger_callbacks("on_validation_single_iteration_end")
+            get_one_logger_callbacks("on_validation_single_iteration_end")
             self._validation_batch_exists = False
-        get_onelogger_callbacks("on_validation_end")
+        get_one_logger_callbacks("on_validation_end")
 
     def on_validation_batch_start(
         self,
@@ -168,9 +168,9 @@ class OneLoggerNeMoCallback(Callback):
     ) -> None:
         """Called at the beginning of each validation batch."""
         if self._validation_batch_exists:
-            get_onelogger_callbacks("on_validation_single_iteration_end")
+            get_one_logger_callbacks("on_validation_single_iteration_end")
         self._validation_batch_exists = True
-        get_onelogger_callbacks("on_validation_single_iteration_start")
+        get_one_logger_callbacks("on_validation_single_iteration_start")
 
     def on_validation_batch_end(
         self,
@@ -183,11 +183,11 @@ class OneLoggerNeMoCallback(Callback):
     ) -> None:
         """Called at the end of each validation batch."""
         self._validation_batch_exists = False
-        get_onelogger_callbacks("on_validation_single_iteration_end")
+        get_one_logger_callbacks("on_validation_single_iteration_end")
 
     def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
         """Called when training ends."""
-        get_onelogger_callbacks("on_train_end")
+        get_one_logger_callbacks("on_train_end")
 
 
 def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) -> None:
@@ -218,9 +218,9 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
         # Mark this instance as being initialized
         self._one_logger_init_started = True
 
-        get_onelogger_callbacks(start_callback, start_time_msec=get_current_time_msec())
+        get_one_logger_callbacks(start_callback, start_time_msec=get_current_time_msec())
         result = original_init(self, *args, **kwargs)
-        get_onelogger_callbacks(end_callback, finish_time_msec=get_current_time_msec())
+        get_one_logger_callbacks(end_callback, finish_time_msec=get_current_time_msec())
         return result
 
     # Mark as wrapped to prevent double wrapping
@@ -265,7 +265,7 @@ def _init_one_logger() -> None:
     TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(
         exporter.exporter
     ).configure_provider()
-    get_onelogger_callbacks("on_app_start", start_time_msec=app_start_time)
+    get_one_logger_callbacks("on_app_start", start_time_msec=app_start_time)
 
 
 def update_one_logger_config(
