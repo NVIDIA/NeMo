@@ -20,7 +20,7 @@ import pytest
 from nemo.lightning.one_logger_callback import (
     OneLoggerNeMoCallback,
     get_current_time_msec,
-    get_onelogger_callbacks,
+    get_one_logger_callbacks,
     hook_class_init_with_callbacks,
 )
 
@@ -40,10 +40,10 @@ class TestOneLoggerCallback:
 
     @pytest.mark.unit
     def test_get_onelogger_callbacks_no_onelogger(self):
-        """Test get_onelogger_callbacks when OneLogger is not available."""
+        """Test get_one_logger_callbacks when OneLogger is not available."""
         with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', False):
             # Should return None when OneLogger is not available
-            result = get_onelogger_callbacks("test_callback")
+            result = get_one_logger_callbacks("test_callback")
             assert result is None
 
     @pytest.mark.unit
@@ -102,7 +102,7 @@ class TestOneLoggerCallback:
                 callback_calls.append(callback_name)
                 return MagicMock()
 
-            with patch('nemo.lightning.one_logger_callback.get_onelogger_callbacks', side_effect=side_effect):
+            with patch('nemo.lightning.one_logger_callback.get_one_logger_callbacks', side_effect=side_effect):
                 # Simulate training cycle
                 callback.on_train_start(trainer, pl_module)
                 callback.on_train_batch_start(trainer, pl_module, batch, 0)

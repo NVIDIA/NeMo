@@ -48,7 +48,7 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import McoreDistributedOptimizer, prepare_lr_scheduler
-from nemo.lightning.one_logger_callback import get_onelogger_callbacks
+from nemo.lightning.one_logger_callback import get_one_logger_callbacks
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
@@ -89,7 +89,7 @@ class ModelPT(LightningModule, Model):
             )
 
         # Track model init start
-        get_onelogger_callbacks('on_model_init_start')
+        get_one_logger_callbacks('on_model_init_start')
 
         super().__init__()
 
@@ -479,7 +479,7 @@ class ModelPT(LightningModule, Model):
             An instance of type cls or its underlying config (if return_config is set).
         """
         # OneLogger hook for checkpoint loading start
-        get_onelogger_callbacks('on_load_checkpoint_start')
+        get_one_logger_callbacks('on_load_checkpoint_start')
 
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
@@ -515,7 +515,7 @@ class ModelPT(LightningModule, Model):
             instance._save_restore_connector = save_restore_connector
 
         # OneLogger hook for checkpoint loading end
-        get_onelogger_callbacks('on_load_checkpoint_end')
+        get_one_logger_callbacks('on_load_checkpoint_end')
 
         return instance
 
@@ -534,7 +534,7 @@ class ModelPT(LightningModule, Model):
         For documentation, please refer to LightningModule.load_from_checkpoint() documentation.
         """
         # OneLogger hook for checkpoint loading start
-        get_onelogger_callbacks('on_load_checkpoint_start')
+        get_one_logger_callbacks('on_load_checkpoint_start')
 
         checkpoint = None
         try:
@@ -553,7 +553,7 @@ class ModelPT(LightningModule, Model):
             cls._set_model_restore_state(is_being_restored=False)
 
         # OneLogger hook for checkpoint loading end
-        get_onelogger_callbacks('on_load_checkpoint_end')
+        get_one_logger_callbacks('on_load_checkpoint_end')
 
         return checkpoint
 
