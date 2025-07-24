@@ -122,6 +122,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
         default_factory=lambda: MultiTaskTranscriptionInternalConfig()
     )
+    do_dynamic_caching: bool = False
 
     def __post_init__(self):
         self.prompt = parse_multitask_prompt(self.prompt)
@@ -561,6 +562,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 )
             trcfg = override_config
             trcfg.timestamps = timestamps
+        #Check if only one audio is provided not manifest
+        is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl") )
+        #Check if batch_size is one 
+        trcfg.do_dynamic_caching = is_one_audio or (override_config.batch_size == 1)
 
         return super().transcribe(audio=audio, override_config=trcfg)
 
@@ -578,6 +583,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             dataset=PromptedAudioToTextLhotseDataset(
                 tokenizer=self.tokenizer,
                 prompt=self.prompt,
+                do_dynamic_chunking=config.get("do_dynamic_chunking", False),
             ),
             tokenizer=self.tokenizer,
         )
@@ -976,6 +982,74 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             batch=batch,
         )
 
+    def _join_text(self, merged_hypothesis, hypotheses):
+        merged_hypothesis.text = " ".join([h.text for h in hypotheses])
+        return merged_hypothesis
+
+    def _join_y_sequence(self, merged_hypothesis, hypotheses):
+        merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
+        return merged_hypothesis
+    
+
+    def _join_timestamp(self, merged_hypothesis, hypotheses, chunk_offsets):
+        # word level
+        cumulative_offset = 0
+        for i, h in enumerate(hypotheses):
+            cumulative_offset += chunk_offsets[i]  # self.chunk_offsets starts with 0,
+
+            # update frame numbers
+            updated_timestamps = [
+                {
+                    **word,
+                    'start_offset': word['start_offset']
+                    + cumulative_offset
+                    // self.encoder.subsampling_factor,  # dividing here to avoid error accumulation over long audios
+                    'end_offset': word['end_offset'] + cumulative_offset //  self.encoder.subsampling_factor,
+                }
+                for word in h.timestamp['word']
+            ]
+
+            # update times
+            updated_timestamps = [
+                {
+                    **word,
+                    'start': word['start_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor,
+                    'end': word['end_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor,
+                }
+                for word in updated_timestamps
+            ]
+
+            merged_hypothesis.timestamp['word'].extend(updated_timestamps)
+
+        # segment level
+        cumulative_offset = 0
+        for i, h in enumerate(hypotheses):
+            cumulative_offset += chunk_offsets[i]
+
+            # update frame numbers
+            updated_timestamps = [
+                {
+                    **segment,
+                    'start_offset': segment['start_offset'] + cumulative_offset // self.encoder.subsampling_factor,
+                    'end_offset': segment['end_offset'] + cumulative_offset // self.encoder.subsampling_factor,
+                }
+                for segment in h.timestamp['segment']
+            ]
+
+            # update times
+            updated_timestamps = [
+                {
+                    **segment,
+                    'start': segment['start_offset'] * self.cfg['preprocessor']['window_stride']* self.encoder.subsampling_factor,
+                    'end': segment['end_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor,
+                }
+                for segment in updated_timestamps
+            ]
+
+            merged_hypothesis.timestamp['segment'].extend(updated_timestamps)
+
+        return merged_hypothesis
+
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
@@ -997,7 +1071,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         decoder_input_ids = outputs.pop('decoder_input_ids')
         batch = outputs.pop('batch')
 
-        del log_probs, encoded_len
+        del log_probs
+        num_chunks = enc_states.shape[0]  
+        # Repear decoder_input_ids to match number of chunks
+        if trcfg.do_dynamic_caching and num_chunks > decoder_input_ids.shape[0]:
+            decoder_input_ids = decoder_input_ids.repeat(num_chunks, 1)
+
 
         hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
@@ -1020,7 +1099,22 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             hypotheses = process_aed_timestamp_outputs(
                 hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
+        if trcfg.do_dynamic_caching and len(hypotheses) > 1:
+            merged_hypthesis = Hypothesis(
+            score=0.0,
+            y_sequence=torch.tensor([]),
+            timestamp={
+                'char': [],
+                'word': [],
+                'segment': [],
+            },
+        )
+            merged_hypthesis = self._join_text(merged_hypthesis, hypotheses)
+            merged_hypthesis = self._join_y_sequence(merged_hypthesis, hypotheses)
+            chunk_offsets = [0] + [x * self.encoder.subsampling_factor for x in encoded_len.tolist()]
 
+            merged_hypthesis = self._join_timestamp(merged_hypthesis, hypotheses, chunk_offsets)
+            return [merged_hypthesis] 
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
@@ -1044,6 +1138,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             # when using a list of audio files instead of a manifest (added from TranscrptionMixin)
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
             batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+# check this part!
+        do_dynamic_chunking = batch_size == 1
         dl_config = {
             'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
@@ -1060,6 +1156,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             'channel_selector': config.get('channel_selector', None),
             'pad_min_duration': config.get('pad_min_duration', 1.0),
             'pad_direction': config.get('pad_direction', 'both'),
+            'do_dynamic_chunking': do_dynamic_chunking,
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
