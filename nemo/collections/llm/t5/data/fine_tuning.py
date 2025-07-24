@@ -30,29 +30,24 @@ if TYPE_CHECKING:
 class FineTuningDataModule(pl.LightningDataModule):
     """Base class for fine-tuning an LLM.
 
-    This class provides a foundation for building custom data modules for fine-tuning Nemo NLP models.
-    It inherits from `pl.LightningDataModule` from the PyTorch Lightning library and handles data loading,
-    preprocessing, and batch creation for training, validation, and testing.
+    This class provides a foundation for building custom data modules for fine-tuning Nemo NLP models. It inherits from
+    `pl.LightningDataModule` from the PyTorch Lightning library and handles data loading, preprocessing, and batch creation
+    for training, validation, and testing.
 
     Args:
         dataset_root (Union[str, Path]): The root directory containing the training, validation, and test data.
         seq_length (int, optional): The maximum sequence length for the input and output text. Defaults to 2048.
-        tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text.
-            Defaults to None. If not provided, a BertWordPieceCase tokenizer will be used.
+        tokenizer (Optional[TokenizerSpec], optional): The tokenizer to use for preprocessing the text. Defaults to None.
+            If not provided, a BertWordPieceCase tokenizer will be used.
         micro_batch_size (int, optional): The micro batch size for training. Defaults to 4.
         global_batch_size (int, optional): The global batch size for training. Defaults to 8.
-        rampup_batch_size (Optional[List[int]], optional): A list of batch sizes for ramping up during training.
-            Defaults to None.
+        rampup_batch_size (Optional[List[int]], optional): A list of batch sizes for ramping up during training. Defaults to None.
         seed (int, optional): The random seed for data shuffling. Defaults to 1234.
-        memmap_workers (int, optional): The number of worker processes for loading data using TextMemMapDataset.
-            Defaults to 1.
+        memmap_workers (int, optional): The number of worker processes for loading data using TextMemMapDataset. Defaults to 1.
         num_workers (int, optional): The number of worker processes for data loading. Defaults to 8.
-        pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training.
-            Defaults to True.
-        persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs.
-            Defaults to False.
-        max_train_steps (int, optional): Maximum number of steps to train. Used to calculate samples mapping
-            for the mmap dataset
+        pin_memory (bool, optional): Whether to pin memory during data loading for faster GPU training. Defaults to True.
+        persistent_workers (bool, optional): Whether to keep data loading workers persistent across epochs. Defaults to False.
+        max_train_steps (int, optional): Maximum number of steps to train. Used to calculate samples mapping for the mmap dataset
     """
 
     def __init__(
@@ -100,11 +95,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.max_train_samples = None
 
     def setup(self, stage: str):
-        """Set up the data module for the specified stage.
-
-        Args:
-            stage: The stage to set up ('fit', 'validate', 'test', or 'predict')
-        """
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
             micro_batch_size=self.micro_batch_size,
@@ -118,11 +108,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         self.max_train_samples = int(math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005))
 
     def train_dataloader(self) -> DataLoader:
-        """Create the training data loader.
-
-        Returns:
-            DataLoader: The training data loader
-        """
         return self._create_dataloader(
             self._create_dataset(
                 str(self.train_path),
@@ -131,11 +116,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         )
 
     def val_dataloader(self) -> DataLoader:
-        """Create the validation data loader.
-
-        Returns:
-            DataLoader: The validation data loader
-        """
         return self._create_dataloader(
             self._create_dataset(
                 str(self.validation_path),
@@ -144,11 +124,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         )
 
     def test_dataloader(self) -> DataLoader:
-        """Create the test data loader.
-
-        Returns:
-            DataLoader: The test data loader
-        """
         return self._create_dataloader(
             self._create_dataset(
                 str(self.test_path),
@@ -159,15 +134,6 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     @lru_cache
     def _create_dataset(self, path, **kwargs):
-        """Create a dataset for the given path.
-
-        Args:
-            path: Path to the dataset file
-            **kwargs: Additional arguments to pass to create_sft_dataset
-
-        Returns:
-            The created dataset
-        """
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
@@ -179,15 +145,6 @@ class FineTuningDataModule(pl.LightningDataModule):
         )
 
     def _create_dataloader(self, dataset, **kwargs) -> DataLoader:
-        """Create a data loader for the given dataset.
-
-        Args:
-            dataset: The dataset to create a loader for
-            **kwargs: Additional arguments to pass to DataLoader
-
-        Returns:
-            DataLoader: The created data loader
-        """
         return DataLoader(
             dataset,
             num_workers=self.num_workers,
@@ -199,27 +156,12 @@ class FineTuningDataModule(pl.LightningDataModule):
 
     @property
     def train_path(self) -> Path:
-        """Get the path to the training data file.
-
-        Returns:
-            Path: Path to the training data file
-        """
         return self.dataset_root / "training.jsonl"
 
     @property
     def validation_path(self) -> Path:
-        """Get the path to the validation data file.
-
-        Returns:
-            Path: Path to the validation data file
-        """
         return self.dataset_root / "validation.jsonl"
 
     @property
     def test_path(self) -> Path:
-        """Get the path to the test data file.
-
-        Returns:
-            Path: Path to the test data file
-        """
         return self.dataset_root / "test.jsonl"

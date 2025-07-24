@@ -1230,7 +1230,6 @@ def _setup(
     tokenizer: Optional[TokenizerType],
     model_transform: Optional[Union[PEFT, ModelTransform, Callable]],
 ) -> Any:  # Return type is Any because app_state's type is not specified
-    # OneLogger timing tracker replaced with direct callback calls
     configure_no_restart_validation_training_loop(trainer)
     _log = log or NeMoLogger()
     if resume and isinstance(model_transform, PEFT) and _log.ckpt:

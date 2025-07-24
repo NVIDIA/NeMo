@@ -51,15 +51,7 @@ def default_log(
     tensorboard_logger: Optional[Config[TensorBoardLogger]] = None,
     wandb_logger: Optional[Config[WandbLogger]] = None,
 ) -> Config[nl.NeMoLogger]:
-    """Factory function to configure NemoLogger.
-
-    Args:
-        dir: Directory for logs
-        name: Name of the experiment
-        tensorboard_logger: TensorBoard logger configuration
-        wandb_logger: WandB logger configuration
-        enable_onelogger: Whether to enable OneLogger telemetry
-    """
+    """Factory function to configure NemoLogger."""
     ckpt = Config(
         nl.ModelCheckpoint,
         save_last=True,
