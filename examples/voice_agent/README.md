@@ -55,6 +55,8 @@ Edit the `server/server_config.yaml` file to configure the server, for example:
 - Configure the LLM parameters, such as temperature, max tokens, etc.
 - Distribute different components to different GPUs if you have more than one.
 - Adjust VAD parameters for sensitivity and end-of-turn detection timeout.
+- If you want to access the client from another machine, you need to change the `baseUrl` in `client/src/app.ts` to the actual ip address of the server machine.
+
 
 
 ### Start the server
@@ -113,6 +115,7 @@ We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to ge
 - The current ASR and diarization models are not noise-robust, you might need to use a noise-cancelling microphone or a quiet environment. But we will release better models soon.
 - The diarization model works best with speakers that have much more different voices from each other, while it might not work well on some accents due to the limited training data.
 - If using chrome browser, you might need to allow microphone access in the browser settings and add the ip address of the machine to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+
 
 
 ## ☁️ NVIDIA NIM Services
