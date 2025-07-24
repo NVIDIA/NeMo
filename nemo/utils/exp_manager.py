@@ -18,7 +18,6 @@ import signal
 import subprocess
 import sys
 import time
-import uuid
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass, field

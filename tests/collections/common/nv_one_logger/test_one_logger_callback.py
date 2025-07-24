@@ -16,8 +16,6 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-from lightning.pytorch import Trainer
-from lightning.pytorch.core import LightningModule
 
 from nemo.lightning.one_logger_callback import (
     OneLoggerNeMoCallback,
@@ -82,12 +80,6 @@ class TestOneLoggerCallback:
 
         # Track all callback calls in order
         callback_calls = []
-
-        def mock_get_callback(callback_name):
-            def mock_callback(*args, **kwargs):
-                callback_calls.append(callback_name)
-
-            return mock_callback
 
         with (
             patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True),
