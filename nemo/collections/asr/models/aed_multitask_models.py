@@ -562,9 +562,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 )
             trcfg = override_config
             trcfg.timestamps = timestamps
-        #Check if only one audio is provided not manifest
-        is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl") )
-        #Check if batch_size is one 
+        # Check if only one audio is provided not manifest
+        is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl"))
+        # Check if batch_size is one
         trcfg.do_dynamic_caching = is_one_audio or (override_config.batch_size == 1)
 
         return super().transcribe(audio=audio, override_config=trcfg)
@@ -989,7 +989,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     def _join_y_sequence(self, merged_hypothesis, hypotheses):
         merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
         return merged_hypothesis
-    
 
     def _join_timestamp(self, merged_hypothesis, hypotheses, chunk_offsets):
         # word level
@@ -1004,7 +1003,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     'start_offset': word['start_offset']
                     + cumulative_offset
                     // self.encoder.subsampling_factor,  # dividing here to avoid error accumulation over long audios
-                    'end_offset': word['end_offset'] + cumulative_offset //  self.encoder.subsampling_factor,
+                    'end_offset': word['end_offset'] + cumulative_offset // self.encoder.subsampling_factor,
                 }
                 for word in h.timestamp['word']
             ]
@@ -1013,8 +1012,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             updated_timestamps = [
                 {
                     **word,
-                    'start': word['start_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor,
-                    'end': word['end_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor,
+                    'start': word['start_offset']
+                    * self.cfg['preprocessor']['window_stride']
+                    * self.encoder.subsampling_factor,
+                    'end': word['end_offset']
+                    * self.cfg['preprocessor']['window_stride']
+                    * self.encoder.subsampling_factor,
                 }
                 for word in updated_timestamps
             ]
@@ -1040,8 +1043,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             updated_timestamps = [
                 {
                     **segment,
-                    'start': segment['start_offset'] * self.cfg['preprocessor']['window_stride']* self.encoder.subsampling_factor,
-                    'end': segment['end_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor,
+                    'start': segment['start_offset']
+                    * self.cfg['preprocessor']['window_stride']
+                    * self.encoder.subsampling_factor,
+                    'end': segment['end_offset']
+                    * self.cfg['preprocessor']['window_stride']
+                    * self.encoder.subsampling_factor,
                 }
                 for segment in updated_timestamps
             ]
@@ -1072,11 +1079,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         batch = outputs.pop('batch')
 
         del log_probs
-        num_chunks = enc_states.shape[0]  
+        num_chunks = enc_states.shape[0]
         # Repear decoder_input_ids to match number of chunks
         if trcfg.do_dynamic_caching and num_chunks > decoder_input_ids.shape[0]:
             decoder_input_ids = decoder_input_ids.repeat(num_chunks, 1)
-
 
         hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
@@ -1101,20 +1107,20 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             )
         if trcfg.do_dynamic_caching and len(hypotheses) > 1:
             merged_hypthesis = Hypothesis(
-            score=0.0,
-            y_sequence=torch.tensor([]),
-            timestamp={
-                'char': [],
-                'word': [],
-                'segment': [],
-            },
-        )
+                score=0.0,
+                y_sequence=torch.tensor([]),
+                timestamp={
+                    'char': [],
+                    'word': [],
+                    'segment': [],
+                },
+            )
             merged_hypthesis = self._join_text(merged_hypthesis, hypotheses)
             merged_hypthesis = self._join_y_sequence(merged_hypthesis, hypotheses)
             chunk_offsets = [0] + [x * self.encoder.subsampling_factor for x in encoded_len.tolist()]
 
             merged_hypthesis = self._join_timestamp(merged_hypthesis, hypotheses, chunk_offsets)
-            return [merged_hypthesis] 
+            return [merged_hypthesis]
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
@@ -1138,7 +1144,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             # when using a list of audio files instead of a manifest (added from TranscrptionMixin)
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
             batch_size = min(config['batch_size'], len(config['paths2audio_files']))
-# check this part!
+        # check this part!
         do_dynamic_chunking = batch_size == 1
         dl_config = {
             'manifest_filepath': manifest_filepath,
