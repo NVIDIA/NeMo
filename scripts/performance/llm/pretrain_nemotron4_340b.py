@@ -27,15 +27,9 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_comm_overlap_callback_idx,
-    get_user_configs,
-    logging,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, logging, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import get_comm_overlap_callback_idx
 
 
 def override_recipe_configs(
@@ -74,16 +68,17 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_user_buffer_registration=args.use_user_buffer_registration,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
-        use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe, "pre_train", "llm", "nemotron4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
     gpu_type = args.gpu.lower()
@@ -100,19 +95,14 @@ def override_recipe_configs(
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
     if gpu_type in ["b200", "gb200"]:
-        if args.fp8_recipe.lower() != "mxfp8":
-            tp_comm_overlap_cfg = (
-                userbuffers_fp8_b200_h18432_tp8_mbs1_seqlen4096
-                if args.compute_dtype.lower() == "fp8"
-                else userbuffers_bf16_b200_h18432_tp8_mbs1_seqlen4096
-            )
-            # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
-            tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
-    if args.compute_dtype.lower() == "fp8" and args.fp8_recipe.lower() == "mxfp8":
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
-
+        tp_comm_overlap_cfg = (
+            userbuffers_fp8_b200_h18432_tp8_mbs1_seqlen4096
+            if args.compute_dtype.lower() == "fp8"
+            else userbuffers_bf16_b200_h18432_tp8_mbs1_seqlen4096
+        )
+        # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
+        tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
     return recipe
 
 
@@ -157,6 +147,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
@@ -185,7 +176,7 @@ if __name__ == "__main__":
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
     if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not none
+        assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:

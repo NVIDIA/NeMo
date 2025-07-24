@@ -22,14 +22,9 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    hf_tokenizer,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..utils import hf_tokenizer
 
 
 def override_recipe_configs(
@@ -70,6 +65,7 @@ def override_recipe_configs(
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         recompute_layers=recompute_layers,
@@ -90,11 +86,6 @@ def override_recipe_configs(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=32000
         )
         recipe.model.tokenizer = recipe.data.tokenizer
-
-    # to mitigate the incorrect gradient_scaling_factor calculation in megatron.core
-    # under scenario average_in_collective=True and tp_size != etp_size, disabling average_in_collective.
-    if etp_size is not None and etp_size != tp_size:
-        recipe.trainer.strategy.ddp.average_in_collective = False
 
     return recipe
 
@@ -143,6 +134,7 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
+        args.gpu.lower(),
         args.account,
         args.partition,
         args.log_dir,
