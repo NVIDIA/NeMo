@@ -16,7 +16,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 import torch
 from megatron.core.inference.contexts import BaseInferenceContext
@@ -25,14 +25,7 @@ from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.utils import (
-    deprecate_inference_params,
-    is_te_min_version,
-    log_single_rank,
-    make_viewless_tensor,
-    nvtx_range_pop,
-    nvtx_range_push,
-)
+from megatron.core.utils import deprecate_inference_params
 from torch import Tensor
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
@@ -90,7 +83,6 @@ class HyenaLayer(MegatronModule):
         )
 
         self.hyena_bda = build_module(submodules.hyena_bda)
-        self.bias_dropout_add_exec_handler = torch.enable_grad
 
         self.pre_mlp_layernorm = build_module(
             submodules.pre_mlp_layernorm,
@@ -100,13 +92,18 @@ class HyenaLayer(MegatronModule):
         )
 
         self.mlp = build_module(submodules.mlp, config=self.transformer_config, tp_group=model_comm_pgs.tp)
-        if hasattr(self.mlp, 'set_layer_number'):
-            self.mlp.set_layer_number(self.layer_number)
-
         self.mlp_bda = build_module(submodules.mlp_bda)
-        if hasattr(self.mlp_bda, 'set_layer_number'):
-            self.mlp_bda.set_layer_number(self.layer_number)
-        self.bias_dropout_add_exec_handler = torch.enable_grad
+
+        for layer in [self.mlp, self.mlp_bda, self.hyena_bda]:
+            if hasattr(layer, 'set_layer_number'):
+                layer.set_layer_number(self.layer_number)
+
+    @property
+    def bias_dropout_add_exec_handler(self):
+        if self.training:
+            return torch.enable_grad
+        else:
+            return torch.inference_mode
 
     def forward(
         self,
