@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 from dataclasses import dataclass
 from typing import Callable, Optional, Union
 
@@ -67,16 +68,28 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self,
         tokenizer: TokenizerSpec,
         prompt: PromptFormatter,
+        do_dynamic_chunking: bool = False,
     ):
         super().__init__()
         self.tokenizer = tokenizer
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.padding_value = self.tokenizer.pad_id
         self.prompt = prompt
+        self.do_dynamic_chunking = do_dynamic_chunking 
 
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
+        if self.do_dynamic_chunking:            
+            new_audio = []
+            new_audio_lens = []
+            for i in range(audio.shape[0]):
+                waveform = audio[i, :audio_lens[i]]
+                chunks, chunk_lens = self.chunk_waveform(waveform)
+                new_audio.extend(chunks)
+                new_audio_lens.extend(chunk_lens)
+            audio = torch.stack(new_audio)
+            audio_lens = torch.tensor(new_audio_lens, dtype=torch.long)
         # Fast-path: the tokenization and prompt formatting was already done before sampling.
         attrs = ("input_ids", "context_ids", "answer_ids")
         pre_formatted = all(hasattr(c, a) for c in cuts for a in attrs)
@@ -110,6 +123,45 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         tokens = collate_vectors(tokens, padding_value=self.padding_value)
         return tokens, token_lens
 
+    def find_optimal_chunk_size(
+        self,
+        total_len: int,
+        min_sec: int = 30,
+        max_sec: int = 40,
+        sample_rate: int = 16000
+    ) -> int:
+        best_chunk_size = min_sec * sample_rate
+        best_last_chunk_len = 0
+        for sec in range(min_sec, max_sec + 1):
+            chunk_size = sec * sample_rate
+            if chunk_size > total_len:
+                continue
+            n_chunks = (total_len + chunk_size - 1) // chunk_size  # ceil division
+            last_chunk_len = total_len - chunk_size * (n_chunks - 1)
+            if last_chunk_len > best_last_chunk_len:
+                best_last_chunk_len = last_chunk_len
+                best_chunk_size = chunk_size
+        return best_chunk_size
+            
+    def chunk_waveform(self, waveform: torch.Tensor, chunk_size: int = None, device=None) -> tuple[list[torch.Tensor], list[int]]:
+        # If chunk_size is None, find the optimal chunk size for this waveform
+        total_len = waveform.shape[0]
+        if chunk_size is None:
+            chunk_size = self.find_optimal_chunk_size(total_len)
+        chunks = []
+        chunk_lens = []
+        start = 0
+        while start < total_len:
+            end = min(start + chunk_size, total_len)
+            chunk = waveform[start:end]
+            length = chunk.shape[0]
+            if length < chunk_size:
+                pad = torch.zeros(chunk_size - length, dtype=chunk.dtype, device=chunk.device if device is None else device)
+                chunk = torch.cat([chunk, pad], dim=0)
+            chunks.append(chunk)
+            chunk_lens.append(length)
+            start += chunk_size
+        return chunks, chunk_lens
 
 class ProbablyIncorrectLanguageKeyError(RuntimeError):
     pass
