@@ -289,6 +289,10 @@ class HyenaStack(MegatronModule):
             # See set_input_tensor()
             hidden_states = self.input_tensor
 
+        if not self.training:
+            assert (not self.config.fp32_residual_connection and
+                    hidden_states.dtype == self.config.params_dtype)
+
         hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
 
         if self.config.sequence_parallel:
