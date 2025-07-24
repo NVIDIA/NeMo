@@ -1,6 +1,6 @@
 # NeMo Voice Agent
 
-A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the simplest way to create a voice agent using NVIDIA NeMo STT/TTS service and HuggingFace LLM. Everthing is deployed locally so you can have your own voice agent. 
+A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the simplest way to create a voice agent using NVIDIA NeMo STT/TTS service and HuggingFace LLM. Everything is deployed locally so you can have your own voice agent. 
 
 
 
