@@ -498,9 +498,40 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         **prompt,
     ) -> Union[List[str], List[Hypothesis]]:
         """
-        Uses greedy decoding to transcribe audio files.
+        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
         If a single audio file or batch_size==1 is used, enables dynamic caching/chunking for long-form audio.
         This allows the model to process long audio in manageable chunks and merge the results.
+        Args:
+            audio: (a single or list) of paths to audio files or a np.ndarray/tensor audio array or path 
+                to a manifest file.
+                Can also be a dataloader object that provides values that can be consumed by the model.
+                Recommended length per file is between 5 and 25 seconds. \
+                But it is possible to pass a few hours long file if enough GPU memory is available.
+            batch_size: (int) batch size to use during inference.
+                Bigger will result in better throughput performance but would use more memory.
+            return_hypotheses: (bool) Either return hypotheses or text
+                With hypotheses can do some postprocessing like getting timestamp or rescoring
+            num_workers: (int) number of workers for DataLoader
+            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels 
+                from multi-channel audio. If set to `'average'`, it performs averaging across channels. 
+                Disabled if set to `None`. Defaults to `None`.
+            augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
+            timestamps: Optional(Bool): timestamps will be returned if set to True as part of hypothesis 
+                object (output.timestep['segment']/output.timestep['word']). Refer to `Hypothesis` class 
+                for more details. Default is None and would retain the previous state set by using 
+                self.change_decoding_strategy(). 
+            Note: Currently its not supported for AED models.
+            verbose: (bool) whether to display tqdm progress bar
+            override_config: (Optional[MultiTaskTranscriptionConfig]) A config to override the 
+                default config.
+            **prompt: Optional input to construct the prompts for the model. Accepted formats are: 
+                1) legacy Canary-1B API source_lang=<lang>, target_lang=<lang>, etc. 
+                2) explicit single-turn role=<role>, slots={<slot>: <value>, ...} 
+                3) explicit multi-turn: turns=[{"role": <role>, "slots": {<slot>: <value>, ...}}]
+
+        Returns:
+            A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
+            as paths2audio_files 
         """
         if timestamps is not None:
             if self.cfg.get('timestamps_asr_model', None) is None:
@@ -1035,9 +1066,20 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
-        Internal function to process the model's outputs to return the results to the user.
+        Internal function to process the model's outputs to return the results to the user. This function is called by
+        `transcribe()` and `transcribe_generator()` to process the model's outputs.
         If dynamic chunking/caching was used (do_dynamic_caching=True), merges the hypotheses from each chunk
         into a single hypothesis, joining text, token sequences, and timestamps.
+
+        Args:
+            outputs: The model's outputs that are processed by `_transcribe_forward()`.
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            The output can be a list of
+            objects, list of list of objects.
+            Its type is defined in `TranscriptionReturnType`.
+        
         """
         log_probs = outputs.pop('log_probs')
         encoded_len = outputs.pop('encoded_lengths')
@@ -1095,7 +1137,17 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
-        If batch_size==1, enables dynamic chunking for long-form inference.
+        Args:
+            config: A python dictionary which contains keys such as:
+                paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
+                    Recommended length per file is between 5 and 25 seconds.
+                batch_size: (int) batch size to use during inference. \
+                    Bigger will result in better throughput performance but would use more memory.
+                temp_dir: (str) A temporary directory where the audio manifest is temporarily
+                    stored.
+        Returns:
+            A pytorch DataLoader for the given audio file(s).
+
         """
         if 'manifest_filepath' in config:
             manifest_filepath = config['manifest_filepath']
