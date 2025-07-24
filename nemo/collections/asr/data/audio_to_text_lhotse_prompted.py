@@ -75,16 +75,16 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.padding_value = self.tokenizer.pad_id
         self.prompt = prompt
-        self.do_dynamic_chunking = do_dynamic_chunking 
+        self.do_dynamic_chunking = do_dynamic_chunking
 
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        if self.do_dynamic_chunking:            
+        if self.do_dynamic_chunking:
             new_audio = []
             new_audio_lens = []
             for i in range(audio.shape[0]):
-                waveform = audio[i, :audio_lens[i]]
+                waveform = audio[i, : audio_lens[i]]
                 chunks, chunk_lens = self.chunk_waveform(waveform)
                 new_audio.extend(chunks)
                 new_audio_lens.extend(chunk_lens)
@@ -124,11 +124,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         return tokens, token_lens
 
     def find_optimal_chunk_size(
-        self,
-        total_len: int,
-        min_sec: int = 30,
-        max_sec: int = 40,
-        sample_rate: int = 16000
+        self, total_len: int, min_sec: int = 30, max_sec: int = 40, sample_rate: int = 16000
     ) -> int:
         best_chunk_size = min_sec * sample_rate
         best_last_chunk_len = 0
@@ -142,8 +138,10 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
                 best_last_chunk_len = last_chunk_len
                 best_chunk_size = chunk_size
         return best_chunk_size
-            
-    def chunk_waveform(self, waveform: torch.Tensor, chunk_size: int = None, device=None) -> tuple[list[torch.Tensor], list[int]]:
+
+    def chunk_waveform(
+        self, waveform: torch.Tensor, chunk_size: int = None, device=None
+    ) -> tuple[list[torch.Tensor], list[int]]:
         # If chunk_size is None, find the optimal chunk size for this waveform
         total_len = waveform.shape[0]
         if chunk_size is None:
@@ -156,12 +154,15 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             chunk = waveform[start:end]
             length = chunk.shape[0]
             if length < chunk_size:
-                pad = torch.zeros(chunk_size - length, dtype=chunk.dtype, device=chunk.device if device is None else device)
+                pad = torch.zeros(
+                    chunk_size - length, dtype=chunk.dtype, device=chunk.device if device is None else device
+                )
                 chunk = torch.cat([chunk, pad], dim=0)
             chunks.append(chunk)
             chunk_lens.append(length)
             start += chunk_size
         return chunks, chunk_lens
+
 
 class ProbablyIncorrectLanguageKeyError(RuntimeError):
     pass
