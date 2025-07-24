@@ -235,7 +235,7 @@ class HyenaMixer(MegatronModule):
             init_method=self.transformer_config.output_layer_init_method,
             bias=True,
             input_is_parallel=True,
-            skip_bias_add=True,
+            skip_bias_add=False,
             is_expert=False,
             tp_comm_buffer_name='fc2',
         )
