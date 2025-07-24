@@ -799,7 +799,7 @@ def evaluate(
 ) -> dict:
     warnings.warn(
         "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
-        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA/NeMo-Eval",
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
         DeprecationWarning,
         stacklevel=2,
     )
