@@ -28,7 +28,7 @@ from nemo.collections.common.data.lhotse.text_adapters import (
     collate_conversation_audio_fault_tolerant,
 )
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
-from nemo.collections.common.prompts import Llama2PromptFormatter, Llama3PromptFormatter
+from nemo.collections.common.prompts import Llama2PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.utils import get_pad_id
 

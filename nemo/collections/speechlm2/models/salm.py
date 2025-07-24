@@ -19,7 +19,6 @@ from typing import Any, Optional
 
 import torch
 from lhotse import CutSet
-from lhotse.dataset.collation import collate_vectors
 from lightning import LightningModule
 from omegaconf import DictConfig
 from peft import PeftModel
