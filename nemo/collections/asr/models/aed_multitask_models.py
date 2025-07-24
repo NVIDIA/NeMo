@@ -575,7 +575,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         """
         Sets up a Lhotse-based dataloader for multi-task models.
         This method enforces the use of Lhotse and injects the tokenizer and prompt formatter.
-        If batch_size==1, enables dynamic chunking for streaming/long-form inference.
         """
         assert config.get("use_lhotse", False), (
             "Multi-task model only supports dataloading with Lhotse. "
@@ -1137,6 +1136,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
+        If batch_size==1, enables dynamic chunking for streaming/long-form inference.
         Args:
             config: A python dictionary which contains keys such as:
                 paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
