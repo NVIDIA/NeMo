@@ -1,26 +1,26 @@
-from collections import Counter
-from io import BytesIO
-from itertools import islice
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from pathlib import Path
-from typing import Dict, List, Tuple
 
-import lhotse
-import numpy as np
 import pytest
 import torch
-from lhotse import CutSet, MonoCut, NumpyFilesWriter, Recording, compute_num_samples
-from lhotse.audio import AudioLoadingError
+from lhotse import CutSet, MonoCut
 from lhotse.augmentation import ReverbWithImpulseResponse
-from lhotse.cut import Cut, MixedCut, PaddingCut
-from lhotse.dataset import RoundRobinSampler, ZipSampler
-from lhotse.shar import JsonlShardWriter
-from lhotse.testing.dummies import dummy_recording
-from lhotse.testing.random import deterministic_rng
+from lhotse.cut import MixedCut
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
-from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample, TextExample
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
 
 
 @pytest.fixture(scope="session")

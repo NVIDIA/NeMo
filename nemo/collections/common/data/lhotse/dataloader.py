@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import random
 import warnings
 from dataclasses import dataclass
 from functools import partial
@@ -20,14 +19,12 @@ from typing import Any, Optional, Sequence, Union
 
 import numpy as np
 import torch
-from lhotse import CutSet, RecordingSet
+from lhotse import CutSet
 from lhotse.cut import Cut
 from lhotse.dataset import (
-    CutConcatenate,
     DynamicBucketingSampler,
     DynamicCutSampler,
     IterableDatasetWrapper,
-    ReverbWithImpulseResponse,
     RoundRobinSampler,
     ZipSampler,
     make_worker_init_fn,
@@ -39,11 +36,7 @@ from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.common.data.lhotse.augment import augment_batch, augment_examples
-from nemo.collections.common.data.lhotse.cutset import (
-    IncompleteConfigError,
-    guess_parse_cutset,
-    read_cutset_from_config,
-)
+from nemo.collections.common.data.lhotse.cutset import IncompleteConfigError, read_cutset_from_config
 from nemo.collections.common.data.lhotse.sampling import (
     BucketingFilter,
     DurationFilter,
