@@ -1078,7 +1078,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             The output can be a list of
             objects, list of list of objects.
             Its type is defined in `TranscriptionReturnType`.
-        
+
         """
         log_probs = outputs.pop('log_probs')
         encoded_len = outputs.pop('encoded_lengths')
