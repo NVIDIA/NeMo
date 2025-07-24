@@ -250,7 +250,7 @@ class ExpManagerConfig:
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
-    # disable initial validation when resuming from a checkpoint
+    # disable initial validation when resuming from a checkpoint saved during validation
     disable_validation_on_resume: Optional[bool] = True
     ema: Optional[EMAParams] = field(default_factory=lambda: EMAParams())
     # Wall clock time limit
