@@ -1,0 +1,5 @@
+huggingface-hub
+nemo-toolkit
+onnxruntime
+pipecat-ai
+websockets

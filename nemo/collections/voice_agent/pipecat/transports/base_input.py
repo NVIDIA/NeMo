@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+from loguru import logger
 from pipecat.audio.vad.vad_analyzer import VADState
 from pipecat.frames.frames import (
     InputAudioRawFrame,
@@ -43,10 +44,14 @@ class BaseInputTransport(_BaseInputTransport):
                 await self.push_frame(VADUserStartedSpeakingFrame())
                 if can_create_user_frames:
                     frame = UserStartedSpeakingFrame()
+                else:
+                    logger.debug("base_input: VAD state changed to SPEAKING but can_create_user_frames is False")
             elif new_vad_state == VADState.QUIET:
                 await self.push_frame(VADUserStoppedSpeakingFrame())
                 if can_create_user_frames:
                     frame = UserStoppedSpeakingFrame()
+                else:
+                    logger.debug("base_input: VAD state changed to QUIET but can_create_user_frames is False")
 
             if frame:
                 await self._handle_user_interruption(frame)

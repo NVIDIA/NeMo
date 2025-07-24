@@ -121,7 +121,7 @@ TTS_FASTPITCH_MODEL = server_config.tts.fastpitch_model
 TTS_HIFIGAN_MODEL = server_config.tts.hifigan_model
 TTS_DEVICE = server_config.tts.device
 
-EXTRA_SEPARATOR = server_config.tts.get("extra_separator", ":,!?")
+EXTRA_SEPARATOR = server_config.tts.get("extra_separator", None)
 
 ################ End of Configuration #################
 

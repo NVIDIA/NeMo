@@ -1,16 +1,17 @@
 
+# bot_prompt: /path/to/prompt.txt
 bot_prompt: "You are a helpful AI agent named Lisa. Start by greeting the user warmly and introducing yourself within one sentence. Your answer should be concise and to the point. You might also see speaker tags (<speaker_0>, <speaker_1>, etc.) in the user context. You should respond to the user based on the speaker tag and the context of that speaker. Do not include the speaker tags in your response, use them only to identify the speaker."
 
 
 transport:
-  audio_out_10ms_chunks: 8
+  audio_out_10ms_chunks: 8  # use 4 as websocket default, but increasing to larger number might have less glitches in TTS audio
 
 vad:
   type: silero
-  confidence: 0.6
-  start_secs: 0.1
-  stop_secs: 0.8
-  min_volume: 0.4
+  confidence: 0.6  # VAD threshold for detecting speech versus non-speech
+  start_secs: 0.1  # min amout of speech to trigger UserStartSpeaking
+  stop_secs: 0.8  # min about of silence to trigger UserStopSpeaking
+  min_volume: 0.4  # Microphone volumn threshold for VAD
 
 stt:
   type: nemo
@@ -34,9 +35,9 @@ llm:
   type: hf
   model: "/media/data/cache2/meta-llama/Meta-Llama-3-8B-Instruct"  # "meta-llama/Meta-Llama-3-8B-Instruct"
   device: "cuda"
-  temperature: 0.7
-  max_tokens: 128
-  top_p: 0.9
+  temperature: 0.7  # LLM sampling params
+  top_p: 0.9  # LLM sampling params
+  max_tokens: 128  # max num of tokens per LLM output
 
 tts:
   type: nemo
@@ -44,4 +45,4 @@ tts:
   fastpitch_model: "/media/data/cache2/nvidia/tts_en_fastpitch/tts_en_fastpitch.nemo"  # "nvidia/tts_en_fastpitch"
   hifigan_model: "/media/data/cache2/nvidia/tts_hifigan/tts_hifigan.nemo"  # "nvidia/tts_hifigan"
   device: "cuda"
-  extra_separator: ":,?!"
+  extra_separator: ":,?!"  # some punctuations to chunk LLM response into segments for faster TTS output

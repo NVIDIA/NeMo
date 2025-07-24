@@ -17,10 +17,10 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
-from pipecat.services.nemo.utils import CacheFeatureBufferer
 from torch import Tensor
 
 from nemo.collections.asr.models import SortformerEncLabelModel
+from nemo.collections.voice_agent.pipecat.services.nemo.utils import CacheFeatureBufferer
 
 
 @dataclass
@@ -137,7 +137,7 @@ class NeMoLegacyDiarService:
         self.streaming_state = self.init_streaming_state(batch_size=1)
         self.total_preds = torch.zeros((1, 0, self.max_num_speakers), device=self.diarizer.device)
 
-        print("NivaDiarService initialized")
+        print("NeMoLegacyDiarService initialized")
 
     def build_diarizer(self):
         if self.cfg.model_path.endswith(".nemo"):

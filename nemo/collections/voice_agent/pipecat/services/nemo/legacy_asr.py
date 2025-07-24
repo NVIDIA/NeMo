@@ -18,11 +18,11 @@ from typing import List
 import numpy as np
 import torch
 from omegaconf import open_dict
-from pipecat.services.nemo.utils import CacheFeatureBufferer
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.collections.voice_agent.pipecat.services.nemo.utils import CacheFeatureBufferer
 
 
 class NemoLegacyASRService:
