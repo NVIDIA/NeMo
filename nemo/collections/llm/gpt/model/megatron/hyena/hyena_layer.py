@@ -100,9 +100,11 @@ class HyenaLayer(MegatronModule):
 
     @property
     def bias_dropout_add_exec_handler(self):
+        """Return the appropriate execution handler for the current mode."""
         if self.training:
             return torch.enable_grad
         else:
+            # Validation, Test, Inference, Etc.
             return torch.inference_mode
 
     def forward(
