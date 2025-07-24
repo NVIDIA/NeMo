@@ -46,8 +46,7 @@ class WebsocketClientApp {
   private readonly serverConfigs = {
     websocket: {
       name: 'WebSocket Server',
-      baseUrl: 'http://10.110.41.36:7860',
-      // baseUrl: 'http://localhost:7860',
+      baseUrl: 'http://localhost:7860',
       port: 8765
     },
     fastapi: {

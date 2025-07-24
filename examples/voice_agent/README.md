@@ -6,22 +6,32 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 
 ## ✨ Key Features
 
-- [x] Open-source, local deployment, and flexible customization.
-- [x] Talk to most LLMs from HuggingFace, use different prompts to configure the agent. 
-- [x] Speaker diarization up to 4 speakers.
-- [x] Streaming speech recognition.
-- [x] FastPitch-HiFiGAN TTS.
-- [x] WebSocket server for easy deployment.
+- Open-source, local deployment, and flexible customization.
+- Talk to most LLMs from HuggingFace, use different prompts to configure the agent. 
+- Speaker diarization up to 4 speakers.
+- Streaming speech recognition.
+- FastPitch-HiFiGAN TTS.
+- WebSocket server for easy deployment.
 
 
-## 💻 Hardware Requirements
+## 💡 Upcoming Next
+- More accurate and noise-robust streaming ASR and diarization models.
+- Faster EOU detection and backchannel handling (e.g., bot will not stop speaking when user is saying something like "uhuh", "wow", "i see").
+- Better streaming ASR and diarization pipeline.
+- Better TTS model with more natural voice.
+- Joint ASR and diarization model.
 
-- A computer with at least one GPU. At least 18GB VRAM is recommended for using 8B LLMs, and 10GB VRAM for 4B LLMs.
-- A microphone.
-- A speaker.
+
+
 
 
 ## 🚀 Quick Start
+
+### Hardware requirements
+
+- A computer with at least one GPU. At least 18GB VRAM is recommended for using 8B LLMs, and 10GB VRAM for 4B LLMs.
+- A microphone connected to the computer.
+- A speaker connected to the computer.
 
 ### Install dependencies
 
@@ -102,6 +112,7 @@ We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to ge
 - If directly loading from HuggingFace and got I/O erros, you can set `llm.model=<local_path>`, where the model is downloaded via somehing like `huggingface-cli download Qwen/Qwen3-8B --local-dir <local_path>`.
 - The current ASR and diarization models are not noise-robust, you might need to use a noise-cancelling microphone or a quiet environment. But we will release better models soon.
 - The diarization model works best with speakers that have much more different voices from each other, while it might not work well on some accents due to the limited training data.
+- If using chrome browser, you might need to allow microphone access in the browser settings and add the ip address of the machine to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
 
 
 ## ☁️ NVIDIA NIM Services
@@ -117,10 +128,3 @@ For details of available NVIDIA NIM services, please refer to:
 - [NVIDIA Riva TTS NIM Service](https://docs.nvidia.com/nim/riva/tts/latest/overview.html)
 
 
-
-## 💡 Upcoming Next
-- [ ] Faster EOU detection and backchannel handling (e.g., bot will not stop speaking when user is saying something like "uhuh", "wow", "i see").
-- [ ] Better streaming ASR and diarization pipeline.
-- [ ] Better TTS model with more natural voice.
-- [ ] More noise-robust diarization models.
-- [ ] Joint ASR and diarization model.
