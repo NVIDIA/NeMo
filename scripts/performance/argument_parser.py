@@ -26,14 +26,19 @@ def parse_cli_args():
     """
     parser = argparse.ArgumentParser(description="NeMo2.0 Performance Pretraining and Fine-Tuning")
 
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="cluster_type", help='Type of cluster: slurm or runai')
+
+    slurm_parser = subparsers.add_parser('slurm', help="define variables for slurm launcher")
+    runai_parser = subparsers.add_parser('runai', help="define variables for runai launcher")
+
+    slurm_parser.add_argument(
         "-a",
         "--account",
         type=str,
         help="Slurm account to use for experiment",
         required=True,
     )
-    parser.add_argument(
+    slurm_parser.add_argument(
         "-p",
         "--partition",
         type=str,
@@ -48,7 +53,7 @@ def parse_cli_args():
         help="Target gpu type.",
         required=True,
     )
-    parser.add_argument(
+    slurm_parser.add_argument(
         "-l",
         "--log_dir",
         type=str,
@@ -56,13 +61,49 @@ def parse_cli_args():
         required=False,
         default=get_nemorun_home(),
     )
-    parser.add_argument(
+    slurm_parser.add_argument(
         "-t",
         "--time_limit",
         type=str,
         help="Maximum time limit to run experiment for. Defaults to 30 minutes (format- 'HH:MM:SS')",
         required=False,
         default="00:30:00",
+    )
+    runai_parser.add_argument(
+        "-b",
+        "--base_url",
+        help="NVIDIA Run:ai API url to use for experiment. Should look like https://<base-url>/api/v1",
+        type=str,
+        required=True,
+    )
+
+    runai_parser.add_argument(
+        "-id",
+        "--app_id",
+        help="Name of NVIDIA Run:ai Application",
+        type=str,
+        required=True,
+    )
+    runai_parser.add_argument(
+        "-s",
+        "--app_secret",
+        help="NVIDIA Run:ai Application secret",
+        type=str,
+        required=True,
+    )
+    runai_parser.add_argument(
+        "-p",
+        "--project_name",
+        help="NVIDIA Run:ai Project to run the experiment in",
+        type=str,
+        required=True,
+    )
+    runai_parser.add_argument(
+        "-pd",
+        "--pvc_nemo_run_dir",
+        help="Directory path of your nemo-run home in Run:ai PVC",
+        type=str,
+        required=True,
     )
     container_img_msg = [
         "NeMo container to use for experiment. Defaults to latest dev container- 'nvcr.io/nvidia/nemo:dev'",
@@ -101,7 +142,7 @@ def parse_cli_args():
     parser.add_argument(
         "-en",
         "--enable_nsys",
-        help="Enable Nsys profiling. Diabled by default",
+        help="Enable Nsys profiling. Disabled by default",
         action="store_true",
     )
     parser.add_argument(
@@ -117,6 +158,12 @@ def parse_cli_args():
         help="Path to the output file of memory profiling",
         required=False,
         default=None,
+    )
+    parser.add_argument(
+        "-nt",
+        "--enable_nccltrace",
+        help="Enable NCCL tracing. Disabled by default",
+        action="store_true",
     )
     parser.add_argument(
         "-tb",
@@ -274,7 +321,7 @@ def parse_cli_args():
         type=int,
         help="Number of train steps. Defaults to 100",
         required=False,
-        default=100,
+        default=50,
     )
 
     def bool_arg(arg):
@@ -349,6 +396,52 @@ def parse_cli_args():
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "-nlay",
+        "--num_layers",
+        type=int,
+        help="Sets number of model layers.",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-hs",
+        "--hidden_size",
+        type=int,
+        help="Sets hidden model size",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-pss", "--profiling_start_step", type=int, help="Defines start step for profiling", required=False, default=46
+    )
+    parser.add_argument(
+        "-pso", "--profiling_stop_step", type=int, help="Defines start step for profiling", required=False, default=50
+    )
+
+    parser.add_argument(
+        "-pgm",
+        "--profiling_gpu_metrics",
+        help="Enable nsys gpu metrics. Disabled by default.",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "-cps",
+        "--checkpoint_save",
+        type=bool_arg,
+        help="When enabled will trigger checkpoint save operation at the end of training",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-cpl",
+        "--checkpoint_load_path",
+        type=str,
+        help="Path to checkpoint to load prior to training start",
+        required=False,
+        default=None,
+    )
 
     def list_of_strings(arg):
         return arg.split(',')
@@ -368,7 +461,7 @@ def parse_cli_args():
         "-cm",
         "--custom_mounts",
         type=list_of_strings,
-        help="Comma separated string of mounts",
+        help="Comma separated string of mounts. For Run:ai, each mount must be in name:path:k8s-claimName format",
         required=False,
         default=[],
     )
@@ -384,6 +477,44 @@ def parse_cli_args():
         type=bool_arg,
         required=False,
         default=None,
+    )
+
+    parser.add_argument(
+        "--skip_import_checkpoint",
+        help="Skips checkpoint import, finetuning job and only downloads the dataset.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip_dataset_download",
+        help="Skips dataset download, finetuning job and only downloads the checkpoint.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip_finetuning",
+        help="Skips finetuning and only downloads the checkpoint and dataset.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "-ev",
+        "--custom_env_vars",
+        type=str,
+        required=False,
+        default={},
+    )
+
+    parser.add_argument(
+        "-cpin",
+        "--cpu_pinning",
+        type=int,
+        help="Enable CPU pinning to improve performance on some clusters by setting numbers of CPUs per task. Disabled by default",
+        required=False,
+        default=0,
     )
 
     return parser
