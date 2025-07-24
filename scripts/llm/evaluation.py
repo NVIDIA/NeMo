@@ -27,7 +27,7 @@ warnings.warn(
 # method from nemo/llm/collections/api.py to run evaluation on it.
 # (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 # DEPRECATED: This script and the underlying deploy/evaluate functions will be removed in NeMo FW 25.09.
-# Please use the new Eval repository: https://github.com/NVIDIA/NeMo-Eval
+# Please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval
 
 import argparse
 from typing import Optional
