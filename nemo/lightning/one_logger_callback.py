@@ -20,8 +20,7 @@ This module provides a callback that integrates OneLogger telemetry with NeMo tr
 
 import functools
 import time
-import uuid
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional
 
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
@@ -29,7 +28,6 @@ try:
     from nv_one_logger.training_telemetry.api.config import TrainingLoopConfig, TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
     from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
-    from nv_one_logger.training_telemetry.v1_adapter.config_adapter import ConfigAdapter
 
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
@@ -81,7 +79,6 @@ def _get_onelogger_callbacks_function(name: str):
         return getattr(CB, name)
     else:
         raise AttributeError(f"OneLogger has no attribute {name}")
-    return _noop
 
 
 # Wrapper functions for OneLogger callbacks
