@@ -56,6 +56,7 @@ def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int
     analysis_data = None
     if performance_dict:
         total_tokens = args.num_tokens_in_b * 1_000_000_000
+        # total_tokens =  15000 * 1_000_000_000
         analysis_data = calculate_performance_analysis(performance_dict, args, total_tokens, cost_per_node_hour)
         display_performance_analysis(analysis_data)
 

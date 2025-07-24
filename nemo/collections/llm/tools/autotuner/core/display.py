@@ -160,14 +160,17 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     args = analysis_data['args']
     best_config_name, best_config = sorted_configs[0]
     worst_config_name, worst_config = sorted_configs[-1]
+    base_config_generated_name = args.metadata.get('base_config_generated_name', None)
     base_config_matches = args.metadata.get('base_config_matches', [])
     base_config_name = None
     base_config = None
-    for config_name, config_data in config_analysis.items():
-        if config_name in base_config_matches or config_name == 'base_config':
-            base_config_name = config_name
-            base_config = config_data
-            break
+    if base_config_generated_name and base_config_generated_name in config_analysis:
+        base_config_name = base_config_generated_name
+        base_config = config_analysis[base_config_generated_name]
+    elif 'base_config' in config_analysis:
+        base_config_name = 'base_config'
+        base_config = config_analysis['base_config']
+
     console.print("\n[cyan] Performance & Cost Analysis Summary[/cyan]")
     console.print("=" * 80)
     console.print(f"\n[green]Best Performing Configuration: {best_config_name}[/green]")

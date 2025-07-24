@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
+from scripts.performance.helpers import get_comm_overlap_callback_idx
 
 
 GPT_BASED_MODELS = [
@@ -155,6 +156,23 @@ def generate_grid_search_configs(
                                 kwargs["act_per_pipe"] = act_per_pipe
                                 new_cfg = utils.modify_cfg(**kwargs)
                                 if new_cfg:  # Save candidate cfg.
+                                    # --- BEGIN: Per-config TP comm overlap logic ---
+                                    comm_overlap_callback_idx = get_comm_overlap_callback_idx(new_cfg.trainer.callbacks)
+                                    if comm_overlap_callback_idx is not None:
+                                        tp_size = getattr(new_cfg.trainer.strategy, 'tensor_model_parallel_size')
+                                        pp_size = getattr(new_cfg.trainer.strategy, 'pipeline_model_parallel_size')
+                                        cp_size = getattr(new_cfg.trainer.strategy, 'context_parallel_size')
+                                        vp_size = getattr(new_cfg.trainer.strategy, 'virtual_pipeline_model_parallel_size')
+                                        if vp_size is None:
+                                            vp_size = 1
+                                        num_nodes = new_cfg.trainer.num_nodes
+                                        num_gpus_per_node = new_cfg.trainer.devices
+                                        dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
+                                        new_cfg.trainer.strategy.dp_size = dp_size
+                                        new_cfg.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
+                                            dp_size > 1 and pp_size > 1 and vp_size > 1
+                                        )
+                                    # --- END: Per-config TP comm overlap logic ---
                                     configs[new_cfg["name"]] = new_cfg
                 else:
                     new_cfg = utils.modify_cfg(**kwargs)
@@ -889,7 +907,10 @@ def _calculate_tp_pp_mbs_grid(
     if (ep_sizes is not None and ep_sizes != "auto") or mode == "finetune":
         params.ep = ep_sizes
     if (mbs_sizes is not None and mbs_sizes != "auto") or mode == "finetune":
-        params.mbs = mbs_sizes
+        if isinstance(mbs_sizes, list):
+            params.mbs = mbs_sizes
+        else:
+            params.mbs = [mbs_sizes]
     if (gbs_sizes is not None and gbs_sizes != "auto") or mode == "finetune":
         if isinstance(gbs_sizes, list):
             params.gbs = gbs_sizes

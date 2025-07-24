@@ -24,6 +24,108 @@ from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, gener
 import nemo_run as run
 from nemo.lightning.resume import AutoResume
 
+# Import performance optimization functions from NeMo
+from scripts.performance.helpers import set_perf_optimization_configs, get_comm_overlap_callback_idx
+import fiddle as fdl
+import fiddle._src.experimental.dataclasses as fdl_dc
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
+    userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
+    userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
+    userbuffers_bf16_b200_h8192_tp2_mbs1_seqlen8192,
+    userbuffers_fp8_b200_h8192_tp2_mbs1_seqlen8192,
+)
+
+def set_performance_optimizations_aligned_with_nemo(recipe, args):
+    """
+    Set performance optimizations that exactly match NeMo performance scripts.
+    This function replicates the optimizations from set_perf_optimization_configs()
+    and the manual TP overlap setup from pretrain_llama31_405b.py
+    """
+    
+    # 1. CRITICAL: Cross entropy fusion with TE kernel (Line 246 in helpers.py)
+    recipe.model.config.cross_entropy_fusion_impl = "te"
+    
+    # 2. CRITICAL: Async tensor parallel allreduce (from model recipes)
+    recipe.model.config.async_tensor_model_parallel_allreduce = True
+    
+    # 3. CRITICAL: SHARP for collective communication (Line 261 in helpers.py)
+    recipe.trainer.strategy.use_sharp = True
+    
+    # 4. CRITICAL: User buffer registration for NCCL (Lines 268-270 in helpers.py)
+    if hasattr(recipe.trainer.strategy, 'ddp'):
+        recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
+        recipe.trainer.strategy.ddp.check_for_large_grads = False
+        if hasattr(recipe.trainer.strategy.ddp, "nccl_ub"):
+            recipe.trainer.strategy.ddp.nccl_ub = True
+    
+    # 5. CRITICAL: Megatron Core FSDP optimizations (from set_mcore_fsdp_configs)
+    recipe.model.config.init_model_with_meta_device = True
+    recipe.trainer.strategy.fsdp = "megatron"
+    recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+    recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
+    recipe.model.config.gradient_accumulation_fusion = False
+    
+    # 6. CRITICAL: Tensor parallel communication overlap (from pretrain_llama31_405b.py)
+    # (REMOVED: This logic will be set per-config in training_config.py)
+    
+    # 7. CRITICAL: Performance mode settings (from set_primary_perf_configs)
+    recipe.trainer.strategy.sequence_parallel = True  # Enable for TP > 1
+    
+    # 8. CRITICAL: Optimizer precision settings (from set_precision_configs)
+    recipe.optim.config.use_precision_aware_optimizer = True
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+    
+    # 9. CRITICAL: CUDA graph optimizations (from set_cuda_graph_configs)
+    recipe.model.config.enable_cuda_graph = False  # Disabled for FSDP
+    recipe.trainer.strategy.use_te_rng_tracker = False
+    
+    # 10. CRITICAL: Communication overlap optimizations (from set_primary_perf_configs)
+    comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
+    if comm_overlap_callback_idx is not None:
+        # Get GPU type and precision for user buffer config selection
+        gpu_type, _, _ = extract_gpu_specs_unified(recipe.resource_shape, getattr(recipe, 'memory_per_gpu', None))
+        compute_dtype = getattr(recipe, 'compute_dtype', 'bf16') or 'bf16'
+
+        # User buffer configuration mapping (should match your available configs)
+        ub_cfg = {
+            "h100": {
+                "bf16": userbuffers_bf16_h100_h8192_tp8_cp2_mbs1_seqlen8192,
+                "fp8": userbuffers_fp8_h100_h8192_tp8_cp2_mbs1_seqlen8192,
+            },
+            "h200": {
+                "bf16": userbuffers_bf16_h100_h8192_tp8_cp2_mbs1_seqlen8192,
+                "fp8": userbuffers_fp8_h100_h8192_tp8_cp2_mbs1_seqlen8192,
+            },
+            "b200": {
+                "bf16": userbuffers_bf16_b200_h8192_tp8_cp2_mbs1_seqlen8192,
+                "fp8": userbuffers_fp8_b200_h8192_tp8_cp2_mbs1_seqlen8192,
+            },
+            "gb200": {
+                "bf16": userbuffers_bf16_b200_h8192_tp8_cp2_mbs1_seqlen8192,
+                "fp8": userbuffers_fp8_b200_h8192_tp8_cp2_mbs1_seqlen8192,
+            },
+        }
+
+        if gpu_type in ub_cfg and compute_dtype in ub_cfg[gpu_type]:
+            tp_comm_overlap_cfg = ub_cfg[gpu_type][compute_dtype]
+            # Disable aggregation for specific operations
+            if hasattr(tp_comm_overlap_cfg, 'qkv_fprop'):
+                tp_comm_overlap_cfg.qkv_fprop.aggregate = False
+            if hasattr(tp_comm_overlap_cfg, 'proj_dgrad'):
+                tp_comm_overlap_cfg.proj_dgrad.aggregate = False
+            if hasattr(tp_comm_overlap_cfg, 'fc1_fprop'):
+                tp_comm_overlap_cfg.fc1_fprop.aggregate = False
+            if hasattr(tp_comm_overlap_cfg, 'fc2_dgrad'):
+                tp_comm_overlap_cfg.fc2_dgrad.aggregate = False
+            tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
+            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
+            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = True
+        else:
+            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
+            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+
+    return recipe
+
 
 def generate(**kwargs):
     """Generate AutoTune configurations for NeMo pretraining."""
@@ -65,14 +167,14 @@ def generate(**kwargs):
         args.save_to_file(args_file_path)
         console.print(f"[blue]Arguments saved to: {args_file_path}[/blue]")
         
-        console.print("[yellow]Generating configurations...[/yellow]")
+        console.print("[yellow]Generating configurations with performance optimizations...[/yellow]")
 
         result = generate_recipe_configs(args)
 
         update_args_with_generation_metadata(args.model, result, kwargs['config_dir'])
         console.print(f"[blue]Metadata and objects saved to: {args_file_path}[/blue]")
         
-        console.print("[green]Configurations generated successfully![/green]")
+        console.print("[green]Configurations generated successfully with performance optimizations![/green]")
         console.print(f"Saved to: {os.path.join(kwargs['config_dir'], args.model)}")
         console.print(f"Generated {result['num_configs_generated']} configurations")
         
@@ -457,6 +559,10 @@ def generate_recipe_configs(args):
     base_log_path = args.get_full_logs_path()
 
     recipe = partial(model_class.pretrain_recipe, num_nodes=args.nodes, num_gpus_per_node=args.gpus_per_node)()
+    
+    # CRITICAL: Apply performance optimizations aligned with NeMo performance scripts
+    recipe = set_performance_optimizations_aligned_with_nemo(recipe, args)
+    
     seq_length = getattr(args, 'seq_length', 8192)
     val_check_interval = getattr(args, 'val_check_interval', 50)
     max_steps = getattr(args, 'max_steps', 10)
@@ -485,6 +591,7 @@ def generate_recipe_configs(args):
     logger.info(f"  Logs subdir: {args.logs_subdir}")
     
     # Initialize Auto Configurator runner
+    print(f"recipe {recipe}")
     runner = AutoConfigurator(
         recipe=recipe,
         path_to_logs=base_log_path,
@@ -548,10 +655,13 @@ def generate_recipe_configs(args):
     base_config_path = os.path.join(args.config_dir, args.model, "base_config.json")
     generated_configs_dir = os.path.join(args.config_dir, args.model)
 
+    config_values = extract_all_values(base_config)
+    args.metadata['base_config_generated_name'] = create_log_dir_name(args.model, config_values)
+
     has_matches, matching_files = check_config_matches(base_config_path, generated_configs_dir)
     
     base_config_matches = []
-    
+    print(f"has_matches {has_matches}")
     if has_matches:
         for matching_file in matching_files:
             config_name = matching_file.replace('.json', '')
@@ -560,9 +670,7 @@ def generate_recipe_configs(args):
                 logger.info(f"Config '{config_name}' matches base config - will be flagged as base config equivalent")
         logger.info(f"Found {len(matching_files)} matching configs. Using original log_dir: {recipe.log.log_dir}")
     else:
-        config_values = extract_all_values(base_config)
-        new_log_dir = create_log_dir_name(args.model, config_values)
-        recipe.log.log_dir = os.path.join(base_log_path, new_log_dir)
+        recipe.log.log_dir = os.path.join(base_log_path, args.metadata['base_config_generated_name'])
         logger.info(f"No matching configs found. Updated log_dir to: {recipe.log.log_dir}")
 
     # Update the generation result with final metadata
