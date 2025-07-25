@@ -36,6 +36,7 @@ from nemo.collections.common.data.lhotse.text_adapters import (
     LhotseTextPairAdapter,
     NeMoMultimodalConversation,
     NeMoMultimodalConversationJsonlAdapter,
+    NeMoMultimodalConversationShareGPTJsonlAdapter,
     NeMoSFTJsonlAdapter,
     TextTurn,
 )
@@ -300,6 +301,32 @@ def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool
     return cuts, True
 
 
+@data_type_parser(["share_gpt"])
+def read_share_gpt_as_conversation(config) -> tuple[CutSet, bool]:
+    """Read paths to ShareGPT JSONL files and create a CutSet of NeMoMultimodalConversation."""
+    cuts = CutSet(
+        NeMoMultimodalConversationShareGPTJsonlAdapter(
+            manifest_filepath=config.manifest_filepath,
+            tarred_audio_filepaths=config.get("tarred_audio_filepaths"),
+            audio_locator_tag=config.audio_locator_tag,
+            audio_placeholders=config.audio_placeholders,
+            token_equivalent_duration=config.get("token_equivalent_duration"),
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat()
+    return cuts, True
+
+
+def _resolve_shar_inputs(path: Union[str, Path], only_metadata: bool) -> dict:
+    if only_metadata:
+        return dict(fields={"cuts": sorted(Path(path).glob("cuts.*"))})
+    else:
+        return dict(in_dir=path)
+
+
 def attach_tags(cut, tags: dict):
     """Attach extra tags to a cut dynamically."""
     for key, val in tags.items():
@@ -503,13 +530,6 @@ def read_lhotse_as_conversation(config) -> tuple[CutSet, bool]:
         )
     )
     return cuts, is_tarred
-
-
-def _resolve_shar_inputs(path: Union[str, Path], only_metadata: bool) -> dict:
-    if only_metadata:
-        return dict(fields={"cuts": sorted(Path(path).glob("cuts.*"))})
-    else:
-        return dict(in_dir=path)
 
 
 def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
