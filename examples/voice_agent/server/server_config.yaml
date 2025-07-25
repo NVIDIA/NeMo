@@ -22,8 +22,8 @@ stt:
 
 diar:
   type: nemo
-  enabled: false
-  model: null
+  enabled: false # the checkpoint is under release process
+  model: null  # the checkpoint is under release process
   device: "cuda"
   threshold: 0.4
   frame_len_in_secs: 0.08  # default for FastConformer, do not change

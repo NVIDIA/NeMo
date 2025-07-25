@@ -81,6 +81,8 @@ npm install
 npm run dev
 ```
 
+If you see errors like `SyntaxError: Unexpected reserved word`, please update the Node.js version.
+
 ### Connect to the client via browser
 
 Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button. If using chrome browser, you might need to allow microphone access in the browser settings and add the ip address of the machine to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.

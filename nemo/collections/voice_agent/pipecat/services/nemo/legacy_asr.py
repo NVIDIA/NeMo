@@ -159,7 +159,8 @@ class NemoLegacyASRService:
         if hasattr(asr_model.encoder, "set_default_att_context_size"):
             asr_model.encoder.set_default_att_context_size(att_context_size=self.att_context_size)
 
-        # chunk_size is set automatically for models trained for streaming. For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
+        # chunk_size is set automatically for models trained for streaming.
+        # For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
         if self.chunk_size > 0:
             if self.shift_size < 0:
                 shift_size = self.chunk_size

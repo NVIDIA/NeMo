@@ -182,15 +182,18 @@ async def run_bot_websocket_server():
     )
     logger.info("STT service initialized")
 
-    diar = NemoDiarService(
-        model=DIAR_MODEL,
-        device=STT_DEVICE,
-        params=diar_params,
-        sample_rate=SAMPLE_RATE,
-        backend="legacy",
-        enabled=USE_DIAR,
-    )
-    logger.info("Diarization service initialized")
+    if USE_DIAR:
+        diar = NemoDiarService(
+            model=DIAR_MODEL,
+            device=STT_DEVICE,
+            params=diar_params,
+            sample_rate=SAMPLE_RATE,
+            backend="legacy",
+            enabled=USE_DIAR,
+        )
+        logger.info("Diarization service initialized")
+    else:
+        diar = None
 
     turn_taking = NeMoTurnTakingService(
         use_vad=True,
@@ -268,20 +271,26 @@ async def run_bot_websocket_server():
 
     logger.info("Setting up pipeline...")
 
-    pipeline = Pipeline(
+    pipeline = [
+        ws_transport.input(),
+        rtvi,
+        stt,
+    ]
+
+    if USE_DIAR:
+        pipeline.append(diar)
+
+    pipeline.extend(
         [
-            ws_transport.input(),
-            rtvi,
-            stt,
-            diar,
             turn_taking,
             user_context_aggregator,
             llm,  # LLM
             tts,
             ws_transport.output(),
-            assistant_context_aggregator,
         ]
     )
+
+    pipeline = Pipeline(pipeline)
 
     task = PipelineTask(
         pipeline,

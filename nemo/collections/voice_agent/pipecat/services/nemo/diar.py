@@ -165,11 +165,8 @@ class NemoDiarService(STTService):
                         logger.debug("Received stop signal in background processor")
                         break
 
-                    # logger.debug(f"Processing audio chunk of size {len(audio)} bytes")
-
                     # Process diarization
                     diar_result = self._model.diarize(audio)
-                    # logger.debug(f"Diarization result: {diar_result is not None}")
 
                     # Send result back to async loop
                     asyncio.run_coroutine_threadsafe(self._response_queue.put(diar_result), self.get_event_loop())
