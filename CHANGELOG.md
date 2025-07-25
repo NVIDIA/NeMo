@@ -3,8 +3,27 @@
 <!-- Next changelog -->
 ## NVIDIA Neural Modules 2.4.0
 
-### Detailed Changelogs:
+### Highlights
 
+- Speech  
+  - Batched beam search for transducers (RNN-T and TDT)  
+    - RNNT/TDT buffered/streaming inference \+ batched decoding support in cache-aware  
+    - add support for CTC batched beam search with GPU-LM  
+    - Key fixes  
+      - Punctuation Marks in Timestamps  
+      - Fix timestamps when cuda graphs enabled  
+      - Fix masking of \<pad\> tokens in AED inference  
+      - TDT streaming inference fix
+- LLM
+  - Qwen 3 235B-A22B Perf Optimized  
+  - DeepSeek V3 Perf Optimized  
+  - Gemma3 support from Google  
+  - Embedding and Reranker models  
+- MM
+  - Llama 4  
+  - AVLM
+
+### Detailed Changelogs
 
 #### ASR
 
@@ -97,7 +116,7 @@
 
 </details>
 
-#### Uncategorized:
+#### Uncategorized
 
 <details><summary>Changelog</summary>
 
@@ -335,7 +354,7 @@
 </details>
 ## NVIDIA Neural Modules 2.3.2
 
-This release addresses known security issues. For the latest NVIDIA Vulnerability Disclosure Information visit https://www.nvidia.com/en-us/security/, for acknowledgement please reach out to the NVIDIA PSIRT team at PSIRT@nvidia.com
+This release addresses known security issues. For the latest NVIDIA Vulnerability Disclosure Information visit <https://www.nvidia.com/en-us/security/>, for acknowledgement please reach out to the NVIDIA PSIRT team at <PSIRT@nvidia.com>
 
 ## NVIDIA Neural Modules 2.3.1
 
@@ -351,7 +370,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 - Fault Tolerance
   - Local checkpointing: Fixed support for auto-inserted metric names for resuming from local checkpoints.
 
-### Detailed Changelogs:
+### Detailed Changelogs
 
 </details>
 
@@ -363,7 +382,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 
 </details>
 
-#### Uncategorized:
+#### Uncategorized
 
 <details><summary>Changelog</summary>
 
@@ -439,7 +458,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
   - Current scaling recipe with TP communication overlap and FP8 param gathers
   - Custom FSDP support that fully utilizes GB200 NVL72
 
-### Detailed Changelogs:
+### Detailed Changelogs
 
 #### ASR
 
@@ -514,7 +533,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 
 </details>
 
-#### Uncategorized:
+#### Uncategorized
 
 <details><summary>Changelog</summary>
 
@@ -645,7 +664,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 - Cherry pick `Fix MoE Init to not use Bias in test_strategy_lib.py (13009)` into `r2.3.0` by @ko3n1g :: PR: #13014
 - Cherry pick `cleaner tflops log name (13005)` into `r2.3.0` by @ko3n1g :: PR: #13024
 - Cherry pick `Improve t5 test coverage (12803)` into `r2.3.0` by @ko3n1g :: PR: #13025
-- Cherry pick ` put the warning on the right place (12909)` into `r2.3.0` by @ko3n1g :: PR: #13035
+- Cherry pick `put the warning on the right place (12909)` into `r2.3.0` by @ko3n1g :: PR: #13035
 - Cherry pick `Temporary disable CUDA graphs in DDP mode for transducer decoding (12907)` into `r2.3.0` by @ko3n1g :: PR: #13036
 - Cherry pick `[automodel] peft fix vlm (13010)` into `r2.3.0` by @ko3n1g :: PR: #13037
 - Cherry pick `Only run the docs link check on the container (13068)` into `r2.3.0` by @ko3n1g :: PR: #13070
@@ -711,17 +730,17 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
   - Fix bug in Llama exporter for Llama 3.2 1B and 3B.
   - Fix bug in LoRA linear_fc1adapter when different TP is used during saving and loading the adapter checkpoint.
 
-### Detailed Changelogs:
+### Detailed Changelogs
 
 </details>
 
-#### Uncategorized:
+#### Uncategorized
 
 <details><summary>Changelog</summary>
 
 - Re-add reverted commits after 2.2.0 and set next version to be 2.2.1 by @chtruong814 :: PR: #12587
 - Cherry pick `Fix exporter for llama models with shared embed and output layers (12545)` into `r2.2.0` by @ko3n1g :: PR: #12608
-- Cherry pick `Fix TP for LoRA adapter on `linear_fc1` (12519)` into `r2.2.0` by @ko3n1g :: PR: #12607
+- Cherry pick `Fix TP for LoRA adapter on`linear_fc1`(12519)` into `r2.2.0` by @ko3n1g :: PR: #12607
 - Bump mcore to use 0.11.1 by @chtruong814 :: PR: #12634
 
 </details>
@@ -762,7 +781,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
   - Update model outputs to make all asr outputs to be in consistent format
   - Sortformer Release Model
 
-### Detailed Changelogs:
+### Detailed Changelogs
 
 #### ASR
 
@@ -879,7 +898,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 
 </details>
 
-#### Uncategorized:
+#### Uncategorized
 
 <details><summary>Changelog</summary>
 
@@ -1064,13 +1083,13 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 - Cherry pick `enable fsdp flag for FSDP2Strategy (12392)` into `r2.2.0` by @ko3n1g :: PR: #12429
 - Cherry pick `Fix lita notebook issue (12474)` into `r2.2.0` by @ko3n1g :: PR: #12476
 - Cherrypick multinode tut changes by @BoxiangW :: PR: #12501
-- Cherry pick ` Changed the argument types passed to metrics calculation functions (12500)` into `r2.2.0` by @ko3n1g :: PR: #12502
+- Cherry pick `Changed the argument types passed to metrics calculation functions (12500)` into `r2.2.0` by @ko3n1g :: PR: #12502
 - Cherry pick `added needed fixes (12495)` into `r2.2.0` by @ko3n1g :: PR: #12509
 - Cherry pick `update transformers version requirements (12475)` into `r2.2.0` by @ko3n1g :: PR: #12507
 - Cherry pick `[checkpoint] Log timings for checkpoint IO save and load (11972)` into `r2.2.0` by @ko3n1g :: PR: #12520
 - Cherry pick `few checkings needed because of the change of asr models output (12499)` into `r2.2.0` by @ko3n1g :: PR: #12513
 - Oyilmaz nvidia/chore/cherry pick 12242 by @oyilmaz-nvidia :: PR: #12523
-- Cherry pick `Remove `_attn_implementation` in `LlamaBidirectionalModel` constructor (12364)` into `r2.2.0` by @ko3n1g :: PR: #12525
+- Cherry pick `Remove`_attn_implementation` in `LlamaBidirectionalModel`constructor (12364)` into `r2.2.0` by @ko3n1g :: PR: #12525
 - Cherry pick `Configure FSDP to keep module params (12074)` into `r2.2.0` by @ko3n1g :: PR: #12524
 - Cherry pick `[automodel] docs (11942)` into `r2.2.0` by @ko3n1g :: PR: #12530
 - Cherry pick `[automodel] update examples' comments (12518)` and `[automodel] Move PEFT to configure_model (#12491)` into `r2.2.0` by @ko3n1g :: PR: #12529
@@ -1110,7 +1129,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
   - Timestamps with TDT decoder
   - Timestamps option with .transcribe()
 
-### Detailed Changelogs:
+### Detailed Changelogs
 
 #### ASR
 
@@ -1256,7 +1275,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 
 </details>
 
-#### Uncategorized:
+#### Uncategorized
 
 <details><summary>Changelog</summary>
 
@@ -1308,7 +1327,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 - [Bug fix] In energon MultiModalSampleConfig use default_factory in dataclass by @guyueh1 :: PR: #11041
 - fix: Resolve mutable default issue in MultiModalSampleConfig dataclass by @michal2409 :: PR: #11061
 - SC1/SC2 Recipe by @suiyoubi :: PR: #10971
-- Wrap batch_sampler with _IndexBatchSamplerWrapper by @farhadrgh :: PR: #10934
+- Wrap batch_sampler with_IndexBatchSamplerWrapper by @farhadrgh :: PR: #10934
 - Performance fine-tuning recipes for llama3 8b + 70b by @vysarge :: PR: #11046
 - Set TE spec name for NeMo to HF checkpoint converters by @kevalmorabia97 :: PR: #11036
 - ci: Re-add secrets detector by @ko3n1g :: PR: #11038
@@ -1378,7 +1397,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 - Add llama 3.1 recipes by @cuichenx :: PR: #11273
 - Fix Finetune Recipe by @suiyoubi :: PR: #11267
 - Configure no restart validation loop in nl.Trainer by @hemildesai :: PR: #11029
-- Handle _io_unflatten_object when _thread_local.output_dir is not available by @hemildesai :: PR: #11199
+- Handle _io_unflatten_object when_thread_local.output_dir is not available by @hemildesai :: PR: #11199
 - Remove opencc upperbound by @thomasdhc :: PR: #10909
 - Fix head_size in NeMo to HF checkpoint converters for width pruned model support by @eagle705 :: PR: #11230
 - Fixes per comments by @gvenkatakris :: PR: #11280
@@ -1556,6 +1575,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 - Enable CUDA graphs by default, but require CUDA 12.6 for full graphs by @artbataev :: PR: #9919
 - update branch name for script by @nithinraok :: PR: #9936
 - updte branch by @nithinraok :: PR: #9942
+
 </details>
 
 #### TTS
@@ -1700,9 +1720,6 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 - Add missing imports for torch dist ckpt in export by @oyilmaz-nvidia :: PR: #9826~
 
 </details>
-
-
-
 
 #### Bugfixes
 
@@ -2156,14 +2173,15 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 
 ##### Nvidia Starcoder 2 - 15B
 
-- Announcement - https://developer.nvidia.com/blog/unlock-your-llm-coding-potential-with-starcoder2/
-- AI Foundation Model Inference  - https://catalog.ngc.nvidia.com/orgs/nvidia/teams/ai-foundation/models/starcoder2-15b
-- https://huggingface.co/bigcode/starcoder2-15b
+- Announcement - <https://developer.nvidia.com/blog/unlock-your-llm-coding-potential-with-starcoder2/>
+- AI Foundation Model Inference  - <https://catalog.ngc.nvidia.com/orgs/nvidia/teams/ai-foundation/models/starcoder2-15b>
+- <https://huggingface.co/bigcode/starcoder2-15b>
 
 ##### NeMo Canary
-Announcement - https://nvidia.github.io/NeMo/blogs/2024/2024-02-canary/
 
-- https://huggingface.co/nvidia/canary-1b
+Announcement - <https://nvidia.github.io/NeMo/blogs/2024/2024-02-canary/>
+
+- <https://huggingface.co/nvidia/canary-1b>
 
 #### NeMo LLM
 
@@ -2177,6 +2195,7 @@ Announcement - https://nvidia.github.io/NeMo/blogs/2024/2024-02-canary/
 - Mcore GPT Dataset integration
 
 #### NeMo MM
+
 - CLIP
 - Stable Diffusion (supporting LoRA)
 - Imagen
@@ -2207,9 +2226,9 @@ Announcement - https://nvidia.github.io/NeMo/blogs/2024/2024-02-canary/
 
 Previously, the RNNT metric was stateful while the CTC one was not ([r1.22.0](https://github.com/NVIDIA/NeMo/blob/r1.22.0/nemo/collections/asr/metrics/rnnt_wer_bpe.py#L419-L420), [r1.23.0](https://github.com/NVIDIA/NeMo/blob/r1.23.0/nemo/collections/asr/metrics/wer.py#L333))
 
-Therefore this calculation in the RNNT joint for fused operation worked properly. However with the unification of metrics in r1.23.0, a bug was introduced where only the last sub-batch of metrics calculates the scores and does not accumulate. This is patched via https://github.com/NVIDIA/NeMo/pull/8587 and will be fixed in the next release.
+Therefore this calculation in the RNNT joint for fused operation worked properly. However with the unification of metrics in r1.23.0, a bug was introduced where only the last sub-batch of metrics calculates the scores and does not accumulate. This is patched via <https://github.com/NVIDIA/NeMo/pull/8587> and will be fixed in the next release.
 
-**Workaround**: Explicitly disable fused batch size during inference using the following command
+__Workaround__: Explicitly disable fused batch size during inference using the following command
 
 ```python
 from omegaconf import open_dict
@@ -2226,7 +2245,7 @@ Note: This bug does not affect scores calculated via model.transcribe() (since i
 
 #### Container
 
-For additional information regarding NeMo containers, please visit: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo
+For additional information regarding NeMo containers, please visit: <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>
 
 `docker pull nvcr.io/nvidia/nemo:24.01.speech`
 
@@ -2261,7 +2280,7 @@ For additional information regarding NeMo containers, please visit: https://cata
 - remove _target_ at model level in aed model config [ASR] by @krishnacpuvvada :: PR: #8351
 - Add change_vocabulary and save_tokenizers() support to Multitask ASR models by @titu1994 :: PR: #8357
 - Change default beam size by @titu1994 :: PR: #8371
--  adding jenkins test for speech_to_text_aed model by @krishnacpuvvada :: PR: #8368
+- adding jenkins test for speech_to_text_aed model by @krishnacpuvvada :: PR: #8368
 - Add Finetuning tutorial with HF Datasets by @nithinraok :: PR: #8356
 - wer fix by @tbartley94 :: PR: #8404
 - add ensemble decoding fix by @nithinraok :: PR: #8427
