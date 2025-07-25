@@ -474,6 +474,7 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
             vision_output_dim=source_vision.output_dim,
         )
         config = HFLlama4Config(
+            architectures=["Llama4ForConditionalGeneration"],
             text_config=target_language,
             vision_config=target_vision,
             bos_token_id=self.tokenizer.bos_id,

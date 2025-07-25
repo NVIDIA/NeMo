@@ -99,6 +99,7 @@ class ExportConfig:
     inference_tp: int = 1
     inference_pp: int = 1
     generate_sample: bool = False
+    hf_checkpoint: str | None = None
 
     def __post_init__(self):
         self.path = Path(self.path)
@@ -330,8 +331,29 @@ class Quantizer:
                 unwrapped_model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
             )
 
-        if is_global_rank_zero():
-            mtq.print_quant_summary(unwrapped_model)
+        # Print quantization summary with both tensor and pipeline parallelism awareness
+        from megatron.core import parallel_state
+
+        if parallel_state.is_initialized():
+            pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+            pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+            tp_rank = parallel_state.get_tensor_model_parallel_rank()
+            tp_size = parallel_state.get_tensor_model_parallel_world_size()
+
+            if pp_size > 1:
+                # For pipeline parallelism
+                if tp_rank == 0:
+                    print(f"[PP Rank {pp_rank}/{pp_size}, Quantization Summary:")
+                    mtq.print_quant_summary(unwrapped_model)
+                torch.distributed.barrier()  # Ensure ordered printing across all ranks
+            else:
+                # For single PP, tensor parallelism case
+                if is_global_rank_zero():
+                    mtq.print_quant_summary(unwrapped_model)
+        else:
+            # Non-distributed case
+            if is_global_rank_zero():
+                mtq.print_quant_summary(unwrapped_model)
 
         if self.export_config.generate_sample:
             logging.info("Generating a sample output after model quantization.")
@@ -436,7 +458,7 @@ class Quantizer:
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
         elif self.export_config.export_format == "hf":
-            export_hf_checkpoint(model_dir, export_dir, model=model)
+            export_hf_checkpoint(model_dir, export_dir, model=model, hf_checkpoint=self.export_config.hf_checkpoint)
         # TRT-LLM
         else:
             inference_tp = self.export_config.inference_tp
@@ -464,7 +486,11 @@ class Quantizer:
 
 
 def export_hf_checkpoint(
-    model_dir: AnyPath, export_dir: AnyPath, model: Optional["pl.LightningModule"] = None, **kwargs
+    model_dir: AnyPath,
+    export_dir: AnyPath,
+    model: Optional["pl.LightningModule"] = None,
+    hf_checkpoint: str | None = None,
+    **kwargs,
 ) -> Path | None:
     """Export a GPTModel or HFAutoModelForCausalLM to a HuggingFace checkpoint."""
 
@@ -480,12 +506,17 @@ def export_hf_checkpoint(
         if model is None:
             model, _ = exporter.nemo_load(model_dir)
         unwrapped_model = unwrap_for_modelopt_operations(model)
-        if not mto.ModeloptStateManager.is_converted(unwrapped_model):
-            return None  # Model was not converted by ModelOpt.
 
         with torch.inference_mode():
             with tempfile.TemporaryDirectory() as tmp_dir:
                 exporter.config.save_pretrained(tmp_dir)
+                # For llama4, we only deal with the language_model, vision_model and multi_modal_projector will be acquired from the huggingface checkpoint
+                if (
+                    hasattr(unwrapped_model, 'language_model')
+                    and hasattr(unwrapped_model, 'vision_model')
+                    and hf_checkpoint
+                ):
+                    tmp_dir = hf_checkpoint
                 mte.export_mcore_gpt_to_hf(
                     unwrapped_model, pretrained_model_name_or_path=tmp_dir, export_dir=str(export_dir), **kwargs
                 )

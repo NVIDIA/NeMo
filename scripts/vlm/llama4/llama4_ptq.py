@@ -23,6 +23,21 @@ Example of PTQ for Llama4:
     --batch_size 1 \
     --export_format nemo \
     --legacy_ckpt \
+
+Example of PTQ for Llama4 with HF checkpoint export:
+torchrun --nproc_per_node=8 \
+    scripts/vlm/llama4/llama4_ptq.py \
+    --calibration_tp 1 \
+    --calibration_pp 8 \
+    --nemo_checkpoint "path/to/nemo_checkpoint" \
+    --output_path "path/to/quantized_hf_checkpoint" \
+    --algorithm fp8 \
+    --batch_size 1 \
+    --export_format hf \
+    --legacy_ckpt \
+    --hf_checkpoint "path/to/source_hf_checkpoint/or/model_id" \
+    --devices 8 \
+    --num_nodes 1
 """
 
 import argparse
@@ -73,6 +88,26 @@ images = [
     "000000009448.jpg",
     "000000009378.jpg",
     "000000008899.jpg",
+    "000000242287.jpg",
+    "000000245915.jpg",
+    "000000008021.jpg",
+    "000000007991.jpg",
+    "000000007818.jpg",
+    "000000007784.jpg",
+    "000000007574.jpg",
+    "000000007511.jpg",
+    "000000007386.jpg",
+    "000000007108.jpg",
+    "000000006954.jpg",
+    "000000006818.jpg",
+    "000000006763.jpg",
+    "000000006723.jpg",
+    "000000006614.jpg",
+    "000000006460.jpg",
+    "000000006040.jpg",
+    "000000005992.jpg",
+    "000000012120.jpg",
+    "000000005477.jpg",
 ]
 quantization_images_url = [base_img_url + img_id for img_id in images]
 
@@ -84,6 +119,13 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="NeMo PTQ argument parser"
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint")
+    parser.add_argument(
+        "-hf",
+        "--hf_checkpoint",
+        type=str,
+        default="meta-llama/Llama-4-Scout-17B-16E-Instruct",
+        help="Source HuggingFace checkpoint",
+    )
     parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
     parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
@@ -158,12 +200,6 @@ def get_args():
         "--trust_remote_code", help="Trust remote code when loading HuggingFace models", action="store_true"
     )
     parser.add_argument("--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true")
-    parser.add_argument(
-        "--model_id",
-        type=str,
-        default="meta-llama/Llama-4-Scout-17B-16E-Instruct",
-        help="Model HuggingFace ID to use.",
-    )
 
     args = parser.parse_args()
 
@@ -224,8 +260,8 @@ def main():
     def forward_loop(model):
         """Forward loop for quantization calibration."""
         # Initialize processor and tokenizer
-        model_id = args.model_id
-        processor = AutoProcessor.from_pretrained(model_id)
+        hf_checkpoint = args.hf_checkpoint
+        processor = AutoProcessor.from_pretrained(hf_checkpoint)
 
         for img_url in quantization_images_url:
             raw_image = load_image(img_url)
@@ -289,6 +325,7 @@ def main():
         inference_pp=args.inference_pp,
         dtype=args.dtype,
         generate_sample=args.generate_sample,
+        hf_checkpoint=args.hf_checkpoint,
     )
 
     ptq(
