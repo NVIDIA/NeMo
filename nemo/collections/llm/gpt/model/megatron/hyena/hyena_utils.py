@@ -855,9 +855,11 @@ class ParallelHyenaOperator(nn.Module):
         # x1, x2, v all of shape torch.Size([1, 4096, 63])
         u = torch.cat([x2, x1, v], dim=1)  # torch.Size([1, 12288, 63])
         L = u.shape[-1]
-        poles = rearrange(self.filter.p, "d n -> d n 1")  # n = 16
+        # rearrange(self.filter.p, "d n -> d n 1")
+        poles = self.filter.p.unsqueeze(-1)  # n = 16
         poles = self.filter.get_logp()
-        poles = rearrange(poles, "d n -> d n 1")  # n = 16
+        # rearrange(poles, "d n -> d n 1")
+        poles = poles.unsqueeze(-1)  # n = 16
 
         iir_state = get_filter_state("iir")
         if iir_state is None:
@@ -873,9 +875,12 @@ class ParallelHyenaOperator(nn.Module):
             )
             # y = rearrange(y, "b d l -> b l d")
         else:
-            x1 = rearrange(x1, "1 d l -> l d")
-            x2 = rearrange(x2, "1 d l -> l d")
-            v = rearrange(v, "1 d l -> l d")
+            # rearrange(x1, "1 d l -> l d")
+            x1 = x1.squeeze(0).transpose(0, 1)
+            # rearrange(x2, "1 d l -> l d")
+            x2 = x2.squeeze(0).transpose(0, 1)
+            # rearrange(v, "1 d l -> l d")
+            v = v.squeeze(0).transpose(0, 1)
             x1, x2 = x2, x1  # TODO: figure why it is swapped
             y, iir_state = engine.step_iir(
                 x2=x2,
@@ -886,10 +891,12 @@ class ParallelHyenaOperator(nn.Module):
                 poles=poles,  # torch.Size([4096, 16, 1])
                 iir_state=iir_state,
             )
-            y = rearrange(y, "b d -> b 1 d")
+            # rearrange(y, "b d -> b 1 d")
+            y = y.unsqueeze(1)
             y = y.to(dtype=x1.dtype)
         update_filter_state("iir", state=iir_state)
-        return rearrange(y, "b l d -> b d l")  # b l d
+        # rearrange(y, "b l d -> b d l")
+        return y.transpose(1, 2)  # b l d
 
     def forward_medium(self, *, x1, x2, v, h, bias, inference_context):
         """Forward pass medium."""
@@ -907,11 +914,15 @@ class ParallelHyenaOperator(nn.Module):
             key = f"{filter_name}_filter_state_dict"
             return getattr(inference_context, key, {}).get(id(self))
 
-        x1, x2, v = rearrange([x1, x2, v], "h b d l -> h b l d")
+        # rearrange([x1, x2, v], "h b d l -> h b l d")
+        x1 = x1.transpose(1, 2)  # b l d
+        x2 = x2.transpose(1, 2)  # b l d
+        v = v.transpose(1, 2)    # b l d
         # all above in [B D L]
         u = x2 * v  # b l d
         L = u.shape[1]
-        h = rearrange(h, "d l -> d 1 l")
+        # rearrange(h, "d l -> d 1 l")
+        h = h.unsqueeze(1)
 
         fir_state = get_filter_state("inner_fir")
         if fir_state is None:
@@ -924,11 +935,14 @@ class ParallelHyenaOperator(nn.Module):
                 fir_length=self.kernel_size,  # self.short_filter_length,
                 compute_state=inference_context is not None,
             )
-            y = rearrange(y, "b d l -> b l d")
+            # rearrange(y, "b d l -> b l d")
+            y = y.transpose(1, 2)
             y = y * x1
         else:
-            u = rearrange(u, "b 1 d -> b d")
-            x1 = rearrange(x1, "b 1 d  -> b d")
+            # rearrange(u, "b 1 d -> b d")
+            u = u.squeeze(1)
+            # rearrange(x1, "b 1 d  -> b d")
+            x1 = x1.squeeze(1)
             y, fir_state = engine.step_fir(
                 u=u,
                 fir_state=fir_state,
@@ -938,9 +952,11 @@ class ParallelHyenaOperator(nn.Module):
                 flip_filter=self.kernel_size >= 128,  # aka: only for medium filter
             )
             y = x1 * y
-            y = rearrange(y, "b d -> b 1 d")
+            # rearrange(y, "b d -> b 1 d")
+            y = y.unsqueeze(1)
         update_filter_state("inner_fir", state=fir_state)
-        return rearrange(y, "b l d -> b d l")  # b l d
+        # rearrange(y, "b l d -> b d l")
+        return y.transpose(1, 2)  # b l d
 
     def forward(self, x1, x2, v, _hyena_use_cp=True, inference_context=None):
         """Shape specification for inputs and outputs.
@@ -1134,7 +1150,8 @@ class ParallelShortHyenaOperator(nn.Module):
         else:
             # maybe handle num_groups
             bias = self.conv_bias.repeat_interleave(self.group_dim, dim=0)
-            z = self.short_conv(z, _use_cp=_hyena_use_cp) + rearrange(bias, "h -> 1 h 1") * z  # conv(z) + bias * z
+            bias = bias.view(1, -1, 1) # h -> 1 h 1
+            z = self.short_conv(z, _use_cp=_hyena_use_cp) + bias * z
 
         z = x1 * z if self.postgate else z
 
@@ -1444,12 +1461,14 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
         # If not in inference mode, use the original implementation
         if inference_context is None:
             return super().forward(x, _use_cp=_use_cp)
-        features_BLD = rearrange(x, "b d l -> b l d").contiguous()
+        # rearrange(x, "b d l -> b l d")
+        features_BLD = x.transpose(1, 2).contiguous()
         u = features_BLD
         weight = self.short_conv_weight
 
         if len(weight.shape) == 2:
-            weight = rearrange(weight, "hidden_size3 filter_len -> hidden_size3 1 filter_len")
+            # rearrange(weight, "hidden_size3 filter_len -> hidden_size3 1 filter_len")
+            weight = weight.unsqueeze(1)
 
         weight = weight.repeat_interleave(self.group_dim, dim=0)
 
@@ -1489,7 +1508,8 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
                 weight=weight,
                 bias=None,
             )
-            z_pre = rearrange(z_pre, "b d -> b d 1")
+            # rearrange(z_pre, "b d -> b d 1")
+            z_pre = z_pre.unsqueeze(-1)
         update_filter_state("fir", state=fir_state)
         return z_pre
 
