@@ -517,6 +517,7 @@ class ImplicitModalFilter(nn.Module):
         super().__init__()
         self.order = order
         self.d_model = d_model
+        self._glogp_cache = None
         # Do not register into buffer, so it doesn't cast to BF16!
         self.t = torch.arange(L_cache, dtype=torch.float32, device=torch.cuda.current_device()).view(
             1, 1, -1
@@ -546,9 +547,11 @@ class ImplicitModalFilter(nn.Module):
 
     def get_logp(self):
         """Compute the log poles for the implicit modal filter."""
-        logp = -torch.exp(self.p.to(torch.float32))
-        glogp = logp * torch.exp(self.gamma.to(torch.float32))
-        return glogp
+        if self._glogp_cache is None:
+            logp = -torch.exp(self.p.to(torch.float32))
+            glogp = logp * torch.exp(self.gamma.to(torch.float32))
+            self._glogp_cache = glogp
+        return self._glogp_cache
 
     def compute_filter(self, L, t):
         """Compute the filter for convolution."""
@@ -567,8 +570,7 @@ class ImplicitModalFilter(nn.Module):
         #     self.R.dtype == torch.float32
         # ), f"R must be float32. At lower precision, indexes will be merged together. Current dtype: {self.R.dtype}"
 
-        logp = -torch.exp(self.p.to(torch.float32))
-        glogp = logp * torch.exp(self.gamma.to(torch.float32))
+        glogp = self.get_logp()
         h = torch.exp(glogp[..., None] * t)
         h = torch.einsum('do,dot->dt', self.R.to(torch.float32), h)
         h = h[None]
