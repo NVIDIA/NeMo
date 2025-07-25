@@ -54,11 +54,13 @@ jobs:
 
       - name: Select components to run
         id: components_to_run
+        env:
+          HAS_RUN_ALL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'force-run-all') }}
         run: |
           pip install -U pip
           pip install git-python
 
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          if [[ "$EVENT_NAME" == "pull_request" && "$HAS_RUN_ALL_LABEL" != "true" ]]; then
             python .github/scripts/components_to_run.py --source-sha ${{ github.event.pull_request.head.sha }} --target-sha ${{ github.event.pull_request.base.sha }}
           else
             echo '["nemo2", "automodel", "export-deploy", "speech"]' | tee -a test_modules.json
