@@ -49,83 +49,87 @@ class TestOneLoggerCallback:
     @pytest.mark.unit
     def test_one_logger_nemo_callback_initialization(self):
         """Test OneLoggerNeMoCallback initialization."""
-        callback = OneLoggerNeMoCallback()
-        assert isinstance(callback, OneLoggerNeMoCallback)
+        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True):
+            with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
+                mock_instance = MagicMock()
+                mock_provider.instance.return_value = mock_instance
+                callback = OneLoggerNeMoCallback(mock_instance)
+                assert isinstance(callback, OneLoggerNeMoCallback)
 
     @pytest.mark.unit
     def test_one_logger_nemo_callback_getattr(self):
         """Test __getattr__ method of OneLoggerNeMoCallback."""
-        callback = OneLoggerNeMoCallback()
+        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True):
+            with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
+                mock_instance = MagicMock()
+                mock_provider.instance.return_value = mock_instance
+                callback = OneLoggerNeMoCallback(mock_instance)
 
-        with (
-            patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True),
-            patch('nemo.lightning.one_logger_callback.CB') as mock_cb,
-        ):
-            mock_callback = MagicMock()
-            mock_cb.test_method = mock_callback
-
-            result = callback.test_method
-            assert result == mock_callback
+                # TimeEventCallback doesn't use __getattr__, so this should raise AttributeError
+                with pytest.raises(AttributeError):
+                    _ = callback.test_method
 
     @pytest.mark.unit
     def test_training_cycle_all_callbacks(self):
         """Test a complete training cycle with all callbacks called in order."""
-        callback = OneLoggerNeMoCallback()
-        trainer = MagicMock()
-        trainer.global_step = 10
-        trainer.max_steps = 1000
-        pl_module = MagicMock()
-        batch = MagicMock()
-        outputs = MagicMock()
+        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True):
+            with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
+                mock_instance = MagicMock()
+                mock_provider.instance.return_value = mock_instance
+                callback = OneLoggerNeMoCallback(mock_instance)
+                
+                trainer = MagicMock()
+                trainer.global_step = 10
+                trainer.max_steps = 1000
+                pl_module = MagicMock()
+                batch = MagicMock()
+                outputs = MagicMock()
 
-        # Track all callback calls in order
-        callback_calls = []
+                # Track all callback calls in order
+                callback_calls = []
 
-        with (
-            patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True),
-            patch('nemo.lightning.one_logger_callback.CB') as mock_cb,
-        ):
-            # Mock the CB module to return our mock callback
-            mock_cb.test_start = MagicMock()
-            mock_cb.test_end = MagicMock()
-            mock_cb.on_train_start = MagicMock()
-            mock_cb.on_training_single_iteration_start = MagicMock()
-            mock_cb.on_training_single_iteration_end = MagicMock()
-            mock_cb.on_validation_start = MagicMock()
-            mock_cb.on_validation_single_iteration_start = MagicMock()
-            mock_cb.on_validation_single_iteration_end = MagicMock()
-            mock_cb.on_validation_end = MagicMock()
-            mock_cb.on_train_end = MagicMock()
+                with patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
+                    # Mock the CB module to return our mock callback
+                    mock_cb.test_start = MagicMock()
+                    mock_cb.test_end = MagicMock()
+                    mock_cb.on_train_start = MagicMock()
+                    mock_cb.on_training_single_iteration_start = MagicMock()
+                    mock_cb.on_training_single_iteration_end = MagicMock()
+                    mock_cb.on_validation_start = MagicMock()
+                    mock_cb.on_validation_single_iteration_start = MagicMock()
+                    mock_cb.on_validation_single_iteration_end = MagicMock()
+                    mock_cb.on_validation_end = MagicMock()
+                    mock_cb.on_train_end = MagicMock()
 
-            # Set up the side effect to track calls
-            def side_effect(callback_name, *args, **kwargs):
-                callback_calls.append(callback_name)
-                return MagicMock()
+                    # Set up the side effect to track calls
+                    def side_effect(callback_name, *args, **kwargs):
+                        callback_calls.append(callback_name)
+                        return MagicMock()
 
-            with patch('nemo.lightning.one_logger_callback.get_one_logger_callbacks', side_effect=side_effect):
-                # Simulate training cycle
-                callback.on_train_start(trainer, pl_module)
-                callback.on_train_batch_start(trainer, pl_module, batch, 0)
-                callback.on_train_batch_end(trainer, pl_module, outputs, batch, 0)
-                callback.on_validation_start(trainer, pl_module)
-                callback.on_validation_batch_start(trainer, pl_module, batch, 0, 0)
-                callback.on_validation_batch_end(trainer, pl_module, outputs, batch, 0, 0)
-                callback.on_validation_end(trainer, pl_module)
-                callback.on_train_end(trainer, pl_module)
+                    with patch('nemo.lightning.one_logger_callback.get_one_logger_callbacks', side_effect=side_effect):
+                        # Simulate training cycle
+                        callback.on_train_start(trainer, pl_module)
+                        callback.on_train_batch_start(trainer, pl_module, batch, 0)
+                        callback.on_train_batch_end(trainer, pl_module, outputs, batch, 0)
+                        callback.on_validation_start(trainer, pl_module)
+                        callback.on_validation_batch_start(trainer, pl_module, batch, 0, 0)
+                        callback.on_validation_batch_end(trainer, pl_module, outputs, batch, 0, 0)
+                        callback.on_validation_end(trainer, pl_module)
+                        callback.on_train_end(trainer, pl_module)
 
-                # Verify all callbacks were called in the expected order
-                expected_calls = [
-                    "on_train_start",
-                    "on_training_single_iteration_start",
-                    "on_training_single_iteration_end",
-                    "on_validation_start",
-                    "on_validation_single_iteration_start",
-                    "on_validation_single_iteration_end",
-                    "on_validation_end",
-                    "on_train_end",
-                ]
+                        # Verify all callbacks were called in the expected order
+                        expected_calls = [
+                            "on_train_start",
+                            "on_training_single_iteration_start",
+                            "on_training_single_iteration_end",
+                            "on_validation_start",
+                            "on_validation_single_iteration_start",
+                            "on_validation_single_iteration_end",
+                            "on_validation_end",
+                            "on_train_end",
+                        ]
 
-                assert callback_calls == expected_calls
+                        assert callback_calls == expected_calls
 
     @pytest.mark.unit
     def test_hook_class_init_with_callbacks_no_init(self):
