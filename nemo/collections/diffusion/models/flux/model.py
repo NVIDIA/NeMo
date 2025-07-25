@@ -592,15 +592,15 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
                 guidance=guidance_vec,
             )
 
-        noise_pred = self._unpack_latents(
-            noise_pred.transpose(0, 1),
-            int(latents.shape[2] * self.vae_scale_factor // 2),
-            int(latents.shape[3] * self.vae_scale_factor // 2),
-            vae_scale_factor=self.vae_scale_factor,
-        ).transpose(0, 1)
+            noise_pred = self._unpack_latents(
+                noise_pred.transpose(0, 1),
+                int(latents.shape[2] * self.vae_scale_factor // 2),
+                int(latents.shape[3] * self.vae_scale_factor // 2),
+                vae_scale_factor=self.vae_scale_factor,
+            ).transpose(0, 1)
 
-        target = noise - latents
-        loss = F.mse_loss(noise_pred.float(), target.float(), reduction="mean")
+            target = noise - latents
+            loss = F.mse_loss(noise_pred.float(), target.float(), reduction="mean")
         return loss
 
     def encode_prompt(self, prompt, device='cuda', dtype=torch.float32):
