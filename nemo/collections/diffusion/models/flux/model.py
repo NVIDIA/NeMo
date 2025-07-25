@@ -445,6 +445,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
     def __init__(
         self,
         flux_params: FluxModelParams,
+        seed: int,
         optim: Optional[OptimizerModule] = None,
     ):
         # pylint: disable=C0116
@@ -463,6 +464,10 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         self.text_precached = self.t5_params is None or self.clip_params is None
         self.image_precached = self.vae_config is None
 
+    def setup(self, stage: str):
+        super().setup(stage)
+        torch.manual_seed(self.seed + 100 * parallel_state.get_data_parallel_rank())
+    
     def configure_model(self):
         # pylint: disable=C0116
         if not hasattr(self, "module"):

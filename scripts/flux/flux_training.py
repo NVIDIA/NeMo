@@ -78,6 +78,7 @@ def flux_training() -> run.Partial:
         model=run.Config(
             MegatronFluxModel,
             flux_params=run.Config(FluxModelParams),
+            seed=42
         ),
         data=flux_mock_datamodule(),
         trainer=run.Config(
