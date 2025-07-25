@@ -151,10 +151,11 @@ def test_lhotse_augconfig_composite(cutset_path: Path):
                 {
                     "_target_": "nemo.collections.common.data.lhotse.augment.PerturbSpeed",
                 },
-                {
-                    "_target_": "nemo.collections.common.data.lhotse.augment.ReverbRIR",
-                    "prob": 1.0,
-                },
+                # Note(pzelasko): NeMo CI environment doesn't have torchaudio, required by synthetic RIR code.
+                # {
+                #     "_target_": "nemo.collections.common.data.lhotse.augment.ReverbRIR",
+                #     "prob": 1.0,
+                # },
                 {
                     "_target_": "nemo.collections.common.data.lhotse.augment.MinPadding",
                     "duration": 10.0,
