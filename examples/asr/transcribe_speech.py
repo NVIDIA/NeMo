@@ -37,6 +37,9 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     setup_model,
     write_transcription,
 )
+from nemo.collections.asr.parts.utils.transcribe_tgt_spk_utils import (
+    setup_model_ts,
+)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.timers import SimpleTimer
@@ -209,6 +212,11 @@ class TranscriptionConfig:
     warmup_steps: int = 0  # by default - no warmup
     run_steps: int = 1  # by default - single run
 
+    # target-speaker related configs
+    target_speaker_mode: bool = False
+    diar_model_path: str= ""
+    rttm_mix_prob: float = 0.0 #default 0, using diarization model output, set to >0.0 if rttm provided
+
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis]]:
@@ -264,7 +272,10 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
 
     logging.info(f"Inference will be done on device: {map_location}")
 
-    asr_model, model_name = setup_model(cfg, map_location)
+    if cfg.target_speaker_mode:
+        asr_model, model_name = setup_model_ts(cfg, map_location)
+    else:
+        asr_model, model_name = setup_model(cfg, map_location)
 
     trainer = pl.Trainer(devices=device, accelerator=accelerator)
     asr_model.set_trainer(trainer)

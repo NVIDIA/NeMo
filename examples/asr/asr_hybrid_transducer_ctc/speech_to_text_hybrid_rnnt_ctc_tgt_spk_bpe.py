@@ -44,7 +44,7 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.ht
 import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_tgt_spk_models import EncDecHybridRNNTCTCTgtSpkBPEModel
+from nemo.collections.asr.models import EncDecHybridRNNTCTCTgtSpkBPEModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -52,7 +52,8 @@ from nemo.utils.trainer_utils import resolve_trainer_cfg
 
 
 @hydra_runner(
-    config_path="../conf/fastconformer/hybrid_transducer_ctc", config_name="fastconformer_hybrid_transducer_ctc_tgt_spk_bpe"
+    config_path="../conf/fastconformer/hybrid_transducer_ctc",
+    config_name="fastconformer_hybrid_transducer_ctc_tgt_spk_bpe"
 )
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
