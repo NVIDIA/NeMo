@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import torch
 from lightning.pytorch import Trainer
@@ -22,11 +22,11 @@ from omegaconf import DictConfig
 from nemo.collections.asr.data.audio_to_text_lhotse_target_speaker import LhotseSpeechToTextTgtSpkBpeDataset
 from nemo.collections.asr.models.hybrid_rnnt_ctc_bpe_models import EncDecHybridRNNTCTCBPEModel
 from nemo.collections.asr.models.sortformer_diar_models import SortformerEncLabelModel
+from nemo.collections.asr.parts.mixins import TranscribeConfig
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import PretrainedModelInfo
-from nemo.utils import logging
 from nemo.core.classes.mixins import AccessMixin
-from nemo.collections.asr.parts.mixins import TranscribeConfig
+from nemo.utils import logging
 
 
 class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
@@ -62,10 +62,9 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
         self.joint_proj = torch.nn.Sequential(
             torch.nn.Linear(proj_in_size, proj_out_size * 2),
             torch.nn.ReLU(),
-            torch.nn.Linear(proj_out_size * 2, proj_out_size)
+            torch.nn.Linear(proj_out_size * 2, proj_out_size),
         )
         self.diar_kernal = self.joint_proj
-
 
     def _init_diar_model(self) -> None:
         """Initialize the speaker model."""
@@ -89,21 +88,13 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
             self.diarization_model.eval()
 
     def forward_diar(
-        self,
-        input_signal: Optional[torch.Tensor] = None,
-        input_signal_length: Optional[torch.Tensor] = None
+        self, input_signal: Optional[torch.Tensor] = None, input_signal_length: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """Forward pass for diarization model."""
-        preds = self.diarization_model.forward(
-            audio_signal=input_signal, audio_signal_length=input_signal_length
-        )
+        preds = self.diarization_model.forward(audio_signal=input_signal, audio_signal_length=input_signal_length)
         return preds
 
-    def fix_diar_output(
-        self,
-        diar_pred: torch.Tensor,
-        asr_frame_count: int
-    ) -> torch.Tensor:
+    def fix_diar_output(self, diar_pred: torch.Tensor, asr_frame_count: int) -> torch.Tensor:
         """
         Duct-tape solution for extending the speaker predictions to the length of the ASR output
         or truncate the speaker predictions to the length of the ASR output.
@@ -138,8 +129,7 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
             probs=torch.tensor([(1 - rttm_mix_prob), rttm_mix_prob]).repeat(diar_preds.shape[0], 1)
         ).sample()
         batch_probs = (
-            batch_probs_raw.view(diar_preds.shape[0], 1, 1)
-            .repeat(1, diar_preds.shape[1], diar_preds.shape[2])
+            batch_probs_raw.view(diar_preds.shape[0], 1, 1).repeat(1, diar_preds.shape[1], diar_preds.shape[2])
         ).to(diar_preds.device)
         batch_diar_preds = (1 - batch_probs) * diar_preds + batch_probs * spk_targets
         return batch_diar_preds
@@ -174,7 +164,7 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
         elif self.cfg.spk_supervision_strategy == 'mix':
             with torch.set_grad_enabled(not self.cfg.freeze_diar):
                 diar_preds = self.forward_diar(signal, signal_len)
-            #resolve mismatch between spk_targets and diar_preds
+            # resolve mismatch between spk_targets and diar_preds
             spk_targets = self.fix_diar_output(spk_targets, diar_preds.shape[1])
             diar_preds = self._get_probablistic_mix(
                 diar_preds=diar_preds, spk_targets=spk_targets, rttm_mix_prob=float(self.cfg.rttm_mix_prob)
@@ -198,7 +188,7 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
             encoded = torch.nn.functional.normalize(encoded, p=2, dim=-1)
 
         if diar_preds.shape[1] > encoded.shape[1]:
-            diar_preds = diar_preds[:, :encoded.shape[1], :]
+            diar_preds = diar_preds[:, : encoded.shape[1], :]
         if self.diar_kernel_type == 'projection':
             concat_enc_states = torch.cat([encoded, diar_preds], dim=-1)
             encoded = self.joint_proj(concat_enc_states)
@@ -450,7 +440,8 @@ class EncDecHybridRNNTCTCTgtSpkBPEModel(EncDecHybridRNNTCTCBPEModel):
                 config,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
-                dataset=LhotseSpeechToTextTgtSpkBpeDataset(cfg=config,
+                dataset=LhotseSpeechToTextTgtSpkBpeDataset(
+                    cfg=config,
                     tokenizer=self.tokenizer,
                 ),
                 tokenizer=self.tokenizer,

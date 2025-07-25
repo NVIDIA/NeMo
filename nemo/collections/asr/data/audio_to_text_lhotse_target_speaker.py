@@ -13,24 +13,23 @@
 # limitations under the License.
 
 import json
-from typing import Optional, Tuple, Dict
+from typing import Dict, Optional, Tuple
 
 import torch.utils.data
-from lhotse.dataset import AudioSamples
-from lhotse.dataset.collation import collate_vectors, collate_matrices
 from lhotse import CutSet
+from lhotse.dataset import AudioSamples
+from lhotse.dataset.collation import collate_matrices, collate_vectors
 
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
-
 from nemo.collections.asr.parts.utils.asr_tgtspeaker_utils import (
-    get_separator_audio,
+    codec_augment,
     get_query_cut,
-    speaker_to_target_w_query,
+    get_separator_audio,
     mix_noise,
     rir_augment,
-    codec_augment
+    speaker_to_target_w_query,
 )
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 
 
 class LhotseSpeechToTextTgtSpkBpeDataset(torch.utils.data.Dataset):
@@ -67,8 +66,7 @@ class LhotseSpeechToTextTgtSpkBpeDataset(torch.utils.data.Dataset):
         self.separater_duration = self.cfg.get('separater_duration', 1)
         self.separater_unvoice_ratio = self.cfg.get('separater_unvoice_ratio', 0.3)
         self.separater_audio = get_separator_audio(
-            self.separater_freq, self.cfg.sample_rate, self.separater_duration,
-            self.separater_unvoice_ratio
+            self.separater_freq, self.cfg.sample_rate, self.separater_duration, self.separater_unvoice_ratio
         )
         self.add_special_token = self.cfg.get('add_special_token', True)
         if self.add_special_token:
@@ -97,7 +95,8 @@ class LhotseSpeechToTextTgtSpkBpeDataset(torch.utils.data.Dataset):
             torch.transpose(
                 torch.as_tensor(
                     speaker_to_target_w_query(
-                        c, q,
+                        c,
+                        q,
                         self.separater_duration,
                         self.num_speakers,
                         self.num_sample_per_mel_frame,
@@ -105,9 +104,12 @@ class LhotseSpeechToTextTgtSpkBpeDataset(torch.utils.data.Dataset):
                         self.spk_tar_all_zero,
                         self.boundary_segments,
                     ),
-                    dtype=torch.float32
-                ), 0, 1
-            ) for c, q in zip(cuts, query_cuts)
+                    dtype=torch.float32,
+                ),
+                0,
+                1,
+            )
+            for c, q in zip(cuts, query_cuts)
         ]
 
         # order matters:
@@ -131,11 +133,13 @@ class LhotseSpeechToTextTgtSpkBpeDataset(torch.utils.data.Dataset):
         concat_list = []
         for i in range(len(audio)):
             concat_list.append(
-                torch.cat([
-                    query_audio[i, :query_audio_lens[i]],
-                    torch.tensor(self.separater_audio).to(audio.dtype),
-                    audio[i, :audio_lens[i]]
-                ])
+                torch.cat(
+                    [
+                        query_audio[i, : query_audio_lens[i]],
+                        torch.tensor(self.separater_audio).to(audio.dtype),
+                        audio[i, : audio_lens[i]],
+                    ]
+                )
             )
         audio = collate_vectors(concat_list, padding_value=0)
         audio_lens = audio_lens + query_audio_lens + self.separater_duration * self.cfg.sample_rate
@@ -143,15 +147,14 @@ class LhotseSpeechToTextTgtSpkBpeDataset(torch.utils.data.Dataset):
             tokens = [
                 torch.as_tensor(
                     self.tokenizer(self.special_token + ' ' + c.supervisions[0].text, c.supervisions[0].language)
-                ) for c in cuts
+                )
+                for c in cuts
             ]
         else:
             tokens = [
-                torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language))
-                for c in cuts
+                torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language)) for c in cuts
             ]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=0)
         spk_targets = collate_matrices(spk_targets)
         return audio, audio_lens, tokens, token_lens, spk_targets
-    

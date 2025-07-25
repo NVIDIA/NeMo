@@ -4,13 +4,14 @@ from typing import List
 
 import numpy as np
 from cytoolz import groupby
-from lhotse.cut import Cut, CutSet, MixedCut, MonoCut, MixTrack
-from lhotse import SupervisionSet, SupervisionSegment, AudioSource, Recording
-from lhotse.utils import uuid4, compute_num_samples
+from lhotse import AudioSource, Recording, SupervisionSegment, SupervisionSet
+from lhotse.cut import Cut, CutSet, MixedCut, MixTrack, MonoCut
 from lhotse.lazy import LazyJsonlIterator
+from lhotse.utils import compute_num_samples, uuid4
+
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import (
+    find_segments_from_rttm,
     get_hidden_length_from_sample_length,
-    find_segments_from_rttm
 )
 
 
@@ -91,16 +92,17 @@ def codec_augment(cuts, prob):
 
 
 def speaker_to_target_w_query(
-        a_cut,
-        query,
-        separater_duration: int = 1,
-        num_speakers: int = 4,
-        num_sample_per_mel_frame: int = 160,
-        num_mel_frame_per_asr_frame: int = 8,
-        spk_tar_all_zero: bool = False,
-        boundary_segments: bool = False):
+    a_cut,
+    query,
+    separater_duration: int = 1,
+    num_speakers: int = 4,
+    num_sample_per_mel_frame: int = 160,
+    num_mel_frame_per_asr_frame: int = 8,
+    spk_tar_all_zero: bool = False,
+    boundary_segments: bool = False,
+):
     """
-    Get rttm samples corresponding to one cut, 
+    Get rttm samples corresponding to one cut,
     generate speaker mask numpy.ndarray with shape (num_speaker, hidden_length).
 
     This function is needed for speaker diarization with ASR model trainings.
@@ -110,12 +112,12 @@ def speaker_to_target_w_query(
         query (MonoCut): query cut
         separater_duration (int): separater duration, 1 by default
         num_speakers (int): max number of speakers for all cuts ("mask" dim0), 4 by default
-        num_sample_per_mel_frame (int): 
+        num_sample_per_mel_frame (int):
             number of sample per mel frame, sample_rate / 1000 * window_stride, 160 by default (10ms window stride)
         num_mel_frame_per_asr_frame (int): encoder subsampling_factor, 8 by default
         spk_tar_all_zero (Tensor): set to True gives all zero "mask"
-        boundary_segments (bool): 
-            set to True to include segments containing the boundary of the cut, 
+        boundary_segments (bool):
+            set to True to include segments containing the boundary of the cut,
             False by default for multi-speaker ASR training
 
     Returns:
@@ -134,7 +136,8 @@ def speaker_to_target_w_query(
     # initialize mask matrices (num_speaker, encoder_hidden_len)
     encoder_hidden_len = get_hidden_length_from_sample_length(
         a_cut.num_samples + query.num_samples + separater_duration * query.sampling_rate,
-        num_sample_per_mel_frame, num_mel_frame_per_asr_frame
+        num_sample_per_mel_frame,
+        num_mel_frame_per_asr_frame,
     )
 
     separater_hidden_len = get_hidden_length_from_sample_length(
@@ -155,15 +158,19 @@ def speaker_to_target_w_query(
         if hasattr(cut, 'rttm_filepath') and cut.rttm_filepath is not None:
             rttms = SupervisionSet.from_rttm(cut.rttm_filepath)
         elif hasattr(cut, 'speaker_id') and cut.speaker_id is not None:
-            rttms = SupervisionSet.from_segments([SupervisionSegment(
-                id=uuid4(),
-                recording_id=cut.recording_id,
-                start=cut.start,
-                duration=cut.duration,
-                channel=1,
-                speaker=cut.speaker_id,
-                language=None
-            )])
+            rttms = SupervisionSet.from_segments(
+                [
+                    SupervisionSegment(
+                        id=uuid4(),
+                        recording_id=cut.recording_id,
+                        start=cut.start,
+                        duration=cut.duration,
+                        channel=1,
+                        speaker=cut.speaker_id,
+                        language=None,
+                    )
+                ]
+            )
         else:
             raise ValueError(f"Cut {cut.id} does not have rttm_filepath or speaker_id")
         if boundary_segments:  # segments with seg_start < total_end and seg_end > total_start are included
@@ -204,7 +211,7 @@ def speaker_to_target_w_query(
             rttms=query_rttms,
             start_after=query.start,
             end_before=query.end,
-            tolerance=0.0
+            tolerance=0.0,
         )
         query_segments_total = []
         for seg in query_segments_iterator:
@@ -215,25 +222,19 @@ def speaker_to_target_w_query(
                 seg.duration -= seg.end - query.duration
             query_segments_total.append(seg)
         for rttm_sup in query_segments_total:
-            st = (
-                compute_num_samples(rttm_sup.start, query.sampling_rate)
-                if rttm_sup.start > 0
-                else 0
-            )
+            st = compute_num_samples(rttm_sup.start, query.sampling_rate) if rttm_sup.start > 0 else 0
             et = (
                 compute_num_samples(rttm_sup.end, query.sampling_rate)
                 if rttm_sup.end < query.duration
                 else compute_num_samples(query.duration, query.sampling_rate)
             )
             st_encoder_loc = get_hidden_length_from_sample_length(
-                st,
-                num_sample_per_mel_frame,
-                num_mel_frame_per_asr_frame)
+                st, num_sample_per_mel_frame, num_mel_frame_per_asr_frame
+            )
             et_encoder_loc = get_hidden_length_from_sample_length(
-                et,
-                num_sample_per_mel_frame,
-                num_mel_frame_per_asr_frame)
-            mask[0, st_encoder_loc: et_encoder_loc] = 1
+                et, num_sample_per_mel_frame, num_mel_frame_per_asr_frame
+            )
+            mask[0, st_encoder_loc:et_encoder_loc] = 1
     else:
         # if query cut has no rttm, use query cut duration to generate all-one query speaker mask
         mask[0, :query_hidden_len] = 1
@@ -242,11 +243,7 @@ def speaker_to_target_w_query(
         speaker_idx = speaker_to_idx_map[rttm_sup.speaker]
         # only consider the first <num_speakers> speakers
         if speaker_idx < 4:
-            st = (
-                compute_num_samples(rttm_sup.start, cut.sampling_rate)
-                if rttm_sup.start > 0
-                else 0
-            )
+            st = compute_num_samples(rttm_sup.start, cut.sampling_rate) if rttm_sup.start > 0 else 0
             et = (
                 compute_num_samples(rttm_sup.end, cut.sampling_rate)
                 if rttm_sup.end < cut.duration
@@ -255,18 +252,19 @@ def speaker_to_target_w_query(
 
             # map start time (st) and end time (et) to encoded hidden location
             st_encoder_loc = get_hidden_length_from_sample_length(
-                st,
-                num_sample_per_mel_frame,
-                num_mel_frame_per_asr_frame)
+                st, num_sample_per_mel_frame, num_mel_frame_per_asr_frame
+            )
             et_encoder_loc = get_hidden_length_from_sample_length(
-                et,
-                num_sample_per_mel_frame,
-                num_mel_frame_per_asr_frame)
+                et, num_sample_per_mel_frame, num_mel_frame_per_asr_frame
+            )
 
             mask[
                 speaker_idx,
-                query_hidden_len + separater_hidden_len + st_encoder_loc:
-                query_hidden_len + separater_hidden_len + et_encoder_loc
+                query_hidden_len
+                + separater_hidden_len
+                + st_encoder_loc : query_hidden_len
+                + separater_hidden_len
+                + et_encoder_loc,
             ] = 1
 
     return mask
@@ -290,8 +288,8 @@ def get_separator_audio(freq, sr, duration, ratio):
     # Generate sine wave
     y = np.sin(2 * np.pi * freq * t) * 0.1
 
-    y[:int(sr * duration * ratio)] = 0
-    y[-int(sr * duration * ratio):] = 0
+    y[: int(sr * duration * ratio)] = 0
+    y[-int(sr * duration * ratio) :] = 0
     return y
 
 
@@ -308,21 +306,24 @@ def get_query_cut(cut):
     query_rec = Recording.from_file(cut.query_audio_filepath)
     if query_rec.sampling_rate != 16000:
         query_rec = query_rec.resample(sampling_rate=16000)
-    query_sups = [SupervisionSegment(
-        id=query_rec.id + '_query' + str(cut.query_offset) + '-' + str(cut.query_offset + cut.query_duration),
-        recording_id=query_rec.id, start=0, duration=cut.query_duration, speaker=cut.query_speaker_id
-    )]
+    query_sups = [
+        SupervisionSegment(
+            id=query_rec.id + '_query' + str(cut.query_offset) + '-' + str(cut.query_offset + cut.query_duration),
+            recording_id=query_rec.id,
+            start=0,
+            duration=cut.query_duration,
+            speaker=cut.query_speaker_id,
+        )
+    ]
     # additional information for query
-    custom = {
-        'rttm_filepath': cut.custom.get('query_rttm_filepath', None)
-    }
+    custom = {'rttm_filepath': cut.custom.get('query_rttm_filepath', None)}
     query_cut = MonoCut(
         id=query_rec.id + '_query' + str(cut.query_offset) + '-' + str(cut.query_offset + cut.query_duration),
         start=cut.query_offset,
         duration=cut.query_duration,
         channel=0,
         recording=query_rec,
-        supervisions=query_sups
+        supervisions=query_sups,
     )
     query_cut.custom = custom
     return query_cut
@@ -442,7 +443,7 @@ def _create_recording(
     return Recording.from_file(audio_path)
 
 
-class TargetSpeakerSimulator():
+class TargetSpeakerSimulator:
     """
     This class is used to simulate target-speaker audio data,
     which can be used for target-speaker ASR and speaker diarization training.
@@ -466,15 +467,15 @@ class TargetSpeakerSimulator():
                 - 'lsmix': LibriSpeechMix-style training sample (mix single speaker audio).
             min_delay (float): The minimum delay between speakers
                 to avoid the same starting time for multiple speakers.
-            max_delay_after_each_mono (float): 
-                The maximum delay of another mono cut after each mono cut. 
+            max_delay_after_each_mono (float):
+                The maximum delay of another mono cut after each mono cut.
                 Default is 0, means audio mixtures guaranteed to overlap.
-            non_query_sample (bool): 
-                Whether to sample a sample where query speaker not in target audio. 
+            non_query_sample (bool):
+                Whether to sample a sample where query speaker not in target audio.
                 Default is False.
             query_duration (list): The duration of the query sample in s. Default is [3, 10].
-            TODO: add mono_duration (list): 
-                Select random start and duration for each single speaker audio according to mono_duration [min max]. 
+            TODO: add mono_duration (list):
+                Select random start and duration for each single speaker audio according to mono_duration [min max].
                 Emprically, need to set min_duration > 0 if max_after_each_mono > 0!!!
         """
         if query_duration is None:
@@ -521,12 +522,7 @@ class TargetSpeakerSimulator():
         offset = 0
 
         # Common custom dict to avoid recreating
-        base_custom = {
-            'pnc': 'no',
-            'source_lang': 'en',
-            'target_lang': 'en',
-            'task': 'asr'
-        }
+        base_custom = {'pnc': 'no', 'source_lang': 'en', 'target_lang': 'en', 'task': 'asr'}
 
         # Create tracks in a single loop
         for speaker_id in sampled_speaker_ids:
@@ -538,8 +534,7 @@ class TargetSpeakerSimulator():
 
         # Create mixed cut
         mixed_cut = MixedCut(
-            id='lsmix_' + '_'.join([track.cut.id for track in tracks]) + '_' + str(uuid4()),
-            tracks=tracks
+            id='lsmix_' + '_'.join([track.cut.id for track in tracks]) + '_' + str(uuid4()), tracks=tracks
         )
 
         # Handle query speaker selection
@@ -555,11 +550,7 @@ class TargetSpeakerSimulator():
         # Create supervision
         text = self.get_text(mixed_cut, query_speaker_id) if not self.non_query_sample else ""
         sup = SupervisionSegment(
-            id=mixed_cut.id,
-            recording_id=mixed_cut.id,
-            start=0,
-            duration=mixed_cut.duration,
-            text=text
+            id=mixed_cut.id, recording_id=mixed_cut.id, start=0, duration=mixed_cut.duration, text=text
         )
 
         # Get query segment bounds
@@ -567,7 +558,7 @@ class TargetSpeakerSimulator():
             query_cut.start,
             query_cut.duration,
             min_duration=self.query_duration[0],
-            max_duration=self.query_duration[1]
+            max_duration=self.query_duration[1],
         )
 
         # Update cut with final metadata
@@ -578,7 +569,7 @@ class TargetSpeakerSimulator():
             'query_offset': query_offset,
             'query_duration': query_duration,
             'query_rttm_filepath': query_cut.rttm_filepath if hasattr(query_cut, 'rttm_filepath') else None,
-            'custom': None
+            'custom': None,
         }
 
         mixed_cut.tracks[0].cut.supervisions = [sup]

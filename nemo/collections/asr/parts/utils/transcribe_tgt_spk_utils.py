@@ -22,16 +22,15 @@ from tqdm.auto import tqdm
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_sample_utils import (
-    FrameBatchASR_tgt_spk
-)
 from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_dataset_utils import (
-    BatchedFrameASRCTC_tgt_spk
+    BatchedFrameASRCTC_tgt_spk,
 )
+from nemo.collections.asr.parts.utils.streaming_tgt_spk_audio_buffer_ctc_batchview_sample_utils import (
+    FrameBatchASR_tgt_spk,
+)
+from nemo.collections.asr.parts.utils.transcribe_utils import wrap_transcription
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.utils import logging, model_utils
-
-from nemo.collections.asr.parts.utils.transcribe_utils import wrap_transcription
 
 
 def get_buffered_pred_feat_tgt_spk_ctc_batchview_sample(
@@ -89,8 +88,17 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_sample(
                 separater_unvoice_ratio = asr.asr_model.cfg.test_ds.separater_unvoice_ratio
                 # do not support partial audio
                 asr.read_audio_file(
-                    audio_file, offset, duration, query_audio_file, query_offset, query_duration,
-                    separater_freq, separater_duration, separater_unvoice_ratio, delay, model_stride_in_secs
+                    audio_file,
+                    offset,
+                    duration,
+                    query_audio_file,
+                    query_offset,
+                    query_duration,
+                    separater_freq,
+                    separater_duration,
+                    separater_unvoice_ratio,
+                    delay,
+                    model_stride_in_secs,
                 )
                 hyp = asr.transcribe(tokens_per_chunk, delay)
                 hyps.append(hyp)
@@ -174,10 +182,16 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset(
             batch_query_durations = []
             asr.sample_offset = 0
             for idx in tqdm(range(len(filepaths)), desc='Sample:', total=len(filepaths)):
-                batch.append((
-                    filepaths[idx], offsets[idx], durations[idx], query_audio_files[idx],
-                    query_offsets[idx], query_durations[idx]
-                ))
+                batch.append(
+                    (
+                        filepaths[idx],
+                        offsets[idx],
+                        durations[idx],
+                        query_audio_files[idx],
+                        query_offsets[idx],
+                        query_durations[idx],
+                    )
+                )
 
                 if len(batch) == batch_size:
                     batch_audio_files = [sample[0] for sample in batch]
@@ -189,9 +203,17 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset(
 
                     asr.reset()
                     asr.read_audio_file(
-                        batch_audio_files, batch_offsets, batch_durations, batch_query_audio_files,
-                        batch_query_offsets, batch_query_durations, separater_freq, separater_duration,
-                        separater_unvoice_ratio, delay, model_stride_in_secs
+                        batch_audio_files,
+                        batch_offsets,
+                        batch_durations,
+                        batch_query_audio_files,
+                        batch_query_offsets,
+                        batch_query_durations,
+                        separater_freq,
+                        separater_duration,
+                        separater_unvoice_ratio,
+                        delay,
+                        model_stride_in_secs,
                     )
                     # asr.read_audio_file(batch_audio_files,delay,model_stride_in_secs)
                     hyp_list = asr.transcribe(tokens_per_chunk, delay)
@@ -212,9 +234,17 @@ def get_buffered_pred_feat_tgt_spk_ctc_batchview_dataset(
 
                 asr.reset()
                 asr.read_audio_file(
-                    batch_audio_files, batch_offsets, batch_durations, batch_query_audio_files,
-                    batch_query_offsets, batch_query_durations, separater_freq, separater_duration,
-                    separater_unvoice_ratio, delay, model_stride_in_secs
+                    batch_audio_files,
+                    batch_offsets,
+                    batch_durations,
+                    batch_query_audio_files,
+                    batch_query_offsets,
+                    batch_query_durations,
+                    separater_freq,
+                    separater_duration,
+                    separater_unvoice_ratio,
+                    delay,
+                    model_stride_in_secs,
                 )
                 hyp_list = asr.transcribe(tokens_per_chunk, delay)
                 hyps.extend(hyp_list)
@@ -246,8 +276,7 @@ def setup_model_ts(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRMode
         logging.info(f"Restoring model : {imported_class.__name__}")
         # ts-asr inference config override
         orig_config = imported_class.restore_from(
-            restore_path=cfg.model_path, map_location=map_location,
-            return_config=True
+            restore_path=cfg.model_path, map_location=map_location, return_config=True
         )
         orig_config.rttm_mix_prob = cfg.rttm_mix_prob
         if cfg.rttm_mix_prob == 1:
@@ -260,8 +289,7 @@ def setup_model_ts(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRMode
         new_config = orig_config
         # set strict to False if model is trained with old diarization model, otherwise set to True
         asr_model = imported_class.restore_from(
-            restore_path=cfg.model_path, strict=True, map_location=map_location,
-            override_config_path=new_config
+            restore_path=cfg.model_path, strict=True, map_location=map_location, override_config_path=new_config
         )
         if cfg.diar_model_path:
             asr_model._init_diar_model()  # pylint: disable=protected-access
@@ -275,7 +303,8 @@ def setup_model_ts(cfg: DictConfig, map_location: torch.device) -> Tuple[ASRMode
     else:
         # restore model by name
         asr_model = ASRModel.from_pretrained(
-            model_name=cfg.pretrained_name, map_location=map_location,
+            model_name=cfg.pretrained_name,
+            map_location=map_location,
         )  # type: ASRModel
         model_name = cfg.pretrained_name
 

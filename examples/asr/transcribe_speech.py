@@ -30,15 +30,13 @@ from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDe
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.transcribe_tgt_spk_utils import setup_model_ts
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
     restore_transcription_order,
     setup_model,
     write_transcription,
-)
-from nemo.collections.asr.parts.utils.transcribe_tgt_spk_utils import (
-    setup_model_ts,
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -214,8 +212,8 @@ class TranscriptionConfig:
 
     # target-speaker related configs
     target_speaker_mode: bool = False
-    diar_model_path: str= ""
-    rttm_mix_prob: float = 0.0 #default 0, using diarization model output, set to >0.0 if rttm provided
+    diar_model_path: str = ""
+    rttm_mix_prob: float = 0.0  # default 0, using diarization model output, set to >0.0 if rttm provided
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
