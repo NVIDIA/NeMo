@@ -45,4 +45,4 @@ tts:
   fastpitch_model: "nvidia/tts_en_fastpitch"
   hifigan_model: "nvidia/tts_hifigan"
   device: "cuda"
-  extra_separator: ":,?!"  # some punctuations to chunk LLM response into segments for faster TTS output
+  extra_separator: null  # additional punctuations to chunk LLM response into segments for faster TTS output, e.g., ","
