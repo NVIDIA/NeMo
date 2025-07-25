@@ -1042,13 +1042,36 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
 
 class EncDecFrameClassificationModel(_EncDecBaseModel):
+    """
+    EncDecFrameClassificationModel is a model that performs classification on each frame of the input audio.
+    The default config (i.e., marblenet_3x2x64_20ms.yaml) outputs 20ms frames.
+    """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-
+        self.num_classes = len(cfg.labels)
+        self.eval_loop_cnt = 0
+        self.ratio_threshold = cfg.get('ratio_threshold', 0.2)
         if cfg.get("is_regression_task", False):
             raise ValueError(f"EndDecClassificationModel requires the flag is_regression_task to be set as false")
 
         super().__init__(cfg=cfg, trainer=trainer)
+        self.decoder.output_types = self.output_types
+        self.decoder.output_types_for_export = self.output_types
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"outputs": NeuralType(('B', 'T', 'C'), LogitsType())}
+
+    @classmethod
+    def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
+        results = []
+        model = PretrainedModelInfo(
+            pretrained_model_name="vad_multilingual_frame_marblenet",
+            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_frame_marblenet",
+            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_frame_marblenet/versions/1.20.0/files/vad_multilingual_frame_marblenet.nemo",
+        )
+        results.append(model)
+        return results
 
     def _setup_preprocessor(self):
         return EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
@@ -1058,12 +1081,6 @@ class EncDecFrameClassificationModel(_EncDecBaseModel):
 
     def _setup_decoder(self):
         return EncDecClassificationModel.from_config_dict(self._cfg.decoder)
-
-    def _setup_loss(self):
-        return CrossEntropyLoss()
-
-    def _setup_metrics(self):
-        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
 
     def _update_decoder_config(self, labels, cfg):
         """
@@ -1081,29 +1098,6 @@ class EncDecFrameClassificationModel(_EncDecBaseModel):
             cfg.num_classes = len(labels)
 
         OmegaConf.set_struct(cfg, True)
-
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"outputs": NeuralType(('B', 'T', 'C'), LogitsType())}
-
-    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.num_classes = len(cfg.labels)
-        self.eval_loop_cnt = 0
-        self.ratio_threshold = cfg.get('ratio_threshold', 0.2)
-        super().__init__(cfg=cfg, trainer=trainer)
-        self.decoder.output_types = self.output_types
-        self.decoder.output_types_for_export = self.output_types
-
-    @classmethod
-    def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
-        results = []
-        model = PretrainedModelInfo(
-            pretrained_model_name="vad_multilingual_frame_marblenet",
-            description="For details about this model, please visit https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_frame_marblenet",
-            location="https://api.ngc.nvidia.com/v2/models/nvidia/nemo/vad_multilingual_frame_marblenet/versions/1.20.0/files/vad_multilingual_frame_marblenet.nemo",
-        )
-        results.append(model)
-        return results
 
     def _setup_metrics(self):
         self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
