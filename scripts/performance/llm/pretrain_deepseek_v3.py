@@ -22,6 +22,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenize
 from nemo.lightning.pytorch.callbacks.megatron_enable_experimental_callback import MegatronEnableExperimentalCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
@@ -73,12 +74,25 @@ def override_recipe_configs(
         recipe.model.config.moe_token_dispatcher_type = "flex"
         recipe.model.config.moe_enable_deepep = True
         recipe.model.config.moe_shared_expert_overlap = False  # not supported for deepEP
+        # use force load balance for reducing variance in benchmarking
+        recipe.model.config.moe_router_force_load_balancing = True
     else:
         recipe.model.config.moe_token_dispatcher_type = "alltoall"
         recipe.model.config.moe_enable_deepep = False
         recipe.model.config.moe_shared_expert_overlap = True
         if USE_TOKEN_DROP:
-            recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+            callbacks = recipe.trainer.callbacks
+            if callbacks:
+                deepep_callback_idx = None
+                for idx, callback in enumerate(callbacks):
+                    if callback.__fn_or_cls__ == DeepEPCallback:
+                        deepep_callback_idx = idx
+                        break
+                # if there is deepep callback, replace it with token drop callback, else append token drop callback
+                if deepep_callback_idx is None:
+                    callbacks.append(run.Config(MegatronTokenDropCallback))
+                else:
+                    callbacks[deepep_callback_idx] = run.Config(MegatronTokenDropCallback)
 
     # Performance optimization knobs
     recipe.model.config.moe_permute_fusion = True
