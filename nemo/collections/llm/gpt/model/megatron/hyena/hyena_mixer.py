@@ -240,6 +240,8 @@ class HyenaMixer(MegatronModule):
             tp_comm_buffer_name='fc2',
         )
 
+        self.pad_tensors = {}
+
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the HyenaMixer."""
         sharded_state_dict = {}
@@ -251,12 +253,6 @@ class HyenaMixer(MegatronModule):
                 sharded_state_dict.update(module_sharded_sd)
 
         return sharded_state_dict
-
-    def _maybe_use_fp8(self, func, *args, **kwargs):
-        if self.transformer_config.vortex_style_fp8:
-            with te.fp8_autocast(enabled=True, fp8_recipe=set_format_recipe()):
-                return func(*args, **kwargs)
-        return func(*args, **kwargs)
 
     def forward(self, x, layer_past=None, inference_context=None, _hyena_use_cp=True):
         """Applies the Hyena sequence mixing operation to input embeddings.
@@ -283,20 +279,24 @@ class HyenaMixer(MegatronModule):
         # Handle padding for FP8 if enabled
         if self.transformer_config.vortex_style_fp8:
 
-            def pad_to_multiple(x, multiple=16):
+            def pad_to_multiple(x, multiple=8):
                 """Pad tensor to make sequence length divisible by multiple."""
-                seq_len = x.size(0)
+                seq_len, b, d = x.shape
                 if seq_len % multiple == 0:
                     return x
-
                 pad_len = multiple - (seq_len % multiple)
-                pad_tensor = torch.zeros(pad_len, *x.shape[1:], device=x.device, dtype=x.dtype)
+                pad_shape = (pad_len, b, d)
+                pad_tensor = self.pad_tensors.get(pad_len)
+                if pad_tensor is None or pad_tensor.shape != pad_shape:
+                    pad_tensor = torch.zeros(pad_shape, device=x.device, dtype=x.dtype)
+                    self.pad_tensors[pad_len] = pad_tensor
                 return torch.cat([x, pad_tensor], dim=0)
 
             # Direct padding without rearrange
             L = x.shape[0]
             x = pad_to_multiple(x)
-            features, _ = self._maybe_use_fp8(self.dense_projection, x)
+            with te.fp8_autocast(enabled=True, fp8_recipe=set_format_recipe()):
+                features, _ = self.dense_projection(x)
 
             # Slice back to original sequence length if padding was added
 
