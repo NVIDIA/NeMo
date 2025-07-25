@@ -286,6 +286,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         nccl_communicator_config_path: Optional[str] = None,
         pipeline_model_parallel_layout: Optional[Union[str, List[List[str]]]] = None,
         use_gloo_process_groups: bool = True,
+        enable_whole_network_cuda_graph: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -345,6 +346,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.progress_interval = progress_interval
         self.nccl_communicator_config_path = nccl_communicator_config_path
         self.use_gloo_process_groups = use_gloo_process_groups
+        self.enable_whole_network_cuda_graph = enable_whole_network_cuda_graph
         self.restore_config = restore_config
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
         self.pipeline_model_parallel_layout = pipeline_model_parallel_layout
@@ -635,6 +637,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             ddp_config=self.ddp_config,
             fsdp=self._fsdp,
             convert_module_fn=convert_module_fn,
+            enable_whole_network_cuda_graph=self.enable_whole_network_cuda_graph,
         )
 
         # Assign trainer to megatron_parallel before init_model_parallel as its required to check stage of trainer
