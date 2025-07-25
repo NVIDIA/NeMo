@@ -15,7 +15,7 @@
 import copy
 import json
 import os
-import shutil
+
 import tempfile
 
 import lightning.pytorch as pl
