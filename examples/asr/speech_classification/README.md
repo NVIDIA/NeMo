@@ -29,10 +29,11 @@ However, shorter label strings are also supported for smaller file sizes. For ex
 
 
 ### Inference
+```sh
 python frame_vad_infer.py \
     --config-path="../conf/vad" --config-name="frame_vad_infer_postprocess" \
     dataset=<Path of manifest file containing evaluation data. Audio files should have unique names>
-
+```
 The manifest json file should have the following format (each line is a Python dictionary):
 ```
 {"audio_filepath": "/path/to/audio_file1.wav", "offset": 0, "duration": 10000}  
