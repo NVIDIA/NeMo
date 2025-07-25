@@ -36,13 +36,11 @@ logger.add("bot_server.log", rotation="1 day", level="DEBUG")
 shutdown_event = asyncio.Event()
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer, VADParams
-from pipecat.frames.frames import EndTaskFrame, MetricsFrame
-from pipecat.metrics.metrics import LLMUsageMetricsData, ProcessingMetricsData, TTFBMetricsData, TTSUsageMetricsData
+from pipecat.frames.frames import EndTaskFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-from pipecat.processors.frame_processor import Frame, FrameDirection, FrameProcessor
 from pipecat.processors.frameworks.rtvi import RTVIAction, RTVIConfig, RTVIObserver, RTVIProcessor
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
 
