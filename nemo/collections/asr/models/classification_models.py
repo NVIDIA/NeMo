@@ -1041,7 +1041,47 @@ class EncDecRegressionModel(_EncDecBaseModel):
         OmegaConf.set_struct(cfg, True)
 
 
-class EncDecFrameClassificationModel(EncDecClassificationModel):
+class EncDecFrameClassificationModel(_EncDecBaseModel):
+
+    def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+
+        if cfg.get("is_regression_task", False):
+            raise ValueError(f"EndDecClassificationModel requires the flag is_regression_task to be set as false")
+
+        super().__init__(cfg=cfg, trainer=trainer)
+
+    def _setup_preprocessor(self):
+        return EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
+
+    def _setup_encoder(self):
+        return EncDecClassificationModel.from_config_dict(self._cfg.encoder)
+
+    def _setup_decoder(self):
+        return EncDecClassificationModel.from_config_dict(self._cfg.decoder)
+
+    def _setup_loss(self):
+        return CrossEntropyLoss()
+
+    def _setup_metrics(self):
+        self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
+
+    def _update_decoder_config(self, labels, cfg):
+        """
+        Update the number of classes in the decoder based on labels provided.
+
+        Args:
+            labels: The current labels of the model
+            cfg: The config of the decoder which will be updated.
+        """
+        OmegaConf.set_struct(cfg, False)
+
+        if 'params' in cfg:
+            cfg.params.num_classes = len(labels)
+        else:
+            cfg.num_classes = len(labels)
+
+        OmegaConf.set_struct(cfg, True)
+
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {"outputs": NeuralType(('B', 'T', 'C'), LogitsType())}
@@ -1226,13 +1266,25 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         self._macro_accuracy.update(preds=metric_logits, target=metric_labels)
         stats = self._macro_accuracy._final_state()
 
-        return {
+        output = {
             f'{tag}_loss': loss_value,
             f'{tag}_correct_counts': correct_counts,
             f'{tag}_total_counts': total_counts,
             f'{tag}_acc_micro': acc,
             f'{tag}_acc_stats': stats,
         }
+
+        if tag == 'val':
+            if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(output)
+            else:
+                self.validation_step_outputs.append(output)
+        else:
+            if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(output)
+            else:
+                self.test_step_outputs.append(output)
+        return output
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
         val_loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
