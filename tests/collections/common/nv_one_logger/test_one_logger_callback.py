@@ -77,7 +77,7 @@ class TestOneLoggerCallback:
                 mock_instance = MagicMock()
                 mock_provider.instance.return_value = mock_instance
                 callback = OneLoggerNeMoCallback(mock_instance)
-                
+
                 trainer = MagicMock()
                 trainer.global_step = 10
                 trainer.max_steps = 1000

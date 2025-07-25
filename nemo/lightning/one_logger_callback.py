@@ -27,7 +27,9 @@ try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
     from nv_one_logger.training_telemetry.api.config import TrainingLoopConfig, TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-    from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeEventCallback as OneLoggerNeMoCallback
+    from nv_one_logger.training_telemetry.integration.pytorch_lightning import (
+        TimeEventCallback as OneLoggerNeMoCallback,
+    )
     from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
 
     HAVE_ONELOGGER = True
