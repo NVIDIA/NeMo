@@ -1052,7 +1052,7 @@ class EncDecFrameClassificationModel(_EncDecBaseModel):
         self.eval_loop_cnt = 0
         self.ratio_threshold = cfg.get('ratio_threshold', 0.2)
         if cfg.get("is_regression_task", False):
-            raise ValueError(f"EndDecClassificationModel requires the flag is_regression_task to be set as false")
+            raise ValueError("EndDecClassificationModel requires the flag is_regression_task to be set as false")
 
         super().__init__(cfg=cfg, trainer=trainer)
         self.decoder.output_types = self.output_types
