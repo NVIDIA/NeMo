@@ -82,7 +82,6 @@ class NemoDiarService(STTService):
             raise ValueError("params is required")
 
         self._load_model()
-        logger.info(f"Diarization service initialized on device: {self._model.device}")
 
         self._vad_user_speaking = False
         self._audio_buffer = []
@@ -106,6 +105,7 @@ class NemoDiarService(STTService):
             )
         else:
             raise ValueError(f"Invalid backend: {self._backend}")
+        logger.info(f"Diarization service initialized on device: {self._device}")
 
     def can_generate_metrics(self) -> bool:
         """Indicates whether this service can generate metrics.
