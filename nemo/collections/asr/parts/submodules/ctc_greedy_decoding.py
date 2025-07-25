@@ -507,9 +507,12 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraph
         if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
             self.fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
             self.fusion_models_alpha.append(boosting_tree_alpha)
+
         if not self.fusion_models:
             self.fusion_models = None
             self.fusion_models_alpha = None
+            self.allow_cuda_graphs = False
+            self.cuda_graphs_mode = None
         else:
             self.allow_cuda_graphs = allow_cuda_graphs
             self.cuda_graphs_mode = None
