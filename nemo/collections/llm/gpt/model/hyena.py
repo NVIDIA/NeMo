@@ -240,6 +240,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     #  Fp8 in the mixed precision plugin.
     vortex_style_fp8: bool = False
     use_b2b_causal_conv1d: bool = False
+    share_embeddings_and_output_weights: bool = True
 
     def __post_init__(self):
         """
@@ -280,7 +281,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
-            share_embeddings_and_output_weights=True,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
             hyena_init_method=self.hyena_init_method,
             hyena_output_layer_init_method=self.hyena_output_layer_init_method,
             remove_activation_post_first_layer=self.remove_activation_post_first_layer,

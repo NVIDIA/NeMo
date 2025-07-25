@@ -200,4 +200,4 @@ def prefill_via_modal_fft(*, x1v, L, poles, t, X_s):
     state_s = (poles.to(torch.float32) * t).exp()
     state_S = torch.fft.fft(state_s, n=fft_size).repeat(bs, 1, 1, 1)  # B, D, state_dim, 2 * L
     state = torch.fft.ifft(X_s[..., None, :] * state_S, n=fft_size)
-    return state[..., L - 1].to(dtype=torch.float32)
+    return state.real[..., L - 1].to(dtype=torch.float32)
