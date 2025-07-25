@@ -716,11 +716,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     @override
     def on_validation_end(self) -> None:
+        "Runs after validation loop"
         for model_chunk in self.model:
             model_chunk.train()
 
     @override
     def on_test_end(self) -> None:
+        "Runs after test loop"
         for model_chunk in self.model:
             model_chunk.train()
 
