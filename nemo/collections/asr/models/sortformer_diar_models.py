@@ -975,7 +975,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         else:
             self.validation_step_outputs.append(val_metrics)
         return val_metrics
-    
+
     def test_step(self, batch: list, batch_idx: int, dataloader_idx: int = 0):
         """
         Performs a single validation step.
