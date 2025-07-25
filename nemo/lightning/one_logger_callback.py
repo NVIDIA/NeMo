@@ -27,6 +27,7 @@ try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
     from nv_one_logger.training_telemetry.api.config import TrainingLoopConfig, TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
+    from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeEventCallback as OneLoggerNeMoCallback
     from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
 
     HAVE_ONELOGGER = True
@@ -92,102 +93,6 @@ def get_one_logger_callbacks(name: str, *args, **kwargs):
     """
     function = _get_onelogger_callbacks_function(name)
     return function(*args, **kwargs)
-
-
-class OneLoggerNeMoCallback(Callback):
-    """
-    NeMo callback that integrates with OneLogger v2 for tracking metrics.
-
-    This callback implements NeMo's callback group API and internally
-    uses OneLogger's training telemetry functionality to track metrics.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self._validation_batch_exists = False
-
-    def __getattr__(self, name: str) -> Any:
-        """Automatically forward any undefined method calls to the OneLogger v2 callbacks.
-
-        This eliminates the need for manually writing pass-through methods for each OneLogger API.
-        Only methods that need custom logic (like those interacting with the trainer) need to be
-        explicitly defined in this class.
-
-        Args:
-            name: The name of the method being called
-        Returns:
-            The method from the OneLogger v2 callbacks
-        Raises:
-            AttributeError: If the method is not found in the OneLogger callbacks
-        """
-        return _get_onelogger_callbacks_function(name)
-
-    def on_train_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        """Called when training begins."""
-        # Extract necessary information from the trainer
-        current_step = trainer.global_step
-        max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
-
-        get_one_logger_callbacks(
-            "on_train_start", train_iterations_start=current_step, train_iterations_target_or_fn=max_steps
-        )
-
-    def on_train_batch_start(self, trainer: Trainer, pl_module: LightningModule, batch: Any, batch_idx: int) -> None:
-        """Called at the beginning of each training batch."""
-        get_one_logger_callbacks("on_training_single_iteration_start")
-
-    def on_train_batch_end(
-        self,
-        trainer: Trainer,
-        pl_module: LightningModule,
-        outputs: STEP_OUTPUT,
-        batch: Any,
-        batch_idx: int,
-    ) -> None:
-        """Called at the end of each training batch."""
-        get_one_logger_callbacks("on_training_single_iteration_end")
-
-    def on_validation_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        """Called when validation begins."""
-        get_one_logger_callbacks("on_validation_start")
-
-    def on_validation_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        """Called when validation ends."""
-        if self._validation_batch_exists:
-            get_one_logger_callbacks("on_validation_single_iteration_end")
-            self._validation_batch_exists = False
-        get_one_logger_callbacks("on_validation_end")
-
-    def on_validation_batch_start(
-        self,
-        trainer: Trainer,
-        pl_module: LightningModule,
-        batch: Any,
-        batch_idx: int,
-        dataloader_idx: int = 0,
-    ) -> None:
-        """Called at the beginning of each validation batch."""
-        if self._validation_batch_exists:
-            get_one_logger_callbacks("on_validation_single_iteration_end")
-        self._validation_batch_exists = True
-        get_one_logger_callbacks("on_validation_single_iteration_start")
-
-    def on_validation_batch_end(
-        self,
-        trainer: Trainer,
-        pl_module: LightningModule,
-        outputs: STEP_OUTPUT,
-        batch: Any,
-        batch_idx: int,
-        dataloader_idx: int = 0,
-    ) -> None:
-        """Called at the end of each validation batch."""
-        self._validation_batch_exists = False
-        get_one_logger_callbacks("on_validation_single_iteration_end")
-
-    def on_train_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        """Called when training ends."""
-        get_one_logger_callbacks("on_train_end")
 
 
 def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) -> None:
@@ -279,8 +184,9 @@ def update_one_logger_config(
     It converts the provided dictionary to a TrainingLoopConfig instance.
 
     Args:
-        config: Dict[str, Any] to construct TrainingLoopConfig
-        trainer: Optional PyTorch Lightning trainer to add callback to
+        trainer: PyTorch Lightning trainer to add callback to
+        job_name: Job name for the experiment
+        model: Optional PyTorch Lightning model instance
     """
     # Check if TrainingTelemetryProvider is already configured
     if not HAVE_ONELOGGER or not TrainingTelemetryProvider.instance().one_logger_ready:
@@ -306,7 +212,7 @@ def update_one_logger_config(
         if not has_onelogger_callback:
             # Create the callback with metadata
             onelogger_callback = OneLoggerNeMoCallback()
-            trainer.callbacks.append(onelogger_callback)
+            trainer.callbacks.insert(0, onelogger_callback)
 
 
 # Initialize OneLogger when this module is imported
