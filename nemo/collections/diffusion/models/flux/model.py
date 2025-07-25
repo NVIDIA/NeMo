@@ -463,6 +463,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         self.model_type = ModelType.encoder_or_decoder
         self.text_precached = self.t5_params is None or self.clip_params is None
         self.image_precached = self.vae_config is None
+        self.seed = seed
 
     def setup(self, stage: str):
         super().setup(stage)
