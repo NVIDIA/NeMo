@@ -468,7 +468,7 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
     def setup(self, stage: str):
         super().setup(stage)
         torch.manual_seed(self.seed + 100 * parallel_state.get_data_parallel_rank())
-    
+
     def configure_model(self):
         # pylint: disable=C0116
         if not hasattr(self, "module"):
