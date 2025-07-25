@@ -46,7 +46,7 @@ Alternatively, you can install the dependencies manually in an existing environm
 ```bash
 pip install -r requirements.txt
 ```
-The incompatabilities errors from pip can be ignored.
+The incompatability errors from pip can be ignored.
 
 ### Configure the server
 

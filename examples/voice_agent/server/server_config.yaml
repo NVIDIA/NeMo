@@ -15,7 +15,7 @@ vad:
 
 stt:
   type: nemo
-  model: "nvidia/stt_en_fastconformer_hybrid_large_streaming_multi"
+  model: "stt_en_fastconformer_hybrid_large_streaming_80ms"
   device: "cuda"
   att_context_size: [70, 1]
   frame_len_in_secs: 0.08  # default for FastConformer, do not change
@@ -33,7 +33,7 @@ turn_taking:
 
 llm:
   type: hf
-  model: "meta-llama/Meta-Llama-3-8B-Instruct"
+  model: "Qwen/Qwen3-8B"
   device: "cuda"
   temperature: 0.7  # LLM sampling params
   top_p: 0.9  # LLM sampling params
