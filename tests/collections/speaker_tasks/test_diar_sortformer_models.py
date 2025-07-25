@@ -17,7 +17,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.models import SortformerEncLabelModel
-
+from nemo.collections.asr.models.sortformer_diar_models import concat_and_pad
 
 @pytest.fixture()
 def sortformer_model():
@@ -27,6 +27,8 @@ def sortformer_model():
         'pil_weight': 0.5,
         'ats_weight': 0.5,
         'max_num_of_spks': 4,
+        'async_streaming': False,
+        'streaming_mode': False,
     }
     model_defaults = {
         'fc_d_model': 512,
@@ -126,9 +128,10 @@ def sortformer_model():
     return model
 
 
-class TestSortformerEncLabelModel:
+class TestSortformerEncLabelModelOffline:
     @pytest.mark.unit
     def test_constructor(self, sortformer_model):
+        sortformer_model.streaming_mode = False
         sortformer_diar_model = sortformer_model.train()
         confdict = sortformer_diar_model.to_config_dict()
         instance2 = SortformerEncLabelModel.from_config_dict(confdict)
@@ -139,11 +142,11 @@ class TestSortformerEncLabelModel:
         "batch_size, frame_length, sample_len",
         [
             (4, 0.08, 16),  # Example 1
-            (2, 0.02, 32),  # Example 2
-            (1, 0.1, 20),  # Example 3
+            (1, 0.1, 20),  # Example 2
         ],
     )
     def test_forward_infer(self, sortformer_model, batch_size, frame_length, sample_len, num_spks=4):
+        sortformer_model.streaming_mode = False
         sortformer_diar_model = sortformer_model.eval()
         confdict = sortformer_diar_model.to_config_dict()
         sampling_rate = confdict['preprocessor']['sample_rate']
@@ -166,3 +169,104 @@ class TestSortformerEncLabelModel:
         assert diff <= 1e-6
         diff = torch.max(torch.abs(preds_instance - preds_batch))
         assert diff <= 1e-6
+
+
+class TestSortformerEncLabelModelStreaming:
+    @pytest.mark.unit
+    def test_constructor(self, sortformer_model):
+        sortformer_model.streaming_mode = True
+        sortformer_diar_model = sortformer_model.train()
+        confdict = sortformer_diar_model.to_config_dict()
+        instance2 = SortformerEncLabelModel.from_config_dict(confdict)
+        assert isinstance(instance2, SortformerEncLabelModel)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "batch_size, frame_length, sample_len",
+        [
+            (4, 0.08, 16),  # Example 1
+            (2, 0.02, 32),  # Example 2
+            (1, 0.1, 20),  # Example 3
+        ],
+    )
+    def test_forward_infer(self, sortformer_model, batch_size, frame_length, sample_len, num_spks=4):
+        sortformer_model.streaming_mode = True
+        sortformer_diar_model = sortformer_model.eval()
+        confdict = sortformer_diar_model.to_config_dict()
+        sampling_rate = confdict['preprocessor']['sample_rate']
+        input_signal = torch.randn(size=(batch_size, sample_len * sampling_rate))
+        input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
+
+        with torch.no_grad():
+            # batch size 1
+            preds_list = []
+            for i in range(input_signal.size(0)):
+                preds = sortformer_diar_model.forward(input_signal[i : i + 1], input_signal_length[i : i + 1])
+                preds_list.append(preds)
+            preds_instance = torch.cat(preds_list, 0)
+
+            # batch size 4
+            preds_batch = sortformer_diar_model.forward(input_signal, input_signal_length)
+        assert preds_instance.shape == preds_batch.shape
+
+        diff = torch.mean(torch.abs(preds_instance - preds_batch))
+        assert diff <= 1e-6
+        diff = torch.max(torch.abs(preds_instance - preds_batch))
+        assert diff <= 1e-6
+
+
+class TestConcatAndPad:
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "batch_size, emb_dim, n_frames, num_tensors",
+        [
+            (3, 512, 376, 3),    # Example: matches your real input
+            (2, 128, 100, 2),    # Smaller test
+            (1, 64, 50, 4),      # Single batch, more tensors
+        ],
+    )
+    def test_concat_and_pad(self, batch_size, emb_dim, n_frames, num_tensors):
+        """Test the concat_and_pad function with lists of tensors as in real input scenario."""
+        from nemo.collections.asr.models.sortformer_diar_models import concat_and_pad
+        embs = []
+        lengths = []
+        for _ in range(num_tensors):
+            emb = torch.randn(batch_size, n_frames, emb_dim)
+            # Allow zero length as well as full length
+            length = torch.randint(0, n_frames + 1, (batch_size,))
+            embs.append(emb)
+            lengths.append(length)
+        # Compute expected total lengths for each batch
+        expected_total_lengths = torch.sum(torch.stack(lengths), dim=0)
+        max_total_length = expected_total_lengths.max().item()
+        # Call the function
+        output, total_lengths = concat_and_pad(embs, lengths)
+        # Check output shapes
+        assert output.shape == (batch_size, max_total_length, emb_dim)
+        assert total_lengths.shape == (batch_size,)
+        # Check total_lengths matches expected
+        assert torch.allclose(total_lengths, expected_total_lengths)
+        # For each batch, check that the concatenated region matches the input, and the padded region is zero
+        for b in range(batch_size):
+            out_ptr = 0
+            for i in range(num_tensors):
+                n = lengths[i][b].item()
+                if n > 0:
+                    assert torch.allclose(output[b, out_ptr:out_ptr+n], embs[i][b, :n], atol=1e-6)
+                out_ptr += n
+            # The rest should be zero
+            if out_ptr < max_total_length:
+                assert torch.allclose(output[b, out_ptr:], torch.zeros(max_total_length - out_ptr, emb_dim, device=output.device, dtype=output.dtype), atol=1e-6)
+        # Edge case: mismatched list lengths
+        with pytest.raises(ValueError):
+            concat_and_pad(embs, lengths[:-1])
+        # Edge case: empty lists
+        with pytest.raises(ValueError):
+            concat_and_pad([], [])
+        # Edge case: single tensor
+        single_emb = [torch.randn(batch_size, n_frames, emb_dim)]
+        single_length = [torch.randint(0, n_frames + 1, (batch_size,))]
+        single_output, single_total_lengths = concat_and_pad(single_emb, single_length)
+        assert single_output.shape == (batch_size, single_length[0].max().item(), emb_dim)
+        assert torch.allclose(single_total_lengths, single_length[0]) 
+    

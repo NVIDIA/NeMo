@@ -74,8 +74,8 @@ class SortformerModules(NeuralModule, Exportable):
         tf_d_model: int = 192,
         subsampling_factor: int = 8,
         spkcache_len: int = 188,
-        fifo_len: int = 0,
-        chunk_len: int = 376,
+        fifo_len: int = 188,
+        chunk_len: int = 12,
         spkcache_refresh_rate: int = 1,
         chunk_left_context: int = 1,
         chunk_right_context: int = 1,
@@ -90,6 +90,7 @@ class SortformerModules(NeuralModule, Exportable):
         strong_boost_rate: float = 0.75,
         weak_boost_rate: float = 1.5,
         min_pos_scores_rate: float = 0.5,
+        minimum_spkcache_len: int = 16,
     ):
         super().__init__()
         # General params
@@ -123,6 +124,81 @@ class SortformerModules(NeuralModule, Exportable):
         self.strong_boost_rate = strong_boost_rate
         self.weak_boost_rate = weak_boost_rate
         self.min_pos_scores_rate = min_pos_scores_rate
+        self.minimum_spkcache_len = minimum_spkcache_len
+        
+        self._comparative_parameter_check()
+
+    def _comparative_parameter_check(self):
+        """ 
+        Check if there are any illegal parameter combinations.
+
+        Restrictions:
+            - All streaming parameters should be non-negative integers.
+            - Chunk length and speaker cache refresh rate should be greater than 0.
+            - Speaker cache length should be greater than or equal to `self.minimum_spkcache_len`.
+            - The effective range of self.spkcache_refresh_rate is:  spkcache_refresh_rate <= fifo_len 
+        """
+        # Check if all streaming parameters are positive integers
+        streaming_params = [
+            'fifo_len',
+            'chunk_left_context',
+            'chunk_right_context',
+        ]
+
+        non_zero_streaming_params = [
+            'chunk_len',
+            'spkcache_refresh_rate',
+        ]
+        min_value_constraint_streaming_params = [
+            'spkcache_len',
+        ]
+
+        all_params = (
+            streaming_params
+            + non_zero_streaming_params
+            + min_value_constraint_streaming_params
+        )
+
+        for param in all_params:
+            val = getattr(self, param)
+            if val < 0:
+                raise ValueError(
+                    f"All streaming parameters should not be negative. "
+                    f"{param}: {val}"
+                )
+            # Check if all streaming parameters are integers
+            if not isinstance(val, int):
+                raise ValueError(
+                    f"All streaming parameters should be integers. "
+                    f"{param}: {val}"
+                )
+
+        # non-zero streaming parameters should be greater than 0
+        for param in non_zero_streaming_params:
+            val = getattr(self, param)
+            if val <= 0:
+                raise ValueError(
+                    f"Non-zero streaming parameters should be greater than 0. "
+                    f"{param}: {val}"
+                )
+
+        # min value constraint streaming parameters should be >= self.minimum_spkcache_len
+        for param in min_value_constraint_streaming_params:
+            val = getattr(self, param)
+            if val < self.minimum_spkcache_len:
+                raise ValueError(
+                    f"Min value constraint streaming parameters should be greater than or "
+                    f"equal to {self.minimum_spkcache_len}. {param}: {val}"
+                )
+
+        # The effective range of self.spkcache_refresh_rate is: [ chunk_len, fifo_len ]
+        if self.fifo_len > 0 and self.spkcache_refresh_rate > self.fifo_len:
+            raise ValueError(
+                f"The effective range of self.spkcache_refresh_rate is: "
+                f"[ chunk_len: {self.chunk_len}, fifo_len: {self.fifo_len} ], "
+                f"but got {self.spkcache_refresh_rate}"
+            )
+
 
     def length_to_mask(self, lengths, max_length: int):
         """
