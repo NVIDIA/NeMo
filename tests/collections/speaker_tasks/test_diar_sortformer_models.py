@@ -19,6 +19,7 @@ from omegaconf import DictConfig
 from nemo.collections.asr.models import SortformerEncLabelModel
 from nemo.collections.asr.models.sortformer_diar_models import concat_and_pad
 
+
 @pytest.fixture()
 def sortformer_model():
 
@@ -220,14 +221,15 @@ class TestConcatAndPad:
     @pytest.mark.parametrize(
         "batch_size, emb_dim, n_frames, num_tensors",
         [
-            (3, 512, 376, 3),    # Example: matches your real input
-            (2, 128, 100, 2),    # Smaller test
-            (1, 64, 50, 4),      # Single batch, more tensors
+            (3, 512, 376, 3),  # Example: matches your real input
+            (2, 128, 100, 2),  # Smaller test
+            (1, 64, 50, 4),  # Single batch, more tensors
         ],
     )
     def test_concat_and_pad(self, batch_size, emb_dim, n_frames, num_tensors):
         """Test the concat_and_pad function with lists of tensors as in real input scenario."""
         from nemo.collections.asr.models.sortformer_diar_models import concat_and_pad
+
         embs = []
         lengths = []
         for _ in range(num_tensors):
@@ -252,11 +254,15 @@ class TestConcatAndPad:
             for i in range(num_tensors):
                 n = lengths[i][b].item()
                 if n > 0:
-                    assert torch.allclose(output[b, out_ptr:out_ptr+n], embs[i][b, :n], atol=1e-6)
+                    assert torch.allclose(output[b, out_ptr : out_ptr + n], embs[i][b, :n], atol=1e-6)
                 out_ptr += n
             # The rest should be zero
             if out_ptr < max_total_length:
-                assert torch.allclose(output[b, out_ptr:], torch.zeros(max_total_length - out_ptr, emb_dim, device=output.device, dtype=output.dtype), atol=1e-6)
+                assert torch.allclose(
+                    output[b, out_ptr:],
+                    torch.zeros(max_total_length - out_ptr, emb_dim, device=output.device, dtype=output.dtype),
+                    atol=1e-6,
+                )
         # Edge case: mismatched list lengths
         with pytest.raises(ValueError):
             concat_and_pad(embs, lengths[:-1])
@@ -268,5 +274,4 @@ class TestConcatAndPad:
         single_length = [torch.randint(0, n_frames + 1, (batch_size,))]
         single_output, single_total_lengths = concat_and_pad(single_emb, single_length)
         assert single_output.shape == (batch_size, single_length[0].max().item(), emb_dim)
-        assert torch.allclose(single_total_lengths, single_length[0]) 
-    
+        assert torch.allclose(single_total_lengths, single_length[0])

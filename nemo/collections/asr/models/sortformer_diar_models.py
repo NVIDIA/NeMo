@@ -69,8 +69,10 @@ def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
         )
     # Handle empty lists
     if len(embs) == 0 or len(lengths) == 0:
-        raise ValueError(f"Cannot concatenate empty lists of embeddings or lengths: embs - {len(embs)}, lengths - {len(lengths)}")
-    
+        raise ValueError(
+            f"Cannot concatenate empty lists of embeddings or lengths: embs - {len(embs)}, lengths - {len(lengths)}"
+        )
+
     device, dtype = embs[0].device, embs[0].dtype
     batch_size, emb_dim = embs[0].shape[0], embs[0].shape[2]
 

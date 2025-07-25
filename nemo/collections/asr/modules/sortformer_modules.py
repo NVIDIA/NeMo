@@ -125,18 +125,18 @@ class SortformerModules(NeuralModule, Exportable):
         self.weak_boost_rate = weak_boost_rate
         self.min_pos_scores_rate = min_pos_scores_rate
         self.minimum_spkcache_len = minimum_spkcache_len
-        
+
         self._comparative_parameter_check()
 
     def _comparative_parameter_check(self):
-        """ 
+        """
         Check if there are any illegal parameter combinations.
 
         Restrictions:
             - All streaming parameters should be non-negative integers.
             - Chunk length and speaker cache refresh rate should be greater than 0.
             - Speaker cache length should be greater than or equal to `self.minimum_spkcache_len`.
-            - The effective range of self.spkcache_refresh_rate is:  spkcache_refresh_rate <= fifo_len 
+            - The effective range of self.spkcache_refresh_rate is:  spkcache_refresh_rate <= fifo_len
         """
         # Check if all streaming parameters are positive integers
         streaming_params = [
@@ -153,34 +153,21 @@ class SortformerModules(NeuralModule, Exportable):
             'spkcache_len',
         ]
 
-        all_params = (
-            streaming_params
-            + non_zero_streaming_params
-            + min_value_constraint_streaming_params
-        )
+        all_params = streaming_params + non_zero_streaming_params + min_value_constraint_streaming_params
 
         for param in all_params:
             val = getattr(self, param)
             if val < 0:
-                raise ValueError(
-                    f"All streaming parameters should not be negative. "
-                    f"{param}: {val}"
-                )
+                raise ValueError(f"All streaming parameters should not be negative. " f"{param}: {val}")
             # Check if all streaming parameters are integers
             if not isinstance(val, int):
-                raise ValueError(
-                    f"All streaming parameters should be integers. "
-                    f"{param}: {val}"
-                )
+                raise ValueError(f"All streaming parameters should be integers. " f"{param}: {val}")
 
         # non-zero streaming parameters should be greater than 0
         for param in non_zero_streaming_params:
             val = getattr(self, param)
             if val <= 0:
-                raise ValueError(
-                    f"Non-zero streaming parameters should be greater than 0. "
-                    f"{param}: {val}"
-                )
+                raise ValueError(f"Non-zero streaming parameters should be greater than 0. " f"{param}: {val}")
 
         # min value constraint streaming parameters should be >= self.minimum_spkcache_len
         for param in min_value_constraint_streaming_params:
@@ -198,7 +185,6 @@ class SortformerModules(NeuralModule, Exportable):
                 f"[ chunk_len: {self.chunk_len}, fifo_len: {self.fifo_len} ], "
                 f"but got {self.spkcache_refresh_rate}"
             )
-
 
     def length_to_mask(self, lengths, max_length: int):
         """
