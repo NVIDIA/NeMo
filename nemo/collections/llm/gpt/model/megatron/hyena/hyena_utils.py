@@ -858,8 +858,6 @@ class ParallelHyenaOperator(nn.Module):
         # x1, x2, v all of shape torch.Size([1, 4096, 63])
         u = torch.cat([x2, x1, v], dim=1)  # torch.Size([1, 12288, 63])
         L = u.shape[-1]
-        # rearrange(self.filter.p, "d n -> d n 1")
-        poles = self.filter.p.unsqueeze(-1)  # n = 16
         poles = self.filter.get_logp()
         # rearrange(poles, "d n -> d n 1")
         poles = poles.unsqueeze(-1)  # n = 16
