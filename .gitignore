@@ -1,6 +1,7 @@
 # log and data files
 *.model
 *.pkl
+/node
 #*.ipynb
 output
 output_2048
