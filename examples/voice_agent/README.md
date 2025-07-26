@@ -42,6 +42,14 @@ sudo apt-get update
 sudo apt-get install -y npm nodejs
 ```
 
+or:
+
+```bash
+curl -fsSL https://fnm.vercel.app/install | bash
+. ~/.bashrc
+fnm use --install-if-missing 20
+```
+
 Create a new conda environment with the dependencies:
 ```bash
 conda env create -f environment.yml
@@ -62,7 +70,8 @@ Edit the `server/server_config.yaml` file to configure the server, for example:
 - Configure the LLM parameters, such as temperature, max tokens, etc.
 - Distribute different components to different GPUs if you have more than one.
 - Adjust VAD parameters for sensitivity and end-of-turn detection timeout.
-- **If you want to access the client from another machine, you need to change the `baseUrl` in `client/src/app.ts` to the actual ip address of the server machine.**
+
+**If you want to access the client from another machine, you need to change the `baseUrl` in `client/src/app.ts` to the actual ip address of the server machine.**
 
 
 
@@ -90,7 +99,9 @@ npm run dev
 
 ### Connect to the client via browser
 
-Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button. If using chrome browser, you might need to allow microphone access in the browser settings and add the ip address of the machine to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button. 
+
+If using chrome browser, you need to add `http://[YOUR MACHINE IP ADDRESS]:5173/` to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
 
 
 ## 📑 Supported Models
@@ -118,11 +129,12 @@ We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the spe
 We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to generate the speech for the LLM response, more TTS models will be supported in the future.
 
 
-## 📝 Notes
+## 📝 Notes & FAQ
 - If directly loading from HuggingFace and got I/O erros, you can set `llm.model=<local_path>`, where the model is downloaded via somehing like `huggingface-cli download Qwen/Qwen3-8B --local-dir <local_path>`.
 - The current ASR and diarization models are not noise-robust, you might need to use a noise-cancelling microphone or a quiet environment. But we will release better models soon.
 - The diarization model works best with speakers that have much more different voices from each other, while it might not work well on some accents due to the limited training data.
-
+- If you see errors like `SyntaxError: Unexpected reserved word` when running `npm run dev`, please update the Node.js version.
+- If you see the error `Error connecting: Cannot read properties of undefined (reading 'enumerateDevices')`, it usually means the browser is not allowed to access the microphone. Please check the browser settings and add `http://[YOUR MACHINE IP ADDRESS]:5173/` to the allow list, e.g., via `chrome://flags/#unsafely-treat-insecure-origin-as-secure` for chrome browser.
 
 
 
