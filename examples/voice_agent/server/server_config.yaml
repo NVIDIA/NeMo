@@ -1,0 +1,50 @@
+
+# bot_prompt: /path/to/prompt.txt
+bot_prompt: "You are a helpful AI agent named Lisa. Start by greeting the user warmly and introducing yourself within one sentence. Your answer should be concise and to the point. You might also see speaker tags (<speaker_0>, <speaker_1>, etc.) in the user context. You should respond to the user based on the speaker tag and the context of that speaker. Do not include the speaker tags in your response, use them only to identify the speaker."
+
+
+transport:
+  audio_out_10ms_chunks: 8  # use 4 as websocket default, but increasing to larger number might have less glitches in TTS audio
+
+vad:
+  type: silero
+  confidence: 0.6  # VAD threshold for detecting speech versus non-speech
+  start_secs: 0.1  # min amout of speech to trigger UserStartSpeaking
+  stop_secs: 0.8  # min about of silence to trigger UserStopSpeaking
+  min_volume: 0.4  # Microphone volumn threshold for VAD
+
+stt:
+  type: nemo
+  model: "stt_en_fastconformer_hybrid_large_streaming_80ms"
+  device: "cuda"
+  att_context_size: [70, 1]
+  frame_len_in_secs: 0.08  # default for FastConformer, do not change
+
+diar:
+  type: nemo
+  enabled: false # the checkpoint is under release process
+  model: null  # the checkpoint is under release process
+  device: "cuda"
+  threshold: 0.4
+  frame_len_in_secs: 0.08  # default for FastConformer, do not change
+
+turn_taking:
+  max_buffer_size: 2
+
+llm:
+  type: hf
+  model: "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"
+  device: "cuda"
+  system_role: "system"  # role for system prompt, set it to `user` for models that do not support system prompt
+  temperature: 0.7  # LLM sampling params
+  top_p: 0.9  # LLM sampling params
+  max_tokens: 128  # max num of tokens per LLM output
+
+tts:
+  type: nemo
+  model: fastpitch-hifigan
+  fastpitch_model: "nvidia/tts_en_fastpitch"
+  hifigan_model: "nvidia/tts_hifigan"
+  device: "cuda"
+  extra_separator: null  # additional punctuations to chunk LLM response into segments for faster TTS output, e.g., ","
+  think_tokens: ["<think>", "</think>"]  # specify them to avoid TTS for thinking process, set to `null` to allow thinking out loud
