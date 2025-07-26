@@ -207,7 +207,7 @@ def cal_write_wer(
             if clean_groundtruth_text:
                 ref = clean_label(ref, langid=langid)
 
-            if ignore_punctuation:
+            if ignore_punctuation or use_normalizer:
                 ref = remove_punctuations(ref, punctuations=punctuations, use_normalizer=use_normalizer)
                 hyp = remove_punctuations(hyp, punctuations=punctuations, use_normalizer=use_normalizer)
             elif strip_punc_space:
@@ -276,7 +276,10 @@ def cal_write_text_metric(
     refs = []
     sources = []
 
-    metric_calculator = {metric: TEXT_METRICS_MAPPING[metric](**metric_args[metric]) if metric_args else TEXT_METRICS_MAPPING[metric]() for metric in metrics}
+    metric_calculator = {
+        metric: TEXT_METRICS_MAPPING[metric](**metric_args[metric]) if metric_args and metric in metric_args else TEXT_METRICS_MAPPING[metric]() 
+        for metric in metrics
+    }
 
     if any(metric not in TEXT_METRICS_MAPPING for metric in metrics):
         raise ValueError(f"metric {metric} is not supported! Please choose from {TEXT_METRICS_MAPPING.keys()}")
