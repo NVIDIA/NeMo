@@ -641,6 +641,7 @@ class ExplicitSingleDecayFilter(nn.Module):
         self.register_buffer("decay", decay)
         setattr(self.h, 'tensor_model_parallel', True)
         setattr(self.decay, 'tensor_model_parallel', True)
+        self._full_filter_kernel = None
 
     def forward(self, L, *args, **kwargs):
         """Forward pass for the explicit single decay filter.
@@ -652,9 +653,9 @@ class ExplicitSingleDecayFilter(nn.Module):
     @torch.compile(mode="max-autotune")
     def filter(self, L, *args, **kwargs):
         """Compute the filter as a function of h and decay for the requested sequence length."""
-        h = self.h[:, :L]
-        h = h * self.decay[:, :L]
-        return h
+        if self._full_filter_kernel is None:
+            self._full_filter_kernel = self.h * self.decay
+        return self._full_filter_kernel[:, :L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharding along axis 0, bias not sharded."""
