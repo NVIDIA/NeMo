@@ -176,11 +176,10 @@ def step_fir(*, u, fir_state, weight, bias=None, gated_bias=False, flip_filter=F
     return y.to(input_dtype), fir_state
 
 
-def step_iir(*, x2, x1, v, D, residues, poles, iir_state):
+def step_iir(*, x2, x1, v, D, residues, exp_poles, iir_state):
     """Steps forward IIR filters in the architecture."""
     x1v = x1 * v
-    poles = torch.exp(poles)  # poles arg contains log_poles
-    poles = poles[..., 0][None]  # squeeze dummy seqlen dim and add dummy batch dim
+    poles = exp_poles[..., 0][None]  # squeeze dummy seqlen dim and add dummy batch dim
     residues = residues[None]  # add dummy batch dim
     iir_state = poles * iir_state + x1v[..., None]
 

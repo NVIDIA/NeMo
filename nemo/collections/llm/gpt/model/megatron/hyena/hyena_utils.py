@@ -839,6 +839,16 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias.partition_dim = 0
             self.conv_bias.stride = 1
 
+        # Cache exp(logp) for optimization
+        self._cached_exp_poles = None
+
+    def _get_exp_poles(self):
+        """Get cached exponential of log poles for optimization."""
+        if self._cached_exp_poles is None:
+            logp = self.filter.get_logp()
+            self._cached_exp_poles = torch.exp(logp.unsqueeze(-1))
+        return self._cached_exp_poles
+
     def forward_long(self, *, x1, x2, v, h, bias, inference_context):
         """Forward pass long."""
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
@@ -889,7 +899,7 @@ class ParallelHyenaOperator(nn.Module):
                 v=v,
                 D=bias,  # torch.Size([4096])
                 residues=self.filter.R,  # torch.Size([4096, 16])
-                poles=poles,  # torch.Size([4096, 16, 1])
+                exp_poles=self._get_exp_poles(),  # Use cached exp(logp) instead of logp
                 iir_state=iir_state,
             )
             # rearrange(y, "b d -> b 1 d")
