@@ -1258,7 +1258,7 @@ class NeuralDiarizer(LightningModule):
             seq_len = end - stt
             if stt < clus_label_tensor.shape[0]:
                 target_clus_label_tensor = clus_label_tensor[stt:end]
-                emb_seq, seg_length = (
+                emb_seq, _ = (
                     signals[stt:end, :, :],
                     min(
                         self.diar_window_length,
