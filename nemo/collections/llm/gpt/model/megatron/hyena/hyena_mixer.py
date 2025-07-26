@@ -289,7 +289,7 @@ class HyenaMixer(MegatronModule):
         if self.use_subquadratic_ops:
             features = subquadratic_ops_rearrange(features, bhl_to_lbh=False)
         else:
-            features = rearrange(features, "l b d -> b d l").contiguous()
+            features = features.permute(1, 2, 0).contiguous() # LBD -> BDL
 
         if (
             self.use_subquadratic_ops
@@ -311,6 +311,6 @@ class HyenaMixer(MegatronModule):
         if self.use_subquadratic_ops:
             z = subquadratic_ops_rearrange(z, bhl_to_lbh=True)
         else:
-            z = rearrange(z, "b d l -> l b d").contiguous()
+            z = z.permute(2, 0, 1).contiguous() # BDL -> LBD
         y, bias = self.dense(z)
         return y, bias
