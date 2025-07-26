@@ -165,6 +165,9 @@ class Quantizer:
 
         unwrapped_model = model
         while not isinstance(unwrapped_model, (llm.GPTModel, llm.HFAutoModelForCausalLM)):
+            # Check for Llama4OmniModel before unwrapping further
+            if hasattr(unwrapped_model, '__class__') and unwrapped_model.__class__.__name__ == 'Llama4OmniModel':
+                return "llama"
             unwrapped_model = unwrapped_model.module
 
         if decoder_type := get_modelopt_decoder_type(unwrapped_model):
@@ -286,6 +289,9 @@ class Quantizer:
         if decoder_type == "gemma" and "int8_sq" in algorithm:
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": 0.5}
 
+        quant_cfg["quant_cfg"]["vision_projection.*"] = {
+            "enable": False
+        }  # disable vision projection quantization for Llama4
         return quant_cfg
 
     def quantize(self, model: "MegatronParallel", forward_loop=None):
@@ -293,10 +299,6 @@ class Quantizer:
 
         If forward_loop is not provided, a forward loop will be created using the calibration dataset.
         """
-        modelopt_cfg = QUANT_CFG_CHOICES[self.quantization_config.algorithm]
-        if forward_loop is None and mtq.config.need_calibration(modelopt_cfg):
-            forward_loop = self._get_forward_loop(model)
-
         algorithm = self.quantization_config.algorithm
         if algorithm is None:
             logging.info("Quantization algorithm set to None, returning the non-quantized model")
@@ -308,6 +310,10 @@ class Quantizer:
         decoder_type = self._get_decoder_type(model, optional=True)
         quant_cfg = self._get_quant_cfg(model)
         logging.info(f"Using quant_cfg:\n{pprint.pformat(quant_cfg)}")
+
+        if forward_loop is None and mtq.config.need_calibration(quant_cfg):
+            forward_loop = self._get_forward_loop(model)
+
         unwrapped_model = mtq.quantize(unwrap_for_modelopt_operations(model), quant_cfg, forward_loop)
         if decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
@@ -420,6 +426,10 @@ class Quantizer:
                 not is_automodel
             ), "NeMo export format can only be used with native NeMo checkpoints, not HuggingFace models"
             assert trainer is not None, "Trainer required for NeMo export."
+            trainer.strategy.connect(model)
+            trainer.strategy.setup_environment()
+            trainer.strategy.setup_megatron_parallel(trainer=trainer)
+            trainer.strategy.trainer = trainer
             trainer.save_checkpoint(export_dir)
             barrier()
             if is_global_rank_zero():

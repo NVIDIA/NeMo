@@ -161,6 +161,7 @@ class Llama4OmniConfig(NevaConfig):
         # set token_drop setting from config
         self.language_transformer_config.moe_pad_expert_input_to_capacity = self.moe_pad_expert_input_to_capacity
         self.language_transformer_config.moe_expert_capacity_factor = self.moe_expert_capacity_factor
+        self.language_transformer_config.tp_comm_overlap = self.tp_comm_overlap
 
         # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
         # non-None when using virtual pipeline model parallelism
@@ -330,6 +331,8 @@ class Llama4OmniBaseModel(MCoreNevaModel):
         if not ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=self.vp_stage):
             return output
 
+        if final_loss_mask is None:
+            return output
         return output, final_loss_mask.contiguous()
 
 

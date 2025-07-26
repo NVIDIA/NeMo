@@ -24,6 +24,7 @@ from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.recipes.precision.mixed_precision import (
     bf16_with_fp8_current_scaling_mixed,
     bf16_with_fp8_mixed,
+    bf16_with_fp8_subchannel_scaling_mixed,
     bf16_with_mxfp8_mixed,
 )
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
@@ -34,6 +35,10 @@ from .utils import get_comm_overlap_callback_idx
 
 
 def get_csv_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> pd.DataFrame:
+    """
+    Get recommended configs tuned for performance from a csv file.
+    User (command line) provided args override the recommended configs.
+    """
     script_dir = str(Path(__file__).parent.absolute())
     recommended_configs_csv = os.path.join(script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv")
     logging.info(f"Using {recommended_configs_csv} for loading default recommended model configs")
@@ -112,9 +117,39 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     else:
         recompute_modules = None
 
+    keep_fsdp_fp8_transpose_cache = (
+        config.get("keep_fsdp_fp8_transpose_cache")
+        if args.keep_fsdp_fp8_transpose_cache is None
+        else args.keep_fsdp_fp8_transpose_cache
+    )
+    keep_fsdp_fp8_transpose_cache = (
+        False if keep_fsdp_fp8_transpose_cache is None else bool(int(keep_fsdp_fp8_transpose_cache))
+    )
+
+    use_user_buffer_registration = (
+        config.get("use_user_buffer_registration")
+        if args.use_user_buffer_registration is None
+        else args.use_user_buffer_registration
+    )
+    use_user_buffer_registration = (
+        False if use_user_buffer_registration is None else bool(int(use_user_buffer_registration))
+    )
+
+    use_sharp = config.get("use_sharp") if args.use_sharp is None else args.use_sharp
+    use_sharp = False if use_sharp is None else bool(int(use_sharp))
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
     kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
-    kwargs += [enable_cuda_graphs, use_mcore_fsdp, recompute_layers, activation_offload_layers, recompute_modules]
+    kwargs += [
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
+        recompute_modules,
+        keep_fsdp_fp8_transpose_cache,
+        use_user_buffer_registration,
+        use_sharp,
+    ]
 
     # print the received arguments for users to debug
     logging.info("Received model parallel configs: ")
@@ -133,15 +168,23 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     logging.info(f"{recompute_layers=}")
     logging.info(f"{activation_offload_layers=}")
     logging.info(f"{recompute_modules=}")
+    logging.info(f"{keep_fsdp_fp8_transpose_cache=}")
+    logging.info(f"{use_user_buffer_registration=}")
+    logging.info(f"{use_sharp=}")
 
     return kwargs
 
 
 def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_size: int | None):
+    """
+    Set Mcore FSDP related configs.
+    """
     recipe.model.config.init_model_with_meta_device = True
     recipe.trainer.strategy.fsdp = "megatron"
     recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
-    recipe.trainer.strategy.ddp.average_in_collective = False
+    # At fp32 gradient, `recipe.trainer.strategy.ddp.gradient_reduce_div_fusion` is used for fusion
+    if recipe.trainer.plugins.grad_reduce_in_fp32:
+        recipe.trainer.strategy.ddp.average_in_collective = False
     recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
     recipe.model.config.gradient_accumulation_fusion = False
     if (
@@ -150,16 +193,14 @@ def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_siz
     ):
         logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
         recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
-        if tp_size is not None and tp_size > 1:
-            logging.warning(
-                "Currently, TP overlap performance is poor when FSDP is used because of jitters. A fix is in progress. Disabling TP overlap."
-            )
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     return recipe
 
 
 def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = None):
+    """
+    Set precision related configs.
+    """
     if compute_dtype is None:
         return recipe
 
@@ -177,7 +218,23 @@ def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = N
             recipe.trainer.plugins.first_last_layers_bf16 = False
         elif fp8_recipe.lower() == "mxfp8":
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
+        elif fp8_recipe.lower() == "ss":
+            recipe.trainer.plugins = bf16_with_fp8_subchannel_scaling_mixed()
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
+
+    # Enable reuse_grad_buf_for_mxfp8_param_ag for MXFP8 and disable AG overlap
+    # because it is not supported with reuse_grad_buf_for_mxfp8_param_ag
+    if compute_dtype.lower() == "fp8" and fp8_recipe.lower() == "mxfp8":
+        recipe.trainer.strategy.ddp.reuse_grad_buf_for_mxfp8_param_ag = True
+        recipe.optim.config.reuse_grad_buf_for_mxfp8_param_ag = True
+        comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
+        if comm_overlap_callback_idx is not None:
+            recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather = False
+        logging.warning(
+            "When using MXFP8, to reduce memory usage, we use reuse_grad_buf_for_mxfp8_param_ag. "
+            "Disabling AG overlap because it is not supported with reuse_grad_buf_for_mxfp8_param_ag."
+        )
 
     return recipe
 
@@ -188,7 +245,9 @@ def set_recompute_configs(
     activation_offload_layers: int,
     recompute_modules: Optional[List[str]],
 ):
-    # Recompute configs
+    """
+    Set activation recomputing and offloading related configs.
+    """
     if recompute_layers > 0:
         recipe.model.config.recompute_granularity = "full"
         recipe.model.config.recompute_method = "block"
@@ -214,6 +273,9 @@ def set_recompute_configs(
 
 
 def set_cuda_graph_configs(recipe, enable_cuda_graphs: bool, task: str):
+    """
+    Set CUDA graph related configs.
+    """
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
     if (
@@ -237,11 +299,19 @@ def set_perf_optimization_configs(
     recompute_layers: int,
     activation_offload_layers: int,
     recompute_modules: Optional[List[str]],
-    use_sharp: bool,
-    use_user_buffer_registration: bool,
+    use_fsdp_double_buffer: Optional[bool] = None,
+    use_user_buffer_registration: Optional[bool] = None,
+    use_sharp: Optional[bool] = None,
+    keep_fsdp_fp8_transpose_cache: Optional[bool] = None,
 ):
+    """
+    Set performance optimization related configs.
+    """
     # enable cross entropy fusion with TE kernel
     recipe.model.config.cross_entropy_fusion_impl = "te"
+
+    if use_fsdp_double_buffer:
+        assert use_mcore_fsdp == True, "use_fsdp_double_buffer requires use_mcore_fsdp to be True"
 
     if use_mcore_fsdp and enable_cuda_graphs:
         logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
@@ -266,6 +336,10 @@ def set_perf_optimization_configs(
         recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
         recipe.trainer.strategy.ddp.check_for_large_grads = False
         recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
+        recipe.trainer.strategy.ddp.fsdp_double_buffer = bool(use_fsdp_double_buffer)
+        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = bool(
+            keep_fsdp_fp8_transpose_cache
+        )
 
     return recipe
 
@@ -286,14 +360,16 @@ def set_primary_perf_configs(
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
-    use_user_buffer_registration: bool = False,
-    use_sharp: bool = False,
+    use_fsdp_double_buffer: Optional[bool] = None,
+    use_user_buffer_registration: Optional[bool] = None,
+    use_sharp: Optional[bool] = None,
     recompute_layers: int = 0,
     activation_offload_layers: int = 0,
     compute_dtype: str = None,
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
+    keep_fsdp_fp8_transpose_cache: Optional[bool] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -331,18 +407,20 @@ def set_primary_perf_configs(
         )
 
     recipe = set_perf_optimization_configs(
-        recipe,
-        use_mcore_fsdp,
-        enable_cuda_graphs,
-        task,
-        tp_size,
-        compute_dtype,
-        fp8_recipe,
-        recompute_layers,
-        activation_offload_layers,
-        recompute_modules,
-        use_sharp,
-        use_user_buffer_registration,
+        recipe=recipe,
+        use_mcore_fsdp=use_mcore_fsdp,
+        enable_cuda_graphs=enable_cuda_graphs,
+        task=task,
+        tp_size=tp_size,
+        compute_dtype=compute_dtype,
+        fp8_recipe=fp8_recipe,
+        recompute_layers=recompute_layers,
+        activation_offload_layers=activation_offload_layers,
+        recompute_modules=recompute_modules,
+        use_fsdp_double_buffer=use_fsdp_double_buffer,
+        use_user_buffer_registration=use_user_buffer_registration,
+        use_sharp=use_sharp,
+        keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
     )
 
     return recipe
