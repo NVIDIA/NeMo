@@ -181,6 +181,14 @@ class BaseNemoTTSService(TTSService):
             self._processing_running = False
 
     def _handle_think_tokens(self, text: str) -> Optional[str]:
+        """
+        Handle the thinking tokens for TTS.
+        If the thinking tokens are not provided, return the text as is.
+        If the thinking tokens are provided, and the LLM is thinking, return None.
+        If the thinking tokens are provided, and the LLM is done thinking, return the text after the end of thinking tokens.
+        If the thinking tokens are provided, and the LLM starts thinking, return the text before the start of thinking tokens.
+        If the thinking tokens are provided, and the LLM is not thinking, return the text as is.
+        """
         if not self._think_tokens:
             return text
         elif self._have_seen_think_tokens:
@@ -203,6 +211,7 @@ class BaseNemoTTSService(TTSService):
             text = text[:idx]
             return text
         else:
+            # LLM is not thinking
             return text
 
     async def run_tts(self, text: str) -> AsyncGenerator[Frame, None]:
