@@ -35,6 +35,13 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 
 ### Install dependencies
 
+First, install or update the npm and node.js to the latest version, for example in Ubuntu:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y npm nodejs
+```
+
 Create a new conda environment with the dependencies:
 ```bash
 conda env create -f environment.yml
@@ -55,7 +62,7 @@ Edit the `server/server_config.yaml` file to configure the server, for example:
 - Configure the LLM parameters, such as temperature, max tokens, etc.
 - Distribute different components to different GPUs if you have more than one.
 - Adjust VAD parameters for sensitivity and end-of-turn detection timeout.
-- If you want to access the client from another machine, you need to change the `baseUrl` in `client/src/app.ts` to the actual ip address of the server machine.
+- **If you want to access the client from another machine, you need to change the `baseUrl` in `client/src/app.ts` to the actual ip address of the server machine.**
 
 
 
@@ -81,8 +88,6 @@ npm install
 npm run dev
 ```
 
-If you see errors like `SyntaxError: Unexpected reserved word`, please update the Node.js version.
-
 ### Connect to the client via browser
 
 Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button. If using chrome browser, you might need to allow microphone access in the browser settings and add the ip address of the machine to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
@@ -93,8 +98,9 @@ Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can m
 ### 🤖 LLM
 
 Most LLMs from HuggingFace are supported. A few examples are:
-- [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B)
+- [nvidia/Llama-3.1-Nemotron-Nano-8B-v1](https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1)
 - [meta-llama/Meta-Llama-3-8B-Instruct](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
+- [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
 - [nvidia/Nemotron-Mini-4B-Instruct](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct)
 
 ### 🎤 ASR 

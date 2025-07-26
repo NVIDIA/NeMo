@@ -15,7 +15,7 @@
 import asyncio
 import inspect
 from collections.abc import AsyncGenerator
-from typing import Iterator
+from typing import Iterator, List, Optional
 
 import numpy as np
 import torch
@@ -54,12 +54,18 @@ class BaseNemoTTSService(TTSService):
         model,
         device: str = "cuda",
         sample_rate: int = 22050,
+        think_tokens: Optional[List[str]] = None,
         **kwargs,
     ):
         super().__init__(sample_rate=sample_rate, **kwargs)
         self._model_name = model
         self._device = device
         self._model = self._setup_model()
+        self._think_tokens = think_tokens
+        if think_tokens is not None:
+            assert (
+                isinstance(think_tokens, list) and len(think_tokens) == 2
+            ), "think_tokens must be a list of two strings"
 
         # Background processing infrastructure - no response handler needed
         self._tts_queue = asyncio.Queue()
@@ -68,6 +74,7 @@ class BaseNemoTTSService(TTSService):
 
         # Track pending requests with their response queues
         self._pending_requests = {}
+        self._have_seen_think_tokens = False
 
     def _setup_model(self):
         raise NotImplementedError("Subclass must implement _setup_model")
@@ -173,8 +180,39 @@ class BaseNemoTTSService(TTSService):
         finally:
             self._processing_running = False
 
+    def _handle_think_tokens(self, text: str) -> Optional[str]:
+        if not self._think_tokens:
+            return text
+        elif self._have_seen_think_tokens:
+            # LLM is thinking
+            if self._think_tokens[1] not in text:
+                # LLM is still thinking
+                return None
+            else:
+                # LLM is done thinking
+                idx = text.index(self._think_tokens[1])
+                # only return the text after the end of thinking tokens
+                text = text[idx + len(self._think_tokens[1]) :]
+                self._have_seen_think_tokens = False
+                return text
+        elif self._think_tokens[0] in text:
+            # LLM now starts thinking
+            self._have_seen_think_tokens = True
+            # return text before the start of thinking tokens
+            idx = text.index(self._think_tokens[0])
+            text = text[:idx]
+            return text
+        else:
+            return text
+
     async def run_tts(self, text: str) -> AsyncGenerator[Frame, None]:
         """Generate speech from text using the Nemo TTS model."""
+        text = self._handle_think_tokens(text)
+
+        if not text:
+            yield None
+            return
+
         logger.debug(f"{self}: Generating TTS [{text}]")
 
         try:

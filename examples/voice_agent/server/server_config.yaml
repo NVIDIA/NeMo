@@ -33,8 +33,9 @@ turn_taking:
 
 llm:
   type: hf
-  model: "Qwen/Qwen3-8B"
+  model: "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"
   device: "cuda"
+  system_role: "system"  # role for system prompt, set it to `user` for models that do not support system prompt
   temperature: 0.7  # LLM sampling params
   top_p: 0.9  # LLM sampling params
   max_tokens: 128  # max num of tokens per LLM output
@@ -46,3 +47,4 @@ tts:
   hifigan_model: "nvidia/tts_hifigan"
   device: "cuda"
   extra_separator: null  # additional punctuations to chunk LLM response into segments for faster TTS output, e.g., ","
+  think_tokens: ["<think>", "</think>"]  # specify them to avoid TTS for thinking process, set to `null` to allow thinking out loud

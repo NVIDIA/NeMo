@@ -113,13 +113,13 @@ LLM_DEVICE = server_config.llm.device
 LLM_TEMPERATURE = server_config.llm.temperature
 LLM_MAX_TOKENS = server_config.llm.max_tokens
 LLM_TOP_P = server_config.llm.top_p
-
+SYSTEM_ROLE = server_config.llm.get("system_role", "system")
 
 TTS_FASTPITCH_MODEL = server_config.tts.fastpitch_model
 TTS_HIFIGAN_MODEL = server_config.tts.hifigan_model
 TTS_DEVICE = server_config.tts.device
-
-EXTRA_SEPARATOR = server_config.tts.get("extra_separator", None)
+TTS_THINK_TOKENS = server_config.tts.get("think_tokens", None)
+TTS_EXTRA_SEPARATOR = server_config.tts.get("extra_separator", None)
 
 ################ End of Configuration #################
 
@@ -213,13 +213,14 @@ async def run_bot_websocket_server():
     )
     logger.info("LLM service initialized")
 
-    text_aggregator = SimpleSegmentedTextAggregator(punctuation_marks=EXTRA_SEPARATOR)
+    text_aggregator = SimpleSegmentedTextAggregator(punctuation_marks=TTS_EXTRA_SEPARATOR)
 
     tts = NeMoFastPitchHiFiGANTTSService(
         fastpitch_model=TTS_FASTPITCH_MODEL,
         hifigan_model=TTS_HIFIGAN_MODEL,
         device=TTS_DEVICE,
         text_aggregator=text_aggregator,
+        think_tokens=TTS_THINK_TOKENS,
     )
 
     logger.info("TTS service initialized")
@@ -227,7 +228,7 @@ async def run_bot_websocket_server():
     context = OpenAILLMContext(
         [
             {
-                "role": "system",
+                "role": SYSTEM_ROLE,
                 "content": BOT_PROMPT,
             }
         ],
