@@ -304,7 +304,7 @@ class HyenaMixer(MegatronModule):
                 features = features[:L, :, :]
         else:
             features, _ = self.dense_projection(x)
-        features = rearrange(features, "l b d -> b d l").contiguous()
+        features = features.permute(1, 2, 0).contiguous() # LBD -> BDL
 
         if (
             self.use_b2b_causal_conv1d
@@ -323,6 +323,6 @@ class HyenaMixer(MegatronModule):
             )
             z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp, inference_context=inference_context)
 
-        z = rearrange(z, "b d l -> l b d").contiguous()
+        z = z.permute(2, 0, 1).contiguous() # BDL -> LBD
         y, bias = self.dense(z)
         return y, bias
