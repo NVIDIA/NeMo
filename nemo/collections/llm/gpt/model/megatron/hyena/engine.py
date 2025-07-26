@@ -17,7 +17,6 @@
 
 import torch
 import torch.nn.functional as F
-from einops import rearrange
 
 
 def adjust_filter_shape_for_broadcast(u, h):
@@ -69,7 +68,7 @@ def parallel_fir(
 ):
     """Compute parallel finite impulse response filtering with optional state computation."""
     L = u.shape[1]
-    u = rearrange(u, "b l d -> b d l")
+    u = u.transpose(1, 2)  # BLD -> BDL
 
     if fir_length >= 128:
         with torch.autocast("cuda"):
