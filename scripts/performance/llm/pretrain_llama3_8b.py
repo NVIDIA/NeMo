@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+from typing import List, Union
 
 import nemo_run as run
 
@@ -29,7 +30,7 @@ from ..utils import hf_tokenizer
 def override_recipe_configs(
     args: str,
     num_nodes: int,
-    mbs: int,
+    mbs: Union[int, List[int]],
     gbs: int,
     tp_size: int,
     pp_size: int,
@@ -74,6 +75,8 @@ def override_recipe_configs(
         use_user_buffer_registration=use_user_buffer_registration,
         use_sharp=use_sharp,
         keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
+        num_distributed_optimizer_instances=args.num_distributed_optimizer_instances,
+        cu_global_batch_splits=args.cu_global_batch_splits,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -136,7 +139,11 @@ if __name__ == "__main__":
         use_sharp,
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{gbs}gbs"
+    if isinstance(mbs, list):
+        exp_config += f"_{'-'.join(str(mbs) for mbs in mbs)}mbs"
+    else:
+        exp_config += f"_{mbs}mbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
