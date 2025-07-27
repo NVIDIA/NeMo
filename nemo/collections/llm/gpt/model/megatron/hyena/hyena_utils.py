@@ -654,7 +654,7 @@ class ExplicitSingleDecayFilter(nn.Module):
     def filter(self, L, *args, **kwargs):
         """Compute the filter as a function of h and decay for the requested sequence length."""
         if self._full_filter_kernel is None:
-            self._full_filter_kernel = self.h * self.decay
+            self._full_filter_kernel = (self.h * self.decay).to(torch.float32)
         return self._full_filter_kernel[:, :L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
