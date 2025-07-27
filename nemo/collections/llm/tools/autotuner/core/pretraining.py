@@ -2,12 +2,14 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Optional
+from nemo.lightning.run.plugins import PerfEnvPlugin
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
 from nemo.collections.llm.tools.autotuner.core.utils import validate_all_configs, _load_args_from_config_dir
 
 import nemo_run as run
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def lepton_executor(
@@ -24,7 +26,14 @@ def lepton_executor(
     torch_home: str = "/nemo-workspace/.cache",
     pythonpath: str = "/nemo-workspace/nemo-run:$PYTHONPATH"
 ) -> run.LeptonExecutor:
-    """Create a Lepton executor for training with dynamic configuration."""
+    """Create a Lepton executor for training with dynamic configuration.
+    
+    Includes performance optimization environment variables for:
+    - NCCL communication buffer optimization
+    - Flash Attention and cuDNN fused attention
+    - Memory usage logging
+    - Tokenizer parallelism control
+    """
     mounts = [{
         "path": "/",
         "mount_path": mount_path,
@@ -33,9 +42,18 @@ def lepton_executor(
     env_vars = {
         "PYTHONPATH": pythonpath,
         "TORCH_HOME": torch_home,
+        # Performance optimization environment variables (from llama31_utils.py)
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
     }
     if hf_token:
         env_vars["HF_TOKEN"] = hf_token
+        env_vars["TRANSFORMERS_OFFLINE"] = "0"  # Enable online downloads when HF token is provided
     if wandb_api_key:
         env_vars["WANDB_API_KEY"] = wandb_api_key
 
@@ -123,20 +141,22 @@ def run_pretraining(
 
     with run.Experiment("pretrain-magic") as exp:
         if not base_config_matches and base_config_will_run:
-            exp.add(base_config, executor=executor, name="base_config")
+            plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if base_config.trainer.strategy.pipeline_model_parallel_size > 1 else None)]
+            exp.add(base_config, executor=executor, name="base-config", plugins=plugins)
             logger.info("Added base_config to experiment")
         elif not base_config_matches and not base_config_will_run:
             logger.info("Skipped base_config due to potential CUDA OOM")
         else:
             logger.info(f"Skipping base_config as it matches: {', '.join(base_config_matches)}")
         
-        idx = 1
+        idx = 2
         for config_name, recipe in configs_to_run.items():
+            plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if recipe.trainer.strategy.pipeline_model_parallel_size > 1 else None)]
             if config_name in base_config_matches:
-                exp.add(recipe, executor=executor, name=f'base-config')
+                exp.add(recipe, executor=executor, name=f'base-config', plugins=plugins)
                 logger.info(f"Added {config_name} as base_config_equivalent (matches base config)")
             else:
-                exp.add(recipe, executor=executor, name=f'config-{idx}')
+                exp.add(recipe, executor=executor, name=f'config-{idx}', plugins=plugins)
                 logger.info(f"Added {config_name} as config-{idx}")
                 idx = idx + 1
 

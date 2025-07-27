@@ -53,6 +53,7 @@ class AutoConfigurator:
         gpu_memory_gb: Optional[int] = 80,
         tensor_parallel_sizes: Optional[List[int]] = "auto",
         pipeline_parallel_sizes: Optional[List[int]] = "auto",
+        virtual_pipeline_parallel_sizes: Optional[List[int]] = None,
         micro_batch_sizes: Optional[List[int]] = "auto",
         global_batch_sizes: Optional[List[int]] = [512],
         context_parallel_sizes: Optional[List[int]] = [1],
@@ -248,7 +249,7 @@ class AutoConfigurator:
             )
 
 
-def generate_configs(runner_config: AutoConfigurator = None) -> dict:
+def generate_configs(runner_config: AutoConfigurator = None, resource_shape: str = '') -> dict:
     """
     Function that returns a dictionary of Partial configs.
 
@@ -262,7 +263,7 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
     # Generate base config for the given model size
     base_config, train_config = generic_base_config(runner_config)
     # Launch grid search for training constraints
-    base_config, train_configs = generate_grid_search_configs(base_config, train_config)
+    base_config, train_configs = generate_grid_search_configs(base_config, train_config, resource_shape)
 
     configs = {}
     for name, config in train_configs.items():
@@ -283,6 +284,7 @@ def generate_configs(runner_config: AutoConfigurator = None) -> dict:
             "virtual_pipeline_model_parallel_size", None
         )
         trainer.max_steps = config.get("max_steps")
+        trainer.callbacks = config.get("callbacks")
         trainer.log_every_n_steps = 1
 
         log.log_dir = os.path.join(config.get("path_to_logs"), name)

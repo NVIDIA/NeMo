@@ -20,110 +20,59 @@ from nemo.collections.llm.tools.autotuner.core.utils import (
     logger, console
 )
 
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs, get_results
-import nemo_run as run
 from nemo.lightning.resume import AutoResume
-
-# Import performance optimization functions from NeMo
-from scripts.performance.helpers import set_perf_optimization_configs, get_comm_overlap_callback_idx
-import fiddle as fdl
-import fiddle._src.experimental.dataclasses as fdl_dc
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
-    userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
-    userbuffers_bf16_b200_h8192_tp2_mbs1_seqlen8192,
-    userbuffers_fp8_b200_h8192_tp2_mbs1_seqlen8192,
-)
+from scripts.performance.helpers import set_primary_perf_configs, set_perf_optimization_configs
+from scripts.performance.utils import get_comm_overlap_callback_idx
 
 def set_performance_optimizations_aligned_with_nemo(recipe, args):
     """
-    Set performance optimizations that exactly match NeMo performance scripts.
-    This function replicates the optimizations from set_perf_optimization_configs()
-    and the manual TP overlap setup from pretrain_llama31_405b.py
+    Set performance optimizations using NeMo's standard set_primary_perf_configs function.
+    This ensures we use the exact same optimization logic as the performant scripts.
+    
+    Note: User buffer configurations are handled per-config in autotuner/core/training_config.py
+    to ensure each configuration gets appropriate settings based on its TP/PP/CP values.
     """
     
-    # 1. CRITICAL: Cross entropy fusion with TE kernel (Line 246 in helpers.py)
-    recipe.model.config.cross_entropy_fusion_impl = "te"
+    # Extract GPU specs for optimization parameters
+    gpu_type, _, _ = extract_gpu_specs_unified(args.resource_shape, getattr(args, 'memory_per_gpu', None))
+    compute_dtype = getattr(recipe, 'compute_dtype', 'bf16') or 'bf16'
     
-    # 2. CRITICAL: Async tensor parallel allreduce (from model recipes)
-    recipe.model.config.async_tensor_model_parallel_allreduce = True
+    # Get current parallelism settings from recipe
+    tp_size = getattr(recipe.trainer.strategy, 'tensor_model_parallel_size', 1)
+    pp_size = getattr(recipe.trainer.strategy, 'pipeline_model_parallel_size', 1)
+    cp_size = getattr(recipe.trainer.strategy, 'context_parallel_size', 1)
+    vp_size = getattr(recipe.trainer.strategy, 'virtual_pipeline_model_parallel_size', 1)
+    if vp_size is None:
+        vp_size = 1
     
-    # 3. CRITICAL: SHARP for collective communication (Line 261 in helpers.py)
-    recipe.trainer.strategy.use_sharp = True
-    
-    # 4. CRITICAL: User buffer registration for NCCL (Lines 268-270 in helpers.py)
-    if hasattr(recipe.trainer.strategy, 'ddp'):
-        recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
-        recipe.trainer.strategy.ddp.check_for_large_grads = False
-        if hasattr(recipe.trainer.strategy.ddp, "nccl_ub"):
-            recipe.trainer.strategy.ddp.nccl_ub = True
-    
-    # 5. CRITICAL: Megatron Core FSDP optimizations (from set_mcore_fsdp_configs)
-    recipe.model.config.init_model_with_meta_device = True
-    recipe.trainer.strategy.fsdp = "megatron"
-    recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
-    recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
-    recipe.model.config.gradient_accumulation_fusion = False
-    
-    # 6. CRITICAL: Tensor parallel communication overlap (from pretrain_llama31_405b.py)
-    # (REMOVED: This logic will be set per-config in training_config.py)
-    
-    # 7. CRITICAL: Performance mode settings (from set_primary_perf_configs)
-    recipe.trainer.strategy.sequence_parallel = True  # Enable for TP > 1
-    
-    # 8. CRITICAL: Optimizer precision settings (from set_precision_configs)
-    recipe.optim.config.use_precision_aware_optimizer = True
-    recipe.trainer.plugins.grad_reduce_in_fp32 = False
-    
-    # 9. CRITICAL: CUDA graph optimizations (from set_cuda_graph_configs)
-    recipe.model.config.enable_cuda_graph = False  # Disabled for FSDP
-    recipe.trainer.strategy.use_te_rng_tracker = False
-    
-    # 10. CRITICAL: Communication overlap optimizations (from set_primary_perf_configs)
-    comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-    if comm_overlap_callback_idx is not None:
-        # Get GPU type and precision for user buffer config selection
-        gpu_type, _, _ = extract_gpu_specs_unified(recipe.resource_shape, getattr(recipe, 'memory_per_gpu', None))
-        compute_dtype = getattr(recipe, 'compute_dtype', 'bf16') or 'bf16'
-
-        # User buffer configuration mapping (should match your available configs)
-        ub_cfg = {
-            "h100": {
-                "bf16": userbuffers_bf16_h100_h8192_tp8_cp2_mbs1_seqlen8192,
-                "fp8": userbuffers_fp8_h100_h8192_tp8_cp2_mbs1_seqlen8192,
-            },
-            "h200": {
-                "bf16": userbuffers_bf16_h100_h8192_tp8_cp2_mbs1_seqlen8192,
-                "fp8": userbuffers_fp8_h100_h8192_tp8_cp2_mbs1_seqlen8192,
-            },
-            "b200": {
-                "bf16": userbuffers_bf16_b200_h8192_tp8_cp2_mbs1_seqlen8192,
-                "fp8": userbuffers_fp8_b200_h8192_tp8_cp2_mbs1_seqlen8192,
-            },
-            "gb200": {
-                "bf16": userbuffers_bf16_b200_h8192_tp8_cp2_mbs1_seqlen8192,
-                "fp8": userbuffers_fp8_b200_h8192_tp8_cp2_mbs1_seqlen8192,
-            },
-        }
-
-        if gpu_type in ub_cfg and compute_dtype in ub_cfg[gpu_type]:
-            tp_comm_overlap_cfg = ub_cfg[gpu_type][compute_dtype]
-            # Disable aggregation for specific operations
-            if hasattr(tp_comm_overlap_cfg, 'qkv_fprop'):
-                tp_comm_overlap_cfg.qkv_fprop.aggregate = False
-            if hasattr(tp_comm_overlap_cfg, 'proj_dgrad'):
-                tp_comm_overlap_cfg.proj_dgrad.aggregate = False
-            if hasattr(tp_comm_overlap_cfg, 'fc1_fprop'):
-                tp_comm_overlap_cfg.fc1_fprop.aggregate = False
-            if hasattr(tp_comm_overlap_cfg, 'fc2_dgrad'):
-                tp_comm_overlap_cfg.fc2_dgrad.aggregate = False
-            tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = True
-        else:
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
-
+    # Use NeMo's standard performance configuration function
+    recipe = set_primary_perf_configs(
+        recipe=recipe,
+        task="pre_train",  # AutoTune is for pretraining
+        num_nodes=recipe.trainer.num_nodes,
+        num_gpus_per_node=recipe.trainer.devices,
+        mbs=recipe.data.micro_batch_size,
+        gbs=recipe.data.global_batch_size,
+        max_steps=recipe.trainer.max_steps,
+        tp_size=tp_size,
+        pp_size=pp_size,
+        cp_size=cp_size,
+        vp_size=vp_size,
+        ep_size=getattr(recipe.trainer.strategy, 'expert_model_parallel_size', 1),
+        etp_size=getattr(recipe.trainer.strategy, 'expert_tensor_parallel_size', None),
+        enable_cuda_graphs=False,  # Disabled for FSDP compatibility
+        use_mcore_fsdp=False,  # Disabled for compatibility with NeMo
+        use_user_buffer_registration=True,  # Enable for performance
+        use_sharp=False,  # Enable SHARP for collective communication
+        recompute_layers=0,  # No recompute for base config
+        activation_offload_layers=0,  # No offload for base config
+        compute_dtype=compute_dtype,
+        fp8_recipe=None,  # Use default FP8 recipe
+        recompute_modules=None,  # No selective recompute
+        nccl_communicator_config_path=None,  # Use default NCCL config
+    )
     return recipe
 
 
@@ -139,8 +88,6 @@ def generate(**kwargs):
     console.print(f"  Context parallel sizes: {kwargs['context_parallel_sizes']}")
     console.print(f"  Expert parallel sizes: {kwargs['expert_parallel_sizes']}")
     console.print(f"  Micro batch sizes: {kwargs['micro_batch_sizes']}")
-    
-    # ONE FUNCTION CALL to get all info: GPU specs, model size, etc.
     gpu_type, gpu_count, gpu_memory_gb = extract_gpu_specs_unified(kwargs['resource_shape'], kwargs.get('memory_per_gpu'))
     model_info = extract_all_values(kwargs['model'])
     model_size_b = model_info.get('model_size_b')
@@ -204,43 +151,6 @@ def generate(**kwargs):
     except Exception as e:
         console.print(f"[red]Error generating configurations: {e}[/red]")
         logger.error(f"Configuration generation failed: {e}")
-        raise
-
-
-def list_models():
-    """List all supported models for AutoTune."""
-    try:
-        supported_models = get_supported_models()
-        
-        console.print("[green]Supported AutoTune Models:[/green]")
-        console.print("[link]Reference: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/__init__.py[/link]")
-        console.print()
-        
-        table = Table(show_header=True, show_lines=False, title="Available Models")
-        table.add_column("Model Name", style="green")
-        table.add_column("Description", style="cyan")
-        
-        for model in supported_models:
-            description = "Language model"
-            if "nemotron" in model.lower():
-                description = "NVIDIA Nemotron model"
-            elif "llama" in model.lower():
-                description = "LLaMA-based model"
-            elif "mistral" in model.lower():
-                description = "Mistral model"
-            elif "mixtral" in model.lower():
-                description = "Mixtral MoE model"
-            
-            table.add_row(model, description)
-        
-        console.print(table)
-        console.print(f"\n[green]Total: {len(supported_models)} supported models[/green]")
-        
-        return supported_models
-        
-    except Exception as e:
-        console.print(f"[red]Error listing models: {e}[/red]")
-        console.print("[link]Please check: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/__init__.py[/link]")
         raise
 
 # ========== SIMPLIFIED MEMORY ESTIMATION ==========
@@ -526,6 +436,7 @@ def validate_configurations_memory(
     
     return memory_analysis
 
+# ======================== Generate and Save Configs ========================
 
 def generate_recipe_configs(args):
     """
@@ -559,8 +470,6 @@ def generate_recipe_configs(args):
     base_log_path = args.get_full_logs_path()
 
     recipe = partial(model_class.pretrain_recipe, num_nodes=args.nodes, num_gpus_per_node=args.gpus_per_node)()
-    
-    # CRITICAL: Apply performance optimizations aligned with NeMo performance scripts
     recipe = set_performance_optimizations_aligned_with_nemo(recipe, args)
     
     seq_length = getattr(args, 'seq_length', 8192)
@@ -581,7 +490,6 @@ def generate_recipe_configs(args):
     if num_moe_experts and num_moe_experts > 1:
         recipe.trainer.strategy.sequence_parallel = True
 
-    # Use unified GPU specs extraction
     gpu_type, gpu_count, gpu_memory_gb = extract_gpu_specs_unified(
         args.resource_shape, getattr(args, 'memory_per_gpu', None)
     )
@@ -591,7 +499,6 @@ def generate_recipe_configs(args):
     logger.info(f"  Logs subdir: {args.logs_subdir}")
     
     # Initialize Auto Configurator runner
-    print(f"recipe {recipe}")
     runner = AutoConfigurator(
         recipe=recipe,
         path_to_logs=base_log_path,
@@ -600,6 +507,7 @@ def generate_recipe_configs(args):
         pipeline_parallel_sizes=args.pipeline_parallel_sizes,
         context_parallel_sizes=args.context_parallel_sizes,
         expert_parallel_sizes=args.expert_parallel_sizes,
+        virtual_pipeline_parallel_sizes=args.virtual_pipeline_parallel_sizes,
         micro_batch_sizes=args.micro_batch_sizes,
         global_batch_sizes=args.global_batch_sizes,
         max_model_parallel_size=args.max_model_parallel_size,
@@ -611,7 +519,7 @@ def generate_recipe_configs(args):
         calculate_model_size=False,
     )
 
-    base_config, configs = generate_configs(runner)
+    base_config, configs = generate_configs(runner, args.resource_shape)
     num_configs_generated = len(configs)
 
     logger.info("Performing CUDA OOM analysis for all configurations...")
@@ -661,7 +569,6 @@ def generate_recipe_configs(args):
     has_matches, matching_files = check_config_matches(base_config_path, generated_configs_dir)
     
     base_config_matches = []
-    print(f"has_matches {has_matches}")
     if has_matches:
         for matching_file in matching_files:
             config_name = matching_file.replace('.json', '')
@@ -705,6 +612,8 @@ def save_generated_configs(args, base_config, configs: Dict):
         with open(os.path.join(model_dir, f"{config_name}.json"), "w") as f:
             json.dump(recipe.__dict__, f, indent=4, default=str)
 
+
+# ======================== List Configs / Models ============================================
 
 def list_configs(config_dir, model):
     """List generated AutoTune configurations with detailed status."""

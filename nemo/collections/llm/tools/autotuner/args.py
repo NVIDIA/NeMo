@@ -13,6 +13,7 @@ import logging
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class AutoTuneArgs:
     """Class to hold all AutoTune arguments and handle serialization."""
@@ -25,7 +26,7 @@ class AutoTuneArgs:
         self.pipeline_parallel_sizes = kwargs.get('pipeline_parallel_sizes', 'auto')
         self.context_parallel_sizes = kwargs.get('context_parallel_sizes', [1, 2])
         self.expert_parallel_sizes = kwargs.get('expert_parallel_sizes', [1])
-        self.virtual_pipeline_model_parallel_sizes = kwargs.get('virtual_pipeline_model_parallel_sizes', None)
+        self.virtual_pipeline_parallel_sizes = kwargs.get('virtual_pipeline_parallel_sizes', None)
         self.micro_batch_sizes = kwargs.get('micro_batch_sizes', 'auto')
         self.max_model_parallel_size = kwargs.get('max_model_parallel_size', 8)
         self.min_model_parallel_size = kwargs.get('min_model_parallel_size', 1)
@@ -143,7 +144,7 @@ class AutoTuneArgs:
             'pipeline_parallel_sizes': self.pipeline_parallel_sizes,
             'context_parallel_sizes': self.context_parallel_sizes,
             'expert_parallel_sizes': self.expert_parallel_sizes,
-            'virtual_pipeline_model_parallel_sizes': self.virtual_pipeline_model_parallel_sizes,
+            'virtual_pipeline_parallel_sizes': self.virtual_pipeline_parallel_sizes,
             'micro_batch_sizes': self.micro_batch_sizes,
             'max_model_parallel_size': self.max_model_parallel_size,
             'min_model_parallel_size': self.min_model_parallel_size,

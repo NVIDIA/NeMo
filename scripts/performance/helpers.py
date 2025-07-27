@@ -268,7 +268,9 @@ def set_perf_optimization_configs(
         # Disable local gradient checker at non-debugging mode
         recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
         recipe.trainer.strategy.ddp.check_for_large_grads = False
-        recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
+        # Set nccl_ub only if the property exists (for compatibility)
+        if hasattr(recipe.trainer.strategy.ddp, 'nccl_ub'):
+            recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
 
     return recipe
 

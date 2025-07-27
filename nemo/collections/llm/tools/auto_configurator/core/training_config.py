@@ -12,12 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
-from scripts.performance.helpers import get_comm_overlap_callback_idx
+from nemo.collections.llm.tools.auto_configurator.core.performance_utils import configure_tp_comm_overlap_intelligently, apply_per_config_tp_comm_overlap_optimization
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 GPT_BASED_MODELS = [
     "gpt3",
@@ -35,6 +38,7 @@ GPT_BASED_MODELS = [
 def generate_grid_search_configs(
     base_cfg: dict,
     train_cfg: dict,
+    resource_shape: str
 ) -> Tuple[dict, dict]:
     """Generates the grid of all possible configurations for the given model,
         and stores each different configuration in a yaml file.
@@ -42,6 +46,7 @@ def generate_grid_search_configs(
     Args:
         base_cfg (dict): base configuration of the model to be trained.
         train_cfg (dict): train configuration of the model to be trained.
+        resource_shape (str): resource shape from AutoTuneArgs.
 
     Returns:
         dict: base config.
@@ -51,6 +56,7 @@ def generate_grid_search_configs(
     model_name = train_cfg.model_type
     model_size_in_b = train_cfg.model_size_in_b
     path_to_logs = train_cfg.path_to_logs
+    virtual_pipeline_parallel_sizes = train_cfg.virtual_pipeline_parallel_sizes
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
@@ -97,90 +103,94 @@ def generate_grid_search_configs(
 
     # Generate grid search configs.
     configs = {}
+    logger.debug(f"Generating configs for {len(valid_tp_pp_list)} valid TP/PP/CP/EP combinations")
     for tp, pp, cp, ep in valid_tp_pp_list:
-        (
-            virtual_pipelines,
-            act_ckpt_layers,
-            num_micro_batches_partial_act_ckpt,
-            act_ckpt_layers_per_pipeline,
-        ) = _set_activations_checkpoint_params(
-            tp,
-            pp,
-            cp,
-            ep,
-            num_layers,
-            act_method,
-            multiplier,
-            model_size_in_b,
-            model_name,
-        )
-        for mbs in params.mbs:
-            for gbs in params.gbs:  # Loop over global batch sizes
-                # Validate current combination
-                num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
-                model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
-                mod_gbs = gbs % (mbs * num_gpus / model_parallelism)
+        logger.debug(f"Processing TP={tp}, PP={pp}, CP={cp}, EP={ep}")
+        valid_virtual_pipelines = []
+        
+        if virtual_pipeline_parallel_sizes is not None:
+            for vp_size in virtual_pipeline_parallel_sizes:
+                if num_layers % (pp * vp_size) == 0:
+                    valid_virtual_pipelines.append(vp_size)
+        if not valid_virtual_pipelines:
+            (
+                calculated_virtual_pipelines,
+                act_ckpt_layers,
+                num_micro_batches_partial_act_ckpt,
+                act_ckpt_layers_per_pipeline,
+            ) = _set_activations_checkpoint_params(
+                tp,
+                pp,
+                cp,
+                ep,
+                num_layers,
+                act_method,
+                multiplier,
+                model_size_in_b,
+                model_name,
+            )
+            valid_virtual_pipelines = [calculated_virtual_pipelines] if calculated_virtual_pipelines is not None else [None]
+        else:
+            (
+                _,
+                act_ckpt_layers,
+                num_micro_batches_partial_act_ckpt,
+                act_ckpt_layers_per_pipeline,
+            ) = _set_activations_checkpoint_params(
+                tp,
+                pp,
+                cp,
+                ep,
+                num_layers,
+                act_method,
+                multiplier,
+                model_size_in_b,
+                model_name,
+            )
+        for virtual_pipelines in valid_virtual_pipelines:
+            for mbs in params.mbs:
+                for gbs in params.gbs:
+                    num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
+                    model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
+                    mod_gbs = gbs % (mbs * num_gpus / model_parallelism)
+                    if mod_gbs != 0:
+                        continue
 
-                # Only proceed if GBS is valid for current configuration
-                if mod_gbs != 0:
-                    continue
+                    kwargs = {
+                        "base_cfg": base_cfg,
+                        "act": None,
+                        "num_mbs_act": None,
+                        "act_per_pipe": None,
+                        "tp": tp,
+                        "pp": pp,
+                        "cp": cp,
+                        "ep": ep,
+                        "virtual_pipelines": virtual_pipelines,
+                        "mbs": mbs,
+                        "gbs": gbs,
+                        "max_steps": max_steps,
+                        "num_nodes": num_nodes,
+                        "path_to_logs": path_to_logs,
+                        "model_name": model_name,
+                        "model_size": model_size_in_b,
+                    }
 
-                kwargs = {
-                    "base_cfg": base_cfg,
-                    "act": None,
-                    "num_mbs_act": None,
-                    "act_per_pipe": None,
-                    "tp": tp,
-                    "pp": pp,
-                    "cp": cp,
-                    "ep": ep,
-                    "virtual_pipelines": virtual_pipelines,
-                    "mbs": mbs,
-                    "gbs": gbs,
-                    "max_steps": max_steps,
-                    "num_nodes": num_nodes,
-                    "path_to_logs": path_to_logs,
-                    "model_name": model_name,
-                    "model_size": model_size_in_b,
-                }
-
-                act_layers = None
-                if act_ckpt_layers[0] is not None:
-                    if act_layers is not None and act_layers != "auto":
-                        act_ckpt_layers = act_layers
-                    for act in act_ckpt_layers:
-                        for num_mbs_act in num_micro_batches_partial_act_ckpt:
-                            for act_per_pipe in act_ckpt_layers_per_pipeline:
-                                kwargs["act"] = act
-                                kwargs["num_mbs_act"] = num_mbs_act
-                                kwargs["act_per_pipe"] = act_per_pipe
-                                new_cfg = utils.modify_cfg(**kwargs)
-                                if new_cfg:  # Save candidate cfg.
-                                    # --- BEGIN: Per-config TP comm overlap logic ---
-                                    comm_overlap_callback_idx = get_comm_overlap_callback_idx(new_cfg.trainer.callbacks)
-                                    if comm_overlap_callback_idx is not None:
-                                        tp_size = getattr(new_cfg.trainer.strategy, 'tensor_model_parallel_size')
-                                        pp_size = getattr(new_cfg.trainer.strategy, 'pipeline_model_parallel_size')
-                                        cp_size = getattr(new_cfg.trainer.strategy, 'context_parallel_size')
-                                        vp_size = getattr(new_cfg.trainer.strategy, 'virtual_pipeline_model_parallel_size')
-                                        if vp_size is None:
-                                            vp_size = 1
-                                        num_nodes = new_cfg.trainer.num_nodes
-                                        num_gpus_per_node = new_cfg.trainer.devices
-                                        dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
-                                        new_cfg.trainer.strategy.dp_size = dp_size
-                                        new_cfg.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
-                                            dp_size > 1 and pp_size > 1 and vp_size > 1
-                                        )
-                                    # --- END: Per-config TP comm overlap logic ---
-                                    configs[new_cfg["name"]] = new_cfg
-                else:
+                    act_layers = None
+                    if act_ckpt_layers[0] is not None:
+                        if act_layers is not None and act_layers != "auto":
+                            act_ckpt_layers = act_layers
+                        for act in act_ckpt_layers:
+                            for num_mbs_act in num_micro_batches_partial_act_ckpt:
+                                for act_per_pipe in act_ckpt_layers_per_pipeline:
+                                    kwargs["act"] = act
+                                    kwargs["num_mbs_act"] = num_mbs_act
+                                    kwargs["act_per_pipe"] = act_per_pipe
                     new_cfg = utils.modify_cfg(**kwargs)
                     if new_cfg:  # Save candidate cfg.
-                        config_name = new_cfg["name"]
-                        configs[config_name] = new_cfg
+                        new_cfg = apply_per_config_tp_comm_overlap_optimization(new_cfg, base_cfg, resource_shape)
+                        configs[new_cfg["name"]] = new_cfg
 
-    print(f"\nAll candidate configurations created correctly. Total number of configs: {len(configs)}.\n")
+    logger.debug(f"Generated {len(configs)} total configurations")
     return base_cfg, configs
 
 
