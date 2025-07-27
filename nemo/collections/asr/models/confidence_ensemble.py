@@ -22,7 +22,6 @@ try:
     from joblib.numpy_pickle_utils import _read_fileobject as _validate_joblib_file
 except ImportError:
     from joblib.numpy_pickle_utils import _validate_fileobject_and_memmap as _validate_joblib_file
-import numpy as np
 import torch
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
