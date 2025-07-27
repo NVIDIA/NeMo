@@ -265,8 +265,6 @@ class HyenaModel(LanguageModule):
         # If decoder_input is provided (not None), then input_ids and position_ids are ignored.
         # Otherwise, apply embedding layer on input_ids and position_ids to get decoder_input.
 
-        in_inference_mode = inference_context is not None and not self.training
-
         # Decoder embedding.
         if decoder_input is not None:
             pass
@@ -282,7 +280,7 @@ class HyenaModel(LanguageModule):
         rotary_pos_cos = None
         rotary_pos_sin = None
         if self.position_embedding_type == 'rope' and not self.config.multi_latent_attention:
-            if in_inference_mode and self.config.flash_decode:
+            if inference_context and self.config.flash_decode:
                 assert (
                     inference_context.is_static_batching()
                 ), "GPTModel currently only supports static inference batching."
@@ -301,7 +299,7 @@ class HyenaModel(LanguageModule):
                 )
 
         if (
-            in_inference_mode
+            inference_context
             and (self.config.enable_cuda_graph or self.config.flash_decode)
             and rotary_pos_cos is not None
             and inference_context.is_static_batching()
@@ -318,7 +316,7 @@ class HyenaModel(LanguageModule):
         # Wrap decoder_input to allow the decoder (TransformerBlock) to delete the
         # reference held by this caller function, enabling early garbage collection for
         # inference. Skip wrapping if decoder_input is logged after decoder completion.
-        if in_inference_mode and not has_config_logger_enabled(self.config):
+        if torch.is_inference_mode_enabled() and not has_config_logger_enabled(self.config):
             decoder_input = WrappedTensor(decoder_input)
 
         return decoder_input, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin, sequence_len_offset
