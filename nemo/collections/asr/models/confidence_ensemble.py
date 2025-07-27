@@ -17,7 +17,6 @@ import os.path
 import pickle
 import warnings
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
 
 try:
     from joblib.numpy_pickle_utils import _read_fileobject as _validate_joblib_file
@@ -25,15 +24,10 @@ except ImportError:
     from joblib.numpy_pickle_utils import _validate_fileobject_and_memmap as _validate_joblib_file
 import numpy as np
 import torch
-from lightning.pytorch import Trainer
-from omegaconf import DictConfig, open_dict
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.utils.asr_confidence_utils import (
     ConfidenceConfig,
     ConfidenceMethodConfig,
@@ -41,9 +35,6 @@ from nemo.collections.asr.parts.utils.asr_confidence_utils import (
     get_confidence_measure_bank,
 )
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.core.classes import ModelPT
-from nemo.utils import model_utils
-from nemo.utils.decorators import deprecated
 
 
 # frozen is required to allow hashing of this class and use it
