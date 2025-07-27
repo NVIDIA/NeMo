@@ -249,7 +249,9 @@ def get_forced_aligned_timestamps_with_external_model(
                     timestamps["char"].append(
                         {
                             "char": token.text,
-                            "start_offset": int(token.t_start / output_timestep_duration) if token.t_start != -1 else -1,
+                            "start_offset": (
+                                int(token.t_start / output_timestep_duration) if token.t_start != -1 else -1
+                            ),
                             "end_offset": int(token.t_end / output_timestep_duration) if token.t_end != -1 else -1,
                             "start": round(token.t_start, 2),
                             "end": round(token.t_end, 2),
