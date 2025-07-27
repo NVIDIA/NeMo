@@ -207,9 +207,6 @@ def get_utt_obj(
         utt_id=utt_id,
     )
 
-    if len(text) == 0:
-        return utt
-
     if not separator:  # if separator is not defined - treat the whole text as one segment
         segments = [text.strip()]
     else:
@@ -218,7 +215,10 @@ def get_utt_obj(
         last_sep_idx = -1
 
         for i, letter in enumerate(text):
-            if letter in separator:
+            # check if the current letter is a separator and the next letter is a space
+            # the additional space check is done to avoid splitting the words like "a.m." into segments
+            next_letter = text[i+1] if i+1 < len(text) else ""
+            if letter in separator and next_letter == " ":
                 segments.append(text[last_sep_idx + 1 : i + 1].strip())
                 last_sep_idx = i + 1
 
@@ -245,6 +245,9 @@ def get_utt_obj(
         UNK_TOKEN = model.tokenizer.ids_to_tokens([UNK_ID])[0]
 
         utt.token_ids_with_blanks = [BLANK_ID]
+
+        if len(text) == 0:
+            return utt
 
         # check for # tokens being > T
         all_tokens = model.tokenizer.text_to_ids(text)
@@ -616,14 +619,30 @@ def add_t_start_end_to_utt_obj(utt_obj: Utterance, alignment_utt: List[int], out
     for segment_or_token in utt_obj.segments_and_tokens:
         if type(segment_or_token) is Segment:
             segment = segment_or_token
-            segment.t_start = num_to_first_alignment_appearance[segment.s_start] * output_timestep_duration
-            segment.t_end = (num_to_last_alignment_appearance[segment.s_end] + 1) * output_timestep_duration
+
+            if segment.s_start in num_to_first_alignment_appearance:
+                segment.t_start = num_to_first_alignment_appearance[segment.s_start] * output_timestep_duration
+            else:
+                segment.t_start = -1
+
+            if segment.s_end in num_to_last_alignment_appearance:
+                segment.t_end = (num_to_last_alignment_appearance[segment.s_end] + 1) * output_timestep_duration
+            else:
+                segment.t_end = -1
 
             for word_or_token in segment.words_and_tokens:
                 if type(word_or_token) is Word:
                     word = word_or_token
-                    word.t_start = num_to_first_alignment_appearance[word.s_start] * output_timestep_duration
-                    word.t_end = (num_to_last_alignment_appearance[word.s_end] + 1) * output_timestep_duration
+
+                    if word.s_start in num_to_first_alignment_appearance:
+                        word.t_start = num_to_first_alignment_appearance[word.s_start] * output_timestep_duration
+                    else:
+                        word.t_start = -1
+
+                    if word.s_end in num_to_last_alignment_appearance:
+                        word.t_end = (num_to_last_alignment_appearance[word.s_end] + 1) * output_timestep_duration
+                    else:
+                        word.t_end = -1
 
                     for token in word.tokens:
                         if token.s_start in num_to_first_alignment_appearance:
