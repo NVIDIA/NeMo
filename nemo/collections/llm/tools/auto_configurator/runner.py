@@ -54,6 +54,7 @@ class AutoConfigurator:
         tensor_parallel_sizes: Optional[List[int]] = "auto",
         pipeline_parallel_sizes: Optional[List[int]] = "auto",
         micro_batch_sizes: Optional[List[int]] = "auto",
+        global_batch_sizes: Optional[List[int]] = [512],
         context_parallel_sizes: Optional[List[int]] = [1],
         expert_parallel_sizes: Optional[List[int]] = [1],
         min_model_parallel_size: Optional[int] = "auto",
@@ -78,6 +79,7 @@ class AutoConfigurator:
                 or a list, such as [1, 2, 4, 8].
             micro_batch_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
                 or a list, such as [1, 2, 4, 8].
+            global_batch_sizes (Optional[List[int]]): A list, such as [512]
             context_parallel_sizes (Optional[List[int]]): model context parallel size. A list, such as [1, 2, 4, 8].
             expert_parallel_sizes (Optional[List[int]]): model expert parallel size. A list, such as [1, 2, 4, 8].
             min_model_parallel_size (Optional[int]): set to "auto" to use our recommendation,
@@ -127,10 +129,7 @@ class AutoConfigurator:
         self.num_nodes = recipe.trainer.num_nodes
         gpu_count = self.num_nodes * self.num_gpus
         assert gpu_count > 0, "num_nodes * gpus_per_node must be an int larger than zero."
-        assert gpu_memory_gb in (
-            40,
-            80,
-        ), "gpu_memory_gb can only be 40 or 80."
+        assert 16 <= gpu_memory_gb <= 200, f"gpu_memory_gb must be between 16GB and 200GB. Got: {gpu_memory_gb} GB"
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
         assert max_steps_per_run >= 10, "max_steps_per_run must be an int and be at least 10 minutes."
 
@@ -169,7 +168,6 @@ class AutoConfigurator:
         )
         self.gpu_count = gpu_count
         self.seq_length = recipe.data.seq_length
-        self.global_batch_size = recipe.data.global_batch_size
 
     def _get_message(self, config: dict) -> str:
         """
