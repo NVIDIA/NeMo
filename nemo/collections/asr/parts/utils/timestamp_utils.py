@@ -207,8 +207,8 @@ def get_forced_aligned_timestamps_with_external_model(
             timestamps["segment"].append(
                 {
                     "segment": segment.text,
-                    "start_offset": int(segment.t_start / output_timestep_duration),
-                    "end_offset": int(segment.t_end / output_timestep_duration),
+                    "start_offset": int(segment.t_start / output_timestep_duration) if segment.t_start != -1 else -1,
+                    "end_offset": int(segment.t_end / output_timestep_duration) if segment.t_end != -1 else -1,
                     "start": round(segment.t_start, 2),
                     "end": round(segment.t_end, 2),
                 }
@@ -222,8 +222,8 @@ def get_forced_aligned_timestamps_with_external_model(
                 timestamps["word"].append(
                     {
                         "word": word.text,
-                        "start_offset": int(word.t_start / output_timestep_duration),
-                        "end_offset": int(word.t_end / output_timestep_duration),
+                        "start_offset": int(word.t_start / output_timestep_duration) if word.t_start != -1 else -1,
+                        "end_offset": int(word.t_end / output_timestep_duration) if word.t_end != -1 else -1,
                         "start": round(word.t_start, 2),
                         "end": round(word.t_end, 2),
                     }
@@ -249,8 +249,8 @@ def get_forced_aligned_timestamps_with_external_model(
                     timestamps["char"].append(
                         {
                             "char": token.text,
-                            "start_offset": int(token.t_start / output_timestep_duration),
-                            "end_offset": int(token.t_end / output_timestep_duration),
+                            "start_offset": int(token.t_start / output_timestep_duration) if token.t_start != -1 else -1,
+                            "end_offset": int(token.t_end / output_timestep_duration) if token.t_end != -1 else -1,
                             "start": round(token.t_start, 2),
                             "end": round(token.t_end, 2),
                         }
