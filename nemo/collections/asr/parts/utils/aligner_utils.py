@@ -217,7 +217,7 @@ def get_utt_obj(
         for i, letter in enumerate(text):
             # check if the current letter is a separator and the next letter is a space
             # the additional space check is done to avoid splitting the words like "a.m." into segments
-            next_letter = text[i+1] if i+1 < len(text) else ""
+            next_letter = text[i + 1] if i + 1 < len(text) else ""
             if letter in separator and next_letter == " ":
                 segments.append(text[last_sep_idx + 1 : i + 1].strip())
                 last_sep_idx = i + 1
