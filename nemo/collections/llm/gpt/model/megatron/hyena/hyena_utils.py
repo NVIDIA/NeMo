@@ -1027,7 +1027,7 @@ class ParallelHyenaOperator(nn.Module):
 
         h = h.repeat_interleave(self.group_dim, dim=-2)
 
-        if inference_context is not None:  # Needs full length x1 x2 v
+        if torch.is_inference_mode_enabled():
             if self.operator_type == "hyena_medium_conv":
                 return self.forward_medium(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
             elif self.operator_type == "hyena":
@@ -1474,7 +1474,7 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
 
     def forward(self, x, inference_context=None, _use_cp=True):
         # If not in inference mode, use the original implementation
-        if inference_context is None:
+        if not torch.is_inference_mode_enabled():
             return super().forward(x, _use_cp=_use_cp)
         # rearrange(x, "b d l -> b l d")
         features_BLD = x.transpose(1, 2).contiguous()
