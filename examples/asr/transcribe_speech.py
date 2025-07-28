@@ -28,7 +28,7 @@ from nemo.collections.asr.modules.conformer_encoder import ConformerChangeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
-from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer, cal_write_text_metric
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
@@ -201,11 +201,18 @@ class TranscriptionConfig:
 
     # key for groundtruth text in manifest
     gt_text_attr_name: str = "text"
+    src_text_attr_name: str = "text"
     gt_lang_attr_name: str = "lang"
 
     extract_nbest: bool = False  # Extract n-best hypotheses from the model
 
     calculate_rtfx: bool = False
+    calculate_comet: bool = False
+    calculate_bleu: bool = False
+    use_normalizer: bool = False
+    ignore_punctuation: bool = False
+    ignore_capitalization: bool = False
+
     warmup_steps: int = 0  # by default - no warmup
     run_steps: int = 1  # by default - single run
 
@@ -485,9 +492,34 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             langid=cfg.langid,
             use_cer=cfg.use_cer,
             output_filename=None,
+            use_normalizer=cfg.use_normalizer,
+            ignore_punctuation=cfg.ignore_punctuation,
+            ignore_capitalization=cfg.ignore_capitalization,
         )
         if output_manifest_w_wer:
             logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(f"{total_res}")
+
+    text_metrics_to_calculate = []
+    if cfg.calculate_bleu:
+        text_metrics_to_calculate.append('bleu')
+    if cfg.calculate_comet:
+        text_metrics_to_calculate.append('comet')
+    
+    if text_metrics_to_calculate:
+        output_manifest_w_text_metrics, total_res, _ = cal_write_text_metric(
+            pred_manifest=output_filename,
+            gt_text_attr_name=cfg.gt_text_attr_name,
+            pred_text_attr_name=pred_text_attr_name,
+            src_text_attr_name=cfg.gt_text_attr_name,
+            output_filename=None,
+            ignore_capitalization=cfg.ignore_capitalization,
+            ignore_punctuation=cfg.ignore_punctuation,
+            metrics=text_metrics_to_calculate,
+            use_normalizer=cfg.use_normalizer,
+        )
+        if output_manifest_w_text_metrics:
+            logging.info(f"Writing prediction and text metrics of each sample to {output_manifest_w_text_metrics}!")
             logging.info(f"{total_res}")
 
     if cfg.calculate_rtfx:

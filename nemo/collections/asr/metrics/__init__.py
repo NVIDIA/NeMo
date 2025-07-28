@@ -15,9 +15,11 @@
 from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.metrics.multitask import MultiTaskMetric
 from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics.comet import CometScore
 
 __all__ = [
     "MultiTaskMetric",
     "WER",
     "BLEU",
+    "CometScore",
 ]

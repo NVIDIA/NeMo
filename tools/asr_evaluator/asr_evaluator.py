@@ -75,6 +75,7 @@ def main(cfg):
             ignore_capitalization=cfg.analyst.metric_calculator.get("ignore_capitalization", False),
             ignore_punctuation=cfg.analyst.metric_calculator.get("ignore_punctuation", False),
             punctuations=cfg.analyst.metric_calculator.get("punctuations", None),
+            use_normalizer=cfg.analyst.metric_calculator.get("use_normalizer", True),
             strip_punc_space=cfg.analyst.metric_calculator.get("strip_punc_space", False),
         )
     else:
@@ -82,12 +83,14 @@ def main(cfg):
             pred_manifest=cfg.engine.output_filename,
             gt_text_attr_name=cfg.analyst.metric_calculator.get("gt_text_attr_name", "text"),
             pred_text_attr_name=cfg.analyst.metric_calculator.get("pred_text_attr_name", "pred_text"),
+            src_text_attr_name=cfg.analyst.metric_calculator.get("src_text_attr_name", "text"),
             output_filename=cfg.analyst.metric_calculator.output_filename,
             ignore_capitalization=cfg.analyst.metric_calculator.get("ignore_capitalization", False),
             ignore_punctuation=cfg.analyst.metric_calculator.get("ignore_punctuation", False),
             punctuations=cfg.analyst.metric_calculator.get("punctuations", None),
-            metric=cfg.analyst.metric_calculator.get("metric", "bleu"),
+            metrics=cfg.analyst.metric_calculator.get("metric", ["bleu", "comet"]),
             metric_args=cfg.analyst.metric_calculator.get("metric_args", None),
+            use_normalizer=cfg.analyst.metric_calculator.get("use_normalizer", True),
             strip_punc_space=cfg.analyst.metric_calculator.get("strip_punc_space", False),
         )
 
