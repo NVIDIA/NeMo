@@ -178,11 +178,11 @@ class SortformerModules(NeuralModule, Exportable):
                     f"equal to {self.minimum_spkcache_len}. {param}: {val}"
                 )
 
-        # The effective range of self.spkcache_refresh_rate is: [ chunk_len, fifo_len ]
-        if self.fifo_len > 0 and self.spkcache_refresh_rate > self.fifo_len:
+        # The effective range of self.spkcache_refresh_rate is: [ chunk_len, fifo_len+chunk_len ]
+        if self.fifo_len > 0 and self.spkcache_refresh_rate > self.fifo_len + self.chunk_len:
             raise ValueError(
                 f"The effective range of self.spkcache_refresh_rate is: "
-                f"[ chunk_len: {self.chunk_len}, fifo_len: {self.fifo_len} ], "
+                f"[ chunk_len: {self.chunk_len}, fifo_len+chunk_len: {self.fifo_len + self.chunk_len} ], "
                 f"but got {self.spkcache_refresh_rate}"
             )
 
@@ -374,12 +374,8 @@ class SortformerModules(NeuralModule, Exportable):
             chunk.shape[1] - lc - rc,
         )
 
-        if self.fifo_len == 0:
-            max_pop_out_len = max_chunk_len
-        elif self.spkcache_refresh_rate == 0:
-            max_pop_out_len = self.fifo_len
-        else:
-            max_pop_out_len = min(max(self.spkcache_refresh_rate, max_chunk_len), self.fifo_len)
+        max_pop_out_len = max(self.spkcache_refresh_rate, max_chunk_len)
+        max_pop_out_len = min(max_pop_out_len, max_chunk_len + max_fifo_len)
 
         streaming_state.fifo_preds = torch.zeros((batch_size, max_fifo_len, n_spk), device=preds.device)
         chunk_preds = torch.zeros((batch_size, max_chunk_len, n_spk), device=preds.device)
@@ -416,7 +412,9 @@ class SortformerModules(NeuralModule, Exportable):
             ]
             if fifo_len + chunk_len > max_fifo_len:
                 # move pop_out_len first frames of FIFO queue to speaker cache
-                pop_out_len = min(max_pop_out_len, fifo_len + chunk_len)
+                pop_out_len = self.spkcache_refresh_rate
+                pop_out_len = max(pop_out_len, max_chunk_len - max_fifo_len + fifo_len)
+                pop_out_len = min(pop_out_len, fifo_len + chunk_len)
                 streaming_state.spkcache_lengths[batch_index] += pop_out_len
                 updated_spkcache[batch_index, spkcache_len : spkcache_len + pop_out_len, :] = updated_fifo[
                     batch_index, :pop_out_len, :
@@ -502,21 +500,16 @@ class SortformerModules(NeuralModule, Exportable):
         chunk = chunk[:, lc : chunk_len + lc]
         chunk_preds = preds[:, spkcache_len + fifo_len + lc : spkcache_len + fifo_len + chunk_len + lc]
 
-        # pop_out_len is the number of frames we will pop out from FIFO to update spkcache
-        if self.fifo_len == 0:
-            pop_out_len = chunk_len
-        elif self.spkcache_refresh_rate == 0:
-            pop_out_len = self.fifo_len
-        else:
-            pop_out_len = min(max(self.spkcache_refresh_rate, chunk_len), self.fifo_len)
-
         # append chunk to fifo
         streaming_state.fifo = torch.cat([streaming_state.fifo, chunk], dim=1)
         streaming_state.fifo_preds = torch.cat([streaming_state.fifo_preds, chunk_preds], dim=1)
 
         if fifo_len + chunk_len > self.fifo_len:
             # extract pop_out_len first frames from FIFO queue
+            pop_out_len = self.spkcache_refresh_rate
+            pop_out_len = max(pop_out_len, chunk_len - self.fifo_len + fifo_len)
             pop_out_len = min(pop_out_len, fifo_len + chunk_len)
+
             pop_out_embs = streaming_state.fifo[:, :pop_out_len]
             pop_out_preds = streaming_state.fifo_preds[:, :pop_out_len]
             streaming_state.fifo = streaming_state.fifo[:, pop_out_len:]
