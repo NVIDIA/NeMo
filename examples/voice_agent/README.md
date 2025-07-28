@@ -69,7 +69,7 @@ Edit the `server/server_config.yaml` file to configure the server, for example:
 - Distribute different components to different GPUs if you have more than one.
 - Adjust VAD parameters for sensitivity and end-of-turn detection timeout.
 
-**If you want to access the client from another machine, you need to change the `baseUrl` in `client/src/app.ts` to the actual ip address of the server machine.**
+**If you want to access the server from a different machine, you need to change the `baseUrl` in `client/src/app.ts` to the actual ip address of the server machine.**
 
 
 
@@ -81,13 +81,14 @@ Open a terminal and run the server via:
 NEMO_PATH=???  # Use your local NeMo path for the latest version
 export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 
-export HF_TOKEN=???  # Use your own HuggingFace token if needed
-export WEBSOCKET_SERVER=websocket_server  # currently only support websocket_server
+# export HF_TOKEN="hf_..."  # Use your own HuggingFace API token if needed, as some models may require.
+# export HF_HUB_CACHE="/path/to/your/huggingface/cache"  # change where HF cache is stored if you don't want to use the default cache
+export WEBSOCKET_SERVER=websocket_server  # currently only support `websocket_server` mode
 python ./server/server.py
 ```
 
 ### Launch the client
-In another terminal, run the client via:
+In another terminal on the server machine, start the client via:
 
 ```bash
 cd client
@@ -99,7 +100,7 @@ npm run dev
 
 Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button. 
 
-If using chrome browser, you need to add `http://[YOUR MACHINE IP ADDRESS]:5173/` to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+**If using chrome browser, you need to add `http://[YOUR MACHINE IP ADDRESS]:5173/` to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.**
 
 
 ## 📑 Supported Models
@@ -116,6 +117,7 @@ Most LLMs from HuggingFace are supported. A few examples are:
 
 We use [cache-aware streaming FastConformer](https://arxiv.org/abs/2312.17279) to transcribe the user's speech. While new models are to be released, we use the existing Englishmodels for now:
 - [stt_en_fastconformer_hybrid_large_streaming_80ms](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_fastconformer_hybrid_large_streaming_80ms)
+- [nvidia/stt_en_fastconformer_hybrid_large_streaming_multi](https://huggingface.co/nvidia/stt_en_fastconformer_hybrid_large_streaming_multi)
 
 ### 💬 Diarization
 
