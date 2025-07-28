@@ -41,8 +41,8 @@ llm:
   generation_kwargs:  # kwargs that will be passed into model.generate() function of HF models
     temperature: 0.7  # LLM sampling params
     top_p: 0.9  # LLM sampling params
-    max_tokens: 128  # max num of tokens per LLM output
-    do_sample: true
+    max_new_tokens: 128  # max num of output tokens from LLM
+    do_sample: true # enable sampling
 
 tts:
   type: nemo

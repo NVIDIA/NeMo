@@ -73,17 +73,9 @@ Your answer should be concise and to the point.
 """
 
 ################ Start of Configuration #################
-if server_config.get("bot_prompt", None) is not None:
-    bot_prompt = server_config.bot_prompt
-    if os.path.isfile(bot_prompt):
-        with open(bot_prompt, "r") as f:
-            bot_prompt = f.read()
-    BOT_PROMPT = bot_prompt
-
-logger.info(f"BOT_PROMPT: {BOT_PROMPT}")
-
 TRANSPORT_AUDIO_OUT_10MS_CHUNKS = server_config.transport.audio_out_10ms_chunks
 
+### VAD
 vad_params = VADParams(
     confidence=server_config.vad.confidence,
     start_secs=server_config.vad.start_secs,
@@ -91,6 +83,7 @@ vad_params = VADParams(
     min_volume=server_config.vad.min_volume,
 )
 
+### STT
 STT_MODEL_PATH = server_config.stt.model
 STT_DEVICE = server_config.stt.device
 stt_params = NeMoSTTInputParams(
@@ -99,6 +92,7 @@ stt_params = NeMoSTTInputParams(
     raw_audio_frame_len_in_secs=RAW_AUDIO_FRAME_LEN_IN_SECS,
 )
 
+### Diarization
 DIAR_MODEL = server_config.diar.model
 USE_DIAR = server_config.diar.enabled
 diar_params = NeMoDiarInputParams(
@@ -106,19 +100,39 @@ diar_params = NeMoDiarInputParams(
     threshold=server_config.diar.threshold,
 )
 
+### Turn taking
 TURN_TAKING_MAX_BUFFER_SIZE = server_config.turn_taking.max_buffer_size
+TURN_TAKING_BOT_STOP_DELAY = server_config.turn_taking.bot_stop_delay
+
+### LLM
+SYSTEM_ROLE = server_config.llm.get("system_role", "system")
+if server_config.get("bot_prompt", None) is not None:
+    bot_prompt = server_config.bot_prompt
+    if os.path.isfile(bot_prompt):
+        with open(bot_prompt, "r") as f:
+            bot_prompt = f.read()
+    BOT_PROMPT = bot_prompt
+logger.info(f"BOT_PROMPT: {BOT_PROMPT}")
 
 LLM_MODEL = server_config.llm.model
 LLM_DEVICE = server_config.llm.device
-LLM_GENERATION_KWARGS = OmegaConf.to_container(server_config.llm.get("generation_kwargs", {}))
-LLM_APPLY_CHAT_TEMPLATE_KWARGS = OmegaConf.to_container(server_config.llm.get("apply_chat_template_kwargs", None))
-SYSTEM_ROLE = server_config.llm.get("system_role", "system")
+LLM_GENERATION_KWARGS = server_config.llm.get("generation_kwargs", {})
+if LLM_GENERATION_KWARGS is not None:
+    LLM_GENERATION_KWARGS = OmegaConf.to_container(LLM_GENERATION_KWARGS)
+LLM_APPLY_CHAT_TEMPLATE_KWARGS = server_config.llm.get("apply_chat_template_kwargs", None)
+if LLM_APPLY_CHAT_TEMPLATE_KWARGS is not None:
+    LLM_APPLY_CHAT_TEMPLATE_KWARGS = OmegaConf.to_container(LLM_APPLY_CHAT_TEMPLATE_KWARGS)
 
+### TTS
 TTS_FASTPITCH_MODEL = server_config.tts.fastpitch_model
 TTS_HIFIGAN_MODEL = server_config.tts.hifigan_model
 TTS_DEVICE = server_config.tts.device
-TTS_THINK_TOKENS = OmegaConf.to_container(server_config.tts.get("think_tokens", None))
+TTS_THINK_TOKENS = server_config.tts.get("think_tokens", None)
+if TTS_THINK_TOKENS is not None:
+    TTS_THINK_TOKENS = OmegaConf.to_container(TTS_THINK_TOKENS)
 TTS_EXTRA_SEPARATOR = server_config.tts.get("extra_separator", None)
+if TTS_EXTRA_SEPARATOR is not None:
+    TTS_EXTRA_SEPARATOR = OmegaConf.to_container(TTS_EXTRA_SEPARATOR)
 
 ################ End of Configuration #################
 
@@ -198,6 +212,7 @@ async def run_bot_websocket_server():
         use_vad=True,
         use_diar=USE_DIAR,
         max_buffer_size=TURN_TAKING_MAX_BUFFER_SIZE,
+        bot_stop_delay=TURN_TAKING_BOT_STOP_DELAY,
     )
     logger.info("Turn taking service initialized")
 
@@ -280,7 +295,7 @@ async def run_bot_websocket_server():
         pipeline.append(diar)
 
     pipeline.extend(
-        [turn_taking, user_context_aggregator, llm, tts, ws_transport.output(), assistant_context_aggregator]  # LLM
+        [turn_taking, user_context_aggregator, llm, tts, ws_transport.output(), assistant_context_aggregator]
     )
 
     pipeline = Pipeline(pipeline)

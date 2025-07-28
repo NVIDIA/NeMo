@@ -40,6 +40,7 @@ class NemoLegacyASRService:
         sample_rate: int = 16000,
         frame_len_in_secs: float = 0.08,
         use_amp: bool = False,
+        chunk_size_in_secs: float = 0.08,
     ):
         self.model = model
         self.eou_string = eou_string
@@ -55,6 +56,7 @@ class NemoLegacyASRService:
         self.use_amp = use_amp
         self.pad_and_drop_preencoded = False
         self.blank_id = self.get_blank_id()
+        self.chunk_size_in_secs = chunk_size_in_secs
 
         print("NemoLegacyASRService initialized")
 
@@ -66,19 +68,26 @@ class NemoLegacyASRService:
             self.att_context_size[1] >= 0
         ), f"Right att context size must be greater than 0: {self.att_context_size[1]}"
 
-        self.buffer_size_in_secs = (1 + sum(self.att_context_size)) * frame_len_in_secs
-        self.chunk_size_in_secs = frame_len_in_secs  # (1 + self.att_context_size[1]) * frame_len_in_secs
-
         window_stride_in_secs = self.asr_model.cfg.preprocessor.window_stride
         model_stride = self.asr_model.cfg.encoder.subsampling_factor
-        self.tokens_per_frame = math.ceil(np.trunc(self.chunk_size_in_secs / window_stride_in_secs) / model_stride)
         self.model_chunk_size = self.asr_model.encoder.streaming_cfg.chunk_size
         if isinstance(self.model_chunk_size, list):
             self.model_chunk_size = self.model_chunk_size[1]
+        self.pre_encode_cache_size = self.asr_model.encoder.streaming_cfg.pre_encode_cache_size
+        if isinstance(self.pre_encode_cache_size, list):
+            self.pre_encode_cache_size = self.pre_encode_cache_size[1]
+        self.pre_encode_cache_size_in_secs = self.pre_encode_cache_size * window_stride_in_secs
+
+        self.tokens_per_frame = math.ceil(np.trunc(self.chunk_size_in_secs / window_stride_in_secs) / model_stride)
         # overwrite the encoder streaming params with proper shift size for cache aware streaming
         self.asr_model.encoder.setup_streaming_params(
             chunk_size=self.model_chunk_size // model_stride, shift_size=self.tokens_per_frame
         )
+
+        model_chunk_size_in_secs = self.model_chunk_size * window_stride_in_secs
+
+        self.buffer_size_in_secs = self.pre_encode_cache_size_in_secs + model_chunk_size_in_secs
+
         self._audio_buffer = CacheFeatureBufferer(
             sample_rate=sample_rate,
             buffer_size_in_secs=self.buffer_size_in_secs,
@@ -200,7 +209,7 @@ class NemoLegacyASRService:
             raise ValueError("Decoder type not supported for this model.")
         return tokens
 
-    def transcribe(self, audio: bytes, stream_id: str = "default", valid_out_len: int = 1) -> str:
+    def transcribe(self, audio: bytes, stream_id: str = "default") -> str:
         # Convert bytes to numpy array
         audio_array = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
 
@@ -209,7 +218,6 @@ class NemoLegacyASRService:
         features = self._audio_buffer.get_feature_buffer()
         feature_lengths = torch.tensor([features.shape[1]], device=self.device)
         features = features.unsqueeze(0)  # Add batch dimension
-        keep_all_outputs = False
 
         with torch.no_grad():
             (
@@ -227,11 +235,6 @@ class NemoLegacyASRService:
                 keep_all_outputs=False,
                 drop_extra_pre_encoded=self.drop_extra_pre_encoded,
             )
-
-        if valid_out_len and not keep_all_outputs:
-            # drop right context if any
-            encoded = encoded[:, :, :valid_out_len]
-            encoded_len = torch.ones_like(encoded_len) * valid_out_len
 
         best_hyp = self._get_best_hypothesis(encoded, encoded_len, partial_hypotheses=self._previous_hypotheses)
 
