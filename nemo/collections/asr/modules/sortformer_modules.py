@@ -76,7 +76,7 @@ class SortformerModules(NeuralModule, Exportable):
         spkcache_len: int = 188,
         fifo_len: int = 188,
         chunk_len: int = 12,
-        spkcache_refresh_rate: int = 1,
+        spkcache_update_period: int = 1,
         chunk_left_context: int = 1,
         chunk_right_context: int = 1,
         spkcache_sil_frames_per_spk: int = 3,
@@ -113,7 +113,7 @@ class SortformerModules(NeuralModule, Exportable):
         self.chunk_left_context = chunk_left_context
         self.chunk_right_context = chunk_right_context
         self.spkcache_sil_frames_per_spk = spkcache_sil_frames_per_spk
-        self.spkcache_refresh_rate = spkcache_refresh_rate
+        self.spkcache_update_period = spkcache_update_period
         self.causal_attn_rate = causal_attn_rate
         self.causal_attn_rc = causal_attn_rc
         self.scores_add_rnd = scores_add_rnd
@@ -134,9 +134,9 @@ class SortformerModules(NeuralModule, Exportable):
 
         Restrictions:
             - All streaming parameters should be non-negative integers.
-            - Chunk length and speaker cache refresh rate should be greater than 0.
+            - Chunk length and speaker cache update period should be greater than 0.
             - Speaker cache length should be greater than or equal to `self.minimum_spkcache_len`.
-            - The effective range of self.spkcache_refresh_rate is:  spkcache_refresh_rate <= fifo_len
+            - The effective range of self.spkcache_update_period is:  spkcache_update_period <= fifo_len + chunk_len
         """
         # Check if all streaming parameters are positive integers
         streaming_params = [
@@ -147,7 +147,7 @@ class SortformerModules(NeuralModule, Exportable):
 
         non_zero_streaming_params = [
             'chunk_len',
-            'spkcache_refresh_rate',
+            'spkcache_update_period',
         ]
         min_value_constraint_streaming_params = [
             'spkcache_len',
@@ -178,12 +178,12 @@ class SortformerModules(NeuralModule, Exportable):
                     f"equal to {self.minimum_spkcache_len}. {param}: {val}"
                 )
 
-        # The effective range of self.spkcache_refresh_rate is: [ chunk_len, fifo_len+chunk_len ]
-        if self.fifo_len > 0 and self.spkcache_refresh_rate > self.fifo_len + self.chunk_len:
+        # The effective range of self.spkcache_update_period is: [ chunk_len, fifo_len+chunk_len ]
+        if self.fifo_len > 0 and self.spkcache_update_period > self.fifo_len + self.chunk_len:
             raise ValueError(
-                f"The effective range of self.spkcache_refresh_rate is: "
+                f"The effective range of self.spkcache_update_period is: "
                 f"[ chunk_len: {self.chunk_len}, fifo_len+chunk_len: {self.fifo_len + self.chunk_len} ], "
-                f"but got {self.spkcache_refresh_rate}"
+                f"but got {self.spkcache_update_period}"
             )
 
     def length_to_mask(self, lengths, max_length: int):
@@ -374,7 +374,7 @@ class SortformerModules(NeuralModule, Exportable):
             chunk.shape[1] - lc - rc,
         )
 
-        max_pop_out_len = max(self.spkcache_refresh_rate, max_chunk_len)
+        max_pop_out_len = max(self.spkcache_update_period, max_chunk_len)
         max_pop_out_len = min(max_pop_out_len, max_chunk_len + max_fifo_len)
 
         streaming_state.fifo_preds = torch.zeros((batch_size, max_fifo_len, n_spk), device=preds.device)
@@ -412,7 +412,7 @@ class SortformerModules(NeuralModule, Exportable):
             ]
             if fifo_len + chunk_len > max_fifo_len:
                 # move pop_out_len first frames of FIFO queue to speaker cache
-                pop_out_len = self.spkcache_refresh_rate
+                pop_out_len = self.spkcache_update_period
                 pop_out_len = max(pop_out_len, max_chunk_len - max_fifo_len + fifo_len)
                 pop_out_len = min(pop_out_len, fifo_len + chunk_len)
                 streaming_state.spkcache_lengths[batch_index] += pop_out_len
@@ -506,7 +506,7 @@ class SortformerModules(NeuralModule, Exportable):
 
         if fifo_len + chunk_len > self.fifo_len:
             # extract pop_out_len first frames from FIFO queue
-            pop_out_len = self.spkcache_refresh_rate
+            pop_out_len = self.spkcache_update_period
             pop_out_len = max(pop_out_len, chunk_len - self.fifo_len + fifo_len)
             pop_out_len = min(pop_out_len, fifo_len + chunk_len)
 

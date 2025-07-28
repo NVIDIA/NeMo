@@ -34,7 +34,7 @@ class TestSortformerStreamingModules_ParameterCheck:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "spkcache_len, fifo_len, chunk_len, chunk_left_context, chunk_right_context, spkcache_refresh_rate",
+        "spkcache_len, fifo_len, chunk_len, chunk_left_context, chunk_right_context, spkcache_update_period",
         [
             (188, 376, 376, 1, 1, 376),  # Example 1: All equal values
             (100, 200, 150, 0, 0, 150),  # Example 2: Different values, zero contexts
@@ -42,7 +42,7 @@ class TestSortformerStreamingModules_ParameterCheck:
         ],
     )
     def test_rule1_valid_non_negative_parameters(
-        self, spkcache_len, fifo_len, chunk_len, chunk_left_context, chunk_right_context, spkcache_refresh_rate
+        self, spkcache_len, fifo_len, chunk_len, chunk_left_context, chunk_right_context, spkcache_update_period
     ):
         """Test Rule 1: All streaming parameters should be non-negative integers - Valid case."""
         sortformer_modules = SortformerModules(
@@ -52,7 +52,7 @@ class TestSortformerStreamingModules_ParameterCheck:
             chunk_len=chunk_len,
             chunk_left_context=chunk_left_context,
             chunk_right_context=chunk_right_context,
-            spkcache_refresh_rate=spkcache_refresh_rate,
+            spkcache_update_period=spkcache_update_period,
         )
         # Should not raise any exception
         sortformer_modules._comparative_parameter_check()
@@ -66,7 +66,7 @@ class TestSortformerStreamingModules_ParameterCheck:
             ("chunk_len", -10),
             ("chunk_left_context", -2),
             ("chunk_right_context", -3),
-            ("spkcache_refresh_rate", -7),
+            ("spkcache_update_period", -7),
         ],
     )
     def test_rule1_invalid_negative_parameters(self, param_name, param_value):
@@ -78,7 +78,7 @@ class TestSortformerStreamingModules_ParameterCheck:
             "chunk_len": 376,
             "chunk_left_context": 1,
             "chunk_right_context": 1,
-            "spkcache_refresh_rate": 376,
+            "spkcache_update_period": 376,
         }
         params[param_name] = param_value
 
@@ -96,7 +96,7 @@ class TestSortformerStreamingModules_ParameterCheck:
             ("chunk_len", 10.51),
             ("chunk_left_context", 2.11),
             ("chunk_right_context", 3.21),
-            ("spkcache_refresh_rate", 7.3),
+            ("spkcache_update_period", 7.3),
         ],
     )
     def test_rule1_invalid_float_parameters(self, param_name, param_value):
@@ -108,7 +108,7 @@ class TestSortformerStreamingModules_ParameterCheck:
             "chunk_len": 376,
             "chunk_left_context": 1,
             "chunk_right_context": 1,
-            "spkcache_refresh_rate": 376,
+            "spkcache_update_period": 376,
         }
         params[param_name] = param_value
 
@@ -123,12 +123,12 @@ class TestSortformerStreamingModules_ParameterCheck:
         [
             ("chunk_len", 0),  # Zero value for chunk_len
             ("chunk_len", -1),  # Negative value for chunk_len
-            ("spkcache_refresh_rate", 0),  # Zero value for spkcache_refresh_rate
-            ("spkcache_refresh_rate", -1),  # Negative value for spkcache_refresh_rate
+            ("spkcache_update_period", 0),  # Zero value for spkcache_update_period
+            ("spkcache_update_period", -1),  # Negative value for spkcache_update_period
         ],
     )
     def test_rule2_invalid_non_zero_parameters(self, param_name, param_value):
-        """Test Rule 2: Non-zero streaming parameters (chunk_len, spkcache_refresh_rate) should be greater than 0 - Invalid case."""
+        """Test Rule 2: Non-zero streaming parameters (chunk_len, spkcache_update_period) should be greater than 0 - Invalid case."""
         params = {
             "num_spks": 4,
             "spkcache_len": 188,
@@ -136,7 +136,7 @@ class TestSortformerStreamingModules_ParameterCheck:
             "chunk_len": 376,
             "chunk_left_context": 1,
             "chunk_right_context": 1,
-            "spkcache_refresh_rate": 376,
+            "spkcache_update_period": 376,
         }
         params[param_name] = param_value
 
@@ -167,7 +167,7 @@ class TestSortformerStreamingModules_ParameterCheck:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
         # Should not raise any exception
         sortformer_modules._comparative_parameter_check()
@@ -198,23 +198,23 @@ class TestSortformerStreamingModules_ParameterCheck:
                 chunk_len=376,
                 chunk_left_context=1,
                 chunk_right_context=1,
-                spkcache_refresh_rate=376,
+                spkcache_update_period=376,
                 minimum_spkcache_len=custom_minimum_spkcache_len,
             )
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "fifo_len, chunk_len, spkcache_refresh_rate",
+        "fifo_len, chunk_len, spkcache_update_period",
         [
-            (376, 200, 300),  # Example 1: spkcache_refresh_rate <= fifo_len
-            (100, 50, 75),  # Example 2: spkcache_refresh_rate <= fifo_len, smaller values
-            (200, 100, 200),  # Example 3: spkcache_refresh_rate == fifo_len
-            (150, 100, 150),  # Example 4: spkcache_refresh_rate == fifo_len
+            (376, 200, 300),  # Example 1: spkcache_update_period <= fifo_len + chunk_len
+            (100, 50, 75),  # Example 2: spkcache_update_period <= fifo_len + chunk_len, smaller values
+            (200, 100, 300),  # Example 3: spkcache_update_period == fifo_len + chunk_len
+            (150, 100, 250),  # Example 4: spkcache_update_period == fifo_len + chunk_len
             (0, 100, 50),  # Example 5: fifo_len = 0 (no validation)
         ],
     )
-    def test_rule4_valid_spkcache_refresh_rate_in_range(self, fifo_len, chunk_len, spkcache_refresh_rate):
-        """Test Rule 4: spkcache_refresh_rate should be <= fifo_len (when fifo_len > 0) - Valid case."""
+    def test_rule4_valid_spkcache_update_period_in_range(self, fifo_len, chunk_len, spkcache_update_period):
+        """Test Rule 4: spkcache_update_period should be <= fifo_len + chunk_len (when fifo_len > 0) - Valid case."""
         sortformer_modules = SortformerModules(
             num_spks=4,
             spkcache_len=188,
@@ -222,25 +222,25 @@ class TestSortformerStreamingModules_ParameterCheck:
             chunk_len=chunk_len,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=spkcache_refresh_rate,
+            spkcache_update_period=spkcache_update_period,
         )
         # Should not raise any exception
         sortformer_modules._comparative_parameter_check()
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "fifo_len, chunk_len, spkcache_refresh_rate",
+        "fifo_len, chunk_len, spkcache_update_period",
         [
-            (376, 200, 400),  # Example 1: spkcache_refresh_rate > fifo_len
-            (100, 50, 150),  # Example 2: spkcache_refresh_rate > fifo_len, smaller values
-            (50, 25, 75),  # Example 3: spkcache_refresh_rate > fifo_len, very small values
+            (376, 200, 600),  # Example 1: spkcache_update_period > fifo_len + chunk_len
+            (100, 50, 151),  # Example 2: spkcache_update_period > fifo_len + chunk_len, smaller values
+            (50, 25, 76),  # Example 3: spkcache_update_period > fifo_len + chunk_len, very small values
         ],
     )
-    def test_rule4_invalid_spkcache_refresh_rate_out_of_range(self, fifo_len, chunk_len, spkcache_refresh_rate):
-        """Test Rule 4: spkcache_refresh_rate should be <= fifo_len (when fifo_len > 0) - Invalid case."""
+    def test_rule4_invalid_spkcache_update_period_out_of_range(self, fifo_len, chunk_len, spkcache_update_period):
+        """Test Rule 4: spkcache_update_period should be <= fifo_len + chunk_len (when fifo_len > 0) - Invalid case."""
         with pytest.raises(
             ValueError,
-            match=f"The effective range of self.spkcache_refresh_rate is: \\[ chunk_len: {chunk_len}, fifo_len: {fifo_len} \\], but got {spkcache_refresh_rate}",
+            match=f"The effective range of self.spkcache_update_period is: \\[ chunk_len: {chunk_len}, fifo_len\\+chunk_len: {fifo_len + chunk_len} \\], but got {spkcache_update_period}",
         ):
             SortformerModules(
                 num_spks=4,
@@ -249,7 +249,7 @@ class TestSortformerStreamingModules_ParameterCheck:
                 chunk_len=chunk_len,
                 chunk_left_context=1,
                 chunk_right_context=1,
-                spkcache_refresh_rate=spkcache_refresh_rate,
+                spkcache_update_period=spkcache_update_period,
             )
 
 
@@ -272,7 +272,7 @@ class TestSortformerStreamingModules_StreamingUtils:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
 
         # Call the method
@@ -315,7 +315,7 @@ class TestSortformerStreamingModules_StreamingUtils:
             chunk_len=chunk_len,
             chunk_left_context=chunk_left_context,
             chunk_right_context=chunk_right_context,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
         sortformer_modules.subsampling_factor = subsampling_factor
 
@@ -397,7 +397,7 @@ class TestSortformerStreamingModules_StreamingUtils:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
 
         # Use the correct hidden dimension from the model
@@ -450,7 +450,7 @@ class TestSortformerStreamingModules_StreamingUtils:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
 
         # Create test tensors
@@ -524,7 +524,7 @@ class TestSortformerStreamingModules_StreamingUtils:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
 
         # Call the method
@@ -625,7 +625,7 @@ class TestSortformerStreamingModules_StreamingUtils:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
 
         # Create test predictions tensor with random values
@@ -684,8 +684,8 @@ class TestSortformerStreamingModules_StreamingUtils:
 #     )
 #     def test_streaming_update(self, batch_size, chunk_len, lc, rc, fifo_len, spkcache_len):
 #         """Test the streaming_update method that updates speaker cache and FIFO queue."""
-#         # Set spkcache_refresh_rate to be compatible with fifo_len
-#         spkcache_refresh_rate = min(fifo_len, 376) if fifo_len > 0 else chunk_len
+#         # Set spkcache_update_period to be compatible with fifo_len
+#         spkcache_update_period = min(fifo_len, 376) if fifo_len > 0 else chunk_len
 
 #         sortformer_modules = SortformerModules(
 #             num_spks=4,
@@ -694,7 +694,7 @@ class TestSortformerStreamingModules_StreamingUtils:
 #             chunk_len=chunk_len,
 #             chunk_left_context=lc,
 #             chunk_right_context=rc,
-#             spkcache_refresh_rate=spkcache_refresh_rate,
+#             spkcache_update_period=spkcache_update_period,
 #             minimum_spkcache_len=4,
 #         )
 
@@ -769,7 +769,7 @@ class TestSortformerStreamingModules_StreamingUtils:
 #             chunk_len=chunk_len,
 #             chunk_left_context=lc,
 #             chunk_right_context=rc,
-#             spkcache_refresh_rate=chunk_len,  # When fifo_len=0, use chunk_len
+#             spkcache_update_period=chunk_len,  # When fifo_len=0, use chunk_len
 #             minimum_spkcache_len=4,
 #         )
 
@@ -817,7 +817,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=100,
+            spkcache_update_period=100,
         )
 
         # Create test scores tensor with random values
@@ -897,7 +897,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
         sortformer_modules.sil_threshold = sil_threshold
 
@@ -980,7 +980,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
         sortformer_modules.pred_score_threshold = pred_score_threshold
 
@@ -1055,7 +1055,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
             spkcache_sil_frames_per_spk=spkcache_sil_frames_per_spk,
             max_index=99999,
             minimum_spkcache_len=custom_minimum_spkcache_len,
@@ -1141,7 +1141,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
             spkcache_sil_frames_per_spk=2,
             max_index=99999,
             minimum_spkcache_len=4,
@@ -1261,7 +1261,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
 
         # Create test scores with various patterns
@@ -1319,7 +1319,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
 
         # Create test predictions and scores
@@ -1383,7 +1383,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
         )
 
         # Create test scores and max_perm_index
@@ -1461,7 +1461,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
             chunk_len=376,
             chunk_left_context=1,
             chunk_right_context=1,
-            spkcache_refresh_rate=376,
+            spkcache_update_period=376,
             spkcache_sil_frames_per_spk=2,
             minimum_spkcache_len=4,
         )
