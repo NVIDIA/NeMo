@@ -158,8 +158,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.negative_init_val = -99
         self.loss = instantiate(self._cfg.loss)
 
-        # self.async_streaming = self._cfg.get("async_streaming", False)
-        self.async_streaming = self._cfg.get("async_streaming", True)
+        self.async_streaming = self._cfg.get("async_streaming", False)
+        # self.async_streaming = self._cfg.get("async_streaming", True)
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
         self._init_eval_metrics()
@@ -853,6 +853,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         Returns:
             (dict): A dictionary containing the following training metrics.
         """
+        if preds.shape[1] < targets.shape[1]:
+            logging.info(
+                f"WARNING! preds has less frames than targets ({preds.shape[1]} < {targets.shape[1]}). "
+                "Truncating targets and clamping target_lens."
+            )
+            targets = targets[:, : preds.shape[1], :]
+            target_lens = target_lens.clamp(max=preds.shape[1])
         targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         targets_pil = get_pil_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         ats_loss = self.loss(probs=preds, labels=targets_ats, target_lens=target_lens)
@@ -918,6 +925,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         Returns:
             val_metrics (dict): A dictionary containing the following validation metrics
         """
+        if preds.shape[1] < targets.shape[1]:
+            logging.info(
+                f"WARNING! preds has less frames than targets ({preds.shape[1]} < {targets.shape[1]}). "
+                "Truncating targets and clamping target_lens."
+            )
+            targets = targets[:, : preds.shape[1], :]
+            target_lens = target_lens.clamp(max=preds.shape[1])
         targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         targets_pil = get_pil_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
 
@@ -1042,6 +1056,13 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             target_lens (torch.Tensor): Lengths of target sequences.
                 Shape: (batch_size,)
         """
+        if preds.shape[1] < targets.shape[1]:
+            logging.info(
+                f"WARNING! preds has less frames than targets ({preds.shape[1]} < {targets.shape[1]}). "
+                "Truncating targets and clamping target_lens."
+            )
+            targets = targets[:, : preds.shape[1], :]
+            target_lens = target_lens.clamp(max=preds.shape[1])
         targets_ats = get_ats_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         targets_pil = get_pil_targets(targets.clone(), preds, speaker_permutations=self.speaker_permutations)
         self._accuracy_test(preds, targets_pil, target_lens)

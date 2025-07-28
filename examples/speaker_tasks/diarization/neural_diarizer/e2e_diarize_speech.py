@@ -388,6 +388,9 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.log = cfg.log
     diar_model.sortformer_modules.spkcache_update_period = cfg.spkcache_update_period
 
+    # Check if the streaming parameters are valid
+    diar_model.sortformer_modules._comparative_parameter_check()
+
     postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
     tensor_path, model_id, tensor_filename = get_tensor_path(cfg)
     cfg.optuna_study_name = f"__{model_id}_{tensor_filename}"
