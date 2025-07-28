@@ -157,6 +157,7 @@ def transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
         moe_grouped_gemm=config.moe_grouped_gemm,
         qk_layernorm=config.qk_layernorm,
         fp8=bool(config.num_moe_experts and (config.fp8 is not None)),
+        use_kitchen=config.use_kitchen
     )
 
 
