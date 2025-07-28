@@ -26,6 +26,8 @@ from nemo.lightning.resume import AutoResume
 from scripts.performance.helpers import set_primary_perf_configs, set_perf_optimization_configs
 from scripts.performance.utils import get_comm_overlap_callback_idx
 
+logger.setLevel(logging.INFO)
+
 def set_performance_optimizations_aligned_with_nemo(recipe, args):
     """
     Set performance optimizations using NeMo's standard set_primary_perf_configs function.
@@ -177,7 +179,7 @@ def estimate_model_memory_usage(
     num_layers = safe_getattr(model_config, 'num_layers', 32)
     hidden_size = safe_getattr(model_config, 'hidden_size', 4096)
     num_attention_heads = safe_getattr(model_config, 'num_attention_heads', 32)
-    num_query_groups = safe_getattr(model_config, 'num_query_groups', num_attention_heads)  # For grouped query attention
+    num_query_groups = safe_getattr(model_config, 'num_query_groups', num_attention_heads)
     vocab_size = safe_getattr(model_config, 'vocab_size', 32000)
     ffn_hidden_size = safe_getattr(model_config, 'ffn_hidden_size', hidden_size * 4)
     num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
@@ -190,8 +192,15 @@ def estimate_model_memory_usage(
     params_dtype = getattr(model_config, 'params_dtype', None)
     bytes_per_param = 4 if 'float32' in str(params_dtype) else 2  # fp32=4, fp16/bf16=2
 
-    # Effective micro batch size (accounting for virtual pipeline)
-    effective_mbs = micro_batch_size // vp_size
+    # Virtual pipeline parallelism calculations
+    # VP divides layers across virtual stages within each physical pipeline stage
+    layers_per_pp_stage = num_layers // pp_size
+    layers_per_vp_stage = layers_per_pp_stage // vp_size if vp_size > 1 else layers_per_pp_stage
+    
+    # effective micro batch size (accounting for virtual pipeline)
+    # in VP, we process smaller chunks of the micro batch through each virtual stage
+    # max(1, micro_batch_size // vp_size) to ensure we don't get 0
+    effective_mbs = max(1, micro_batch_size // vp_size)
     
     # 1. MODEL WEIGHTS MEMORY CALCULATION
     # ===================================
@@ -247,27 +256,63 @@ def estimate_model_memory_usage(
     # Divide by tensor parallelism (weights are sharded)
     model_memory_gb /= tp_size
     
+    # Embedding parameters are shared across pipeline stages, so divide by PP
+    # Only the embedding part should be divided by PP, not the layer parameters
+    embedding_memory_gb = (embedding_params * bytes_per_param) / (1024**3)
+    embedding_memory_gb /= tp_size  # Embeddings are sharded by TP
+    embedding_memory_gb /= pp_size  # Embeddings are shared across PP stages
+    
+    # Layer parameters are already divided by TP, but need to be divided by PP
+    layer_params = params_per_layer * num_layers
+    layer_memory_gb = (layer_params * bytes_per_param) / (1024**3)
+    layer_memory_gb /= tp_size  # Layers are sharded by TP
+    layer_memory_gb /= pp_size  # Layers are distributed by PP
+    
+    # Recalculate total model memory correctly
+    model_memory_gb = layer_memory_gb + embedding_memory_gb
+    
     # 2. OPTIMIZER MEMORY CALCULATION
     # ===============================
     
     # AdamW optimizer: momentum + variance for each parameter
     # Plus potential additional states for advanced optimizers
     optimizer_states_per_param = 2  # momentum + variance
-    optimizer_memory_gb = (total_params * optimizer_states_per_param * bytes_per_param) / (1024**3)
-    optimizer_memory_gb /= tp_size
+    
+    # Optimizer memory for layer parameters (distributed by TP and PP)
+    layer_optimizer_memory_gb = (layer_params * optimizer_states_per_param * bytes_per_param) / (1024**3)
+    layer_optimizer_memory_gb /= tp_size
+    layer_optimizer_memory_gb /= pp_size
+    
+    # Optimizer memory for embedding parameters (distributed by TP and PP)
+    embedding_optimizer_memory_gb = (embedding_params * optimizer_states_per_param * bytes_per_param) / (1024**3)
+    embedding_optimizer_memory_gb /= tp_size
+    embedding_optimizer_memory_gb /= pp_size
+    
+    optimizer_memory_gb = layer_optimizer_memory_gb + embedding_optimizer_memory_gb
     
     # 3. GRADIENT MEMORY CALCULATION
     # ==============================
     
     # Gradients: same size as parameters
-    gradient_memory_gb = (total_params * bytes_per_param) / (1024**3)
-    gradient_memory_gb /= tp_size
+    # Gradient memory for layer parameters (distributed by TP and PP)
+    layer_gradient_memory_gb = (layer_params * bytes_per_param) / (1024**3)
+    layer_gradient_memory_gb /= tp_size
+    layer_gradient_memory_gb /= pp_size
+    
+    # Gradient memory for embedding parameters (distributed by TP and PP)
+    embedding_gradient_memory_gb = (embedding_params * bytes_per_param) / (1024**3)
+    embedding_gradient_memory_gb /= tp_size
+    embedding_gradient_memory_gb /= pp_size
+    
+    gradient_memory_gb = layer_gradient_memory_gb + embedding_gradient_memory_gb
     
     # 4. ACTIVATION MEMORY CALCULATION (Simplified & Conservative)
     # ============================================================
     
-    # Use model size-based heuristics for activation memory
-    # This is more generalizable and conservative (underestimates rather than overestimates)
+    # Virtual pipeline parallelism affects activation memory in several ways:
+    # 1. Smaller effective batch size per virtual stage
+    # 2. Potential for better memory reuse between virtual stages
+    # 3. Additional overhead for virtual stage management
     
     # Base activation memory per layer (conservative estimates)
     if is_moe_model:
@@ -275,7 +320,9 @@ def estimate_model_memory_usage(
         base_activation_per_layer = hidden_size * 0.1  # 10% of hidden size per layer
     else:
         # Standard transformers: conservative estimate
-        base_activation_per_layer = hidden_size * 0.08  # 8% of hidden size per layer
+        # Reduce for high-parallelism configurations (better memory distribution)
+        parallelism_factor = min(1.0, (tp_size * pp_size * cp_size) / 16.0)  # Scale down for high parallelism
+        base_activation_per_layer = hidden_size * 0.06 * parallelism_factor  # Reduced from 0.08 to 0.06
     
     # Scale with effective batch size and sequence length
     # Conservative scaling factors
@@ -295,19 +342,63 @@ def estimate_model_memory_usage(
     activation_memory_gb /= max(pp_size, 1)
     activation_memory_gb /= max(cp_size, 1)
     
+    # Virtual pipeline parallelism effects on activation memory:
+    # - VP can reduce peak activation memory by processing smaller chunks
+    # - But adds overhead for virtual stage management
+    if vp_size > 1:
+        # VP reduces peak activation memory due to smaller effective batch size
+        # But adds some overhead for virtual stage management
+        vp_activation_factor = 0.85  # 15% reduction due to smaller chunks (increased from 0.9)
+        vp_overhead_factor = 1.02   # 2% overhead for virtual stage management (reduced from 1.05)
+        activation_memory_gb = activation_memory_gb * vp_activation_factor * vp_overhead_factor
+        
+        # Additional memory for virtual pipeline buffers (reduced calculation)
+        # Each virtual stage needs some buffer space for inter-stage communication
+        vp_buffer_memory_gb = (
+            hidden_size * effective_mbs * seq_length * bytes_per_param * vp_size * 0.02
+        ) / (1024**3)  # Reduced from 0.1 to 0.02 (2% of hidden size as buffer per virtual stage)
+        activation_memory_gb += vp_buffer_memory_gb
+    
     # Additional MoE scaling if needed
     if is_moe_model:
         activation_memory_gb *= 1.2  # 20% overhead for MoE routing
     
-    # 5. TOTAL MEMORY
+    # 5. PIPELINE STAGE OVERHEAD (Enhanced for VP)
+    # ============================================
+    
+    # Pipeline parallelism adds overhead for stage management
+    pipeline_overhead_gb = 0.0
+    if pp_size > 1:
+        # Base pipeline overhead (reduced for high-parallelism configurations)
+        pipeline_overhead_gb = 0.05  # Reduced from 0.1 to 0.05 (50MB base overhead per pipeline stage)
+        
+        # Virtual pipeline adds additional overhead
+        if vp_size > 1:
+            # Each virtual stage adds some overhead for stage management (reduced)
+            pipeline_overhead_gb += 0.02 * vp_size  # Reduced from 0.05 to 0.02 (20MB per virtual stage)
+    
+    # 6. TOTAL MEMORY
     # ===============
     
-    total_memory_gb = model_memory_gb + optimizer_memory_gb + gradient_memory_gb + activation_memory_gb
+    total_memory_gb = (
+        model_memory_gb + 
+        optimizer_memory_gb + 
+        gradient_memory_gb + 
+        activation_memory_gb + 
+        pipeline_overhead_gb
+    )
     
-    # Enhanced logging for transparency
-    logger.debug(f"Memory estimate (simplified): Model={num_layers}L/{hidden_size}H/{num_attention_heads}A, MoE={is_moe_model}")
-    logger.debug(f"  Weights: {model_memory_gb:.2f}GB, Optimizer: {optimizer_memory_gb:.2f}GB, Gradients: {gradient_memory_gb:.2f}GB")
-    logger.debug(f"  Activations (conservative): {activation_memory_gb:.2f}GB (batch_scale={batch_scale:.1f}, seq_scale={seq_scale:.1f})")
+    # enhanced logging for transparency
+    parallelism_factor = min(1.0, (tp_size * pp_size * cp_size) / 16.0) if not is_moe_model else 1.0
+    logger.debug(f"Memory estimate (VP-enhanced): Model={num_layers}L/{hidden_size}H/{num_attention_heads}A, MoE={is_moe_model}")
+    logger.debug(f"  VP config: {vp_size} virtual stages, {layers_per_vp_stage} layers per VP stage")
+    logger.debug(f"  Parallelism factor: {parallelism_factor:.2f} (TP={tp_size}, PP={pp_size}, CP={cp_size})")
+    logger.debug(f"  Layer weights: {layer_memory_gb:.2f}GB, Embedding weights: {embedding_memory_gb:.2f}GB")
+    logger.debug(f"  Layer optimizer: {layer_optimizer_memory_gb:.2f}GB, Embedding optimizer: {embedding_optimizer_memory_gb:.2f}GB")
+    logger.debug(f"  Layer gradients: {layer_gradient_memory_gb:.2f}GB, Embedding gradients: {embedding_gradient_memory_gb:.2f}GB")
+    logger.debug(f"  Total weights: {model_memory_gb:.2f}GB, Total optimizer: {optimizer_memory_gb:.2f}GB, Total gradients: {gradient_memory_gb:.2f}GB")
+    logger.debug(f"  Activations: {activation_memory_gb:.2f}GB (effective_mbs={effective_mbs}, batch_scale={batch_scale:.1f}, seq_scale={seq_scale:.1f})")
+    logger.debug(f"  Pipeline overhead: {pipeline_overhead_gb:.2f}GB")
     logger.debug(f"  Total: {total_memory_gb:.2f}GB, Parallelism: TP={tp_size}, PP={pp_size}, CP={cp_size}, EP={ep_size}, VP={vp_size}")
     
     return total_memory_gb
@@ -345,14 +436,14 @@ def check_cuda_oom_risk(
     ep_size = config_values.get('ep')
     micro_batch_size = config_values.get('mbs')
     seq_length = config_values.get('seq_length')
+    precision = config_values.get('precision')
     vp_size = config_values.get('vp')
     if vp_size is None or vp_size == 'None':
         vp_size = 1
     else:
         vp_size = int(vp_size)
-    precision = config_values.get('precision')
 
-    # Use comprehensive memory estimation with actual model config
+    # use comprehensive memory estimation with actual model config
     estimated_usage_gb = estimate_model_memory_usage(
         model_config=model_config,
         tp_size=tp_size,
@@ -365,6 +456,8 @@ def check_cuda_oom_risk(
     )
 
     will_oom = estimated_usage_gb > available_memory_gb
+
+    logger.debug(f"  Memory: estimated={estimated_usage_gb:.2f}GB, available={available_memory_gb:.2f}GB, will_oom={will_oom}")
 
     if will_oom:
         reason = (f"Conservative estimate ({estimated_usage_gb:.2f} GB) exceeds "
@@ -379,7 +472,7 @@ def validate_configurations_memory(
     base_config: Any,
     resource_shape: str,
     model_name: str,
-    model_config: Any,  # Mandatory model config object
+    model_config: Any,
     memory_per_gpu: Optional[float] = None
 ) -> Dict[str, Dict[str, Any]]:
     """
@@ -396,8 +489,6 @@ def validate_configurations_memory(
         Dictionary with memory analysis for each configuration
     """
     memory_analysis = {}
-
-    # Check base config using ONE unified extraction call
     base_config_values = extract_all_values(base_config)
     
     # Base config is always considered valid - skip OOM risk check
@@ -664,4 +755,3 @@ def list_models():
     except Exception as e:
         console.print(f"[red]Error listing models: {e}[/red]")
         console.print("[link]Please check: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/__init__.py[/link]")
-        raise

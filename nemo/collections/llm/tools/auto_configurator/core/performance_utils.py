@@ -194,18 +194,18 @@ def apply_per_config_tp_comm_overlap_optimization(new_cfg, base_cfg, resource_sh
         )
         
         callbacks = [
-            run.Config(TimingCallback()),
-            run.Config(GarbageCollectionCallback(gc_interval_train=100, gc_interval_val=100))
+            run.Config(TimingCallback),
+            run.Config(GarbageCollectionCallback, gc_interval_train=100, gc_interval_val=100)
         ]
         
-        megatron_callback = run.Config(MegatronCommOverlapCallback(
+        megatron_callback = run.Config(MegatronCommOverlapCallback,
             tp_comm_overlap=enable_tp_overlap,
             tp_comm_overlap_cfg=tp_comm_overlap_cfg,
             tp_comm_bootstrap_backend="nccl",
             defer_embedding_wgrad_compute=True,
             wgrad_deferral_limit=wgrad_deferral_limit,
             overlap_param_gather_with_optimizer_step=overlap_param_gather_with_optimizer_step
-        ))
+        )
 
         callbacks.append(megatron_callback)
         new_cfg['callbacks'] = callbacks
