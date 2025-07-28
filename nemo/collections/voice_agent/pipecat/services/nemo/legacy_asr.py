@@ -88,7 +88,6 @@ class NemoLegacyASRService:
         )
         self._reset_cache()
         self._previous_hypotheses = self._get_blank_hypothesis()
-        self._prev_num_tokens = 0
 
     def _reset_cache(self):
         (
@@ -103,12 +102,9 @@ class NemoLegacyASRService:
         blank_hypothesis = Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
         return [blank_hypothesis]
 
-    def calc_drop_extra_pre_encoded(self, step_num) -> int:
-        # for the first step there is no need to drop any tokens after the downsampling as no caching is being used
-        if step_num == 0 and not self.pad_and_drop_preencoded:
-            return 0
-        else:
-            return self.asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
+    @property
+    def drop_extra_pre_encoded(self):
+        return self.asr_model.encoder.streaming_cfg.drop_extra_pre_encoded
 
     def get_blank_id(self):
         return len(self.tokenizer.vocab)
@@ -149,7 +145,7 @@ class NemoLegacyASRService:
         decoding_cfg = asr_model.cfg.decoding
         with open_dict(decoding_cfg):
             decoding_cfg.strategy = "greedy"
-            decoding_cfg.compute_timestamps = None
+            decoding_cfg.compute_timestamps = False
             decoding_cfg.preserve_alignments = True
             if hasattr(asr_model, 'joint'):  # if an RNNT model
                 decoding_cfg.greedy.max_symbols = 10
@@ -213,8 +209,6 @@ class NemoLegacyASRService:
         features = self._audio_buffer.get_feature_buffer()
         feature_lengths = torch.tensor([features.shape[1]], device=self.device)
         features = features.unsqueeze(0)  # Add batch dimension
-        is_first_step = self._audio_buffer.is_buffer_empty()
-        step_num = int(not is_first_step)
         keep_all_outputs = False
 
         with torch.no_grad():
@@ -231,7 +225,7 @@ class NemoLegacyASRService:
                 cache_last_time=self._cache_last_time,
                 cache_last_channel_len=self._cache_last_channel_len,
                 keep_all_outputs=False,
-                drop_extra_pre_encoded=self.calc_drop_extra_pre_encoded(step_num),
+                drop_extra_pre_encoded=self.drop_extra_pre_encoded,
             )
 
         if valid_out_len and not keep_all_outputs:
@@ -260,4 +254,3 @@ class NemoLegacyASRService:
         self._audio_buffer.reset()
         self._reset_cache()
         self._previous_hypotheses = self._get_blank_hypothesis()
-        self._prev_num_tokens = 0

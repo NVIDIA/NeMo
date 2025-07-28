@@ -65,7 +65,7 @@ class BaseNemoTTSService(TTSService):
         if think_tokens is not None:
             assert (
                 isinstance(think_tokens, list) and len(think_tokens) == 2
-            ), "think_tokens must be a list of two strings"
+            ), f"think_tokens must be a list of two strings: {think_tokens}"
 
         # Background processing infrastructure - no response handler needed
         self._tts_queue = asyncio.Queue()

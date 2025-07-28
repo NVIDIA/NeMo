@@ -110,15 +110,14 @@ TURN_TAKING_MAX_BUFFER_SIZE = server_config.turn_taking.max_buffer_size
 
 LLM_MODEL = server_config.llm.model
 LLM_DEVICE = server_config.llm.device
-LLM_TEMPERATURE = server_config.llm.temperature
-LLM_MAX_TOKENS = server_config.llm.max_tokens
-LLM_TOP_P = server_config.llm.top_p
+LLM_GENERATION_KWARGS = OmegaConf.to_container(server_config.llm.get("generation_kwargs", {}))
+LLM_APPLY_CHAT_TEMPLATE_KWARGS = OmegaConf.to_container(server_config.llm.get("apply_chat_template_kwargs", None))
 SYSTEM_ROLE = server_config.llm.get("system_role", "system")
 
 TTS_FASTPITCH_MODEL = server_config.tts.fastpitch_model
 TTS_HIFIGAN_MODEL = server_config.tts.hifigan_model
 TTS_DEVICE = server_config.tts.device
-TTS_THINK_TOKENS = server_config.tts.get("think_tokens", None)
+TTS_THINK_TOKENS = OmegaConf.to_container(server_config.tts.get("think_tokens", None))
 TTS_EXTRA_SEPARATOR = server_config.tts.get("extra_separator", None)
 
 ################ End of Configuration #################
@@ -207,9 +206,8 @@ async def run_bot_websocket_server():
     llm = HuggingFaceLLMService(
         model=LLM_MODEL,
         device=LLM_DEVICE,
-        temperature=LLM_TEMPERATURE,
-        max_tokens=LLM_MAX_TOKENS,
-        top_p=LLM_TOP_P,
+        generation_kwargs=LLM_GENERATION_KWARGS,
+        apply_chat_template_kwargs=LLM_APPLY_CHAT_TEMPLATE_KWARGS,
     )
     logger.info("LLM service initialized")
 
@@ -282,13 +280,7 @@ async def run_bot_websocket_server():
         pipeline.append(diar)
 
     pipeline.extend(
-        [
-            turn_taking,
-            user_context_aggregator,
-            llm,  # LLM
-            tts,
-            ws_transport.output(),
-        ]
+        [turn_taking, user_context_aggregator, llm, tts, ws_transport.output(), assistant_context_aggregator]  # LLM
     )
 
     pipeline = Pipeline(pipeline)

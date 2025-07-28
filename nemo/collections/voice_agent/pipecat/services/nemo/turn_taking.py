@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from typing import List
 
 from loguru import logger
@@ -130,6 +131,7 @@ class NeMoTurnTakingService(FrameProcessor):
         use_diar: bool = False,
         max_buffer_size: int = 5,
         backchannel_phrases: List[str] = DEFAULT_BACKCHANNEL_PHRASES,
+        bot_stop_delay: float = 0.5,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -141,10 +143,11 @@ class NeMoTurnTakingService(FrameProcessor):
         self.max_buffer_size = max_buffer_size
         self.backchannel_phrases = backchannel_phrases
         self.backchannel_phrases_nopc = set([self.clean_text(phrase) for phrase in self.backchannel_phrases])
-
+        self.bot_stop_delay = bot_stop_delay
         # internal data
         self._current_speaker_id = None
         self._prev_speaker_id = None
+        self._bot_stop_time = None
         self._bot_speaking = False
         self._vad_user_speaking = False
         self._have_sent_user_started_speaking = False
@@ -179,6 +182,17 @@ class NeMoTurnTakingService(FrameProcessor):
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
+
+        if self._bot_stop_time is not None:
+            # check if the bot has stopped speaking for more than the delay
+            if time.time() - self._bot_stop_time > self.bot_stop_delay:
+                # set the _bot_speaking flag to False to actually consider the bot as stopped speaking
+                logger.debug(
+                    f"Bot stopped speaking for more than {self.bot_stop_delay} seconds, setting _bot_speaking to False"
+                )
+                self._bot_stop_time = None
+                self._bot_speaking = False
+
         if isinstance(frame, (TranscriptionFrame, InterimTranscriptionFrame)):
             await self._handle_transcription(frame, direction)
         elif isinstance(frame, VADUserStartedSpeakingFrame):
@@ -190,7 +204,11 @@ class NeMoTurnTakingService(FrameProcessor):
             self._bot_speaking = True
         elif isinstance(frame, BotStoppedSpeakingFrame):
             logger.debug("BotStoppedSpeakingFrame received")
-            self._bot_speaking = False
+            self._bot_stop_time = time.time()
+            if self.bot_stop_delay is None or self.bot_stop_delay <= 0:
+                # only set the flag if the delay is not set or is 0
+                self._bot_speaking = False
+                logger.debug(f"Setting _bot_speaking to False")
         elif isinstance(frame, DiarResultFrame):
             logger.debug("DiarResultFrame received")
             await self._handle_diar_result(frame, direction)

@@ -25,31 +25,53 @@ from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.services.openai.llm import OpenAILLMService
 from transformers import AsyncTextIteratorStreamer, AutoModelForCausalLM, AutoTokenizer
 
+DEFAULT_GENERATION_KWARGS = {
+    "max_new_tokens": 256,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "do_sample": True,
+}
+
 
 class HuggingFaceLLMLocalService:
     def __init__(
         self,
         model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
         device: str = "cuda:0",
-        temperature=0.7,
-        max_tokens=256,
-        top_p=0.9,
+        generation_kwargs: dict = None,
+        apply_chat_template_kwargs: dict = None,
     ):
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(model)
         self.model = AutoModelForCausalLM.from_pretrained(
             model, device_map=device, torch_dtype=torch.bfloat16
         )  # type: AutoModelForCausalLM
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.top_p = top_p
+
+        self.generation_kwargs = generation_kwargs if generation_kwargs else DEFAULT_GENERATION_KWARGS
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs else {}
+        print(f"LLM generation kwargs: {self.generation_kwargs}")
+
+        if "tokenize" in self.apply_chat_template_kwargs:
+            logger.warning(
+                f"`tokenize` is not configurable in apply_chat_template_kwargs, it will be ignored and forced to False"
+            )
+            self.apply_chat_template_kwargs.pop("tokenize")
+
+        if "add_generation_prompt" in self.apply_chat_template_kwargs:
+            logger.warning(
+                f"`add_generation_prompt` is not configurable in apply_chat_template_kwargs, it will be ignored and forced to True"
+            )
+            self.apply_chat_template_kwargs.pop("add_generation_prompt")
+
+        print(f"LLM apply_chat_template kwargs: {self.apply_chat_template_kwargs}")
 
     async def generate_stream(
         self, messages: List[ChatCompletionMessageParam], **kwargs
     ) -> AsyncGenerator[ChatCompletionChunk, None]:
         # Convert messages to prompt format
-
-        prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        prompt = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
+        )
 
         logger.debug(f"LLM prompt: {prompt}")
 
@@ -60,10 +82,7 @@ class HuggingFaceLLMLocalService:
         generation_kwargs = {
             **inputs,
             "streamer": streamer,
-            "max_new_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            "top_p": self.top_p,
-            "do_sample": True,
+            **self.generation_kwargs,
         }
 
         # Start generation in background
@@ -92,25 +111,22 @@ class HuggingFaceLLMService(OpenAILLMService):
         *,
         model: str = "google/gemma-7b-it",
         device: str = "cuda",
-        temperature=0.7,
-        max_tokens=256,
-        top_p=0.9,
+        generation_kwargs: dict = None,
+        apply_chat_template_kwargs: dict = None,
         **kwargs,
     ):
         self.model = model
         self.device = device
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.top_p = top_p
+        self.generation_kwargs = generation_kwargs if generation_kwargs is not None else DEFAULT_GENERATION_KWARGS
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs is not None else {}
         super().__init__(model=model, **kwargs)
 
     def create_client(self, api_key=None, base_url=None, **kwargs):
         return HuggingFaceLLMLocalService(
             model=self.model,
             device=self.device,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            top_p=self.top_p,
+            generation_kwargs=self.generation_kwargs,
+            apply_chat_template_kwargs=self.apply_chat_template_kwargs,
         )
 
     async def _process_context(self, context: OpenAILLMContext):

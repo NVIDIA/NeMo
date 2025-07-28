@@ -29,16 +29,20 @@ diar:
   frame_len_in_secs: 0.08  # default for FastConformer, do not change
 
 turn_taking:
-  max_buffer_size: 2
+  max_buffer_size: 2  # num of words more than this amount will interrupt the LLM immediately
+  bot_stop_delay: 0.5  # in seconds, a delay between server and client audio output
 
 llm:
   type: hf
   model: "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"
   device: "cuda"
   system_role: "system"  # role for system prompt, set it to `user` for models that do not support system prompt
-  temperature: 0.7  # LLM sampling params
-  top_p: 0.9  # LLM sampling params
-  max_tokens: 128  # max num of tokens per LLM output
+  apply_chat_template_kwargs: null  # please refer to the model page of each HF LLM model to set them correctly, by default `tokenize=False` and `add_generation_prompt=True` are applied
+  generation_kwargs:  # kwargs that will be passed into model.generate() function of HF models
+    temperature: 0.7  # LLM sampling params
+    top_p: 0.9  # LLM sampling params
+    max_tokens: 128  # max num of tokens per LLM output
+    do_sample: true
 
 tts:
   type: nemo
