@@ -241,8 +241,11 @@ def get_forced_aligned_timestamps_with_external_model(
 
                         if segment.t_end == word.t_end:
                             timestamps["segment"][-1]["end"] = previous_token_end
+                            timestamps["segment"][-1]["end_offset"] = int(previous_token_end / output_timestep_duration) if previous_token_end != -1 else -1
                         if word.t_end == token.t_end:
                             timestamps["word"][-1]["end"] = previous_token_end
+                            timestamps["word"][-1]["end_offset"] = int(previous_token_end / output_timestep_duration) if previous_token_end != -1 else -1
+
 
                         token.t_end = token.t_start = previous_token_end
 
