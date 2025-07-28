@@ -441,6 +441,11 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             raise ValueError(f"Received loss_type of {self.loss_type}, but the model only accepts one of ['grpo', 'dr_grpo']")
         self.scale_rewards = self.cfg.get('scale_rewards', True)
         self.max_decoder_steps = self.cfg.get('max_decoder_steps', 430)
+        # If the best record in the group is above this threshold, we will not use that group for training
+        self.best_cer_threshold = self.cfg.get('best_cer_threshold', 1.0)
+        # If the worst record in the group exceeds this threshold, we will not use that group for training
+        self.worst_cer_threshold = self.cfg.get('worst_cer_threshold', 1.0)
+        
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         state_dict = super().state_dict(destination, prefix, keep_vars)
@@ -583,11 +588,15 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         mean_ssim_dataset = self.cfg.get("mean_ssim_dataset", 0.6) # SSIM equal to this value will have reward of 0.5
         all_groups_mean_reward = 0.0
         all_groups_std_reward = 0.0
+        group_validities = []
         for group_idx in range(num_groups):
             group_start_idx = group_idx * num_generations_per_item
             group_end_idx = group_start_idx + num_generations_per_item
             group_rewards = []
             mean_reward = 0
+            is_group_valid = True
+            group_best_cer = 1.0
+            group_worst_cer = 0.0
             for idx in range(group_start_idx, group_end_idx):
                 # Lower CER and higher speaker similarity is better, means high reward
                 # Higher pesq is better, means high reward
@@ -597,6 +606,9 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 item_cer = min( max(item_cer, 0.0), 1.0)
                 item_ssim = max( min(item_ssim, best_ssim_achievable), 0.0)
                 item_pesq = batch_metrics[idx]['pesq']
+                group_best_cer = min(group_best_cer, item_cer)
+                group_worst_cer = max(group_worst_cer, item_cer)
+                    
                 if item_cer <= mean_cer_dataset:
                     cer_reward = 0.5 + 0.5 * (mean_cer_dataset - item_cer) / mean_cer_dataset # 0.5 to 1
                 else:
@@ -621,6 +633,17 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 batch_metrics[idx]['pesq_reward'] = pesq_reward
                 mean_reward += batch_metrics[idx]['reward']
                 group_rewards.append(batch_metrics[idx]['reward'])
+            
+            if (group_best_cer > self.best_cer_threshold):
+                is_group_valid = False
+                print(f"Group {group_idx} has best CER {group_best_cer} which is above the threshold {self.best_cer_threshold}. Group is invalid.")
+            
+            if (group_worst_cer > self.worst_cer_threshold):
+                is_group_valid = False
+                print(f"Group {group_idx} has worst CER {group_worst_cer} which is above the threshold {self.worst_cer_threshold}. Group is invalid.")
+            
+            for _ in range(num_generations_per_item):
+                group_validities.append(is_group_valid)
 
             mean_reward /= num_generations_per_item
             std_reward = np.std(group_rewards)
@@ -637,6 +660,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         advantages = torch.tensor(advantages, device=self.device)
         print("Mean reward: ", all_groups_mean_reward)
         # import ipdb; ipdb.set_trace()
+        group_validities = torch.tensor(group_validities, device=self.device)
         return {
             'mean_reward': torch.tensor(all_groups_mean_reward, device=self.device),
             'std_reward': torch.tensor(all_groups_std_reward, device=self.device),
@@ -645,6 +669,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             'predicted_codes': predicted_codes,
             'predicted_codes_lens': predicted_codes_lens,
             'advantages': advantages,
+            'group_validities': group_validities,
         }
 
 
@@ -700,7 +725,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             
             per_token_codebook_log_probs = self._get_per_token_logps(codebook_logits, codebook_labels, policy_codebook_loss_mask)
             per_token_loss = -(torch.exp(per_token_codebook_log_probs - per_token_codebook_log_probs.detach()) * advantages.unsqueeze(1))
-
+            group_validities = generated_codes_and_metrics['group_validities'] # B * n_generations_per_item
+            per_token_loss = per_token_loss * group_validities.unsqueeze(1) # B, T
 
             if not self.reference_free:
                 with torch.no_grad():
