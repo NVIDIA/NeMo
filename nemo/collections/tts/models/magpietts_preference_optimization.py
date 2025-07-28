@@ -636,6 +636,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         advantages = [x['advantage'] for x in batch_metrics]
         advantages = torch.tensor(advantages, device=self.device)
         print("Mean reward: ", all_groups_mean_reward)
+        # import ipdb; ipdb.set_trace()
         return {
             'mean_reward': torch.tensor(all_groups_mean_reward, device=self.device),
             'std_reward': torch.tensor(all_groups_std_reward, device=self.device),
@@ -646,6 +647,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             'advantages': advantages,
         }
 
+
     def process_batch_online_po(self, batch, n_generations_per_item, mode='train'):
         use_kv_cache_during_online_po = self.cfg.get("use_kv_cache_during_online_po", False)
         if use_kv_cache_during_online_po:
@@ -653,7 +655,9 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             self.decoder.reset_cache(use_cache=True)
 
         with torch.no_grad():
+            self.eval()
             generated_codes_and_metrics = self.generate_and_reward(batch, n_generations_per_item, mode)
+            self.train()
 
         if use_kv_cache_during_online_po:
             self.use_kv_cache_for_inference = False
