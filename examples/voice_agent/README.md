@@ -83,6 +83,7 @@ export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 
 # export HF_TOKEN="hf_..."  # Use your own HuggingFace API token if needed, as some models may require.
 # export HF_HUB_CACHE="/path/to/your/huggingface/cache"  # change where HF cache is stored if you don't want to use the default cache
+# export SERVER_CONFIG_PATH="/path/to/your/server_config.yaml"  # change where the server config is stored if you have a couple of different configs
 export WEBSOCKET_SERVER=websocket_server  # currently only support `websocket_server` mode
 python ./server/server.py
 ```
