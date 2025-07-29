@@ -1,6 +1,6 @@
 # NeMo Voice Agent
 
-A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the simplest way to create a voice agent using NVIDIA NeMo STT/TTS service and HuggingFace LLM. Everything is deployed locally so you can have your own voice agent. 
+A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the simplest way to create a voice agent using NVIDIA NeMo STT/TTS service and HuggingFace LLM. Everything is open-source and deployed locally so you can have your own voice agent. Feel free to explore the code and see how different speech technologies can be integrated with LLMs to create a seamless conversation experience.
 
 
 
@@ -20,6 +20,7 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 - Better streaming ASR and diarization pipeline.
 - Better TTS model with more natural voice.
 - Joint ASR and diarization model.
+- Function calling, RAG, etc.
 
 
 
@@ -33,7 +34,7 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 
 ### Install dependencies
 
-First, install or update the npm and node.js to the latest version, for example in Ubuntu:
+First, install or update the npm and node.js to the latest version, for example:
 
 ```bash
 sudo apt-get update
@@ -48,18 +49,19 @@ curl -fsSL https://fnm.vercel.app/install | bash
 fnm use --install-if-missing 20
 ```
 
-Create a new conda environment with the dependencies:
+Second, create a new conda environment with the dependencies:
+
 ```bash
 conda env create -f environment.yml
 ```
 
-Activate the environment via `conda activate nemo-voice`
+Then you can activate the environment via `conda activate nemo-voice`.
 
-Alternatively, you can install the dependencies manually in an existing environment:
+Alternatively, you can install the dependencies manually in an existing environment via:
 ```bash
 pip install -r requirements.txt
 ```
-The incompatability errors from pip can be ignored.
+The incompatability errors from pip can be ignored, if any.
 
 ### Configure the server
 
@@ -84,7 +86,6 @@ export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 # export HF_TOKEN="hf_..."  # Use your own HuggingFace API token if needed, as some models may require.
 # export HF_HUB_CACHE="/path/to/your/huggingface/cache"  # change where HF cache is stored if you don't want to use the default cache
 # export SERVER_CONFIG_PATH="/path/to/your/server_config.yaml"  # change where the server config is stored if you have a couple of different configs
-export WEBSOCKET_SERVER=websocket_server  # currently only support `websocket_server` mode
 python ./server/server.py
 ```
 
@@ -132,6 +133,7 @@ We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to ge
 
 
 ## 📝 Notes & FAQ
+- Only one connection to the server is supported at a time, a new connection will disconnect the previous one, but the context will be preserved.
 - If directly loading from HuggingFace and got I/O erros, you can set `llm.model=<local_path>`, where the model is downloaded via somehing like `huggingface-cli download Qwen/Qwen3-8B --local-dir <local_path>`. Same for TTS models.
 - The current ASR and diarization models are not noise-robust, you might need to use a noise-cancelling microphone or a quiet environment. But we will release better models soon.
 - The diarization model works best with speakers that have much more different voices from each other, while it might not work well on some accents due to the limited training data.
