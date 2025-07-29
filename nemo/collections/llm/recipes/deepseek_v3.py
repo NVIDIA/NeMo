@@ -122,8 +122,8 @@ def pretrain_recipe(
     recipe.log.ckpt.train_time_interval = run.Config(timedelta, minutes=60)
 
     # recompute
-    recipe.model.config.recompute_granularity = "selective"
-    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm"]
+    recipe.model.config.recompute_granularity = None #"selective"
+    recipe.model.config.recompute_modules = None #["mla_up_proj", "layernorm"]
 
     # DeepEP
     deepep_callback = run.Config(DeepEPCallback)
@@ -138,7 +138,7 @@ def pretrain_recipe(
         tp_comm_overlap=False,
     )
 
-    recipe.trainer.callbacks.append(deepep_callback)
+    # recipe.trainer.callbacks.append(deepep_callback)
     recipe.trainer.callbacks.append(garbage_collection_callback)
     recipe.trainer.callbacks.append(comm_overlap_callback)
 
