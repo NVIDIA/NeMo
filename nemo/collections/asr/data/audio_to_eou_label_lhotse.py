@@ -186,6 +186,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         self.add_eou_to_text = self.cfg.get('add_eou_to_text', True)
         self.pad_eou_label_secs = self.cfg.get('pad_eou_label_secs', 0.0)
         self.padding_cfg = self.cfg.get('random_padding', None)
+        self.ignore_eob_label = self.cfg.get('ignore_eob_label', False)
         self.augmentor = None
         self.len_augmentor = None
         if self.cfg.get('augmentor', None) is not None:
@@ -338,7 +339,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
                 return torch.zeros(hidden_length).long()
             eou_targets = torch.ones(hidden_length).long()  # speech label
             eou_targets[-1] = EOU_LABEL  # by default it's end of utterance
-            if cut.has_custom("is_backchannel") and cut.custom["is_backchannel"]:
+            if cut.has_custom("is_backchannel") and cut.custom["is_backchannel"] and not self.ignore_eob_label:
                 eou_targets[-1] = EOB_LABEL  # end of backchannel
             return eou_targets
 
@@ -373,7 +374,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             seg_len = self._audio_len_to_frame_len(int(seg_len_in_secs * self.sample_rate))
             eou_targets[sou_idx : sou_idx + seg_len] = SPEECH_LABEL
             last_idx = min(sou_idx + seg_len - 1, hidden_length - 1)
-            if is_backchannel[i]:
+            if is_backchannel[i] and not self.ignore_eob_label:
                 eou_targets[last_idx] = EOB_LABEL  # end of backchannel
             else:
                 eou_targets[last_idx] = EOU_LABEL  # end of utterance
@@ -408,7 +409,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             if self.drop_pnc:
                 text = drop_pnc(text)
             if self.add_eou_to_text:
-                eou_string = self.eob_string if is_backchannel[i] else self.eou_string
+                eou_string = self.eob_string if is_backchannel[i] and not self.ignore_eob_label else self.eou_string
                 if self.add_sep_before_eou:
                     eou_string = " " + eou_string
             else:
