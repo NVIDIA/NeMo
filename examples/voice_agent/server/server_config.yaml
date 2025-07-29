@@ -1,10 +1,10 @@
 
-# bot_prompt: /path/to/prompt.txt
+# bot_prompt: /path/to/prompt.txt  # or use path to a txt file that contains a long prompt.s
 bot_prompt: "You are a helpful AI agent named Lisa. Start by greeting the user warmly and introducing yourself within one sentence. Your answer should be concise and to the point. You might also see speaker tags (<speaker_0>, <speaker_1>, etc.) in the user context. You should respond to the user based on the speaker tag and the context of that speaker. Do not include the speaker tags in your response, use them only to identify the speaker."
 
 
 transport:
-  audio_out_10ms_chunks: 8  # use 4 as websocket default, but increasing to larger number might have less glitches in TTS audio
+  audio_out_10ms_chunks: 8  # use 4 as websocket default, but increasing to a larger number might have less glitches in TTS output
 
 vad:
   type: silero
@@ -34,7 +34,8 @@ turn_taking:
 
 llm:
   type: hf
-  model: "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"
+  dtype: bfloat16  # torch.dtype for LLM
+  model: "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"  # model name for HF models, will be used via `AutoModelForCausalLM.from_pretrained()`
   device: "cuda"
   system_role: "system"  # role for system prompt, set it to `user` for models that do not support system prompt
   apply_chat_template_kwargs: null  # please refer to the model page of each HF LLM model to set them correctly, by default `tokenize=False` and `add_generation_prompt=True` are applied

@@ -73,7 +73,10 @@ Your answer should be concise and to the point.
 """
 
 ################ Start of Configuration #################
+
+### Transport
 TRANSPORT_AUDIO_OUT_10MS_CHUNKS = server_config.transport.audio_out_10ms_chunks
+
 
 ### VAD
 vad_params = VADParams(
@@ -82,6 +85,7 @@ vad_params = VADParams(
     stop_secs=server_config.vad.stop_secs,
     min_volume=server_config.vad.min_volume,
 )
+
 
 ### STT
 STT_MODEL_PATH = server_config.stt.model
@@ -92,6 +96,7 @@ stt_params = NeMoSTTInputParams(
     raw_audio_frame_len_in_secs=RAW_AUDIO_FRAME_LEN_IN_SECS,
 )
 
+
 ### Diarization
 DIAR_MODEL = server_config.diar.model
 USE_DIAR = server_config.diar.enabled
@@ -100,9 +105,11 @@ diar_params = NeMoDiarInputParams(
     threshold=server_config.diar.threshold,
 )
 
+
 ### Turn taking
 TURN_TAKING_MAX_BUFFER_SIZE = server_config.turn_taking.max_buffer_size
 TURN_TAKING_BOT_STOP_DELAY = server_config.turn_taking.bot_stop_delay
+
 
 ### LLM
 SYSTEM_ROLE = server_config.llm.get("system_role", "system")
@@ -116,12 +123,14 @@ logger.info(f"BOT_PROMPT: {BOT_PROMPT}")
 
 LLM_MODEL = server_config.llm.model
 LLM_DEVICE = server_config.llm.device
+LLM_DTYPE = server_config.llm.dtype
 LLM_GENERATION_KWARGS = server_config.llm.get("generation_kwargs", {})
 if LLM_GENERATION_KWARGS is not None:
     LLM_GENERATION_KWARGS = OmegaConf.to_container(LLM_GENERATION_KWARGS)
 LLM_APPLY_CHAT_TEMPLATE_KWARGS = server_config.llm.get("apply_chat_template_kwargs", None)
 if LLM_APPLY_CHAT_TEMPLATE_KWARGS is not None:
     LLM_APPLY_CHAT_TEMPLATE_KWARGS = OmegaConf.to_container(LLM_APPLY_CHAT_TEMPLATE_KWARGS)
+
 
 ### TTS
 TTS_FASTPITCH_MODEL = server_config.tts.fastpitch_model
@@ -221,6 +230,7 @@ async def run_bot_websocket_server():
     llm = HuggingFaceLLMService(
         model=LLM_MODEL,
         device=LLM_DEVICE,
+        dtype=LLM_DTYPE,
         generation_kwargs=LLM_GENERATION_KWARGS,
         apply_chat_template_kwargs=LLM_APPLY_CHAT_TEMPLATE_KWARGS,
     )

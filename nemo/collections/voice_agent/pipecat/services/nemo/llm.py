@@ -38,13 +38,15 @@ class HuggingFaceLLMLocalService:
         self,
         model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
         device: str = "cuda:0",
+        dtype: str = "bfloat16",
         generation_kwargs: dict = None,
         apply_chat_template_kwargs: dict = None,
     ):
         self.device = device
+        self.dtype = dtype
         self.tokenizer = AutoTokenizer.from_pretrained(model)
         self.model = AutoModelForCausalLM.from_pretrained(
-            model, device_map=device, torch_dtype=torch.bfloat16
+            model, device_map=device, torch_dtype=dtype
         )  # type: AutoModelForCausalLM
 
         self.generation_kwargs = generation_kwargs if generation_kwargs else DEFAULT_GENERATION_KWARGS
@@ -111,22 +113,25 @@ class HuggingFaceLLMService(OpenAILLMService):
         *,
         model: str = "google/gemma-7b-it",
         device: str = "cuda",
+        dtype: str = "bfloat16",
         generation_kwargs: dict = None,
         apply_chat_template_kwargs: dict = None,
         **kwargs,
     ):
-        self.model = model
-        self.device = device
-        self.generation_kwargs = generation_kwargs if generation_kwargs is not None else DEFAULT_GENERATION_KWARGS
-        self.apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs is not None else {}
+        self._model_name = model
+        self._device = device
+        self._dtype = dtype
+        self._generation_kwargs = generation_kwargs if generation_kwargs is not None else DEFAULT_GENERATION_KWARGS
+        self._apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs is not None else {}
         super().__init__(model=model, **kwargs)
 
     def create_client(self, api_key=None, base_url=None, **kwargs):
         return HuggingFaceLLMLocalService(
-            model=self.model,
-            device=self.device,
-            generation_kwargs=self.generation_kwargs,
-            apply_chat_template_kwargs=self.apply_chat_template_kwargs,
+            model=self._model_name,
+            device=self._device,
+            dtype=self._dtype,
+            generation_kwargs=self._generation_kwargs,
+            apply_chat_template_kwargs=self._apply_chat_template_kwargs,
         )
 
     async def _process_context(self, context: OpenAILLMContext):
