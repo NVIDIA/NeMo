@@ -18,7 +18,7 @@ import shutil
 import tarfile
 import unicodedata
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List
 
 import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
@@ -602,7 +602,6 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         drop_extra_pre_encoded: int = None,
         return_transcription: bool = True,
         return_log_probs: bool = False,
-        valid_out_len: Optional[int] = None,
     ):
         """
         It simulates a forward step with caching for streaming purposes.
@@ -659,11 +658,6 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             keep_all_outputs=keep_all_outputs,
             drop_extra_pre_encoded=drop_extra_pre_encoded,
         )
-
-        if valid_out_len and not keep_all_outputs:
-            # drop right context if any
-            encoded = encoded[:, :, :valid_out_len]
-            encoded_len = torch.ones_like(encoded_len) * valid_out_len
 
         if isinstance(self, asr_models.EncDecCTCModel) or (
             isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"
