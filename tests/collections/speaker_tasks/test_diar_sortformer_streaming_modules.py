@@ -905,61 +905,106 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
         emb_seq = torch.randn(batch_size, n_frames, emb_dim)
         preds = torch.rand(batch_size, n_frames, n_spk)  # Random probabilities between 0 and 1
 
-        # Call the method
-        mean_sil_emb = sortformer_modules._get_silence_profile(emb_seq, preds)
+        # Initialize state
+        mean_sil_emb = torch.zeros(batch_size, emb_dim, device=emb_seq.device)
+        n_sil_frames = torch.zeros(batch_size, dtype=torch.long, device=emb_seq.device)
 
-        # Check output shape
-        assert mean_sil_emb.shape == (batch_size, emb_dim)
+        # Call the method
+        upd_mean_sil_emb, upd_n_sil_frames = sortformer_modules._get_silence_profile(
+            mean_sil_emb, n_sil_frames, emb_seq, preds
+        )
+
+        # Check output shapes
+        assert upd_mean_sil_emb.shape == (batch_size, emb_dim)
+        assert upd_n_sil_frames.shape == (batch_size,)
 
         # Check device consistency
-        assert mean_sil_emb.device == emb_seq.device
+        assert upd_mean_sil_emb.device == emb_seq.device
+        assert upd_n_sil_frames.device == emb_seq.device
 
         # Check data type
-        assert mean_sil_emb.dtype == emb_seq.dtype
+        assert upd_mean_sil_emb.dtype == emb_seq.dtype
+        assert upd_n_sil_frames.dtype == torch.long
 
-        # Verify the calculation manually for each batch
+        # Verify the calculation manually for each batch for the first call
         for b in range(batch_size):
-            # Calculate which frames are silence (sum of preds < threshold)
-            frame_pred_sums = preds[b].sum(dim=1)  # Shape: (n_frames,)
-            is_silence = frame_pred_sums < sil_threshold  # Shape: (n_frames,)
+            is_silence = preds[b].sum(dim=1) < sil_threshold
+            sil_count = is_silence.sum().item()
 
-            # Get silence embeddings
-            silence_embeddings = emb_seq[b][is_silence]  # Shape: (n_silence_frames, emb_dim)
-
-            if silence_embeddings.shape[0] > 0:
-                # Calculate expected mean silence embedding
-                expected_mean = silence_embeddings.mean(dim=0)  # Shape: (emb_dim,)
-                assert torch.allclose(mean_sil_emb[b], expected_mean, atol=1e-6)
+            if sil_count > 0:
+                silence_embeddings = emb_seq[b][is_silence]
+                expected_mean = silence_embeddings.mean(dim=0)
+                assert torch.allclose(upd_mean_sil_emb[b], expected_mean, atol=1e-6)
+                assert upd_n_sil_frames[b] == sil_count
             else:
-                # If no silence frames, should be zero (due to clamp(min=1) in sil_count)
-                assert torch.allclose(mean_sil_emb[b], torch.zeros(emb_dim), atol=1e-6)
+                assert torch.allclose(upd_mean_sil_emb[b], torch.zeros(emb_dim), atol=1e-6)
+                assert upd_n_sil_frames[b] == 0
+
+        # Test running average with a second call
+        emb_seq2 = torch.randn(batch_size, n_frames, emb_dim, device=emb_seq.device)
+        preds2 = torch.rand(batch_size, n_frames, n_spk, device=emb_seq.device)
+
+        final_mean_sil_emb, final_n_sil_frames = sortformer_modules._get_silence_profile(
+            upd_mean_sil_emb, upd_n_sil_frames, emb_seq2, preds2
+        )
+
+        for b in range(batch_size):
+            is_silence2 = preds2[b].sum(dim=1) < sil_threshold
+            sil_count2 = is_silence2.sum().item()
+            total_sil_count = upd_n_sil_frames[b].item() + sil_count2
+
+            if total_sil_count > 0:
+                sil_emb_sum1 = upd_mean_sil_emb[b] * upd_n_sil_frames[b]
+                sil_emb_sum2 = emb_seq2[b][is_silence2].sum(dim=0) if sil_count2 > 0 else 0
+                expected_final_mean = (sil_emb_sum1 + sil_emb_sum2) / total_sil_count
+
+                assert torch.allclose(final_mean_sil_emb[b], expected_final_mean, atol=1e-6)
+                assert final_n_sil_frames[b] == total_sil_count
+            else:
+                assert torch.allclose(final_mean_sil_emb[b], torch.zeros(emb_dim), atol=1e-6)
+                assert final_n_sil_frames[b] == 0
 
         # Test edge case: all frames are silence
-        all_silence_preds = torch.zeros(batch_size, n_frames, n_spk)
-        all_silence_mean = sortformer_modules._get_silence_profile(emb_seq, all_silence_preds)
+        all_silence_preds = torch.zeros(batch_size, n_frames, n_spk, device=preds.device)
+        mean_sil_emb_init = torch.zeros(batch_size, emb_dim, device=emb_seq.device)
+        n_sil_frames_init = torch.zeros(batch_size, dtype=torch.long, device=emb_seq.device)
+        all_silence_mean, all_silence_n_frames = sortformer_modules._get_silence_profile(
+            mean_sil_emb_init, n_sil_frames_init, emb_seq, all_silence_preds
+        )
         for b in range(batch_size):
             expected_all_silence = emb_seq[b].mean(dim=0)
             assert torch.allclose(all_silence_mean[b], expected_all_silence, atol=1e-6)
+            assert all_silence_n_frames[b] == n_frames
 
         # Test edge case: no silence frames
-        no_silence_preds = torch.ones(batch_size, n_frames, n_spk) * 0.9  # All above threshold
-        no_silence_mean = sortformer_modules._get_silence_profile(emb_seq, no_silence_preds)
-        for b in range(batch_size):
-            # Should be zero due to clamp(min=1) in sil_count
-            assert torch.allclose(no_silence_mean[b], torch.zeros(emb_dim), atol=1e-6)
+        no_silence_preds = torch.ones(batch_size, n_frames, n_spk, device=preds.device) * (
+            sil_threshold + 0.1
+        )  # All above threshold
+        mean_sil_emb_init = torch.zeros(batch_size, emb_dim, device=emb_seq.device)
+        n_sil_frames_init = torch.zeros(batch_size, dtype=torch.long, device=emb_seq.device)
+        no_silence_mean, no_silence_n_frames = sortformer_modules._get_silence_profile(
+            mean_sil_emb_init, n_sil_frames_init, emb_seq, no_silence_preds
+        )
+        assert torch.allclose(no_silence_mean, torch.zeros(batch_size, emb_dim), atol=1e-6)
+        assert torch.all(no_silence_n_frames == 0)
 
         # Test edge case: mixed silence and speech
-        mixed_preds = torch.zeros(batch_size, n_frames, n_spk)
+        mixed_preds = torch.zeros(batch_size, n_frames, n_spk, device=preds.device)
         # Make first half of frames silence, second half speech
-        mixed_preds[:, : n_frames // 2, :] = 0.0  # Silence
-        mixed_preds[:, n_frames // 2 :, :] = 0.9  # Speech
-        mixed_mean = sortformer_modules._get_silence_profile(emb_seq, mixed_preds)
+        mixed_preds[:, : n_frames // 2] = 0.0  # Silence
+        mixed_preds[:, n_frames // 2 :] = sil_threshold + 0.1  # Speech
+        mean_sil_emb_init = torch.zeros(batch_size, emb_dim, device=emb_seq.device)
+        n_sil_frames_init = torch.zeros(batch_size, dtype=torch.long, device=emb_seq.device)
+        mixed_mean, mixed_n_frames = sortformer_modules._get_silence_profile(
+            mean_sil_emb_init, n_sil_frames_init, emb_seq, mixed_preds
+        )
 
         for b in range(batch_size):
             # Only first half should be considered silence
             silence_embeddings = emb_seq[b, : n_frames // 2]
             expected_mixed_mean = silence_embeddings.mean(dim=0)
             assert torch.allclose(mixed_mean[b], expected_mixed_mean, atol=1e-6)
+            assert mixed_n_frames[b] == n_frames // 2
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -1160,9 +1205,14 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
         if spkcache_len > 2:
             is_disabled[:, 1:3] = True  # Disable some frames
 
+        # Get mean silence embedding, which is needed for the method call
+        mean_sil_emb = torch.zeros(batch_size, emb_dim, device=emb_seq.device)
+        n_sil_frames = torch.zeros(batch_size, dtype=torch.long, device=emb_seq.device)
+        mean_sil_emb, _ = sortformer_modules._get_silence_profile(mean_sil_emb, n_sil_frames, emb_seq, preds)
+
         # Call the method
         emb_seq_gathered, preds_gathered = sortformer_modules._gather_spkcache_and_preds(
-            emb_seq, preds, topk_indices, is_disabled
+            emb_seq, preds, topk_indices, is_disabled, mean_sil_emb
         )
 
         # Check output shapes
@@ -1189,12 +1239,9 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
         # Verify that disabled frames use silence embedding and zero predictions
         for b in range(batch_size):
             if torch.any(is_disabled[b]):
-                # Get mean silence embedding for this batch
-                mean_sil_emb = sortformer_modules._get_silence_profile(emb_seq, preds)[b]
-
-                # Check that disabled frames use silence embedding
+                # Check that disabled frames use the provided silence embedding
                 disabled_embeddings = emb_seq_gathered[b, is_disabled[b]]
-                expected_sil_emb = mean_sil_emb.unsqueeze(0).expand(disabled_embeddings.shape[0], -1)
+                expected_sil_emb = mean_sil_emb[b].unsqueeze(0).expand(disabled_embeddings.shape[0], -1)
                 assert torch.allclose(disabled_embeddings, expected_sil_emb, atol=1e-6)
 
                 # Check that disabled frames have zero predictions
@@ -1204,12 +1251,11 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
         # Test edge case: all frames disabled
         all_disabled = torch.ones((batch_size, spkcache_len), dtype=torch.bool)
         all_disabled_emb, all_disabled_preds = sortformer_modules._gather_spkcache_and_preds(
-            emb_seq, preds, topk_indices, all_disabled
+            emb_seq, preds, topk_indices, all_disabled, mean_sil_emb
         )
 
         # All embeddings should be silence embeddings
-        mean_sil_emb_all = sortformer_modules._get_silence_profile(emb_seq, preds)
-        expected_sil_emb_all = mean_sil_emb_all.unsqueeze(1).expand(-1, spkcache_len, -1)
+        expected_sil_emb_all = mean_sil_emb.unsqueeze(1).expand(-1, spkcache_len, -1)
         assert torch.allclose(all_disabled_emb, expected_sil_emb_all, atol=1e-6)
 
         # All predictions should be zero
@@ -1218,7 +1264,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
         # Test edge case: no frames disabled
         no_disabled = torch.zeros((batch_size, spkcache_len), dtype=torch.bool)
         no_disabled_emb, no_disabled_preds = sortformer_modules._gather_spkcache_and_preds(
-            emb_seq, preds, topk_indices, no_disabled
+            emb_seq, preds, topk_indices, no_disabled, mean_sil_emb
         )
 
         # All embeddings and predictions should be gathered directly
@@ -1233,7 +1279,9 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
         edge_indices[:, 0] = 0  # First frame
         edge_indices[:, -1] = n_frames - 1  # Last frame
 
-        edge_emb, edge_preds = sortformer_modules._gather_spkcache_and_preds(emb_seq, preds, edge_indices, is_disabled)
+        edge_emb, edge_preds = sortformer_modules._gather_spkcache_and_preds(
+            emb_seq, preds, edge_indices, is_disabled, mean_sil_emb
+        )
 
         # Verify edge frame gathering works correctly
         for b in range(batch_size):
@@ -1471,8 +1519,15 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
         emb_seq = torch.randn(batch_size, n_frames, emb_dim)
         preds = torch.rand(batch_size, n_frames, n_spk)  # Random probabilities between 0 and 1
 
+        # Get mean silence embedding, which is needed for the method call
+        mean_sil_emb = torch.zeros(batch_size, emb_dim, device=emb_seq.device)
+        n_sil_frames = torch.zeros(batch_size, dtype=torch.long, device=emb_seq.device)
+        mean_sil_emb, _ = sortformer_modules._get_silence_profile(mean_sil_emb, n_sil_frames, emb_seq, preds)
+
         # Call the method without permutation
-        spkcache, spkcache_preds, spk_perm = sortformer_modules._compress_spkcache(emb_seq, preds, permute_spk=False)
+        spkcache, spkcache_preds, spk_perm = sortformer_modules._compress_spkcache(
+            emb_seq, preds, mean_sil_emb, permute_spk=False
+        )
 
         # Check output shapes
         assert spkcache.shape == (batch_size, spkcache_len, emb_dim)
@@ -1489,7 +1544,7 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
 
         # Test with permutation enabled
         spkcache_perm, spkcache_preds_perm, spk_perm_perm = sortformer_modules._compress_spkcache(
-            emb_seq, preds, permute_spk=True
+            emb_seq, preds, mean_sil_emb, permute_spk=True
         )
 
         # Check output shapes with permutation
@@ -1504,8 +1559,11 @@ class TestSortformerStreamingModules_StreamingScoreComputations:
         if n_frames == spkcache_len:
             edge_emb_seq = torch.randn(batch_size, spkcache_len, emb_dim)
             edge_preds = torch.rand(batch_size, spkcache_len, n_spk)
+            mean_sil_emb_edge, _ = sortformer_modules._get_silence_profile(
+                mean_sil_emb, n_sil_frames, edge_emb_seq, edge_preds
+            )
             edge_spkcache, edge_spkcache_preds, edge_spk_perm = sortformer_modules._compress_spkcache(
-                edge_emb_seq, edge_preds, permute_spk=False
+                edge_emb_seq, edge_preds, mean_sil_emb_edge, permute_spk=False
             )
 
             assert edge_spkcache.shape == (batch_size, spkcache_len, emb_dim)
