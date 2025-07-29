@@ -119,7 +119,7 @@ Please refer to the HuggingFace webpage of each model to configure the model par
 
 ### 🎤 ASR 
 
-We use [cache-aware streaming FastConformer](https://arxiv.org/abs/2312.17279) to transcribe the user's speech. While new models are to be released, we use the existing Englishmodels for now:
+We use [cache-aware streaming FastConformer](https://arxiv.org/abs/2312.17279) to transcribe the user's speech. While new models are to be released, we use the existing English models for now:
 - [stt_en_fastconformer_hybrid_large_streaming_80ms](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_fastconformer_hybrid_large_streaming_80ms)  (default)
 - [nvidia/stt_en_fastconformer_hybrid_large_streaming_multi](https://huggingface.co/nvidia/stt_en_fastconformer_hybrid_large_streaming_multi)
 
@@ -129,7 +129,7 @@ We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the spe
 
 ### 🔉 TTS
 
-We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to generate the speech for the LLM response, more TTS models will be supported in the future.
+We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to generate the speech for the LLM response, and it only supports English output. More TTS models will be supported in the future.
 
 
 ## 📝 Notes & FAQ
