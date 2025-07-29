@@ -26,7 +26,7 @@ class AutoTuneArgs:
         self.pipeline_parallel_sizes = kwargs.get('pipeline_parallel_sizes', 'auto')
         self.context_parallel_sizes = kwargs.get('context_parallel_sizes', [1, 2])
         self.expert_parallel_sizes = kwargs.get('expert_parallel_sizes', [1])
-        self.virtual_pipeline_parallel_sizes = kwargs.get('virtual_pipeline_parallel_sizes', None)
+        self.virtual_pipeline_model_parallel_sizes = kwargs.get('virtual_pipeline_model_parallel_sizes', None)
         self.micro_batch_sizes = kwargs.get('micro_batch_sizes', 'auto')
         self.max_model_parallel_size = kwargs.get('max_model_parallel_size', 8)
         self.min_model_parallel_size = kwargs.get('min_model_parallel_size', 1)
@@ -48,7 +48,8 @@ class AutoTuneArgs:
         self.nemo_run_dir = kwargs.get('nemo_run_dir', '/nemo-workspace/nemo-run')
         self.mount_path = kwargs.get('mount_path')
         self.mount_from = kwargs.get('mount_from')
-        self.node_group = kwargs.get('node_group')
+        self.launcher_node_group = kwargs.get('launcher_node_group')
+        self.training_node_group = kwargs.get('training_node_group')
         self.hf_token = kwargs.get('hf_token', None)
         self.wandb_api_key = kwargs.get('wandb_api_key', None)
         self.torch_home = kwargs.get('torch_home', '/nemo-workspace/.cache')
@@ -163,7 +164,8 @@ class AutoTuneArgs:
             'nemo_run_dir': self.nemo_run_dir,
             'mount_path': self.mount_path,
             'mount_from': self.mount_from,
-            'node_group': self.node_group,
+            'launcher_node_group': self.launcher_node_group,
+            'training_node_group': self.training_node_group,
             'hf_token': self.hf_token,
             'wandb_api_key': self.wandb_api_key,
             'torch_home': self.torch_home,
@@ -283,7 +285,8 @@ class AutoTuneArgs:
             "nemo_run_dir": self.nemo_run_dir,
             "mount_path": self.mount_path,
             "mount_from": self.mount_from,
-            "node_group": self.node_group,
+            "launcher_node_group": self.launcher_node_group,
+            "training_node_group": self.training_node_group,
             "hf_token": self.hf_token,
             "wandb_api_key": self.wandb_api_key,
             "torch_home": self.torch_home,

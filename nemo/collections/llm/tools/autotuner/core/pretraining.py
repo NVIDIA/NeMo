@@ -150,7 +150,20 @@ def run_pretraining(
             logger.info(f"Skipping base_config as it matches: {', '.join(base_config_matches)}")
         
         idx = 2
-        for config_name, recipe in configs_to_run.items():
+        def extract_config_number(config_name):
+            """Extract numerical part from config name for sorting."""
+            try:
+                if config_name.startswith('config-'):
+                    return int(config_name.split('-')[-1])
+                elif config_name.startswith('base_config'):
+                    return 0  # base_config comes first
+                else:
+                    return float('inf')  # unknown configs go last
+            except (ValueError, IndexError):
+                return float('inf')  # invalid configs go last
+        
+        sorted_configs = sorted(configs_to_run.items(), key=lambda x: extract_config_number(x[0]))
+        for config_name, recipe in sorted_configs:
             plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if recipe.trainer.strategy.pipeline_model_parallel_size > 1 else None)]
             if config_name in base_config_matches:
                 exp.add(recipe, executor=executor, name=f'base-config', plugins=plugins)

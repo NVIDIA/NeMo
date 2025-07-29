@@ -10,7 +10,7 @@ from nemo.collections.llm.tools.autotuner.core.utils import extract_all_values, 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int = 5, force_reconstruct: bool = False, cost_per_node_hour: float = 24.0, quiet: bool = False) -> Dict[str, Any]:
+def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int = 5, force_reconstruct: bool = False, cost_per_gpu_hour: float = 24.0, quiet: bool = False) -> Dict[str, Any]:
     """
     Collect, analyze, and display AutoConfigurator results in one step.
     Returns a dict with performance_dict and analysis_data.
@@ -57,7 +57,7 @@ def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int
     if performance_dict:
         total_tokens = args.num_tokens_in_b * 1_000_000_000
         # total_tokens =  15000 * 1_000_000_000
-        analysis_data = calculate_performance_analysis(performance_dict, args, total_tokens, cost_per_node_hour)
+        analysis_data = calculate_performance_analysis(performance_dict, args, total_tokens, cost_per_gpu_hour)
         display_performance_analysis(analysis_data)
 
     return {
@@ -66,14 +66,13 @@ def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int
         'metadata': metadata
     }
 
-def calculate_performance_analysis(performance_dict, args, total_tokens, cost_per_node_hour):
+def calculate_performance_analysis(performance_dict, args, total_tokens, cost_per_gpu_hour):
     """
     Calculate performance and cost analysis for all configurations.
     Returns a dict with config_analysis, sorted_configs, and args.
     """
     if not performance_dict:
         return None
-    print(f"cost_per_node_hour {cost_per_node_hour}")
     total_gpus = args.nodes * args.gpus_per_node
     config_analysis = {}
     for config_name, config_data in performance_dict.items():
@@ -87,7 +86,7 @@ def calculate_performance_analysis(performance_dict, args, total_tokens, cost_pe
         total_steps = total_tokens / tokens_per_step
         total_training_time_seconds = time_per_step * total_steps
         total_training_time_hours = total_training_time_seconds / 3600
-        total_cost = total_training_time_hours * cost_per_node_hour * args.nodes
+        total_cost = total_training_time_hours * cost_per_gpu_hour * total_gpus
         config_analysis[config_name] = {
             **config_data,
             'gbs': gbs,
