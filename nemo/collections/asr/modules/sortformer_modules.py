@@ -55,6 +55,7 @@ class StreamingSortformerState:
     mean_sil_emb = None
     n_sil_frames = None
 
+
 class SortformerModules(NeuralModule, Exportable):
     """
     A class including auxiliary functions for Sortformer models.
@@ -423,9 +424,12 @@ class SortformerModules(NeuralModule, Exportable):
                 streaming_state.spkcache_lengths[batch_index] += pop_out_len
                 pop_out_embs = updated_fifo[batch_index, :pop_out_len, :]
                 pop_out_preds = updated_fifo_preds[batch_index, :pop_out_len, :]
-                streaming_state.mean_sil_emb[batch_index:batch_index+1], streaming_state.n_sil_frames[batch_index:batch_index+1] = self._get_silence_profile(
-                    streaming_state.mean_sil_emb[batch_index:batch_index+1],
-                    streaming_state.n_sil_frames[batch_index:batch_index+1],
+                (
+                    streaming_state.mean_sil_emb[batch_index : batch_index + 1],
+                    streaming_state.n_sil_frames[batch_index : batch_index + 1],
+                ) = self._get_silence_profile(
+                    streaming_state.mean_sil_emb[batch_index : batch_index + 1],
+                    streaming_state.n_sil_frames[batch_index : batch_index + 1],
                     pop_out_embs.unsqueeze(0),
                     pop_out_preds.unsqueeze(0),
                 )
@@ -454,7 +458,10 @@ class SortformerModules(NeuralModule, Exportable):
         idx = torch.where(need_compress)[0]
         if len(idx) > 0:
             streaming_state.spkcache[idx], streaming_state.spkcache_preds[idx], _ = self._compress_spkcache(
-                emb_seq=updated_spkcache[idx], preds=updated_spkcache_preds[idx], mean_sil_emb=streaming_state.mean_sil_emb[idx], permute_spk=False
+                emb_seq=updated_spkcache[idx],
+                preds=updated_spkcache_preds[idx],
+                mean_sil_emb=streaming_state.mean_sil_emb[idx],
+                permute_spk=False,
             )
             streaming_state.spkcache_lengths[idx] = streaming_state.spkcache_lengths[idx].clamp(max=self.spkcache_len)
 
@@ -465,8 +472,7 @@ class SortformerModules(NeuralModule, Exportable):
                 f"chunk_preds: {chunk_preds.shape}"
             )
             logging.info(
-                f"sil_emb: {streaming_state.mean_sil_emb.shape}, "
-                f"sil_frames: {streaming_state.n_sil_frames}"
+                f"sil_emb: {streaming_state.mean_sil_emb.shape}, " f"sil_frames: {streaming_state.n_sil_frames}"
             )
 
         return streaming_state, chunk_preds
@@ -555,8 +561,7 @@ class SortformerModules(NeuralModule, Exportable):
                 f"chunk_preds: {chunk_preds.shape}"
             )
             logging.info(
-                f"sil_emb: {streaming_state.mean_sil_emb.shape}, "
-                f"sil_frames: {streaming_state.n_sil_frames}"
+                f"sil_emb: {streaming_state.mean_sil_emb.shape}, " f"sil_frames: {streaming_state.n_sil_frames}"
             )
 
         return streaming_state, chunk_preds
@@ -617,7 +622,9 @@ class SortformerModules(NeuralModule, Exportable):
             if sil_count[batch_index] > 0:
                 sil_emb_sum = emb_seq[batch_index, is_sil[batch_index]].sum(dim=0)
                 upd_n_sil_frames[batch_index] += sil_count[batch_index]
-                upd_mean_sil_emb[batch_index] = (mean_sil_emb[batch_index] * n_sil_frames[batch_index] + sil_emb_sum) / upd_n_sil_frames[batch_index]
+                upd_mean_sil_emb[batch_index] = (
+                    mean_sil_emb[batch_index] * n_sil_frames[batch_index] + sil_emb_sum
+                ) / upd_n_sil_frames[batch_index]
 
         return upd_mean_sil_emb, upd_n_sil_frames
 
@@ -845,5 +852,7 @@ class SortformerModules(NeuralModule, Exportable):
             scores = torch.cat([scores, pad], dim=1)  # (batch_size, n_frames + spkcache_sil_frames_per_spk, n_spk)
 
         topk_indices, is_disabled = self._get_topk_indices(scores)
-        spkcache, spkcache_preds = self._gather_spkcache_and_preds(emb_seq, preds, topk_indices, is_disabled, mean_sil_emb)
+        spkcache, spkcache_preds = self._gather_spkcache_and_preds(
+            emb_seq, preds, topk_indices, is_disabled, mean_sil_emb
+        )
         return spkcache, spkcache_preds, spk_perm
