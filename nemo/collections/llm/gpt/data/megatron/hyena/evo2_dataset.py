@@ -33,7 +33,8 @@ class Evo2Dataset(GPTDataset):
     RESET_PAD_EOD_MASK: bool = True  # If set, unset the mask for [pad] and [eod] tokens (matches Evo2 paper).
     # Valid DNA tokens: A, C, G, T, U, W, S, M, K, R, Y, B, D, H, V, N, -,  (both uppercase and lowercase and
     #   degenerate bases and RNA)
-    VALID_DNA: ClassVar[set[int]] = {
+
+    VALID_DNA_AND_DEGENERATE: ClassVar[set[int]] = {
         45,
         45,
         65,
@@ -69,6 +70,7 @@ class Evo2Dataset(GPTDataset):
         119,
         121,
     }
+    DNA_TOKENS: list[int] = [65, 67, 71, 84, 97, 99, 103, 116]
 
     def _get_gpt_batch(self, idx: Optional[int]) -> dict[str, torch.Tensor]:
         return super().__getitem__(idx)
@@ -85,7 +87,9 @@ class Evo2Dataset(GPTDataset):
 
         # Mask special label tags in loss.
         control_mask = torch.isin(labels, torch.tensor(self.CONTROL_TAGS, device=labels.device))
-        loss_mask[control_mask] = 0
+        # Mask degenerate (and U) DNA tokens
+        not_dna_mask = ~torch.isin(labels, torch.tensor(self.DNA_TOKENS, device=labels.device))
+        loss_mask[control_mask | not_dna_mask] = 0
         phylotag_mask = self.mask_phylogenetic_tags(
             labels,
             self.TAG_BOUNDS,
@@ -181,7 +185,7 @@ class Evo2Dataset(GPTDataset):
         first_taxonomy_prefix_token: int = 100
 
         valid_dna_or_control_tensor = torch.tensor(
-            list(Evo2Dataset.VALID_DNA | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype
+            list(Evo2Dataset.VALID_DNA_AND_DEGENERATE | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype
         )
 
         # Initialize output mask to all ones.
