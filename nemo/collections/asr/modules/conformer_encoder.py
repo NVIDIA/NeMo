@@ -778,7 +778,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
                 seq_length = global_max_len.int().item()
         except AttributeError:
-           self.max_audio_length = seq_length 
+            self.max_audio_length = seq_length
 
         if seq_length > self.max_audio_length:
             self.set_max_audio_length(seq_length)
