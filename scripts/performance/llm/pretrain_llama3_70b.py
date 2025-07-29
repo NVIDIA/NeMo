@@ -31,7 +31,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
+from ..utils import dump_config_diff_from_base_recipe, get_comm_overlap_callback_idx, hf_tokenizer
 
 
 def override_recipe_configs(
@@ -48,6 +48,10 @@ def override_recipe_configs(
     use_mcore_fsdp: bool,
     recompute_layers: int,
     activation_offload_layers: int,
+    recompute_modules: list,
+    keep_fsdp_fp8_transpose_cache: bool,
+    use_user_buffer_registration: bool,
+    use_sharp: bool,
 ):
     """
     llama3 70b pre-train recipe aimed at achieving best possible performance.
@@ -70,13 +74,15 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
-        use_user_buffer_registration=args.use_user_buffer_registration,
-        use_sharp=args.use_sharp,
+        use_user_buffer_registration=use_user_buffer_registration,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_sharp=use_sharp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
+        keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -111,15 +117,10 @@ def override_recipe_configs(
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
-    if args.fp8_recipe.lower() != "mxfp8":
-        tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
-        # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
-        tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
-    if args.compute_dtype.lower() == "fp8" and args.fp8_recipe.lower() == "mxfp8":
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
-
+    tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
+    # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
+    tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
+    recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
     return recipe
 
 
@@ -142,7 +143,11 @@ if __name__ == "__main__":
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:13]
+        recompute_modules,
+        keep_fsdp_fp8_transpose_cache,
+        use_user_buffer_registration,
+        use_sharp,
+    ) = kwargs[:17]
 
     recipe = override_recipe_configs(
         args,
@@ -158,6 +163,10 @@ if __name__ == "__main__":
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
+        recompute_modules,
+        keep_fsdp_fp8_transpose_cache,
+        use_user_buffer_registration,
+        use_sharp,
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
@@ -177,7 +186,7 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
-        network='sharp' if args.use_sharp else None,
+        network='sharp' if use_sharp else None,
     )
 
     plugins = [
@@ -185,6 +194,7 @@ if __name__ == "__main__":
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            user_buffer_registration=use_user_buffer_registration,
         )
     ]
     if args.enable_nsys:
@@ -205,3 +215,14 @@ if __name__ == "__main__":
             exp.run(sequential=True, detach=True)
         else:
             exp.dryrun()
+
+    if args.dump_config_diff_from_base_recipe:
+        output_dir = exp.jobs[0].executor.job_dir
+        # dump difference from base recipe
+        base_recipe = pretrain_recipe(performance_mode=False)
+        file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)
+        # dump difference from default perf recipe
+        default_perf_recipe = pretrain_recipe(performance_mode=True)
+        file_name = f"diff_from_default_perf_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(default_perf_recipe, recipe, output_dir, file_name=file_name)

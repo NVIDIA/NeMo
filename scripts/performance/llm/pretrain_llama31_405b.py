@@ -31,7 +31,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
+from ..utils import dump_config_diff_from_base_recipe, get_comm_overlap_callback_idx, hf_tokenizer
 
 
 def override_recipe_configs(
@@ -55,6 +55,7 @@ def override_recipe_configs(
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
     recipe = pretrain_recipe(performance_mode=True)
+
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -70,6 +71,7 @@ def override_recipe_configs(
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         recompute_layers=recompute_layers,
@@ -121,14 +123,13 @@ def override_recipe_configs(
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
-    if args.fp8_recipe.lower() != "mxfp8":
-        tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
-        # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
-        tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
-    if args.compute_dtype.lower() == "fp8" and args.fp8_recipe.lower() == "mxfp8":
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+    tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
+    # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
+    tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
+    recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
+
+    if use_mcore_fsdp and gpu_type == 'gb200':
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) / 64
 
     return recipe
 
@@ -173,6 +174,12 @@ if __name__ == "__main__":
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
+    if use_mcore_fsdp:
+        # Needed to enable CuDNN LN for FSDP overlap
+        env_vars = {"NVTE_NORM_FWD_USE_CUDNN": "1", "NVTE_NORM_BWD_USE_CUDNN": "1"}
+    else:
+        env_vars = {}
+
     executor = slurm_executor(
         args.gpu.lower(),
         args.account,
@@ -183,7 +190,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
@@ -215,3 +222,14 @@ if __name__ == "__main__":
             exp.run(sequential=True, detach=True)
         else:
             exp.dryrun()
+
+    if args.dump_config_diff_from_base_recipe:
+        output_dir = exp.jobs[0].executor.job_dir
+        # dump difference from base recipe
+        base_recipe = pretrain_recipe(performance_mode=False)
+        file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)
+        # dump difference from default perf recipe
+        default_perf_recipe = pretrain_recipe(performance_mode=True)
+        file_name = f"diff_from_default_perf_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(default_perf_recipe, recipe, output_dir, file_name=file_name)
