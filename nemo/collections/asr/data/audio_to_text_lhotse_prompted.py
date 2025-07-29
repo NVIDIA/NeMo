@@ -67,6 +67,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self,
         tokenizer: TokenizerSpec,
         prompt: PromptFormatter,
+        trainer: None,
     ):
         super().__init__()
         self.tokenizer = tokenizer

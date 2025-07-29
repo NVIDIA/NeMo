@@ -187,18 +187,18 @@ class EncDecHybridMultiTaskCTCModel(EncDecMultiTaskModel, InterCTCMixin):
 
         return None
 
-    def ctc_forward(self, enc_states: torch.Tensor, batch: PromptedAudioToTextMiniBatch):
+    def ctc_forward(self, enc_states: torch.Tensor, prompt: torch.Tensor):
 
         # print('Batch prompt: ', batch.prompt)
 
         # print('Source Lang IDs: ', batch.prompt[:, 4].long())
         # print('Target Lang IDs: ', batch.prompt[:, 5].long())
 
-        src_lang_ids_dec = self.tokenizer.ids_to_tokens(batch.prompt[:, 4].long())
-        tgt_lang_ids_dec = self.tokenizer.ids_to_tokens(batch.prompt[:, 5].long())
+        src_lang_ids_dec = self.tokenizer.ids_to_tokens(prompt[:, 4].long())
+        tgt_lang_ids_dec = self.tokenizer.ids_to_tokens(prompt[:, 5].long())
 
-        batch_src_lang_ids = self.id2idx_lut[batch.prompt[:, 4].long()]
-        batch_tgt_lang_ids = self.id2idx_lut[batch.prompt[:, 5].long()]
+        batch_src_lang_ids = self.id2idx_lut[prompt[:, 4].long()]
+        batch_tgt_lang_ids = self.id2idx_lut[prompt[:, 5].long()]
         # print('Src lang ids dec: ', src_lang_ids_dec)
         # print('Tgt lang ids dec: ', tgt_lang_ids_dec)
 
@@ -305,7 +305,7 @@ class EncDecHybridMultiTaskCTCModel(EncDecMultiTaskModel, InterCTCMixin):
         if self.ctc_loss_weight > 0:
             ctc_metrics['transf_loss'] = loss
 
-            ctc_log_probs = self.ctc_forward(enc_states=enc_states, batch=batch)
+            ctc_log_probs = self.ctc_forward(enc_states=enc_states, prompt=batch.prompt)
             ctc_loss = self.ctc_loss(
                 log_probs=ctc_log_probs, targets=batch.transcript, input_lengths=encoded_len, target_lengths=batch.transcript_lens
             )
@@ -395,6 +395,48 @@ class EncDecHybridMultiTaskCTCModel(EncDecMultiTaskModel, InterCTCMixin):
         metric_dict[f"{eval_mode}_loss"] = transf_loss
         return metric_dict
 
+
+    def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
+        """
+        Internal function to process the model's outputs to return the results to the user. This function is called by
+        `transcribe()` and `transcribe_generator()` to process the model's outputs.
+
+        Args:
+            outputs: The model's outputs that are processed by `_transcribe_forward()`.
+            trcfg: The transcription config dataclass. Subclasses can change this to a different dataclass if needed.
+
+        Returns:
+            The output can be a list of
+            objects, list of list of objects.
+            Its type is defined in `TranscriptionReturnType`.
+        """
+        if self.cur_decoder == "aed":
+            return super()._transcribe_output_processing(outputs, trcfg)
+        else:
+            log_probs = outputs.pop('log_probs')
+            encoded_len = outputs.pop('encoded_lengths')
+            enc_states = outputs.pop('encoder_states')
+            enc_mask = outputs.pop('encoder_mask')
+            decoder_input_ids = outputs.pop('decoder_input_ids')
+
+            del log_probs, enc_mask, decoder_input_ids
+
+            ctc_log_probs = self.ctc_forward(enc_states=enc_states, prompt=decoder_input_ids)
+
+            hypotheses = self.ctc_decoding.ctc_decoder_predictions_tensor(
+                    decoder_outputs=ctc_log_probs,
+                    decoder_lengths=encoded_len,
+                    return_hypotheses=trcfg.return_hypotheses,
+                    )
+
+            del enc_states, encoded_len, ctc_log_probs
+
+            hypotheses = process_aed_timestamp_outputs(
+                hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
+
+            return hypotheses
+        
     @classmethod
     def restore_from(cls, 
                     restore_path: str, 

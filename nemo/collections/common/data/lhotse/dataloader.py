@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -202,6 +202,8 @@ class LhotseDataLoadingConfig:
     # * use map dataset for non-tarred audio data (we might change this in the future)
     force_map_dataset: bool = False
     force_iterable_dataset: bool = False
+    total_iterations: int | None = None
+    scheduler_type: str | None = None
 
 
 def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
@@ -219,6 +221,7 @@ def get_lhotse_dataloader_from_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
+    trainer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -255,7 +258,7 @@ def get_lhotse_dataloader_from_config(
         )
     else:
         return get_lhotse_dataloader_from_single_config(
-            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer, trainer=trainer
         )
 
 
@@ -265,6 +268,7 @@ def get_lhotse_dataloader_from_single_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
+    trainer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -287,6 +291,7 @@ def get_lhotse_dataloader_from_single_config(
 
     Note that ``tokenizer`` can be any tokenizer type (e.g. both SentencePiece and Aggregate tokenizers work).
     """
+    logging.info(f"In get_lhotse_dataloader_from_single_config: doing {trainer.global_step} step")
     logging.info("We will be using a Lhotse DataLoader.")
     config = make_structured_with_schema_warnings(config)
 
@@ -295,7 +300,7 @@ def get_lhotse_dataloader_from_single_config(
     fix_random_seed(config.seed)
 
     sampler, use_iterable_dataset = get_lhotse_sampler_from_config(
-        config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+        config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer, trainer=trainer
     )
 
     # 4. Creating dataloader.
@@ -451,10 +456,11 @@ def get_lhotse_dataloader_from_multi_config(
     return dloader
 
 
-def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None) -> tuple[CutSampler, bool]:
+def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None, trainer=None) -> tuple[CutSampler, bool]:
     """Create a CutSampler from a dataloader config."""
+    logging.info(f"In get_lhotse_sampler_from_config: doing {trainer.global_step} step")
     # 1. Load a manifest as a Lhotse CutSet.
-    cuts, use_iterable_dataset = read_cutset_from_config(config)
+    cuts, use_iterable_dataset = read_cutset_from_config(config, trainer=trainer)
     use_iterable_dataset = determine_use_iterable_dataset(use_iterable_dataset, config)
 
     # Apply channel selector

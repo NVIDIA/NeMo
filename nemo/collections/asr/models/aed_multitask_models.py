@@ -563,8 +563,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             dataset=PromptedAudioToTextLhotseDataset(
                 tokenizer=self.tokenizer,
                 prompt=self.prompt,
+                trainer=self._trainer,
             ),
             tokenizer=self.tokenizer,
+            trainer=self._trainer,
         )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
