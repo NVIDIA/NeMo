@@ -1612,6 +1612,11 @@ class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support
             # switch between more efficient batch decoding technique
+
+            if ngram_lm_model is not None and fusion_models is None:
+                fusion_models = [NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=blank_index)]
+                fusion_models_alpha = [ngram_lm_alpha]
+
             self._decoding_computer = ModifiedALSDBatchedRNNTComputer(
                 decoder=self.decoder,
                 joint=self.joint,

@@ -851,6 +851,8 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs)
         score_norm: bool = True,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
+        ngram_lm_model: Optional[str] = None,
+        ngram_lm_alpha: Optional[float] = 0.0,
         fusion_models: Optional[List[NGramGPULanguageModel]] = None,
         fusion_models_alpha: Optional[List[float]] = None,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE,
@@ -890,6 +892,10 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs)
             raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
+
+        if ngram_lm_model is not None and fusion_models is None:
+            fusion_models = [NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=blank_index)]
+            fusion_models_alpha = [ngram_lm_alpha]
 
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support
