@@ -26,38 +26,23 @@ from nemo.collections.llm.gpt.model.gemma3 import (
     Gemma3Config27B,
 )
 from nemo.collections.vlm.gemma3vl.model.base import Gemma3VLConfig, Gemma3VLModel
-from nemo.collections.vlm.gemma3vl.model.vision import (
-    Gemma3VLMultimodalProjectorConfig,
-    Gemma3VLVisionConfig,
-)
-from nemo.collections.vlm.neva.model.llava import (
-    export_qkv,
-    export_qkv_bias,
-    import_qkv,
-)
+from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLMultimodalProjectorConfig, Gemma3VLVisionConfig
+from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
-        AutoTokenizer,
-    )
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 @dataclass
 class Gemma3VLConfig4B(Gemma3VLConfig):
     """Gemma3 VL config 4B"""
 
-    language_transformer_config: Gemma3Config = field(
-        default_factory=lambda: Gemma3Config4B()
-    )
-    vision_transformer_config: Gemma3VLVisionConfig = field(
-        default_factory=lambda: Gemma3VLVisionConfig()
-    )
+    language_transformer_config: Gemma3Config = field(default_factory=lambda: Gemma3Config4B())
+    vision_transformer_config: Gemma3VLVisionConfig = field(default_factory=lambda: Gemma3VLVisionConfig())
     vision_projection_config: Gemma3VLMultimodalProjectorConfig = field(
-        default_factory=lambda: Gemma3VLMultimodalProjectorConfig(
-            input_size=1152, hidden_size=2560
-        )
+        default_factory=lambda: Gemma3VLMultimodalProjectorConfig(input_size=1152, hidden_size=2560)
     )
 
 
@@ -65,16 +50,10 @@ class Gemma3VLConfig4B(Gemma3VLConfig):
 class Gemma3VLConfig12B(Gemma3VLConfig):
     """Gemma3 VL config 12B"""
 
-    language_transformer_config: Gemma3Config = field(
-        default_factory=lambda: Gemma3Config12B()
-    )
-    vision_transformer_config: Gemma3VLVisionConfig = field(
-        default_factory=lambda: Gemma3VLVisionConfig()
-    )
+    language_transformer_config: Gemma3Config = field(default_factory=lambda: Gemma3Config12B())
+    vision_transformer_config: Gemma3VLVisionConfig = field(default_factory=lambda: Gemma3VLVisionConfig())
     vision_projection_config: Gemma3VLMultimodalProjectorConfig = field(
-        default_factory=lambda: Gemma3VLMultimodalProjectorConfig(
-            input_size=1152, hidden_size=3840
-        )
+        default_factory=lambda: Gemma3VLMultimodalProjectorConfig(input_size=1152, hidden_size=3840)
     )
 
 
@@ -82,23 +61,15 @@ class Gemma3VLConfig12B(Gemma3VLConfig):
 class Gemma3VLConfig27B(Gemma3VLConfig):
     """Gemma3 VL config 27B"""
 
-    language_transformer_config: Gemma3Config = field(
-        default_factory=lambda: Gemma3Config27B()
-    )
-    vision_transformer_config: Gemma3VLVisionConfig = field(
-        default_factory=lambda: Gemma3VLVisionConfig()
-    )
+    language_transformer_config: Gemma3Config = field(default_factory=lambda: Gemma3Config27B())
+    vision_transformer_config: Gemma3VLVisionConfig = field(default_factory=lambda: Gemma3VLVisionConfig())
     vision_projection_config: Gemma3VLMultimodalProjectorConfig = field(
-        default_factory=lambda: Gemma3VLMultimodalProjectorConfig(
-            input_size=1152, hidden_size=5376
-        )
+        default_factory=lambda: Gemma3VLMultimodalProjectorConfig(input_size=1152, hidden_size=5376)
     )
 
 
 @io.model_importer(Gemma3VLModel, "hf")
-class Gemma3VLImporter(
-    io.ModelConnector["Gemma3ForConditionalGeneration", Gemma3VLModel]
-):
+class Gemma3VLImporter(io.ModelConnector["Gemma3ForConditionalGeneration", Gemma3VLModel]):
     """Gemma3 VL model HF importer"""
 
     def init(self) -> Gemma3VLModel:
@@ -176,16 +147,12 @@ class Gemma3VLImporter(
                 fn=TransformFns.merge_fc1,
             ),
         ]
-        return io.apply_transforms(
-            source, target, mapping=mapping, transforms=transforms
-        )
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
         # pylint: disable=C0115,C0116
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
-            AutoTokenizer,
-        )
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(str(self))
 
@@ -224,9 +191,7 @@ class Gemma3VLImporter(
 
 
 @io.model_exporter(Gemma3VLModel, "hf")
-class Gemma3VLExporter(
-    io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGeneration"]
-):
+class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGeneration"]):
     """Export Gemma3 VL to HF"""
 
     def init(self):
@@ -302,9 +267,7 @@ class Gemma3VLExporter(
                 fn=TransformFns.split_fc1,
             ),
         ]
-        return io.apply_transforms(
-            source, target, mapping=mapping, transforms=transforms
-        )
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self):
@@ -379,8 +342,7 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads
-        // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -424,8 +386,7 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads
-        // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -469,8 +430,7 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads
-        // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)
