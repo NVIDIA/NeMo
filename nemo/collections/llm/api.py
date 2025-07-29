@@ -1366,14 +1366,14 @@ def _validate_config(
                 if isinstance(data, FineTuningDataModule):
                     # check calculate_per_token_loss to be True
                     # check average_in_collective to be False
-                    # for context parallel to solve the issue of nan loss on ranks with all tokens masked 
+                    # for context parallel to solve the issue of nan loss on ranks with all tokens masked
                     # (only happens in SFT)
-                    assert model.config.calculate_per_token_loss, (
-                        "When finetuning with CP>1, model.config.calculate_per_token_loss must be True"
-                    )
-                    assert not trainer.strategy.ddp_config.average_in_collective, (
-                        "When finetuning with CP>1, average_in_collective must be False"
-                    )
+                    assert (
+                        model.config.calculate_per_token_loss
+                    ), "When finetuning with CP>1, model.config.calculate_per_token_loss must be True"
+                    assert (
+                        not trainer.strategy.ddp_config.average_in_collective
+                    ), "When finetuning with CP>1, average_in_collective must be False"
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:
