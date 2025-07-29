@@ -345,6 +345,11 @@ class HyenaModel(LanguageModule):
         in_inference_mode = inference_context is not None and not self.training
         if in_inference_mode:
             assert runtime_gather_output, "Inference must always gather TP logits"
+        else:
+            assert (
+                not self.config.flash_decode
+            ), "Flash decode is only supported in inference mode, but no inference_context is provided"
+
         decoder_input, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin, sequence_len_offset = self._preprocess(
             input_ids=input_ids,
             position_ids=position_ids,
