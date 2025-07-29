@@ -28,10 +28,16 @@ from transformers import LlavaNextForConditionalGeneration
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import Llama2Config7B, Llama2Config13B, LlamaConfig
-from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig, MCoreLlavaNextModel
+from nemo.collections.vlm.llava_next.model.base import (
+    LlavaNextConfig,
+    MCoreLlavaNextModel,
+)
 from nemo.collections.vlm.neva.model.base import NevaModel
 from nemo.collections.vlm.neva.model.llava import HFLlavaImporter
-from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProjectorConfig
+from nemo.collections.vlm.vision.base import (
+    HFCLIPVisionConfig,
+    MultimodalProjectorConfig,
+)
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
@@ -47,12 +53,18 @@ class LlavaNextConfig7B(LlavaNextConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config7B())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama2Config7B()
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+        default_factory=lambda: HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+        )
     )
 
 
@@ -66,12 +78,18 @@ class LlavaNextConfig13B(LlavaNextConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config13B())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama2Config13B()
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+        default_factory=lambda: HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=1024, hidden_size=5120, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=1024, hidden_size=5120, ffn_hidden_size=5120
+        )
     )
 
 
@@ -106,7 +124,10 @@ class LlavaNextModel(NevaModel):
         """
         super().__init__(
             config=config,
-            optim=optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)),
+            optim=optim
+            or MegatronOptimizerModule(
+                config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
+            ),
             tokenizer=tokenizer,
             model_transform=model_transform,
         )
@@ -251,13 +272,17 @@ class HFLlavaNextImporter(
             num_query_groups=text_conifg.num_key_value_heads,
             rotary_base=text_conifg.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                text_conifg.vocab_size
+            ),
             share_embeddings_and_output_weights=False,
         )
         vision_transformer_config = HFCLIPVisionConfig(
             pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
         )
-        vision_projection_config = MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        vision_projection_config = MultimodalProjectorConfig(
+            input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+        )
 
         output = LlavaNextConfig(
             language_transformer_config=language_transformer_config,
@@ -270,7 +295,9 @@ class HFLlavaNextImporter(
 
 
 @io.model_exporter(LlavaNextModel, "hf")
-class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditionalGeneration"]):
+class HFLlavaNextExporter(
+    io.ModelConnector[LlavaNextModel, "LlavaNextForConditionalGeneration"]
+):
     """
     Exporter class for converting NeMo LLaVA Next model to HuggingFace format.
 
@@ -344,7 +371,10 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
         }
 
         # Map vision projection components
-        if "vision_projection.encoder.linear_fc1.weight" in source.module.state_dict().keys():
+        if (
+            "vision_projection.encoder.linear_fc1.weight"
+            in source.module.state_dict().keys()
+        ):
             mapping.update(
                 {
                     "vision_projection.encoder.linear_fc1.weight": "multi_modal_projector.linear_1.weight",
@@ -368,29 +398,32 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
             mapping.update({"image_newline": "image_newline"})
 
         # Map vision model components
-        if "vision_model.vision_model.embeddings.class_embedding" in source.module.state_dict().keys():
+        if (
+            "vision_model.vision_model.embeddings.class_embedding"
+            in source.module.state_dict().keys()
+        ):
             mapping.update(
                 {
-                    "vision_model.vision_model.**": "vision_tower.vision_model.**",
+                    "vision_model.vision_model.**": "vision_model.vision_tower.**",
                 }
             )
         elif "vision_model.class_token" in source.module.state_dict().keys():
             mapping.update(
                 {
-                    "vision_model.conv1.weight": "vision_tower.vision_model.embeddings.patch_embedding.weight",
-                    "vision_model.position_embeddings.weight": "vision_tower.vision_model.embeddings.position_embedding.weight",
-                    "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "vision_tower.vision_model.encoder.layers.*.layer_norm1.weight",
-                    "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "vision_tower.vision_model.encoder.layers.*.layer_norm1.bias",
-                    "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "vision_tower.vision_model.encoder.layers.*.layer_norm2.weight",
-                    "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "vision_tower.vision_model.encoder.layers.*.layer_norm2.bias",
-                    "vision_model.decoder.layers.*.self_attention.linear_proj.weight": "vision_tower.vision_model.encoder.layers.*.self_attn.out_proj.weight",
-                    "vision_model.decoder.layers.*.self_attention.linear_proj.bias": "vision_tower.vision_model.encoder.layers.*.self_attn.out_proj.bias",
-                    "vision_model.decoder.layers.*.mlp.linear_fc1.weight": "vision_tower.vision_model.encoder.layers.*.mlp.fc1.weight",
-                    "vision_model.decoder.layers.*.mlp.linear_fc1.bias": "vision_tower.vision_model.encoder.layers.*.mlp.fc1.bias",
-                    "vision_model.decoder.layers.*.mlp.linear_fc2.weight": "vision_tower.vision_model.encoder.layers.*.mlp.fc2.weight",
-                    "vision_model.decoder.layers.*.mlp.linear_fc2.bias": "vision_tower.vision_model.encoder.layers.*.mlp.fc2.bias",
-                    "vision_model.ln_pre.weight": "vision_tower.vision_model.pre_layrnorm.weight",
-                    "vision_model.ln_pre.bias": "vision_tower.vision_model.pre_layrnorm.bias",
+                    "vision_model.conv1.weight": "vision_model.vision_tower.embeddings.patch_embedding.weight",
+                    "vision_model.position_embeddings.weight": "vision_model.vision_tower.embeddings.position_embedding.weight",
+                    "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "vision_model.vision_tower.encoder.layers.*.layer_norm1.weight",
+                    "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "vision_model.vision_tower.encoder.layers.*.layer_norm1.bias",
+                    "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "vision_model.vision_tower.encoder.layers.*.layer_norm2.weight",
+                    "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "vision_model.vision_tower.encoder.layers.*.layer_norm2.bias",
+                    "vision_model.decoder.layers.*.self_attention.linear_proj.weight": "vision_model.vision_tower.encoder.layers.*.self_attn.out_proj.weight",
+                    "vision_model.decoder.layers.*.self_attention.linear_proj.bias": "vision_model.vision_tower.encoder.layers.*.self_attn.out_proj.bias",
+                    "vision_model.decoder.layers.*.mlp.linear_fc1.weight": "vision_model.vision_tower.encoder.layers.*.mlp.fc1.weight",
+                    "vision_model.decoder.layers.*.mlp.linear_fc1.bias": "vision_model.vision_tower.encoder.layers.*.mlp.fc1.bias",
+                    "vision_model.decoder.layers.*.mlp.linear_fc2.weight": "vision_model.vision_tower.encoder.layers.*.mlp.fc2.weight",
+                    "vision_model.decoder.layers.*.mlp.linear_fc2.bias": "vision_model.vision_tower.encoder.layers.*.mlp.fc2.bias",
+                    "vision_model.ln_pre.weight": "vision_model.vision_tower.pre_layrnorm.weight",
+                    "vision_model.ln_pre.bias": "vision_model.vision_tower.pre_layrnorm.bias",
                 }
             )
 
@@ -437,7 +470,9 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
         source = io.load_context(str(self), subpath="model.config")
         language_config = source.language_transformer_config
         vit_path = getattr(
-            source.vision_transformer_config, "pretrained_model_name_or_path", "openai/clip-vit-large-patch14-336"
+            source.vision_transformer_config,
+            "pretrained_model_name_or_path",
+            "openai/clip-vit-large-patch14-336",
         )
         vision_config = CLIPVisionConfig.from_pretrained(vit_path)
 
@@ -490,7 +525,9 @@ def _export_language_qkv(ctx: io.TransformCTX, linear_qkv):
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -507,9 +544,9 @@ def _export_language_qkv(ctx: io.TransformCTX, linear_qkv):
 @io.state_transform(
     source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-        "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.weight",
-        "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.weight",
-        "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.weight",
+        "vision_model.vision_tower.encoder.layers.*.self_attn.q_proj.weight",
+        "vision_model.vision_tower.encoder.layers.*.self_attn.k_proj.weight",
+        "vision_model.vision_tower.encoder.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_vision_qkv(ctx: io.TransformCTX, linear_qkv):
@@ -526,7 +563,9 @@ def _export_vision_qkv(ctx: io.TransformCTX, linear_qkv):
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -543,9 +582,9 @@ def _export_vision_qkv(ctx: io.TransformCTX, linear_qkv):
 @io.state_transform(
     source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
     target_key=(
-        "vision_tower.vision_model.encoder.layers.*.self_attn.q_proj.bias",
-        "vision_tower.vision_model.encoder.layers.*.self_attn.k_proj.bias",
-        "vision_tower.vision_model.encoder.layers.*.self_attn.v_proj.bias",
+        "vision_model.vision_tower.encoder.layers.*.self_attn.q_proj.bias",
+        "vision_model.vision_tower.encoder.layers.*.self_attn.k_proj.bias",
+        "vision_model.vision_tower.encoder.layers.*.self_attn.v_proj.bias",
     ),
 )
 def _export_vision_qkv_bias(ctx: io.TransformCTX, linear_qkv_bias):
@@ -561,7 +600,9 @@ def _export_vision_qkv_bias(ctx: io.TransformCTX, linear_qkv_bias):
     linear_qkv_bias = linear_qkv_bias.reshape([qkv_total_dim, head_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -577,7 +618,7 @@ def _export_vision_qkv_bias(ctx: io.TransformCTX, linear_qkv_bias):
 
 @io.state_transform(
     source_key="vision_model.class_token",
-    target_key="vision_tower.vision_model.embeddings.class_embedding",
+    target_key="vision_model.vision_tower.embeddings.class_embedding",
 )
 def _export_cls_token(ctx: io.TransformCTX, class_token):
     """Transforms the class token from NeMo to HuggingFace format."""
