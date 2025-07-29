@@ -769,13 +769,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             device (torch.device): Device to use for computations.
         """
         # Find global max audio length across all nodes
-        if self.sync_max_audio_length and torch.distributed.is_initialized():
-            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+        try:
+            if self.sync_max_audio_length and torch.distributed.is_initialized():
+                global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
 
-            # Update across all ranks in the distributed system
-            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+                # Update across all ranks in the distributed system
+                torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
 
-            seq_length = global_max_len.int().item()
+                seq_length = global_max_len.int().item()
+        except AttributeError:
+           self.max_audio_length = seq_length 
 
         if seq_length > self.max_audio_length:
             self.set_max_audio_length(seq_length)
