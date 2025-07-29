@@ -31,6 +31,44 @@ class Evo2Dataset(GPTDataset):
     DEFAULT_EOD = 0
     TO_UPPER_TOKENS: bool = True  # If set, do an in-place transform to make all tokens capital letters
     RESET_PAD_EOD_MASK: bool = True  # If set, unset the mask for [pad] and [eod] tokens (matches Evo2 paper).
+    # Valid DNA tokens: A, C, G, T, U, W, S, M, K, R, Y, B, D, H, V, N, -,  (both uppercase and lowercase and
+    #   degenerate bases and RNA)
+    VALID_DNA: ClassVar[set[int]] = {
+        45,
+        45,
+        65,
+        66,
+        67,
+        68,
+        71,
+        72,
+        75,
+        77,
+        78,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        89,
+        97,
+        98,
+        99,
+        100,
+        103,
+        104,
+        107,
+        109,
+        110,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        121,
+    }
 
     def _get_gpt_batch(self, idx: Optional[int]) -> dict[str, torch.Tensor]:
         return super().__getitem__(idx)
@@ -142,10 +180,8 @@ class Evo2Dataset(GPTDataset):
         batch_size, seq_len = tokenized_sequence.shape
         first_taxonomy_prefix_token: int = 100
 
-        # Valid DNA tokens: A, C, G, T, N (both uppercase and lowercase)
-        valid_dna = {65, 67, 71, 84, 78, 97, 99, 103, 116, 110}
         valid_dna_or_control_tensor = torch.tensor(
-            list(valid_dna | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype
+            list(Evo2Dataset.VALID_DNA | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype
         )
 
         # Initialize output mask to all ones.
