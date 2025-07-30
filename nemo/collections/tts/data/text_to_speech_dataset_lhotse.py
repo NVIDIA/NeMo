@@ -59,7 +59,11 @@ def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, tex
     if use_text_conditioning_tokenizer:
         # TODO: make this configurable
         # Conditioning text tokenizer
-        text_conditioning_tokenizer = AutoTokenizer.from_pretrained(text_conditioning_tokenizer_name)
+        if text_conditioning_tokenizer_name == 'google-t5/t5-small':
+            # For backward compatibility with T5Tokenizer
+            text_conditioning_tokenizer = T5Tokenizer.from_pretrained(text_conditioning_tokenizer_name)
+        else:
+            text_conditioning_tokenizer = AutoTokenizer.from_pretrained(text_conditioning_tokenizer_name)
 
     return aggregated_tokenizer, text_conditioning_tokenizer
 

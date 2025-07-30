@@ -379,7 +379,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
         tokenizer_config=None,
         load_16khz_audio: bool = True,
         use_text_conditioning_tokenizer: bool = False,
-        text_conditioning_tokenizer_name: str = 't5-base',
+        text_conditioning_tokenizer_name: str = 'google-t5/t5-small',
         pad_context_text_to_max_duration: bool = False,
         context_duration_min: float = 3.0,
         context_duration_max: float = 10.0,
