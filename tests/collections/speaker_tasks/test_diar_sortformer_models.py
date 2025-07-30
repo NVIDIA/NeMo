@@ -18,6 +18,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.models import SortformerEncLabelModel
 
+
 @pytest.fixture()
 def sortformer_model():
 
