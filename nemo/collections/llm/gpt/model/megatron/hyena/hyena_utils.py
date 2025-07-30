@@ -16,7 +16,7 @@
 # limitations under the License.
 
 import math
-from functools import partial
+from functools import partial, lru_cache
 from typing import Literal
 
 import torch
@@ -517,7 +517,8 @@ class ImplicitModalFilter(nn.Module):
         super().__init__()
         self.order = order
         self.d_model = d_model
-        self._glogp_cache = None
+        self.get_poles = lru_cache(maxsize=1)(self._get_poles)
+        self.get_exp_poles = lru_cache(maxsize=1)(self._get_exp_poles)
         # Do not register into buffer, so it doesn't cast to BF16!
         self.t = torch.arange(L_cache, dtype=torch.float32, device=torch.cuda.current_device()).view(
             1, 1, -1
@@ -545,13 +546,16 @@ class ImplicitModalFilter(nn.Module):
             self.t = t
             return self.t
 
-    def get_logp(self):
+    def _get_poles(self):
         """Compute the log poles for the implicit modal filter."""
-        if self._glogp_cache is None:
-            logp = -torch.exp(self.p.to(torch.float32))
-            glogp = logp * torch.exp(self.gamma.to(torch.float32))
-            self._glogp_cache = glogp
-        return self._glogp_cache
+        logp = -torch.exp(self.p.to(torch.float32))
+        glogp = logp * torch.exp(self.gamma.to(torch.float32))
+        del self._parameters["p"]
+        del self._parameters["gamma"]
+        return glogp[..., None]
+
+    def _get_exp_poles(self):
+        return self.get_poles().exp()
 
     def compute_filter(self, L, t):
         """Compute the filter for convolution."""
@@ -570,12 +574,10 @@ class ImplicitModalFilter(nn.Module):
         #     self.R.dtype == torch.float32
         # ), f"R must be float32. At lower precision, indexes will be merged together. Current dtype: {self.R.dtype}"
 
-        glogp = self.get_logp()
-        h = torch.exp(glogp[..., None] * t)
+        h = torch.exp(self.get_poles() * t)
         h = torch.einsum('do,dot->dt', self.R.to(torch.float32), h)
         h = h[None]
-
-        return h, None
+        return h
 
     def filter(self, L, *args, **kwargs):
         """Get t and the convolution filter for t and the requested sequence length."""
@@ -773,6 +775,7 @@ class ParallelHyenaOperator(nn.Module):
         self.model_parallel_rank = get_tensor_model_parallel_rank()
 
         self.L = max_sequence_length
+        self.get_filter = lru_cache(maxsize=1)(self._get_filter)
 
         if self.operator_type == "hyena_medium_conv":
             self.num_groups = (
@@ -841,17 +844,8 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias.partition_dim = 0
             self.conv_bias.stride = 1
 
-        # Cache exp(logp) for optimization
-        self._cached_exp_poles = None
 
-    def _get_exp_poles(self):
-        """Get cached exponential of log poles for optimization."""
-        if self._cached_exp_poles is None:
-            logp = self.filter.get_logp()
-            self._cached_exp_poles = torch.exp(logp.unsqueeze(-1))
-        return self._cached_exp_poles
-
-    def forward_long(self, *, x1, x2, v, h, bias, inference_context):
+    def forward_long(self, *, x1, x2, v, bias, inference_context):
         """Forward pass long."""
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
 
@@ -870,18 +864,16 @@ class ParallelHyenaOperator(nn.Module):
         # x1, x2, v all of shape torch.Size([1, 4096, 63])
         u = torch.cat([x2, x1, v], dim=1)  # torch.Size([1, 12288, 63])
         L = u.shape[-1]
-        poles = self.filter.get_logp()
-        # rearrange(poles, "d n -> d n 1")
-        poles = poles.unsqueeze(-1)  # n = 16
 
         iir_state = get_filter_state("iir")
         if iir_state is None:
+            h = self.get_filter(L)
             y, iir_state = engine.parallel_iir(
                 z_pre=u,  # [1 d l]
                 h=h,  # must be in [1 d l]
                 D=bias,  # self.short_filter_bias,
                 L=L,
-                poles=poles,
+                poles=self.filter.get_poles(),
                 t=self.filter.get_t(L),  # torch.Size([1, 1, L])
                 hidden_size=self.hidden_size,
                 compute_state=inference_context is not None,
@@ -901,7 +893,7 @@ class ParallelHyenaOperator(nn.Module):
                 v=v,
                 D=bias,  # torch.Size([4096])
                 residues=self.filter.R,  # torch.Size([4096, 16])
-                exp_poles=self._get_exp_poles(),  # Use cached exp(logp) instead of logp
+                exp_poles=self.filter.get_exp_poles(),
                 iir_state=iir_state,
             )
             # rearrange(y, "b d -> b 1 d")
@@ -911,7 +903,7 @@ class ParallelHyenaOperator(nn.Module):
         # rearrange(y, "b l d -> b d l")
         return y.transpose(1, 2)  # b l d
 
-    def forward_medium(self, *, x1, x2, v, h, bias, inference_context):
+    def forward_medium(self, *, x1, x2, v, bias, inference_context):
         """Forward pass medium."""
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
 
@@ -935,7 +927,7 @@ class ParallelHyenaOperator(nn.Module):
         u = x2 * v  # b l d
         L = u.shape[1]
         # rearrange(h, "d l -> d 1 l")
-        h = h.unsqueeze(1)
+        h = self.get_filter(self.hyena_medium_conv_len).unsqueeze(1)
 
         fir_state = get_filter_state("inner_fir")
         if fir_state is None:
@@ -971,6 +963,10 @@ class ParallelHyenaOperator(nn.Module):
         # rearrange(y, "b l d -> b d l")
         return y.transpose(1, 2)  # b l d
 
+    def _get_filter(self, L):
+        h = self.filter(L)
+        return h.repeat_interleave(self.group_dim, dim=-2)
+
     def forward(self, x1, x2, v, _hyena_use_cp=True, inference_context=None):
         """Shape specification for inputs and outputs.
 
@@ -979,6 +975,13 @@ class ParallelHyenaOperator(nn.Module):
         """
         B, GDG, L = x1.shape
         x1, x2, v = x1[..., :L], x2[..., :L], v[..., :L]
+
+        if torch.is_inference_mode_enabled():
+            if self.operator_type == "hyena_medium_conv":
+                return self.forward_medium(x1=x1, x2=x2, v=v, bias=self.conv_bias, inference_context=inference_context)
+            elif self.operator_type == "hyena":
+                return self.forward_long(x1=x1, x2=x2, v=v, bias=self.conv_bias, inference_context=inference_context)
+            assert False, self.operator_type
 
         # CP control
         if _hyena_use_cp:
@@ -992,9 +995,6 @@ class ParallelHyenaOperator(nn.Module):
             h = self.filter(self.hyena_medium_conv_len)
         else:
             h = self.filter(_L_kernel)
-
-        if isinstance(h, tuple):
-            h = h[0]
 
         conv_bias = self.conv_bias
         local_size = None
@@ -1029,30 +1029,25 @@ class ParallelHyenaOperator(nn.Module):
 
         h = h.repeat_interleave(self.group_dim, dim=-2)
 
-        if torch.is_inference_mode_enabled():
-            if self.operator_type == "hyena_medium_conv":
-                return self.forward_medium(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
-            elif self.operator_type == "hyena":
-                return self.forward_long(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
-        else:  # Needs full length z (post gating)
-            # with torch.autocast("cuda"):
-            z = fftconv_func(
-                u=z.to(torch.float32),
-                k=h.to(torch.float32),
-                D=conv_bias.to(torch.float32),
-                dropout_mask=None,
-                gelu=False,
-                bidirectional=self.bidirectional,
-                use_subquadratic_ops=self.use_subquadratic_ops,
-            )
-            z = z.to(v.dtype)
+        # with torch.autocast("cuda"):
+        z = fftconv_func(
+            u=z.to(torch.float32),
+            k=h.to(torch.float32),
+            D=conv_bias.to(torch.float32),
+            dropout_mask=None,
+            gelu=False,
+            bidirectional=self.bidirectional,
+            use_subquadratic_ops=self.use_subquadratic_ops,
+        )
+        z = z.to(v.dtype)
 
-            if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
-                z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
-                # [ B, H, L // num_ranks]
+        if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
+            z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
+            # [ B, H, L // num_ranks]
 
-            z = x1 * z
-            return z  # [B, (G, DG), L]
+        z = x1 * z
+        return z  # [B, (G, DG), L]
+
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the ParallelHyenaOperator."""
@@ -1398,8 +1393,6 @@ class B2BCausalConv1dModule(nn.Module):
         elif self.operator_type == "hyena_medium_conv":
             # For medium conv, we need to compute the filter weights first
             mixer_weight = self._mixer_module.filter.filter(self._mixer_module.hyena_medium_conv_len)
-            if isinstance(mixer_weight, tuple):
-                mixer_weight = mixer_weight[0]
             # The filter weights need to be in the shape [groups, 1, kernel_size]
             mixer_weight = mixer_weight.unsqueeze(1)  # Add channel dimension
             mixer_weight = mixer_weight.to(x.dtype)  # Convert to the same dtype as the input
