@@ -41,6 +41,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.lightning.one_logger_callback import update_one_logger_config
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
@@ -264,6 +265,8 @@ class ExpManagerConfig:
     fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
     # logs TFLOPs per sec per gpu
     log_tflops_per_sec_per_gpu: Optional[bool] = True
+    # OneLogger configuration
+    enable_onelogger: Optional[bool] = True
 
 
 class TimingCallback(Callback):
@@ -803,6 +806,11 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         time.sleep(cfg.seconds_to_sleep)
 
     add_handlers_to_mcore_logger()
+
+    update_one_logger_config(
+        trainer=trainer,
+        job_name=cfg.name,
+    )
 
     return log_dir
 
