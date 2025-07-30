@@ -240,7 +240,7 @@ def run_inference(
     else:
         exp_name = ""
 
-    checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
+    checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0] if checkpoint_file is not None else checkpoint_name
     checkpoint_name = "{}{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
         exp_name,
         checkpoint_name,
@@ -481,9 +481,9 @@ def run_inference(
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
-    parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
+    parser.add_argument('--hparams_files', type=str, default=None)
     parser.add_argument('--hparams_file_from_wandb', action='store_true')
-    parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
+    parser.add_argument('--checkpoint_files', type=str, default=None)
     parser.add_argument('--nemo_files', type=str, default=None)
     parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo", help="Path to codec model (used for FCD computation unless --disable_fcd is specified)")
     parser.add_argument('--datasets', type=str, default="libri_unseen_test_12.5")

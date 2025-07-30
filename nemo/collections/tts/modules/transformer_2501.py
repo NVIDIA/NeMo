@@ -229,17 +229,23 @@ class Attention(torch.nn.Module):
 
         # attn_prior or square mask or vanilla attention
         if attn_prior is not None:
-            eps = torch.finfo(attn_prior.dtype).tiny
+            attn_prob = F.softmax(attn_score, dim=-1)
             attn_prior = attn_prior[:, :T]  # trim for inference
-            attn_prior = attn_prior[:, None]
-            attn_prior_log = torch.log(attn_prior + eps)
-            attn_score_log = F.log_softmax(attn_score, dim=-1) + attn_prior_log
-            if self.make_prior_window_strict:
-                # Make sure attention scores are lowest (eps) where prior is zero.
-                min_score = torch.log(torch.tensor(eps)).to(attn_score_log.device)
-                attn_score_log = attn_score_log.masked_fill(attn_prior == 0, min_score) # Wherever prior is zero, set scores to eps.
-                attn_score_log = torch.clamp(attn_score_log, min=min_score) # Make sure scores are not less than eps.
-            attn_prob = F.softmax(attn_score_log, dim=-1)
+            attn_prior = attn_prior[:, None] + eps
+            attn_prob = attn_prob * attn_prior
+            attn_prob = attn_prob / (attn_prob.sum(dim=-1, keepdim=True))  # normalize
+
+            # eps = torch.finfo(attn_prior.dtype).tiny
+            # attn_prior = attn_prior[:, :T]  # trim for inference
+            # attn_prior = attn_prior[:, None]
+            # attn_prior_log = torch.log(attn_prior + eps)
+            # attn_score_log = F.log_softmax(attn_score, dim=-1) + attn_prior_log
+            # if self.make_prior_window_strict:
+            #     # Make sure attention scores are lowest (eps) where prior is zero.
+            #     min_score = torch.log(torch.tensor(eps)).to(attn_score_log.device)
+            #     attn_score_log = attn_score_log.masked_fill(attn_prior == 0, min_score) # Wherever prior is zero, set scores to eps.
+            #     attn_score_log = torch.clamp(attn_score_log, min=min_score) # Make sure scores are not less than eps.
+            # attn_prob = F.softmax(attn_score_log, dim=-1)
         else:
             attn_prob = F.softmax(attn_score, dim=-1)
 
