@@ -112,3 +112,17 @@ def test_validate_dataset_asset_accessibility_file_is_none(tokenizer, trainer):
         raised_exception = True
 
     assert raised_exception == True, "Expected to raise a ValueError"
+
+
+def test_object_storage_cache_path(tokenizer):
+    data = PreTrainingDataModule(
+        paths=[f"msc://default{DATA_PATH}"],
+        seq_length=512,
+        micro_batch_size=2,
+        global_batch_size=2,
+        tokenizer=tokenizer,
+        object_storage_cache_path="/tmp/object_storage_cache_path",
+    )
+
+    assert data.build_kwargs["object_storage_cache_path"] == "/tmp/object_storage_cache_path"
+    assert data.build_kwargs["mmap_bin_files"] == False
