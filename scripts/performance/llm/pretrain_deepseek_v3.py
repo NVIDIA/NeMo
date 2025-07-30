@@ -54,7 +54,7 @@ def override_recipe_configs(
     """
     DeepSeek V3 pre-train recipe aimed at achieving best possible performance.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    recipe = pretrain_recipe(performance_mode=True, use_mtp=False)
 
     # reset recompute args in the default recipe
     if args.recompute_modules is None:
@@ -165,6 +165,16 @@ def override_recipe_configs(
     recipe.model.config.num_layers=3
     recipe.model.config.moe_layer_freq=[0,1,1]
 
+
+    # add the partial cg support
+    USE_PARTIAL_CG = args.partial_cg
+    if USE_PARTIAL_CG:
+        recipe.model.config.external_cuda_graph = True
+        recipe.model.config.cuda_graph_scope = "attn"
+        recipe.trainer.strategy.use_te_rng_tracker = True
+        recipe.model.config.enable_cuda_graph = False
+        
+    
     return recipe
 
 
@@ -210,7 +220,7 @@ if __name__ == "__main__":
         recompute_modules,
         _,  # keep_fsdp_fp8_transpose_cache
         use_user_buffer_registration,
-        use_sharp,) = 1, 1, 32, 1, 1, 1, 1, 8, 1, True, False, 0, 0, None, False, False, False
+        use_sharp,) = 1, 1, 32, 1, 1, 1, 1, 8, 1, (not args.partial_cg) , False, 0, 0, None, False, False, False
     else:
         ( num_nodes,
         mbs,

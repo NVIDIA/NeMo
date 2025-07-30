@@ -135,7 +135,8 @@ def pretrain_recipe(
     )
     comm_overlap_callback = run.Config(
         MegatronCommOverlapCallback,
-        tp_comm_overlap=False,
+        tp_comm_overlap=True,
+        tp_comm_bootstrap_backend='nccl',
     )
 
     # recipe.trainer.callbacks.append(deepep_callback)
