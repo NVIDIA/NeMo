@@ -272,6 +272,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             seq_len=self.seq_length,
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
+            val_micro_batch_size=self.val_micro_batch_size,
+            val_global_batch_size=self.val_global_batch_size,
             rampup_batch_size=rampup_batch_size,
             dataloader_type=self.dataloader_type,
             init_consumed_samples=self.init_consumed_samples,

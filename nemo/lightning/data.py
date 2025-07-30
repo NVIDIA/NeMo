@@ -293,7 +293,7 @@ class BaseMegatronSampler:
 
         logging.info(
             f"Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and"
-            f" consumed_samples: {consumed_samples}"
+            f" consumed_samples: {consumed_samples} and global_batch_size: {self.global_batch_size}"
         )
 
     def __len__(self):
@@ -342,6 +342,7 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
     def get_start_end_idx(self):
         start_idx = self.data_parallel_rank * self.micro_batch_size
         end_idx = start_idx + self.micro_batch_size
+        print(f"start_idx: {start_idx}, end_idx: {end_idx}")
         return start_idx, end_idx
 
     def __iter__(self):
