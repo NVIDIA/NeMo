@@ -598,7 +598,7 @@ def generate_recipe_configs(args):
         pipeline_parallel_sizes=args.pipeline_parallel_sizes,
         context_parallel_sizes=args.context_parallel_sizes,
         expert_parallel_sizes=args.expert_parallel_sizes,
-        virtual_pipeline_parallel_sizes=args.virtual_pipeline_parallel_sizes,
+        virtual_pipeline_model_parallel_sizes=args.virtual_pipeline_model_parallel_sizes,
         micro_batch_sizes=args.micro_batch_sizes,
         global_batch_sizes=args.global_batch_sizes,
         max_model_parallel_size=args.max_model_parallel_size,

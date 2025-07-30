@@ -145,7 +145,7 @@ class AutoTuneArgs:
             'pipeline_parallel_sizes': self.pipeline_parallel_sizes,
             'context_parallel_sizes': self.context_parallel_sizes,
             'expert_parallel_sizes': self.expert_parallel_sizes,
-            'virtual_pipeline_parallel_sizes': self.virtual_pipeline_parallel_sizes,
+            'virtual_pipeline_model_parallel_sizes': self.virtual_pipeline_model_parallel_sizes,
             'micro_batch_sizes': self.micro_batch_sizes,
             'max_model_parallel_size': self.max_model_parallel_size,
             'min_model_parallel_size': self.min_model_parallel_size,
