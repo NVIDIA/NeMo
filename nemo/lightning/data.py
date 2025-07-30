@@ -342,7 +342,6 @@ class MegatronPretrainingSampler(BaseMegatronSampler):
     def get_start_end_idx(self):
         start_idx = self.data_parallel_rank * self.micro_batch_size
         end_idx = start_idx + self.micro_batch_size
-        print(f"start_idx: {start_idx}, end_idx: {end_idx}")
         return start_idx, end_idx
 
     def __iter__(self):
