@@ -1495,7 +1495,7 @@ class MagpieTTSModel(ModelPT):
                 for _timestep in attended_timestep_counter[bidx]:
                     if attended_timestep_counter[bidx][_timestep] >= 10:
                         # This means the timestep has been attended to more than 10 times (To avoid getting stuck)
-                        _attn_prior[bidx, 0, _timestep+1] = prior_epsilon
+                        _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
 
                 unfinished_texts[bidx] = False
                 if text_time_step_attended[bidx] < text_lens[bidx] - 3:
