@@ -265,18 +265,8 @@ class TestSortformerStreamingModules_StreamingUtils:
     )
     def test_length_to_mask(self, batch_size, max_length, lengths):
         """Test the length_to_mask method that converts length values to encoder mask input tensor."""
-        sortformer_modules = SortformerModules(
-            num_spks=4,
-            spkcache_len=188,
-            fifo_len=376,
-            chunk_len=376,
-            chunk_left_context=1,
-            chunk_right_context=1,
-            spkcache_update_period=376,
-        )
-
-        # Call the method
-        mask = sortformer_modules.length_to_mask(lengths, max_length)
+        # Call the method directly on the class since it's a static method
+        mask = SortformerModules.length_to_mask(lengths, max_length)
 
         # Check output shape
         assert mask.shape == (batch_size, max_length)
@@ -443,26 +433,16 @@ class TestSortformerStreamingModules_StreamingUtils:
     )
     def test_concat_embs(self, tensor_shapes, dim, return_lengths, device):
         """Test the concat_embs method that concatenates a list of tensors along a specified dimension."""
-        sortformer_modules = SortformerModules(
-            num_spks=4,
-            spkcache_len=188,
-            fifo_len=376,
-            chunk_len=376,
-            chunk_left_context=1,
-            chunk_right_context=1,
-            spkcache_update_period=376,
-        )
-
         # Create test tensors
         list_of_tensors = [torch.randn(*shape) for shape in tensor_shapes]
 
-        # Call the method
+        # Call the method directly on the class since it's a static method
         if return_lengths:
-            embs, lengths = sortformer_modules.concat_embs(
+            embs, lengths = SortformerModules.concat_embs(
                 list_of_tensors, return_lengths=return_lengths, dim=dim, device=device
             )
         else:
-            embs = sortformer_modules.concat_embs(
+            embs = SortformerModules.concat_embs(
                 list_of_tensors, return_lengths=return_lengths, dim=dim, device=device
             )
 
@@ -618,24 +598,14 @@ class TestSortformerStreamingModules_StreamingUtils:
     )
     def test_apply_mask_to_preds(self, batch_size, n_frames, n_spk, encoder_lengths):
         """Test the apply_mask_to_preds method that applies mask to speaker predictions."""
-        sortformer_modules = SortformerModules(
-            num_spks=n_spk,
-            spkcache_len=188,
-            fifo_len=376,
-            chunk_len=376,
-            chunk_left_context=1,
-            chunk_right_context=1,
-            spkcache_update_period=376,
-        )
-
         # Create test predictions tensor with random values
         spkcache_fifo_chunk_preds = torch.randn(batch_size, n_frames, n_spk)
 
         # Store a copy of the original tensor to check immutability
         original_preds = spkcache_fifo_chunk_preds.clone()
 
-        # Call the method
-        masked_preds = sortformer_modules.apply_mask_to_preds(spkcache_fifo_chunk_preds, encoder_lengths)
+        # Call the method directly on the class since it's a static method
+        masked_preds = SortformerModules.apply_mask_to_preds(spkcache_fifo_chunk_preds, encoder_lengths)
 
         # Check output shape
         assert masked_preds.shape == (batch_size, n_frames, n_spk)
@@ -663,13 +633,70 @@ class TestSortformerStreamingModules_StreamingUtils:
 
         # Test edge case: all lengths are zero
         zero_lengths = torch.zeros(batch_size, dtype=torch.long)
-        zero_masked_preds = sortformer_modules.apply_mask_to_preds(spkcache_fifo_chunk_preds, zero_lengths)
+        zero_masked_preds = SortformerModules.apply_mask_to_preds(spkcache_fifo_chunk_preds, zero_lengths)
         assert torch.all(zero_masked_preds == 0.0)
 
         # Test edge case: all lengths are full
         full_lengths = torch.full((batch_size,), n_frames, dtype=torch.long)
-        full_masked_preds = sortformer_modules.apply_mask_to_preds(spkcache_fifo_chunk_preds, full_lengths)
+        full_masked_preds = SortformerModules.apply_mask_to_preds(spkcache_fifo_chunk_preds, full_lengths)
         assert torch.allclose(full_masked_preds, spkcache_fifo_chunk_preds)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "batch_size, emb_dim, n_frames, num_tensors",
+        [
+            (3, 512, 376, 3),  # Example: matches your real input
+            (2, 128, 100, 2),  # Smaller test
+            (1, 64, 50, 4),  # Single batch, more tensors
+        ],
+    )
+    def test_concat_and_pad(self, batch_size, emb_dim, n_frames, num_tensors):
+        """Test the concat_and_pad function with lists of tensors as in real input scenario."""
+        embs = []
+        lengths = []
+        for _ in range(num_tensors):
+            emb = torch.randn(batch_size, n_frames, emb_dim)
+            # Allow zero length as well as full length
+            length = torch.randint(0, n_frames + 1, (batch_size,))
+            embs.append(emb)
+            lengths.append(length)
+        # Compute expected total lengths for each batch
+        expected_total_lengths = torch.sum(torch.stack(lengths), dim=0)
+        max_total_length = expected_total_lengths.max().item()
+        # Call the function
+        output, total_lengths = SortformerModules.concat_and_pad(embs, lengths)
+        # Check output shapes
+        assert output.shape == (batch_size, max_total_length, emb_dim)
+        assert total_lengths.shape == (batch_size,)
+        # Check total_lengths matches expected
+        assert torch.allclose(total_lengths, expected_total_lengths)
+        # For each batch, check that the concatenated region matches the input, and the padded region is zero
+        for b in range(batch_size):
+            out_ptr = 0
+            for i in range(num_tensors):
+                n = lengths[i][b].item()
+                if n > 0:
+                    assert torch.allclose(output[b, out_ptr : out_ptr + n], embs[i][b, :n], atol=1e-6)
+                out_ptr += n
+            # The rest should be zero
+            if out_ptr < max_total_length:
+                assert torch.allclose(
+                    output[b, out_ptr:],
+                    torch.zeros(max_total_length - out_ptr, emb_dim, device=output.device, dtype=output.dtype),
+                    atol=1e-6,
+                )
+        # Edge case: mismatched list lengths
+        with pytest.raises(ValueError):
+            SortformerModules.concat_and_pad(embs, lengths[:-1])
+        # Edge case: empty lists
+        with pytest.raises(ValueError):
+            SortformerModules.concat_and_pad([], [])
+        # Edge case: single tensor
+        single_emb = [torch.randn(batch_size, n_frames, emb_dim)]
+        single_length = [torch.randint(0, n_frames + 1, (batch_size,))]
+        single_output, single_total_lengths = SortformerModules.concat_and_pad(single_emb, single_length)
+        assert single_output.shape == (batch_size, single_length[0].max().item(), emb_dim)
+        assert torch.allclose(single_total_lengths, single_length[0])
 
 
 # class TestSortformerStreamingModules_StreamingUpdates:
@@ -686,7 +713,7 @@ class TestSortformerStreamingModules_StreamingUtils:
 #         """Test the streaming_update method that updates speaker cache and FIFO queue."""
 #         # Set spkcache_update_period to be compatible with fifo_len
 #         spkcache_update_period = min(fifo_len, 376) if fifo_len > 0 else chunk_len
-
+#
 #         sortformer_modules = SortformerModules(
 #             num_spks=4,
 #             spkcache_len=spkcache_len,
@@ -697,56 +724,56 @@ class TestSortformerStreamingModules_StreamingUtils:
 #             spkcache_update_period=spkcache_update_period,
 #             minimum_spkcache_len=4,
 #         )
-
+#
 #         # Initialize streaming state
 #         streaming_state = sortformer_modules.init_streaming_state(batch_size=batch_size, async_streaming=False)
-
+#
 #         # Create test chunk and predictions
 #         # Use fc_d_model (512) for embedding dimension to match SortformerModules
 #         emb_dim = 512  # fc_d_model default value
 #         total_chunk_len = lc + chunk_len + rc
 #         chunk = torch.randn(batch_size, total_chunk_len, emb_dim)
-
+#
 #         # Create predictions for [spkcache + fifo + chunk] embeddings
 #         # Initially spkcache and fifo are empty, so predictions are only for chunk
 #         total_pred_len = spkcache_len + fifo_len + total_chunk_len
 #         preds = torch.rand(batch_size, total_pred_len, 4)  # 4 speakers
-
+#
 #         # Call the method
 #         updated_state, chunk_preds = sortformer_modules.streaming_update(
 #             streaming_state, chunk, preds, lc=lc, rc=rc
 #         )
-
+#
 #         # Check output shapes
 #         assert chunk_preds.shape == (batch_size, chunk_len, 4)
-
+#
 #         # Check that FIFO has been updated with the chunk
 #         assert updated_state.fifo.shape == (batch_size, chunk_len, emb_dim)
 #         assert updated_state.fifo_preds.shape == (batch_size, chunk_len, 4)
-
+#
 #         # Check that the chunk in FIFO matches the input chunk (without offsets)
 #         expected_chunk = chunk[:, lc : chunk_len + lc]
 #         assert torch.allclose(updated_state.fifo, expected_chunk, atol=1e-6)
-
+#
 #         # Check that speaker cache is still empty (no compression happened yet)
 #         assert updated_state.spkcache.shape == (batch_size, 0, emb_dim)
-
+#
 #         # Test second update to trigger compression
 #         # Create new chunk and predictions
 #         new_chunk = torch.randn(batch_size, total_chunk_len, emb_dim)
 #         new_total_pred_len = spkcache_len + fifo_len + total_chunk_len
 #         new_preds = torch.rand(batch_size, new_total_pred_len, 4)
-
+#
 #         # Update again
 #         final_state, final_chunk_preds = sortformer_modules.streaming_update(
 #             updated_state, new_chunk, new_preds, lc=lc, rc=rc
 #         )
-
+#
 #         # Check that FIFO now contains both chunks
 #         expected_fifo_len = min(chunk_len * 2, fifo_len)
 #         assert final_state.fifo.shape == (batch_size, expected_fifo_len, emb_dim)
 #         assert final_state.fifo_preds.shape == (batch_size, expected_fifo_len, 4)
-
+#
 #         # Check that speaker cache has been updated (compression happened)
 #         # The condition for compression is: fifo_len + chunk_len > self.fifo_len
 #         # After first update: FIFO has chunk_len frames
@@ -760,7 +787,7 @@ class TestSortformerStreamingModules_StreamingUtils:
 #             # If no compression happened, FIFO should contain both chunks
 #             assert final_state.fifo.shape == (batch_size, chunk_len * 2, emb_dim)
 #             assert final_state.spkcache.shape == (batch_size, 0, emb_dim)
-
+#
 #         # Test edge case: zero FIFO length
 #         zero_fifo_modules = SortformerModules(
 #             num_spks=4,
@@ -772,26 +799,28 @@ class TestSortformerStreamingModules_StreamingUtils:
 #             spkcache_update_period=chunk_len,  # When fifo_len=0, use chunk_len
 #             minimum_spkcache_len=4,
 #         )
-
+#
 #         zero_fifo_state = zero_fifo_modules.init_streaming_state(batch_size=batch_size, async_streaming=False)
 #         zero_fifo_updated, zero_fifo_chunk_preds = zero_fifo_modules.streaming_update(
 #             zero_fifo_state, chunk, preds, lc=lc, rc=rc
 #         )
-
+#
 #         # With zero FIFO length, chunk should go directly to speaker cache
 #         assert zero_fifo_updated.fifo.shape == (batch_size, 0, emb_dim)
 #         assert zero_fifo_updated.spkcache.shape == (batch_size, chunk_len, emb_dim)
-
+#
 #         # Test device consistency
 #         device = torch.device('cpu')
-#         device_state = sortformer_modules.init_streaming_state(batch_size=batch_size, async_streaming=False, device=device)
+#         device_state = sortformer_modules.init_streaming_state(
+#             batch_size=batch_size, async_streaming=False, device=device
+#         )
 #         device_chunk = torch.randn(batch_size, total_chunk_len, emb_dim, device=device)
 #         device_preds = torch.rand(batch_size, total_pred_len, 4, device=device)
-
+#
 #         device_updated, device_chunk_preds = sortformer_modules.streaming_update(
 #             device_state, device_chunk, device_preds, lc=lc, rc=rc
 #         )
-
+#
 #         assert device_updated.fifo.device == device
 #         assert device_updated.spkcache.device == device
 #         assert device_chunk_preds.device == device

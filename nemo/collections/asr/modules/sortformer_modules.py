@@ -190,7 +190,8 @@ class SortformerModules(NeuralModule, Exportable):
                 f"but got {self.spkcache_update_period}"
             )
 
-    def length_to_mask(self, lengths, max_length: int):
+    @staticmethod
+    def length_to_mask(lengths, max_length: int):
         """
         Convert length values to encoder mask input tensor
 
@@ -277,8 +278,8 @@ class SortformerModules(NeuralModule, Exportable):
         preds = F.sigmoid(spk_preds)
         return preds
 
+    @staticmethod
     def concat_embs(
-        self,
         list_of_tensors=List[torch.Tensor],
         return_lengths: bool = False,
         dim: int = 1,
@@ -302,6 +303,50 @@ class SortformerModules(NeuralModule, Exportable):
             return embs, lengths
         else:
             return embs
+
+    @staticmethod
+    def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor]):
+        """
+        Concatenates lengths[i] first embeddings of embs[i], and pads the rest elements with zeros.
+
+        Args:
+            embs: List of embeddings Tensors of (batch_size, n_frames, emb_dim) shape
+            lengths: List of lengths Tensors of (batch_size,) shape
+
+        Returns:
+            output: concatenated embeddings Tensor of (batch_size, n_frames, emb_dim) shape
+            total_lengths: output lengths Tensor of (batch_size,) shape
+        """
+        # Error handling for mismatched list lengths
+        if len(embs) != len(lengths):
+            raise ValueError(
+                f"Length lists must have the same length, but got len(embs) - {len(embs)} "
+                f"and len(lengths) - {len(lengths)}."
+            )
+        # Handle empty lists
+        if len(embs) == 0 or len(lengths) == 0:
+            raise ValueError(
+                f"Cannot concatenate empty lists of embeddings or lengths: embs - {len(embs)}, lengths - {len(lengths)}"
+            )
+
+        device, dtype = embs[0].device, embs[0].dtype
+        batch_size, emb_dim = embs[0].shape[0], embs[0].shape[2]
+
+        total_lengths = torch.sum(torch.stack(lengths), dim=0)
+        sig_length = total_lengths.max().item()
+
+        output = torch.zeros(batch_size, sig_length, emb_dim, device=device, dtype=dtype)
+        start_indices = torch.zeros(batch_size, dtype=torch.int64, device=device)
+
+        for emb, length in zip(embs, lengths):
+            end_indices = start_indices + length
+            for batch_idx in range(batch_size):
+                output[batch_idx, start_indices[batch_idx] : end_indices[batch_idx]] = emb[
+                    batch_idx, : length[batch_idx]
+                ]
+            start_indices = end_indices
+
+        return output, total_lengths
 
     def init_streaming_state(self, batch_size: int = 1, async_streaming: bool = False, device: torch.device = None):
         """
@@ -329,7 +374,8 @@ class SortformerModules(NeuralModule, Exportable):
         streaming_state.n_sil_frames = torch.zeros((batch_size,), dtype=torch.long, device=device)
         return streaming_state
 
-    def apply_mask_to_preds(self, spkcache_fifo_chunk_preds, spkcache_fifo_chunk_fc_encoder_lengths):
+    @staticmethod
+    def apply_mask_to_preds(spkcache_fifo_chunk_preds, spkcache_fifo_chunk_fc_encoder_lengths):
         """
         Applies mask to speaker cache and FIFO queue to ensure that only valid frames are
         considered for predictions from the model.
