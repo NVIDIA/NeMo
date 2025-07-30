@@ -593,13 +593,13 @@ class SortformerModules(NeuralModule, Exportable):
 
     def _get_silence_profile(self, mean_sil_emb, n_sil_frames, emb_seq, preds):
         """
-        Get mean silence embedding from emb_seq sequence.
+        Get updated mean silence embedding and number of silence frames from emb_seq sequence.
         Embeddings are considered as silence if sum of corresponding preds is lower than self.sil_threshold.
 
         Args:
-            mean_sil_emb (torch.Tensor): Mean silence embedding tensor
+            mean_sil_emb (torch.Tensor): Previous mean silence embedding tensor
                 Shape: (batch_size, emb_dim)
-            n_sil_frames (torch.Tensor): Number of silence frames
+            n_sil_frames (torch.Tensor): Previous number of silence frames
                 Shape: (batch_size)
             emb_seq (torch.Tensor): Tensor containing sequence of embeddings
                 Shape: (batch_size, n_frames, emb_dim)
@@ -607,25 +607,21 @@ class SortformerModules(NeuralModule, Exportable):
                 Shape: (batch_size, n_frames, n_spk)
 
         Returns:
-            mean_sil_emb (torch.Tensor): Mean silence embedding tensor
+            mean_sil_emb (torch.Tensor): Updated mean silence embedding tensor
                 Shape: (batch_size, emb_dim)
-            n_sil_frames (torch.Tensor): Number of silence frames
+            n_sil_frames (torch.Tensor): Updated number of silence frames
                 Shape: (batch_size)
         """
-
         is_sil = preds.sum(dim=2) < self.sil_threshold
         sil_count = is_sil.sum(dim=1)
-        upd_mean_sil_emb = mean_sil_emb.clone()
-        upd_n_sil_frames = n_sil_frames.clone()
-
-        for batch_index in range(emb_seq.shape[0]):
-            if sil_count[batch_index] > 0:
-                sil_emb_sum = emb_seq[batch_index, is_sil[batch_index]].sum(dim=0)
-                upd_n_sil_frames[batch_index] += sil_count[batch_index]
-                upd_mean_sil_emb[batch_index] = (
-                    mean_sil_emb[batch_index] * n_sil_frames[batch_index] + sil_emb_sum
-                ) / upd_n_sil_frames[batch_index]
-
+        has_new_sil = sil_count > 0
+        if not has_new_sil.any():
+            return mean_sil_emb, n_sil_frames
+        sil_emb_sum = torch.sum(emb_seq * is_sil.unsqueeze(-1), dim=1)
+        upd_n_sil_frames = n_sil_frames + sil_count
+        old_sil_emb_sum = mean_sil_emb * n_sil_frames.unsqueeze(1)
+        total_sil_sum = old_sil_emb_sum + sil_emb_sum
+        upd_mean_sil_emb = total_sil_sum / torch.clamp(upd_n_sil_frames.unsqueeze(1), min=1)
         return upd_mean_sil_emb, upd_n_sil_frames
 
     def _get_log_pred_scores(self, preds):
