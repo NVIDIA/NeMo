@@ -40,7 +40,6 @@ class TestNeuralDiarizerInference:
         diarizer = NeuralDiarizer.from_pretrained(model_name='diar_msdd_telephonic').to(device)
 
         out_dir = os.path.join(tmpdir, 'diarize_inference/')
-        print(f"-----------------device: {device}")
         assert diarizer.msdd_model.device.type == device.type
         assert diarizer._speaker_model.device.type == device.type
         for audio_path in audio_paths:
