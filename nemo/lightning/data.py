@@ -180,14 +180,14 @@ def add_megatron_sampler(
         DataLoader: A new DataLoader instance with the configured Megatron sampler.
     """
 
-    print(f"Type : {dataloader_type} Mode : {dataloader_mode}")
+    print(f"Type : {dataloader_type} Mode : {dataloader_mode} Batch Sizes; {global_batch_size} and {micro_batch_size}")
 
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataloader.dataset),
             consumed_samples=consumed_samples,
-            micro_batch_size=eval_micro_batch_size if dataloader_mode == 'eval' else micro_batch_size,
-            global_batch_size=eval_global_batch_size if dataloader_mode == 'eval' else global_batch_size,
+            micro_batch_size=micro_batch_size,
+            global_batch_size=global_batch_size,
             rampup_batch_size=rampup_batch_size,
             data_parallel_rank=rank,
             data_parallel_size=world_size,
