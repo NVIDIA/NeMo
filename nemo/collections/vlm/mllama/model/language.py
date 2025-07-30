@@ -31,25 +31,22 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.transformer_layer import (
+    TransformerLayer, TransformerLayerSubmodules)
 from megatron.core.transformer.utils import sharded_state_dict_default
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor, nn
 
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
-        TEColumnParallelLinear,
-        TEDelayedScaling,
-        TEDotProductAttention,
-        TELayerNormColumnParallelLinear,
-        TENorm,
-        TERowParallelLinear,
-    )
+        TEColumnParallelLinear, TEDelayedScaling, TEDotProductAttention,
+        TELayerNormColumnParallelLinear, TENorm, TERowParallelLinear)
 
     HAVE_TE = True
     LayerNormImpl = TENorm
 except ImportError:
-    from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+    from megatron.core.transformer.torch_layer_norm import \
+        WrappedTorchLayerNorm
 
     # These Defaults are needed to make sure the code compiles
     TEColumnParallelLinear = None

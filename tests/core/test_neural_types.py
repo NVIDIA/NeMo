@@ -15,21 +15,12 @@
 
 import pytest
 
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    AudioSignal,
-    AxisKind,
-    AxisKindAbstract,
-    AxisType,
-    ChannelType,
-    ElementType,
-    MelSpectrogramType,
-    MFCCSpectrogramType,
-    NeuralType,
-    NeuralTypeComparisonResult,
-    SpectrogramType,
-    VoidType,
-)
+from nemo.core.neural_types import (AcousticEncodedRepresentation, AudioSignal,
+                                    AxisKind, AxisKindAbstract, AxisType,
+                                    ChannelType, ElementType,
+                                    MelSpectrogramType, MFCCSpectrogramType,
+                                    NeuralType, NeuralTypeComparisonResult,
+                                    SpectrogramType, VoidType)
 
 
 class TestNeuralTypeSystem:

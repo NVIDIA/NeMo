@@ -22,7 +22,8 @@ from pathlib import Path
 
 import pytest
 
-from nemo.collections.asr.parts.utils.transcribe_utils import TextProcessingConfig
+from nemo.collections.asr.parts.utils.transcribe_utils import \
+    TextProcessingConfig
 
 sys.path.append(str(Path(__file__).parents[2] / 'examples' / 'asr'))
 import speech_to_text_eval

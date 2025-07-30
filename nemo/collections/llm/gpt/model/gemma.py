@@ -31,7 +31,8 @@ from nemo.lightning.pytorch.utils import dtype_from_hf
 if TYPE_CHECKING:
     from transformers import GemmaForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -175,7 +176,8 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         """ """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 

@@ -19,10 +19,7 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import (
-    EVALUATION_MODE,
-    INFERENCE_MODE,
-    TRAINING_MODE,
-)
+    EVALUATION_MODE, INFERENCE_MODE, TRAINING_MODE)
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning

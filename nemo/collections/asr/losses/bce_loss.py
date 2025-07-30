@@ -16,7 +16,8 @@
 import torch
 
 from nemo.core.classes import Loss, Typing, typecheck
-from nemo.core.neural_types import LabelsType, LengthsType, LossType, NeuralType, ProbsType
+from nemo.core.neural_types import (LabelsType, LengthsType, LossType,
+                                    NeuralType, ProbsType)
 
 __all__ = ['BCELoss']
 

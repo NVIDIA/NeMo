@@ -27,7 +27,8 @@ from nemo.collections.tts.g2p.data.ctc import CTCG2PBPEDataset
 from nemo.collections.tts.models.base import G2PModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import LengthsType, LossType, NeuralType, TokenIndex
+from nemo.core.neural_types import (LengthsType, LossType, NeuralType,
+                                    TokenIndex)
 from nemo.utils import logging
 
 try:
@@ -35,7 +36,8 @@ try:
     from nemo.collections.asr.metrics.wer import WER
     from nemo.collections.asr.models import EncDecCTCModel
     from nemo.collections.asr.parts.mixins import ASRBPEMixin
-    from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
+    from nemo.collections.asr.parts.submodules.ctc_decoding import (
+        CTCBPEDecoding, CTCBPEDecodingConfig)
 
     ASR_AVAILABLE = True
 except (ModuleNotFoundError, ImportError):

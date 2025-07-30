@@ -19,7 +19,8 @@ from nemo.collections.llm.api import finetune
 from nemo.collections.vlm import Llava15Config13B, LlavaModel, LoRA
 from nemo.collections.vlm.recipes import llava15_13b
 from nemo.lightning import Trainer
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 

@@ -41,8 +41,9 @@ However, shorter label strings are also supported for smaller file sizes. For ex
 
 import lightning.pytorch as pl
 from omegaconf import OmegaConf
-from nemo.collections.asr.models.classification_models import EncDecFrameClassificationModel
 
+from nemo.collections.asr.models.classification_models import \
+    EncDecFrameClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

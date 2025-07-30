@@ -19,13 +19,12 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.audio.modules.features import SpectrogramToMultichannelFeatures
-from nemo.collections.audio.modules.masking import (
-    MaskBasedDereverbWPE,
-    MaskEstimatorFlexChannels,
-    MaskEstimatorGSS,
-    MaskReferenceChannel,
-)
+from nemo.collections.audio.modules.features import \
+    SpectrogramToMultichannelFeatures
+from nemo.collections.audio.modules.masking import (MaskBasedDereverbWPE,
+                                                    MaskEstimatorFlexChannels,
+                                                    MaskEstimatorGSS,
+                                                    MaskReferenceChannel)
 from nemo.collections.audio.modules.transforms import AudioToSpectrogram
 from nemo.collections.audio.parts.submodules.multichannel import WPEFilter
 from nemo.collections.audio.parts.utils.audio import convmtx_mc_numpy

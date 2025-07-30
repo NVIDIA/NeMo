@@ -18,7 +18,8 @@ import torch
 
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.mixtral import MixtralConfig8x7B, MixtralModel
+from nemo.collections.llm.gpt.model.mixtral import (MixtralConfig8x7B,
+                                                    MixtralModel)
 from nemo.collections.llm.recipes import mixtral_8x7b_16k
 from nemo.lightning import Trainer
 from nemo.utils.exp_manager import TimingCallback

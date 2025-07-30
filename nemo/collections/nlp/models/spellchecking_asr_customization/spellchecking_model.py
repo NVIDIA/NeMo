@@ -24,13 +24,14 @@ from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.data.spellchecking_asr_customization import (
     SpellcheckingAsrCustomizationDataset,
     SpellcheckingAsrCustomizationTestDataset,
-    TarredSpellcheckingAsrCustomizationDataset,
-    bert_example,
-)
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import read_label_map
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+    TarredSpellcheckingAsrCustomizationDataset, bert_example)
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import \
+    read_label_map
+from nemo.collections.nlp.metrics.classification_report import \
+    ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.token_classifier import TokenClassifier
+from nemo.collections.nlp.modules.common.token_classifier import \
+    TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import LogitsType, NeuralType

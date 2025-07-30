@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import QAProcessor
-from nemo.collections.nlp.data.question_answering.dataset import BERTQADataset, GPTQADataset, QADataset, S2SQADataset
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import \
+    QAProcessor
+from nemo.collections.nlp.data.question_answering.dataset import (
+    BERTQADataset, GPTQADataset, QADataset, S2SQADataset)
 from nemo.collections.nlp.data.question_answering.input_example import (
-    BERTQAInputExample,
-    GPTQAInputExample,
-    QAExample,
-    S2SQAInputExample,
-)
+    BERTQAInputExample, GPTQAInputExample, QAExample, S2SQAInputExample)

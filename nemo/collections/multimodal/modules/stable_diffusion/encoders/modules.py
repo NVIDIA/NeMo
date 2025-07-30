@@ -24,24 +24,22 @@ from omegaconf import ListConfig, OmegaConf
 from torch.utils.checkpoint import checkpoint
 from transformers import CLIPTextModel, CLIPTokenizer
 
-from nemo.collections.multimodal.data.clip.clip_dataset import get_preprocess_fns
-from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import CLIPModel
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import Timestep
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (
-    TransformerWrapper,  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
-)
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import Encoder
+from nemo.collections.multimodal.data.clip.clip_dataset import \
+    get_preprocess_fns
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import \
+    CLIPModel
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import \
+    Timestep
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import \
+    TransformerWrapper  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import \
+    Encoder
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
-    count_params,
-    disabled_train,
-    expand_dims_like,
-    instantiate_from_config,
-)
+    count_params, disabled_train, expand_dims_like, instantiate_from_config)
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    ParallelLinearAdapterConfig,
-)
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    AdapterName, ParallelLinearAdapterConfig)
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core import adapter_mixins
 from nemo.utils import logging
@@ -302,7 +300,8 @@ class BERTTokenizer(AbstractEncoder):
 
     def __init__(self, device="cuda", vq_interface=True, max_length=77):
         super().__init__()
-        from transformers import BertTokenizerFast  # TODO: add to reuquirements
+        from transformers import \
+            BertTokenizerFast  # TODO: add to reuquirements
 
         self.tokenizer = BertTokenizerFast.from_pretrained("bert-base-uncased")
         self.device = device

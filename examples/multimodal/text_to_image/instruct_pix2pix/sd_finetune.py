@@ -15,8 +15,10 @@
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.multimodal.models.text_to_image.instruct_pix2pix.ldm.ddpm_edit import MegatronLatentDiffusionEdit
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.multimodal.models.text_to_image.instruct_pix2pix.ldm.ddpm_edit import \
+    MegatronLatentDiffusionEdit
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

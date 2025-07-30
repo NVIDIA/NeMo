@@ -16,7 +16,8 @@
 
 import random
 
-from nemo.collections.nlp.data.data_utils.data_preprocessing import DataProcessor
+from nemo.collections.nlp.data.data_utils.data_preprocessing import \
+    DataProcessor
 from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['DialogueDataProcessor']

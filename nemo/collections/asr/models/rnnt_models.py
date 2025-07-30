@@ -25,28 +25,36 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.asr.data import audio_to_text_dataset
 from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
-from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
+from nemo.collections.asr.data.audio_to_text_dali import (
+    AudioToCharDALIDataset, DALIOutputs)
+from nemo.collections.asr.data.audio_to_text_lhotse import \
+    LhotseSpeechToTextBpeDataset
+from nemo.collections.asr.losses.rnnt import (RNNTLoss,
+                                              resolve_rnnt_default_loss_name)
 from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.models.asr_model import (ASRModel,
+                                                   ExportableEncDecModel)
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
-from nemo.collections.asr.parts.mixins import (
-    ASRModuleMixin,
-    ASRTranscriptionMixin,
-    TranscribeConfig,
-    TranscriptionReturnType,
-)
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecoding, RNNTDecodingConfig
-from nemo.collections.asr.parts.utils.asr_batching import get_semi_sorted_batch_sampler
+from nemo.collections.asr.parts.mixins import (ASRModuleMixin,
+                                               ASRTranscriptionMixin,
+                                               TranscribeConfig,
+                                               TranscriptionReturnType)
+from nemo.collections.asr.parts.preprocessing.segment import \
+    ChannelSelectorType
+from nemo.collections.asr.parts.submodules.rnnt_decoding import (
+    RNNTDecoding, RNNTDecodingConfig)
+from nemo.collections.asr.parts.utils.asr_batching import \
+    get_semi_sorted_batch_sampler
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.asr.parts.utils.timestamp_utils import process_timestamp_outputs
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.asr.parts.utils.timestamp_utils import \
+    process_timestamp_outputs
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.classes.mixins import AccessMixin
-from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (AcousticEncodedRepresentation, AudioSignal,
+                                    LengthsType, NeuralType, SpectrogramType)
 from nemo.utils import logging
 
 

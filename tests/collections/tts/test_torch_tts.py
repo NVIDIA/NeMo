@@ -19,7 +19,8 @@ from pathlib import Path
 import pytest
 import torch
 
-from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import EnglishPhonemesTokenizer
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import \
+    EnglishPhonemesTokenizer
 from nemo.collections.tts.data.dataset import TTSDataset
 from nemo.collections.tts.g2p.models.en_us_arpabet import EnglishG2p
 from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir

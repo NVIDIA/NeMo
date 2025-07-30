@@ -18,7 +18,8 @@ import pytest
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2LiteConfig
+from nemo.collections.llm.gpt.model.deepseek import (DeepSeekModel,
+                                                     DeepSeekV2LiteConfig)
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import deepseek_v2_lite
 from nemo.lightning import Trainer

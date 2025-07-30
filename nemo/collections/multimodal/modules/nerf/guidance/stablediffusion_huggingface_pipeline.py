@@ -17,7 +17,8 @@ import torch
 import torch.nn.functional as F
 from diffusers import DDIMScheduler, StableDiffusionPipeline
 
-from nemo.collections.multimodal.modules.nerf.guidance.txt2img_guidance_base import Txt2ImgGuidanceBase
+from nemo.collections.multimodal.modules.nerf.guidance.txt2img_guidance_base import \
+    Txt2ImgGuidanceBase
 
 
 class StableDiffusion(Txt2ImgGuidanceBase):

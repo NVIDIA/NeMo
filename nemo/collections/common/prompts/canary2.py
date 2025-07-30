@@ -22,12 +22,8 @@ from lhotse.utils import ifnone
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
 from nemo.collections.common.tokenizers.canary_tokenizer import (
-    CANARY2_BOCTX,
-    CANARY_BOS,
-    CANARY_EOS,
-    CANARY_SPECIAL_TOKENIZER,
-    CanaryTokenizer,
-)
+    CANARY2_BOCTX, CANARY_BOS, CANARY_EOS, CANARY_SPECIAL_TOKENIZER,
+    CanaryTokenizer)
 
 
 class Canary2PromptFormatter(PromptFormatter):

@@ -13,4 +13,5 @@
 # limitations under the License.
 
 from nemo.collections.audio.metrics.audio import AudioMetricWrapper
-from nemo.collections.audio.metrics.squim import SquimMOSMetric, SquimObjectiveMetric
+from nemo.collections.audio.metrics.squim import (SquimMOSMetric,
+                                                  SquimObjectiveMetric)

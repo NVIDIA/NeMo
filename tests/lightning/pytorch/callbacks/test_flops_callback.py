@@ -19,7 +19,8 @@
 import torch
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
-from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
+from nemo.lightning.pytorch.callbacks.flops_callback import \
+    FLOPsMeasurementCallback
 
 
 class MockDataModule:

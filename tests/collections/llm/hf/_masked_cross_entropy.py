@@ -16,7 +16,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import \
+    masked_cross_entropy
 
 
 def test_no_mask():

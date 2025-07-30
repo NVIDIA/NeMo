@@ -21,19 +21,21 @@ import torch
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core import parallel_state, tensor_parallel
-from megatron.core.fusions.fused_bias_dropout import bias_dropout_add_fused_train
+from megatron.core.fusions.fused_bias_dropout import \
+    bias_dropout_add_fused_train
 from megatron.core.fusions.fused_bias_gelu import bias_gelu
 from megatron.core.fusions.fused_bias_swiglu import bias_swiglu
 from megatron.core.num_microbatches_calculator import (
-    destroy_num_microbatches_calculator,
-    init_num_microbatches_calculator,
-)
-from megatron.core.utils import get_te_version, is_te_min_version, is_torch_min_version
+    destroy_num_microbatches_calculator, init_num_microbatches_calculator)
+from megatron.core.utils import (get_te_version, is_te_min_version,
+                                 is_torch_min_version)
 
 from nemo.collections.llm.gpt.model.base import GPTConfig
 from nemo.collections.llm.t5.model.t5 import T5Config
-from nemo.tron.config import ConfigContainer, DistributedInitConfig, RerunStateMachineConfig, RNGConfig
-from nemo.tron.utils.common_utils import get_local_rank_preinit, get_rank_safe, get_world_size_safe
+from nemo.tron.config import (ConfigContainer, DistributedInitConfig,
+                              RerunStateMachineConfig, RNGConfig)
+from nemo.tron.utils.common_utils import (get_local_rank_preinit,
+                                          get_rank_safe, get_world_size_safe)
 
 
 def initialize_megatron(
@@ -278,11 +280,8 @@ def _initialize_distributed(
 
 def init_rerun_state(rerun_state_machine_config: RerunStateMachineConfig):
     from megatron.core.rerun_state_machine import (
-        RerunDiagnostic,
-        RerunErrorInjector,
-        RerunMode,
-        initialize_rerun_state_machine,
-    )
+        RerunDiagnostic, RerunErrorInjector, RerunMode,
+        initialize_rerun_state_machine)
 
     def state_save_func():
         return {"rng_tracker_states": tensor_parallel.get_cuda_rng_tracker().get_states()}

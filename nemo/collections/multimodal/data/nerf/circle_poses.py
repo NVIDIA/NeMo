@@ -20,11 +20,7 @@ from torch.utils.data import Dataset
 
 from nemo.collections.multimodal.data.nerf.cameras import PinholeCamera
 from nemo.collections.multimodal.data.nerf.utils import (
-    compute_look_at_vectors,
-    construct_poses,
-    get_rays,
-    get_view_direction,
-)
+    compute_look_at_vectors, construct_poses, get_rays, get_view_direction)
 
 
 def circle_poses(

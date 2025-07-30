@@ -62,7 +62,8 @@ import yaml
 from omegaconf import OmegaConf
 
 from nemo.collections.nlp.models.language_modeling.megatron import GPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
 from nemo.utils import logging
 
 if __name__ == '__main__':

@@ -17,7 +17,8 @@ import torch.nn as nn
 from torch import distributed as dist
 from torch.nn import functional as F
 
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    average_losses_across_data_parallel_group
 
 try:
     from megatron.core import parallel_state

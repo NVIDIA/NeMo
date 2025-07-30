@@ -19,9 +19,12 @@ import torch
 from lightning.pytorch import Trainer
 from torch import nn
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
-from nemo.collections.nlp.modules.common.megatron.adapters.qlora import nf4_quantize
-from nemo.collections.nlp.parts.nlp_overrides import MegatronHalfPrecisionPlugin, NLPDDPStrategy
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import \
+    MegatronGPTSFTModel
+from nemo.collections.nlp.modules.common.megatron.adapters.qlora import \
+    nf4_quantize
+from nemo.collections.nlp.parts.nlp_overrides import (
+    MegatronHalfPrecisionPlugin, NLPDDPStrategy)
 from nemo.utils import logging
 
 '''

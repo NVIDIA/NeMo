@@ -27,7 +27,8 @@ try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm  # NOQA
     from apex.transformer.enums import AttnMaskType
     from apex.transformer.layers.layer_norm import FastLayerNorm
-    from apex.transformer.pipeline_parallel.schedules.common import listify_model
+    from apex.transformer.pipeline_parallel.schedules.common import \
+        listify_model
 
     HAVE_APEX = True
 
@@ -37,7 +38,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.tensor_parallel.layers import linear_with_grad_accumulation_and_async_allreduce
+    from megatron.core.tensor_parallel.layers import \
+        linear_with_grad_accumulation_and_async_allreduce
 
     HAVE_MEGATRON_CORE = True
 

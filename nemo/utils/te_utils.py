@@ -18,6 +18,7 @@ from typing import Tuple
 
 import packaging
 import torch
+
 from nemo.utils.import_utils import safe_import_from
 
 # Check if Transformer Engine has quantized tensor classes

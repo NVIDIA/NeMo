@@ -20,12 +20,18 @@ from lhotse import CutSet, MonoCut
 from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+from nemo.collections.asr.data.audio_to_text_lhotse import \
+    LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel
-from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint, SampledRNNTJoint, StatelessTransducerDecoder
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.modules import (RNNTDecoder, RNNTJoint,
+                                          SampledRNNTJoint,
+                                          StatelessTransducerDecoder)
+from nemo.collections.asr.parts.submodules import \
+    rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import \
+    rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.parts.submodules.ctc_decoding import (
+    CTCDecoding, CTCDecodingConfig)
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.utils import numba_utils

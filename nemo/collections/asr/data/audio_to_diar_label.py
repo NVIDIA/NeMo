@@ -21,13 +21,14 @@ import numpy as np
 import torch
 
 from nemo.collections.asr.parts.utils.offline_clustering import get_argmin_mat
-from nemo.collections.asr.parts.utils.speaker_utils import convert_rttm_line, get_subsegments, prepare_split_data
+from nemo.collections.asr.parts.utils.speaker_utils import (convert_rttm_line,
+                                                            get_subsegments,
+                                                            prepare_split_data)
 from nemo.collections.common.parts.preprocessing.collections import (
-    DiarizationSpeechLabel,
-    EndtoEndDiarizationSpeechLabel,
-)
+    DiarizationSpeechLabel, EndtoEndDiarizationSpeechLabel)
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AudioSignal, EncodedRepresentation, LengthsType, NeuralType, ProbsType
+from nemo.core.neural_types import (AudioSignal, EncodedRepresentation,
+                                    LengthsType, NeuralType, ProbsType)
 from nemo.utils import logging
 
 

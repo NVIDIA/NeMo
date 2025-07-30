@@ -21,16 +21,19 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import CrossEntropyLoss
-from nemo.collections.nlp.data.data_utils.data_preprocessing import get_labels_to_labels_id_mapping
+from nemo.collections.nlp.data.data_utils.data_preprocessing import \
+    get_labels_to_labels_id_mapping
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
-    BertTokenClassificationDataset,
-    BertTokenClassificationInferDataset,
-)
-from nemo.collections.nlp.data.token_classification.token_classification_utils import get_label_ids
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+    BertTokenClassificationDataset, BertTokenClassificationInferDataset)
+from nemo.collections.nlp.data.token_classification.token_classification_utils import \
+    get_label_ids
+from nemo.collections.nlp.metrics.classification_report import \
+    ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.parts.utils_funcs import get_classification_report, plot_confusion_matrix, tensor2list
+from nemo.collections.nlp.parts.utils_funcs import (get_classification_report,
+                                                    plot_confusion_matrix,
+                                                    tensor2list)
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 

@@ -22,11 +22,8 @@ import pytest
 import torch
 
 from nemo.collections.tts.parts.preprocessing.feature_processors import (
-    FeatureScaler,
-    LogCompression,
-    MeanVarianceNormalization,
-    MeanVarianceSpeakerNormalization,
-)
+    FeatureScaler, LogCompression, MeanVarianceNormalization,
+    MeanVarianceSpeakerNormalization)
 
 
 class TestTTSFeatureProcessors:

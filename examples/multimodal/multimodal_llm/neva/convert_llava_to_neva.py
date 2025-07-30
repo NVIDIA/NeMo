@@ -41,14 +41,11 @@ from omegaconf import OmegaConf
 from safetensors import safe_open
 from transformers import LlamaTokenizer
 
-from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import \
+    MegatronNevaModel
 from nemo.collections.nlp.parts.nlp_overrides import (
-    GradScaler,
-    MegatronHalfPrecisionPlugin,
-    NLPDDPStrategy,
-    NLPSaveRestoreConnector,
-    PipelineMixedPrecisionPlugin,
-)
+    GradScaler, MegatronHalfPrecisionPlugin, NLPDDPStrategy,
+    NLPSaveRestoreConnector, PipelineMixedPrecisionPlugin)
 from nemo.utils import logging
 
 

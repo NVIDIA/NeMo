@@ -20,7 +20,8 @@ import torch
 from tqdm.auto import tqdm
 
 from nemo.collections.nlp.modules.common import VirtualPromptSource
-from nemo.collections.nlp.modules.common.megatron.utils import build_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    build_position_ids
 from nemo.core import Dataset
 from nemo.utils import AppState, logging
 from nemo.utils.decorators import deprecated_warning

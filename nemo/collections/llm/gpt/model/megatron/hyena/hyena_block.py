@@ -30,12 +30,17 @@ from megatron.core.transformer.utils import sharded_state_dict_default
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor, nn
 
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import Symbols as LayerSymbols
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import allocate_layers
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import \
+    HyenaConfig
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import \
+    Symbols as LayerSymbols
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_hybrid_layer_allocation import \
+    allocate_layers
 
 try:
-    from megatron.core.extensions.transformer_engine import TEDelayedScaling, TENorm, te_checkpoint
+    from megatron.core.extensions.transformer_engine import (TEDelayedScaling,
+                                                             TENorm,
+                                                             te_checkpoint)
 
     HAVE_TE = True
     LayerNormImpl = TENorm
@@ -49,7 +54,8 @@ except ImportError:
         LayerNormImpl = FusedLayerNorm
 
     except ImportError:
-        from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+        from megatron.core.transformer.torch_layer_norm import \
+            WrappedTorchLayerNorm
 
         LayerNormImpl = WrappedTorchLayerNorm
 

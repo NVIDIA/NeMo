@@ -20,7 +20,8 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 import torch
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import (GPTModel,
+                                                 torch_dtype_from_mcore_config)
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
@@ -31,7 +32,8 @@ if TYPE_CHECKING:
     from transformers import AutoModelForCausalLM
     from transformers import Qwen3Config as HFQwen3Config
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -264,7 +266,8 @@ class HFQwen3Importer(io.ModelConnector["AutoModelForCausalLM", Qwen3Model]):
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
 

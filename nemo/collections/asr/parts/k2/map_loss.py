@@ -35,12 +35,10 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin
 from nemo.collections.asr.parts.k2.ml_loss import MLLoss
-from nemo.collections.asr.parts.k2.utils import (
-    create_sparse_wrapped,
-    get_tot_objf_and_finite_mask,
-    invert_permutation,
-    load_graph,
-)
+from nemo.collections.asr.parts.k2.utils import (create_sparse_wrapped,
+                                                 get_tot_objf_and_finite_mask,
+                                                 invert_permutation,
+                                                 load_graph)
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 from nemo.utils import logging
 
@@ -313,7 +311,8 @@ class CtcMmiLoss(MAPLoss, CtcK2Mixin):
         labels = lm_graph.labels
         if labels.max() != self.num_classes - 1:
             raise ValueError(f"lm_graph is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
-        from nemo.collections.asr.parts.k2.graph_compilers import MmiGraphCompiler as compiler
+        from nemo.collections.asr.parts.k2.graph_compilers import \
+            MmiGraphCompiler as compiler
 
         self.graph_compiler = compiler(
             self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops, aux_graph=lm_graph

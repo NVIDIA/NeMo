@@ -18,8 +18,10 @@ from functools import partial
 import numpy as np
 import torch
 
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import make_beta_schedule
-from nemo.collections.multimodal.parts.stable_diffusion.utils import append_zero
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import \
+    make_beta_schedule
+from nemo.collections.multimodal.parts.stable_diffusion.utils import \
+    append_zero
 
 
 def generate_roughly_equally_spaced_steps(num_substeps: int, max_step: int) -> np.ndarray:

@@ -19,25 +19,19 @@ from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
-from nemo.collections.tts.losses.radttsloss import AttentionBinarizationLoss, RADTTSLoss
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import \
+    BaseTokenizer
+from nemo.collections.tts.losses.radttsloss import (AttentionBinarizationLoss,
+                                                    RADTTSLoss)
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.parts.utils.helpers import (
-    batch_from_ragged,
-    g2p_backward_compatible_support,
-    plot_alignment_to_numpy,
-    regulate_len,
-    sample_tts_input,
-)
+    batch_from_ragged, g2p_backward_compatible_support,
+    plot_alignment_to_numpy, regulate_len, sample_tts_input)
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import typecheck
-from nemo.core.neural_types.elements import (
-    Index,
-    MelSpectrogramType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenIndex,
-)
+from nemo.core.neural_types.elements import (Index, MelSpectrogramType,
+                                             RegressionValuesType,
+                                             TokenDurationType, TokenIndex)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.core.optim.radam import RAdam
 from nemo.utils import logging

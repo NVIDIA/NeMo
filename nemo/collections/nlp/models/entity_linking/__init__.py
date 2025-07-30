@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.entity_linking.entity_linking_model import EntityLinkingModel
+from nemo.collections.nlp.models.entity_linking.entity_linking_model import \
+    EntityLinkingModel

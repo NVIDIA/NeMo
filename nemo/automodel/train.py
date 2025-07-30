@@ -20,21 +20,20 @@ from typing import Iterator
 
 import torch
 from megatron.core.num_microbatches_calculator import (
-    get_current_global_batch_size,
-    get_current_running_global_batch_size,
-    get_num_microbatches,
-    update_num_microbatches,
-)
+    get_current_global_batch_size, get_current_running_global_batch_size,
+    get_num_microbatches, update_num_microbatches)
 
 from nemo.automodel.checkpointing import save_checkpoint
 from nemo.automodel.config import ConfigContainer
 from nemo.automodel.eval import evaluate_and_print_results
-from nemo.automodel.schedules import ForwardStepFnProtocol, get_forward_backward_func
+from nemo.automodel.schedules import (ForwardStepFnProtocol,
+                                      get_forward_backward_func)
 from nemo.automodel.utils import flop_utils
 from nemo.automodel.utils.train_utils import reduce_loss, training_log
 from nemo.tron.state import GlobalState
 from nemo.tron.train import get_start_time_from_progress_log
-from nemo.tron.utils.common_utils import append_to_progress_log, barrier_and_log, get_world_size_safe
+from nemo.tron.utils.common_utils import (append_to_progress_log,
+                                          barrier_and_log, get_world_size_safe)
 
 
 def train_step(

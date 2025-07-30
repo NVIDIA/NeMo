@@ -31,14 +31,22 @@ import os
 from lightning.pytorch import Trainer
 from omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.language_modeling.megatron_bart_model import MegatronBARTModel
-from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import MegatronNMTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.models.language_modeling.megatron_bart_model import \
+    MegatronBARTModel
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
+    MegatronBertModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import \
+    MegatronRetrievalModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import \
+    MegatronT5Model
+from nemo.collections.nlp.models.machine_translation.megatron_nmt_model import \
+    MegatronNMTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import \
+    fake_initialize_model_parallel
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.core import ModelPT
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

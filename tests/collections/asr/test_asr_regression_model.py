@@ -17,7 +17,8 @@ import os
 import pytest
 from omegaconf import DictConfig
 
-from nemo.collections.asr.models.classification_models import EncDecRegressionModel
+from nemo.collections.asr.models.classification_models import \
+    EncDecRegressionModel
 
 
 @pytest.fixture()

@@ -19,7 +19,8 @@ import random
 import re
 import subprocess
 
-from nemo.collections.nlp.data.token_classification.token_classification_utils import create_text_and_labels
+from nemo.collections.nlp.data.token_classification.token_classification_utils import \
+    create_text_and_labels
 from nemo.utils import logging
 
 URL = {'tatoeba': 'https://downloads.tatoeba.org/exports/sentences.csv'}

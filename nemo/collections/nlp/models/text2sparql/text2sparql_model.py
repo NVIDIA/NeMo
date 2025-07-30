@@ -21,7 +21,8 @@ from typing import Dict, List, Optional, Tuple
 import torch
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf
-from transformers import AutoModel, BartForConditionalGeneration, EncoderDecoderModel
+from transformers import (AutoModel, BartForConditionalGeneration,
+                          EncoderDecoderModel)
 
 from nemo.collections.common.metrics import Perplexity
 from nemo.collections.nlp.data.text2sparql import Text2SparqlDataset

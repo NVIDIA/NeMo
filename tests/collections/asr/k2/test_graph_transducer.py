@@ -20,7 +20,8 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.k2.rnnt_logprobs import rnnt_logprobs_torch
-from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import RNNTLoss as RNNTLoss_Numpy
+from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import \
+    RNNTLoss as RNNTLoss_Numpy
 from nemo.core.utils.optional_libs import K2_AVAILABLE, TRITON_AVAILABLE
 
 if K2_AVAILABLE:
@@ -29,7 +30,8 @@ if K2_AVAILABLE:
     from nemo.collections.asr.parts.k2.graph_transducer import GraphRnntLoss
 
 if TRITON_AVAILABLE:
-    from nemo.collections.asr.parts.k2.rnnt_logprobs_triton import rnnt_logprobs_triton
+    from nemo.collections.asr.parts.k2.rnnt_logprobs_triton import \
+        rnnt_logprobs_triton
 
 
 EPS_SM_INPUT = 1e-6

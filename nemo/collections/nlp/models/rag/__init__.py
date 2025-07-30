@@ -12,5 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.rag.custom_bert_embedder import NeMoBertEmbeddings
+from nemo.collections.nlp.models.rag.custom_bert_embedder import \
+    NeMoBertEmbeddings
 from nemo.collections.nlp.models.rag.custom_gpt_llm import NeMoGPTLLM

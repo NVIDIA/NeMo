@@ -15,10 +15,9 @@
 import logging
 from typing import TYPE_CHECKING
 
-from nemo.collections.llm.gpt.model.deepseek import (
-    HFDeepSeekImporter as _NeMo2HFDeepSeekImporter,
-)
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekConfig
+from nemo.collections.llm.gpt.model.deepseek import \
+    HFDeepSeekImporter as _NeMo2HFDeepSeekImporter
 from nemo.tron.converter.common import BaseImporter
 
 if TYPE_CHECKING:

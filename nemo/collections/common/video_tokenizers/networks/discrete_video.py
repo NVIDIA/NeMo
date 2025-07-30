@@ -20,9 +20,12 @@ from collections import OrderedDict, namedtuple
 import torch
 from torch import nn
 
-from nemo.collections.common.video_tokenizers.modules import Decoder3DType, DiscreteQuantizer, Encoder3DType
-from nemo.collections.common.video_tokenizers.modules.layers3d import CausalConv3d
-from nemo.collections.common.video_tokenizers.modules.quantizers import InvQuantizerJit
+from nemo.collections.common.video_tokenizers.modules import (
+    Decoder3DType, DiscreteQuantizer, Encoder3DType)
+from nemo.collections.common.video_tokenizers.modules.layers3d import \
+    CausalConv3d
+from nemo.collections.common.video_tokenizers.modules.quantizers import \
+    InvQuantizerJit
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant_info"])
 

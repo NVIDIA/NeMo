@@ -19,7 +19,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
 
 import lightning.pytorch as pl
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from megatron.core.datasets.gpt_dataset import GPTDataset
 from megatron.core.datasets.megatron_dataset import MegatronDataset
 from torch.utils import data
@@ -223,7 +224,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
 
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        from nemo.collections.nlp.modules.common.tokenizer_utils import \
+            get_nmt_tokenizer
 
         self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "GPT2BPETokenizer")
         self.data_sampler = MegatronDataSampler(
@@ -243,7 +245,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         """
         Build the datasets.
         """
-        from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+        from megatron.core.datasets.blended_megatron_dataset_builder import \
+            BlendedMegatronDatasetBuilder
 
         train_iters = trainer_max_steps
         assert train_iters > 0, f"max_steps {train_iters} should be greater than 0"
@@ -400,11 +403,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         """
         try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                update_num_microbatches
 
         consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
@@ -433,11 +438,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches
         #   num of global batches
         try:
-            from megatron.core.num_microbatches_calculator import get_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                get_num_microbatches
 
         if isinstance(limit_batches, int):
             limit_batches *= get_num_microbatches()

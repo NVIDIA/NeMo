@@ -14,7 +14,8 @@
 
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config, Baichuan2Config7B
+from nemo.collections.llm.gpt.model.baichuan import (Baichuan2Config,
+                                                     Baichuan2Config7B)
 
 
 def test_baichuan2_config():

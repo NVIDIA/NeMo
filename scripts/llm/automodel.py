@@ -25,7 +25,8 @@ import nemo_run as run
 
 import nemo.lightning as nl
 from nemo.collections import llm
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 from nemo.utils import logging
 

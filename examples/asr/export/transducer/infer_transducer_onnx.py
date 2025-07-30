@@ -23,9 +23,9 @@ from tqdm import tqdm
 
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import ONNXGreedyBatchedRNNTInfer
+from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import \
+    ONNXGreedyBatchedRNNTInfer
 from nemo.utils import logging
-
 
 """
 Script to compare the outputs of a NeMo Pytorch based RNNT Model and its ONNX exported representation.

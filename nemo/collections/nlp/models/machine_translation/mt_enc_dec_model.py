@@ -34,19 +34,27 @@ from nemo.collections.common.data import ConcatDataset
 from nemo.collections.common.losses import NLLLoss, SmoothedCrossEntropyLoss
 from nemo.collections.common.metrics import GlobalAverageLossMetric
 from nemo.collections.common.parts import transformer_weights_init
-from nemo.collections.common.tokenizers.bytelevel_tokenizers import ByteLevelProcessor
-from nemo.collections.common.tokenizers.chinese_tokenizers import ChineseProcessor
-from nemo.collections.common.tokenizers.en_ja_tokenizers import EnJaProcessor, JaMecabProcessor
+from nemo.collections.common.tokenizers.bytelevel_tokenizers import \
+    ByteLevelProcessor
+from nemo.collections.common.tokenizers.chinese_tokenizers import \
+    ChineseProcessor
+from nemo.collections.common.tokenizers.en_ja_tokenizers import (
+    EnJaProcessor, JaMecabProcessor)
 from nemo.collections.common.tokenizers.indic_tokenizers import IndicProcessor
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
-from nemo.collections.nlp.data import TarredTranslationDataset, TranslationDataset
+from nemo.collections.common.tokenizers.tabular_tokenizer import \
+    TabularTokenizer
+from nemo.collections.nlp.data import (TarredTranslationDataset,
+                                       TranslationDataset)
 from nemo.collections.nlp.models.enc_dec_nlp_model import EncDecNLPModel
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import \
+    MTEncDecModelConfig
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.modules.common.lm_utils import get_transformer
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.collections.nlp.modules.common.transformer import BeamSearchSequenceGenerator, TopKSequenceGenerator
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.transformer import (
+    BeamSearchSequenceGenerator, TopKSequenceGenerator)
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils, timers

@@ -19,8 +19,10 @@ import torch
 from lightning.pytorch import Trainer
 
 from nemo.collections.common.losses import NLLLoss
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTBottleneckModelConfig
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import \
+    MTBottleneckModelConfig
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import \
+    MTEncDecModel
 from nemo.core.classes.common import typecheck
 from nemo.utils import timers
 

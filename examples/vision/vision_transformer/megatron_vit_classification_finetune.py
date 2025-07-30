@@ -15,9 +15,11 @@
 
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.vision.models.megatron_vit_classification_models import MegatronVitClassificationModel
+from nemo.collections.vision.models.megatron_vit_classification_models import \
+    MegatronVitClassificationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

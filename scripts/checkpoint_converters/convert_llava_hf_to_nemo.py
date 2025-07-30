@@ -26,9 +26,12 @@ import torch
 from omegaconf import OmegaConf
 from transformers import LlamaTokenizer, LlavaForConditionalGeneration
 
-from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import \
+    MegatronNevaModel
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_ltor_masks_and_position_ids
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 

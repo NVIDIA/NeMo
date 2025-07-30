@@ -33,11 +33,10 @@ else:
         OPT_GROUP_NORM = False
 
 from nemo.collections.multimodal.modules.stable_diffusion import fast_geglu
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import checkpoint
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import \
+    checkpoint
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    ParallelLinearAdapterConfig,
-)
+    AdapterName, ParallelLinearAdapterConfig)
 from nemo.core import adapter_mixins
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from

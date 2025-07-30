@@ -26,19 +26,11 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.collections.multimodal.modules.stable_diffusion.attention import SpatialTransformer
+from nemo.collections.multimodal.modules.stable_diffusion.attention import \
+    SpatialTransformer
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
-    avg_pool_nd,
-    build_timestep_embedding,
-    checkpoint,
-    conv_nd,
-    default,
-    exists,
-    linear,
-    normalization,
-    timestep_embedding,
-    zero_module,
-)
+    avg_pool_nd, build_timestep_embedding, checkpoint, conv_nd, default,
+    exists, linear, normalization, timestep_embedding, zero_module)
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 

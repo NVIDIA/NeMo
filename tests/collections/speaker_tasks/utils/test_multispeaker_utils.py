@@ -13,17 +13,13 @@
 # limitations under the License.
 
 import itertools
+
 import pytest
 import torch
 
 from nemo.collections.asr.parts.utils.asr_multispeaker_utils import (
-    find_best_permutation,
-    find_first_nonzero,
-    get_ats_targets,
-    get_hidden_length_from_sample_length,
-    get_pil_targets,
-    reconstruct_labels,
-)
+    find_best_permutation, find_first_nonzero, get_ats_targets,
+    get_hidden_length_from_sample_length, get_pil_targets, reconstruct_labels)
 
 
 def reconstruct_labels_forloop(labels: torch.Tensor, batch_perm_inds: torch.Tensor) -> torch.Tensor:

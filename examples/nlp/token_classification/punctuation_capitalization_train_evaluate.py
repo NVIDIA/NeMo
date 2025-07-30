@@ -19,13 +19,11 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.nlp.models import PunctuationCapitalizationModel
-from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import (
-    PunctuationCapitalizationConfig,
-)
+from nemo.collections.nlp.models.token_classification.punctuation_capitalization_config import \
+    PunctuationCapitalizationConfig
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
-
 
 """
 This script show how to train a Punctuation and Capitalization Model.

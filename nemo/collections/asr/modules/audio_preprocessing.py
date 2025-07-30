@@ -21,18 +21,16 @@ from typing import Any, Optional
 import torch
 from packaging import version
 
-from nemo.collections.asr.parts.numba.spec_augment import SpecAugmentNumba, spec_augment_launch_heuristics
-from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures, FilterbankFeaturesTA
-from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
+from nemo.collections.asr.parts.numba.spec_augment import (
+    SpecAugmentNumba, spec_augment_launch_heuristics)
+from nemo.collections.asr.parts.preprocessing.features import (
+    FilterbankFeatures, FilterbankFeaturesTA)
+from nemo.collections.asr.parts.submodules.spectr_augment import (SpecAugment,
+                                                                  SpecCutout)
 from nemo.core.classes import Exportable, NeuralModule, typecheck
-from nemo.core.neural_types import (
-    AudioSignal,
-    LengthsType,
-    MelSpectrogramType,
-    MFCCSpectrogramType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import (AudioSignal, LengthsType,
+                                    MelSpectrogramType, MFCCSpectrogramType,
+                                    NeuralType, SpectrogramType)
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils import logging, logging_mode

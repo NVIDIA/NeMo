@@ -18,12 +18,18 @@ from typing import Dict, List, Optional
 import torch
 from omegaconf.omegaconf import MISSING, DictConfig
 
-from nemo.collections.asr.modules.transformer.decoder_module import DecoderModule
-from nemo.collections.asr.modules.transformer.encoder_module import EncoderModule
-from nemo.collections.asr.modules.transformer.transformer_decoders import TransformerDecoder, TransformerDecoderAdapter
-from nemo.collections.asr.modules.transformer.transformer_encoders import TransformerEncoder
-from nemo.collections.asr.modules.transformer.transformer_modules import TransformerEmbedding
-from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
+from nemo.collections.asr.modules.transformer.decoder_module import \
+    DecoderModule
+from nemo.collections.asr.modules.transformer.encoder_module import \
+    EncoderModule
+from nemo.collections.asr.modules.transformer.transformer_decoders import (
+    TransformerDecoder, TransformerDecoderAdapter)
+from nemo.collections.asr.modules.transformer.transformer_encoders import \
+    TransformerEncoder
+from nemo.collections.asr.modules.transformer.transformer_modules import \
+    TransformerEmbedding
+from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import \
+    AttentionAdapterModuleMixin
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable

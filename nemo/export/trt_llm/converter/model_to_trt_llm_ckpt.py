@@ -22,7 +22,9 @@ import torch
 from tensorrt_llm._utils import pad_vocab_size, str_dtype_to_torch
 from tqdm import tqdm
 
-from nemo.export.trt_llm.converter.utils import save_scaling_factor, save_val, split_and_save_weight, weights_dict
+from nemo.export.trt_llm.converter.utils import (save_scaling_factor, save_val,
+                                                 split_and_save_weight,
+                                                 weights_dict)
 from nemo.export.utils import torch_dtype_from_precision
 
 LOGGER = logging.getLogger("NeMo")

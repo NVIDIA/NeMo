@@ -21,11 +21,15 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from torch.cuda.amp import autocast
 from transformers import AutoModelForSeq2SeqLM
 
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import QAProcessor
-from nemo.collections.nlp.data.question_answering.dataset.qa_s2s_dataset import S2SQADataset
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import \
+    QAProcessor
+from nemo.collections.nlp.data.question_answering.dataset.qa_s2s_dataset import \
+    S2SQADataset
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import \
+    MegatronT5Model
+from nemo.collections.nlp.models.question_answering.qa_base_model import \
+    BaseQAModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning

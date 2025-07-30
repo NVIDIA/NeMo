@@ -16,7 +16,8 @@ from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
-from transformers import CLIPTextModel, CLIPTokenizer, T5EncoderModel, T5Tokenizer
+from transformers import (CLIPTextModel, CLIPTokenizer, T5EncoderModel,
+                          T5Tokenizer)
 
 
 # pylint: disable=C0116

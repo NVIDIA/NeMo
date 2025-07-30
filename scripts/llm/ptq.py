@@ -16,7 +16,8 @@ import argparse
 
 from nemo.collections import llm
 from nemo.collections.llm.modelopt import ExportConfig, QuantizationConfig
-from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
+from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import \
+    get_quant_cfg_choices
 
 
 def get_args():

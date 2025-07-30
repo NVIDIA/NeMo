@@ -16,7 +16,8 @@ from typing import Any
 
 from pytest import mark, param, raises
 
-from nemo.tron.utils.instantiate_utils import InstantiationException, instantiate
+from nemo.tron.utils.instantiate_utils import (InstantiationException,
+                                               instantiate)
 from tests.tron.utils.instantiate import ArgsClass
 
 #######################

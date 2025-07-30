@@ -15,6 +15,7 @@
 from types import MethodType
 
 import torch
+
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 

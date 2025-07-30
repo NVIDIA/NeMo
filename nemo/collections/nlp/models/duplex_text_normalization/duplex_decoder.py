@@ -21,23 +21,26 @@ from typing import Dict, List, Optional, Union
 import torch
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
+from transformers import (AutoModelForSeq2SeqLM, AutoTokenizer,
+                          DataCollatorForSeq2Seq)
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.data.text_normalization import \
+    TextNormalizationTestDataset
 from nemo.collections.nlp.data.text_normalization.decoder_dataset import (
-    TarredTextNormalizationDecoderDataset,
-    TextNormalizationDecoderDataset,
-)
-from nemo.collections.nlp.models.duplex_text_normalization.utils import get_formatted_string
+    TarredTextNormalizationDecoderDataset, TextNormalizationDecoderDataset)
+from nemo.collections.nlp.models.duplex_text_normalization.utils import \
+    get_formatted_string
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types import ChannelType, LabelsType, LossType, MaskType, NeuralType
+from nemo.core.neural_types import (ChannelType, LabelsType, LossType,
+                                    MaskType, NeuralType)
 from nemo.utils import logging
 
 try:
-    from nemo_text_processing.text_normalization.normalize_with_audio import NormalizerWithAudio
+    from nemo_text_processing.text_normalization.normalize_with_audio import \
+        NormalizerWithAudio
 
     PYNINI_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

@@ -24,13 +24,16 @@ from omegaconf import DictConfig
 from transformers import AutoModel
 
 from nemo.collections.nlp.data.dialogue import DialogueSGDDataProcessor
-from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
-from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import DialogueDesignDataProcessor
-from nemo.collections.nlp.data.dialogue.dataset.dialogue_nearest_neighbour_dataset import (
-    DialogueNearestNeighbourDataset,
-)
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.metrics.dialogue_metrics import DialogueGenerationMetrics
+from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import \
+    DialogueAssistantDataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import \
+    DialogueDesignDataProcessor
+from nemo.collections.nlp.data.dialogue.dataset.dialogue_nearest_neighbour_dataset import \
+    DialogueNearestNeighbourDataset
+from nemo.collections.nlp.metrics.classification_report import \
+    ClassificationReport
+from nemo.collections.nlp.metrics.dialogue_metrics import \
+    DialogueGenerationMetrics
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging

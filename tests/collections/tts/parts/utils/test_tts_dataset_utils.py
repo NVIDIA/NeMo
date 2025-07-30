@@ -20,13 +20,8 @@ import pytest
 import torch
 
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    filter_dataset_by_duration,
-    get_abs_rel_paths,
-    get_audio_filepaths,
-    load_audio,
-    normalize_volume,
-    stack_tensors,
-)
+    filter_dataset_by_duration, get_abs_rel_paths, get_audio_filepaths,
+    load_audio, normalize_volume, stack_tensors)
 
 
 class TestTTSDatasetUtils:

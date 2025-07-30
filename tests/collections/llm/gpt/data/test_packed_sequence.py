@@ -18,10 +18,7 @@ import numpy as np
 import pytest
 
 from nemo.collections.llm.gpt.data.packed_sequence import (
-    PackedSequenceSpecs,
-    prepare_packed_sequence_data,
-    tokenize_dataset,
-)
+    PackedSequenceSpecs, prepare_packed_sequence_data, tokenize_dataset)
 
 
 class MockTokenizer:

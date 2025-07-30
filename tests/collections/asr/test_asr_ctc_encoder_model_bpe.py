@@ -24,11 +24,14 @@ from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data import audio_to_text
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+from nemo.collections.asr.data.audio_to_text_lhotse import \
+    LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models import configs
 from nemo.collections.asr.models.ctc_bpe_models import EncDecCTCModelBPE
-from nemo.collections.asr.parts.submodules import ctc_beam_decoding as beam_decode
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
+from nemo.collections.asr.parts.submodules import \
+    ctc_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules.ctc_decoding import (
+    CTCBPEDecoding, CTCBPEDecodingConfig)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common import tokenizers
 from nemo.utils.config_utils import assert_dataclass_signature_match

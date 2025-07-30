@@ -18,8 +18,7 @@ from lhotse import CutSet
 
 from nemo.collections.common.data.lhotse.text_adapters import (
     NeMoMultimodalConversationJsonlAdapter,
-    NeMoMultimodalConversationTarWriter,
-)
+    NeMoMultimodalConversationTarWriter)
 
 
 @click.command()

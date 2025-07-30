@@ -21,6 +21,7 @@ __all__ = ["KENLM_AVAILABLE", "K2_AVAILABLE", "TRITON_AVAILABLE", "kenlm_require
 
 import importlib.util
 from functools import wraps
+
 from nemo.core.utils.k2_utils import K2_INSTALLATION_MESSAGE
 
 

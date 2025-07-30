@@ -17,7 +17,6 @@
 
 
 import logging
-
 ###########################################################
 # BEGIN COPY/pasted bionemo stuff:
 from contextlib import contextmanager
@@ -36,7 +35,8 @@ from megatron.core.transformer.enums import AttnBackend
 from megatron.core.transformer.module import Float16Module, MegatronModule
 
 from nemo.collections import llm
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning.io.pl import MegatronCheckpointIO
 
 

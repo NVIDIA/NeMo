@@ -16,18 +16,21 @@ from contextlib import contextmanager
 import lightning.pytorch as pl
 import torch
 import torch.nn.functional as F
+
 from nemo.utils import logging
 
 try:
-    from taming.modules.vqvae.quantize import VectorQuantizer2 as VectorQuantizer
+    from taming.modules.vqvae.quantize import \
+        VectorQuantizer2 as VectorQuantizer
 except ImportError:
     from taming.modules.vqvae.quantize import VectorQuantizer
 
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.model import Decoder, Encoder
-from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
-    DiagonalGaussianDistribution,
-)
-from nemo.collections.multimodal.parts.stable_diffusion.utils import instantiate_from_config
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.model import (
+    Decoder, Encoder)
+from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import \
+    DiagonalGaussianDistribution
+from nemo.collections.multimodal.parts.stable_diffusion.utils import \
+    instantiate_from_config
 
 
 class VQModel(pl.LightningModule):

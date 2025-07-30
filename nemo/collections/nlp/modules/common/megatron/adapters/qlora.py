@@ -20,7 +20,8 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from nemo.collections.nlp.parts.peft_config import LORA_CONFIG_TO_MCORE_MAP, get_target_modules
+from nemo.collections.nlp.parts.peft_config import (LORA_CONFIG_TO_MCORE_MAP,
+                                                    get_target_modules)
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 

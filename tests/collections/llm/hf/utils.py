@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from importlib.metadata import version
+
 from packaging.version import Version as PkgVersion
 
 

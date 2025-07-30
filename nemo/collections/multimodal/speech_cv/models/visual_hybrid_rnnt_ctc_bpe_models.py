@@ -24,10 +24,13 @@ from nemo.collections.asr.losses.ctc import CTCLoss
 from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTBPEDecodingConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import (
+    CTCBPEDecoding, CTCBPEDecodingConfig)
+from nemo.collections.asr.parts.submodules.rnnt_decoding import (
+    RNNTBPEDecoding, RNNTBPEDecodingConfig)
 from nemo.collections.multimodal.speech_cv.data import video_to_text_dataset
-from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_models import VisualEncDecHybridRNNTCTCModel
+from nemo.collections.multimodal.speech_cv.models.visual_hybrid_rnnt_ctc_models import \
+    VisualEncDecHybridRNNTCTCModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 

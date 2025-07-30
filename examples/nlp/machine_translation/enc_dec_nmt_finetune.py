@@ -19,8 +19,10 @@ from lightning.pytorch import Trainer
 from omegaconf import OmegaConf
 from omegaconf.omegaconf import MISSING
 
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import \
+    MTEncDecModelConfig
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import \
+    MTEncDecModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.core.config.modelPT import NemoConfig

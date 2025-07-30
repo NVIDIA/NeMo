@@ -15,7 +15,8 @@
 import torch
 from scipy import integrate
 
-from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims
+from nemo.collections.multimodal.parts.stable_diffusion.utils import \
+    append_dims
 
 
 class NoDynamicThresholding:

@@ -18,7 +18,8 @@ import torch
 from omegaconf.dictconfig import DictConfig
 from PIL import Image
 
-from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import \
+    image_transform
 
 
 class DirectoryBasedDataset(torch.utils.data.Dataset):

@@ -20,16 +20,9 @@ import torch
 
 from nemo.automodel.llm.causal_lm import AutoModelForCausalLMConfig
 from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE
-from nemo.tron.config import (
-    DistributedInitConfig,
-    FinetuningDatasetConfig,
-    LoggerConfig,
-    ProfilingConfig,
-    RNGConfig,
-    SchedulerConfig,
-    TokenizerConfig,
-    TrainingConfig,
-)
+from nemo.tron.config import (DistributedInitConfig, FinetuningDatasetConfig,
+                              LoggerConfig, ProfilingConfig, RNGConfig,
+                              SchedulerConfig, TokenizerConfig, TrainingConfig)
 from nemo.tron.utils.common_utils import get_world_size_safe
 from nemo.tron.utils.config_utils import ConfigContainer as Container
 
@@ -65,7 +58,8 @@ class OptimizerConfig:
     def __post_init__(self):
         if isinstance(self.optimizer_cls, str):
             if self.optimizer_cls == "te_adam":
-                from transformer_engine.pytorch.optimizers import FusedAdam as Adam
+                from transformer_engine.pytorch.optimizers import \
+                    FusedAdam as Adam
 
                 self.optimizer_cls = Adam
             else:

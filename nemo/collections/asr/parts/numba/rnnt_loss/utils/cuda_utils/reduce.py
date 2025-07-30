@@ -32,7 +32,8 @@ import math
 import torch
 from numba import cuda
 
-from nemo.collections.asr.parts.numba.rnnt_loss.utils import global_constants, rnnt_helper
+from nemo.collections.asr.parts.numba.rnnt_loss.utils import (global_constants,
+                                                              rnnt_helper)
 
 warp_size = global_constants.warp_size()
 dtype = global_constants.dtype()

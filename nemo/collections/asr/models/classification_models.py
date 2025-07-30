@@ -27,20 +27,25 @@ from torch.utils.data import DataLoader
 from torchmetrics import Accuracy
 from torchmetrics.regression import MeanAbsoluteError, MeanSquaredError
 
-from nemo.collections.asr.data import audio_to_label_dataset, feature_to_label_dataset
-from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
+from nemo.collections.asr.data import (audio_to_label_dataset,
+                                       feature_to_label_dataset)
+from nemo.collections.asr.models.asr_model import (ASRModel,
+                                                   ExportableEncDecModel)
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
-from nemo.collections.asr.parts.mixins import TranscriptionMixin, TranscriptionReturnType
-from nemo.collections.asr.parts.mixins.transcription import InternalTranscribeConfig
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.parts.mixins import (TranscriptionMixin,
+                                               TranscriptionReturnType)
+from nemo.collections.asr.parts.mixins.transcription import \
+    InternalTranscribeConfig
+from nemo.collections.asr.parts.preprocessing.features import \
+    WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.perturb import \
+    process_augmentations
 from nemo.collections.common.losses import CrossEntropyLoss, MSELoss
 from nemo.collections.common.metrics import TopKClassificationAccuracy
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import *
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
-
 
 __all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
 

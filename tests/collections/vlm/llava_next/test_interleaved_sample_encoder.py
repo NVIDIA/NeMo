@@ -18,8 +18,10 @@ import torch
 from megatron.energon import SimilarityInterleavedSample
 from transformers import AutoProcessor
 
-from nemo.collections.multimodal.data.energon.config import ImageToken, MultiModalSampleConfig
-from nemo.collections.vlm.llava_next.data.interleaved_sample_encoder import LlavaNextSimilarityInterleavedSampleEncoder
+from nemo.collections.multimodal.data.energon.config import (
+    ImageToken, MultiModalSampleConfig)
+from nemo.collections.vlm.llava_next.data.interleaved_sample_encoder import \
+    LlavaNextSimilarityInterleavedSampleEncoder
 from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextSample
 
 

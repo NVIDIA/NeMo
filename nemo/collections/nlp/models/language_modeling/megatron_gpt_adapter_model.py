@@ -25,18 +25,16 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-    MegatronGPTPromptLearningModel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import \
+    MegatronGPTPromptLearningModel
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    InfusedAdapterConfig,
-    MLPInfusedAdapterConfig,
-    ParallelLinearAdapterConfig,
-)
-from nemo.collections.nlp.modules.common.megatron.utils import average_losses_across_data_parallel_group
+    AdapterName, InfusedAdapterConfig, MLPInfusedAdapterConfig,
+    ParallelLinearAdapterConfig)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    average_losses_across_data_parallel_group
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins

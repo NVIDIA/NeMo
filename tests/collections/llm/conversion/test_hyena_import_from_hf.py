@@ -16,8 +16,10 @@
 # limitations under the License.
 
 import argparse
+
 from nemo.collections import llm
-from nemo.collections.llm.gpt.model.hyena import HuggingFaceSavannaHyenaImporter
+from nemo.collections.llm.gpt.model.hyena import \
+    HuggingFaceSavannaHyenaImporter
 
 
 def get_parser():

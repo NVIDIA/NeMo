@@ -17,11 +17,8 @@ import tempfile
 import pytest
 
 from nemo.collections.llm.gpt.data.pre_training import (
-    PreTrainingDataModule,
-    is_number_tryexcept,
-    is_zipped_list,
-    validate_dataset_asset_accessibility,
-)
+    PreTrainingDataModule, is_number_tryexcept, is_zipped_list,
+    validate_dataset_asset_accessibility)
 
 
 # Helper function to create temporary dataset files
@@ -211,7 +208,8 @@ class TestPreTrainingDataModule:
         mock_builder_instance.build.return_value = (mock_train_ds, mock_valid_ds, mock_test_ds)
 
         # Test the build_pretraining_datamodule function
-        from nemo.collections.llm.gpt.data.pre_training import build_pretraining_datamodule
+        from nemo.collections.llm.gpt.data.pre_training import \
+            build_pretraining_datamodule
 
         build_pretraining_datamodule(
             datamodule=basic_datamodule,

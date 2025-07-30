@@ -23,14 +23,12 @@ import torch.nn.functional as F
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer.attention import (SelfAttention,
+                                                 SelfAttentionSubmodules)
 
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
-        TEColumnParallelLinear,
-        TEDotProductAttention,
-        TERowParallelLinear,
-    )
+        TEColumnParallelLinear, TEDotProductAttention, TERowParallelLinear)
 except ImportError:
     from nemo.utils import logging
 
@@ -51,7 +49,8 @@ from megatron.core.transformer.module import MegatronModule
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.transformer_layer import (
+    TransformerLayer, TransformerLayerSubmodules)
 from megatron.core.utils import make_viewless_tensor
 from torch import Tensor, nn
 
@@ -59,12 +58,14 @@ if TYPE_CHECKING:
     from nemo.collections.vlm import CrossAttentionVisionConfig
 
 try:
-    from megatron.core.transformer.custom_layers.transformer_engine import TEDelayedScaling, TENorm
+    from megatron.core.transformer.custom_layers.transformer_engine import (
+        TEDelayedScaling, TENorm)
 
     HAVE_TE = True
     LayerNormImpl = TENorm
 except ImportError:
-    from megatron.core.transformer.torch_layer_norm import WrappedTorchLayerNorm
+    from megatron.core.transformer.torch_layer_norm import \
+        WrappedTorchLayerNorm
 
     HAVE_TE = False
     LayerNormImpl = WrappedTorchLayerNorm
