@@ -81,18 +81,7 @@ def override_recipe_configs(
         recipe.model.config.moe_enable_deepep = False
         recipe.model.config.moe_shared_expert_overlap = True
         if USE_TOKEN_DROP:
-            callbacks = recipe.trainer.callbacks
-            if callbacks:
-                deepep_callback_idx = None
-                for idx, callback in enumerate(callbacks):
-                    if callback.__fn_or_cls__ == DeepEPCallback:
-                        deepep_callback_idx = idx
-                        break
-                # if there is deepep callback, replace it with token drop callback, else append token drop callback
-                if deepep_callback_idx is None:
-                    callbacks.append(run.Config(MegatronTokenDropCallback))
-                else:
-                    callbacks[deepep_callback_idx] = run.Config(MegatronTokenDropCallback)
+            recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
 
     # Performance optimization knobs
     recipe.model.config.moe_permute_fusion = True
