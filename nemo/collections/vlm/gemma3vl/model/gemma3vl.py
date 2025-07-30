@@ -32,8 +32,9 @@ from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
     from transformers import Gemma3Model
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
 
 @dataclass
