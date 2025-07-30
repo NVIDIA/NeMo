@@ -13,14 +13,15 @@ Main API:
 - results(): Analyze performance results
 """
 
-from .args import AutoTuneArgs
-from .runner import generate, run, list_configs, list_models, results
+from nemo.collections.llm.tools.autotuner.core.pretraining import run_pretraining
+from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import list_configs, generate
+from nemo.collections.llm.tools.autotuner.core.performance import results
+from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
 
 __all__ = [
-    'AutoTuneArgs',
-    'generate', 
-    'run',
+    'run_pretraining',
     'list_configs',
-    'list_models', 
-    'results'
+    'generate',
+    'results',
+    'AutoTuneArgs',
 ] 
