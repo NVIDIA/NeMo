@@ -195,7 +195,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         for param in module.parameters():
             param.requires_grad = False
 
-    def _maybe_load_pretrained_llm(self, model: MCoreGPTModel) -> MCoreGPTModel:
+    def _maybe_load_pretrained_llm(self, model: MCoreGPTModel, strict: bool = False) -> MCoreGPTModel:
         if not self.language_model_from_pretrained:
             return model
 
@@ -226,6 +226,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             sharded_state_dict=sharded_state_dict,
             checkpoint_dir=load_path,
             validate_access_integrity=False,
+            **({"strict": "log_all"} if not strict else {}),
         )
         loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
         model.load_state_dict(loaded_state_dict)
