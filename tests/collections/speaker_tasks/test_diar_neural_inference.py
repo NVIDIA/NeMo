@@ -22,19 +22,7 @@ from nemo.collections.asr.models.msdd_models import NeuralDiarizer
 
 class TestNeuralDiarizerInference:
     @pytest.mark.unit
-    @pytest.mark.parametrize(
-        "device",
-        [
-            torch.device("cpu"),
-            pytest.param(
-                torch.device("cuda"),
-                marks=pytest.mark.skipif(
-                    not torch.cuda.is_available(),
-                    reason='CUDA required for test.',
-                ),
-            ),
-        ],
-    )
+    @pytest.mark.parametrize("device", [torch.device("cpu"), torch.device("cuda")])
     @pytest.mark.parametrize("num_speakers", [None])
     @pytest.mark.parametrize("max_num_speakers", [4])
     def test_msdd_diar_inference(self, tmpdir, test_data_dir, device, num_speakers, max_num_speakers):
@@ -52,7 +40,7 @@ class TestNeuralDiarizerInference:
         diarizer = NeuralDiarizer.from_pretrained(model_name='diar_msdd_telephonic').to(device)
 
         out_dir = os.path.join(tmpdir, 'diarize_inference/')
-
+        print(f"-----------------device: {device}")
         assert diarizer.msdd_model.device.type == device.type
         assert diarizer._speaker_model.device.type == device.type
         for audio_path in audio_paths:
