@@ -1487,6 +1487,7 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
             if len(weight.shape) == 2:
                 weight = weight.unsqueeze(1) # hidden_size3 filter_len -> hidden_size3 1 filter_len
             self._cached_weight = weight.repeat_interleave(self.group_dim, dim=0).to(torch.float32)
+            del self._parameters["short_conv_weight"]
         weight = self._cached_weight
 
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
