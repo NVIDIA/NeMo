@@ -91,10 +91,7 @@ def init_parallel_ranks(
         pipeline_model_parallel_comm_backend=parallel_config.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
-        encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
-        encoder_pipeline_model_parallel_size=getattr(parallel_config, "encoder_pipeline_model_parallel_size", 0),
         seed=seed,
-        pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
         init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
         and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
@@ -103,6 +100,7 @@ def init_parallel_ranks(
         use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
         num_distributed_optimizer_instances=getattr(parallel_config, "num_distributed_optimizer_instances", 1),
         nccl_communicator_config_path=getattr(parallel_config, "nccl_communicator_config_path", None),
+        use_gloo_process_groups=getattr(parallel_config, "use_gloo_process_groups", True),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -127,10 +125,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 tensor_model_parallel_size=app_state.tensor_model_parallel_size,
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
-                pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
                 pipeline_model_parallel_comm_backend=app_state.pipeline_model_parallel_comm_backend,
-                encoder_pipeline_model_parallel_size=app_state.encoder_pipeline_model_parallel_size,
-                encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
@@ -138,6 +133,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
                 num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
                 nccl_communicator_config_path=app_state.nccl_communicator_config_path,
+                create_gloo_process_groups=app_state.use_gloo_process_groups,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -653,6 +649,9 @@ def setup_megatron_optimizer(
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 
     from nemo.core.optim import McoreDistributedOptimizer
+    from nemo.utils import AppState
+
+    app_state = AppState()
 
     assert isinstance(config, OptimizerConfig), f"Expected OptimizerConfig, got {type(config)}"
 
@@ -683,6 +682,7 @@ def setup_megatron_optimizer(
         no_weight_decay_cond=no_weight_decay_cond,
         scale_lr_cond=scale_lr_cond,
         lr_mult=lr_mult,
+        use_gloo_process_groups=app_state.use_gloo_process_groups,
     )
     # Pytorch does not have the concept of an `lr_mult` or a `wd_mult` but these are added to param
     # groups in megatron to control which sub-modules have different learning rates or weight

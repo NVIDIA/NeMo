@@ -378,5 +378,20 @@ def parse_cli_args():
         action="store_true",
         required=False,
     )
+    parser.add_argument(
+        "-dcdfr",
+        "--dump_config_diff_from_base_recipe",
+        help="Dump the config diff from the base recipe. Defaults to False",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+    parser.add_argument(
+        "--keep_fsdp_fp8_transpose_cache",
+        help="Keep FSDP FP8 transpose cache. Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
 
     return parser

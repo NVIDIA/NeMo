@@ -331,6 +331,8 @@ class Llama4OmniBaseModel(MCoreNevaModel):
         if not ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=self.vp_stage):
             return output
 
+        if final_loss_mask is None:
+            return output
         return output, final_loss_mask.contiguous()
 
 
