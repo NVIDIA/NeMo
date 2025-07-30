@@ -379,6 +379,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
         tokenizer_config=None,
         load_16khz_audio: bool = True,
         use_text_conditioning_tokenizer: bool = False,
+        text_conditioning_tokenizer_name: str = 't5-base',
         pad_context_text_to_max_duration: bool = False,
         context_duration_min: float = 3.0,
         context_duration_max: float = 10.0,
@@ -412,6 +413,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
         self.text_tokenizer = None  # Assigned in worker_init_fn in model file
         self.load_16khz_audio = load_16khz_audio
         self.use_text_conditioning_tokenizer = use_text_conditioning_tokenizer
+        self.text_conditioning_tokenizer_name = text_conditioning_tokenizer_name
         self.text_conditioning_tokenizer = (
             None  # Assigned in worker_init_fn in model file if use_text_conditioning_tokenizer is True
         )

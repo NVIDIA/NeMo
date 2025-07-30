@@ -33,7 +33,7 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
 from nemo.utils import logging
 
 
-def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, mode='train'):
+def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, text_conditioning_tokenizer_name, mode='train'):
     # Being used in both model and worker_init_fn, so it is defined here
     # Returns two tokenizers: one for TTS transcript and one for conditioning text (if needed)
     tokenizers = []
@@ -59,7 +59,7 @@ def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, mod
     if use_text_conditioning_tokenizer:
         # TODO: make this configurable
         # Conditioning text tokenizer
-        text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+        text_conditioning_tokenizer = AutoTokenizer.from_pretrained(text_conditioning_tokenizer_name)
 
     return aggregated_tokenizer, text_conditioning_tokenizer
 
@@ -149,6 +149,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         context_duration_min: float = 3.0,
         context_duration_max: float = 10.0,
         use_text_conditioning_tokenizer: bool = False,
+        text_conditioning_tokenizer_name: str = 'google-t5/t5-small',
         tokenizer_config: DictConfig = None,
     ):
         super().__init__()
@@ -168,6 +169,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         self.dataset_type = dataset_type  # 'train' or 'test'
         self.load_16khz_audio = load_16khz_audio
         self.use_text_conditioning_tokenizer = use_text_conditioning_tokenizer
+        self.text_conditioning_tokenizer_name = text_conditioning_tokenizer_name
         self.pad_context_text_to_max_duration = pad_context_text_to_max_duration
         self.context_duration_min = context_duration_min
         self.context_duration_max = context_duration_max
@@ -195,6 +197,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
             self.text_tokenizer, self.text_conditioning_tokenizer = setup_tokenizers(
                 all_tokenizers_config=self.tokenizer_config,
                 use_text_conditioning_tokenizer=self.use_text_conditioning_tokenizer,
+                text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
                 mode=self.dataset_type,
             )
             self.bos_id = len(self.text_tokenizer.tokens)
