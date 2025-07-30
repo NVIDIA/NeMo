@@ -56,7 +56,7 @@ def generate_grid_search_configs(
     model_name = train_cfg.model_type
     model_size_in_b = train_cfg.model_size_in_b
     path_to_logs = train_cfg.path_to_logs
-    virtual_pipeline_parallel_sizes = train_cfg.virtual_pipeline_parallel_sizes
+    virtual_pipeline_parallel_sizes = train_cfg.virtual_pipeline_model_parallel_sizes
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2

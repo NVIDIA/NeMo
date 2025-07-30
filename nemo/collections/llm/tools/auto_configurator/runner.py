@@ -53,7 +53,7 @@ class AutoConfigurator:
         gpu_memory_gb: Optional[int] = 80,
         tensor_parallel_sizes: Optional[List[int]] = "auto",
         pipeline_parallel_sizes: Optional[List[int]] = "auto",
-        virtual_pipeline_parallel_sizes: Optional[List[int]] = None,
+        virtual_pipeline_model_parallel_sizes: Optional[List[int]] = None,
         micro_batch_sizes: Optional[List[int]] = "auto",
         global_batch_sizes: Optional[List[int]] = [512],
         context_parallel_sizes: Optional[List[int]] = [1],
