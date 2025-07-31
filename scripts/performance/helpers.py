@@ -227,8 +227,11 @@ def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = N
     # because it is not supported with reuse_grad_buf_for_mxfp8_param_ag
     if compute_dtype.lower() == "fp8" and fp8_recipe.lower() == "mxfp8":
         recipe.trainer.strategy.ddp.reuse_grad_buf_for_mxfp8_param_ag = True
+        recipe.trainer.strategy.ddp.fp8_param_gather = True
         recipe.optim.config.reuse_grad_buf_for_mxfp8_param_ag = True
+        recipe.optim.config.fp8_param_gather = True
         comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
+        # TODO: remove this one, after the test
         if comm_overlap_callback_idx is not None:
             recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather = False
         logging.warning(
