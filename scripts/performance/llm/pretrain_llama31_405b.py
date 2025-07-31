@@ -145,7 +145,7 @@ def override_recipe_configs(
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
     if use_mcore_fsdp and gpu_type == 'gb200':
-        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) / 64
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) // 64
 
     return recipe
 
@@ -195,11 +195,11 @@ if __name__ == "__main__":
     exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    env_vars = {
-        "NVTE_NORM_FWD_USE_CUDNN": "1",
-        "NVTE_NORM_BWD_USE_CUDNN": "1",
-        "TRANSFORMERS_OFFLINE": "0",
-    }
+    if use_mcore_fsdp:
+        # Needed to enable CuDNN LN for FSDP overlap
+        env_vars = {"NVTE_NORM_FWD_USE_CUDNN": "1", "NVTE_NORM_BWD_USE_CUDNN": "1"}
+    else:
+        env_vars = {}
 
     if args.gpu.lower() == 'gb200':
         env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
