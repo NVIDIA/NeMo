@@ -23,6 +23,7 @@ from typing import Callable, Literal, Optional, Type
 
 import torch
 from megatron.core import parallel_state
+from megatron.core.inference.contexts import StaticInferenceContext
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.transformer.enums import AttnBackend
@@ -36,6 +37,18 @@ from nemo.lightning import get_vocab_size, io, teardown
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.io.state import TransformFns
 from nemo.utils import logging
+
+
+class HyenaInferenceContext(StaticInferenceContext):
+    """Hyena-specific inference context."""
+
+    def reset(self):
+        """Reset the inference context."""
+        super().reset()  # standard state reset for GPT models
+        for key in dir(self):
+            # Remove all of the state that we add in hyena.py
+            if "filter_state_dict" in key:
+                delattr(self, key)
 
 
 class HyenaModel(GPTModel):
@@ -88,9 +101,11 @@ class HyenaModel(GPTModel):
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=vocab_size,
             inference_max_seq_length=inference_max_seq_length,
+            inference_max_requests=1,
         )
 
-        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
+        inference_context = HyenaInferenceContext.from_config(inference_wrapper_config)
+        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config, inference_context)
         return model_inference_wrapper
 
     def forward(
@@ -225,6 +240,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     #  Fp8 in the mixed precision plugin.
     vortex_style_fp8: bool = False
     use_b2b_causal_conv1d: bool = False
+    share_embeddings_and_output_weights: bool = True
 
     def __post_init__(self):
         """
@@ -265,7 +281,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
-            share_embeddings_and_output_weights=True,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
             hyena_init_method=self.hyena_init_method,
             hyena_output_layer_init_method=self.hyena_output_layer_init_method,
             remove_activation_post_first_layer=self.remove_activation_post_first_layer,
@@ -467,6 +483,7 @@ class Hyena7bARCLongContextConfig(Hyena7bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 11264
+    seq_len_interpolation_factor: float = 128
 
 
 @dataclass
@@ -475,6 +492,7 @@ class Hyena40bARCLongContextConfig(Hyena40bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 22528
+    seq_len_interpolation_factor: float = 128
 
 
 @io.model_importer(HyenaModel, "pytorch")
