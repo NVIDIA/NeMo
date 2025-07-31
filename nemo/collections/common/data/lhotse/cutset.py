@@ -522,12 +522,16 @@ def _strip_timestamps(
     return _SPACE_PATTERN.sub(" ", text).strip()  # strip multi-whitespaces
 
 
+class FailedConversion:
+    pass
+
+
 def s2s_cut_to_conversation(
     cut: Cut,
     audio_locator_tag: str,
     token_equivalent_duration: float,
     input_roles: Sequence[str] = ("user", "User"),
-    output_roles: Sequence[str] = ("assistant", "Assistant"),
+    output_roles: Sequence[str] = ("assistant", "Assistant", "agent", "Agent"),
     strip_timestamp_tokens: bool = True,
 ) -> NeMoMultimodalConversation:
     """
@@ -563,7 +567,8 @@ def s2s_cut_to_conversation(
         elif turn_speaker in output_roles:
             turns.append(TextTurn(value=turn_text, role="assistant"))
         else:
-            raise ValueError(f"Speaker '{turn_speaker}' not found in user or agent roles for cut {cut.id}")
+            logging.warning(f"Speaker '{turn_speaker}' not found in user or agent roles for cut {cut.id}")
+            return FailedConversion()
         idx += 1
     if hasattr(cut, "system_prompt") and all(t.role != "system" for t in turns):
         turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
@@ -585,10 +590,10 @@ def read_s2s_as_conversation(config) -> tuple[CutSet, bool]:
             audio_locator_tag=config.audio_locator_tag,
             token_equivalent_duration=config.token_equivalent_duration,
             input_roles=config.get("input_roles", ["user", "User"]),
-            output_roles=config.get("output_roles", ["assistant", "Assistant"]),
+            output_roles=config.get("output_roles", ["assistant", "Assistant", "agent", "Agent"]),
             strip_timestamp_tokens=config.get("strip_timestamp_tokens", True),
         )
-    )
+    ).filter(lambda ex: not isinstance(ex, FailedConversion))
     return cuts, is_tarred
 
 
