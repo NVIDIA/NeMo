@@ -15,14 +15,11 @@ import torch
 
 from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
 from nemo.collections.multimodal.data.imagen.augmentations.augmentations import (
-    PickleTransform,
-    build_resolution_filter,
-)
-from nemo.collections.multimodal.data.imagen.augmentations.corruption import ImagePyramidNoCorruptions
+    PickleTransform, build_resolution_filter)
+from nemo.collections.multimodal.data.imagen.augmentations.corruption import \
+    ImagePyramidNoCorruptions
 from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentations import (
-    construct_image_augmentations,
-    identical_transform,
-)
+    construct_image_augmentations, identical_transform)
 from nemo.core.classes import Dataset as NeMoDataset
 from nemo.utils import logging
 

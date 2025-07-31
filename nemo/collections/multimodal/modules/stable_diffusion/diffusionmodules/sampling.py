@@ -23,13 +23,10 @@ from omegaconf import ListConfig, OmegaConf
 from tqdm import tqdm
 
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.sampling_utils import (
-    get_ancestral_step,
-    linear_multistep_coeff,
-    to_d,
-    to_neg_log_sigma,
-    to_sigma,
-)
-from nemo.collections.multimodal.parts.stable_diffusion.utils import append_dims, default, instantiate_from_config
+    get_ancestral_step, linear_multistep_coeff, to_d, to_neg_log_sigma,
+    to_sigma)
+from nemo.collections.multimodal.parts.stable_diffusion.utils import (
+    append_dims, default, instantiate_from_config)
 
 DEFAULT_GUIDER = {
     "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.guiders.IdentityGuider"

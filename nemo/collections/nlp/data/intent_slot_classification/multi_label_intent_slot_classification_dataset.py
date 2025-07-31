@@ -17,9 +17,12 @@
 from typing import Dict, Optional
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.intent_slot_classification import IntentSlotClassificationDataset
-from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_dataset import get_features
-from nemo.core.neural_types import ChannelType, LabelsType, MaskType, NeuralType
+from nemo.collections.nlp.data.intent_slot_classification import \
+    IntentSlotClassificationDataset
+from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classification_dataset import \
+    get_features
+from nemo.core.neural_types import (ChannelType, LabelsType, MaskType,
+                                    NeuralType)
 
 __all__ = ['MultiLabelIntentSlotClassificationDataset']
 

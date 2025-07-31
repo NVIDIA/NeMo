@@ -13,10 +13,12 @@
 # limitations under the License.
 from typing import Optional
 
-from megatron.energon import Cooker, DefaultTaskEncoder, SkipSample, basic_sample_keys
+from megatron.energon import (Cooker, DefaultTaskEncoder, SkipSample,
+                              basic_sample_keys)
 from torchvision import transforms
 
-from nemo.collections.multimodal.data.clip.augmentations.augmentations import image_transform
+from nemo.collections.multimodal.data.clip.augmentations.augmentations import \
+    image_transform
 from nemo.collections.multimodal.data.clip.clip_dataset import tokenize
 from nemo.lightning.io.mixin import IOMixin
 from nemo.utils import logging
@@ -87,7 +89,8 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
             logging.warning("Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
             from transformers import AutoProcessor
 
-            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+                AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("openai/clip-vit-large-patch14")
             self.tokenizer = AutoTokenizer("openai/clip-vit-large-patch14")

@@ -21,7 +21,8 @@ from typing import Optional
 import nltk
 import torch
 
-from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import english_word_tokenize
+from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import \
+    english_word_tokenize
 from nemo.collections.tts.g2p.models.base import BaseG2p
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero

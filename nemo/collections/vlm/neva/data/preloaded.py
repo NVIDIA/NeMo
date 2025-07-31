@@ -25,16 +25,20 @@ import lightning.pytorch as pl
 import numpy as np
 import torch
 import torch.nn.functional as F
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from PIL import Image
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset, default_collate
 from transformers import CLIPImageProcessor, SiglipImageProcessor
 
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_ltor_masks_and_position_ids
 from nemo.collections.vlm.neva.data.config import DataConfig, ImageDataConfig
-from nemo.collections.vlm.neva.data.conversation import conv_templates as supported_conv_templates
-from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, SPECIAL_TOKEN_MAP
+from nemo.collections.vlm.neva.data.conversation import \
+    conv_templates as supported_conv_templates
+from nemo.collections.vlm.neva.data.multimodal_tokens import (
+    IGNORE_INDEX, SPECIAL_TOKEN_MAP)
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 
@@ -263,7 +267,8 @@ class LazySupervisedDataset(Dataset):
         logging.warning("Formatting inputs...Skip in lazy mode")
         self.data_config = data_config
         self.tokenizer = tokenizer
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         if isinstance(self.tokenizer, AutoTokenizer):
             self.tokenizer = self.tokenizer.tokenizer
@@ -444,7 +449,8 @@ class NevaDataset(LazySupervisedDataset):
             raise ValueError(f"Unsupported media type {media_type}")
 
         if packed_sequence:
-            from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed
+            from nemo.collections.vlm.neva.data.sequence_packing import \
+                convert_to_packed
 
             media_token_id = self.data_config.media_token.token_index
             tokens, labels, position_ids, loss_mask, packed_seq_params = convert_to_packed(
@@ -543,7 +549,9 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         if tokenizer is None or image_processor is None:
             logging.warning("Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
             from transformers import AutoProcessor
-            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
+            from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+                AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
             self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf")
@@ -629,9 +637,11 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
 
         """
         try:
-            from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from apex.transformer.pipeline_parallel.utils import \
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         except ModuleNotFoundError:
-            from nemo.lightning.apex_utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+            from nemo.lightning.apex_utils import \
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples

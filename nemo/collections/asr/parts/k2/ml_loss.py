@@ -32,9 +32,11 @@ from typing import Any, Optional, Tuple
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler, RnntTopologyCompiler
+from nemo.collections.asr.parts.k2.graph_compilers import (
+    CtcTopologyCompiler, RnntTopologyCompiler)
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin, RnntK2Mixin
-from nemo.collections.asr.parts.k2.utils import get_tot_objf_and_finite_mask, invert_permutation
+from nemo.collections.asr.parts.k2.utils import (get_tot_objf_and_finite_mask,
+                                                 invert_permutation)
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 
 

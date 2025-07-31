@@ -131,7 +131,8 @@ class ASRK2Mixin(ABC):
             transcribe_training = False
         self.transcribe_training = transcribe_training
         if self.use_graph_lm:
-            from nemo.collections.asr.modules.graph_decoder import ViterbiDecoderWithGraph
+            from nemo.collections.asr.modules.graph_decoder import \
+                ViterbiDecoderWithGraph
 
             self.transcribe_decoder = ViterbiDecoderWithGraph(
                 num_classes=num_classes,

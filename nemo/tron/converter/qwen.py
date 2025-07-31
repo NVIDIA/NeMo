@@ -15,14 +15,16 @@
 import logging
 from typing import TYPE_CHECKING
 
-from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Exporter as _NeMo2HFQwen2Exporter
-from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Importer as _NeMo2HFQwen2Importer
+from nemo.collections.llm.gpt.model.qwen2 import \
+    HFQwen2Exporter as _NeMo2HFQwen2Exporter
+from nemo.collections.llm.gpt.model.qwen2 import \
+    HFQwen2Importer as _NeMo2HFQwen2Importer
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
-
-from nemo.collections.llm.gpt.model.qwen3 import HFQwen3Exporter as _NeMo2HFQwen3Exporter
-from nemo.collections.llm.gpt.model.qwen3 import HFQwen3Importer as _NeMo2HFQwen3Importer
+from nemo.collections.llm.gpt.model.qwen3 import \
+    HFQwen3Exporter as _NeMo2HFQwen3Exporter
+from nemo.collections.llm.gpt.model.qwen3 import \
+    HFQwen3Importer as _NeMo2HFQwen3Importer
 from nemo.collections.llm.gpt.model.qwen3 import Qwen3Config
-
 from nemo.tron.converter.common import BaseExporter, BaseImporter
 
 if TYPE_CHECKING:
@@ -75,7 +77,9 @@ class HFQwen2Importer(BaseImporter):
     def init_hf_model(self):
         from transformers import AutoModelForCausalLM
 
-        return AutoModelForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto", trust_remote_code=True)
+        return AutoModelForCausalLM.from_pretrained(
+            str(self.input_path), torch_dtype="auto", trust_remote_code=True
+        )
 
     convert_state = _NeMo2HFQwen2Importer.convert_state
 
@@ -85,7 +89,9 @@ class HFQwen2Importer(BaseImporter):
 
         if self._hf_config is not None:
             return self._hf_config
-        self._hf_config = HFQwen2Config.from_pretrained(str(self.input_path), trust_remote_code=True)
+        self._hf_config = HFQwen2Config.from_pretrained(
+            str(self.input_path), trust_remote_code=True
+        )
         return self._hf_config
 
     @property
@@ -103,6 +109,7 @@ class HFQwen2Importer(BaseImporter):
 
         self._tron_config = _NeMo2HFQwen2Importer.config.fget(self.input_path)
         return self._tron_config
+
 
 class HFQwen3Exporter(BaseExporter):
     """Exporter to convert NeMo Qwen3 models to Hugging Face format."""
@@ -140,13 +147,16 @@ class HFQwen3Exporter(BaseExporter):
         )
         return self._hf_config
 
+
 class HFQwen3Importer(BaseImporter):
     """Importer for converting Hugging Face Qwen3 models to NeMo Tron format."""
 
     def init_hf_model(self):
         from transformers import AutoModelForCausalLM
 
-        return AutoModelForCausalLM.from_pretrained(str(self.input_path), torch_dtype="auto", trust_remote_code=True)
+        return AutoModelForCausalLM.from_pretrained(
+            str(self.input_path), torch_dtype="auto", trust_remote_code=True
+        )
 
     convert_state = _NeMo2HFQwen3Importer.convert_state
 
@@ -156,7 +166,9 @@ class HFQwen3Importer(BaseImporter):
 
         if self._hf_config is not None:
             return self._hf_config
-        self._hf_config = HFQwen3Config.from_pretrained(str(self.input_path), trust_remote_code=True)
+        self._hf_config = HFQwen3Config.from_pretrained(
+            str(self.input_path), trust_remote_code=True
+        )
         return self._hf_config
 
     @property
@@ -174,7 +186,6 @@ class HFQwen3Importer(BaseImporter):
 
         self._tron_config = _NeMo2HFQwen3Importer.config.fget(self.input_path)
         return self._tron_config
-
 
     @property
     def config(self) -> Qwen3Config:

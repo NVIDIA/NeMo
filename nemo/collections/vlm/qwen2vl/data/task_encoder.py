@@ -27,16 +27,13 @@ from megatron.energon.flavors.base_dataset import Sample
 from megatron.energon.task_encoder.cooking import Cooker, basic_sample_keys
 from PIL import Image
 
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_ltor_masks_and_position_ids
 from nemo.collections.vlm.qwen2vl.data.multimodal_tokens import (
-    HF_IMAGE_TOKEN_INDEX,
-    HF_VIDEO_TOKEN_INDEX,
-    IGNORE_INDEX,
-    IMAGE_TOKEN_INDEX,
-    PAD_TOKEN_INDEX,
-    VIDEO_TOKEN_INDEX,
-)
-from nemo.collections.vlm.qwen2vl.data.preloaded import find_pattern_indices, process_vision
+    HF_IMAGE_TOKEN_INDEX, HF_VIDEO_TOKEN_INDEX, IGNORE_INDEX,
+    IMAGE_TOKEN_INDEX, PAD_TOKEN_INDEX, VIDEO_TOKEN_INDEX)
+from nemo.collections.vlm.qwen2vl.data.preloaded import (find_pattern_indices,
+                                                         process_vision)
 from nemo.utils import logging
 
 

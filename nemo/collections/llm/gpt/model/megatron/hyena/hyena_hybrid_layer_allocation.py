@@ -17,7 +17,6 @@
 
 import logging
 
-
 if __name__ != "__main__":
     from megatron.core.utils import log_single_rank
 else:

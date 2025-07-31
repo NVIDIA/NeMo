@@ -43,14 +43,9 @@ import torch
 
 from nemo.collections.asr.parts.utils.manifest_utils import write_manifest
 from nemo.collections.asr.parts.utils.vad_utils import (
-    frame_vad_eval_detection_error,
-    frame_vad_infer_load_manifest,
-    generate_overlap_vad_seq,
-    generate_vad_frame_pred,
-    generate_vad_segment_table,
-    init_frame_vad_model,
-    prepare_manifest,
-)
+    frame_vad_eval_detection_error, frame_vad_infer_load_manifest,
+    generate_overlap_vad_seq, generate_vad_frame_pred,
+    generate_vad_segment_table, init_frame_vad_model, prepare_manifest)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

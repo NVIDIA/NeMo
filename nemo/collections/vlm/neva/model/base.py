@@ -22,7 +22,8 @@ from megatron.core import InferenceParams, dist_checkpointing
 from megatron.core import parallel_state as ps
 from megatron.core import tensor_parallel
 from megatron.core.enums import ModelType
-from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
+from megatron.core.models.multimodal.llava_model import \
+    LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_config import TransformerConfig
@@ -30,12 +31,14 @@ from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-
-from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
+from nemo.collections.vlm.neva.data.multimodal_tokens import (
+    IGNORE_INDEX, IMAGE_TOKEN_INDEX)
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.megatron_parallel import \
+    MaskedTokenLossReductionWithLossMask
+from nemo.lightning.pytorch.optim import (MegatronOptimizerModule,
+                                          OptimizerModule)
 from nemo.utils import logging
 
 MODEL_CONFIG_ATTR = [

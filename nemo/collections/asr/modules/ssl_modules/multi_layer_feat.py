@@ -18,7 +18,8 @@ import torch
 import torch.distributed
 import torch.nn as nn
 
-from nemo.collections.asr.modules import AudioToMelSpectrogramPreprocessor, ConformerEncoder
+from nemo.collections.asr.modules import (AudioToMelSpectrogramPreprocessor,
+                                          ConformerEncoder)
 from nemo.core.classes import Exportable, NeuralModule
 from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging

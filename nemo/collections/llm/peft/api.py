@@ -22,11 +22,13 @@ from lightning.pytorch.trainer.states import TrainerFn
 from megatron.core import dist_checkpointing
 from rich.console import Console
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm.peft.lora import LoRA, LoRAMerge
 from nemo.collections.llm.utils import factory
 from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib, io
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
+from nemo.lightning.ckpt_utils import (ADAPTER_META_FILENAME,
+                                       ckpt_to_context_subdir)
 from nemo.lightning.io import api
 from nemo.lightning.io.pl import TrainerContext, ckpt_to_weights_subdir
 from nemo.lightning.pytorch.callbacks import PEFT
@@ -95,7 +97,8 @@ def merge_lora(
         output_path: The path to save the merged checkpoint.
 
     """
-    from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
+    from nemo.collections.llm.recipes.precision.mixed_precision import \
+        bf16_mixed
 
     trainer = Trainer(
         devices=1,

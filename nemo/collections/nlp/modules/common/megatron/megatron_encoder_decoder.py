@@ -16,10 +16,13 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.hiddens import MegatronHiddensModule
-from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import MegatronPerceiverEncoderModule
+from nemo.collections.nlp.modules.common.megatron.hiddens import \
+    MegatronHiddensModule
+from nemo.collections.nlp.modules.common.megatron.megatron_perceiver_encoders import \
+    MegatronPerceiverEncoderModule
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 
 try:
     from apex.transformer.enums import AttnMaskType

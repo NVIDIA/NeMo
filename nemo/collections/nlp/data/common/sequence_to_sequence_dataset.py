@@ -19,10 +19,9 @@ import torch
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
-    get_indexed_dataset_,
-    get_samples_mapping,
-)
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import TextMemMapDataset
+    get_indexed_dataset_, get_samples_mapping)
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import \
+    TextMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 

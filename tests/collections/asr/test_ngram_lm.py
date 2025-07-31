@@ -20,7 +20,8 @@ import torch
 from torch.nn.utils.rnn import pad_sequence
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.parts.submodules.ngram_lm import KenLMBatchedWrapper, NGramGPULanguageModel
+from nemo.collections.asr.parts.submodules.ngram_lm import (
+    KenLMBatchedWrapper, NGramGPULanguageModel)
 from nemo.core.utils.optional_libs import KENLM_AVAILABLE, TRITON_AVAILABLE
 
 DEVICES = [torch.device("cpu")]

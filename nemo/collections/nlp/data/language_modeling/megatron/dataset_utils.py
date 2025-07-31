@@ -42,15 +42,19 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-    get_train_valid_test_split_,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import deallocate_indexed_dataset_memory
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_dataset as make_indexed_dataset
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import make_indexed_dataset_compatibility
-from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
-from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
+    get_datasets_weights_and_num_samples, get_train_valid_test_split_)
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import \
+    deallocate_indexed_dataset_memory
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import \
+    make_dataset as make_indexed_dataset
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_dataset import \
+    make_indexed_dataset_compatibility
+from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import \
+    LengthDistribution
+from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import \
+    T5LMAdaptedDataset
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
@@ -618,11 +622,16 @@ def get_dataset(
         raise ValueError("Invalid dataset_type: ", dataset_type)
 
     # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
-    from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import BARTDataset
-    from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
-    from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
-    from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-    from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
+    from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import \
+        BARTDataset
+    from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import \
+        BertDataset
+    from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import \
+        LengthDistribution
+    from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import \
+        T5Dataset
+    from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import \
+        UL2Dataset
 
     if dataset_type == DSET_TYPE_ICT:
         raise NotImplementedError("ICT dataset is not implemented yet.")
@@ -896,7 +905,8 @@ def build_train_valid_test_datasets(
             # Files from this location will not be read; mock data will be generated instead.
             logging.warning(f"Requested data_impl={data_impl}, so ignoring data_prefix setting: {data_prefix}")
         if dataset_type == DSET_TYPE_T5:
-            from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import MockT5Dataset
+            from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import \
+                MockT5Dataset
 
             if tokenizer is None:
                 # Tokenizer is used to infer vocabulary size for mock data.
@@ -1168,11 +1178,16 @@ def _build_train_valid_test_datasets(
 
     def build_dataset(index, name):
         # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
-        from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import BARTDataset
-        from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import BertDataset
-        from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
-        from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
-        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import UL2Dataset
+        from nemo.collections.nlp.data.language_modeling.megatron.bart_dataset import \
+            BARTDataset
+        from nemo.collections.nlp.data.language_modeling.megatron.bert_dataset import \
+            BertDataset
+        from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import \
+            LengthDistribution
+        from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import \
+            T5Dataset
+        from nemo.collections.nlp.data.language_modeling.megatron.ul2_dataset import \
+            UL2Dataset
 
         dataset = None
         if splits[index + 1] > splits[index]:
@@ -1318,7 +1333,8 @@ def get_samples_mapping(
         try:
             if is_global_rank_zero():
                 compile_helper()
-            from nemo.collections.nlp.data.language_modeling.megatron import helpers
+            from nemo.collections.nlp.data.language_modeling.megatron import \
+                helpers
         except ImportError:
             raise ImportError(
                 f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'

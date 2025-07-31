@@ -69,14 +69,18 @@ import process_audio
 import torch
 from omegaconf import OmegaConf, open_dict
 from torchmetrics.audio.pesq import PerceptualEvaluationSpeechQuality
-from torchmetrics.audio.sdr import ScaleInvariantSignalDistortionRatio, SignalDistortionRatio
+from torchmetrics.audio.sdr import (ScaleInvariantSignalDistortionRatio,
+                                    SignalDistortionRatio)
 from torchmetrics.audio.stoi import ShortTimeObjectiveIntelligibility
 from tqdm import tqdm
 
 from nemo.collections.audio.data import audio_to_audio_dataset
-from nemo.collections.audio.data.audio_to_audio_lhotse import LhotseAudioToTargetDataset
-from nemo.collections.audio.metrics import AudioMetricWrapper, SquimMOSMetric, SquimObjectiveMetric
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.audio.data.audio_to_audio_lhotse import \
+    LhotseAudioToTargetDataset
+from nemo.collections.audio.metrics import (AudioMetricWrapper, SquimMOSMetric,
+                                            SquimObjectiveMetric)
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.collections.common.parts.preprocessing import manifest
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

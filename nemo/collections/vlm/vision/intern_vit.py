@@ -22,11 +22,8 @@ import torch
 
 try:
     from megatron.core.extensions.transformer_engine import (
-        TEColumnParallelLinear,
-        TEDotProductAttention,
-        TENorm,
-        TERowParallelLinear,
-    )
+        TEColumnParallelLinear, TEDotProductAttention, TENorm,
+        TERowParallelLinear)
 except ImportError:
     from nemo.utils import logging
 
@@ -42,20 +39,21 @@ except ImportError:
         "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
     )
 
-from megatron.core.parallel_state import (
-    get_tensor_model_parallel_group,
-    get_tensor_model_parallel_rank,
-    get_tensor_model_parallel_world_size,
-)
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.parallel_state import (get_tensor_model_parallel_group,
+                                          get_tensor_model_parallel_rank,
+                                          get_tensor_model_parallel_world_size)
+from megatron.core.tensor_parallel.layers import (ColumnParallelLinear,
+                                                  RowParallelLinear)
+from megatron.core.transformer.attention import (SelfAttention,
+                                                 SelfAttentionSubmodules)
 from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.transformer_layer import (
+    TransformerLayer, TransformerLayerSubmodules)
 
 from nemo.collections.vlm.vision.base import CLIPViTConfig
 from nemo.lightning import io, teardown

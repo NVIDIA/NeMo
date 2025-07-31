@@ -25,7 +25,8 @@ from megatron.core.transformer.module import Float16Module
 from nemo.tron.utils.yaml_utils import safe_yaml_representers
 
 try:
-    from megatron.core.distributed import TorchFullyShardedDataParallel as torch_FSDP
+    from megatron.core.distributed import \
+        TorchFullyShardedDataParallel as torch_FSDP
 
     ALL_MODULE_WRAPPER_CLASSNAMES = (DDP, torch_FSDP, Float16Module)
 except ImportError:

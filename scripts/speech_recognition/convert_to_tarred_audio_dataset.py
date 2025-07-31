@@ -409,8 +409,11 @@ class ASRTarredDatasetBuilder:
 
     def estimate_dynamic_bucketing_duration_bins(self, manifest_path: str, num_buckets: int = 30) -> dict:
         from lhotse import CutSet
-        from lhotse.dataset.sampling.dynamic_bucketing import estimate_duration_buckets
-        from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoIterator
+        from lhotse.dataset.sampling.dynamic_bucketing import \
+            estimate_duration_buckets
+
+        from nemo.collections.common.data.lhotse.nemo_adapters import \
+            LazyNeMoIterator
 
         cuts = CutSet(LazyNeMoIterator(manifest_path, metadata_only=True))
         bins = estimate_duration_buckets(cuts, num_buckets=num_buckets)

@@ -16,7 +16,8 @@ import lightning.pytorch as pl
 from lightning.pytorch.callbacks.callback import Callback
 from megatron.core import ModelParallelConfig
 
-from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
+from nemo.lightning.pytorch.strategies.megatron_strategy import \
+    MegatronStrategy
 
 
 class MegatronTokenDropCallback(Callback):

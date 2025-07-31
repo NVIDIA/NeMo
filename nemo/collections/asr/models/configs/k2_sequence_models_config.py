@@ -14,8 +14,10 @@
 
 from dataclasses import dataclass, field
 
-from nemo.collections.asr.models.configs.asr_models_config import EncDecCTCConfig
-from nemo.collections.asr.parts.k2.classes import GraphModuleConfig as BackendConfig
+from nemo.collections.asr.models.configs.asr_models_config import \
+    EncDecCTCConfig
+from nemo.collections.asr.parts.k2.classes import \
+    GraphModuleConfig as BackendConfig
 from nemo.core.config.modelPT import NemoConfig
 
 

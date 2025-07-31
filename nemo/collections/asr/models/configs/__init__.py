@@ -13,36 +13,21 @@
 # limitations under the License.
 
 from nemo.collections.asr.models.configs.asr_models_config import (
-    ASRDatasetConfig,
-    CacheAwareStreamingConfig,
-    EncDecCTCConfig,
-    EncDecCTCModelConfig,
-)
+    ASRDatasetConfig, CacheAwareStreamingConfig, EncDecCTCConfig,
+    EncDecCTCModelConfig)
 from nemo.collections.asr.models.configs.classification_models_config import (
-    EncDecClassificationConfig,
-    EncDecClassificationDatasetConfig,
-    EncDecClassificationModelConfig,
-)
-from nemo.collections.asr.models.configs.diarizer_config import NeuralDiarizerInferenceConfig
+    EncDecClassificationConfig, EncDecClassificationDatasetConfig,
+    EncDecClassificationModelConfig)
+from nemo.collections.asr.models.configs.diarizer_config import \
+    NeuralDiarizerInferenceConfig
 from nemo.collections.asr.models.configs.matchboxnet_config import (
-    EncDecClassificationModelConfigBuilder,
-    MatchboxNetModelConfig,
-    MatchboxNetVADModelConfig,
-)
+    EncDecClassificationModelConfigBuilder, MatchboxNetModelConfig,
+    MatchboxNetVADModelConfig)
 from nemo.collections.asr.models.configs.quartznet_config import (
-    EncDecCTCModelConfigBuilder,
-    JasperModelConfig,
-    QuartzNetModelConfig,
-)
+    EncDecCTCModelConfigBuilder, JasperModelConfig, QuartzNetModelConfig)
 from nemo.collections.asr.modules.audio_preprocessing import (
-    AudioToMelSpectrogramPreprocessorConfig,
-    AudioToMFCCPreprocessorConfig,
-    CropOrPadSpectrogramAugmentationConfig,
-    SpectrogramAugmentationConfig,
-)
+    AudioToMelSpectrogramPreprocessorConfig, AudioToMFCCPreprocessorConfig,
+    CropOrPadSpectrogramAugmentationConfig, SpectrogramAugmentationConfig)
 from nemo.collections.asr.modules.conv_asr import (
-    ConvASRDecoderClassificationConfig,
-    ConvASRDecoderConfig,
-    ConvASREncoderConfig,
-    JasperEncoderConfig,
-)
+    ConvASRDecoderClassificationConfig, ConvASRDecoderConfig,
+    ConvASREncoderConfig, JasperEncoderConfig)

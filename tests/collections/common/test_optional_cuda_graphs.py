@@ -15,7 +15,8 @@ from types import SimpleNamespace
 
 import torch.nn as nn
 
-from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
+from nemo.collections.common.parts.optional_cuda_graphs import \
+    WithOptionalCudaGraphs
 
 
 class MockClassWithCudaGraphs(WithOptionalCudaGraphs):

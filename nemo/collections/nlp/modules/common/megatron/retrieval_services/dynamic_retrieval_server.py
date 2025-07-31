@@ -27,10 +27,10 @@ from flask import Flask, jsonify, request
 from flask_restful import Api
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.static_retrieval_server import (
-    FaissRetrievalResource,
-)
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock, request_data
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.static_retrieval_server import \
+    FaissRetrievalResource
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import (
+    lock, request_data)
 
 # define this type to mimic the indexed dataset
 DType = namedtuple('DType', ['dtype'])

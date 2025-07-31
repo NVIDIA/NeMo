@@ -20,24 +20,17 @@ import nemo_run as run
 
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama3_70b import finetune_recipe, model
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora,
-)
+from nemo.collections.llm.recipes.precision.mixed_precision import \
+    bf16_with_fp8_mixed
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import \
+    userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_comm_overlap_callback_idx,
-    get_user_configs,
-    hf_tokenizer,
-    import_ckpt_experiment,
-    isfile_train_pack_metadata,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..utils import (args_sanity_check, get_comm_overlap_callback_idx,
+                     get_user_configs, hf_tokenizer, import_ckpt_experiment,
+                     isfile_train_pack_metadata, set_exp_logging_configs,
+                     set_primary_perf_configs, slurm_executor)
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-70B"
 

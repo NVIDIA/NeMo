@@ -13,8 +13,10 @@
 # limitations under the License.
 import numpy as np
 
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import GPTDataset
-from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import \
+    GPTDataset
+from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import \
+    LengthDistribution
 
 
 class T5LMAdaptedDataset(GPTDataset):

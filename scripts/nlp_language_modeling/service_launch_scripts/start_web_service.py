@@ -14,7 +14,8 @@
 """
 """
 
-from nemo.collections.nlp.modules.common.megatron_web_server import RetroDemoWebApp
+from nemo.collections.nlp.modules.common.megatron_web_server import \
+    RetroDemoWebApp
 from nemo.core.config import hydra_runner
 
 

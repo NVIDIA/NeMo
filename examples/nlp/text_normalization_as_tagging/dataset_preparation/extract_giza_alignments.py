@@ -21,12 +21,8 @@ import re
 from argparse import ArgumentParser
 
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import (
-    check_monotonicity,
-    fill_alignment_matrix,
-    get_targets,
-    get_targets_from_back,
-)
-
+    check_monotonicity, fill_alignment_matrix, get_targets,
+    get_targets_from_back)
 
 parser = ArgumentParser(description='Extract final alignments from GIZA++ alignments')
 parser.add_argument('--mode', type=str, required=True, help='tn or itn')

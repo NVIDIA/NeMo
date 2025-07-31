@@ -16,8 +16,10 @@ from typing import Dict, Optional
 import torch
 
 from nemo.collections.multimodal.modules.nerf.geometry.layers import MLP
-from nemo.collections.multimodal.modules.nerf.geometry.nerf_base import DensityActivationEnum, NeRFBase, NormalTypeEnum
-from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.encoding import get_encoder
+from nemo.collections.multimodal.modules.nerf.geometry.nerf_base import (
+    DensityActivationEnum, NeRFBase, NormalTypeEnum)
+from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.encoding import \
+    get_encoder
 
 
 # Don't fuse sigma_net with features_net:

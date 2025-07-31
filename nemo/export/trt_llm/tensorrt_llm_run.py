@@ -30,7 +30,8 @@ from mpi4py.futures import MPIPoolExecutor
 from tensorrt_llm.builder import Engine
 from tensorrt_llm.lora_manager import LoraManager
 from tensorrt_llm.quantization import QuantMode
-from tensorrt_llm.runtime import ModelConfig, ModelRunner, ModelRunnerCpp, SamplingConfig
+from tensorrt_llm.runtime import (ModelConfig, ModelRunner, ModelRunnerCpp,
+                                  SamplingConfig)
 from transformers import PreTrainedTokenizer
 
 LOGGER = logging.getLogger("NeMo")

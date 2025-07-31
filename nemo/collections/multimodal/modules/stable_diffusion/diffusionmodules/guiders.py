@@ -16,7 +16,8 @@ from functools import partial
 
 import torch
 
-from nemo.collections.multimodal.parts.stable_diffusion.utils import default, instantiate_from_config
+from nemo.collections.multimodal.parts.stable_diffusion.utils import (
+    default, instantiate_from_config)
 
 
 class VanillaCFG:

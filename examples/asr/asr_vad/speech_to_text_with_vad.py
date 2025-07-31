@@ -73,15 +73,13 @@ from nemo.collections.asr.data import feature_to_text_dataset
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecClassificationModel
 from nemo.collections.asr.parts.submodules import CTCDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+from nemo.collections.asr.parts.submodules.rnnt_decoding import \
+    RNNTDecodingConfig
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
 from nemo.collections.asr.parts.utils.vad_utils import (
-    generate_overlap_vad_seq,
-    generate_vad_segment_table,
-    get_vad_stream_status,
-    init_frame_vad_model,
-    init_vad_model,
-)
+    generate_overlap_vad_seq, generate_vad_segment_table,
+    get_vad_stream_status, init_frame_vad_model, init_vad_model)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 

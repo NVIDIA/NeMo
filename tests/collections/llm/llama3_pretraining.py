@@ -26,14 +26,8 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
 from tests.collections.llm.common import (
     AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays,
-    MCoreModelAttributeValidator,
-    MiscAttributeValidator,
-    StopBeforeEnd,
-    create_verify_precision,
-    small_llama_cfg,
-    train_data,
-    verify_ckpt_dir,
-)
+    MCoreModelAttributeValidator, MiscAttributeValidator, StopBeforeEnd,
+    create_verify_precision, small_llama_cfg, train_data, verify_ckpt_dir)
 
 
 def get_args():

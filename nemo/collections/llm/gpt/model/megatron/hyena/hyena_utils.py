@@ -20,25 +20,23 @@ from functools import partial
 from typing import Literal
 
 import torch
-
 # CP related utils
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
-from megatron.core.parallel_state import (
-    get_context_parallel_group,
-    get_context_parallel_rank,
-    get_context_parallel_world_size,
-    get_tensor_model_parallel_rank,
-    get_tensor_model_parallel_world_size,
-)
+from megatron.core.parallel_state import (get_context_parallel_group,
+                                          get_context_parallel_rank,
+                                          get_context_parallel_world_size,
+                                          get_tensor_model_parallel_rank,
+                                          get_tensor_model_parallel_world_size)
 from megatron.core.tensor_parallel import get_cuda_rng_tracker
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint, sharded_state_dict_default
+from megatron.core.transformer.utils import (
+    make_sharded_tensors_for_checkpoint, sharded_state_dict_default)
 from torch.autograd.function import Function
 
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
-
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import \
+    HyenaConfig
 
 try:
     from einops import rearrange

@@ -70,7 +70,8 @@ import lightning.pytorch as pl
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.asr.models import ASRModel, SLUIntentSlotBPEModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models import (ASRModel, SLUIntentSlotBPEModel,
+                                         SpeechEncDecSelfSupervisedModel)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

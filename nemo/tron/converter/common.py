@@ -24,19 +24,23 @@ import torch
 import torch.distributed as dist
 import yaml
 from megatron.core import parallel_state
-from megatron.core.dist_checkpointing.strategies.torch import TorchDistLoadShardedStrategy
+from megatron.core.dist_checkpointing.strategies.torch import \
+    TorchDistLoadShardedStrategy
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import (GPTConfig,
+                                                 torch_dtype_from_mcore_config)
 from nemo.collections.llm.t5.model.t5 import T5Config
 from nemo.tron.checkpointing import save_checkpoint
-from nemo.tron.config import CheckpointConfig, ConfigContainer, LoggerConfig, TokenizerConfig
+from nemo.tron.config import (CheckpointConfig, ConfigContainer, LoggerConfig,
+                              TokenizerConfig)
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import _HuggingFaceTokenizer
 from nemo.tron.utils.instantiate_utils import instantiate
 
 if TYPE_CHECKING:
-    from transformers import AutoModelForCausalLM, AutoTokenizer, PretrainedConfig
+    from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                              PretrainedConfig)
 
 
 logger = logging.getLogger(__name__)

@@ -15,7 +15,8 @@ from typing import Optional
 
 import torch
 
-from nemo.collections.multimodal.modules.nerf.materials.materials_base import MaterialsBase, ShadingEnum
+from nemo.collections.multimodal.modules.nerf.materials.materials_base import (
+    MaterialsBase, ShadingEnum)
 
 
 class BasicShading(MaterialsBase):

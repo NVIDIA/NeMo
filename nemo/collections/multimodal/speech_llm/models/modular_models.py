@@ -32,39 +32,42 @@ from omegaconf.omegaconf import OmegaConf, open_dict
 from nemo.collections.asr.models import ASRModel, EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.data.utils import move_data_to_device
-from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
+from nemo.collections.common.metrics import (MetricStringToTorchMetric,
+                                             TextMetricsSet)
 from nemo.collections.multimodal.speech_llm.data.build_dataset import (
-    build_speechllm_dataloader,
-    build_speechllm_dataset,
-)
-from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import generate
+    build_speechllm_dataloader, build_speechllm_dataset)
+from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_utils import \
+    generate
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
-    AudioPerceptionModule,
-    MultiAudioPerceptionModule,
-)
-from nemo.collections.multimodal.speech_llm.parts.mixins.adapter_mixin import SpeechLLMAdapterMixin
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import get_nested_dict_value
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+    AudioPerceptionModule, MultiAudioPerceptionModule)
+from nemo.collections.multimodal.speech_llm.parts.mixins.adapter_mixin import \
+    SpeechLLMAdapterMixin
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import \
+    get_nested_dict_value
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import \
+    MegatronGPTSFTModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    build_position_ids,
-    get_iterator_k_split,
-)
-from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
+    average_losses_across_data_parallel_group, build_position_ids,
+    get_iterator_k_split)
+from nemo.collections.nlp.modules.common.text_generation_utils import \
+    get_computeprob_response
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import adapter_mixins
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
+from nemo.core.neural_types import (AudioSignal, LabelsType, LengthsType,
+                                    MaskType, NeuralType)
 from nemo.utils import AppState, logging, model_utils
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     from megatron.core import InferenceParams, parallel_state, tensor_parallel
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -73,17 +76,16 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
-        get_micro_batch_size,
-        get_num_microbatches,
-        reconfigure_num_microbatches_calculator,
-    )
+        get_micro_batch_size, get_num_microbatches,
+        reconfigure_num_microbatches_calculator)
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
-    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
+    from apex.transformer.pipeline_parallel.utils import (get_micro_batch_size,
+                                                          get_num_microbatches)
 
 __all__ = ["ModularAudioGPTModel", "CrossAttendModularAudioGPTModel"]
 

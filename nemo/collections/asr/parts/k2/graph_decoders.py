@@ -23,17 +23,12 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.k2.loss_mixins import CtcK2Mixin, RnntK2Mixin
-from nemo.collections.asr.parts.k2.utils import (
-    create_supervision,
-    invert_permutation,
-    levenshtein_graph_k2,
-    load_graph,
-)
+from nemo.collections.asr.parts.k2.utils import (create_supervision,
+                                                 invert_permutation,
+                                                 levenshtein_graph_k2,
+                                                 load_graph)
 from nemo.collections.asr.parts.submodules.wfst_decoder import (
-    AbstractWFSTDecoder,
-    WfstNbestHypothesis,
-    collapse_tokenword_hypotheses,
-)
+    AbstractWFSTDecoder, WfstNbestHypothesis, collapse_tokenword_hypotheses)
 from nemo.core.utils.k2_guard import k2
 from nemo.utils import logging
 
@@ -206,7 +201,8 @@ class CtcDecoder(BaseDecoder, CtcK2Mixin):
         super().__init__(
             num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_self_loops, device
         )
-        from nemo.collections.asr.parts.k2.graph_compilers import CtcTopologyCompiler
+        from nemo.collections.asr.parts.k2.graph_compilers import \
+            CtcTopologyCompiler
 
         self.graph_compiler = CtcTopologyCompiler(
             self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops, self.device
@@ -247,7 +243,8 @@ class RnntAligner(BaseDecoder, RnntK2Mixin):
         )
         self.predictor_window_size = predictor_window_size
         self.predictor_step_size = predictor_step_size
-        from nemo.collections.asr.parts.k2.graph_compilers import RnntTopologyCompiler
+        from nemo.collections.asr.parts.k2.graph_compilers import \
+            RnntTopologyCompiler
 
         self.graph_compiler = RnntTopologyCompiler(
             self.num_classes,

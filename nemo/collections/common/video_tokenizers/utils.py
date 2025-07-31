@@ -22,7 +22,8 @@ import mediapy as media
 import numpy as np
 import torch
 
-from nemo.collections.common.video_tokenizers.networks import TokenizerConfigs, TokenizerModels
+from nemo.collections.common.video_tokenizers.networks import (
+    TokenizerConfigs, TokenizerModels)
 
 _DTYPE, _DEVICE = torch.bfloat16, "cuda"
 _UINT8_MAX_F = float(torch.iinfo(torch.uint8).max)

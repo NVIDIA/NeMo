@@ -27,16 +27,8 @@ import sentencepiece as spm
 import sentencepiece.sentencepiece_model_pb2 as model
 import torch
 from datasets import Dataset, IterableDataset, load_dataset
-from tokenizers import (
-    SentencePieceBPETokenizer,
-    Tokenizer,
-    decoders,
-    models,
-    normalizers,
-    pre_tokenizers,
-    processors,
-    trainers,
-)
+from tokenizers import (SentencePieceBPETokenizer, Tokenizer, decoders, models,
+                        normalizers, pre_tokenizers, processors, trainers)
 from transformers import PreTrainedTokenizerFast
 
 

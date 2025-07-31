@@ -25,7 +25,8 @@ from nemo.utils import logging
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
-    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from nemo.collections.llm.gpt.data.packed_sequence import \
+        PackedSequenceSpecs
 
 
 class AlpacaDataModule(FineTuningDataModule, IOMixin):

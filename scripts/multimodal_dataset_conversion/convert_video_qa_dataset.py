@@ -102,6 +102,7 @@ to nemo video training dataset format and convert the timestamps to the format r
 import argparse
 import json
 import re
+
 import numpy as np
 
 # from nemo.collections.multimodal.data.neva.conversation import TIME_TOKEN_TEMPLATE

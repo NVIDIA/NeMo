@@ -20,7 +20,8 @@ from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 from nemo.automodel.config import ConfigContainer
 from nemo.tron.state import GlobalState
-from nemo.tron.utils.common_utils import get_world_size_safe, is_last_rank, print_rank_last
+from nemo.tron.utils.common_utils import (get_world_size_safe, is_last_rank,
+                                          print_rank_last)
 
 
 def report_memory(name):

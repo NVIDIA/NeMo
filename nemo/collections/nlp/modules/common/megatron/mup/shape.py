@@ -45,8 +45,10 @@ from torch import nn
 from torch.nn import Linear
 from torch.nn.modules.conv import _ConvNd
 
-from nemo.collections.nlp.modules.common.megatron.mup.infshape import InfShape, zip_infshape
-from nemo.collections.nlp.modules.common.megatron.mup.layer import MuReadout, rescale_linear_bias
+from nemo.collections.nlp.modules.common.megatron.mup.infshape import (
+    InfShape, zip_infshape)
+from nemo.collections.nlp.modules.common.megatron.mup.layer import (
+    MuReadout, rescale_linear_bias)
 
 __BSH_COMMENT__ = '''\
 # This is a base shape file encoded in yaml

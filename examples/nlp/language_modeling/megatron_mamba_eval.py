@@ -24,12 +24,18 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf, open_dict
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import \
+    MegatronMambaModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import \
+    fake_initialize_model_parallel
+from nemo.collections.nlp.modules.common.text_generation_server import \
+    MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam, SamplingParam)
+from nemo.collections.nlp.parts.nlp_overrides import (CustomProgressBar,
+                                                      NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
@@ -372,7 +378,8 @@ def main(cfg) -> None:
 
     # Third method of running text generation, use inference server
     if cfg.server:
-        from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
+        from nemo.collections.nlp.modules.common.megatron_web_server import (
+            get_chatbot_demo, get_demo)
 
         if parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0:
             if cfg.web_server:

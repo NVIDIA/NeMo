@@ -23,7 +23,6 @@ import soundfile as sf
 import torch
 from scipy.spatial.distance import pdist, squareform
 
-
 SOUND_VELOCITY = 343.0  # m/s
 
 

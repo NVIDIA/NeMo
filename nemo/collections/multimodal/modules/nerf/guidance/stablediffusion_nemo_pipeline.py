@@ -18,11 +18,12 @@ import torch
 import torch.nn.functional as F
 from omegaconf import OmegaConf
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import LatentDiffusion
-from nemo.collections.multimodal.modules.nerf.guidance.txt2img_guidance_base import Txt2ImgGuidanceBase
-from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import (
-    DiagonalGaussianDistribution,
-)
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import \
+    LatentDiffusion
+from nemo.collections.multimodal.modules.nerf.guidance.txt2img_guidance_base import \
+    Txt2ImgGuidanceBase
+from nemo.collections.multimodal.modules.stable_diffusion.distributions.distributions import \
+    DiagonalGaussianDistribution
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 

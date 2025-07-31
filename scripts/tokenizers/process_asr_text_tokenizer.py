@@ -103,7 +103,8 @@ from typing import List, Optional
 
 import tokenizers
 
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    create_spt_model
 from nemo.utils.data_utils import DataStoreObject
 
 parser = argparse.ArgumentParser(description='Create tokenizer')

@@ -42,7 +42,8 @@ import fire
 import tqdm
 from langchain.prompts.few_shot import PromptTemplate
 
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import text_generation
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import \
+    text_generation
 
 langs = [
     'ar',

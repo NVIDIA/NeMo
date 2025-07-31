@@ -16,16 +16,13 @@ import torch
 from torch.autograd import Variable
 from torch.nn import functional as F
 
-from nemo.collections.tts.modules.submodules import Attention, ConvNorm, LinearNorm, Prenet
+from nemo.collections.tts.modules.submodules import (Attention, ConvNorm,
+                                                     LinearNorm, Prenet)
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types.elements import (
-    EmbeddedTextType,
-    LengthsType,
-    LogitsType,
-    MelSpectrogramType,
-    SequenceToSequenceAlignmentType,
-)
+from nemo.core.neural_types.elements import (EmbeddedTextType, LengthsType,
+                                             LogitsType, MelSpectrogramType,
+                                             SequenceToSequenceAlignmentType)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 

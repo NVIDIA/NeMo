@@ -26,25 +26,18 @@ from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
 from nemo.collections.asr.metrics.der import score_labels
-from nemo.collections.asr.models.classification_models import EncDecClassificationModel
+from nemo.collections.asr.models.classification_models import \
+    EncDecClassificationModel
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
 from nemo.collections.asr.parts.mixins.mixins import DiarizationMixin
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    audio_rttm_map,
-    get_embs_and_timestamps,
-    get_uniqname_from_filepath,
-    parse_scale_configs,
-    perform_clustering,
-    segments_manifest_to_subsegments_manifest,
-    validate_vad_manifest,
-    write_rttm2manifest,
-)
+    audio_rttm_map, get_embs_and_timestamps, get_uniqname_from_filepath,
+    parse_scale_configs, perform_clustering,
+    segments_manifest_to_subsegments_manifest, validate_vad_manifest,
+    write_rttm2manifest)
 from nemo.collections.asr.parts.utils.vad_utils import (
-    generate_overlap_vad_seq,
-    generate_vad_segment_table,
-    get_vad_stream_status,
-    prepare_manifest,
-)
+    generate_overlap_vad_seq, generate_vad_segment_table,
+    get_vad_stream_status, prepare_manifest)
 from nemo.core.classes import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils

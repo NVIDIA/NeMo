@@ -19,10 +19,10 @@ from omegaconf import MISSING
 
 from nemo.collections.asr.models.configs import asr_models_config as ctc_cfg
 from nemo.collections.asr.modules.audio_preprocessing import (
-    AudioToMelSpectrogramPreprocessorConfig,
-    SpectrogramAugmentationConfig,
-)
-from nemo.collections.asr.modules.conv_asr import ConvASRDecoderConfig, ConvASREncoderConfig, JasperEncoderConfig
+    AudioToMelSpectrogramPreprocessorConfig, SpectrogramAugmentationConfig)
+from nemo.collections.asr.modules.conv_asr import (ConvASRDecoderConfig,
+                                                   ConvASREncoderConfig,
+                                                   JasperEncoderConfig)
 from nemo.core.config import modelPT as model_cfg
 
 

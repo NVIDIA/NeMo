@@ -27,20 +27,13 @@ from nemo.collections.common.parts.preprocessing import parsers
 from nemo.collections.tts.losses.tacotron2loss import Tacotron2Loss
 from nemo.collections.tts.models.base import SpectrogramGenerator
 from nemo.collections.tts.parts.utils.helpers import (
-    g2p_backward_compatible_support,
-    get_mask_from_lengths,
-    tacotron2_log_to_tb_func,
-    tacotron2_log_to_wandb_func,
-)
+    g2p_backward_compatible_support, get_mask_from_lengths,
+    tacotron2_log_to_tb_func, tacotron2_log_to_wandb_func)
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import (
-    AudioSignal,
-    EmbeddedTextType,
-    LengthsType,
-    LogitsType,
-    MelSpectrogramType,
-    SequenceToSequenceAlignmentType,
-)
+from nemo.core.neural_types.elements import (AudioSignal, EmbeddedTextType,
+                                             LengthsType, LogitsType,
+                                             MelSpectrogramType,
+                                             SequenceToSequenceAlignmentType)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging, model_utils
 

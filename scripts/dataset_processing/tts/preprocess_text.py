@@ -44,7 +44,8 @@ except (ImportError, ModuleNotFoundError):
         "this script"
     )
 
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
 
 
 def get_args():

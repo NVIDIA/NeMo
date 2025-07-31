@@ -26,7 +26,8 @@ from torch.distributed.checkpoint.stateful import Stateful
 
 from nemo.tron.config import ConfigContainer
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
-from nemo.tron.utils.common_utils import dump_dataclass_to_yaml, get_rank_safe, get_world_size_safe
+from nemo.tron.utils.common_utils import (dump_dataclass_to_yaml,
+                                          get_rank_safe, get_world_size_safe)
 from nemo.tron.utils.sig_utils import DistributedSignalHandler
 
 

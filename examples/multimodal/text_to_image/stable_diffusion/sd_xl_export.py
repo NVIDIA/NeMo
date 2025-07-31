@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+
 import torch
 import torch.nn as nn
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
-from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import \
+    MegatronDiffusionEngine
+from nemo.collections.multimodal.parts.utils import \
+    setup_trainer_and_model_for_inference
 from nemo.core.config import hydra_runner
 from nemo.utils.trt_utils import build_engine
 

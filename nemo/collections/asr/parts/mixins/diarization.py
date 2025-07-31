@@ -23,8 +23,10 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.utils.speaker_utils import audio_rttm_map, get_uniqname_from_filepath
-from nemo.collections.asr.parts.utils.vad_utils import PostProcessingParams, load_postprocessing_from_yaml
+from nemo.collections.asr.parts.utils.speaker_utils import (
+    audio_rttm_map, get_uniqname_from_filepath)
+from nemo.collections.asr.parts.utils.vad_utils import (
+    PostProcessingParams, load_postprocessing_from_yaml)
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.utils import logging
 

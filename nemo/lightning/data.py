@@ -59,31 +59,27 @@ def setup_microbatch_calculator(
         Exception: If the microbatch calculator has already been initialized with different settings.
 
     """
-    from nemo.lightning._strategy_lib import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE
+    from nemo.lightning._strategy_lib import \
+        NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE
     from nemo.utils import AppState
 
     try:
         from megatron.core.num_microbatches_calculator import (
-            ConstantNumMicroBatchesCalculator,
-            get_current_global_batch_size,
-            get_micro_batch_size,
-            get_num_microbatches,
-            init_num_microbatches_calculator,
-        )
+            ConstantNumMicroBatchesCalculator, get_current_global_batch_size,
+            get_micro_batch_size, get_num_microbatches,
+            init_num_microbatches_calculator)
 
         MCORE_MB_CALCULATOR = True
 
     except (ImportError, ModuleNotFoundError):
         logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-        from apex.transformer.microbatches import ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
+        from apex.transformer.microbatches import \
+            ConstantNumMicroBatches as ConstantNumMicroBatchesCalculator
         from apex.transformer.pipeline_parallel.utils import (
-            get_current_global_batch_size,
-            get_micro_batch_size,
-            get_num_microbatches,
-        )
-        from apex.transformer.pipeline_parallel.utils import (
-            setup_microbatch_calculator as init_num_microbatches_calculator,
-        )
+            get_current_global_batch_size, get_micro_batch_size,
+            get_num_microbatches)
+        from apex.transformer.pipeline_parallel.utils import \
+            setup_microbatch_calculator as init_num_microbatches_calculator
 
         MCORE_MB_CALCULATOR = False
 
@@ -94,7 +90,8 @@ def setup_microbatch_calculator(
     else:
         init_global_rank = global_rank
     if MCORE_MB_CALCULATOR:
-        from megatron.core.num_microbatches_calculator import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        from megatron.core.num_microbatches_calculator import \
+            _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             init_num_microbatches_calculator(
@@ -113,7 +110,8 @@ def setup_microbatch_calculator(
             else:
                 raise Exception("Microbatch calculator already initialized.")
     else:
-        from apex.transformer.pipeline_parallel.utils import _GLOBAL_NUM_MICROBATCHES_CALCULATOR
+        from apex.transformer.pipeline_parallel.utils import \
+            _GLOBAL_NUM_MICROBATCHES_CALCULATOR
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is None:
             init_num_microbatches_calculator(
@@ -202,9 +200,8 @@ def add_megatron_sampler(
             # data_sharding=data_sharding
         )
     elif dataloader_type == 'batch':
-        from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-            MegatronPretrainingBatchSampler,
-        )
+        from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
+            MegatronPretrainingBatchSampler
 
         batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataloader.dataset),

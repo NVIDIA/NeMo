@@ -34,8 +34,10 @@ from omegaconf.dictconfig import DictConfig
 from sklearn.metrics import classification_report, confusion_matrix
 from torch import Tensor
 
-from nemo.collections.nlp.modules.common.megatron.utils import ApproxGELUActivation, erf_gelu
-from nemo.collections.nlp.modules.common.megatron.utils import openai_gelu as openai_gelu_func
+from nemo.collections.nlp.modules.common.megatron.utils import (
+    ApproxGELUActivation, erf_gelu)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    openai_gelu as openai_gelu_func
 from nemo.collections.nlp.modules.common.megatron.utils import squared_relu
 from nemo.utils import logging
 

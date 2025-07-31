@@ -13,4 +13,5 @@
 # limitations under the License.
 
 
-from nemo.collections.nlp.data.text2sparql.text2sparql_dataset import Text2SparqlDataset
+from nemo.collections.nlp.data.text2sparql.text2sparql_dataset import \
+    Text2SparqlDataset

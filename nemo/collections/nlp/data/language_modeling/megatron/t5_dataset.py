@@ -22,10 +22,9 @@ import torch
 
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
 from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import (
-    create_masked_lm_predictions,
-    get_samples_mapping,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import _build_index_mappings
+    create_masked_lm_predictions, get_samples_mapping)
+from nemo.collections.nlp.data.language_modeling.megatron.gpt_dataset import \
+    _build_index_mappings
 from nemo.core import Dataset
 
 

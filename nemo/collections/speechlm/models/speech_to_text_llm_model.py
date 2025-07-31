@@ -28,10 +28,8 @@ from megatron.core import dist_checkpointing, parallel_state, tensor_parallel
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.num_microbatches_calculator import (
-    get_current_global_batch_size,
-    get_num_microbatches,
-    reconfigure_num_microbatches_calculator,
-)
+    get_current_global_batch_size, get_num_microbatches,
+    reconfigure_num_microbatches_calculator)
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer import MegatronModule
 from megatron.core.transformer.enums import ModelType
@@ -41,31 +39,30 @@ from omegaconf import DictConfig, ListConfig
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.eval_utils import remove_punctuations
 from nemo.collections.common.data.utils import move_data_to_device
-from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
+from nemo.collections.common.metrics import (MetricStringToTorchMetric,
+                                             TextMetricsSet)
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.base import (
-    GPTConfig,
-    get_batch_on_this_context_parallel_rank,
-    get_packed_seq_params,
-)
-from nemo.collections.speechlm.data.dataset.data_utils import build_position_ids, pad_or_trim_to_max_length
+    GPTConfig, get_batch_on_this_context_parallel_rank, get_packed_seq_params)
+from nemo.collections.speechlm.data.dataset.data_utils import (
+    build_position_ids, pad_or_trim_to_max_length)
 from nemo.collections.speechlm.models.base import SpeechLanguageModel
-from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig, HFWrappedEncoder
-from nemo.collections.speechlm.modules.modality_adapter import ModalityAdapterConfig
-from nemo.collections.speechlm.utils.io import get_nested_attr, import_ckpt, load_distributed_ckpt
-from nemo.collections.speechlm.utils.text_generation.audio_text_generation_strategy import (
-    SpeechToTextGenerationStrategy,
-)
+from nemo.collections.speechlm.modules.asr_module import (ASRModuleConfig,
+                                                          HFWrappedEncoder)
+from nemo.collections.speechlm.modules.modality_adapter import \
+    ModalityAdapterConfig
+from nemo.collections.speechlm.utils.io import (get_nested_attr, import_ckpt,
+                                                load_distributed_ckpt)
+from nemo.collections.speechlm.utils.text_generation.audio_text_generation_strategy import \
+    SpeechToTextGenerationStrategy
 from nemo.collections.speechlm.utils.text_generation.audio_text_generation_utils import (
-    clean_end_string,
-    default_inference_config,
-    generate,
-    get_computeprob_response,
-)
+    clean_end_string, default_inference_config, generate,
+    get_computeprob_response)
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.optim import (MegatronOptimizerModule,
+                                          OptimizerModule)
 from nemo.utils import AppState, logging, model_utils
 from nemo.utils.get_rank import get_last_rank
 

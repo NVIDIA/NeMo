@@ -20,12 +20,14 @@ import torch
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import GPTEmbeddingDataset
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.data.information_retrieval.gpt_embedding_dataset import \
+    GPTEmbeddingDataset
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import \
+    get_datasets_weights_and_num_samples
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import \
+    MegatronGPTSFTModel
 from nemo.utils import logging
 
 try:

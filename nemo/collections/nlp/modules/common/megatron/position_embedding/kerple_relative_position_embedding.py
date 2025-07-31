@@ -18,9 +18,7 @@ import math
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import (
-    build_relative_position,
-    build_slopes,
-)
+    build_relative_position, build_slopes)
 
 __all__ = ['KERPLERelativePositionEmbedding']
 

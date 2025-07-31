@@ -17,24 +17,17 @@
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    PromptEncoderAdapterConfig,
-)
+    AdapterName, PromptEncoderAdapterConfig)
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.position_embedding import (
-    ALiBiRelativePositionEmbedding,
-    KERPLERelativePositionEmbedding,
-    RotaryEmbedding,
-    SandwichRelativePositionEmbedding,
-)
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer
+    ALiBiRelativePositionEmbedding, KERPLERelativePositionEmbedding,
+    RotaryEmbedding, SandwichRelativePositionEmbedding)
+from nemo.collections.nlp.modules.common.megatron.transformer import \
+    ParallelTransformer
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    get_linear_layer,
-    init_method_normal,
-    scaled_init_method_normal,
-)
+    ApexGuardDefaults, get_linear_layer, init_method_normal,
+    scaled_init_method_normal)
 from nemo.core import adapter_mixins
 
 try:
@@ -51,7 +44,8 @@ except (ImportError, ModuleNotFoundError):
     LayerType = ApexGuardDefaults()
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import (ModelParallelConfig, parallel_state,
+                               tensor_parallel)
 
     HAVE_MEGATRON_CORE = True
 

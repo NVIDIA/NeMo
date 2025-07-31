@@ -18,7 +18,8 @@ from typing import Union
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.asr.parts.k2.graph_transducer import GraphRnntLoss, force_float32_context
+from nemo.collections.asr.parts.k2.graph_transducer import (
+    GraphRnntLoss, force_float32_context)
 from nemo.core.utils.k2_guard import k2
 from nemo.utils.enum import PrettyStrEnum
 

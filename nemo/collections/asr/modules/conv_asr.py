@@ -21,33 +21,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import MISSING, DictConfig, ListConfig, OmegaConf
 
-from nemo.collections.asr.parts.submodules.jasper import (
-    JasperBlock,
-    MaskedConv1d,
-    ParallelBlock,
-    SqueezeExcite,
-    init_weights,
-    jasper_activations,
-)
+from nemo.collections.asr.parts.submodules.jasper import (JasperBlock,
+                                                          MaskedConv1d,
+                                                          ParallelBlock,
+                                                          SqueezeExcite,
+                                                          init_weights,
+                                                          jasper_activations)
 from nemo.collections.asr.parts.submodules.tdnn_attention import (
-    AttentivePoolLayer,
-    StatsPoolLayer,
-    TDNNModule,
-    TDNNSEModule,
-)
+    AttentivePoolLayer, StatsPoolLayer, TDNNModule, TDNNSEModule)
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    LengthsType,
-    LogitsType,
-    LogprobsType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
+                                    LogitsType, LogprobsType, NeuralType,
+                                    SpectrogramType)
 from nemo.utils import logging
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']

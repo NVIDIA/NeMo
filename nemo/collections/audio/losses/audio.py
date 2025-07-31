@@ -18,10 +18,12 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import torch
 
-from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
+from nemo.collections.asr.parts.preprocessing.features import \
+    make_seq_mask_like
 from nemo.collections.audio.parts.utils.audio import toeplitz
 from nemo.core.classes import Loss, Typing, typecheck
-from nemo.core.neural_types import AudioSignal, LengthsType, LossType, MaskType, NeuralType, VoidType
+from nemo.core.neural_types import (AudioSignal, LengthsType, LossType,
+                                    MaskType, NeuralType, VoidType)
 from nemo.utils import logging
 
 __all__ = ['SDRLoss', 'MSELoss']

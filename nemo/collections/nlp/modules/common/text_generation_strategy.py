@@ -22,16 +22,20 @@ from typing import List, Set, Tuple
 import torch
 from transformers import CLIPImageProcessor
 
-from nemo.collections.common.tokenizers.chat_template_mixin import explode_chat_template_input, is_chat_input
+from nemo.collections.common.tokenizers.chat_template_mixin import (
+    explode_chat_template_input, is_chat_input)
 from nemo.collections.nlp.modules.common.lm_utils import pad_batch
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_ltor_masks_and_position_ids
 from nemo.utils import logging
 
 try:
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
     from megatron.core.transformer.identity_op import IdentityOp
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
 
     HAVE_MEGATRON_CORE = True
 
@@ -419,15 +423,9 @@ class GriffinModelTextGenerationStrategy(TextGenerationStrategy):
 
 def neva_process_prompts(prompt, tokenizer, multimodal_cfg, num_media_latents, conv_template):
     from nemo.collections.multimodal.data.neva.neva_dataset import (
-        DEFAULT_IMAGE_TOKEN,
-        preprocess_llama_2,
-        preprocess_llama_3,
-        preprocess_multimodal,
-        preprocess_nv_dpo,
-        preprocess_nvgpt,
-        preprocess_v1,
-        preprocess_yi_34b,
-    )
+        DEFAULT_IMAGE_TOKEN, preprocess_llama_2, preprocess_llama_3,
+        preprocess_multimodal, preprocess_nv_dpo, preprocess_nvgpt,
+        preprocess_v1, preprocess_yi_34b)
 
     list_data_dict = []
     if multimodal_cfg["conv_template"] in ["nvgpt", "nv_steerlm", "nv_dpo"]:
@@ -1045,20 +1043,23 @@ class McoreRetroModelTextGenerationStrategy(TextGenerationStrategy):
 
 
 def model_inference_strategy_dispatcher(model, **args):
-    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import MegatronNevaModel
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-    from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-        MegatronGPTPromptLearningModel,
-    )
-    from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import MegatronGriffinModel
-    from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import MegatronMambaModel
-    from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import MegatronRetrievalModel
-    from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
+    from nemo.collections.multimodal.models.multimodal_llm.neva.neva_model import \
+        MegatronNevaModel
+    from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+        MegatronGPTModel
+    from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import \
+        MegatronGPTPromptLearningModel
+    from nemo.collections.nlp.models.language_modeling.megatron_griffin_model import \
+        MegatronGriffinModel
+    from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import \
+        MegatronMambaModel
+    from nemo.collections.nlp.models.language_modeling.megatron_retrieval_model import \
+        MegatronRetrievalModel
+    from nemo.collections.nlp.models.language_modeling.megatron_retro_model import \
+        MegatronRetroModel
     from nemo.collections.nlp.modules.common.retro_inference_strategies import (
         RetroFileQAModelTextGenerationStrategy,
-        RetroModelTextGenerationStrategy,
-        RetroQAModelTextGenerationStrategy,
-    )
+        RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy)
 
     if isinstance(model, MegatronGriffinModel):
         return GriffinModelTextGenerationStrategy(model)

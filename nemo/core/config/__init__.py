@@ -14,35 +14,25 @@
 
 from nemo.core.config.base_config import Config
 from nemo.core.config.hydra_runner import hydra_runner
-from nemo.core.config.optimizers import (
-    AdadeltaParams,
-    AdagradParams,
-    AdamaxParams,
-    AdamParams,
-    AdamWParams,
-    NovogradParams,
-    OptimizerParams,
-    RMSpropParams,
-    RpropParams,
-    SGDParams,
-    get_optimizer_config,
-    register_optimizer_params,
-)
+from nemo.core.config.optimizers import (AdadeltaParams, AdagradParams,
+                                         AdamaxParams, AdamParams, AdamWParams,
+                                         NovogradParams, OptimizerParams,
+                                         RMSpropParams, RpropParams, SGDParams,
+                                         get_optimizer_config,
+                                         register_optimizer_params)
 from nemo.core.config.pytorch import DataLoaderConfig
 from nemo.core.config.pytorch_lightning import TrainerConfig
-from nemo.core.config.schedulers import (
-    CosineAnnealingParams,
-    InverseSquareRootAnnealingParams,
-    NoamAnnealingParams,
-    PolynomialDecayAnnealingParams,
-    PolynomialHoldDecayAnnealingParams,
-    SchedulerParams,
-    SquareAnnealingParams,
-    SquareRootAnnealingParams,
-    SquareRootConstantSchedulerParams,
-    WarmupAnnealingParams,
-    WarmupHoldSchedulerParams,
-    WarmupSchedulerParams,
-    get_scheduler_config,
-    register_scheduler_params,
-)
+from nemo.core.config.schedulers import (CosineAnnealingParams,
+                                         InverseSquareRootAnnealingParams,
+                                         NoamAnnealingParams,
+                                         PolynomialDecayAnnealingParams,
+                                         PolynomialHoldDecayAnnealingParams,
+                                         SchedulerParams,
+                                         SquareAnnealingParams,
+                                         SquareRootAnnealingParams,
+                                         SquareRootConstantSchedulerParams,
+                                         WarmupAnnealingParams,
+                                         WarmupHoldSchedulerParams,
+                                         WarmupSchedulerParams,
+                                         get_scheduler_config,
+                                         register_scheduler_params)

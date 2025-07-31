@@ -17,14 +17,18 @@ from typing import Any, Dict, Literal, Optional
 
 import fiddle as fdl
 import lightning.pytorch as pl
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from megatron.core import parallel_state
-from megatron.energon import WorkerConfig, get_savable_loader, get_train_dataset
+from megatron.energon import (WorkerConfig, get_savable_loader,
+                              get_train_dataset)
 from torch.utils.data import DataLoader
 from typing_extensions import Self
 
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.multimodal.data.energon.config import \
+    MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.task_encoder import \
+    MultiModalTaskEncoder
 from nemo.lightning.io.mixin import IOMixin, serialization, track_io
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils import logging
@@ -354,11 +358,13 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
             )
 
         try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                update_num_microbatches
 
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples

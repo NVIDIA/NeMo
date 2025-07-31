@@ -20,7 +20,8 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 
 from typing import List
 
-from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
+from nemo.collections.nlp.data.dialogue.input_example.input_example import \
+    DialogueInputExample
 from nemo.utils import logging
 
 __all__ = [

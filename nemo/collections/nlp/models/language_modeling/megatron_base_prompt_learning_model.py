@@ -23,18 +23,21 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 from torch import Tensor
 
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.collections.nlp.metrics.prompt_learning_metrics import AccuracyScore, BLEUScore, ROUGEScores
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common import (
-    PromptEncoder,
-    PromptEncoderType,
-    VirtualPromptPlaceholderToken,
-    VirtualPromptSource,
-    VirtualPromptStyle,
-)
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-from nemo.collections.nlp.modules.common.transformer.text_generation import TextGeneration
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    SentencePieceTokenizer
+from nemo.collections.nlp.metrics.prompt_learning_metrics import (
+    AccuracyScore, BLEUScore, ROUGEScores)
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
+from nemo.collections.nlp.modules.common import (PromptEncoder,
+                                                 PromptEncoderType,
+                                                 VirtualPromptPlaceholderToken,
+                                                 VirtualPromptSource,
+                                                 VirtualPromptStyle)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
+from nemo.collections.nlp.modules.common.transformer.text_generation import \
+    TextGeneration
 from nemo.collections.nlp.parts.nlp_overrides import GradScaler
 from nemo.utils import AppState, logging
 from nemo.utils.decorators import deprecated_warning
@@ -52,13 +55,14 @@ except (ImportError, ModuleNotFoundError):
 
 
 try:
-    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import \
+        reconfigure_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
 
 
 __all__ = ['MegatronBasePromptLearningModel']

@@ -44,21 +44,17 @@
 
 import torch
 
-from nemo.collections.tts.modules.submodules import ConditionalInput, ConditionalLayerNorm
-from nemo.collections.tts.parts.utils.helpers import binarize_attention_parallel, regulate_len
+from nemo.collections.tts.modules.submodules import (ConditionalInput,
+                                                     ConditionalLayerNorm)
+from nemo.collections.tts.parts.utils.helpers import (
+    binarize_attention_parallel, regulate_len)
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
-from nemo.core.neural_types.elements import (
-    EncodedRepresentation,
-    Index,
-    LengthsType,
-    LogprobsType,
-    MelSpectrogramType,
-    ProbsType,
-    RegressionValuesType,
-    TokenDurationType,
-    TokenIndex,
-    TokenLogDurationType,
-)
+from nemo.core.neural_types.elements import (EncodedRepresentation, Index,
+                                             LengthsType, LogprobsType,
+                                             MelSpectrogramType, ProbsType,
+                                             RegressionValuesType,
+                                             TokenDurationType, TokenIndex,
+                                             TokenLogDurationType)
 from nemo.core.neural_types.neural_type import NeuralType
 
 

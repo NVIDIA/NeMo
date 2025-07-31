@@ -26,9 +26,9 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 import nemo.collections.nlp.data.text_normalization.constants as constants
-from nemo.collections.nlp.data.text_normalization.decoder_dataset import TextNormalizationDecoderDataset
+from nemo.collections.nlp.data.text_normalization.decoder_dataset import \
+    TextNormalizationDecoderDataset
 from nemo.utils import logging
-
 
 """
 The script builds tar files for Tarred TextNormalizationDecoderDataset

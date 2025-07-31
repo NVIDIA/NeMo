@@ -31,12 +31,9 @@ from nemo.constants import NEMO_ENV_VARNAME_VERSION
 from nemo.core.classes import ModelPT
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint
-from nemo.utils.exp_manager import (
-    CheckpointMisconfigurationError,
-    LoggerMisconfigurationError,
-    NotFoundError,
-    exp_manager,
-)
+from nemo.utils.exp_manager import (CheckpointMisconfigurationError,
+                                    LoggerMisconfigurationError, NotFoundError,
+                                    exp_manager)
 
 
 class MyTestOptimizer(torch.optim.Optimizer):

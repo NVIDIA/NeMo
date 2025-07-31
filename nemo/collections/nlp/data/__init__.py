@@ -13,33 +13,29 @@
 # limitations under the License.
 
 from nemo.collections.nlp.data.data_utils import *
-from nemo.collections.nlp.data.entity_linking.entity_linking_dataset import EntityLinkingDataset
-from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import (
-    BertInformationRetrievalDataset,
-)
+from nemo.collections.nlp.data.entity_linking.entity_linking_dataset import \
+    EntityLinkingDataset
+from nemo.collections.nlp.data.information_retrieval.information_retrieval_dataset import \
+    BertInformationRetrievalDataset
 from nemo.collections.nlp.data.language_modeling.l2r_lm_dataset import (
-    L2RLanguageModelingDataset,
-    TarredL2RLanguageModelingDataset,
-)
+    L2RLanguageModelingDataset, TarredL2RLanguageModelingDataset)
 from nemo.collections.nlp.data.language_modeling.lm_bert_dataset import (
-    BertPretrainingDataset,
-    BertPretrainingPreprocessedDataloader,
-)
-from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset, TarredSentenceDataset
+    BertPretrainingDataset, BertPretrainingPreprocessedDataloader)
+from nemo.collections.nlp.data.language_modeling.sentence_dataset import (
+    SentenceDataset, TarredSentenceDataset)
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (
-    TarredTranslationDataset,
-    TranslationDataset,
-)
-from nemo.collections.nlp.data.question_answering_squad.qa_dataset import SquadDataset
-from nemo.collections.nlp.data.text2sparql.text2sparql_dataset import Text2SparqlDataset
-from nemo.collections.nlp.data.text_normalization.decoder_dataset import TextNormalizationDecoderDataset
-from nemo.collections.nlp.data.text_normalization.tagger_dataset import TextNormalizationTaggerDataset
-from nemo.collections.nlp.data.text_normalization.test_dataset import TextNormalizationTestDataset
+    TarredTranslationDataset, TranslationDataset)
+from nemo.collections.nlp.data.question_answering_squad.qa_dataset import \
+    SquadDataset
+from nemo.collections.nlp.data.text2sparql.text2sparql_dataset import \
+    Text2SparqlDataset
+from nemo.collections.nlp.data.text_normalization.decoder_dataset import \
+    TextNormalizationDecoderDataset
+from nemo.collections.nlp.data.text_normalization.tagger_dataset import \
+    TextNormalizationTaggerDataset
+from nemo.collections.nlp.data.text_normalization.test_dataset import \
+    TextNormalizationTestDataset
 from nemo.collections.nlp.data.token_classification.token_classification_dataset import (
-    BertTokenClassificationDataset,
-    BertTokenClassificationInferDataset,
-)
+    BertTokenClassificationDataset, BertTokenClassificationInferDataset)
 from nemo.collections.nlp.data.zero_shot_intent_recognition.zero_shot_intent_dataset import (
-    ZeroShotIntentDataset,
-    ZeroShotIntentInferenceDataset,
-)
+    ZeroShotIntentDataset, ZeroShotIntentInferenceDataset)

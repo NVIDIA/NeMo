@@ -20,15 +20,9 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.utils.data_simulation_utils import (
-    DataAnnotator,
-    SpeechSampler,
-    add_silence_to_alignments,
-    binary_search_alignments,
-    get_cleaned_base_path,
-    get_split_points_in_alignments,
-    normalize_audio,
-    read_noise_manifest,
-)
+    DataAnnotator, SpeechSampler, add_silence_to_alignments,
+    binary_search_alignments, get_cleaned_base_path,
+    get_split_points_in_alignments, normalize_audio, read_noise_manifest)
 from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
 
 

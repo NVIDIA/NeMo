@@ -17,7 +17,8 @@ from typing import Optional
 
 import torch
 
-from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, NeMoMultimodalConversation
+from nemo.collections.common.data.lhotse.text_adapters import (
+    AudioTurn, NeMoMultimodalConversation)
 from nemo.collections.common.data.prompt_fn import get_prompt_format_fn
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer

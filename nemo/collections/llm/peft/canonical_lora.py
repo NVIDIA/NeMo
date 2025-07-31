@@ -21,7 +21,8 @@ from torch import nn
 
 from nemo.collections.llm.peft.lora import LinearAdapter, LoRALinear
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
+from nemo.collections.llm.peft.utils import (
+    get_adapter_attributes_from_linear, is_expert_linear)
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 

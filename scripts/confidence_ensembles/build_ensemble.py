@@ -67,7 +67,6 @@ arguments and their default values.
 """
 
 import atexit
-
 # using default logging to be able to silence unnecessary messages from nemo
 import logging
 import os
@@ -90,17 +89,11 @@ from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
 from nemo.collections.asr.models.confidence_ensemble import (
-    ConfidenceEnsembleModel,
-    ConfidenceSpec,
-    compute_confidence,
-    get_filtered_logprobs,
-)
+    ConfidenceEnsembleModel, ConfidenceSpec, compute_confidence,
+    get_filtered_logprobs)
 from nemo.collections.asr.parts.utils.asr_confidence_utils import (
-    ConfidenceConfig,
-    ConfidenceMethodConfig,
-    get_confidence_aggregation_bank,
-    get_confidence_measure_bank,
-)
+    ConfidenceConfig, ConfidenceMethodConfig, get_confidence_aggregation_bank,
+    get_confidence_measure_bank)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.core.config import hydra_runner
 

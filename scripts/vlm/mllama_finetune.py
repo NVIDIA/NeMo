@@ -21,9 +21,11 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.multimodal.data.energon.conversation import MLlamaTemplateConfig
+from nemo.collections.multimodal.data.energon.conversation import \
+    MLlamaTemplateConfig
 from nemo.collections.vlm import ImageDataConfig
-from nemo.collections.vlm.mllama.data.preloaded import MLlamaPreloadedDataModule
+from nemo.collections.vlm.mllama.data.preloaded import \
+    MLlamaPreloadedDataModule
 from nemo.collections.vlm.mllama.data.task_encoder import LlamaTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
@@ -63,7 +65,8 @@ def main(args):
     else:
         model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
 
     processor = AutoProcessor.from_pretrained(model_id)
     image_processor = processor.image_processor
@@ -102,10 +105,7 @@ def main(args):
     elif args.data_type == "energon":
         # Data configuration
         from nemo.collections.multimodal.data.energon import (
-            EnergonMultiModalDataModule,
-            ImageToken,
-            MultiModalSampleConfig,
-        )
+            EnergonMultiModalDataModule, ImageToken, MultiModalSampleConfig)
 
         # Configure multimodal samples
         config = MultiModalSampleConfig(

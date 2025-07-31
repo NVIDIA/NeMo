@@ -21,7 +21,8 @@ import json
 import math
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, NamedTuple, Optional, Set, Union
+from typing import (Any, Callable, Dict, Iterable, List, NamedTuple, Optional,
+                    Set, Union)
 
 import numpy as np
 import torch

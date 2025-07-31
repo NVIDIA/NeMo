@@ -19,18 +19,21 @@ import torch
 from megatron.core import parallel_state
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.asr.parts.preprocessing.perturb import \
+    process_augmentations
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.collections.multimodal.speech_llm.data.audio_text_dataset import (
     get_audio_text_dataset_from_config,
-    get_tarred_audio_text_dataset_from_config,
-)
-from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
+    get_tarred_audio_text_dataset_from_config)
+from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import \
+    LhotseAudioQuestionAnswerDataset
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import \
+    PromptFormatterTextProcessing
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
+    MegatronPretrainingBatchSampler
 from nemo.utils import logging
 
 

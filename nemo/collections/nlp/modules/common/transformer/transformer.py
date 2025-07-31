@@ -20,9 +20,12 @@ from omegaconf.omegaconf import MISSING
 
 from nemo.collections.nlp.modules.common.decoder_module import DecoderModule
 from nemo.collections.nlp.modules.common.encoder_module import EncoderModule
-from nemo.collections.nlp.modules.common.transformer.transformer_decoders import TransformerDecoder
-from nemo.collections.nlp.modules.common.transformer.transformer_encoders import TransformerEncoder
-from nemo.collections.nlp.modules.common.transformer.transformer_modules import TransformerEmbedding
+from nemo.collections.nlp.modules.common.transformer.transformer_decoders import \
+    TransformerDecoder
+from nemo.collections.nlp.modules.common.transformer.transformer_encoders import \
+    TransformerEncoder
+from nemo.collections.nlp.modules.common.transformer.transformer_modules import \
+    TransformerEmbedding
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import ChannelType, NeuralType

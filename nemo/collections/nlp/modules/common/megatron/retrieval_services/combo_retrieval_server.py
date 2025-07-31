@@ -24,10 +24,9 @@ from flask_restful import Api, Resource
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.retrieval_service import (
-    DynamicFaissRetrievalService,
-    FaissRetrievalService,
-)
-from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import lock
+    DynamicFaissRetrievalService, FaissRetrievalService)
+from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import \
+    lock
 
 weights = None
 

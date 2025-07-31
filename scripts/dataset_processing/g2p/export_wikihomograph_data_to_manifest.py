@@ -20,7 +20,6 @@ from typing import List, Tuple
 
 from tqdm import tqdm
 
-
 """
 Converts WikiHomograph data to .json manifest format for HeteronymClassificationModel training.
 WikiHomograph dataset could be found here:

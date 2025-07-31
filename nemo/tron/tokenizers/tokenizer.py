@@ -8,10 +8,12 @@ import math
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer as MegatronTokenizerCore
+from megatron.core.datasets.megatron_tokenizer import \
+    MegatronTokenizer as MegatronTokenizerCore
 
 from nemo.tron.config import TokenizerConfig
-from nemo.tron.tokenizers.bert_tokenization import FullTokenizer as FullBertTokenizer
+from nemo.tron.tokenizers.bert_tokenization import \
+    FullTokenizer as FullBertTokenizer
 from nemo.tron.tokenizers.gpt2_tokenization import GPT2Tokenizer
 from nemo.tron.tokenizers.multimodal_tokenizer import MultimodalTokenizer
 from nemo.tron.utils.common_utils import get_rank_safe, print_rank_0

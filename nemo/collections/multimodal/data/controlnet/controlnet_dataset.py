@@ -15,9 +15,7 @@ import torch
 
 from nemo.collections.multimodal.data.common.webdataset import WebDatasetCommon
 from nemo.collections.multimodal.data.stable_diffusion.augmentation.augmentations import (
-    construct_image_augmentations,
-    identical_transform,
-)
+    construct_image_augmentations, identical_transform)
 from nemo.core.classes import Dataset as NeMoDataset
 
 

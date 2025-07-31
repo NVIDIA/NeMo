@@ -15,7 +15,8 @@ import math
 
 import torch
 
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import expand_dims, interpolate_fn
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
+    expand_dims, interpolate_fn)
 
 
 class NoiseScheduleVP:

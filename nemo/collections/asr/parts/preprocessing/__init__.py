@@ -12,25 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
-from nemo.collections.asr.parts.preprocessing.features import FeaturizerFactory, FilterbankFeatures, WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.feature_loader import \
+    ExternalFeatureLoader
+from nemo.collections.asr.parts.preprocessing.features import (
+    FeaturizerFactory, FilterbankFeatures, WaveformFeaturizer)
 from nemo.collections.asr.parts.preprocessing.perturb import (
-    AudioAugmentor,
-    AugmentationDataset,
-    GainPerturbation,
-    ImpulsePerturbation,
-    NoisePerturbation,
-    NoisePerturbationWithNormalization,
-    Perturbation,
-    RirAndNoisePerturbation,
-    ShiftPerturbation,
-    SilencePerturbation,
-    SpeedPerturbation,
-    TimeStretchPerturbation,
-    TranscodePerturbation,
-    WhiteNoisePerturbation,
-    perturbation_types,
-    process_augmentations,
-    register_perturbation,
-)
+    AudioAugmentor, AugmentationDataset, GainPerturbation, ImpulsePerturbation,
+    NoisePerturbation, NoisePerturbationWithNormalization, Perturbation,
+    RirAndNoisePerturbation, ShiftPerturbation, SilencePerturbation,
+    SpeedPerturbation, TimeStretchPerturbation, TranscodePerturbation,
+    WhiteNoisePerturbation, perturbation_types, process_augmentations,
+    register_perturbation)
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment

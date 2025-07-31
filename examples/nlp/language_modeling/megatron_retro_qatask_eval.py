@@ -21,11 +21,15 @@ from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader, Dataset
 
-from nemo.collections.nlp.data.question_answering.input_example.qa_input_example import QAExample
+from nemo.collections.nlp.data.question_answering.input_example.qa_input_example import \
+    QAExample
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
-from nemo.collections.nlp.models.language_modeling.megatron_retro_model import MegatronRetroModel
-from nemo.collections.nlp.modules.common.megatron.megatron_init import fake_initialize_model_parallel
-from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy
+from nemo.collections.nlp.models.language_modeling.megatron_retro_model import \
+    MegatronRetroModel
+from nemo.collections.nlp.modules.common.megatron.megatron_init import \
+    fake_initialize_model_parallel
+from nemo.collections.nlp.parts.nlp_overrides import (CustomProgressBar,
+                                                      NLPDDPStrategy)
 from nemo.core.config import hydra_runner
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import inject_model_parallel_rank

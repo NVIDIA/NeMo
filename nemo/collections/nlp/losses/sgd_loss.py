@@ -21,7 +21,8 @@ https://github.com/google-research/google-research/blob/master/schema_guided_dst
 import torch
 
 from nemo.core.classes import Loss, Typing, typecheck
-from nemo.core.neural_types import ChannelType, LabelsType, LogitsType, LossType, NeuralType
+from nemo.core.neural_types import (ChannelType, LabelsType, LogitsType,
+                                    LossType, NeuralType)
 from nemo.utils import logging
 
 __all__ = ['SGDDialogueStateLoss']

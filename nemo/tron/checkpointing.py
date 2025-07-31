@@ -33,43 +33,32 @@ import yaml
 from megatron.core import dist_checkpointing, mpu, tensor_parallel
 from megatron.core.dist_checkpointing.mapping import ShardedObject
 from megatron.core.dist_checkpointing.serialization import (
-    get_default_load_sharded_strategy,
-    get_default_save_sharded_strategy,
-)
+    get_default_load_sharded_strategy, get_default_save_sharded_strategy)
 from megatron.core.dist_checkpointing.strategies.fully_parallel import (
-    FullyParallelLoadStrategyWrapper,
-    FullyParallelSaveStrategyWrapper,
-)
+    FullyParallelLoadStrategyWrapper, FullyParallelSaveStrategyWrapper)
 from megatron.core.fp8_utils import is_float8tensor
 from megatron.core.num_microbatches_calculator import update_num_microbatches
 from megatron.core.rerun_state_machine import get_rerun_state_machine
 
 from nemo.tron import fault_tolerance
 from nemo.tron.config import ConfigContainer
-
 # from . import ft_integration
 from nemo.tron.state import GlobalState, TrainState
 from nemo.tron.utils import wandb_utils
-from nemo.tron.utils.async_utils import is_empty_async_queue, schedule_async_save
-from nemo.tron.utils.common_utils import (
-    append_to_progress_log,
-    dump_dataclass_to_yaml,
-    get_rank_safe,
-    get_world_size_safe,
-    is_last_rank,
-    print_rank_0,
-    unwrap_model,
-    use_dist_ckpt,
-)
+from nemo.tron.utils.async_utils import (is_empty_async_queue,
+                                         schedule_async_save)
+from nemo.tron.utils.common_utils import (append_to_progress_log,
+                                          dump_dataclass_to_yaml,
+                                          get_rank_safe, get_world_size_safe,
+                                          is_last_rank, print_rank_0,
+                                          unwrap_model, use_dist_ckpt)
 
 # [ModelOpt]: Import
 try:
-    from modelopt.torch.opt.plugins import (
-        restore_modelopt_state,
-        restore_sharded_modelopt_state,
-        save_modelopt_state,
-        save_sharded_modelopt_state,
-    )
+    from modelopt.torch.opt.plugins import (restore_modelopt_state,
+                                            restore_sharded_modelopt_state,
+                                            save_modelopt_state,
+                                            save_sharded_modelopt_state)
 
     has_nvidia_modelopt = True
 except Exception:
@@ -589,7 +578,8 @@ def save_checkpoint(
             logger.debug(f"rank: {rank}, takes {end_ckpt - start_ckpt} to prepare state dict for ckpt ")
             if ckpt_type == CheckpointType.LOCAL:
                 try:
-                    from megatron.core.dist_checkpointing.tensor_aware_state_dict import MCoreTensorAwareStateDict
+                    from megatron.core.dist_checkpointing.tensor_aware_state_dict import \
+                        MCoreTensorAwareStateDict
                 except ModuleNotFoundError:
                     raise RuntimeError(
                         "The 'nvidia_resiliency_ext' module is required for local "

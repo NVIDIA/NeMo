@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import GLUEDataset
+from nemo.collections.nlp.data.glue_benchmark.glue_benchmark_dataset import \
+    GLUEDataset

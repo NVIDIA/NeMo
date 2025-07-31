@@ -25,7 +25,8 @@ from omegaconf import open_dict
 
 from nemo.collections.asr.metrics.wer import WER, word_error_rate
 from nemo.collections.asr.models import EncDecCTCModel
-from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecoding, CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import (
+    CTCDecoding, CTCDecodingConfig)
 from nemo.utils import logging
 
 try:

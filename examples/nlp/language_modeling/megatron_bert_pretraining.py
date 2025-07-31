@@ -15,8 +15,10 @@
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.language_modeling.megatron_bert_model import MegatronBertModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronBertTrainerBuilder
+from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
+    MegatronBertModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronBertTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

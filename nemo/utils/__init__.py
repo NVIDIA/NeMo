@@ -14,22 +14,18 @@
 
 
 from nemo.utils.app_state import AppState
-from nemo.utils.cast_utils import (
-    CastToFloat,
-    CastToFloatAll,
-    avoid_bfloat16_autocast_context,
-    avoid_float16_autocast_context,
-    cast_all,
-    cast_tensor,
-    monkeypatched,
-)
+from nemo.utils.cast_utils import (CastToFloat, CastToFloatAll,
+                                   avoid_bfloat16_autocast_context,
+                                   avoid_float16_autocast_context, cast_all,
+                                   cast_tensor, monkeypatched)
 from nemo.utils.dtype import str_to_dtype
 from nemo.utils.nemo_logging import Logger as _Logger
 from nemo.utils.nemo_logging import LogMode as logging_mode
 
 logging = _Logger()
 try:
-    from nemo.utils.lightning_logger_patch import add_memory_handlers_to_pl_logger
+    from nemo.utils.lightning_logger_patch import \
+        add_memory_handlers_to_pl_logger
 
     add_memory_handlers_to_pl_logger()
 except ModuleNotFoundError:

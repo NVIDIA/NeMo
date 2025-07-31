@@ -14,13 +14,14 @@
 
 from collections import defaultdict
 
-
 import torch
 from megatron.energon import SimilarityInterleavedSample
 from transformers import LlavaNextConfig as HFLlavaNextConfig
 
-from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
-from nemo.collections.multimodal.data.energon.sample_encoder import SimilarityInterleavedEncoder
+from nemo.collections.multimodal.data.energon.config import \
+    MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.sample_encoder import \
+    SimilarityInterleavedEncoder
 from nemo.collections.vlm.llava_next.data.sample import LlavaNextTextSample
 from nemo.collections.vlm.llava_next.model.utils import get_number_of_features
 from nemo.utils import logging

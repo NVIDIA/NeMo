@@ -21,12 +21,10 @@ import ijson
 import numpy as np
 from transformers.models.bert.tokenization_bert import BasicTokenizer
 
-from nemo.collections.nlp.data.data_utils import (
-    DataProcessor,
-    check_chinese_char,
-    normalize_answer,
-    normalize_chinese_answer,
-)
+from nemo.collections.nlp.data.data_utils import (DataProcessor,
+                                                  check_chinese_char,
+                                                  normalize_answer,
+                                                  normalize_chinese_answer)
 from nemo.utils import logging
 
 """

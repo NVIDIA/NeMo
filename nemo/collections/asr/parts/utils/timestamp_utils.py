@@ -14,7 +14,8 @@
 
 import re
 
-from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
+from nemo.collections.asr.parts.submodules.ctc_decoding import \
+    AbstractCTCDecoding
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 

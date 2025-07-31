@@ -17,9 +17,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional, Union
 
 from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
-    get_grapheme_character_set,
-    get_ipa_punctuation_list,
-)
+    get_grapheme_character_set, get_ipa_punctuation_list)
 from nemo.collections.tts.g2p.models.base import BaseG2p
 from nemo.collections.tts.g2p.utils import set_grapheme_case
 from nemo.utils import logging
