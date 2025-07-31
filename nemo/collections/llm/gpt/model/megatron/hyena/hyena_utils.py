@@ -1472,7 +1472,15 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._cached_weight = None
+        self.get_weight = lru_cache(maxsize=1)(self._get_weight)
+
+    def _get_weight(self):
+        weight = self.short_conv_weight
+        if len(weight.shape) == 2:
+            weight = weight.unsqueeze(1) # hidden_size3 filter_len -> hidden_size3 1 filter_len
+        weight = weight.repeat_interleave(self.group_dim, dim=0).to(torch.float32)
+        del self._parameters["short_conv_weight"]
+        return weight
 
     def forward(self, x, inference_context=None, _use_cp=True):
         # If not in inference mode, use the original implementation
@@ -1482,13 +1490,7 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
         features_BLD = x.transpose(1, 2).contiguous()
         u = features_BLD
 
-        if self._cached_weight is None:
-            weight = self.short_conv_weight
-            if len(weight.shape) == 2:
-                weight = weight.unsqueeze(1) # hidden_size3 filter_len -> hidden_size3 1 filter_len
-            self._cached_weight = weight.repeat_interleave(self.group_dim, dim=0).to(torch.float32)
-            del self._parameters["short_conv_weight"]
-        weight = self._cached_weight
+        weight = self.get_weight()
 
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
 
