@@ -40,7 +40,7 @@ punctuations = punctuation.replace("'", "")
 
 text_normalizer = EnglishTextNormalizer()
 
-parser = argparse.ArgumentParser(description="Clean manifest file by droping PnC")
+parser = argparse.ArgumentParser(description="Clean manifest file")
 parser.add_argument(
     "input_manifest",
     type=str,
@@ -517,6 +517,8 @@ def clean_text(text: str, args) -> str:
     if args.lowercase:
         text = text.lower()
     if args.remove_punc:
+        text = text.replace("-", " ")
+        text = text.replace("_", " ")
         text = text.translate(str.maketrans("", "", punctuations))
         text = drop_punctuations(text)
     if args.auto_pc:

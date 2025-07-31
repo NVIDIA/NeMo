@@ -317,7 +317,7 @@ class ASREOUModelMixin:
         output_file = Path(self.cfg.save_pred_to_file)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        if self._validation_names:
+        if getattr(self, '_validation_names', None):
             output_file = output_file.with_name(f"{self._validation_names[dataloader_idx]}_{output_file.name}")
         else:
             output_file = output_file.with_suffix(f'.{dataloader_idx}.json')

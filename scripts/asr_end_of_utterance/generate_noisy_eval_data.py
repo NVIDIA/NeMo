@@ -42,6 +42,7 @@ from copy import deepcopy
 from pathlib import Path
 from shutil import rmtree
 
+import librosa
 import lightning.pytorch as pl
 import numpy as np
 import soundfile as sf
@@ -165,7 +166,7 @@ def process_manifest(data_cfg, output_dir):
         output_audio_dir = output_dir
         flatten_audio_path = False
 
-    if data_cfg.random_padding.pad_distribution == "constant":
+    if "random_padding" in data_cfg and data_cfg.random_padding.pad_distribution == "constant":
         is_constant_padding = True
         pre_pad_dur = data_cfg.random_padding.pre_pad_duration
     else:
@@ -217,7 +218,7 @@ def process_manifest(data_cfg, output_dir):
             manifest_item["duration"] = audio.shape[0] / dataset.sample_rate
 
             if is_constant_padding:
-                # Adjust the sou_time and eou_time for constant padding, if they exist
+                # Adjust the sou_time and eou_time for constant padding
                 if 'sou_time' in manifest_item and 'eou_time' in manifest_item:
                     if not isinstance(manifest_item['sou_time'], list):
                         manifest_item['sou_time'] = manifest_item['sou_time'] + pre_pad_dur
@@ -225,6 +226,11 @@ def process_manifest(data_cfg, output_dir):
                     else:
                         manifest_item['sou_time'] = [x + pre_pad_dur for x in manifest_item['sou_time']]
                         manifest_item['eou_time'] = [x + pre_pad_dur for x in manifest_item['eou_time']]
+                else:
+                    # add sou_time and eou_time to the manifest item
+                    manifest_item['sou_time'] = pre_pad_dur
+                    manifest_item['eou_time'] = pre_pad_dur + librosa.get_duration(filename=audio_file)
+
             manifest.append(manifest_item)
 
     # Write the output manifest
