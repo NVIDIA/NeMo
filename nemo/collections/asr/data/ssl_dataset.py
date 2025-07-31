@@ -136,7 +136,6 @@ def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = 
     else:
         output.noisy_audio = output.audio + output.noise
         output.noisy_audio_len = output.audio_len
-        output.noise, output.noise_len = None, None
 
     return output
 
@@ -466,7 +465,6 @@ class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
         else:
             output.noisy_audio = output.audio + output.noise
             output.noisy_audio_len = output.audio_len
-            output.noise, output.noise_len = None, None
 
         return output
 

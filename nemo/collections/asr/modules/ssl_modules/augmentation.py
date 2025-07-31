@@ -135,6 +135,8 @@ class SpeakerNoiseAugmentation(object):
             sample_id=batch.sample_id,
             audio=batch.audio,
             audio_len=batch.audio_len,
+            noise=noise,
+            noise_len=noise_len,
             noisy_audio=batch.audio + noise,
             noisy_audio_len=noise_len,
         )
@@ -231,6 +233,8 @@ class MultiSpeakerNoiseAugmentation(SpeakerNoiseAugmentation):
             sample_id=batch.sample_id,
             audio=batch.audio,
             audio_len=batch.audio_len,
+            noise=noise,
+            noise_len=noise_len,
             noisy_audio=batch.audio + noise,
             noisy_audio_len=noise_len,
         )
