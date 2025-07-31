@@ -642,6 +642,11 @@ class GreedyBatchedRNNTLabelLoopingComputer(
 
         if torch.is_autocast_enabled():
             encoder_output = encoder_output.to(torch.get_autocast_gpu_dtype())
+        else:
+            # since autocast could be enabled outside and disallowed here,
+            # we need to cast encoder output to dtype of params
+            float_dtype = next(self.joint.parameters()).dtype
+            encoder_output = encoder_output.to(float_dtype)
 
         # init or reinit graph
         if self.state is None or self.state.need_reinit(encoder_output):

@@ -209,11 +209,9 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
             prev_batched_state: previous batched decoding state
         """
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
-            # disable CUDA graphs if DDP and Mixed Precision are used
-            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
-            with ctx:
-                # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
+            # disable CUDA graphs if Mixed Precision is used due to incorrect behavior
+            with torch.amp.autocast(device_type="cuda", enabled=False):
+                # TODO(vbataev): fix issue with mixed precision, remove this restriction
                 return self.cuda_graphs_impl(
                     encoder_output=x, encoder_output_length=out_len, prev_batched_state=prev_batched_state
                 )
