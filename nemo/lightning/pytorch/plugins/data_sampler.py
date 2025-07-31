@@ -118,7 +118,7 @@ class MegatronDataSampler(DataSampler):
             step,
             seq_length=self.seq_len,
             micro_batch_size=self.micro_batch_size,
-            num_microbatches=self.num_microbatches,
+            num_microbatches=48 if step.forward_only else self.num_microbatches,
             decoder_seq_length=self.decoder_seq_len,
         )
 
