@@ -19,9 +19,9 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Tuple, Union, Literal, List
 import torch
+from nemo.collections.llm.fn.activation import quick_gelu
 from safetensors import safe_open
 from torch import nn
-import torch.nn.functional as F
 import math
 
 from nemo.collections.llm.gpt.model.base import GPTModel, GPTConfig
@@ -70,8 +70,8 @@ class GPTOSSConfig(GPTConfig):
     seq_length: int = 131072
     window_size: Optional[Tuple[int, int]] = (128, 0)
     attention_softmax_denominator_offset: Optional[Union[Literal['learnable'], float]] = "learnable"
-    activation_func: Callable = F.silu
-    swiglu_alpha: Optional[float] = 1.702
+    activation_func: Callable = quick_gelu
+    glu_linear_offset: float = 1.0
     bias_activation_fusion: bool = False
     window_attn_skip_freq: Optional[Union[int, List[int]]] = 2  # alternative SWA/full
 
