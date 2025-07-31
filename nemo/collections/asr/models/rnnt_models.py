@@ -1087,15 +1087,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
     def wer(self, wer):
         self._wer = wer
 
-    def enable_cuda_graphs_(self, force_reinit=False) -> bool:
+    def maybe_enable_cuda_graphs(self, force_reinit=False):
         if force_reinit:
-            self.disable_cuda_graphs_()
+            self.disable_cuda_graphs()
         if isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
             self.decoding.decoding.maybe_enable_cuda_graphs()
         return True
 
     # @abstractmethod
-    def disable_cuda_graphs_(self) -> bool:
+    def disable_cuda_graphs(self):
         if isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
             self.decoding.decoding.disable_cuda_graphs()
-        return True
+        return

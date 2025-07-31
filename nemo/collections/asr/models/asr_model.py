@@ -17,6 +17,7 @@ from typing import List, Optional
 
 import torch
 
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.exportable import Exportable
@@ -29,7 +30,7 @@ from nemo.utils.cast_utils import cast_all
 __all__ = ['ASRModel']
 
 
-class ASRModel(ModelPT, ABC):
+class ASRModel(ModelPT, WithOptionalCudaGraphs, ABC):
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss = {}
         tensorboard_logs = {}
@@ -172,32 +173,32 @@ class ASRModel(ModelPT, ABC):
                 logging.warning('detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()
 
-    def enable_cuda_graphs_(self, force_reinit: bool = False) -> bool:
-        return False
+    def maybe_enable_cuda_graphs(self, force_reinit: bool = False):
+        return
 
-    def disable_cuda_graphs_(self) -> bool:
-        return False
+    def disable_cuda_graphs(self):
+        return
 
     def on_train_epoch_start(self) -> None:
         """
         Decoder with CUDA graphs does not release memory, thus we disable it for training epoch.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
-        self.disable_cuda_graphs_()
+        self.disable_cuda_graphs()
 
     def on_train_epoch_end(self) -> None:
         """
         After training, we can enable the decoder with CUDA graphs.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
-        self.enable_cuda_graphs_()
+        self.maybe_enable_cuda_graphs()
 
     def on_validation_epoch_start(self) -> None:
         """
         For validation, we enable CUDA graphs to speedup validation.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
-        self.enable_cuda_graphs_()
+        self.maybe_enable_cuda_graphs(force_reinit=True)
 
     def on_validation_epoch_end(self) -> Optional[dict[str, dict[str, torch.Tensor]]]:
         """
@@ -205,7 +206,7 @@ class ASRModel(ModelPT, ABC):
         training will continue after validation
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
-        self.disable_cuda_graphs_()
+        self.disable_cuda_graphs()
         return super().on_validation_epoch_end(sync_metrics=True)
 
     def on_test_epoch_start(self) -> None:
@@ -214,7 +215,7 @@ class ASRModel(ModelPT, ABC):
         We do not need to disable CUDA graphs after testing, since `test` cannot be called in training loop.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
-        self.enable_cuda_graphs_(force_reinit=True)
+        self.maybe_enable_cuda_graphs(force_reinit=True)
 
     def on_predict_epoch_start(self) -> None:
         """
@@ -222,7 +223,7 @@ class ASRModel(ModelPT, ABC):
         We do not need to disable CUDA graphs after predicting, since `predict` cannot be called in training loop.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
-        self.enable_cuda_graphs_(force_reinit=True)
+        self.maybe_enable_cuda_graphs(force_reinit=True)
 
     @property
     def oomptimizer_schema(self) -> dict:
