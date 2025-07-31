@@ -18,13 +18,10 @@
 
 import random
 import timeit
-from collections import OrderedDict
-from typing import Tuple
 
 
 import pytest
 import torch
-from megatron.core.datasets.megatron_tokenizer import MegatronTokenizer
 from megatron.core.datasets.utils import Split
 
 from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import Evo2Dataset, Evo2DatasetPadEodLossMask
@@ -900,16 +897,16 @@ def test_no_eods_one_tag_with_batch_bs2(tag_tokens):
     torch.testing.assert_close(mask, torch.stack([expected_mask, expected_mask]))
 
 
-def test_packed_partial_tag_subsequence_predna_with_control(tag_tokens):
+def test_packed_partial_tag_subsequence_predna_with_control_and_degenerate_base(tag_tokens):
     """
     Sequence: "GAATA[EOD]cacata|acagataaa@ataTACAGGGAATA|d__"
     Expected: First partial tag masked (0s), middle DNA unmasked (1s), end tag masked (0s)
 
     """
-    sequence_alpha = "GAATA0cacata|acagataaaa@taTACAGGGAATA|d__"
+    sequence_alpha = "GAWTA0cacata|acagaraaaa@taTACAGGGAATA|d__"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("GAATA0") * [1] + [0] * len("cacata|") + len("acagataaaa@taTACAGGGAATA") * [1] + [0] * len("|d__"),
+        len("GAWTA0") * [1] + [0] * len("cacata|") + len("acagataaaa@taTACAGGGAATA") * [1] + [0] * len("|d__"),
         dtype=torch.int32,
     )
     mask = Evo2Dataset.mask_phylogenetic_tags(
@@ -1003,7 +1000,7 @@ def mask_phylogenetic_tags_old(tokenized_sequence, terminal_tag_char, other_tag_
     return mask_vector
 
 
-def benchmark_phylo_tag_masking(num_iterations: int = 1000) -> Tuple[float, float]:
+def benchmark_phylo_tag_masking(num_iterations: int = 1000) -> tuple[float, float]:
     """Benchmark the performance of phylogenetic tag masking functions.
 
     Args
