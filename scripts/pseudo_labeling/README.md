@@ -12,9 +12,9 @@ TopIPL is an **iterative pseudo-labeling algorithm** for training speech recogni
 
 TopIPL relies on the following components:
 
-- **[`SDPNeMoRunIPLProcessor`](https://github.com/NVIDIA/NeMo-speech-data-processing/pull/121)**  
+- **[`SDPNeMoRunIPLProcessor`]**  
   Commands for running IPL are generated and submitted using SDP processors and NeMo-Run.  
-  See instructions for usage [here](https://github.com/NVIDIA/NeMo-speech-data-processing/pull/121).
+  See instructions for usage [here](https://github.com/NVIDIA/NeMo-speech-data-processor/blob/main/sdp/processors/ipl/README.md).
 
 - **Training Callback: `IPLEpochStopperCallback`**  
   Add this to your training config under `exp_manager` to **stop training at the end of each epoch**, enabling pseudo-label update:
@@ -23,5 +23,5 @@ TopIPL relies on the following components:
 exp_manager:
   create_ipl_epoch_stopper_callback: True
   ipl_epoch_stopper_callback_params:
-    stop_every_n_epochs:   # Stop training after every n epochs (default: 1)
+    stop_every_n_epochs: n # Stop training after every n epochs (default: 1)
 
