@@ -38,6 +38,7 @@ from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.salm_dataset import left_collate_vectors
 from nemo.collections.speechlm2.models.salm import _resolve_audios_in_prompt, replace_placeholders_and_build_targets
 from nemo.collections.speechlm2.modules import AudioPerceptionModule
+from nemo.collections.speechlm2.modules.perception import AudioTranscriptionPerceptionModule
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
@@ -72,7 +73,8 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        setup_speech_encoder(self, pretrained_weights=self.cfg.pretrained_weights)
+        setup_speech_encoder_with_asr(self, pretrained_weights=self.cfg.pretrained_weights)
+        assert isinstance(self.perception, AudioTranscriptionPerceptionModule)
 
         self._use_fsdp = False
         self._use_tp = False
@@ -157,10 +159,22 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         # Source audio encoding.
         # Input audio: (B, T_samples)
         # Audio embeddings: (B, T, H)
-        audio_embs, audio_emb_lens = self.perception(
+        encoded, encoded_len = self.perception.forward_encoder(
             input_signal=batch["audios"], input_signal_length=batch["audio_lens"]
         )
-        audio_embs = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
+        asr_hyps = self.perception.transcribe_encoded(encoded=encoded, encoded_len=encoded_len)
+        asr_tokens = [
+            torch.as_tensor(self.tokenizer.text_to_ids(f">> {hyp.text} <<" if hyp.text else ">> <<"))
+            for hyp in asr_hyps
+        ]
+        asr_tokens_len = [at.shape[0] for at in asr_tokens]
+        asr_tokens = torch.cat(asr_tokens, dim=0).unsqueeze(0).to(self.device)
+        transcript_embs = torch.split(self.embed_tokens(asr_tokens).squeeze(0), asr_tokens_len, dim=0)
+        audio_embs, audio_emb_lens = self.perception(encoded=encoded, encoded_len=encoded_len)
+        audio_embs = [
+            torch.cat([aemb[:aemblen], temb], dim=0)
+            for aemb, aemblen, temb in zip(audio_embs, audio_emb_lens, transcript_embs)
+        ]
         input_ids_to_embed = torch.where(batch["input_ids"] == self.audio_locator_tag_id, 0, batch["input_ids"])
         text_embs = self.embed_tokens(input_ids_to_embed)
         input_embs, target_ids, attention_mask = replace_placeholders_and_build_targets(
@@ -546,20 +560,11 @@ def setup_speech_encoder_with_asr(model: torch.nn.Module, pretrained_weights: bo
     """
     if pretrained_weights:
         asr = load_pretrained_nemo(ASRModel, model.cfg.pretrained_asr).eval()
-        # TODO(pzelasko): keep ASR decoder/predictor/decoding objects to get transcripts
         with open_dict(model.cfg):
-            model.cfg.perception.preprocessor = asr.cfg.preprocessor
-            model.cfg.perception.encoder = asr.cfg.encoder
+            model.cfg.perception.asr = asr.cfg
             model.cfg.perception.output_dim = model.llm.config.hidden_size
-        model.perception = AudioPerceptionModule(model.cfg.perception).train()
-        model.perception.load_state_dict(asr.state_dict(), strict=False)
+        model.perception = AudioTranscriptionPerceptionModule(model.cfg.perception).train()
+        model.perception.asr = asr
+        # model.perception.asr.load_state_dict(asr.state_dict())
     else:
-        model.perception = AudioPerceptionModule(model.cfg.perception).train()
-
-    # TODO(pzelasko): text decoding code for RNNT
-    # hyp = self.decoding.rnnt_decoder_predictions_tensor(
-    #     encoded,
-    #     encoded_len,
-    #     return_hypotheses=trcfg.return_hypotheses,
-    #     partial_hypotheses=trcfg.partial_hypothesis,
-    # )
+        model.perception = AudioTranscriptionPerceptionModule(model.cfg.perception).train()
