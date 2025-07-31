@@ -107,7 +107,7 @@ class HFQwen2Importer(BaseImporter):
 class HFQwen3Exporter(BaseExporter):
     """Exporter to convert NeMo Qwen3 models to Hugging Face format."""
 
-    convert_state = _NeMo2HFQwen2Exporter.convert_state
+    convert_state = _NeMo2HFQwen3Exporter.convert_state
 
     @property
     def hf_config(self) -> "HFQwen3Config":
@@ -124,13 +124,12 @@ class HFQwen3Exporter(BaseExporter):
         from transformers import Qwen3Config as HFQwen3Config
 
         source = self.tron_config
-
         self._hf_config = HFQwen3Config(
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
-            max_position_embeddings=source.seq_length,
+            max_position_embeddings=source.max_position_embeddings,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
