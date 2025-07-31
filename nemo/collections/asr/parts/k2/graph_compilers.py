@@ -30,8 +30,9 @@ from typing import Optional, Tuple
 
 import torch
 
-from nemo.collections.asr.parts.k2.utils import add_self_loops, compose_with_self_loops, intersect_with_self_loops
-
+from nemo.collections.asr.parts.k2.utils import (add_self_loops,
+                                                 compose_with_self_loops,
+                                                 intersect_with_self_loops)
 from nemo.core.utils.k2_guard import k2  # import k2 from guard module
 
 
@@ -175,7 +176,8 @@ class RnntTopologyCompiler(CtcTopologyCompiler):
         if topo_type == "compact":
             raise NotImplementedError(f"This compiler does not support topo_type==`compact`.")
         super().__init__(num_classes, blank, topo_type, topo_with_self_loops, device)
-        from nemo.collections.asr.parts.k2.topologies import RnntEmissionAdapterBuilder
+        from nemo.collections.asr.parts.k2.topologies import \
+            RnntEmissionAdapterBuilder
 
         self.max_adapter_length = max_adapter_length
         self._builder = RnntEmissionAdapterBuilder(list(range(num_classes)), blank, num_classes)

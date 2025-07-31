@@ -14,7 +14,8 @@
 
 from typing import Any, Mapping
 
-from nemo.collections.speechlm.utils.model_transform import SPEECHLM_PEFT_RESUME
+from nemo.collections.speechlm.utils.model_transform import \
+    SPEECHLM_PEFT_RESUME
 from nemo.lightning.pytorch.strategies import MegatronStrategy
 from nemo.utils import logging
 

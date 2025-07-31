@@ -19,15 +19,14 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.tts.modules.transformer_2501 import (
-    ConvolutionLayer,
-    CrossAttention,
-    PositionwiseConvFF,
-    SelfAttention,
-    Transformer,
-    TransformerLayer,
-)
-from nemo.collections.tts.parts.utils.tts_dataset_utils import beta_binomial_prior_distribution
+from nemo.collections.tts.modules.transformer_2501 import (ConvolutionLayer,
+                                                           CrossAttention,
+                                                           PositionwiseConvFF,
+                                                           SelfAttention,
+                                                           Transformer,
+                                                           TransformerLayer)
+from nemo.collections.tts.parts.utils.tts_dataset_utils import \
+    beta_binomial_prior_distribution
 
 
 def set_seed(seed):

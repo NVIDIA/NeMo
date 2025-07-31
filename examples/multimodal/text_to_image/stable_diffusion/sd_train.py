@@ -17,8 +17,10 @@ import os
 import torch
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import \
+    MegatronLatentDiffusion
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner

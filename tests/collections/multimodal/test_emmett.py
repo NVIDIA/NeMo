@@ -17,12 +17,17 @@ from lhotse import CutSet, MonoCut, SupervisionSegment
 from lhotse.testing.dummies import dummy_recording
 from omegaconf import OmegaConf
 
-from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
-from nemo.collections.common.data.lhotse.text_adapters import SourceTargetTextExample
+from nemo.collections.common.data.lhotse.dataloader import \
+    get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.text_adapters import \
+    SourceTargetTextExample
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
-from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import LhotseAudioQuestionAnswerDataset
-from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import PromptFormatterTextProcessing
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    create_spt_model
+from nemo.collections.multimodal.speech_llm.data.lhotse_dataset import \
+    LhotseAudioQuestionAnswerDataset
+from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import \
+    PromptFormatterTextProcessing
 
 
 class Identity(torch.utils.data.Dataset):

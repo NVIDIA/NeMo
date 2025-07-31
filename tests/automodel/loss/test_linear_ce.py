@@ -15,7 +15,8 @@ import pytest
 import torch
 import torch.nn.functional as F
 
-from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
+from nemo.automodel.loss.linear_ce import (HAVE_LINEAR_LOSS_CE,
+                                           fused_linear_cross_entropy)
 
 
 @pytest.mark.skipif(not HAVE_LINEAR_LOSS_CE, reason="Linear loss CE is not installed")

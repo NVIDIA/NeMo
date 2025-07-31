@@ -24,17 +24,14 @@ import numpy as np
 import torch.utils.data
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import BaseTokenizer
-from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import \
+    BaseTokenizer
+from nemo.collections.tts.parts.preprocessing.feature_processors import \
+    FeatureProcessor
 from nemo.collections.tts.parts.preprocessing.features import Featurizer
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    _read_audio,
-    beta_binomial_prior_distribution,
-    filter_dataset_by_duration,
-    get_weighted_sampler,
-    load_audio,
-    stack_tensors,
-)
+    _read_audio, beta_binomial_prior_distribution, filter_dataset_by_duration,
+    get_weighted_sampler, load_audio, stack_tensors)
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators import experimental

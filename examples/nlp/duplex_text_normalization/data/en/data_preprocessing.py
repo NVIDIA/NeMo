@@ -52,12 +52,10 @@ import regex as re
 from tqdm import tqdm
 
 from nemo.collections.common.tokenizers.moses_tokenizers import MosesProcessor
-from nemo.collections.nlp.data.text_normalization.constants import EN_GREEK_TO_SPOKEN
+from nemo.collections.nlp.data.text_normalization.constants import \
+    EN_GREEK_TO_SPOKEN
 from nemo.collections.nlp.data.text_normalization.utils import (
-    add_space_around_dash,
-    convert_fraction,
-    convert_superscript,
-)
+    add_space_around_dash, convert_fraction, convert_superscript)
 from nemo.utils import logging
 
 

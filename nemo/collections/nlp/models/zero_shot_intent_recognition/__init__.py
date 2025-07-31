@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.zero_shot_intent_recognition.zero_shot_intent_model import ZeroShotIntentModel
+from nemo.collections.nlp.models.zero_shot_intent_recognition.zero_shot_intent_model import \
+    ZeroShotIntentModel

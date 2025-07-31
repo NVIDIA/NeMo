@@ -23,10 +23,7 @@ from torch.cuda.amp import autocast
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.nlp.data import SquadDataset
 from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing import (
-    EVALUATION_MODE,
-    INFERENCE_MODE,
-    TRAINING_MODE,
-)
+    EVALUATION_MODE, INFERENCE_MODE, TRAINING_MODE)
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list

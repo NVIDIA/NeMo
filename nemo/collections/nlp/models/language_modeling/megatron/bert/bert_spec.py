@@ -15,16 +15,16 @@
 
 try:
     from megatron.core.extensions.transformer_engine import (
-        TEColumnParallelLinear,
-        TEDotProductAttention,
-        TENorm,
-        TERowParallelLinear,
-    )
+        TEColumnParallelLinear, TEDotProductAttention, TENorm,
+        TERowParallelLinear)
     from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
     from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-    from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
-    from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
-    from megatron.core.transformer.dot_product_attention import DotProductAttention
+    from megatron.core.tensor_parallel.layers import (ColumnParallelLinear,
+                                                      RowParallelLinear)
+    from megatron.core.transformer.attention import (SelfAttention,
+                                                     SelfAttentionSubmodules)
+    from megatron.core.transformer.dot_product_attention import \
+        DotProductAttention
     from megatron.core.transformer.enums import AttnMaskType
     from megatron.core.transformer.identity_op import IdentityOp
     from megatron.core.transformer.mlp import MLP, MLPSubmodules
@@ -38,8 +38,7 @@ except (ImportError, ModuleNotFoundError):
 
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
     TransformerLayerSubmodulesWithPostLNSupport,
-    TransformerLayerWithPostLNSupport,
-)
+    TransformerLayerWithPostLNSupport)
 
 # Use this spec to use lower level Transformer Engine modules (required for fp8 training)
 bert_layer_with_transformer_engine_spec_postln = ModuleSpec(

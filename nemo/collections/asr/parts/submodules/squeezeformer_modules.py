@@ -16,12 +16,12 @@ import torch
 from torch import nn as nn
 from torch.nn import LayerNorm
 
-from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import AttentionAdapterModuleMixin
-from nemo.collections.asr.parts.submodules.conformer_modules import ConformerConvolution, ConformerFeedForward
+from nemo.collections.asr.parts.submodules.adapters.attention_adapter_mixin import \
+    AttentionAdapterModuleMixin
+from nemo.collections.asr.parts.submodules.conformer_modules import (
+    ConformerConvolution, ConformerFeedForward)
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
-    MultiHeadAttention,
-    RelPositionMultiHeadAttention,
-)
+    MultiHeadAttention, RelPositionMultiHeadAttention)
 from nemo.core.classes.mixins import AccessMixin
 
 __all__ = ['SqueezeformerLayer', 'ConformerFeedForward', 'SqueezeformerLayer']

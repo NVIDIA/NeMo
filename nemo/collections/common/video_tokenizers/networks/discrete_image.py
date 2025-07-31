@@ -20,8 +20,10 @@ from collections import OrderedDict, namedtuple
 import torch
 from torch import nn
 
-from nemo.collections.common.video_tokenizers.modules import DecoderType, DiscreteQuantizer, EncoderType
-from nemo.collections.common.video_tokenizers.modules.quantizers import InvQuantizerJit
+from nemo.collections.common.video_tokenizers.modules import (
+    DecoderType, DiscreteQuantizer, EncoderType)
+from nemo.collections.common.video_tokenizers.modules.quantizers import \
+    InvQuantizerJit
 
 NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant_info"])
 

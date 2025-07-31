@@ -17,7 +17,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 from nemo.utils import logging
 
 try:
@@ -33,7 +34,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from apex.transformer.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+    from apex.transformer.tensor_parallel.layers import \
+        set_defaults_if_not_set_tensor_model_parallel_attributes
 
     HAVE_APEX = True
 

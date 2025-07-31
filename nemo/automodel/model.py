@@ -21,11 +21,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from nemo.automodel.llm.causal_lm import AutoModelForCausalLMConfig
 from nemo.lightning.pytorch.callbacks.jit_transform import (
-    JitConfig,
-    compile_module,
-    get_modules_from_selector,
-    listify,
-)
+    JitConfig, compile_module, get_modules_from_selector, listify)
 from nemo.tron.utils.common_utils import get_rank_safe
 
 logger = logging.getLogger(__name__)

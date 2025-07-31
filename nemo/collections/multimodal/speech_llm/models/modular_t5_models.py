@@ -26,35 +26,36 @@ from omegaconf import ListConfig
 from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.asr.models import ASRModel, SpeechEncDecSelfSupervisedModel
+from nemo.collections.asr.models import (ASRModel,
+                                         SpeechEncDecSelfSupervisedModel)
 from nemo.collections.common.data.utils import move_data_to_device
-from nemo.collections.common.metrics import MetricStringToTorchMetric, TextMetricsSet
+from nemo.collections.common.metrics import (MetricStringToTorchMetric,
+                                             TextMetricsSet)
 from nemo.collections.multimodal.speech_llm.data.build_dataset import (
-    build_speechllm_dataloader,
-    build_speechllm_dataset,
-)
+    build_speechllm_dataloader, build_speechllm_dataset)
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
-    AudioPerceptionModule,
-    MultiAudioPerceptionModule,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import MegatronT5LoraModel
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
+    AudioPerceptionModule, MultiAudioPerceptionModule)
+from nemo.collections.nlp.models.language_modeling.megatron_t5_adapter_model import \
+    MegatronT5LoraModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import \
+    MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import \
+    MegatronT5SFTModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    build_position_ids,
-    get_iterator_k_split,
-)
+    average_losses_across_data_parallel_group, build_position_ids,
+    get_iterator_k_split)
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
+from nemo.core.neural_types import (AudioSignal, LabelsType, LengthsType,
+                                    MaskType, NeuralType)
 from nemo.utils import AppState, logging, model_utils
 
 try:
     from megatron.core import parallel_state, tensor_parallel
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -63,22 +64,17 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-        reconfigure_num_microbatches_calculator,
-    )
+        get_current_global_batch_size, get_micro_batch_size,
+        get_num_microbatches, reconfigure_num_microbatches_calculator)
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
     from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
-    from apex.transformer.pipeline_parallel.utils import (
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+        get_current_global_batch_size, get_micro_batch_size,
+        get_num_microbatches)
 
 
 __all__ = ["ModularizedAudioT5Model", "DecoderTextPromptModularizedAudioT5Model"]

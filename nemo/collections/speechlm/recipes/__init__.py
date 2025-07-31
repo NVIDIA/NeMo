@@ -13,7 +13,5 @@
 # limitations under the License.
 
 from nemo.collections.speechlm.recipes.pipeline import (
-    speech_to_text_llm_generate,
-    speech_to_text_llm_train,
-    speech_to_text_llm_validate,
-)
+    speech_to_text_llm_generate, speech_to_text_llm_train,
+    speech_to_text_llm_validate)

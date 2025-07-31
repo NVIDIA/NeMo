@@ -19,31 +19,16 @@ from typing import List, Optional, Union
 import numpy as np
 import torch
 from einops import rearrange
-from megatron.energon import (
-    Batch,
-    CaptioningSample,
-    DefaultTaskEncoder,
-    InterleavedSample,
-    SimilarityInterleavedSample,
-    VQASample,
-    batch_pad_stack,
-)
+from megatron.energon import (Batch, CaptioningSample, DefaultTaskEncoder,
+                              InterleavedSample, SimilarityInterleavedSample,
+                              VQASample, batch_pad_stack)
 from PIL import Image
 
 from nemo.collections.multimodal.data.neva.neva_dataset import (
-    DEFAULT_IMAGE_TOKEN,
-    preprocess_conversations,
-    preprocess_interleaved_prompt,
-    preprocess_llama_2,
-    preprocess_llama_3,
-    preprocess_multimodal,
-    preprocess_nv_dpo,
-    preprocess_nvgpt,
-    preprocess_plain,
-    preprocess_v1,
-    preprocess_yi_34b,
-    process_image,
-)
+    DEFAULT_IMAGE_TOKEN, preprocess_conversations,
+    preprocess_interleaved_prompt, preprocess_llama_2, preprocess_llama_3,
+    preprocess_multimodal, preprocess_nv_dpo, preprocess_nvgpt,
+    preprocess_plain, preprocess_v1, preprocess_yi_34b, process_image)
 
 
 # Type for intermediate batch, after batch()
@@ -503,7 +488,8 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         return height_num_patches * width_num_patches
 
     def get_masks_and_position_ids(self, tokens, labels):
-        from nemo.collections.nlp.modules.common.megatron.utils import get_ltor_masks_and_position_ids
+        from nemo.collections.nlp.modules.common.megatron.utils import \
+            get_ltor_masks_and_position_ids
 
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
             data=tokens,

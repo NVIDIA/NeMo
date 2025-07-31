@@ -20,7 +20,8 @@ import torch
 
 from nemo.core.classes import NeuralModule
 from nemo.core.classes.exportable import Exportable
-from nemo.core.neural_types import ChannelType, FloatType, IntType, MaskType, NeuralType, StringType, VoidType
+from nemo.core.neural_types import (ChannelType, FloatType, IntType, MaskType,
+                                    NeuralType, StringType, VoidType)
 from nemo.utils import logging
 
 __all__ = ['GPTModule']

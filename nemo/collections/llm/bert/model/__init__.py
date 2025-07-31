@@ -1,18 +1,13 @@
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
-from nemo.collections.llm.bert.model.bert import (
-    HuggingFaceBertBaseConfig,
-    HuggingFaceBertConfig,
-    HuggingFaceBertLargeConfig,
-    HuggingFaceBertModel,
-    MegatronBertBaseConfig,
-    MegatronBertConfig,
-    MegatronBertLargeConfig,
-)
+from nemo.collections.llm.bert.model.bert import (HuggingFaceBertBaseConfig,
+                                                  HuggingFaceBertConfig,
+                                                  HuggingFaceBertLargeConfig,
+                                                  HuggingFaceBertModel,
+                                                  MegatronBertBaseConfig,
+                                                  MegatronBertConfig,
+                                                  MegatronBertLargeConfig)
 from nemo.collections.llm.bert.model.embedding import (
-    BertEmbeddingLargeConfig,
-    BertEmbeddingMiniConfig,
-    BertEmbeddingModel,
-)
+    BertEmbeddingLargeConfig, BertEmbeddingMiniConfig, BertEmbeddingModel)
 
 __all__ = [
     "BertConfig",

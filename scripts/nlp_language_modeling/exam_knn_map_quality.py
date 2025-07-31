@@ -33,10 +33,9 @@ python scripts/nlp_language_modeling/exam_knn_map_quality.py \
 import argparse
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
-    KNNIndex,
-    MMapRetrievalIndexedDataset,
-)
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    KNNIndex, MMapRetrievalIndexedDataset)
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.utils import logging
 
 

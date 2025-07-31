@@ -24,7 +24,8 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm.api import finetune, train
 from nemo.collections.vlm.peft import LoRA
 from nemo.lightning import AutoResume, NeMoLogger

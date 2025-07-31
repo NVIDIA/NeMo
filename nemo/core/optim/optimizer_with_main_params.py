@@ -29,12 +29,11 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core.parallel_state import (
-        get_data_parallel_group,
-        get_data_parallel_world_size,
-        get_expert_data_parallel_group,
-    )
-    from megatron.core.tensor_parallel import copy_tensor_model_parallel_attributes
+    from megatron.core.parallel_state import (get_data_parallel_group,
+                                              get_data_parallel_world_size,
+                                              get_expert_data_parallel_group)
+    from megatron.core.tensor_parallel import \
+        copy_tensor_model_parallel_attributes
 
     HAVE_MEGATRON_CORE = True
 

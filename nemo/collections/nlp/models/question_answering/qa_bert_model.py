@@ -23,10 +23,13 @@ from transformers.models.bert.tokenization_bert import BasicTokenizer
 
 from nemo.collections.common.losses import SpanningLoss
 from nemo.collections.common.parts.utils import _compute_softmax
-from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import QAProcessor
-from nemo.collections.nlp.data.question_answering.dataset.qa_bert_dataset import BERTQADataset
+from nemo.collections.nlp.data.question_answering.data_processor.qa_processing import \
+    QAProcessor
+from nemo.collections.nlp.data.question_answering.dataset.qa_bert_dataset import \
+    BERTQADataset
 from nemo.collections.nlp.metrics.qa_metrics import QAMetrics
-from nemo.collections.nlp.models.question_answering.qa_base_model import BaseQAModel
+from nemo.collections.nlp.models.question_answering.qa_base_model import \
+    BaseQAModel
 from nemo.collections.nlp.modules.common import TokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo, typecheck

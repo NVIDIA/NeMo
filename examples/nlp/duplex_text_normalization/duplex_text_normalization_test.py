@@ -49,7 +49,8 @@ This script runs evaluation on the test data. For more details on the data forma
 from helpers import DECODER_MODEL, TAGGER_MODEL, instantiate_model_and_trainer
 from omegaconf import DictConfig
 
-from nemo.collections.nlp.data.text_normalization import TextNormalizationTestDataset
+from nemo.collections.nlp.data.text_normalization import \
+    TextNormalizationTestDataset
 from nemo.collections.nlp.models import DuplexTextNormalizationModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

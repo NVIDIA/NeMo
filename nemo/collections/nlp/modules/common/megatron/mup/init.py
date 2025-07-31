@@ -53,14 +53,9 @@ import math
 import warnings
 
 import torch
-from torch.nn.init import (
-    _calculate_correct_fan,
-    _calculate_fan_in_and_fan_out,
-    _no_grad_fill_,
-    _no_grad_normal_,
-    _no_grad_uniform_,
-    calculate_gain,
-)
+from torch.nn.init import (_calculate_correct_fan,
+                           _calculate_fan_in_and_fan_out, _no_grad_fill_,
+                           _no_grad_normal_, _no_grad_uniform_, calculate_gain)
 
 
 def constant_std_init_(tensor, sampler_):

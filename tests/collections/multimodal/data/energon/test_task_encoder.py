@@ -13,18 +13,19 @@
 # limitations under the License.
 
 import unittest
+
 import torch
-from megatron.energon import InterleavedSample, SimilarityInterleavedSample, VQASample
+from megatron.energon import (InterleavedSample, SimilarityInterleavedSample,
+                              VQASample)
 from transformers import AutoProcessor
 
-from nemo.collections.multimodal.data.energon import (
-    ImageTextSample,
-    ImageToken,
-    MultiModalSampleConfig,
-    VQASampleEncoder,
-)
+from nemo.collections.multimodal.data.energon import (ImageTextSample,
+                                                      ImageToken,
+                                                      MultiModalSampleConfig,
+                                                      VQASampleEncoder)
 from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
+from nemo.collections.multimodal.data.energon.task_encoder import \
+    MultiModalTaskEncoder
 
 
 class TestMultiModalTaskEncoder(unittest.TestCase):

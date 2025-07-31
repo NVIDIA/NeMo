@@ -21,10 +21,13 @@ from collections import OrderedDict
 import torch
 from lightning.pytorch import Trainer
 from transformers import LlamaTokenizer, PreTrainedTokenizerFast
-from transformers.convert_slow_tokenizer import LlamaConverter, TikTokenConverter
+from transformers.convert_slow_tokenizer import (LlamaConverter,
+                                                 TikTokenConverter)
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 

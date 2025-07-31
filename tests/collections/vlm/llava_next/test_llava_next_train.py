@@ -24,7 +24,8 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm.api import train
 from nemo.collections.multimodal.data.energon import ImageToken
 from nemo.lightning import AutoResume, NeMoLogger
@@ -93,8 +94,10 @@ if __name__ == '__main__':
         if not args.data_path:
             raise ValueError("For Energon data type, you must specify --data-path")
 
-        from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
-        from nemo.collections.multimodal.data.energon.config import MultiModalSampleConfig
+        from nemo.collections.multimodal.data.energon import \
+            EnergonMultiModalDataModule
+        from nemo.collections.multimodal.data.energon.config import \
+            MultiModalSampleConfig
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         # Configure multimodal sample settings

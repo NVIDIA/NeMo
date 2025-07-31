@@ -17,7 +17,8 @@ from typing import List, Optional, Union
 import torch
 from megatron.core.packed_seq_params import PackedSeqParams
 
-from nemo.collections.multimodal.data.energon.config import ImageTextRawBatch, ImageTextSample
+from nemo.collections.multimodal.data.energon.config import (ImageTextRawBatch,
+                                                             ImageTextSample)
 
 
 @dataclass

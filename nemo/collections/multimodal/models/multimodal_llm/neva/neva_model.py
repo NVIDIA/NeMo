@@ -27,60 +27,51 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from transformers import CLIPVisionModel, SiglipVisionModel
 
 from nemo.collections.common.parts.utils import extend_instance
-from nemo.collections.multimodal.data.neva.conversation import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
+from nemo.collections.multimodal.data.neva.conversation import (
+    DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN)
 from nemo.collections.multimodal.data.neva.neva_dataset import (
-    DataCollatorForSupervisedDataset,
-    NevaPackedSeqDatatset,
-    make_supervised_data_module,
-)
+    DataCollatorForSupervisedDataset, NevaPackedSeqDatatset,
+    make_supervised_data_module)
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
-    CLIPVisionTransformer,
-    MegatronCLIPModel,
-)
-from nemo.collections.multimodal.parts.utils import create_image_processor, load_nemo_model_weights
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import MegatronPretrainingSampler
-from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel, get_specs
+    CLIPVisionTransformer, MegatronCLIPModel)
+from nemo.collections.multimodal.parts.utils import (create_image_processor,
+                                                     load_nemo_model_weights)
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import \
+    get_datasets_weights_and_num_samples
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import \
+    MegatronPretrainingSampler
+from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import \
+    GPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
+    MegatronGPTModel, get_specs)
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    MultimodalProjectorAdapterConfig,
-)
+    AdapterName, MultimodalProjectorAdapterConfig)
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    get_iterator_k_split,
-)
+    average_losses_across_data_parallel_group, get_iterator_k_split)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate,
-    get_computeprob_response,
-    get_default_length_params,
-    get_default_sampling_params,
-    megatron_neva_generate,
-)
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, OutputType, SamplingParam
-from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import MultimodalAdapterModelMixin
+    generate, get_computeprob_response, get_default_length_params,
+    get_default_sampling_params, megatron_neva_generate)
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam, OutputType, SamplingParam)
+from nemo.collections.nlp.parts.mixins.multimodal_adapter_mixins import \
+    MultimodalAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.vision.data.megatron.data_samplers import MegatronVisionPretrainingRandomSampler
+from nemo.collections.vision.data.megatron.data_samplers import \
+    MegatronVisionPretrainingRandomSampler
 from nemo.core import adapter_mixins
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
 try:
-    from megatron.energon import (
-        LimitDataset,
-        RepeatDataset,
-        WorkerConfig,
-        get_loader,
-        get_savable_loader,
-        get_train_dataset,
-        get_val_datasets,
-    )
+    from megatron.energon import (LimitDataset, RepeatDataset, WorkerConfig,
+                                  get_loader, get_savable_loader,
+                                  get_train_dataset, get_val_datasets)
 
-    from nemo.collections.multimodal.data.neva.neva_energon_dataset import TaskEncoder
+    from nemo.collections.multimodal.data.neva.neva_energon_dataset import \
+        TaskEncoder
 
     HAVE_ENERGON = True
 
@@ -89,12 +80,17 @@ except (ImportError, ModuleNotFoundError):
     HAVE_ENERGON = False
 
 try:
-    from megatron.core import InferenceParams, dist_checkpointing, parallel_state, tensor_parallel
-    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_inplace
-    from megatron.core.dist_checkpointing.mapping import LocalNonpersistentObject, ShardedObject
+    from megatron.core import (InferenceParams, dist_checkpointing,
+                               parallel_state, tensor_parallel)
+    from megatron.core.dist_checkpointing.dict_utils import \
+        dict_list_map_inplace
+    from megatron.core.dist_checkpointing.mapping import (
+        LocalNonpersistentObject, ShardedObject)
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.utils import make_sharded_tensors_for_checkpoint
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
+    from megatron.core.transformer.utils import \
+        make_sharded_tensors_for_checkpoint
 
     HAVE_MEGATRON_CORE = True
 
@@ -1068,7 +1064,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
 
                     try:
-                        from megatron.core.packed_seq_params import PackedSeqParams
+                        from megatron.core.packed_seq_params import \
+                            PackedSeqParams
                     except (ImportError, ModuleNotFoundError) as e:
                         mcore_version = packaging.version.Version(version('megatron-core'))
                         logging.error(

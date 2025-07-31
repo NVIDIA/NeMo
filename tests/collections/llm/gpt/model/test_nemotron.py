@@ -13,14 +13,12 @@
 # limitations under the License.
 
 from nemo.collections.llm.fn.activation import squared_relu
-from nemo.collections.llm.gpt.model.nemotron import (
-    Nemotron3Config4B,
-    Nemotron3Config8B,
-    Nemotron3Config22B,
-    Nemotron4Config15B,
-    Nemotron4Config340B,
-    NemotronConfig,
-)
+from nemo.collections.llm.gpt.model.nemotron import (Nemotron3Config4B,
+                                                     Nemotron3Config8B,
+                                                     Nemotron3Config22B,
+                                                     Nemotron4Config15B,
+                                                     Nemotron4Config340B,
+                                                     NemotronConfig)
 
 
 def test_nemotron_config():

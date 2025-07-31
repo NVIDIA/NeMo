@@ -20,7 +20,8 @@ import torch
 
 from nemo.collections.common.parts.utils import mask_sequence_tensor
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import FloatType, LengthsType, NeuralType, SpectrogramType, VoidType
+from nemo.core.neural_types import (FloatType, LengthsType, NeuralType,
+                                    SpectrogramType, VoidType)
 from nemo.utils import logging
 
 

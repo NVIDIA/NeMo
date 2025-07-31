@@ -18,7 +18,8 @@ from typing import Any, Type
 
 import torch
 
-from nemo.collections.common.tokenizers import AggregateTokenizer, TokenizerSpec
+from nemo.collections.common.tokenizers import (AggregateTokenizer,
+                                                TokenizerSpec)
 
 PREAMBLE_ROLE = "preamble"
 

@@ -16,7 +16,9 @@ import argparse
 import logging
 import os
 import random
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
 
 # Checks -
 # (Recommendation) Please normalize the text for each language (avoid numbers, special characters, punctuation)

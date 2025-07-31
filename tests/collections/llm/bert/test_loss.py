@@ -15,11 +15,8 @@ import pytest
 import torch
 
 from nemo.collections.llm.bert.loss import (
-    BERTInBatchExclusiveHardNegativesRankingLoss,
-    BERTLossReduction,
-    HardNegativeRankingLoss,
-    sentence_order_prediction_loss,
-)
+    BERTInBatchExclusiveHardNegativesRankingLoss, BERTLossReduction,
+    HardNegativeRankingLoss, sentence_order_prediction_loss)
 
 
 def mock_average_losses(losses):

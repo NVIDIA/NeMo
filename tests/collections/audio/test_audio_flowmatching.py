@@ -16,7 +16,8 @@ from dataclasses import dataclass
 import pytest
 import torch
 
-from nemo.collections.audio.parts.submodules.flow import ConditionalFlowMatchingEulerSampler, OptimalTransportFlow
+from nemo.collections.audio.parts.submodules.flow import (
+    ConditionalFlowMatchingEulerSampler, OptimalTransportFlow)
 
 NUM_STEPS = [1, 5, 10, 20, 100]
 TIMES_MIN = [0.0, 1e-8, 1e-2, 0.1, 0.25, 0.4]

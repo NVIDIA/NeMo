@@ -16,8 +16,10 @@ import copy
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data import audio_to_label
-from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
-from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
+from nemo.collections.asr.data.audio_to_text_dataset import (
+    convert_to_config_list, get_chain_dataset)
+from nemo.collections.asr.parts.preprocessing.perturb import \
+    process_augmentations
 from nemo.collections.common.data.dataset import ConcatDataset
 
 

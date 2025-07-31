@@ -131,7 +131,6 @@ def initialize_sagemaker() -> None:
 
     if os.environ.get("RANK") and os.environ.get("WORLD_SIZE"):
         import smdistributed.dataparallel.torch.distributed as dist
-
         # has to be imported, as it overrides torch modules and such when DDP is enabled.
         import smdistributed.dataparallel.torch.torch_smddp
 

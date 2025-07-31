@@ -17,16 +17,19 @@ from unittest.mock import Mock
 import pytest
 import torch
 
-from nemo.collections.asr.modules.transformer.transformer import TransformerDecoderNM
+from nemo.collections.asr.modules.transformer.transformer import \
+    TransformerDecoderNM
 from nemo.collections.asr.modules.transformer.transformer_generators import (
-    BeamSearchSequenceGenerator,
-    BeamSearchSequenceGeneratorWithNGramLM,
-    GreedySequenceGenerator,
-)
-from nemo.collections.asr.parts.submodules.multitask_beam_decoding import TransformerAEDBeamInfer
-from nemo.collections.asr.parts.submodules.multitask_greedy_decoding import TransformerAEDGreedyInfer
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
+    BeamSearchSequenceGenerator, BeamSearchSequenceGeneratorWithNGramLM,
+    GreedySequenceGenerator)
+from nemo.collections.asr.parts.submodules.multitask_beam_decoding import \
+    TransformerAEDBeamInfer
+from nemo.collections.asr.parts.submodules.multitask_greedy_decoding import \
+    TransformerAEDGreedyInfer
+from nemo.collections.asr.parts.submodules.ngram_lm import \
+    NGramGPULanguageModel
+from nemo.collections.asr.parts.submodules.token_classifier import \
+    TokenClassifier
 
 
 @pytest.fixture()

@@ -21,11 +21,16 @@ from lhotse import CutSet, MonoCut
 from lhotse.testing.dummies import DummyManifest
 from omegaconf import DictConfig, ListConfig
 
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+from nemo.collections.asr.data.audio_to_text_lhotse import \
+    LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.models import EncDecRNNTModel
-from nemo.collections.asr.modules import HATJoint, RNNTDecoder, RNNTJoint, SampledRNNTJoint, StatelessTransducerDecoder
-from nemo.collections.asr.parts.submodules import rnnt_beam_decoding as beam_decode
-from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
+from nemo.collections.asr.modules import (HATJoint, RNNTDecoder, RNNTJoint,
+                                          SampledRNNTJoint,
+                                          StatelessTransducerDecoder)
+from nemo.collections.asr.parts.submodules import \
+    rnnt_beam_decoding as beam_decode
+from nemo.collections.asr.parts.submodules import \
+    rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.common.parts.preprocessing.parsers import make_parser
 from nemo.core.utils import numba_utils
@@ -39,7 +44,8 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 
 @pytest.fixture()
 def max_symbols_setup():
-    from nemo.collections.asr.modules.rnnt_abstract import AbstractRNNTDecoder, AbstractRNNTJoint
+    from nemo.collections.asr.modules.rnnt_abstract import (
+        AbstractRNNTDecoder, AbstractRNNTJoint)
     from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
     class DummyRNNTDecoder(AbstractRNNTDecoder):

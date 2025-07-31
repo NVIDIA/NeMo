@@ -46,17 +46,14 @@ from torch import Tensor
 from nemo.collections.common.parts.utils import mask_sequence_tensor
 from nemo.collections.tts.losses.audio_codec_loss import MaskedMSELoss
 from nemo.collections.tts.modules.audio_codec_modules import (
-    CodecActivation,
-    Conv1dNorm,
-    Conv2dNorm,
-    ConvTranspose1dNorm,
-    VectorQuantizerBase,
-    get_down_sample_padding,
-)
+    CodecActivation, Conv1dNorm, Conv2dNorm, ConvTranspose1dNorm,
+    VectorQuantizerBase, get_down_sample_padding)
 from nemo.collections.tts.parts.utils.distributed import broadcast_tensors
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, Index, LengthsType, LossType, VoidType
+from nemo.core.neural_types.elements import (AudioSignal,
+                                             EncodedRepresentation, Index,
+                                             LengthsType, LossType, VoidType)
 from nemo.core.neural_types.neural_type import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import experimental

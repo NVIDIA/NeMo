@@ -24,8 +24,10 @@ import pickle
 import re
 from typing import List
 
-from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
-from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
+from nemo.collections.nlp.data.dialogue.data_processor.data_processor import \
+    DialogueDataProcessor
+from nemo.collections.nlp.data.dialogue.input_example.input_example import \
+    DialogueInputExample
 from nemo.collections.nlp.data.dialogue.sgd.schema import Schema
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning

@@ -14,7 +14,9 @@
 import torch
 
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types.elements import LossType, NormalDistributionSamplesType, VoidType
+from nemo.core.neural_types.elements import (LossType,
+                                             NormalDistributionSamplesType,
+                                             VoidType)
 from nemo.core.neural_types.neural_type import NeuralType
 
 

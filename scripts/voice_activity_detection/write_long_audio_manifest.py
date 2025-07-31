@@ -20,7 +20,6 @@ import numpy as np
 from nemo.collections.asr.parts.utils.vad_utils import prepare_manifest
 from nemo.utils import logging
 
-
 """
 This script is designed for inference of frame level Voice Activity Detection (VAD) 
 

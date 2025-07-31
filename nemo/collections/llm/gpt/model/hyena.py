@@ -23,15 +23,20 @@ from typing import Callable, Literal, Optional, Type
 
 import torch
 from megatron.core import parallel_state
-from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
-from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import \
+    GPTInferenceWrapper
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import \
+    InferenceWrapperConfig
 from megatron.core.transformer.enums import AttnBackend
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec, hyena_stack_spec_no_te
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_model import HyenaModel as MCoreHyenaModel
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import hyena_no_weight_decay_cond
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import (
+    hyena_stack_spec, hyena_stack_spec_no_te)
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_model import \
+    HyenaModel as MCoreHyenaModel
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import \
+    hyena_no_weight_decay_cond
 from nemo.lightning import get_vocab_size, io, teardown
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.io.state import TransformFns
@@ -556,7 +561,8 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
 
             def adjust_medium_filter(self, updated_data):
                 """Adjust the medium filter."""
-                from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
+                from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import \
+                    HyenaConfig
 
                 for k, v in updated_data.items():
                     if "filter.h" in k or "filter.decay" in k:
@@ -708,7 +714,8 @@ class PyTorchHyenaImporter(io.ModelConnector["HyenaModel", HyenaModel]):
         Returns:
             Tokenizer instance
         """
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        from nemo.collections.nlp.modules.common.tokenizer_utils import \
+            get_nmt_tokenizer
 
         tokenizer = get_nmt_tokenizer(
             library=self.model_config.tokenizer_library,

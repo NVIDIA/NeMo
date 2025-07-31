@@ -20,14 +20,8 @@ from omegaconf import DictConfig
 from tqdm import tqdm
 
 from nemo.collections.common.video_tokenizers.utils import (
-    get_tokenizer_config,
-    load_jit_model,
-    load_pytorch_model,
-    numpy2tensor,
-    pad_video_batch,
-    tensor2numpy,
-    unpad_video_batch,
-)
+    get_tokenizer_config, load_jit_model, load_pytorch_model, numpy2tensor,
+    pad_video_batch, tensor2numpy, unpad_video_batch)
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.modelPT import ModelPT
 

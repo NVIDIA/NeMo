@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.tts.parts.mixins.fastpitch_adapter_mixins import FastPitchAdapterModelMixin
+from nemo.collections.tts.parts.mixins.fastpitch_adapter_mixins import \
+    FastPitchAdapterModelMixin

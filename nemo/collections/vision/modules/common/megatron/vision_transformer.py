@@ -20,8 +20,10 @@ import torch
 
 from nemo.collections.nlp.modules.common.megatron.layer_type import LayerType
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.transformer import ParallelTransformer, ParallelTransformerLayer_
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+from nemo.collections.nlp.modules.common.megatron.transformer import (
+    ParallelTransformer, ParallelTransformerLayer_)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 
 try:
     from apex.transformer.enums import AttnMaskType, ModelType

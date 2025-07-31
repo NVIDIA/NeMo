@@ -19,12 +19,10 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.llm.gpt.data.core import (
-    GPTSFTChatDataset,
-    GPTSFTDataset,
-    GPTSFTPackedDataset,
-    create_sft_dataset,
-)
+from nemo.collections.llm.gpt.data.core import (GPTSFTChatDataset,
+                                                GPTSFTDataset,
+                                                GPTSFTPackedDataset,
+                                                create_sft_dataset)
 
 
 class MockTokenizer:

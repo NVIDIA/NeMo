@@ -23,14 +23,11 @@ from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
 from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.tensor_parallel import ColumnParallelLinear
-from megatron.core.transformer import (
-    MegatronModule,
-    ModuleSpec,
-    TransformerConfig,
-    TransformerLayer,
-    TransformerLayerSubmodules,
-)
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer import (MegatronModule, ModuleSpec,
+                                       TransformerConfig, TransformerLayer,
+                                       TransformerLayerSubmodules)
+from megatron.core.transformer.attention import (SelfAttention,
+                                                 SelfAttentionSubmodules)
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.utils import attention_mask_func
@@ -48,7 +45,8 @@ from nemo.utils.import_utils import safe_import_from
 if TYPE_CHECKING:
     from transformers import GemmaForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 TERowParallelLinear, _ = safe_import_from("megatron.core.extensions.transformer_engine", "TERowParallelLinear")
@@ -242,7 +240,8 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
     @property
     def tokenizer(self) -> "AutoTokenizer":
         """ """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 

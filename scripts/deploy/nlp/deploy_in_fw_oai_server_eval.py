@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+
 from nemo.collections.llm.api import deploy
 
 # NOTE: This script is an example script to deploy a nemo2 model in-framework (i.e wo converting the model to any

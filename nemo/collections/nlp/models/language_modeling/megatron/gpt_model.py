@@ -16,14 +16,12 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.language_model import get_language_model
+from nemo.collections.nlp.modules.common.megatron.language_model import \
+    get_language_model
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    init_method_normal,
-    parallel_lm_logits,
-    scaled_init_method_normal,
-)
+    ApexGuardDefaults, init_method_normal, parallel_lm_logits,
+    scaled_init_method_normal)
 from nemo.utils.decorators import deprecated_warning
 
 try:
@@ -39,7 +37,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
 try:
-    from megatron.core import ModelParallelConfig, parallel_state, tensor_parallel
+    from megatron.core import (ModelParallelConfig, parallel_state,
+                               tensor_parallel)
 
     HAVE_MEGATRON_CORE = True
 

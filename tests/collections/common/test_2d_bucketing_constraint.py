@@ -21,10 +21,8 @@ from lhotse.testing.dummies import dummy_cut
 from lhotse.testing.random import deterministic_rng
 
 from nemo.collections.common.data.lhotse.dataloader import (
-    BucketingFilter,
-    FixedBucketBatchSizeConstraint2D,
-    get_lhotse_dataloader_from_config,
-)
+    BucketingFilter, FixedBucketBatchSizeConstraint2D,
+    get_lhotse_dataloader_from_config)
 
 
 def make_cut(id_: int = 0, duration: Seconds = 1.0, num_tokens: int = 10):

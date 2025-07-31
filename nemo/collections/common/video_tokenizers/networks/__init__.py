@@ -17,14 +17,22 @@
 
 from enum import Enum
 
-from nemo.collections.common.video_tokenizers.networks.configs import continuous_image as continuous_image_dict
-from nemo.collections.common.video_tokenizers.networks.configs import continuous_video as continuous_video_dict
-from nemo.collections.common.video_tokenizers.networks.configs import discrete_image as discrete_image_dict
-from nemo.collections.common.video_tokenizers.networks.configs import discrete_video as discrete_video_dict
-from nemo.collections.common.video_tokenizers.networks.continuous_image import ContinuousImageTokenizer
-from nemo.collections.common.video_tokenizers.networks.continuous_video import CausalContinuousVideoTokenizer
-from nemo.collections.common.video_tokenizers.networks.discrete_image import DiscreteImageTokenizer
-from nemo.collections.common.video_tokenizers.networks.discrete_video import CausalDiscreteVideoTokenizer
+from nemo.collections.common.video_tokenizers.networks.configs import \
+    continuous_image as continuous_image_dict
+from nemo.collections.common.video_tokenizers.networks.configs import \
+    continuous_video as continuous_video_dict
+from nemo.collections.common.video_tokenizers.networks.configs import \
+    discrete_image as discrete_image_dict
+from nemo.collections.common.video_tokenizers.networks.configs import \
+    discrete_video as discrete_video_dict
+from nemo.collections.common.video_tokenizers.networks.continuous_image import \
+    ContinuousImageTokenizer
+from nemo.collections.common.video_tokenizers.networks.continuous_video import \
+    CausalContinuousVideoTokenizer
+from nemo.collections.common.video_tokenizers.networks.discrete_image import \
+    DiscreteImageTokenizer
+from nemo.collections.common.video_tokenizers.networks.discrete_video import \
+    CausalDiscreteVideoTokenizer
 
 
 class TokenizerConfigs(Enum):

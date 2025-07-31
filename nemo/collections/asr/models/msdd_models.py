@@ -32,31 +32,24 @@ from pyannote.core import Annotation
 from pyannote.metrics.diarization import DiarizationErrorRate
 from tqdm import tqdm
 
-from nemo.collections.asr.data.audio_to_diar_label import AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset
+from nemo.collections.asr.data.audio_to_diar_label import (
+    AudioToSpeechMSDDInferDataset, AudioToSpeechMSDDTrainDataset)
 from nemo.collections.asr.metrics.der import score_labels
 from nemo.collections.asr.metrics.multi_binary_acc import MultiBinaryAccuracy
 from nemo.collections.asr.models import ClusteringDiarizer
 from nemo.collections.asr.models.asr_model import ExportableEncDecModel
 from nemo.collections.asr.models.clustering_diarizer import (
-    _MODEL_CONFIG_YAML,
-    _SPEAKER_MODEL,
-    _VAD_MODEL,
-    get_available_model_names,
-)
-from nemo.collections.asr.models.configs.diarizer_config import NeuralDiarizerInferenceConfig
+    _MODEL_CONFIG_YAML, _SPEAKER_MODEL, _VAD_MODEL, get_available_model_names)
+from nemo.collections.asr.models.configs.diarizer_config import \
+    NeuralDiarizerInferenceConfig
 from nemo.collections.asr.models.label_models import EncDecSpeakerLabelModel
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.features import \
+    WaveformFeaturizer
 from nemo.collections.asr.parts.utils.speaker_utils import (
-    audio_rttm_map,
-    get_embs_and_timestamps,
-    get_id_tup_dict,
-    get_scale_mapping_argmat,
-    get_uniq_id_list_from_manifest,
-    labels_to_pyannote_object,
-    make_rttm_with_overlap,
-    parse_scale_configs,
-    rttm_to_labels,
-)
+    audio_rttm_map, get_embs_and_timestamps, get_id_tup_dict,
+    get_scale_mapping_argmat, get_uniq_id_list_from_manifest,
+    labels_to_pyannote_object, make_rttm_with_overlap, parse_scale_configs,
+    rttm_to_labels)
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, LengthsType, NeuralType

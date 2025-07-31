@@ -23,10 +23,7 @@ import soundfile as sf
 import torch
 
 from nemo.collections.tts.parts.preprocessing.features import (
-    EnergyFeaturizer,
-    MelSpectrogramFeaturizer,
-    PitchFeaturizer,
-)
+    EnergyFeaturizer, MelSpectrogramFeaturizer, PitchFeaturizer)
 
 
 class TestTTSFeatures:

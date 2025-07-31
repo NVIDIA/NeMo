@@ -18,20 +18,17 @@ import torch
 from lhotse.testing.dummies import dummy_recording
 from omegaconf import OmegaConf
 
-from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse import \
+    get_lhotse_dataloader_from_config
 from nemo.collections.common.data.lhotse.sampling import (
-    MultimodalFixedBucketBatchSizeConstraint2D,
-    MultimodalSamplingConstraint,
-)
+    MultimodalFixedBucketBatchSizeConstraint2D, MultimodalSamplingConstraint)
 from nemo.collections.common.data.lhotse.text_adapters import (
-    AudioTurn,
-    NeMoMultimodalConversation,
+    AudioTurn, NeMoMultimodalConversation,
     NeMoMultimodalConversationJsonlAdapter,
-    NeMoMultimodalConversationTarWriter,
-    TextTurn,
-)
+    NeMoMultimodalConversationTarWriter, TextTurn)
 from nemo.collections.common.prompts import Llama2PromptFormatter
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+    SentencePieceTokenizer, create_spt_model)
 
 
 class Identity(torch.utils.data.Dataset):

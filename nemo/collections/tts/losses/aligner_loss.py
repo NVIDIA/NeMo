@@ -17,7 +17,8 @@ import torch
 import torch.nn.functional as F
 
 from nemo.core.classes import Loss, typecheck
-from nemo.core.neural_types.elements import LengthsType, LogprobsType, LossType, ProbsType
+from nemo.core.neural_types.elements import (LengthsType, LogprobsType,
+                                             LossType, ProbsType)
 from nemo.core.neural_types.neural_type import NeuralType
 
 

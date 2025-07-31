@@ -30,13 +30,9 @@ from nemo.tron import fault_tolerance
 from nemo.tron.checkpointing import checkpoint_exists
 from nemo.tron.state import GlobalState
 from nemo.tron.tokenizers.tokenizer import build_tokenizer
-from nemo.tron.utils.common_utils import (
-    append_to_progress_log,
-    barrier_and_log,
-    get_rank_safe,
-    get_world_size_safe,
-    print_rank_0,
-)
+from nemo.tron.utils.common_utils import (append_to_progress_log,
+                                          barrier_and_log, get_rank_safe,
+                                          get_world_size_safe, print_rank_0)
 from nemo.tron.utils.log_utils import setup_logging
 
 

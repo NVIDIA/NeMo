@@ -22,7 +22,8 @@ import argparse
 
 import requests
 import torch
-from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
 from PIL import Image
 from transformers import AutoProcessor
 
@@ -34,7 +35,8 @@ from nemo.utils import logging
 
 try:
     import modelopt.torch.quantization as mtq
-    from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+    from megatron.core.post_training.modelopt.gpt.model_specs import \
+        get_gpt_modelopt_spec
 
     HAVE_MODELOPT = True
 

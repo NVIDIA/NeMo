@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.multimodal.speech_llm.modules.modality_adapters import PoolingMLPConnectors
+from nemo.collections.multimodal.speech_llm.modules.modality_adapters import \
+    PoolingMLPConnectors
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import (
-    AudioPerceptionModule,
-    MultiAudioPerceptionModule,
-    MultiFeatureAggregator,
-    TransformerCrossAttention,
-)
+    AudioPerceptionModule, MultiAudioPerceptionModule, MultiFeatureAggregator,
+    TransformerCrossAttention)

@@ -14,9 +14,8 @@
 
 import torch
 
-from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import (
-    build_relative_position,
-)
+from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relative_position_embedding import \
+    build_relative_position
 from nemo.utils.decorators import experimental
 
 __all__ = ['SandwichRelativePositionEmbedding']

@@ -32,9 +32,11 @@ from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.mapping import Mapping
 from tensorrt_llm.models import MLLaMAForCausalLM
 from tensorrt_llm.plugin import PluginConfig
-from transformers import AutoModel, AutoProcessor, MllamaForConditionalGeneration
+from transformers import (AutoModel, AutoProcessor,
+                          MllamaForConditionalGeneration)
 
-from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
+from nemo.collections.multimodal.speech_llm.modules.perception_modules import \
+    AudioPerceptionModule
 from nemo.core.classes.common import typecheck
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model

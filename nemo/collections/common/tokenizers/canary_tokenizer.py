@@ -17,9 +17,10 @@ from functools import cached_property
 from pathlib import Path
 from typing import Dict, List
 
-from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
-
+from nemo.collections.common.tokenizers.aggregate_tokenizer import \
+    AggregateTokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+    SentencePieceTokenizer, create_spt_model)
 from nemo.utils import logging
 
 __all__ = ['CanaryTokenizer']

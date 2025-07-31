@@ -17,10 +17,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nemo.collections.tts.modules.submodules import ConditionalInput, ConditionalLayerNorm, LinearNorm
+from nemo.collections.tts.modules.submodules import (ConditionalInput,
+                                                     ConditionalLayerNorm,
+                                                     LinearNorm)
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from nemo.core.classes import NeuralModule, adapter_mixins, typecheck
-from nemo.core.neural_types.elements import EncodedRepresentation, LengthsType, MaskType, TokenIndex
+from nemo.core.neural_types.elements import (EncodedRepresentation,
+                                             LengthsType, MaskType, TokenIndex)
 from nemo.core.neural_types.neural_type import NeuralType
 
 

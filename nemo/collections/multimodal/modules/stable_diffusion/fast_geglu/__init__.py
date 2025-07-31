@@ -3,7 +3,6 @@ import warnings
 
 import torch.utils.cpp_extension
 
-
 srcpath = pathlib.Path(__file__).parent.absolute()
 
 _geglu_ext = None

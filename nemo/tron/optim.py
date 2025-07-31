@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.core.optimizer import MegatronOptimizer, OptimizerConfig, get_megatron_optimizer
+from megatron.core.optimizer import (MegatronOptimizer, OptimizerConfig,
+                                     get_megatron_optimizer)
 from megatron.core.optimizer_param_scheduler import OptimizerParamScheduler
 
 from nemo.tron.config import SchedulerConfig

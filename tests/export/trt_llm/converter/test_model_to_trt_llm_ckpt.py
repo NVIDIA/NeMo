@@ -36,7 +36,8 @@ import pytest
 @pytest.mark.unit
 def test_get_layer_prefix_is_mcore(input_layer_names, expected_model_prefix):
     try:
-        from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import get_layer_prefix
+        from nemo.export.trt_llm.converter.model_to_trt_llm_ckpt import \
+            get_layer_prefix
     except ImportError:
         pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
     model_prefix, _ = get_layer_prefix(input_layer_names, is_mcore=True)

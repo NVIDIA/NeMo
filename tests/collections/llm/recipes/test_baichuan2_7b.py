@@ -19,7 +19,8 @@ import torch
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.baichuan import Baichuan2Config7B, Baichuan2Model
+from nemo.collections.llm.gpt.model.baichuan import (Baichuan2Config7B,
+                                                     Baichuan2Model)
 from nemo.collections.llm.peft.lora import LoRA
 from nemo.collections.llm.recipes import baichuan2_7b
 from nemo.lightning import Trainer

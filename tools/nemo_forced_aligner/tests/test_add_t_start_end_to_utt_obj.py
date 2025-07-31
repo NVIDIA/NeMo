@@ -15,7 +15,8 @@
 import copy
 
 import pytest
-from utils.data_prep import Segment, Token, Utterance, Word, add_t_start_end_to_utt_obj
+from utils.data_prep import (Segment, Token, Utterance, Word,
+                             add_t_start_end_to_utt_obj)
 
 OUTPUT_TIMESTEP_DURATION = 0.04
 

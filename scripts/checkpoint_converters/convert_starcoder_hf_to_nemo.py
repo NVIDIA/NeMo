@@ -58,7 +58,8 @@ import yaml
 from omegaconf import OmegaConf
 from transformers import AutoConfig, AutoModelForCausalLM
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper
 from nemo.utils import logging

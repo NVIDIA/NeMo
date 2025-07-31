@@ -21,15 +21,19 @@ import torch.distributed
 import torch.nn as nn
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.submodules.multi_head_attention import PositionalEncoding, RelPositionalEncoding
-from nemo.collections.asr.parts.submodules.squeezeformer_modules import SqueezeformerLayer
-from nemo.collections.asr.parts.submodules.subsampling import ConvSubsampling, StackingSubsampling, TimeReductionModule
+from nemo.collections.asr.parts.submodules.multi_head_attention import (
+    PositionalEncoding, RelPositionalEncoding)
+from nemo.collections.asr.parts.submodules.squeezeformer_modules import \
+    SqueezeformerLayer
+from nemo.collections.asr.parts.submodules.subsampling import (
+    ConvSubsampling, StackingSubsampling, TimeReductionModule)
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
+                                    NeuralType, SpectrogramType)
 
 __all__ = ['SqueezeformerEncoder']
 

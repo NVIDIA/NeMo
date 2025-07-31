@@ -19,9 +19,12 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers import Sampler
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.base_sampler import AbstractBaseSampler
-from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import noise_like
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers import \
+    Sampler
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.samplers.base_sampler import \
+    AbstractBaseSampler
+from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import \
+    noise_like
 
 
 class ParaDDIMSampler(AbstractBaseSampler):

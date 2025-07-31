@@ -23,13 +23,14 @@ from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import f1_score, precision_score, recall_score
 from torch.utils.data import DataLoader
 
-from nemo.collections.common.losses import AggregatorLoss, BCEWithLogitsLoss, CrossEntropyLoss
+from nemo.collections.common.losses import (AggregatorLoss, BCEWithLogitsLoss,
+                                            CrossEntropyLoss)
 from nemo.collections.nlp.data.intent_slot_classification import (
-    MultiLabelIntentSlotClassificationDataset,
-    MultiLabelIntentSlotDataDesc,
-)
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport, MultiLabelClassificationReport
-from nemo.collections.nlp.models.intent_slot_classification import IntentSlotClassificationModel
+    MultiLabelIntentSlotClassificationDataset, MultiLabelIntentSlotDataDesc)
+from nemo.collections.nlp.metrics.classification_report import (
+    ClassificationReport, MultiLabelClassificationReport)
+from nemo.collections.nlp.models.intent_slot_classification import \
+    IntentSlotClassificationModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.core.classes.common import PretrainedModelInfo

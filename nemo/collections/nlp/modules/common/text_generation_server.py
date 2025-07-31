@@ -23,13 +23,9 @@ from flask import Flask, jsonify, request
 from flask_restful import Api, Resource
 
 from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_chat_dataset import (
-    _get_header_conversation_type_mask_role,
-    get_prompt_template_example,
-)
+    _get_header_conversation_type_mask_role, get_prompt_template_example)
 from nemo.collections.nlp.modules.common.retro_inference_strategies import (
-    RetroModelTextGenerationStrategy,
-    RetroQAModelTextGenerationStrategy,
-)
+    RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy)
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
 from nemo.utils import logging
 

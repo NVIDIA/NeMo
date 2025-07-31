@@ -23,7 +23,8 @@ from argparse import ArgumentParser
 from collections import Counter
 from typing import Dict, TextIO, Tuple
 
-from nemo.collections.nlp.data.text_normalization_as_tagging.utils import spoken_preprocessing
+from nemo.collections.nlp.data.text_normalization_as_tagging.utils import \
+    spoken_preprocessing
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
 parser.add_argument(

@@ -20,11 +20,13 @@ import torch
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf
 
-
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
-from nemo.collections.nlp.modules.common.text_generation_server import MegatronServer
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import \
+    MegatronT5SFTModel
+from nemo.collections.nlp.modules.common.text_generation_server import \
+    MegatronServer
 from nemo.collections.nlp.modules.common.text_generation_utils import generate
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -72,7 +74,8 @@ def use_inference_server(cfg, model, trainer):
     if not HAVE_MEGATRON_CORE:
         raise ValueError('Megatron-core needs to be installed to use this feature!')
 
-    from nemo.collections.nlp.modules.common.megatron_web_server import get_chatbot_demo, get_demo
+    from nemo.collections.nlp.modules.common.megatron_web_server import (
+        get_chatbot_demo, get_demo)
 
     trainer.test(model, dataloaders=None)
 

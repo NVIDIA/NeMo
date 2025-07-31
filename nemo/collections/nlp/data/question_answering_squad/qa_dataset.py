@@ -29,21 +29,10 @@ from tqdm import trange
 from nemo.collections.common.parts.utils import _compute_softmax
 from nemo.collections.nlp.data.data_utils import is_whitespace
 from nemo.collections.nlp.data.question_answering_squad.qa_squad_processing import (
-    EVALUATION_MODE,
-    INFERENCE_MODE,
-    TRAINING_MODE,
-    SquadProcessor,
-    _improve_answer_span,
-    apply_no_ans_threshold,
-    exact_match_score,
-    f1_score,
-    find_all_best_thresh,
-    get_best_indexes,
-    get_final_text,
-    make_eval_dict,
-    merge_eval,
-    normalize_answer,
-)
+    EVALUATION_MODE, INFERENCE_MODE, TRAINING_MODE, SquadProcessor,
+    _improve_answer_span, apply_no_ans_threshold, exact_match_score, f1_score,
+    find_all_best_thresh, get_best_indexes, get_final_text, make_eval_dict,
+    merge_eval, normalize_answer)
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning

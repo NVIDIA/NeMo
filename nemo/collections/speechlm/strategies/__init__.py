@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.speechlm.strategies.megatron_strategy import SpeechLMMegatronStrategy
+from nemo.collections.speechlm.strategies.megatron_strategy import \
+    SpeechLMMegatronStrategy

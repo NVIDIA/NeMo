@@ -14,7 +14,8 @@
 
 import pytest
 
-from nemo.utils.flops_formulas import FLOPSConfig, bert, gpt3, llama2, llama3, mixtral, nemotron, transformer
+from nemo.utils.flops_formulas import (FLOPSConfig, bert, gpt3, llama2, llama3,
+                                       mixtral, nemotron, transformer)
 from nemo.utils.hyena_flops_formulas import hyena
 
 

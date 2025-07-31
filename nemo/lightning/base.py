@@ -22,7 +22,6 @@ import torch.distributed
 from lightning.pytorch import Trainer
 from torch import nn
 
-
 DEFAULT_NEMO_CACHE_HOME = Path.home() / ".cache" / "nemo"
 NEMO_CACHE_HOME = Path(os.getenv("NEMO_HOME", DEFAULT_NEMO_CACHE_HOME))
 DEFAULT_NEMO_DATASETS_CACHE = NEMO_CACHE_HOME / "datasets"

@@ -19,11 +19,13 @@ from typing import Dict, Literal, Optional
 import numpy as np
 import torch
 import torch.nn.functional as F
-from diffusers.models.embeddings import TimestepEmbedding, get_3d_sincos_pos_embed
+from diffusers.models.embeddings import (TimestepEmbedding,
+                                         get_3d_sincos_pos_embed)
 from einops import rearrange
 from einops.layers.torch import Rearrange
 from megatron.core import parallel_state
-from megatron.core.models.common.embeddings.rotary_pos_embedding import get_pos_emb_on_this_cp_rank
+from megatron.core.models.common.embeddings.rotary_pos_embedding import \
+    get_pos_emb_on_this_cp_rank
 from megatron.core.transformer.module import MegatronModule
 from torch import nn
 

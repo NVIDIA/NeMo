@@ -31,11 +31,13 @@ from transformers import AutoTokenizer, T5Tokenizer
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import \
+    AggregatedTTSTokenizer
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501
-from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths, plot_alignment_to_numpy
+from nemo.collections.tts.parts.utils.helpers import (get_mask_from_lengths,
+                                                      plot_alignment_to_numpy)
 from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
@@ -1072,7 +1074,8 @@ class MagpieTTS_ModelInference(MagpieTTS_Model):
         self.eval_speaker_verification_model.eval()
 
         if cfg.get('load_whisper_model', False):
-            from transformers import WhisperForConditionalGeneration, WhisperProcessor
+            from transformers import (WhisperForConditionalGeneration,
+                                      WhisperProcessor)
 
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")

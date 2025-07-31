@@ -26,21 +26,17 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.omegaconf import open_dict
 
 from nemo.collections.common.parts.adapter_modules import LinearAdapterConfig
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import (
-    MegatronT5PromptLearningModel,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import \
+    MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_prompt_learning_model import \
+    MegatronT5PromptLearningModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import \
+    MegatronT5SFTModel
 from nemo.collections.nlp.modules.common import VirtualPromptStyle
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    AdapterName,
-    InfusedAdapterConfig,
-    LoraKQVAdapterConfig,
-    LoraKVAdapterConfig,
-    LoraQAdapterConfig,
-    MLPInfusedAdapterConfig,
-    ParallelLinearAdapterConfig,
-)
+    AdapterName, InfusedAdapterConfig, LoraKQVAdapterConfig,
+    LoraKVAdapterConfig, LoraQAdapterConfig, MLPInfusedAdapterConfig,
+    ParallelLinearAdapterConfig)
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.utils import logging, model_utils

@@ -86,11 +86,9 @@ from numba import njit, prange
 from sentence_transformers import SentenceTransformer
 
 from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import (
-    KNNIndex,
-    MMapRetrievalIndexedDataset,
-    merge_knn_files,
-)
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    KNNIndex, MMapRetrievalIndexedDataset, merge_knn_files)
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.utils import logging
 
 QUEUE_SIZE = 30

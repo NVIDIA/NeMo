@@ -18,12 +18,10 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.audio.modules.transforms import (
-    AudioToSpectrogram,
-    AudioToSpectrogramTA,
-    SpectrogramToAudio,
-    SpectrogramToAudioTA,
-)
+from nemo.collections.audio.modules.transforms import (AudioToSpectrogram,
+                                                       AudioToSpectrogramTA,
+                                                       SpectrogramToAudio,
+                                                       SpectrogramToAudioTA)
 
 try:
     importlib.import_module('torchaudio')

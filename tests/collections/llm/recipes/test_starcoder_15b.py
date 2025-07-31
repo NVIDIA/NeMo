@@ -19,7 +19,8 @@ import torch
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
-from nemo.collections.llm.gpt.model.starcoder import StarcoderConfig15B, StarcoderModel
+from nemo.collections.llm.gpt.model.starcoder import (StarcoderConfig15B,
+                                                      StarcoderModel)
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes import starcoder_15b
 from nemo.lightning import Trainer

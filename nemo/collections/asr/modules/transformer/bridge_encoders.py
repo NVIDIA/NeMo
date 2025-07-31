@@ -14,8 +14,10 @@
 
 import torch
 
-from nemo.collections.asr.modules.transformer.transformer_encoders import TransformerEncoder
-from nemo.collections.asr.modules.transformer.transformer_modules import AttentionBridge
+from nemo.collections.asr.modules.transformer.transformer_encoders import \
+    TransformerEncoder
+from nemo.collections.asr.modules.transformer.transformer_modules import \
+    AttentionBridge
 
 __all__ = ["BridgeEncoder"]
 

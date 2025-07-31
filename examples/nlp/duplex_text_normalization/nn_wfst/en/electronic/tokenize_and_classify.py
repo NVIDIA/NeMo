@@ -18,14 +18,12 @@ import os
 try:
     import pynini
     from nemo_text_processing.text_normalization.en.graph_utils import (
-        NEMO_WHITE_SPACE,
-        GraphFst,
-        delete_extra_space,
-        delete_space,
-        generator_main,
-    )
-    from nemo_text_processing.text_normalization.en.taggers.electronic import ElectronicFst
-    from nemo_text_processing.text_normalization.en.taggers.punctuation import PunctuationFst
+        NEMO_WHITE_SPACE, GraphFst, delete_extra_space, delete_space,
+        generator_main)
+    from nemo_text_processing.text_normalization.en.taggers.electronic import \
+        ElectronicFst
+    from nemo_text_processing.text_normalization.en.taggers.punctuation import \
+        PunctuationFst
     from nemo_text_processing.text_normalization.en.taggers.word import WordFst
     from pynini.lib import pynutil
 except (ImportError, ModuleNotFoundError):

@@ -19,7 +19,8 @@ from omegaconf import DictConfig
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
 from nemo.collections.tts.modules.fastpitch import TemporalPredictor
-from nemo.collections.tts.modules.transformer import FFTransformerDecoder, FFTransformerEncoder
+from nemo.collections.tts.modules.transformer import (FFTransformerDecoder,
+                                                      FFTransformerEncoder)
 from nemo.core.classes import adapter_mixins
 
 

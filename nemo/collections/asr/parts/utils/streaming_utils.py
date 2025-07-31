@@ -21,7 +21,8 @@ import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
-from nemo.collections.asr.data.audio_to_text_lhotse_prompted import PromptedAudioToTextMiniBatch
+from nemo.collections.asr.data.audio_to_text_lhotse_prompted import \
+    PromptedAudioToTextMiniBatch
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch

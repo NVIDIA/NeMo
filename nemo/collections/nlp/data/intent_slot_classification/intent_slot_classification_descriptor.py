@@ -16,11 +16,7 @@ import itertools
 from typing import List
 
 from nemo.collections.nlp.data.data_utils.data_preprocessing import (
-    fill_class_weights,
-    get_freq_weights,
-    get_label_stats,
-    if_exist,
-)
+    fill_class_weights, get_freq_weights, get_label_stats, if_exist)
 from nemo.utils import logging
 
 

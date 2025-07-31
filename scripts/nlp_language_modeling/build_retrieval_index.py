@@ -98,8 +98,10 @@ import torch
 from faiss.contrib.ondisk import merge_ondisk
 from sentence_transformers import SentenceTransformer
 
-from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import MMapRetrievalIndexedDataset
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.data.language_modeling.megatron.indexed_retrieval_dataset import \
+    MMapRetrievalIndexedDataset
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.utils import logging
 
 QUEUE_SIZE = 30

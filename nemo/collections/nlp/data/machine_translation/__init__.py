@@ -13,6 +13,4 @@
 # limitations under the License.
 
 from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import (
-    TarredTranslationDataset,
-    TranslationDataset,
-)
+    TarredTranslationDataset, TranslationDataset)

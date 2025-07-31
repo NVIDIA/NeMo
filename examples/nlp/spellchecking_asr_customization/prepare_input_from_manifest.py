@@ -26,10 +26,7 @@ See "examples/nlp/spellchecking_asr_customization/run_infer.sh" for the whole in
 from argparse import ArgumentParser
 
 from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
-    extract_and_split_text_from_manifest,
-    get_candidates,
-    load_index,
-)
+    extract_and_split_text_from_manifest, get_candidates, load_index)
 
 parser = ArgumentParser(description="Prepare input for SpellMapper inference from a nemo ASR manifest")
 parser.add_argument("--manifest", required=True, type=str, help="Path to input manifest file")

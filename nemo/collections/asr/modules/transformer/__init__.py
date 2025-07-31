@@ -12,26 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.modules.transformer.bridge_encoders import BridgeEncoder
-from nemo.collections.asr.modules.transformer.perceiver_encoders import PerceiverEncoder
+from nemo.collections.asr.modules.transformer.bridge_encoders import \
+    BridgeEncoder
+from nemo.collections.asr.modules.transformer.perceiver_encoders import \
+    PerceiverEncoder
 from nemo.collections.asr.modules.transformer.transformer_bottleneck import (
-    NeMoTransformerBottleneckConfig,
-    NeMoTransformerBottleneckDecoderConfig,
-    NeMoTransformerBottleneckEncoderConfig,
-    TransformerBottleneckEncoderNM,
-)
-from nemo.collections.asr.modules.transformer.transformer_decoders import TransformerDecoder
-from nemo.collections.asr.modules.transformer.transformer_encoders import TransformerEncoder
+    NeMoTransformerBottleneckConfig, NeMoTransformerBottleneckDecoderConfig,
+    NeMoTransformerBottleneckEncoderConfig, TransformerBottleneckEncoderNM)
+from nemo.collections.asr.modules.transformer.transformer_decoders import \
+    TransformerDecoder
+from nemo.collections.asr.modules.transformer.transformer_encoders import \
+    TransformerEncoder
 from nemo.collections.asr.modules.transformer.transformer_generators import (
-    BeamSearchSequenceGenerator,
-    BeamSearchSequenceGeneratorWithLanguageModel,
+    BeamSearchSequenceGenerator, BeamSearchSequenceGeneratorWithLanguageModel,
     BeamSearchSequenceGeneratorWithNGramLM,
-    EnsembleBeamSearchSequenceGenerator,
-    GreedySequenceGenerator,
-    TopKSequenceGenerator,
-)
-from nemo.collections.asr.modules.transformer.transformer_modules import AttentionBridge, TransformerEmbedding
-from nemo.collections.asr.modules.transformer.transformer_utils import get_nemo_transformer
+    EnsembleBeamSearchSequenceGenerator, GreedySequenceGenerator,
+    TopKSequenceGenerator)
+from nemo.collections.asr.modules.transformer.transformer_modules import (
+    AttentionBridge, TransformerEmbedding)
+from nemo.collections.asr.modules.transformer.transformer_utils import \
+    get_nemo_transformer
 
 __all__ = [
     "BridgeEncoder",

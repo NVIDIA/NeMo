@@ -21,7 +21,8 @@ from nemo import lightning as nl
 from nemo.automodel.loss import chunked_cross_entropy, masked_cross_entropy
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.optim.adam import \
+    pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
@@ -108,7 +109,8 @@ def make_strategy(
 
         offload_policy = None
         if enable_cpu_offload:
-            from nemo.lightning.pytorch.strategies.fsdp2_strategy import HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy
+            from nemo.lightning.pytorch.strategies.fsdp2_strategy import (
+                HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy)
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
@@ -269,7 +271,8 @@ def main():
         )  # foreach need to be False for TP
 
     if args.fp8:
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+        from nemo.lightning.pytorch.accelerate.transformer_engine import \
+            TEConfig
 
         model_accelerator = TEConfig(fp8_autocast=True)
     else:

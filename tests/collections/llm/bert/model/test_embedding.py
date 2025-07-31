@@ -15,10 +15,7 @@ import pytest
 import torch
 
 from nemo.collections.llm.bert.model.embedding import (
-    BertEmbeddingHead,
-    BertEmbeddingLargeConfig,
-    BertEmbeddingMiniConfig,
-)
+    BertEmbeddingHead, BertEmbeddingLargeConfig, BertEmbeddingMiniConfig)
 
 
 class TestBertEmbeddingHead:
@@ -181,7 +178,8 @@ from unittest.mock import MagicMock
 import pytest
 import torch
 
-from nemo.collections.llm.bert.model.embedding import bert_embedding_forward_step
+from nemo.collections.llm.bert.model.embedding import \
+    bert_embedding_forward_step
 
 
 def test_bert_embedding_forward_step():
@@ -216,7 +214,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
+from nemo.collections.llm.bert.loss import \
+    BERTInBatchExclusiveHardNegativesRankingLoss
 from nemo.collections.llm.bert.model.embedding import BertEmbeddingModel
 
 

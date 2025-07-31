@@ -23,7 +23,8 @@ import librosa
 import soundfile
 import torch
 
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.features import \
+    WaveformFeaturizer
 from nemo.collections.tts.models import fastpitch_ssl, hifigan, ssl_tts
 from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir
 

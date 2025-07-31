@@ -17,8 +17,10 @@ import json
 import os
 from ast import literal_eval
 
-from nemo.collections.nlp.data.dialogue.data_processor.data_processor import DialogueDataProcessor
-from nemo.collections.nlp.data.dialogue.input_example.input_example import DialogueInputExample
+from nemo.collections.nlp.data.dialogue.data_processor.data_processor import \
+    DialogueDataProcessor
+from nemo.collections.nlp.data.dialogue.input_example.input_example import \
+    DialogueInputExample
 from nemo.utils.decorators import deprecated_warning
 
 __all__ = ['DialogueMSMarcoDataProcessor']

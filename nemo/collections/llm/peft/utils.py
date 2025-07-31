@@ -21,11 +21,10 @@ import packaging
 import torch
 from megatron.core import ModelParallelConfig, parallel_state
 from megatron.core.dist_checkpointing.mapping import ShardedStateDict
-from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
+from megatron.core.tensor_parallel import (ColumnParallelLinear,
+                                           RowParallelLinear)
 from megatron.core.tensor_parallel.mappings import (
-    gather_from_sequence_parallel_region,
-    scatter_to_sequence_parallel_region,
-)
+    gather_from_sequence_parallel_region, scatter_to_sequence_parallel_region)
 from megatron.core.transformer.mlp import apply_swiglu_sharded_factory
 from torch import nn
 

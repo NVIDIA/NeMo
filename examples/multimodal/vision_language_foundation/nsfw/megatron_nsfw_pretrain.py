@@ -15,10 +15,10 @@
 
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.multimodal.models.vision_language_foundation.megatron_nsfw_clip_models import (
-    MegatronContentFilteringModel,
-)
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.multimodal.models.vision_language_foundation.megatron_nsfw_clip_models import \
+    MegatronContentFilteringModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
