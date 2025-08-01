@@ -42,6 +42,19 @@ def create_lepton_executor(
         "TORCH_HOME": "/workspace/.cache",
     }
     
+    # Map AUTOTUNER_* environment variables to LEPTON_* variables for remote container
+    autotuner_env_vars = [
+        "AUTOTUNER_WORKSPACE_ID",
+        "AUTOTUNER_WORKSPACE_URL", 
+        "AUTOTUNER_TOKEN"
+    ]
+    
+    # Copy AUTOTUNER_* variables to LEPTON_AUTOTUNER_* variables if they exist
+    for var in autotuner_env_vars:
+        if var in os.environ:
+            lepton_var = var.replace("AUTOTUNER_", "LEPTON_AUTOTUNER_")
+            default_env_vars[lepton_var] = os.environ[var]
+    
     env_vars.update(default_env_vars)
     
     return run.LeptonExecutor(
@@ -69,12 +82,12 @@ sys.path.insert(0, "/tmp/nemo")
 print("Python path:", sys.path)
 
 # Set Lepton environment variables from AUTOTUNER variables
-if "AUTOTUNER_WORKSPACE_ID" in os.environ:
-    os.environ["LEPTON_WORKSPACE_ID"] = os.environ["AUTOTUNER_WORKSPACE_ID"]
-if "AUTOTUNER_WORKSPACE_URL" in os.environ:
-    os.environ["LEPTON_WORKSPACE_URL"] = os.environ["AUTOTUNER_WORKSPACE_URL"]
-if "AUTOTUNER_TOKEN" in os.environ:
-    os.environ["LEPTON_TOKEN"] = os.environ["AUTOTUNER_TOKEN"]
+if "LEPTON_AUTOTUNER_WORKSPACE_ID" in os.environ:
+    os.environ["LEPTON_WORKSPACE_ID"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_ID"]
+if "LEPTON_AUTOTUNER_WORKSPACE_URL" in os.environ:
+    os.environ["LEPTON_WORKSPACE_URL"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_URL"]
+if "LEPTON_AUTOTUNER_TOKEN" in os.environ:
+    os.environ["LEPTON_TOKEN"] = os.environ["LEPTON_AUTOTUNER_TOKEN"]
 
 def setup_nemo_environment():
     # Install NeMo directly from GitHub
