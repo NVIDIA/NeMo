@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def create_lepton_executor(
     resource_shape: str = "cpu.small",
-    container_image: str = "python:3.11",
+    container_image: str = "nvcr.io/nvidia/nemo:25.07",
     nemo_run_dir: str = "/nemo-workspace/nemo-run",
     mounts: Optional[list] = None,
     node_group: Optional[str] = None,
@@ -38,7 +38,7 @@ def create_lepton_executor(
     
     # Add default environment variables
     default_env_vars = {
-        "PYTHONPATH": "/tmp/NeMo:/tmp/Run:$PYTHONPATH",
+        "PYTHONPATH": "/tmp/nemo:/tmp/nemo_run:$PYTHONPATH",
         "TORCH_HOME": "/workspace/.cache",
     }
     env_vars.update(default_env_vars)
@@ -60,6 +60,14 @@ def setup_nemo_environment():
     import sys
     import os
     
+    subprocess.run(["apt-get", "update"], check=True)
+    subprocess.run(["apt-get", "install", "-y", "git"], check=True)
+    
+    subprocess.run([
+        sys.executable, "-m", "pip", "install",
+        "nemo-toolkit[all]"
+    ], check=True)
+    
     # Clone and install NeMo
     print("Cloning NeMo repository...")
     subprocess.run([
@@ -67,14 +75,6 @@ def setup_nemo_environment():
     ], check=True)
     subprocess.run([
         sys.executable, "-m", "pip", "install", "-e", "/tmp/nemo"
-    ], check=True)
-
-    print("Cloning NeMo RUN repository...")
-    subprocess.run([
-        "git", "clone", "https://github.com/prekshivyas/Run.git", "/tmp/nemo_run"
-    ], check=True)
-    subprocess.run([
-        sys.executable, "-m", "pip", "install", "-e", "/tmp/nemo_run"
     ], check=True)
 
 def generate_configs(args_dict: Dict[str, Any]):
@@ -169,15 +169,16 @@ def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, 
     # Create executor for remote execution
     executor = create_lepton_executor(
         resource_shape="cpu.small",
-        container_image="python:3.11",
+        container_image="nvcr.io/nvidia/nemo:25.07",
         node_group=launcher_node_group,
         mounts=mounts
     )
     
-    # Run on remote executor
+    # Run on remote executor with simple job name
     run.run(
         run.Partial(generate_configs, args_dict),
-        executor=executor
+        executor=executor,
+        name="autotune-generate"
     )
     
     print("Configuration generation completed!")
@@ -198,17 +199,18 @@ def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run
     # Create executor for remote execution
     executor = create_lepton_executor(
         resource_shape="gpu.a100",
-        container_image="python:3.11",
+        container_image="nvcr.io/nvidia/nemo:25.07",
         node_group=training_node_group,
         nodes=1,
         nprocs_per_node=8,
         mounts=mounts
     )
     
-    # Run on remote executor
+    # Run on remote executor with simple job name
     run.run(
         run.Partial(run_pretraining, config_dir, model, sequential, run_all),
-        executor=executor
+        executor=executor,
+        name="autotune-run"
     )
     
     print("AutoTune pretraining completed!")
@@ -232,15 +234,16 @@ def launch_results_remote(config_dir: str, model: str, path: str, log_prefix: st
     # Create executor for remote execution
     executor = create_lepton_executor(
         resource_shape="cpu.small",
-        container_image="python:3.11",
+        container_image="nvcr.io/nvidia/nemo:25.07",
         node_group=launcher_node_group,
         mounts=mounts
     )
     
-    # Run on remote executor
+    # Run on remote executor with simple job name
     run.run(
         run.Partial(analyze_results, config_dir, model, path, log_prefix, top_n, force_reconstruct, cost_per_gpu_hour, quiet),
-        executor=executor
+        executor=executor,
+        name="autotune-results"
     )
     
     print("Results analysis completed!")
@@ -260,15 +263,16 @@ def launch_list_configs_remote(config_dir: str, model: str, launcher_node_group:
     # Create executor for remote execution
     executor = create_lepton_executor(
         resource_shape="cpu.small",
-        container_image="python:3.11",
+        container_image="nvcr.io/nvidia/nemo:25.07",
         node_group=launcher_node_group,
         mounts=mounts
     )
     
-    # Run on remote executor
+    # Run on remote executor with simple job name
     run.run(
         run.Partial(list_configurations, config_dir, model),
-        executor=executor
+        executor=executor,
+        name="autotune-list-configs"
     )
     
     print("Configuration listing completed!")
