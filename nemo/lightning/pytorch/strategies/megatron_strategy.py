@@ -14,11 +14,11 @@
 
 import atexit
 import functools
+import gc
 import inspect
 import logging as _logging
 import os
 import shutil
-import gc
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
@@ -725,7 +725,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Runs one training step"""
         assert self.lightning_module is not None
         assert isinstance(self.model, MegatronParallel)
-        
+
         # (TODO:) Capture the cuda graph for the first step
         if self.trainer.global_step == 0 and self.model.config.external_cuda_graph:
             # disable prehook
@@ -734,6 +734,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 param_sync_func = self.model.config.param_sync_func
                 self.model.config.param_sync_func = None
             import argparse
+
             partial_cg_args = argparse.Namespace()
             partial_cg_args.position_embedding_type = self.model.config.position_embedding_type
             partial_cg_args.seq_length = self.trainer.datamodule.seq_length
@@ -769,7 +770,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     raise ValueError(f"Expected 'loss' in output dict, got {out.keys()}")
 
                 reduced_train_loss = out["loss"]
-            
+
             if self.trainer.global_step == 0 and self.model.config.external_cuda_graph:
                 if self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:
                     self.model.enable_forward_pre_hook()
