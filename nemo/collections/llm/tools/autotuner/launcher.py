@@ -8,11 +8,14 @@ import argparse
 import os
 import sys
 import logging
+import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 import nemo_run as run
 from nemo_run.config import Partial, Script
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -58,18 +61,6 @@ def setup_nemo_environment():
     import sys
     import os
     
-    print("Setting up NeMo environment...")
-    
-    # Install dependencies
-    subprocess.run(["apt-get", "update"], check=True)
-    subprocess.run(["apt-get", "install", "-y", "git"], check=True)
-    
-    # Install NeMo and Run
-    subprocess.run([
-        sys.executable, "-m", "pip", "install",
-        "nemo-toolkit[all]"
-    ], check=True)
-    
     # Clone and install NeMo
     print("Cloning NeMo repository...")
     subprocess.run([
@@ -78,17 +69,14 @@ def setup_nemo_environment():
     subprocess.run([
         sys.executable, "-m", "pip", "install", "-e", "/tmp/nemo"
     ], check=True)
-    
-    # Clone and install Run
-    print("Cloning Run repository...")
+
+    print("Cloning NeMo RUN repository...")
     subprocess.run([
-        "git", "clone", "https://github.com/NVIDIA-NeMo/Run.git", "/tmp/run"
+        "git", "clone", "https://github.com/prekshivyas/Run.git", "/tmp/nemo_run"
     ], check=True)
     subprocess.run([
-        sys.executable, "-m", "pip", "install", "-e", "/tmp/run"
+        sys.executable, "-m", "pip", "install", "-e", "/tmp/nemo_run"
     ], check=True)
-    
-    print("NeMo environment setup completed!")
 
 def generate_configs(args_dict: Dict[str, Any]):
     """Generate AutoTune configurations."""
@@ -168,13 +156,29 @@ def list_configurations(config_dir: str, model: str):
     list_configs(config_dir, model)
     print("Configuration listing completed!")
 
-def launch_generate_remote(args_dict: Dict[str, Any]):
-    """Launch generate step using run.run() with direct=True."""
+def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, training_node_group: str, mount_from: Optional[str] = None):
+    """Launch generate step using remote executor."""
     
-    # Run directly without executor to avoid launch scripts
+    mounts=[
+    {
+        "path": "/",
+        "mount_path": "/nemo-workspace",
+        "from": "node-nfs:lepton-shared-fs"
+    }
+]
+    
+    # Create executor for remote execution
+    executor = create_lepton_executor(
+        resource_shape="cpu.small",
+        container_image="python:3.11",
+        node_group=launcher_node_group,
+        mounts=mounts
+    )
+    
+    # Run on remote executor
     run.run(
         run.Partial(generate_configs, args_dict),
-        direct=True
+        executor=executor
     )
     
     print("Configuration generation completed!")
@@ -182,12 +186,30 @@ def launch_generate_remote(args_dict: Dict[str, Any]):
 def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run_all: bool = False, 
                      launcher_node_group: Optional[str] = None, training_node_group: Optional[str] = None, 
                      mount_from: Optional[str] = None):
-    """Launch run step using run.run() with direct=True."""
+    """Launch run step using remote executor."""
     
-    # Run directly without executor to avoid launch scripts
+    mounts=[
+    {
+        "path": "/",
+        "mount_path": "/nemo-workspace",
+        "from": "node-nfs:lepton-shared-fs"
+    }
+]
+    
+    # Create executor for remote execution
+    executor = create_lepton_executor(
+        resource_shape="gpu.a100",
+        container_image="python:3.11",
+        node_group=training_node_group,
+        nodes=1,
+        nprocs_per_node=8,
+        mounts=mounts
+    )
+    
+    # Run on remote executor
     run.run(
         run.Partial(run_pretraining, config_dir, model, sequential, run_all),
-        direct=True
+        executor=executor
     )
     
     print("AutoTune pretraining completed!")
@@ -198,24 +220,56 @@ def launch_results_remote(config_dir: str, model: str, path: str, log_prefix: st
                         launcher_node_group: Optional[str] = None, 
                         training_node_group: Optional[str] = None, 
                         mount_from: Optional[str] = None):
-    """Launch results collection step using run.run() with direct=True."""
+    """Launch results collection step using remote executor."""
     
-    # Run directly without executor to avoid launch scripts
+    mounts=[
+    {
+        "path": "/",
+        "mount_path": "/nemo-workspace",
+        "from": "node-nfs:lepton-shared-fs"
+    }
+]
+    
+    # Create executor for remote execution
+    executor = create_lepton_executor(
+        resource_shape="cpu.small",
+        container_image="python:3.11",
+        node_group=launcher_node_group,
+        mounts=mounts
+    )
+    
+    # Run on remote executor
     run.run(
         run.Partial(analyze_results, config_dir, model, path, log_prefix, top_n, force_reconstruct, cost_per_gpu_hour, quiet),
-        direct=True
+        executor=executor
     )
     
     print("Results analysis completed!")
 
 def launch_list_configs_remote(config_dir: str, model: str, launcher_node_group: Optional[str] = None, 
                               mount_from: Optional[str] = None, training_node_group: Optional[str] = None):
-    """Launch list-configs step using run.run() with direct=True."""
+    """Launch list-configs step using remote executor."""
     
-    # Run directly without executor to avoid launch scripts
+    mounts=[
+        {
+        "path": "/",
+        "mount_path": "/nemo-workspace",
+        "from": "node-nfs:lepton-shared-fs"
+        }
+    ]
+    
+    # Create executor for remote execution
+    executor = create_lepton_executor(
+        resource_shape="cpu.small",
+        container_image="python:3.11",
+        node_group=launcher_node_group,
+        mounts=mounts
+    )
+    
+    # Run on remote executor
     run.run(
         run.Partial(list_configurations, config_dir, model),
-        direct=True
+        executor=executor
     )
     
     print("Configuration listing completed!")
@@ -287,7 +341,7 @@ def main():
     if args.command == 'generate':
         # Convert args to dict for generate
         args_dict = vars(args)
-        launch_generate_remote(args_dict)
+        launch_generate_remote(args_dict, args.launcher_node_group, args.training_node_group)
     elif args.command == 'run':
         launch_run_remote(args.config_dir, args.model, args.sequential, args.run_all, 
                          args.launcher_node_group, args.training_node_group)
