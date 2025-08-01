@@ -23,7 +23,8 @@ def create_lepton_executor(
     mounts: Optional[list] = None,
     node_group: Optional[str] = None,
     nodes: int = 1,
-    nprocs_per_node: int = 1,
+    nprolals
+    s_per_node: int = 1,
     env_vars: Optional[Dict[str, str]] = None
 ) -> run.LeptonExecutor:
     """Create a LeptonExecutor with the specified configuration."""
@@ -57,6 +58,7 @@ def setup_nemo_environment():
     """Setup NeMo environment in the remote container."""
     import subprocess
     import sys
+    import os
     
     print("Setting up NeMo environment...")
     
@@ -69,13 +71,23 @@ def setup_nemo_environment():
         sys.executable, "-m", "pip", "install",
         "nemo-toolkit[all]"
     ], check=True)
+    
+    # Clone and install NeMo
+    print("Cloning NeMo repository...")
     subprocess.run([
-        sys.executable, "-m", "pip", "install", 
-        "git+https://github.com/prekshivyas/NeMo.git@864bcbe84e29b3cf15ff9ce2bcaa45ca940a7b1f"
+        "git", "clone", "https://github.com/prekshivyas/NeMo.git", "/tmp/nemo"
     ], check=True)
     subprocess.run([
-        sys.executable, "-m", "pip", "install",
-        "git+https://github.com/NVIDIA-NeMo/Run.git@b228cd8f4b9fd7c60a43cebde32eadbff35d1be0"
+        sys.executable, "-m", "pip", "install", "-e", "/tmp/nemo"
+    ], check=True)
+    
+    # Clone and install Run
+    print("Cloning Run repository...")
+    subprocess.run([
+        "git", "clone", "https://github.com/NVIDIA-NeMo/Run.git", "/tmp/run"
+    ], check=True)
+    subprocess.run([
+        sys.executable, "-m", "pip", "install", "-e", "/tmp/run"
     ], check=True)
     
     print("NeMo environment setup completed!")
