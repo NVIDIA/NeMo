@@ -41,15 +41,16 @@ from nemo.utils import logging
 
 class HyenaInferenceContext(StaticInferenceContext):
     """Hyena-specific inference context."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.reset()
 
     def reset(self):
         """Reset the inference context."""
         super().reset()  # standard state reset for GPT models
-        for key in dir(self):
-            # Remove all of the state that we add in hyena.py
-            if "filter_state_dict" in key:
-                delattr(self, key)
-
+        self.iir_state = {}
+        self.fir_state = {}
+        self.causal_fir_state = {}
 
 class HyenaModel(GPTModel):
     """

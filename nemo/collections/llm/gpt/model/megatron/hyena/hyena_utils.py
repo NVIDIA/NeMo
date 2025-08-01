@@ -849,23 +849,11 @@ class ParallelHyenaOperator(nn.Module):
         """Forward pass long."""
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
 
-        def update_filter_state(filter_name, *, state):
-            if not inference_context:
-                return
-            key = f"{filter_name}_filter_state_dict"
-            filter_state_dict = getattr(inference_context, key, {})
-            filter_state_dict[id(self)] = state
-            setattr(inference_context, key, filter_state_dict)
-
-        def get_filter_state(filter_name):
-            key = f"{filter_name}_filter_state_dict"
-            return getattr(inference_context, key, {}).get(id(self))
-
         # x1, x2, v all of shape torch.Size([1, 4096, 63])
         u = torch.cat([x2, x1, v], dim=1)  # torch.Size([1, 12288, 63])
         L = u.shape[-1]
 
-        iir_state = get_filter_state("iir")
+        iir_state = inference_context.iir_state.get(id(self)) if inference_context is not None else None
         if iir_state is None:
             h = self.get_filter(L)
             y, iir_state = engine.parallel_iir(
@@ -899,25 +887,15 @@ class ParallelHyenaOperator(nn.Module):
             # rearrange(y, "b d -> b 1 d")
             y = y.unsqueeze(1)
             y = y.to(dtype=x1.dtype)
-        update_filter_state("iir", state=iir_state)
+
+        if inference_context is not None:
+            inference_context.iir_state[id(self)] = iir_state
         # rearrange(y, "b l d -> b d l")
         return y.transpose(1, 2)  # b l d
 
     def forward_medium(self, *, x1, x2, v, bias, inference_context):
         """Forward pass medium."""
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
-
-        def update_filter_state(filter_name, *, state):
-            if not inference_context:
-                return
-            key = f"{filter_name}_filter_state_dict"
-            filter_state_dict = getattr(inference_context, key, {})
-            filter_state_dict[id(self)] = state
-            setattr(inference_context, key, filter_state_dict)
-
-        def get_filter_state(filter_name):
-            key = f"{filter_name}_filter_state_dict"
-            return getattr(inference_context, key, {}).get(id(self))
 
         # rearrange([x1, x2, v], "h b d l -> h b l d")
         x1 = x1.transpose(1, 2)  # b l d
@@ -929,7 +907,7 @@ class ParallelHyenaOperator(nn.Module):
         # rearrange(h, "d l -> d 1 l")
         h = self.get_filter(self.hyena_medium_conv_len).unsqueeze(1)
 
-        fir_state = get_filter_state("inner_fir")
+        fir_state = inference_context.fir_state.get(id(self)) if inference_context is not None else None
         if fir_state is None:
             y, fir_state = engine.parallel_fir(
                 u=u,
@@ -959,7 +937,8 @@ class ParallelHyenaOperator(nn.Module):
             y = x1 * y
             # rearrange(y, "b d -> b 1 d")
             y = y.unsqueeze(1)
-        update_filter_state("inner_fir", state=fir_state)
+        if inference_context is not None:
+            inference_context.fir_state[id(self)] = fir_state
         # rearrange(y, "b l d -> b d l")
         return y.transpose(1, 2)  # b l d
 
@@ -1487,20 +1466,8 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
 
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
 
-        def update_filter_state(filter_name, *, state):
-            if not inference_context:
-                return
-            key = f"{filter_name}_filter_state_dict"
-            filter_state_dict = getattr(inference_context, key, {})
-            filter_state_dict[id(self)] = state
-            setattr(inference_context, key, filter_state_dict)
-
-        def get_filter_state(filter_name):
-            key = f"{filter_name}_filter_state_dict"
-            return getattr(inference_context, key, {}).get(id(self))
-
         L = u.shape[1]
-        fir_state = get_filter_state("fir")
+        fir_state = inference_context.causal_fir_state.get(id(self)) if inference_context is not None else None
         if fir_state is None:
             z_pre, fir_state = engine.parallel_fir(
                 u=u,
@@ -1523,7 +1490,8 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
             )
             # rearrange(z_pre, "b d -> b d 1")
             z_pre = z_pre.unsqueeze(-1)
-        update_filter_state("fir", state=fir_state)
+        if inference_context is not None:
+            inference_context.causal_fir_state[id(self)] = fir_state
         return z_pre
 
 
