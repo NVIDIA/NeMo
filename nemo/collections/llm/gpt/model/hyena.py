@@ -59,7 +59,9 @@ class HyenaModel(GPTModel):
     """
 
     def get_inference_wrapper(
-        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=None
+        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=None,
+        *,
+        prompt_segmentation_threshold=None,
     ) -> torch.Tensor:
         """
         Gets the inference wrapper for the Hyena model.
@@ -102,6 +104,7 @@ class HyenaModel(GPTModel):
             padded_vocab_size=vocab_size,
             inference_max_seq_length=inference_max_seq_length,
             inference_max_requests=1,
+            prompt_segmentation_threshold=prompt_segmentation_threshold,
         )
 
         inference_context = HyenaInferenceContext.from_config(inference_wrapper_config)
