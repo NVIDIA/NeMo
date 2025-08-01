@@ -17,7 +17,6 @@ import uuid
 from threading import Thread
 from typing import AsyncGenerator, List
 
-import torch
 from loguru import logger
 from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
 from pipecat.frames.frames import LLMFullResponseEndFrame, LLMFullResponseStartFrame, LLMTextFrame
