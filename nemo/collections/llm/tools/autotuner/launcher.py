@@ -50,7 +50,6 @@ def create_lepton_executor(
         mounts=mounts,
         node_group=node_group,
         nodes=nodes,
-        nprocs_per_node=nprocs_per_node,
         env_vars=env_vars,
         shared_memory_size=1024,
     )
