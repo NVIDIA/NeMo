@@ -13,10 +13,11 @@
 # limitations under the License.
 
 
+import warnings
+
 from nemo.deploy.deploy_base import DeployBase
 from nemo.deploy.deploy_pytriton import DeployPyTriton
 from nemo.deploy.triton_deployable import ITritonDeployable
-import warnings
 
 warnings.warn(
     "The 'nemo.deploy' is deprecated and will be removed in NeMo FW 25.09 container release. "
