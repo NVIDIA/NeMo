@@ -138,8 +138,6 @@ def generate(**kwargs):
                 console.print(f"⚠ Configurations flagged with potential CUDA OOM: {len(oom_configs)}")
                 console.print(f"[yellow]Flagged configs: \n {', '.join(oom_configs)}[/yellow]")
                 console.print(f"[dim]These will be SKIPPED during 'lep autotune run' (use --run-all to force)[/dim]")
-            
-            console.print(f"\n[blue]All configurations have been generated and saved[/blue]")
             console.print(f"[blue]Use 'lep autotune list-configs' to see detailed memory analysis[/blue]")
         
         if result['base_config_matches']:

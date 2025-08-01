@@ -41,6 +41,7 @@ def create_lepton_executor(
         "PYTHONPATH": "/tmp/nemo:/tmp/nemo_run:$PYTHONPATH",
         "TORCH_HOME": "/workspace/.cache",
     }
+    
     env_vars.update(default_env_vars)
     
     return run.LeptonExecutor(
@@ -66,6 +67,14 @@ sys.path.insert(0, "/tmp/nemo")
 
 # Print Python path for debugging
 print("Python path:", sys.path)
+
+# Set Lepton environment variables from AUTOTUNER variables
+if "AUTOTUNER_WORKSPACE_ID" in os.environ:
+    os.environ["LEPTON_WORKSPACE_ID"] = os.environ["AUTOTUNER_WORKSPACE_ID"]
+if "AUTOTUNER_WORKSPACE_URL" in os.environ:
+    os.environ["LEPTON_WORKSPACE_URL"] = os.environ["AUTOTUNER_WORKSPACE_URL"]
+if "AUTOTUNER_TOKEN" in os.environ:
+    os.environ["LEPTON_TOKEN"] = os.environ["AUTOTUNER_TOKEN"]
 
 def setup_nemo_environment():
     # Install NeMo directly from GitHub
@@ -99,7 +108,6 @@ if __name__ == "__main__":
     args_dict = {kwargs.get('args_dict', {})}
     args = AutoTuneArgs(**args_dict)
     result = generate(**args.to_dict())
-    print(f"Generated {{len(result)}} configurations")
 """
     elif script_type == "run":
         script_content += f"""
@@ -122,7 +130,6 @@ if __name__ == "__main__":
         memory_analysis=args.get_memory_analysis(),
         run_all=args.metadata.get('run_all', False)
     )
-    print(f"Pretraining completed with {{len(results)}} configurations")
 """
     elif script_type == "results":
         script_content += f"""
@@ -152,7 +159,6 @@ if __name__ == "__main__":
         cost_per_gpu_hour=cost_per_gpu_hour,
         quiet=quiet
     )
-    print("Results analysis completed!")
 """
     elif script_type == "list_configs":
         script_content += f"""
@@ -161,7 +167,6 @@ if __name__ == "__main__":
     model = "{kwargs.get('model', '')}"
     
     list_configs(config_dir, model)
-    print("Configuration listing completed!")
 """
 
     return run.Script(inline=script_content, entrypoint="python")
@@ -192,8 +197,6 @@ def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, 
         executor=executor,
         name="autotune-generate"
     )
-    
-    print("Configuration generation completed!")
 
 def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run_all: bool = False, 
                      launcher_node_group: Optional[str] = None, training_node_group: Optional[str] = None, 
@@ -210,11 +213,10 @@ def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run
     
     # Create executor for remote execution
     executor = create_lepton_executor(
-        resource_shape="gpu.a100",
+        resource_shape="cpu.small",
         container_image="nvcr.io/nvidia/nemo:25.07",
         node_group=training_node_group,
         nodes=1,
-        nprocs_per_node=8,
         mounts=mounts
     )
     
@@ -225,8 +227,6 @@ def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run
         executor=executor,
         name="autotune-run"
     )
-    
-    print("AutoTune pretraining completed!")
 
 def launch_results_remote(config_dir: str, model: str, path: str, log_prefix: str, 
                         top_n: int = 10, force_reconstruct: bool = False, 
@@ -261,8 +261,6 @@ def launch_results_remote(config_dir: str, model: str, path: str, log_prefix: st
         executor=executor,
         name="autotune-results"
     )
-    
-    print("Results analysis completed!")
 
 def launch_list_configs_remote(config_dir: str, model: str, launcher_node_group: Optional[str] = None, 
                               mount_from: Optional[str] = None, training_node_group: Optional[str] = None):
@@ -291,8 +289,6 @@ def launch_list_configs_remote(config_dir: str, model: str, launcher_node_group:
         executor=executor,
         name="autotune-list-configs"
     )
-    
-    print("Configuration listing completed!")
 
 def list_models():
     """List supported models - runs locally since it's just a lookup."""

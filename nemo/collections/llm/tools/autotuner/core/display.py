@@ -133,7 +133,6 @@ def _display_configs_table(config_dir, model_name=None):
                 console.print(f"\n[yellow]Run Behavior Notes:[/yellow]")
                 console.print(f"  • By default, autotune run will SKIP the {len(oom_configs)} flagged configuration(s)")
                 console.print(f"  • Use run_all=True to run ALL configurations including potential OOM ones")
-                console.print(f"  • Use check_memory() to see detailed memory breakdown")
         if args and hasattr(args, 'has_performance_results') and args.has_performance_results():
             results_timestamp = metadata.get('results_timestamp', 'Unknown')
             performance_dict = args.get_performance_dict()
