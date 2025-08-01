@@ -44,10 +44,13 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    enable_cuda_graphs: bool,
-    use_mcore_fsdp: bool,
-    recompute_layers: int,
-    activation_offload_layers: int,
+    num_layers: int,
+    hidden_size: int,
+    etp_size: int = None,
+    enable_cuda_graphs: bool = False,
+    use_mcore_fsdp: bool = False,
+    recompute_layers: int = 0,
+    activation_offload_layers: int = 0,
 ):
     """
     llama3 405b pre-train recipe aimed at achieving best possible performance.
@@ -69,6 +72,9 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         use_fsdp_double_buffer=args.use_fsdp_double_buffer,
@@ -94,6 +100,16 @@ def override_recipe_configs(
             get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
         )
         recipe.model.tokenizer = recipe.data.tokenizer
+
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.qkv_fprop.aggregate = False
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.proj_dgrad.aggregate = False
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.fc1_fprop.aggregate = False
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.fc2_dgrad.aggregate = False
+
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192.qkv_fprop.aggregate = False
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192.proj_dgrad.aggregate = False
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192.fc1_fprop.aggregate = False
+    userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192.fc2_dgrad.aggregate = False
 
     userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.qkv_fprop.aggregate = False
     userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192.proj_dgrad.aggregate = False
@@ -148,12 +164,14 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        _,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:13]
+    ) = kwargs[:15]
 
     recipe = override_recipe_configs(
         args,
@@ -165,20 +183,54 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    if use_mcore_fsdp:
-        # Needed to enable CuDNN LN for FSDP overlap
-        env_vars = {"NVTE_NORM_FWD_USE_CUDNN": "1", "NVTE_NORM_BWD_USE_CUDNN": "1"}
-    else:
-        env_vars = {}
+    env_vars = {
+        "NVTE_NORM_FWD_USE_CUDNN": "1",
+        "NVTE_NORM_BWD_USE_CUDNN": "1",
+        "TRANSFORMERS_OFFLINE": "0",
+    }
+
+    if args.gpu.lower() == 'gb200':
+        env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+
+    if args.enable_nsys:
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+                nsys_gpu_metrics=args.profiling_gpu_metrics,
+            )
+        )
+        # nsys takes precedent over ncclttrace
+    elif args.enable_nccltrace:
+        exp_name = exp_name + "_nccltrace"
+        env_vars |= {
+            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+            "NCCL_DEBUG": "INFO",
+        }
 
     executor = slurm_executor(
         args.gpu.lower(),
@@ -196,19 +248,6 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
         network='sharp' if args.use_sharp else None,
     )
-
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        )
-    ]
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
-    if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not None
-        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

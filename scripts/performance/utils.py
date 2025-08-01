@@ -21,6 +21,7 @@ from lightning.pytorch.callbacks.callback import Callback
 from nemo_run.core.serialization.yaml import YamlSerializer
 from nemo_run.run.torchx_backend.packaging import _serialize
 
+import nemo.lightning as nl
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.gpt.model import GPTModel
@@ -116,7 +117,6 @@ def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=Non
     dataset_root.mkdir(parents=True, exist_ok=True)
 
     tokenizer = AutoTokenizer(pretrained_model_name=model_name)
-
     # Configure SquadDataModule with packing specs
     datamodule = SquadDataModule(
         dataset_root=dataset_root,
