@@ -131,7 +131,7 @@ def speaker_to_target_w_query(
         cut_list = [a_cut]
         offsets = [0]
     else:
-        raise ValueError(f"Unsupported cut type type{cut}: only MixedCut and MonoCut are supported")
+        raise ValueError(f"Unsupported cut type type{a_cut}: only MixedCut and MonoCut are supported")
 
     # initialize mask matrices (num_speaker, encoder_hidden_len)
     encoder_hidden_len = get_hidden_length_from_sample_length(
