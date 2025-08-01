@@ -23,8 +23,6 @@ def create_lepton_executor(
     mounts: Optional[list] = None,
     node_group: Optional[str] = None,
     nodes: int = 1,
-    nprolals
-    s_per_node: int = 1,
     env_vars: Optional[Dict[str, str]] = None
 ) -> run.LeptonExecutor:
     """Create a LeptonExecutor with the specified configuration."""
