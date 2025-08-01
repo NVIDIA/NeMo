@@ -71,6 +71,7 @@ try:
 except ImportError:
     cuhyena_rearrange = None
 
+
 def set_format_recipe():
     """Set the fp8 format recipe. for Hyena."""
     fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
@@ -312,7 +313,6 @@ class HyenaMixer(MegatronModule):
             features = cuhyena_rearrange(features, bhl_to_lbh=False)
         else:
             features = rearrange(features, "l b d -> b d l").contiguous()
-        
 
         if (
             self.use_b2b_causal_conv1d
@@ -330,7 +330,7 @@ class HyenaMixer(MegatronModule):
                 dim=2
             )
             z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp, inference_context=inference_context)
-        
+
         if cuhyena_rearrange is not None:
             z = cuhyena_rearrange(z, bhl_to_lbh=True)
         else:
