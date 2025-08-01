@@ -574,6 +574,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Setups dist env"""
         setup_parallel_ranks(self)
 
+        # Capture Cudagraph on a side stream
         if self.model.config.external_cuda_graph:
             torch.cuda.set_stream(torch.cuda.Stream())
 
@@ -725,7 +726,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.lightning_module is not None
         assert isinstance(self.model, MegatronParallel)
         
-        # (TODO) Capture the cuda graph for the first step for now
+        # (TODO:) Capture the cuda graph for the first step
         if self.trainer.global_step == 0 and self.model.config.external_cuda_graph:
             # disable prehook
             if self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:

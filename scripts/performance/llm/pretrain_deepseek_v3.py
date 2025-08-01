@@ -54,7 +54,7 @@ def override_recipe_configs(
     """
     DeepSeek V3 pre-train recipe aimed at achieving best possible performance.
     """
-    recipe = pretrain_recipe(performance_mode=True, use_mtp=False)
+    recipe = pretrain_recipe(performance_mode=True)
 
     # reset recompute args in the default recipe
     if args.recompute_modules is None:
@@ -69,16 +69,16 @@ def override_recipe_configs(
     # Token dispatcher configs. For H100 we use deepEP and for Blackwell,
     # because deepEP is not supported yet, we use all-to-all dispatcher with
     # token drop. After deepEP is supported, we can use deepEP dispatcher.
-    # if args.gpu.lower() in ['h100']:
-    #     recipe.model.config.moe_token_dispatcher_type = "flex"
-    #     recipe.model.config.moe_enable_deepep = True
-    #     recipe.model.config.moe_shared_expert_overlap = False  # not supported for deepEP
-    # else:
-    recipe.model.config.moe_token_dispatcher_type = "alltoall"
-    recipe.model.config.moe_enable_deepep = False
-    recipe.model.config.moe_shared_expert_overlap = True
-    if USE_TOKEN_DROP:
-        recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+    if args.gpu.lower() in ['h100']:
+        recipe.model.config.moe_token_dispatcher_type = "flex"
+        recipe.model.config.moe_enable_deepep = True
+        recipe.model.config.moe_shared_expert_overlap = False  # not supported for deepEP
+    else:
+        recipe.model.config.moe_token_dispatcher_type = "alltoall"
+        recipe.model.config.moe_enable_deepep = False
+        recipe.model.config.moe_shared_expert_overlap = True
+        if USE_TOKEN_DROP:
+            recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
 
     # Performance optimization knobs
     recipe.model.config.moe_permute_fusion = True
@@ -159,22 +159,6 @@ def override_recipe_configs(
         )
     recipe.model.tokenizer = recipe.data.tokenizer
 
-
-    if args.run_local:
-        recipe.model.config.num_moe_experts = 16
-    recipe.model.config.num_layers=3
-    recipe.model.config.moe_layer_freq=[0,1,1]
-
-
-    # add the partial cg support
-    USE_PARTIAL_CG = args.partial_cg
-    if USE_PARTIAL_CG:
-        recipe.model.config.external_cuda_graph = True
-        recipe.model.config.cuda_graph_scope = "attn"
-        recipe.trainer.strategy.use_te_rng_tracker = True
-        recipe.model.config.enable_cuda_graph = False
-        
-    
     return recipe
 
 
@@ -182,29 +166,9 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    # kwargs = get_user_configs(args.gpu.lower(), "pre_train", "deepseek", "v3", args)
-    # (
-    #     num_nodes,
-    #     mbs,
-    #     gbs,
-    #     tp_size,
-    #     pp_size,
-    #     cp_size,
-    #     vp_size,
-    #     ep_size,
-    #     etp_size,
-    #     enable_cuda_graphs,
-    #     use_mcore_fsdp,
-    #     recompute_layers,
-    #     activation_offload_layers,
-    #     recompute_modules,
-    #     _,  # keep_fsdp_fp8_transpose_cache
-    #     use_user_buffer_registration,
-    #     use_sharp,
-    # ) = kwargs[:17]
-
-    if args.run_local:
-        ( num_nodes,
+    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "deepseek", "v3", args)
+    (
+        num_nodes,
         mbs,
         gbs,
         tp_size,
@@ -220,25 +184,9 @@ if __name__ == "__main__":
         recompute_modules,
         _,  # keep_fsdp_fp8_transpose_cache
         use_user_buffer_registration,
-        use_sharp,) = 1, 1, 32, 1, 1, 1, 1, 8, 1, (not args.partial_cg) , False, 0, 0, None, False, False, False
-    else:
-        ( num_nodes,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-        etp_size,
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
-        recompute_modules,
-        use_user_buffer_registration,
-        use_sharp,) = 1, 1, 32, 1, 1, 1, 1, 8, 1, False, False, 0, 0, None, False, False, False
-    
+        use_sharp,
+    ) = kwargs[:17]
+
     recipe = override_recipe_configs(
         args,
         num_nodes,
@@ -262,13 +210,12 @@ if __name__ == "__main__":
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    if not args.run_local:
-        executor = slurm_executor(
-            args.gpu.lower(),
-            args.account,
-            args.partition,
-            args.log_dir,
-            num_nodes,
+    executor = slurm_executor(
+        args.gpu.lower(),
+        args.account,
+        args.partition,
+        args.log_dir,
+        num_nodes,
         args.gpus_per_node,
         args.time_limit,
         args.container_image,
@@ -276,11 +223,9 @@ if __name__ == "__main__":
         custom_env_vars={},
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
-            wandb_key=args.wandb_key,
-            network='sharp' if use_sharp else None,
-        )
-    else:
-        executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
+        wandb_key=args.wandb_key,
+        network='sharp' if use_sharp else None,
+    )
 
     plugins = [
         PerfEnvPlugin(
@@ -295,11 +240,6 @@ if __name__ == "__main__":
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
-
-    if args.run_local:
-        run.run(recipe, executor=executor, name=exp_name, plugins=plugins)
-        exit()
-    
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,
