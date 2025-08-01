@@ -85,7 +85,6 @@ def ptq(
         )
         model.configure_model()
     else:
-        assert export_config.export_format != "hf", "Automodel PTQ does not support export format hf"
         model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
             model_path=model_path,
             tensor_model_parallel_size=calibration_tp,
