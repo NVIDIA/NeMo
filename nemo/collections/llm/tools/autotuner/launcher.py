@@ -134,12 +134,20 @@ if __name__ == "__main__":
     args.sequential = sequential
     args.metadata['run_all'] = run_all
     
+    # Add environment variables to executor config
+    executor_config = args.get_executor_config()
+    executor_config['env_vars'] = {{
+        'LEPTON_WORKSPACE_ID': os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
+        'LEPTON_WORKSPACE_URL': os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
+        'LEPTON_TOKEN': os.environ.get('LEPTON_AUTOTUNER_TOKEN', '')
+    }}
+    
     results = run_pretraining_impl(
         base_config=args.get_base_config(),
         configs=args.metadata.get('configs', {{}}),
         base_config_matches=args.metadata.get('base_config_matches', []),
         sequential=args.sequential,
-        executor_config=args.get_executor_config(),
+        executor_config=executor_config,
         memory_analysis=args.get_memory_analysis(),
         run_all=args.metadata.get('run_all', False)
     )
@@ -215,6 +223,19 @@ def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run
                      launcher_node_group: Optional[str] = None, training_node_group: Optional[str] = None, 
                      mount_from: Optional[str] = None):
     """Launch run step using remote executor."""
+    
+    # Map AUTOTUNER_* environment variables to LEPTON_* variables for local NeMo Run process
+    autotuner_env_vars = [
+        "AUTOTUNER_WORKSPACE_ID",
+        "AUTOTUNER_WORKSPACE_URL", 
+        "AUTOTUNER_TOKEN"
+    ]
+    
+    # Set LEPTON_* variables in local environment for NeMo Run process
+    for var in autotuner_env_vars:
+        if var in os.environ:
+            lepton_var = var.replace("AUTOTUNER_", "LEPTON_")
+            os.environ[lepton_var] = os.environ[var]
     
     mounts=[
     {
