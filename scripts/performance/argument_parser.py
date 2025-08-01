@@ -449,9 +449,7 @@ def parse_cli_args():
     parser.add_argument(
         "-rm",
         "--recompute_modules",
-        nargs="*",
-        const=None,
-        type=str,
+        type=list_of_strings,
         help="List of modules to perform selective activation recompute. "
         "Users can provide 0 or any number of arguments. Defaults to None",
         required=False,
