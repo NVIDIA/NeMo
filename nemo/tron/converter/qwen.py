@@ -27,6 +27,7 @@ from nemo.tron.converter.common import BaseExporter, BaseImporter
 
 if TYPE_CHECKING:
     from transformers import Qwen2Config as HFQwen2Config
+    from transformers import Qwen3Config as HFQwen3Config
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,44 @@ class HFQwen2Importer(BaseImporter):
         return self._tron_config
 
 
+class HFQwen3Exporter(BaseExporter):
+    """Exporter to convert NeMo Qwen3 models to Hugging Face format."""
+
+    convert_state = _NeMo2HFQwen3Exporter.convert_state
+
+    @property
+    def hf_config(self) -> "HFQwen3Config":
+        """Generate a Hugging Face Qwen3 configuration from the NeMo model configuration.
+
+        This property maps NeMo configuration parameters to their Hugging Face equivalents.
+
+        Returns:
+            HFQwen3Config: A Hugging Face Qwen3 configuration
+        """
+        if self._hf_config is not None:
+            return self._hf_config
+
+        from transformers import Qwen3Config as HFQwen3Config
+
+        source = self.tron_config
+        self._hf_config = HFQwen3Config(
+            num_hidden_layers=source.num_layers,
+            hidden_size=source.hidden_size,
+            intermediate_size=source.ffn_hidden_size,
+            num_attention_heads=source.num_attention_heads,
+            max_position_embeddings=source.max_position_embeddings,
+            initializer_range=source.init_method_std,
+            rms_norm_eps=source.layernorm_epsilon,
+            num_key_value_heads=source.num_query_groups,
+            rope_theta=source.rotary_base,
+            vocab_size=getattr(source, "vocab_size",
+                               self.tokenizer.vocab_size),
+            sliding_window=source.seq_length,
+            tie_word_embeddings=source.share_embeddings_and_output_weights,
+        )
+        return self._hf_config
+
+
 class HFQwen3Importer(BaseImporter):
     """Importer for converting Hugging Face Qwen3 models to NeMo Tron format."""
 
@@ -132,14 +171,13 @@ class HFQwen3Importer(BaseImporter):
         configuration.
 
         Returns:
-            Qwen3Config: NeMo configuration for Qwen2 models
+            Qwen3Config: NeMo configuration for Qwen3 models
         """
         if self._tron_config is not None:
             return self._tron_config
 
         self._tron_config = _NeMo2HFQwen3Importer.config.fget(self.input_path)
         return self._tron_config
-
 
     @property
     def config(self) -> Qwen3Config:
