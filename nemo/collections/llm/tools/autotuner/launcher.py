@@ -54,86 +54,95 @@ def create_lepton_executor(
         shared_memory_size=1024,
     )
 
+def create_autotune_script(script_type: str, **kwargs) -> run.Script:
+    """Create a script for autotune operations."""
+    script_content = f"""#!/usr/bin/env python3
+import sys
+import os
+import subprocess
+
+# Add /tmp/nemo to Python path as first thing
+sys.path.insert(0, "/tmp/nemo")
+
+# Print Python path for debugging
+print("Python path:", sys.path)
+
 def setup_nemo_environment():
-    """Setup NeMo environment in the remote container."""
-    import subprocess
-    import sys
-    import os
-    
-    subprocess.run(["apt-get", "update"], check=True)
-    subprocess.run(["apt-get", "install", "-y", "git"], check=True)
-    
+    # Install NeMo directly from GitHub
+    print("Installing NeMo from GitHub...")
     subprocess.run([
         sys.executable, "-m", "pip", "install",
-        "nemo-toolkit[all]"
-    ], check=True)
-    
-    # Clone and install NeMo
-    print("Cloning NeMo repository...")
-    subprocess.run([
-        "git", "clone", "https://github.com/prekshivyas/NeMo.git", "/tmp/nemo"
-    ], check=True)
-    subprocess.run([
-        sys.executable, "-m", "pip", "install", "-e", "/tmp/nemo"
+        "git+https://github.com/prekshivyas/NeMo.git"
     ], check=True)
 
-def generate_configs(args_dict: Dict[str, Any]):
-    """Generate AutoTune configurations."""
+if __name__ == "__main__":
     # Setup environment first
     setup_nemo_environment()
     
-    from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate
-    from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
+    # Print Python path again after setup
+    print("Python path after setup:", sys.path)
     
-    # Convert args_dict to AutoTuneArgs
+    # Now import the modules after environment is set up
+    from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate, list_configs
+    from nemo.collections.llm.tools.autotuner.core.pretraining import run_pretraining as run_pretraining_impl
+    from nemo.collections.llm.tools.autotuner.core.performance import results
+    from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
+    import json
+    
+    # Get arguments from environment
+    script_type = "{script_type}"
+"""
+
+    if script_type == "generate":
+        script_content += f"""
+    # Generate configs
+    args_dict = {kwargs.get('args_dict', {})}
     args = AutoTuneArgs(**args_dict)
     result = generate(**args.to_dict())
-    print(f"Generated {len(result)} configurations")
-
-def run_pretraining(config_dir: str, model: str, sequential: bool, run_all: bool):
-    """Run AutoTune pretraining."""
-    # Setup environment first
-    setup_nemo_environment()
+    print(f"Generated {{len(result)}} configurations")
+"""
+    elif script_type == "run":
+        script_content += f"""
+    # Run pretraining
+    config_dir = "{kwargs.get('config_dir', '')}"
+    model = "{kwargs.get('model', '')}"
+    sequential = {kwargs.get('sequential', False)}
+    run_all = {kwargs.get('run_all', False)}
     
-    from nemo.collections.llm.tools.autotuner.core.pretraining import run_pretraining as run_pretraining_impl
-    from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
-    
-    # Load args from file
-    args = AutoTuneArgs.load_from_file(f'{config_dir}/{model}/args.json')
+    args = AutoTuneArgs.load_from_file(f'{{config_dir}}/{{model}}/args.json')
     args.sequential = sequential
     args.metadata['run_all'] = run_all
     
-    # Run pretraining
     results = run_pretraining_impl(
         base_config=args.get_base_config(),
-        configs=args.metadata.get('configs', {}),
+        configs=args.metadata.get('configs', {{}}),
         base_config_matches=args.metadata.get('base_config_matches', []),
         sequential=args.sequential,
         executor_config=args.get_executor_config(),
         memory_analysis=args.get_memory_analysis(),
         run_all=args.metadata.get('run_all', False)
     )
-    print(f"Pretraining completed with {len(results)} configurations")
-
-def analyze_results(config_dir: str, model: str, path: str, log_prefix: str, 
-                   top_n: int, force_reconstruct: bool, cost_per_gpu_hour: float, quiet: bool):
-    """Analyze AutoTune results."""
-    # Setup environment first
-    setup_nemo_environment()
+    print(f"Pretraining completed with {{len(results)}} configurations")
+"""
+    elif script_type == "results":
+        script_content += f"""
+    # Analyze results
+    config_dir = "{kwargs.get('config_dir', '')}"
+    model = "{kwargs.get('model', '')}"
+    path = "{kwargs.get('path', '')}"
+    log_prefix = "{kwargs.get('log_prefix', '')}"
+    top_n = {kwargs.get('top_n', 10)}
+    force_reconstruct = {kwargs.get('force_reconstruct', False)}
+    cost_per_gpu_hour = {kwargs.get('cost_per_gpu_hour', 24.0)}
+    quiet = {kwargs.get('quiet', False)}
     
-    from nemo.collections.llm.tools.autotuner.core.performance import results
-    from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
-    import os
-    
-    # Load args from file
-    args_file_path = f'{config_dir}/{model}/args.json'
+    args_file_path = f'{{config_dir}}/{{model}}/args.json'
     if not os.path.exists(args_file_path):
-        print(f"ERROR: args.json file not found at {args_file_path}")
-        return
+        print(f"ERROR: args.json file not found at {{args_file_path}}")
+        exit(1)
     
     args = AutoTuneArgs.load_from_file(args_file_path)
     
-    # Analyze results
     results(
         args=args,
         logs_path=path,
@@ -144,16 +153,18 @@ def analyze_results(config_dir: str, model: str, path: str, log_prefix: str,
         quiet=quiet
     )
     print("Results analysis completed!")
-
-def list_configurations(config_dir: str, model: str):
-    """List generated configurations."""
-    # Setup environment first
-    setup_nemo_environment()
-    
-    from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import list_configs
+"""
+    elif script_type == "list_configs":
+        script_content += f"""
+    # List configurations
+    config_dir = "{kwargs.get('config_dir', '')}"
+    model = "{kwargs.get('model', '')}"
     
     list_configs(config_dir, model)
     print("Configuration listing completed!")
+"""
+
+    return run.Script(inline=script_content, entrypoint="python")
 
 def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, training_node_group: str, mount_from: Optional[str] = None):
     """Launch generate step using remote executor."""
@@ -174,9 +185,10 @@ def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, 
         mounts=mounts
     )
     
-    # Run on remote executor with simple job name
+    # Create and run script
+    script = create_autotune_script("generate", args_dict=args_dict)
     run.run(
-        run.Partial(generate_configs, args_dict),
+        script,
         executor=executor,
         name="autotune-generate"
     )
@@ -206,9 +218,10 @@ def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run
         mounts=mounts
     )
     
-    # Run on remote executor with simple job name
+    # Create and run script
+    script = create_autotune_script("run", config_dir=config_dir, model=model, sequential=sequential, run_all=run_all)
     run.run(
-        run.Partial(run_pretraining, config_dir, model, sequential, run_all),
+        script,
         executor=executor,
         name="autotune-run"
     )
@@ -239,9 +252,12 @@ def launch_results_remote(config_dir: str, model: str, path: str, log_prefix: st
         mounts=mounts
     )
     
-    # Run on remote executor with simple job name
+    # Create and run script
+    script = create_autotune_script("results", config_dir=config_dir, model=model, path=path, 
+                                   log_prefix=log_prefix, top_n=top_n, force_reconstruct=force_reconstruct, 
+                                   cost_per_gpu_hour=cost_per_gpu_hour, quiet=quiet)
     run.run(
-        run.Partial(analyze_results, config_dir, model, path, log_prefix, top_n, force_reconstruct, cost_per_gpu_hour, quiet),
+        script,
         executor=executor,
         name="autotune-results"
     )
@@ -268,9 +284,10 @@ def launch_list_configs_remote(config_dir: str, model: str, launcher_node_group:
         mounts=mounts
     )
     
-    # Run on remote executor with simple job name
+    # Create and run script
+    script = create_autotune_script("list_configs", config_dir=config_dir, model=model)
     run.run(
-        run.Partial(list_configurations, config_dir, model),
+        script,
         executor=executor,
         name="autotune-list-configs"
     )
