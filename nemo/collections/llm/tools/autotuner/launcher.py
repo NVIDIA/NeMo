@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def create_lepton_executor(
     resource_shape: str = "cpu.small",
-    container_image: str = "nvcr.io/nvidia/nemo:25.04",
+    container_image: str = "python:3.11",
     nemo_run_dir: str = "/nemo-workspace/nemo-run",
     mounts: Optional[list] = None,
     node_group: Optional[str] = None,
