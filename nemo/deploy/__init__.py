@@ -16,3 +16,11 @@
 from nemo.deploy.deploy_base import DeployBase
 from nemo.deploy.deploy_pytriton import DeployPyTriton
 from nemo.deploy.triton_deployable import ITritonDeployable
+import warnings
+
+warnings.warn(
+    "The 'nemo.deploy' is deprecated and will be removed in NeMo FW 25.09 container release. "
+    "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Export-Deploy",
+    DeprecationWarning,
+    stacklevel=2,
+)
