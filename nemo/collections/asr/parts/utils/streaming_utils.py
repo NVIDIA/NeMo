@@ -313,17 +313,15 @@ def lcs_alignment_merge_buffer(
         max_steps_per_timestep: Maximum steps per timestep
         filepath: Optional filepath for debugging
         min_lcs_length: Minimum LCS length for deduplication
-        parallel_chunking: If True, remove the LCS from the buffer and concatenate the data; if False, make changes only to the data
+        parallel_chunking: If True, remove the LCS from the buffer as well, then concatenate with data; if False, make changes only to the data
     """
     if delay < 1 or len(buffer) == 0:
         buffer += data
         return buffer
 
-    # Prepare a subset of the buffer that will be LCS Merged with new data
     search_size = int(delay * max_steps_per_timestep)
     buffer_slice = buffer[-search_size:]
 
-    # Perform LCS Merge
     lcs_idx, lcs_alignment = longest_common_subsequence_merge(buffer_slice, data, filepath=filepath)
     i_rel, j_rel, length = lcs_idx
 
@@ -331,10 +329,7 @@ def lcs_alignment_merge_buffer(
         return buffer + data
 
     if parallel_chunking:
-        # New logic for parallel chunking
-        # base offset where `buffer_slice` starts in full `buffer`
         base = len(buffer) - len(buffer_slice)
-
         i_abs_start = base + i_rel
         i_abs_end   = i_abs_start + length       # end position (exclusive) in `buffer`
         j_after     = j_rel + length            # first index after LCS in `data`
@@ -342,9 +337,8 @@ def lcs_alignment_merge_buffer(
         merged = buffer[:i_abs_end] + data[j_after:]
         return merged
     else:
-        # Default logic 
         # Slice off new data based on LCS and concatenate
-        slice_idx = j_rel + length  # slice = j + slice_len
+        slice_idx = j_rel + length 
         data = data[slice_idx:]
         buffer += data
         return buffer
