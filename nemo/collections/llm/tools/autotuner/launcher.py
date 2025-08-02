@@ -205,9 +205,9 @@ def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, 
         name="autotune-generate"
     )
 
-def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run_all: bool = False, 
-                     launcher_node_group: Optional[str] = None, training_node_group: Optional[str] = None, 
-                     mount_from: str, mount_source_path: str, mount_path: str):
+def launch_run_remote(config_dir: str, model: str, mount_from: str, mount_source_path: str, mount_path: str,
+                     launcher_node_group: str, training_node_group: str,
+                     sequential: bool = False, run_all: bool = False):
     """Launch run step using remote executor."""
     
     # Map AUTOTUNER_* environment variables to LEPTON_* variables for local NeMo Run process
@@ -248,12 +248,11 @@ def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run
         name="autotune-run"
     )
 
-def launch_results_remote(config_dir: str, model: str, logs_path: str, log_prefix: str, 
+def launch_results_remote(config_dir: str, model: str, logs_path: str, log_prefix: str,
+                        mount_from: str, mount_path: str, mount_source_path: str,
+                        launcher_node_group: str,
                         top_n: int = 10, force_reconstruct: bool = False, 
-                        cost_per_gpu_hour: float = 24.0, quiet: bool = False,
-                        launcher_node_group: Optional[str] = None, 
-                        training_node_group: Optional[str] = None, 
-                        mount_from: str, mount_path: str, mount_source_path: str):
+                        cost_per_gpu_hour: float = 3.0, quiet: bool = False):
     """Launch results collection step using remote executor."""
     mounts = [
         {
@@ -281,9 +280,8 @@ def launch_results_remote(config_dir: str, model: str, logs_path: str, log_prefi
         name="autotune-results"
     )
 
-def launch_list_configs_remote(config_dir: str, model: str, launcher_node_group: Optional[str] = None, 
-                              mount_from: str, training_node_group: Optional[str] = None,
-                              mount_path: str, mount_source_path: str):
+def launch_list_configs_remote(config_dir: str, model: str, mount_from: str, mount_path: str, mount_source_path: str,
+                              launcher_node_group: str):
     """Launch list-configs step using remote executor."""
     mounts = [
         {
@@ -323,7 +321,7 @@ def create_parser():
                 Examples:
                 python launcher.py generate --config-dir /path/to/configs --model llama3_70b --launcher-node-group group1 --training-node-group group2 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
                 python launcher.py run --config-dir /path/to/configs --model llama3_70b --launcher-node-group group1 --training-node-group group2 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
-                python launcher.py results --config-dir /path/to/configs --model llama3_70b --logs-path /path/to/logs --launcher-node-group group1 --training-node-group group2 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
+                python launcher.py results --config-dir /path/to/configs --model llama3_70b --logs-path /path/to/logs --launcher-node-group group1 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
                 python launcher.py list-configs --config-dir /path/to/configs --model llama3_70b --launcher-node-group group1 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
                 """
     )
@@ -359,7 +357,6 @@ def create_parser():
     results_parser.add_argument('--model', required=True, help='Model name')
     results_parser.add_argument('--logs-path', required=True, help='Path to logs')
     results_parser.add_argument('--launcher-node-group', required=True, help='Launcher node group')
-    results_parser.add_argument('--training-node-group', required=True, help='Training node group')
     results_parser.add_argument('--log-prefix', default='', help='Log prefix')
     results_parser.add_argument('--top-n', type=int, default=5, help='Top N results')
     results_parser.add_argument('--force-reconstruct', action='store_true', help='Force reconstruction')
@@ -396,18 +393,18 @@ def main():
             args_dict = vars(args)
             launch_generate_remote(args_dict, args.launcher_node_group, args.training_node_group,
                                  args.mount_from, args.mount_source_path, args.mount_path)
-        elif args.command == 'run':
-            launch_run_remote(args.config_dir, args.model, args.sequential, args.run_all, 
-                             args.launcher_node_group, args.training_node_group,
-                             args.mount_from, args.mount_source_path, args.mount_path)
-        elif args.command == 'results':
-            launch_results_remote(args.config_dir, args.model, args.logs_path, args.log_prefix,
-                                args.top_n, args.force_reconstruct, args.cost_per_gpu_hour, args.quiet,
-                                args.launcher_node_group, args.training_node_group,
-                                args.mount_from, args.mount_path, args.mount_source_path)
-        elif args.command == 'list-configs':
-            launch_list_configs_remote(args.config_dir, args.model, args.launcher_node_group,
-                                     args.mount_from, args.training_node_group, args.mount_path, args.mount_source_path)
+            elif args.command == 'run':
+        launch_run_remote(args.config_dir, args.model, args.mount_from, args.mount_source_path, args.mount_path,
+                         args.launcher_node_group, args.training_node_group,
+                         args.sequential, args.run_all)
+            elif args.command == 'results':
+        launch_results_remote(args.config_dir, args.model, args.logs_path, args.log_prefix,
+                            args.mount_from, args.mount_path, args.mount_source_path,
+                            args.launcher_node_group,
+                            args.top_n, args.force_reconstruct, args.cost_per_gpu_hour, args.quiet)
+            elif args.command == 'list-configs':
+        launch_list_configs_remote(args.config_dir, args.model, args.mount_from, args.mount_path, args.mount_source_path,
+                                 args.launcher_node_group)
         else:
             parser.print_help()
     except Exception as e:
