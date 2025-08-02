@@ -74,12 +74,6 @@ import sys
 import os
 import subprocess
 
-# Add /tmp/nemo to Python path as first thing
-sys.path.insert(0, "/tmp/nemo")
-
-# Print Python path for debugging
-print("Python path:", sys.path)
-
 # Set Lepton environment variables from AUTOTUNER variables
 if "LEPTON_AUTOTUNER_WORKSPACE_ID" in os.environ:
     os.environ["LEPTON_WORKSPACE_ID"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_ID"]
@@ -97,13 +91,7 @@ def setup_nemo_environment():
     ], check=True)
 
 if __name__ == "__main__":
-    # Setup environment first
     setup_nemo_environment()
-    
-    # Print Python path again after setup
-    print("Python path after setup:", sys.path)
-    
-    # Now import the modules after environment is set up
     from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate, list_configs
     from nemo.collections.llm.tools.autotuner.core.pretraining import run_pretraining as run_pretraining_impl
     from nemo.collections.llm.tools.autotuner.core.performance import results
