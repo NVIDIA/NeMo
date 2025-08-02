@@ -3,9 +3,9 @@
 # Medennikov, Ivan, et al. "Target-Speaker Voice Activity Detection: a Novel Approach for Multi-Speaker Diarization in a Dinner Party Scenario." (2020).
 # These parameters were optimized on CallHome Dataset from the NIST SRE 2000 Disc8, especially from the part1 (callhome1) specified in: Kaldi, “Kaldi x-vector recipe v2,” https://github.com/kaldi-asr/kaldi/blob/master/egs/callhome_diarization/v2/run.sh
 parameters: 
-  onset: 0.53  # Onset threshold for detecting the beginning of a speech segment
-  offset: 0.49  # Offset threshold for detecting the end of a speech segment
-  pad_onset: 0.23  # Adds the specified duration at the beginning of each speech segment
-  pad_offset: 0.01  # Adds the specified duration at the end of each speech segment
-  min_duration_on: 0.42  # Removes short speech segments if the duration is less than the specified minimum duration
-  min_duration_off: 0.34  # Removes short silences if the duration is less than the specified minimum duration
+  onset: 0.641 # Onset threshold for detecting the beginning and end of a speech
+  offset: 0.561 # Offset threshold for detecting the end of a speech
+  pad_onset: 0.229  # Adding durations before each speech segment
+  pad_offset: 0.079  # Adding durations after each speech segment
+  min_duration_on: 0.511 # Threshold for small non-speech deletion
+  min_duration_off: 0.296 # Threshold for short speech segment deletion
