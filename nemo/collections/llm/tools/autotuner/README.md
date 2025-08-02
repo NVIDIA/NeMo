@@ -4,7 +4,7 @@ AutoTuner is a fully automated, predictive configuration builder and orchestrate
 
 ## Overview
 
-AutoTuner extends NeMo's Auto Configurator with a fully automated, production-ready pipeline that searches for hyperparameters achieving maximum training throughput while automatically preventing CUDA OOM errors and providing comprehensive performance & cost analysis for Large Language Models. Unlike research-only tools, AutoTuner runs directly on your GPU infrastructure, making it ready for production deployment and real-world training optimization.
+AutoTuner extends NeMo's Auto Configurator with a fully automated pipeline that searches for hyperparameters achieving maximum training throughput while automatically preventing CUDA OOM errors and providing comprehensive performance & cost analysis for Large Language Models. Unlike research-only tools, AutoTuner runs directly on your GPU infrastructure, making it ready for production deployment and real-world training optimization.
 
 ### Note
 
@@ -14,168 +14,59 @@ AutoTuner is supported for all NeMo models including GPT-based models: GPT3, LLa
 
 AutoTuner is designed to iterate over different model configurations quickly and find the best configuration that maximizes training throughput while minimizing both time and money. It offers comprehensive features to facilitate this, as detailed below.
 
-**Enhanced Auto Configurator Features:**
-- **Model size recommendation**: Finds the optimal model size if the parameter is not specified
-- **Training time estimation**: Estimates model training time based on input parameters
-- **Hyperparameters recommendation**: Finds the optimal list of hyperparameters to be trained
-- **Optimal configuration recommendation**: Calculates the performance after a short training of candidate configurations and finds the optimal model configuration
-
-**Production-Ready AutoTuner Features:**
 - **CUDA OOM Prevention**: Automatically detects and filters out configurations that would cause out-of-memory errors, preventing training failures
-- **Orchestrated Pipeline**: Fully automated workflow from configuration generation to results analysis with no manual intervention required
-- **Rigorous Performance Analysis**: Comprehensive metrics including TFLOPS, training time, samples per second, and cost optimization
-- **Cost Analysis**: Detailed cost breakdown per configuration including training time, GPU hours, and total expenditure
-- **Memory Analysis**: Conservative memory estimation with safety margins to ensure reliable training
-- **Rich Visualization**: Beautiful tables and charts for easy decision making and result interpretation
-- **Production Deployment**: Runs directly on customer GPU infrastructure, ready for enterprise use
+- **Orchestrated Pipeline**: Fully automated workflow from configuration generation and pre-training to results analysis.
+- **Rigorous Performance Analysis**: Comprehensive metrics including TFLOPS, training time, and cost optimization.
+- **Rich Visualization**: Descriptive tables and charts for easy decision making and result interpretation.
+- **Production Deployment**: Runs directly on customer GPU infrastructure, ready for enterprise use.
 
-## Installation
+
+
+# NeMo Autotuner Launcher
+
+A tool for orchestrating NeMo autotuner workflows on remote clusters using Lepton. This launcher handles packaging local code and data, then executes autotuner steps remotely.
+
+## Quick Start
+
+### Prerequisites
+- Installation
+
+   ```bash
+   # Ensure you have NeMo, nemo_run and rich installed
+   pip install nemo nemo_run rich
+   ```
+- NeMo workspace mounted at `/nemo-workspace`
+- Access to GPU resources on Lepton
+
+## Basic Usage
+
+### 1. Generate Configurations (`generate`)
+
+Creates optimized training configurations for your model and infrastructure.
+**Example**
 
 ```bash
-# Ensure you have NeMo, nemo_run and rich installed
-pip install nemo nemo_run rich
-```
-
-## Ready-to-Use Scripts
-
-The `autotuner_scripts/` directory contains three ready-to-use scripts that demonstrate the complete AutoTuner workflow:
-
-### Step 1: Generate Configurations
-
-**File: `autotuner_scripts/generate_configs.py`**  
-Generate and validate training configurations for your model (including predictive OOM analysis):
-
-```python
-from nemo.collections.llm.tools.autotuner import generate, list_configs
-from nemo.collections.llm.tools.autotuner import AutoTuneArgs
-
-# Create AutoTuneArgs object with all parameters
-args = AutoTuneArgs(
-    # Required parameters
-    model="gemma2_2b",                         # NeMo model name
-    nodes=1,                                # Number of compute nodes
-    gpus_per_node=8,                        # Number of GPUs per node
-    resource_shape="gpu.8xh200",            # GPU resource shape
-    
-    # Optional parallelism settings
-    tensor_parallel_sizes=[1, 2, 4],     # Tensor parallelism sizes to test
-    pipeline_parallel_sizes=[1, 2],         # Pipeline parallelism sizes to test
-    context_parallel_sizes=[1, 2],       # Context parallelism sizes to test
-    expert_parallel_sizes=[1],        # Expert parallelism sizes to test
-    
-    # Optional batch size settings
-    global_batch_sizes=[256, 512],    # Global batch sizes to test
-    micro_batch_sizes=[1, 2, 4],         # Micro batch sizes to test
-    
-    # Optional training parameters
-    max_steps_per_run=50,                   # Training steps per experiment
-    seq_length=8192,                        # Sequence length for training
-    num_tokens_in_b=15000,                  # Total tokens in billions
-    
-    # Optional infrastructure settings
-    container_image="nvcr.io/nvidia/nemo:25.04",  # Container image
-    mount_path="/nemo-workspace",           # Mount path for containers
-    mount_from="node-nfs:shared",           # Storage backend
-    node_group="nebius-h200-01",            # Node group name
-    
-    # Optional output settings
-    config_dir="/path/to/your/configs",       # Directory to save configurations
-    logs_subdir="/path/to/your/logs"          # Directory to save logs
-)
-
-# Generate configurations using the args object
-result = generate(args)
-list_configs(args.config_dir, args.model)
-```
-
-**Usage:**
-```bash
-cd autotuner_scripts
-python3 generate_configs.py
-```
-
-**What it does:**
-- Creates an `AutoTuneArgs` object with your model parameters
-- Generates multiple configurations with different parallelization strategies
-- Performs memory analysis to identify potential OOM configurations
-- Saves configurations to `config_dir/model_name/`
-- Displays a summary table of all generated configurations
-
-### Step 2: Run Training Experiments
-
-**File: `autotuner_scripts/run_experiments.py`**  
-Execute training experiments for all generated configurations:
-
-```python
-from nemo.collections.llm.tools.autotuner import run
-from nemo.collections.llm.tools.autotuner import AutoTuneArgs
-
-# Load configuration from the generated args.json file
-args = AutoTuneArgs.load_from_file("/path/to/your/configs/model_name/args.json")
-
-# Run all configurations using the loaded args
-results = run(args)
-
-print(f"Completed {len(results)} experiments")
-```
-
-**Usage:**
-```bash
-cd autotuner_scripts
-python3 run_experiments.py
-```
-
-**What it does:**
-- Loads the `AutoTuneArgs` from the generated `args.json` file
-- Executes training runs for all configurations
-- Skips configurations flagged as potential OOM risks
-- Saves training logs and performance metrics
-
-### Step 3: Analyze Results
-
-**File: `autotuner_scripts/results.py`**  
-Analyze training results and provide detailed performance insights:
-
-```python
-from nemo.collections.llm.tools.autotuner import results
-from nemo.collections.llm.tools.autotuner import AutoTuneArgs
-
-# Load configuration from the generated args.json file
-args = AutoTuneArgs.load_from_file("/path/to/your/configs/model_name/args.json")
-
-# Get detailed results analysis using the loaded args
-analysis = results(
-    args=args,                                    # AutoTuneArgs object
-    logs_path="/path/to/your/logs/model_name",   # Path to training logs directory
-    log_prefix="nemo",                           # Log file prefix to search for
-    top_n=5,                                     # Number of top configurations to display
-    force_reconstruct=False,                     # Force reconstruction of config objects
-    cost_per_node_hour=3.0,                      # Cost per node per hour for cost analysis
-    quiet=False                                  # Suppress rich console output
-)
-```
-
-**Usage:**
-```bash
-cd autotuner_scripts
-python3 results.py
-```
-
-**What it does:**
-- Loads training results from logs
-- Calculates performance metrics for each configuration
-- Provides cost analysis and recommendations
-- Shows top-performing configurations
-
-## Complete Workflow Example
-
-Here's how to use all three scripts in sequence:
-
-### Step 1: Generate Configurations
-```bash
-# Edit generate_configs.py with your model and parameters
-cd autotuner_scripts
-python3 generate_configs.py
+python launcher.py generate \
+  --model llama2_7b \                                                       # Model name to generate configs for
+  --nodes 4 \                                                               # Number of compute nodes
+  --gpus-per-node 8 \                                                       # GPUs per node
+  --config-dir nemo-workspace/autotuner-data/autotuner-configs \            # Directory to save generated configs
+  --mount-path /workspace \                                                 # Remote mount path for workspace
+  --mount-from node-nfs:shared \                                            # Mount source for shared storage
+  --node-group gpu-cluster \                                                # Node group for resource allocation
+  --logs-subdir logs \                                                      # Subdirectory for training logs
+  --resource-shape gpu.8xh200 \                                             # GPU resource shape for training
+  --tensor-parallel-sizes 1,2,4,8 \                                         # Tensor parallel sizes (comma-separated)
+  --pipeline-parallel-sizes 1,2,4 \                                         # Pipeline parallel sizes (comma-separated)
+  --context-parallel-sizes 1,2 \                                            # Context parallel sizes (comma-separated)
+  --expert-parallel-sizes 1 \                                               # Expert parallel sizes (comma-separated)
+  --virtual-pipeline-parallel-sizes 1,2 \                                   # Virtual pipeline parallel sizes (comma-separated)
+  --global-batch-sizes 256,512,1024 \                                       # Global batch sizes (comma-separated)
+  --micro-batch-sizes 1,2,4,8 \                                             # Micro batch sizes (comma-separated)
+  --max-steps-per-run 10 \                                                  # Maximum steps per training run
+  --seq-length 8192 \                                                       # Sequence length for training
+  --num-tokens-in-b 15000 \                                                 # Number of tokens in billions
+  --container-image nvcr.io/nvidia/nemo:25.04                               # Container image to use
 ```
 
 **Expected output:**
@@ -226,20 +117,35 @@ Performance Results: Not available
 Run results() to generate performance data
 
 ```
+### 2. Run Experiments (`run`)
 
-### Step 2: Run Training Experiments
+Executes training experiments using generated configurations.
+
+**Example:**
 ```bash
-# Edit run_experiments.py with correct paths
-python3 run_experiments.py
+python launcher.py run \
+  --config-dir nemo-workspace/autotuner-data/autotuner-configs \           # Directory containing generated configs
+  --model llama2_7b \                                                      # Model name to run experiments for
+  --sequential \                                                            # Run experiments one at a time (vs parallel)
+  --run-all                                                                # Run all configs (vs CUDA safe ones only)
 ```
 
+### 3. Gather and Analyze Results (`results`)
 
-### Step 3: Analyze Results
+Analyzes training results and generates performance reports.
+
+**Example:**
 ```bash
-# Edit results.py with correct paths
-python3 results.py
+python launcher.py results \
+  --config-dir nemo-workspace/autotuner-data/autotuner-configs \           # Directory containing model configs
+  --model llama2_7b \                                                      # Model name for analysis
+  --path ./training_logs \                                                 # Path to training log files
+  --log-prefix nemo \                                                      # Prefix for log files to analyze
+  --top-n 5 \                                                              # Number of top configs to analyze
+  --force-reconstruct \                                                    # Force rebuild analysis from logs
+  --cost-per-node-hour 24.0 \                                              # Cost per node-hour for cost analysis
+  --quiet                                                                  # Suppress verbose output
 ```
-
 **Expected output:**
 ```
 Top 5 configs sorted from fastest to slowest:
@@ -292,6 +198,100 @@ Switch from base config to save: $19,729.14
 
 Cost analysis completed successfully!
 ```
+
+### 4. List Configurations (`list-configs`)
+
+Lists available configurations for a model.
+
+**Example:**
+```bash
+python launcher.py list-configs \
+  --config-dir nemo-workspace/autotuner-data/autotuner-configs \     # Directory containing generated configs
+  --model llama2_7b                                                    # Model name to list configs for
+```
+
+### 5. List Models (`list-models`)
+
+Lists all supported models.
+
+```bash
+python launcher.py list-models
+```
+
+### Remote Execution
+
+All operations are executed remotely on Lepton clusters:
+
+1. **Code Packaging**: Local scripts are packaged and uploaded
+2. **Job Creation**: Lepton jobs are created with appropriate resources
+3. **Log Streaming**: Real-time logs are streamed to your terminal
+4. **Result Retrieval**: Results are available in the mounted workspace
+
+### One-time Setup
+
+The launcher automatically handles one-time setup tasks:
+
+- **NeMo Installation**: Local NeMo changes are installed once per workspace
+- **Environment Setup**: Python paths and cache directories are configured
+- **Dependency Management**: All required packages are available in the base image
+
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Job Fails Immediately**
+   - Check Lepton authentication: `lepton auth status`
+   - Verify resource availability: `lepton resource list`
+   - Check workspace mounting: Ensure `/nemo-workspace` is accessible
+
+2. **Configuration Generation Fails**
+   - Verify model name is supported: `python launcher.py list-models`
+   - Check resource requirements match available resources
+   - Ensure config directory is writable
+
+3. **Training Experiments Fail**
+   - Check GPU availability and compatibility
+   - Verify data paths and permissions
+   - Review logs for specific error messages
+
+4. **Results Analysis Issues**
+   - Ensure log files exist and are readable
+   - Check log prefix matches actual log files
+   - Verify cost parameters are reasonable
+
+### Getting Help
+
+```bash
+# Show general help
+python launcher.py --help
+
+# Show help for specific command
+python launcher.py generate --help
+python launcher.py run --help
+python launcher.py results --help
+```
+
+### Log Retrieval
+
+If a job fails, you can retrieve logs manually:
+
+```bash
+# Get job logs
+lepton job logs JOB_ID
+
+# List recent jobs
+lepton job list
+
+# Get job details
+lepton job get JOB_ID
+
+### Step 2: Run Training Experiments
+```bash
+# Edit run_experiments.py with correct paths
+python3 run_experiments.py
+```
+
 
 ## Configuration Tips for Scripts
 
@@ -391,25 +391,18 @@ The `results()` function displays:
    ```
 
 2. **Path Issues**: Update all file paths in scripts to match your directory structure
-   - Check `config_dir` and `logs_subdir` in `generate_configs.py`
-   - Update `args.json` path in `run_experiments.py` and `results.py`
-   - Ensure paths are absolute or relative to script location
+   - Ensure paths are always absolute
 
-3. **Model Not Found**: Check `list_models()` for supported models
-   ```python
-   from nemo.collections.llm.tools.autotuner import list_models
-   list_models()
-   ```
-
-4. **Configuration Validation Failed**: Review parallelism constraints
+3. **Configuration Validation Failed**: Review parallelism constraints
    - Ensure `nodes * gpus_per_node` matches total GPU count
    - Parallelism sizes must divide evenly into total GPU count
 
-5. **No Configurations to Run**: All configs flagged for OOM
+4. **No Configurations to Run**: 
+   - All configs flagged for OOM
    - Reduce `micro_batch_sizes` or increase parallelism
    - Use `run_all=True` to force run all configurations (not recommended)
 
-6. **Logs Directory Not Found**: Run training experiments first
+5. **Logs Directory Not Found**: Run training experiments first
    - Ensure `run_experiments.py` completes successfully before running `results.py`
 
 ### Memory Issues
@@ -424,20 +417,5 @@ The `results()` function displays:
 - Use `force_reconstruct=True` to regenerate configurations
 - Check log files for training errors
 
-### Debug Mode
-
-Add debug logging to any script:
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-```
-
-### Manual Configuration Inspection
-
-Inspect generated configurations:
-```python
-from nemo.collections.llm.tools.autotuner import list_configs
-list_configs("/path/to/configs", "your_model_name")
-```
 
 This README provides a comprehensive guide to using the AutoTune module step-by-step, with examples and troubleshooting tips.
