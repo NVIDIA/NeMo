@@ -987,10 +987,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             batch=batch,
         )
 
-    def _join_text(self, merged_hypothesis, hypotheses):
-        merged_hypothesis.text = " ".join([h.text for h in hypotheses])
-        return merged_hypothesis
-
     def _join_y_sequence(self, merged_hypothesis, hypotheses):
         merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
         return merged_hypothesis
@@ -1134,9 +1130,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             for i in range(1, len(hypotheses)):
                 merged_tokens = lcs_alignment_merge_buffer(
                     buffer=merged_tokens,
-                    data=hypotheses[i].y_sequence.tolist()[
-                        : int(delay * 0.6)
-                    ],  # only approximately 60% of the tokens are non blank
+                    data=hypotheses[i].y_sequence.tolist()[:int(delay * 0.6)],  # only approximately 60% of the tokens are non blank
                     delay=delay,
                     model=self,
                     max_steps_per_timestep=1,
@@ -1171,9 +1165,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     'segment': [],
                 },
             )
+            chunk_offsets = [0] + [x * self.encoder.subsampling_factor for x in encoded_len.tolist()]
+            
             merged_hypotheses = self._join_y_sequence(merged_hypotheses, hypotheses)
             merged_hypotheses.text = final_text
-            chunk_offsets = [0] + [x * self.encoder.subsampling_factor for x in encoded_len.tolist()]
             merged_hypotheses = self._join_timestamp_and_add_word_and_segment_level_timestamps(
                 merged_hypotheses, hypotheses, chunk_offsets, merged_tokens
             )
