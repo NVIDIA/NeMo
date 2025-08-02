@@ -46,9 +46,9 @@ from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifi
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import (
     get_forced_aligned_timestamps_with_external_model,
-    process_aed_timestamp_outputs,
-    get_words_offsets,
     get_segment_offsets,
+    get_words_offsets,
+    process_aed_timestamp_outputs,
 )
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
@@ -566,7 +566,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 )
             trcfg = override_config
             trcfg.timestamps = timestamps
-        # Check if only one audio is provided 
+        # Check if only one audio is provided
         is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl"))
         # Check if batch_size is one
         trcfg.do_parallel_chunking = is_one_audio or (override_config.batch_size == 1)
@@ -995,11 +995,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
         return merged_hypothesis
 
-    def _join_char_level_timestamps(self, merged_hypothesis, hypotheses, chunk_offsets, merged_tokens = None):
+    def _join_char_level_timestamps(self, merged_hypothesis, hypotheses, chunk_offsets, merged_tokens=None):
         """Join character-level timestamps from multiple chunks."""
         # Create a list for character timestamps
         char_timestamps = []
-        
+
         cumulative_offset = 0
         j_token = 0
         for i, h in enumerate(hypotheses):
@@ -1030,12 +1030,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 {
                     **char,
                     'start': (
-                        -1 if char['start'] == -1
-                        else char['start_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor
+                        -1
+                        if char['start'] == -1
+                        else char['start_offset']
+                        * self.cfg['preprocessor']['window_stride']
+                        * self.encoder.subsampling_factor
                     ),
                     'end': (
-                        -1 if char['end_offset'] == -1
-                        else char['end_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor
+                        -1
+                        if char['end_offset'] == -1
+                        else char['end_offset']
+                        * self.cfg['preprocessor']['window_stride']
+                        * self.encoder.subsampling_factor
                     ),
                 }
                 for char in updated_timestamps
@@ -1043,12 +1049,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
             char_timestamps.extend(updated_timestamps)
         return char_timestamps
-    def _join_timestamp_and_add_word_and_segment_level_timestamps(self, merged_hypotheses, hypotheses, chunk_offsets, merged_tokens=None):
+
+    def _join_timestamp_and_add_word_and_segment_level_timestamps(
+        self, merged_hypotheses, hypotheses, chunk_offsets, merged_tokens=None
+    ):
         # Initialize empty timestamp structure
-        
+
         # First, combine char-level timestamps from all chunks
         char_timestamps = self._join_char_level_timestamps(merged_hypotheses, hypotheses, chunk_offsets, merged_tokens)
-        
+
         # Create encoded_char_offsets for word/segment generation
         encoded_char_offsets = []
         for char_offset in char_timestamps:
@@ -1060,21 +1069,20 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         word_offsets = get_words_offsets(
             char_offsets=char_timestamps,
             encoded_char_offsets=encoded_char_offsets,
-            supported_punctuation={',', '.', '!', '?'}
+            supported_punctuation={',', '.', '!', '?'},
         )
 
-        # Generate segment-level timestamps from word timestamps  
+        # Generate segment-level timestamps from word timestamps
         segment_offsets = get_segment_offsets(
-            word_offsets=word_offsets,
-            segment_delimiter_tokens={'.', '!', '?', "..."}
+            word_offsets=word_offsets, segment_delimiter_tokens={'.', '!', '?', "..."}
         )
-        
+
         # Update the merged hypothesis with word and segment timestamps
         merged_hypotheses.timestamp['word'] = word_offsets
         merged_hypotheses.timestamp['segment'] = segment_offsets
 
         return merged_hypotheses
-    
+
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
@@ -1114,29 +1122,30 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         merge_to_be_done = trcfg.do_dynamic_caching and len(hypotheses) > 1
 
         if trcfg.do_dynamic_caching:
-            #importing here to avoid circular import
+            # importing here to avoid circular import
             from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
+
             # delay is the number of tokens to merge with the previous chunk
-            delay = int( 1 / (self.encoder.subsampling_factor / 100))
-            # Start with the first chunk 
+            delay = int(1 / (self.encoder.subsampling_factor / 100))
+            # Start with the first chunk
             merged_tokens = hypotheses[0].y_sequence.tolist()
 
             # Merge each subsequent chunk
             for i in range(1, len(hypotheses)):
                 merged_tokens = lcs_alignment_merge_buffer(
                     buffer=merged_tokens,
-                    data=hypotheses[i].y_sequence.tolist()[:int(delay*0.6)], # only approximately 60% of the tokens are non blank
+                    data=hypotheses[i].y_sequence.tolist()[
+                        : int(delay * 0.6)
+                    ],  # only approximately 60% of the tokens are non blank
                     delay=delay,
                     model=self,
                     max_steps_per_timestep=1,
                     min_lcs_length=1,
-                    parallel_chunking=True
+                    parallel_chunking=True,
                 )
-                merged_tokens += hypotheses[i].y_sequence.tolist()[int(delay * 0.6):]
-                
+                merged_tokens += hypotheses[i].y_sequence.tolist()[int(delay * 0.6) :]
 
             final_text = self.tokenizer.ids_to_text(merged_tokens)
-
 
         del enc_states, enc_mask, decoder_input_ids
 
@@ -1154,21 +1163,22 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             )
         if merge_to_be_done:
             merged_hypotheses = Hypothesis(
-
-            score=0.0,
-            y_sequence=torch.tensor([]),
-            timestamp={
-                'char': [],
-                'word': [],
-                'segment': [],
-            },
-        )           
+                score=0.0,
+                y_sequence=torch.tensor([]),
+                timestamp={
+                    'char': [],
+                    'word': [],
+                    'segment': [],
+                },
+            )
             merged_hypotheses = self._join_y_sequence(merged_hypotheses, hypotheses)
             merged_hypotheses.text = final_text
             chunk_offsets = [0] + [x * self.encoder.subsampling_factor for x in encoded_len.tolist()]
-            merged_hypotheses = self._join_timestamp_and_add_word_and_segment_level_timestamps(merged_hypotheses, hypotheses, chunk_offsets, merged_tokens)
+            merged_hypotheses = self._join_timestamp_and_add_word_and_segment_level_timestamps(
+                merged_hypotheses, hypotheses, chunk_offsets, merged_tokens
+            )
 
-            return [merged_hypotheses] 
+            return [merged_hypotheses]
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
