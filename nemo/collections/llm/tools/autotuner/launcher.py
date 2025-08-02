@@ -64,7 +64,6 @@ def create_lepton_executor(
         mounts=mounts,
         node_group=node_group,
         nodes=nodes,
-        env_vars=env_vars,
         shared_memory_size=1024,
     )
 
@@ -199,7 +198,7 @@ def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, 
     {
         "path": "/",
         "mount_path": "/nemo-workspace",
-        "from": "node-nfs:lepton-shared-fs"
+        "from": "node-nfs:az-files-nfs-vol"
     }
 ]
     
@@ -241,7 +240,7 @@ def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run
     {
         "path": "/",
         "mount_path": "/nemo-workspace",
-        "from": "node-nfs:lepton-shared-fs"
+        "from": "node-nfs:az-files-nfs-vol"
     }
 ]
     
@@ -274,7 +273,7 @@ def launch_results_remote(config_dir: str, model: str, path: str, log_prefix: st
     {
         "path": "/",
         "mount_path": "/nemo-workspace",
-        "from": "node-nfs:lepton-shared-fs"
+        "from": "node-nfs:az-files-nfs-vol"
     }
 ]
     
@@ -304,7 +303,7 @@ def launch_list_configs_remote(config_dir: str, model: str, launcher_node_group:
         {
         "path": "/",
         "mount_path": "/nemo-workspace",
-        "from": "node-nfs:lepton-shared-fs"
+        "from": "nnode-nfs:az-files-nfs-vol"
         }
     ]
     
