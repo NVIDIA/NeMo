@@ -269,8 +269,13 @@ def set_perf_optimization_configs(
         recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
         recipe.trainer.strategy.ddp.check_for_large_grads = False
         # Set nccl_ub only if the property exists (for compatibility)
-        if hasattr(recipe.trainer.strategy.ddp, 'nccl_ub'):
-            recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
+        # Use try/except to handle cases where the property doesn't exist in the constructor
+        # try:
+        #     if hasattr(recipe.trainer.strategy.ddp, 'nccl_ub'):
+        #         recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
+        # except (AttributeError, TypeError) as e:
+        #     logging.warning(f"Could not set nccl_ub property: {e}")
+        #     logging.warning("User buffer registration will be disabled for this configuration")
 
     return recipe
 
