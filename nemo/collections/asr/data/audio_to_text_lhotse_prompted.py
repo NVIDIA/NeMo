@@ -64,7 +64,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     This is useful, for example, in code-switched scenarios where each segment is spoken in a different language.
 
     Chunking:
-    If `do_dynamic_chunking` is True, each audio sample is split into optimally sized chunks
+    If `do_parallel_chunking` is True, each audio sample is split into optimally sized chunks
     (see `find_optimal_chunk_size` and `chunk_waveform`). This is useful for long audio inputs,
     allowing the model to process them in manageable segments.
     """
@@ -73,27 +73,27 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self,
         tokenizer: TokenizerSpec,
         prompt: PromptFormatter,
-        do_dynamic_chunking: bool = False,
+        do_parallel_chunking: bool = False,
     ):
         super().__init__()
         self.tokenizer = tokenizer
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.padding_value = self.tokenizer.pad_id
         self.prompt = prompt
-        self.do_dynamic_chunking = do_dynamic_chunking
+        self.do_parallel_chunking = do_parallel_chunking
 
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
-        # --- CHUNKING LOGIC START ---
-        if self.do_dynamic_chunking:
+        # Will work if batch_size is set to 1.
+        if self.do_parallel_chunking:
             # If dynamic chunking is enabled, split each audio sample into chunks.
             new_audio = []
             new_audio_lens = []
             for i in range(audio.shape[0]):
                 waveform = audio[i, : audio_lens[i]]
                 # Split the waveform into chunks and get their lengths.
-                chunks, chunk_lens = self.chunk_waveform(waveform)
+                chunks, chunk_lens = self._chunk_waveform(waveform)
                 new_audio.extend(chunks)
                 new_audio_lens.extend(chunk_lens)
             # Stack all chunks into a batch.
@@ -132,13 +132,13 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         tokens = collate_vectors(tokens, padding_value=self.padding_value)
         return tokens, token_lens
 
-    def find_optimal_chunk_size(
+    def _find_optimal_chunk_size(
         self,
         total_len: int,
-        min_sec: int =10,
-        max_sec: int = 15,
+        min_sec: int =5,
+        max_sec: int = 10,
         sample_rate: int = 16000,
-        overlap_sec: float = 1.0  # Add overlap parameter
+        overlap_sec: float = 1.0 
     ) -> int:
         """
         Find the optimal chunk size for audio processing that minimizes paddings to the last chunk.
@@ -156,6 +156,8 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         """
         best_chunk_size = min_sec * sample_rate
         best_last_chunk_len = 0
+        
+        # Try each possible chunk duration in the range
         for sec in range(min_sec, max_sec + 1):
             chunk_size = sec * sample_rate
             overlap_size = int(overlap_sec * sample_rate)
@@ -166,15 +168,18 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
                 
             if chunk_size > total_len:
                 continue
-            n_chunks = (total_len + step_size - 1) // step_size  # ceil division
+                
+            # Calculate how many chunks we'd need and the last chunk's length
+            n_chunks = (total_len + step_size - 1) // step_size 
             last_chunk_len = total_len - step_size * (n_chunks - 1)
             
             if last_chunk_len > best_last_chunk_len:
                 best_last_chunk_len = last_chunk_len
                 best_chunk_size = chunk_size
+                
         return best_chunk_size
 
-    def chunk_waveform(self, waveform: torch.Tensor, chunk_size: int = None, overlap_sec: float = 1.0) -> tuple[list[torch.Tensor], list[int]]:
+    def _chunk_waveform(self, waveform: torch.Tensor, chunk_size: int = None, overlap_sec: float = 1.0, sample_rate: int = 16000) -> tuple[list[torch.Tensor], list[int]]:
         """
         Split a waveform tensor into overlapping chunks.
 
@@ -183,6 +188,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             chunk_size (int, optional): Size of each chunk in samples. If None, automatically
                                        determines optimal chunk size using find_optimal_chunk_size().
                                        Defaults to None.
+            sample_rate (int, optional): Audio sample rate in Hz. Defaults to 16000.
             overlap_sec (float, optional): Overlap duration between consecutive chunks in seconds.
                                           Used to calculate step size. Defaults to 2.
         
@@ -194,9 +200,8 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         """
         # If chunk_size is None, find the optimal chunk size for this waveform
         total_len = waveform.shape[0]
-        sample_rate = 16000  # or get from config
         if chunk_size is None:
-            chunk_size = self.find_optimal_chunk_size(total_len, overlap_sec=overlap_sec)
+            chunk_size = self._find_optimal_chunk_size(total_len, overlap_sec=overlap_sec)
         overlap_size = int(overlap_sec * sample_rate)
         step_size = chunk_size - overlap_size
         chunks = []
@@ -211,7 +216,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
                 chunk = torch.cat([chunk, pad], dim=0)
             chunks.append(chunk)
             chunk_lens.append(length)
-            start += step_size  # <-- this is the key change!
+            start += step_size 
 
         return chunks, chunk_lens
 
