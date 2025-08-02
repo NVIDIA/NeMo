@@ -146,7 +146,7 @@ if __name__ == "__main__":
     log_prefix = "{kwargs.get('log_prefix', '')}"
     top_n = {kwargs.get('top_n', 10)}
     force_reconstruct = {kwargs.get('force_reconstruct', False)}
-    cost_per_gpu_hour = {kwargs.get('cost_per_gpu_hour', 24.0)}
+    cost_per_gpu_hour = {kwargs.get('cost_per_gpu_hour', 3.0)}
     quiet = {kwargs.get('quiet', False)}
     
     args_file_path = f'{{config_dir}}/{{model}}/args.json'
@@ -249,7 +249,7 @@ def launch_run_remote(config_dir: str, model: str, mount_from: str, mount_source
     )
 
 def launch_results_remote(config_dir: str, model: str, logs_path: str, log_prefix: str,
-                        mount_from: str, mount_path: str, mount_source_path: str,
+                        mount_from: str, mount_source_path: str, mount_path: str,
                         launcher_node_group: str,
                         top_n: int = 10, force_reconstruct: bool = False, 
                         cost_per_gpu_hour: float = 3.0, quiet: bool = False):
@@ -280,7 +280,7 @@ def launch_results_remote(config_dir: str, model: str, logs_path: str, log_prefi
         name="autotune-results"
     )
 
-def launch_list_configs_remote(config_dir: str, model: str, mount_from: str, mount_path: str, mount_source_path: str,
+def launch_list_configs_remote(config_dir: str, model: str, mount_from: str, mount_source_path: str, mount_path: str,
                               launcher_node_group: str):
     """Launch list-configs step using remote executor."""
     mounts = [
@@ -360,7 +360,7 @@ def create_parser():
     results_parser.add_argument('--log-prefix', default='', help='Log prefix')
     results_parser.add_argument('--top-n', type=int, default=5, help='Top N results')
     results_parser.add_argument('--force-reconstruct', action='store_true', help='Force reconstruction')
-    results_parser.add_argument('--cost-per-gpu-hour', type=float, default=24.0, help='Cost per GPU hour')
+    results_parser.add_argument('--cost-per-gpu-hour', type=float, default=3.0, help='Cost per GPU hour')
     results_parser.add_argument('--quiet', action='store_true', help='Quiet mode')
     results_parser.add_argument('--mount-from', required=True, help='Mount source')
     results_parser.add_argument('--mount-path', required=True, help='Mount destination path')
@@ -386,6 +386,13 @@ def main():
     if not args.command:
         parser.print_help()
         return
+
+    mount_params = ['mount_from', 'mount_source_path', 'mount_path']
+    for param in mount_params:
+        if hasattr(args, param) and getattr(args, param) is not None:
+            if not getattr(args, param).strip():
+                logger.error(f"Error: {param} cannot be empty")
+                return
     
     try:
         if args.command == 'generate':
@@ -393,17 +400,17 @@ def main():
             args_dict = vars(args)
             launch_generate_remote(args_dict, args.launcher_node_group, args.training_node_group,
                                  args.mount_from, args.mount_source_path, args.mount_path)
-            elif args.command == 'run':
-        launch_run_remote(args.config_dir, args.model, args.mount_from, args.mount_source_path, args.mount_path,
+        elif args.command == 'run':
+            launch_run_remote(args.config_dir, args.model, args.mount_from, args.mount_source_path, args.mount_path,
                          args.launcher_node_group, args.training_node_group,
                          args.sequential, args.run_all)
-            elif args.command == 'results':
-        launch_results_remote(args.config_dir, args.model, args.logs_path, args.log_prefix,
-                            args.mount_from, args.mount_path, args.mount_source_path,
+        elif args.command == 'results':
+            launch_results_remote(args.config_dir, args.model, args.logs_path, args.log_prefix,
+                            args.mount_from, args.mount_source_path, args.mount_path,
                             args.launcher_node_group,
                             args.top_n, args.force_reconstruct, args.cost_per_gpu_hour, args.quiet)
-            elif args.command == 'list-configs':
-        launch_list_configs_remote(args.config_dir, args.model, args.mount_from, args.mount_path, args.mount_source_path,
+        elif args.command == 'list-configs':
+            launch_list_configs_remote(args.config_dir, args.model, args.mount_from, args.mount_source_path, args.mount_path,
                                  args.launcher_node_group)
         else:
             parser.print_help()
