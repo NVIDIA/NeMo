@@ -127,8 +127,8 @@ class MllamaInferenceWrapper(AbstractModelInferenceWrapper):
             cross_attention_masks=self.inference_params.cross_attention_masks,
             full_text_row_masked_out_mask=self.inference_params.full_text_row_masked_out_mask,
             inference_params=self.inference_params,
+            runtime_gather_output=True,
         )
-        logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
         self.inference_params.sequence_len_offset += tokens2use.size(1)
 
         return logits

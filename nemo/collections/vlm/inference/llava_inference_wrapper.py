@@ -94,8 +94,12 @@ class LlavaInferenceWrapper(AbstractModelInferenceWrapper):
         Returns:
             torch.Tensor: The output logits of shape [batch_size, seq_len, padded_vocab_size]
         """
-        logits = self.model(attention_mask=None, inference_params=self.inference_params, **inference_input)
-        logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
+        logits = self.model(
+            attention_mask=None,
+            inference_params=self.inference_params,
+            runtime_gather_output=True,
+            **inference_input
+        )
         self.inference_params.sequence_len_offset += inference_input["input_ids"].size(1) + self.img_token_offset
 
         return logits
