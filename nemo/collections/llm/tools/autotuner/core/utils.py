@@ -714,7 +714,13 @@ def create_log_dir_name(model_name: str, config_values: Dict[str, Any]) -> str:
     if vp is None:
         vp = 'None'
     
-    return (f"{model_name}_{config_values['nodes']}nodes_"
+    match = re.match(r'^([a-zA-Z]+)', model_name.lower())
+    model_family = match.group(1) if match else model_name.lower()
+    model_info = extract_all_values(model_name)
+    model_size_b = model_info.get('model_size_b')
+
+
+    return (f"{model_family}_{model_size_b}b_{config_values['nodes']}nodes_"
             f"tp_{config_values['tp']}_pp_{config_values['pp']}_"
             f"cp_{config_values['cp']}_ep_{config_values['ep']}_"
             f"mbs_{config_values['mbs']}_vp_{vp}_"

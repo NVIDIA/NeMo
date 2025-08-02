@@ -48,6 +48,16 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
     vp_size = getattr(recipe.trainer.strategy, 'virtual_pipeline_model_parallel_size', 1)
     if vp_size is None:
         vp_size = 1
+    # Determine if NCCL User Buffer should be enabled based on model size
+    model_info = extract_all_values(args.model)
+    model_size_b = model_info.get('model_size_b', 0)
+    
+    # Enable NCCL User Buffer for models >= 70B parameters
+    # Smaller models may not have enough memory headroom for the additional buffer allocation
+    buffer_registration_flag = model_size_b >= 70
+    
+    logger.info(f"Model size: {model_size_b}B parameters")
+    logger.info(f"NCCL User Buffer enabled: {buffer_registration_flag} (threshold: 70B+)")
     
     # Use NeMo's standard performance configuration function
     recipe = set_primary_perf_configs(
@@ -66,7 +76,7 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
         etp_size=getattr(recipe.trainer.strategy, 'expert_tensor_parallel_size', None),
         enable_cuda_graphs=False,  # Disabled for FSDP compatibility
         use_mcore_fsdp=False,  # Disabled for compatibility with NeMo
-        use_user_buffer_registration=False,  # Disabled to avoid nccl_ub error
+        use_user_buffer_registration=buffer_registration_flag,
         use_sharp=False,  # Enable SHARP for collective communication
         recompute_layers=0,  # No recompute for base config
         activation_offload_layers=0,  # No offload for base config

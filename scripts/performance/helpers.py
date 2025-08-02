@@ -261,21 +261,30 @@ def set_perf_optimization_configs(
 
     recipe.trainer.strategy.use_sharp = bool(use_sharp)
 
-    is_ddp_obj = hasattr(recipe.trainer.strategy, "ddp") and not isinstance(recipe.trainer.strategy.ddp, str)
-    if use_user_buffer_registration and not is_ddp_obj:
-        logging.warning("DDP is not configured. Cannot use user buffer registration.")
-    if is_ddp_obj:
-        # Disable local gradient checker at non-debugging mode
-        recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
-        recipe.trainer.strategy.ddp.check_for_large_grads = False
-        # Set nccl_ub only if the property exists (for compatibility)
-        # Use try/except to handle cases where the property doesn't exist in the constructor
-        # try:
-        #     if hasattr(recipe.trainer.strategy.ddp, 'nccl_ub'):
-        #         recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
-        # except (AttributeError, TypeError) as e:
-        #     logging.warning(f"Could not set nccl_ub property: {e}")
-        #     logging.warning("User buffer registration will be disabled for this configuration")
+    # Optimized DDP configuration with early return pattern
+    ddp_strategy = getattr(recipe.trainer.strategy, "ddp", None)
+    is_ddp_obj = ddp_strategy is not None and not isinstance(ddp_strategy, str)
+    
+    if not is_ddp_obj:
+        if use_user_buffer_registration:
+            logging.warning("DDP is not configured. Cannot use user buffer registration.")
+        return recipe
+    
+    # Configure DDP settings (only when DDP object exists)
+    ddp_strategy.check_for_nan_in_grad = False
+    ddp_strategy.check_for_large_grads = False
+    
+    # Configure NCCL User Buffer only when explicitly requested
+    if use_user_buffer_registration:
+        try:
+            if hasattr(ddp_strategy, 'nccl_ub'):
+                ddp_strategy.nccl_ub = True
+                logging.info("NCCL User Buffer registration enabled successfully")
+            else:
+                logging.warning("NCCL User Buffer property not available in DDP strategy")
+        except (AttributeError, TypeError, ValueError) as e:
+            logging.warning(f"Failed to enable NCCL User Buffer registration: {e}")
+            logging.warning("Continuing without NCCL User Buffer optimization")
 
     return recipe
 
