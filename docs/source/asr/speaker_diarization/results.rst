@@ -25,8 +25,8 @@ Use the following command to train a Sortformer diarizer model.
     exp_manager.exp_dir=./sortformer_diar_train
 
 
-Sortformer Diarizer Inference
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Sortformer Diarizer Inference with Post-processing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Use the following command to run inference on a Sortformer diarizer model.
 
@@ -40,6 +40,42 @@ Use the following command to run inference on a Sortformer diarizer model.
     model_path=/path/to/diar_sortformer_4spk_v1.nemo \  
     postprocessing_yaml=${PP_YAML2} \  
     dataset_manifest=/path/to/diarization_manifest.json  
+
+
+Streaming Sortformer Diarizer Training
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the following command to train a Sortformer diarizer model.
+  
+.. code-block:: bash  
+  
+  # Feed the config for Sortformer diarizer model training
+  python ${NEMO_ROOT}/examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py --config-path='../conf/neural_diarizer' \  
+    --config-name='streaming_sortformer_diarizer_hybrid_loss_4spk-v2.yaml' \  
+    trainer.devices=1 \   
+    model.streaming_mode=True \   
+    model.train_ds.manifest_filepath="<train_manifest_path>" \   
+    model.validation_ds.manifest_filepath="<dev_manifest_path>" \  
+    exp_manager.name='sample_train' \  
+    exp_manager.exp_dir=./sortformer_diar_train 
+
+
+Streaming Sortformer Diarizer Inference with Post-processing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the following command to run inference on a Sortformer diarizer model.
+
+.. code-block:: bash  
+
+  # Config for post-processing  
+  STREAM_PP_YAML1=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/streaming_sortformer_diar_4spk-v2_dihard3-dev.yaml  
+  STREAM_PP_YAML2=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/streaming_sortformer_diar_4spk-v2_callhome-part1.yaml   
+  python ${NEMO_ROOT}/examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \  
+    batch_size=1 \  
+    model_path=/path/to/diar_sortformer_4spk_v1.nemo \  
+    postprocessing_yaml=${STREAM_PP_YAML2} \  
+    dataset_manifest=/path/to/diarization_manifest.json  
+
 
 HuggingFace Pretrained Checkpoints
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

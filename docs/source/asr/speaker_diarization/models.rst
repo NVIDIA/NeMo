@@ -6,7 +6,8 @@ This section gives a brief overview of the supported speaker diarization models 
 Currently NeMo Speech AI supports two types of speaker diarization systems:
 
 1. **End-to-end Speaker Diarization:** Sortformer Diarizer 
-Sortformer is a Transformer encoder-based end-to-end speaker diarization model that generates predicted speaker labels directly from input audio clips.
+Sortformer is a Transformer encoder-based end-to-end speaker diarization model that generates predicted speaker labels directly from input audio clips. 
+We offer offline and online versions of Sortformer Diarizer. Online version of Sortformer diarizer can also be used for offline diarization by setting a long enough chunk size.
 
 2. **Cascaded (Pipelined) Speaker Diarization:** Clustering diarizer with Multi-Scale Diarization Decoder (MSDD)
 The speaker diarization pipeline in NeMo Speech AI involves the use of the :doc:`MarbleNet <../speech_classification/models>` model for Voice Activity Detection (VAD), the :doc:`TitaNet <../speaker_recognition/models>` model for speaker embedding extraction, and the Multi-Scale Diarization Decoder for neural diarization, all of which are explained on this page.
@@ -73,6 +74,29 @@ The figure below illustrates the difference between *Sort Loss* and permutation-
 
 For example, the figure below shows two identical source target matrices (the two matrices at the top), but the resulting target matrices for *Sort Loss* and PIL are different.
 
+.. _Streaming Sortformer Diarizer:
+
+Streaming Sortformer Diarizer
+-----------------------------
+
+`Streaming Sortformer <https://www.arxiv.org/pdf/2507.18446>`__ is a streaming version of Sortformer diarizer. `Streaming Sortformer <https://www.arxiv.org/pdf/2507.18446>`__ employs an Arrival-Order Speaker Cache (AOSC) to store frame-level acoustic embeddings of previously observed speakers.
+
+.. image:: images/streaming_steps.png
+        :align: center
+        :width: 800px
+        :alt: Streaming Sortformer Steps
+
+
+Sortformer resolves permutation problem in diarization following the arrival-time order of the speech segments from each speaker.
+
+.. image:: images/streaming_sortformer_ani.gif
+        :align: center
+        :width: 800px
+        :alt: Streaming Sortformer Animated
+
+Streaming sortformer employs pre-encode layer in the Fast-Conformer to generate speaker-cache. At each step, speaker cache is filtered to only retain the high-quality speaker cache vectors.
+Aside from speaker-cache management part, streaming Sortformer follows the architecture of the offline version of Sortformer.
+
 .. _Multi_Scale_Diarization_Decoder:
 
 Multi-Scale Diarization Decoder
@@ -88,7 +112,6 @@ Speaker diarization system needs to produce very accurate timestamps since speak
 Extracting long audio segments is desirable in terms of the quality of speaker characteristics. However, the length of audio segments also limits the granularity, which leads to a coarse unit length for speaker label decisions. Therefore, speaker diarization systems are challenged by a trade-off between temporal resolution and the fidelity of the speaker representation, as depicted in the curve shown in the figure below. During the speaker feature extraction process in the speaker diarization pipeline, the temporal resolution is inevitably sacrificed by taking a long speech segment to obtain high-quality speaker representation vectors. In plain and simple language, if we try to be very accurate on voice characteristics then we need to look into a longer span of time. However, at the same time, if we look into a longer span of time, we have to make a decision on a fairly long span of time and this leads to coarse decisions (temporal resolution is low). This can be easily understood if we think about the fact that even human listeners cannot accurately tell who is speaking if only half a second of recorded speech is given.
 
 In traditional diarization systems, an audio segment length ranges from 1.5~3.0 seconds since such numbers make a good compromise between the quality of speaker characteristics and temporal resolution. We refer to this type of segmentation method as a single-scale approach. Even with an overlap technique, the single-scale segmentation limits the temporal resolution to 0.75~1.5 seconds, which leaves room for improvement in terms of temporal accuracy. Having a coarse temporal resolution not only deteriorates the performance of diarization but also decreases speaker counting accuracy since short speech segments are not captured properly. More importantly, such coarse temporal resolution in the speaker timestamps makes the matching between the decoded ASR text and speaker diarization result more error-prone.   
-
 .. image:: images/ms_trade_off.png
         :align: center
         :width: 800px
