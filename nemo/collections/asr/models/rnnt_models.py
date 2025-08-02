@@ -29,6 +29,7 @@ from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset,
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
 from nemo.collections.asr.metrics.wer import WER
+from nemo.collections.asr.metrics.bleu import BLEU 
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import (
@@ -114,6 +115,12 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             use_cer=self._cfg.get('use_cer', False),
             log_prediction=self._cfg.get('log_prediction', True),
             dist_sync_on_step=True,
+        )
+        
+        self.bleu = BLEU(
+            decoding=self.decoding,
+            tokenize=self.cfg.get('bleu_tokenizer', "13a"),
+            log_prediction=True
         )
 
         # Whether to compute loss during evaluation
@@ -764,6 +771,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                 tensorboard_logs.update({'training_batch_wer': scores.float() / words})
 
         else:
+            # logging.info("Bleu calculation is not available using experimental fused Joint-Loss-WER.")
             # If experimental fused Joint-Loss-WER is used
             if (sample_id + 1) % log_every_n_steps == 0:
                 compute_wer = True
@@ -796,6 +804,17 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             if compute_wer:
                 tensorboard_logs.update({'training_batch_wer': wer})
 
+        if (sample_id + 1) % log_every_n_steps == 0:
+            self.bleu.update(
+                predictions=encoded, predictions_lengths=encoded_len, targets=transcript, targets_lengths=transcript_len
+            )
+            bleu_metrics = self.bleu.compute(return_all_metrics=True, prefix="training_batch_")
+            tensorboard_logs.update(
+                {
+                    'training_batch_bleu': bleu_metrics['training_batch_bleu'],
+                }
+            )
+            self.bleu.reset()
         # Log items
         self.log_dict(tensorboard_logs)
 
@@ -887,8 +906,22 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             tensorboard_logs['val_wer_denom'] = wer_denom
             tensorboard_logs['val_wer'] = wer
 
-        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
-
+        # BLEU score calculation
+        self.bleu.update(
+            predictions=encoded, predictions_lengths=encoded_len, targets=transcript, targets_lengths=transcript_len
+        )
+        bleu_metrics = self.bleu.compute(return_all_metrics=True, prefix="val_")
+        tensorboard_logs.update(
+            {
+                'val_bleu_num': bleu_metrics['val_bleu_num'],
+                'val_bleu_denom': bleu_metrics['val_bleu_denom'],
+                'val_bleu_pred_len': bleu_metrics['val_bleu_pred_len'],
+                'val_bleu_target_len': bleu_metrics['val_bleu_target_len'],
+                'val_bleu': bleu_metrics['val_bleu'],
+            }
+        )
+        self.bleu.reset()
+        
         return tensorboard_logs
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
@@ -917,6 +950,17 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
         wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
         tensorboard_logs = {**val_loss_log, 'val_wer': wer_num.float() / wer_denom}
+        
+        # Add BLEU metric aggregation
+        if "val_bleu_num" in outputs[0]:
+            bleu_pred_len = torch.stack([x["val_bleu_pred_len"] for x in outputs]).sum()
+            bleu_target_len = torch.stack([x["val_bleu_target_len"] for x in outputs]).sum()
+            bleu_num = torch.stack([x["val_bleu_num"] for x in outputs]).sum(dim=0)
+            bleu_denom = torch.stack([x["val_bleu_denom"] for x in outputs]).sum(dim=0)
+            val_bleu_value = self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)
+            val_bleu = {"val_bleu": val_bleu_value}
+            tensorboard_logs.update(val_bleu)
+        
         return {**val_loss_log, 'log': tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
@@ -928,6 +972,16 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
         wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
         wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
         tensorboard_logs = {**test_loss_log, 'test_wer': wer_num.float() / wer_denom}
+        
+        # Add BLEU metric aggregation for test
+        if "test_bleu_num" in outputs[0]:
+            bleu_pred_len = torch.stack([x["test_bleu_pred_len"] for x in outputs]).sum()
+            bleu_target_len = torch.stack([x["test_bleu_target_len"] for x in outputs]).sum()
+            bleu_num = torch.stack([x["test_bleu_num"] for x in outputs]).sum(dim=0)
+            bleu_denom = torch.stack([x["test_bleu_denom"] for x in outputs]).sum(dim=0)
+            test_bleu = {"test_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+            tensorboard_logs.update(test_bleu)
+        
         return {**test_loss_log, 'log': tensorboard_logs}
 
     """ Transcription related methods """
