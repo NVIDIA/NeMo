@@ -38,6 +38,7 @@ from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
+from nemo.collections.asr.data.audio_to_eou_label_lhotse import lhotse_asr_eou_cut_random_pad_transform
 from nemo.collections.common.data.lhotse.cutset import (
     IncompleteConfigError,
     guess_parse_cutset,
@@ -202,6 +203,9 @@ class LhotseDataLoadingConfig:
     # * use map dataset for non-tarred audio data (we might change this in the future)
     force_map_dataset: bool = False
     force_iterable_dataset: bool = False
+
+    # 6. EOU related options.
+    random_padding: Any | None = None
 
 
 def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
@@ -497,6 +501,7 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     # 2.a. Noise mixing.
     if config.noise_path is not None:
         noise = guess_parse_cutset(config.noise_path)
+        noise = noise.resample(config.sample_rate)
         cuts = cuts.mix(
             cuts=noise,
             snr=tuple(config.noise_snr),
@@ -543,6 +548,9 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     if tokenizer is not None and config.pretokenize:
         cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
         cuts = cuts.filter(TokenPerTokenFilter(config.min_tpt, config.max_tpt))
+
+    if config.get("random_padding", None) is not None:
+        cuts = cuts.map(partial(lhotse_asr_eou_cut_random_pad_transform, config))
 
     # Select the strategy customizing Lhotse sampler behaviour.
     # Provides support for dynamic batch sizes, multimodal dataloading, 2D bucketing, etc.
