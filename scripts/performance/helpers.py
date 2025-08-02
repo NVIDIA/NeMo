@@ -261,9 +261,7 @@ def set_perf_optimization_configs(
 
     recipe.trainer.strategy.use_sharp = bool(use_sharp)
 
-    # Optimized DDP configuration with early return pattern
-    ddp_strategy = getattr(recipe.trainer.strategy, "ddp", None)
-    is_ddp_obj = ddp_strategy is not None and not isinstance(ddp_strategy, str)
+    is_ddp_obj = hasattr(recipe.trainer.strategy, "ddp") and not isinstance(recipe.trainer.strategy.ddp, str)
     
     if not is_ddp_obj:
         if use_user_buffer_registration:
