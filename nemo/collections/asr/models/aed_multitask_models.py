@@ -1006,10 +1006,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             updated_timestamps = [
                 {
                     **word,
-                    'start_offset': word['start_offset']
-                    + cumulative_offset
-                    // self.encoder.subsampling_factor,  # dividing here to avoid error accumulation over long audios
-                    'end_offset': word['end_offset'] + cumulative_offset // self.encoder.subsampling_factor,
+                    'start_offset': (
+                        word['start_offset'] if word['start_offset'] == -1
+                        else word['start_offset'] + cumulative_offset // self.encoder.subsampling_factor
+                    ),
+                    'end_offset': (
+                        word['end_offset'] if word['end_offset'] == -1
+                        else word['end_offset'] + cumulative_offset // self.encoder.subsampling_factor
+                    ),
                 }
                 for word in h.timestamp['word']
             ]
@@ -1018,12 +1022,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             updated_timestamps = [
                 {
                     **word,
-                    'start': word['start_offset']
-                    * self.cfg['preprocessor']['window_stride']
-                    * self.encoder.subsampling_factor,
-                    'end': word['end_offset']
-                    * self.cfg['preprocessor']['window_stride']
-                    * self.encoder.subsampling_factor,
+                    'start': (
+                        -1 if word['start_offset'] == -1
+                        else word['start_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor
+                    ),
+                    'end': (
+                        -1 if word['end_offset'] == -1
+                        else word['end_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor
+                    ),
                 }
                 for word in updated_timestamps
             ]
@@ -1039,8 +1045,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             updated_timestamps = [
                 {
                     **segment,
-                    'start_offset': segment['start_offset'] + cumulative_offset // self.encoder.subsampling_factor,
-                    'end_offset': segment['end_offset'] + cumulative_offset // self.encoder.subsampling_factor,
+                    'start_offset': (
+                        segment['start_offset'] if segment['start_offset'] == -1
+                        else segment['start_offset'] + cumulative_offset // self.encoder.subsampling_factor
+                    ),
+                    'end_offset': (
+                        segment['end_offset'] if segment['end_offset'] == -1
+                        else segment['end_offset'] + cumulative_offset // self.encoder.subsampling_factor
+                    ),
                 }
                 for segment in h.timestamp['segment']
             ]
@@ -1049,12 +1061,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             updated_timestamps = [
                 {
                     **segment,
-                    'start': segment['start_offset']
-                    * self.cfg['preprocessor']['window_stride']
-                    * self.encoder.subsampling_factor,
-                    'end': segment['end_offset']
-                    * self.cfg['preprocessor']['window_stride']
-                    * self.encoder.subsampling_factor,
+                    'start': (
+                        -1 if segment['start_offset'] == -1
+                        else segment['start_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor
+                    ),
+                    'end': (
+                        -1 if segment['end_offset'] == -1
+                        else segment['end_offset'] * self.cfg['preprocessor']['window_stride'] * self.encoder.subsampling_factor
+                    ),
                 }
                 for segment in updated_timestamps
             ]
@@ -1099,6 +1113,30 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             decoder_input_ids=decoder_input_ids,
             return_hypotheses=trcfg.return_hypotheses,
         )
+        if trcfg.do_dynamic_caching:
+            #importing here to avoid circular import
+            from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
+            # delay is the number of tokens to merge with the previous chunk
+            delay = int( 1 / (self.encoder.subsampling_factor / 100))
+            # Start with the first chunk 
+            merged_tokens = hypotheses[0].y_sequence.tolist()
+
+            # Merge each subsequent chunk
+            for i in range(1, len(hypotheses)):
+                merged_tokens = lcs_alignment_merge_buffer(
+                    buffer=merged_tokens,
+                    data=hypotheses[i].y_sequence.tolist()[:int(delay*0.6)], # only approximately 60% of the tokens are non blank
+                    delay=delay,
+                    model=self,
+                    max_steps_per_timestep=1,
+                    min_lcs_length=2,
+                    parallel_chunking=True
+                )
+                merged_tokens += hypotheses[i].y_sequence.tolist()[int(delay * 0.6):]
+                
+
+            final_text = self.tokenizer.ids_to_text(merged_tokens)
+
 
         del enc_states, enc_mask, decoder_input_ids
 
@@ -1125,8 +1163,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     'segment': [],
                 },
             )
-            merged_hypthesis = self._join_text(merged_hypthesis, hypotheses)
             merged_hypthesis = self._join_y_sequence(merged_hypthesis, hypotheses)
+            merged_hypthesis.text = final_text
             chunk_offsets = [0] + [x * self.encoder.subsampling_factor for x in encoded_len.tolist()]
 
             merged_hypthesis = self._join_timestamp(merged_hypthesis, hypotheses, chunk_offsets)

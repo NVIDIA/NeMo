@@ -99,8 +99,6 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             # Stack all chunks into a batch.
             audio = torch.stack(new_audio)
             audio_lens = torch.tensor(new_audio_lens, dtype=torch.long)
-        # --- CHUNKING LOGIC END ---
-
         # Fast-path: the tokenization and prompt formatting was already done before sampling.
         attrs = ("input_ids", "context_ids", "answer_ids")
         pre_formatted = all(hasattr(c, a) for c in cuts for a in attrs)
@@ -135,56 +133,72 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         return tokens, token_lens
 
     def find_optimal_chunk_size(
-        self, total_len: int, min_sec: int = 30, max_sec: int = 40, sample_rate: int = 16000
+        self,
+        total_len: int,
+        min_sec: int =10,
+        max_sec: int = 15,
+        sample_rate: int = 16000,
+        overlap_sec: float = 1.0  # Add overlap parameter
     ) -> int:
         """
-        Finds the optimal chunk size (in samples) for a given audio length.
-        The goal is to maximize the length of the last chunk (i.e., minimize padding)
-        while keeping chunk sizes between min_sec and max_sec seconds.
-
+        Find the optimal chunk size for audio processing that minimizes paddings to the last chunk.
+        
         Args:
-            total_len: Total length of the audio in samples.
-            min_sec: Minimum chunk duration in seconds.
-            max_sec: Maximum chunk duration in seconds.
-            sample_rate: Audio sample rate.
-
+            total_len (int): Total length of the audio waveform in samples
+            min_sec (int, optional): Minimum chunk size in seconds. Defaults to 30.
+            max_sec (int, optional): Maximum chunk size in seconds. Defaults to 40.
+            sample_rate (int, optional): Audio sample rate in Hz. Defaults to 16000.
+            overlap_sec (float, optional): Overlap duration between consecutive chunks in seconds. 
+                                         Defaults to 1.0.
+        
         Returns:
-            The optimal chunk size in samples.
+            int: Optimal chunk size in samples that maximizes the last chunk length
         """
         best_chunk_size = min_sec * sample_rate
         best_last_chunk_len = 0
         for sec in range(min_sec, max_sec + 1):
             chunk_size = sec * sample_rate
+            overlap_size = int(overlap_sec * sample_rate)
+            step_size = chunk_size - overlap_size
+            
+            if step_size <= 0:  # Invalid overlap
+                continue
+                
             if chunk_size > total_len:
                 continue
-            n_chunks = (total_len + chunk_size - 1) // chunk_size  # ceil division
-            last_chunk_len = total_len - chunk_size * (n_chunks - 1)
+            n_chunks = (total_len + step_size - 1) // step_size  # ceil division
+            last_chunk_len = total_len - step_size * (n_chunks - 1)
+            
             if last_chunk_len > best_last_chunk_len:
                 best_last_chunk_len = last_chunk_len
                 best_chunk_size = chunk_size
         return best_chunk_size
 
-    def chunk_waveform(
-        self, waveform: torch.Tensor, chunk_size: int = None, device=None
-    ) -> tuple[list[torch.Tensor], list[int]]:
+    def chunk_waveform(self, waveform: torch.Tensor, chunk_size: int = None, overlap_sec: float = 1.0) -> tuple[list[torch.Tensor], list[int]]:
         """
-        Splits a waveform into chunks of (approximately) chunk_size samples.
-        Pads the last chunk if necessary.
+        Split a waveform tensor into overlapping chunks.
 
         Args:
-            waveform: 1D tensor of audio samples.
-            chunk_size: Desired chunk size in samples. If None, will be determined automatically.
-            device: Device for the output tensors.
-
+            waveform (torch.Tensor): Input audio waveform tensor of shape (time_samples,)
+            chunk_size (int, optional): Size of each chunk in samples. If None, automatically
+                                       determines optimal chunk size using find_optimal_chunk_size().
+                                       Defaults to None.
+            overlap_sec (float, optional): Overlap duration between consecutive chunks in seconds.
+                                          Used to calculate step size. Defaults to 2.
+        
         Returns:
-            A tuple (chunks, chunk_lens):
-                - chunks: list of chunk tensors (each of length chunk_size)
-                - chunk_lens: list of original (unpadded) lengths for each chunk
+            tuple[list[torch.Tensor], list[int]]: A tuple containing:
+                - List of chunk tensors, each of shape (chunk_size,)
+                - List of original lengths for each chunk before padding (useful for masking
+                  padded regions during processing.
         """
         # If chunk_size is None, find the optimal chunk size for this waveform
         total_len = waveform.shape[0]
+        sample_rate = 16000  # or get from config
         if chunk_size is None:
-            chunk_size = self.find_optimal_chunk_size(total_len)
+            chunk_size = self.find_optimal_chunk_size(total_len, overlap_sec=overlap_sec)
+        overlap_size = int(overlap_sec * sample_rate)
+        step_size = chunk_size - overlap_size
         chunks = []
         chunk_lens = []
         start = 0
@@ -193,14 +207,12 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             chunk = waveform[start:end]
             length = chunk.shape[0]
             if length < chunk_size:
-                # Pad the last chunk if it's shorter than chunk_size
-                pad = torch.zeros(
-                    chunk_size - length, dtype=chunk.dtype, device=chunk.device if device is None else device
-                )
+                pad = torch.zeros(chunk_size - length, dtype=chunk.dtype, device=chunk.device)
                 chunk = torch.cat([chunk, pad], dim=0)
             chunks.append(chunk)
             chunk_lens.append(length)
-            start += chunk_size
+            start += step_size  # <-- this is the key change!
+
         return chunks, chunk_lens
 
 
