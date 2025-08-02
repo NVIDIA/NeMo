@@ -17,8 +17,6 @@ from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
 from typing import Dict, Any, Union, List, Tuple, Optional
 from rich.console import Console
 
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs, get_results
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.WARNING)
 

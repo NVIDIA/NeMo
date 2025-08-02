@@ -8,12 +8,10 @@ import argparse
 import os
 import sys
 import logging
-import time
-from pathlib import Path
 from typing import Optional, Dict, Any
 
 import nemo_run as run
-from nemo_run.config import Partial, Script
+from nemo_run.config import Script
 
 
 
@@ -144,7 +142,7 @@ if __name__ == "__main__":
     # Analyze results
     config_dir = "{kwargs.get('config_dir', '')}"
     model = "{kwargs.get('model', '')}"
-    path = "{kwargs.get('path', '')}"
+    logs_path = "{kwargs.get('logs_path', '')}"
     log_prefix = "{kwargs.get('log_prefix', '')}"
     top_n = {kwargs.get('top_n', 10)}
     force_reconstruct = {kwargs.get('force_reconstruct', False)}
@@ -160,7 +158,7 @@ if __name__ == "__main__":
     
     results(
         args=args,
-        logs_path=path,
+        logs_path=logs_path,
         log_prefix=log_prefix,
         top_n=top_n,
         force_reconstruct=force_reconstruct,
@@ -180,19 +178,16 @@ if __name__ == "__main__":
     return run.Script(inline=script_content, entrypoint="python")
 
 def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, training_node_group: str, 
-                          mount_from: Optional[str] = None, path: Optional[str] = None, mount_path: Optional[str] = None):
+                          mount_from: str, mount_source_path: str, mount_path: str):
     """Launch generate step using remote executor."""
     
-    # Form mounts consistently
-    mounts = []
-    if mount_from and path and mount_path:
-        mounts = [
-            {
-                "path": path,
-                "mount_path": mount_path,
-                "from": mount_from
-            }
-        ]
+    mounts = [
+        {
+            "path": mount_source_path,
+            "mount_path": mount_path,
+            "from": mount_from
+        }
+    ]
     
     # Create executor for remote execution
     executor = create_lepton_executor(
@@ -212,7 +207,7 @@ def launch_generate_remote(args_dict: Dict[str, Any], launcher_node_group: str, 
 
 def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run_all: bool = False, 
                      launcher_node_group: Optional[str] = None, training_node_group: Optional[str] = None, 
-                     mount_from: Optional[str] = None, path: Optional[str] = None, mount_path: Optional[str] = None):
+                     mount_from: str, mount_source_path: str, mount_path: str):
     """Launch run step using remote executor."""
     
     # Map AUTOTUNER_* environment variables to LEPTON_* variables for local NeMo Run process
@@ -227,17 +222,14 @@ def launch_run_remote(config_dir: str, model: str, sequential: bool = False, run
         if var in os.environ:
             lepton_var = var.replace("AUTOTUNER_", "LEPTON_")
             os.environ[lepton_var] = os.environ[var]
-    
-    # Form mounts consistently
-    mounts = []
-    if mount_from and path and mount_path:
-        mounts = [
-            {
-                "path": path,
-                "mount_path": mount_path,
-                "from": mount_from
-            }
-        ]
+
+    mounts = [
+        {
+            "path": mount_source_path,
+            "mount_path": mount_path,
+            "from": mount_from
+        }
+    ]
     
     # Create executor for remote execution
     executor = create_lepton_executor(
@@ -261,19 +253,15 @@ def launch_results_remote(config_dir: str, model: str, logs_path: str, log_prefi
                         cost_per_gpu_hour: float = 24.0, quiet: bool = False,
                         launcher_node_group: Optional[str] = None, 
                         training_node_group: Optional[str] = None, 
-                        mount_from: Optional[str] = None, mount_path: Optional[str] = None, path: Optional[str] = None):
+                        mount_from: str, mount_path: str, mount_source_path: str):
     """Launch results collection step using remote executor."""
-    
-    # Form mounts consistently
-    mounts = []
-    if mount_from and mount_path:
-        mounts = [
-            {
-                "path": path,
-                "mount_path": mount_path,
-                "from": mount_from
-            }
-        ]
+    mounts = [
+        {
+            "path": mount_source_path,
+            "mount_path": mount_path,
+            "from": mount_from
+        }
+    ]
     
     # Create executor for remote execution
     executor = create_lepton_executor(
@@ -284,7 +272,7 @@ def launch_results_remote(config_dir: str, model: str, logs_path: str, log_prefi
     )
     
     # Create and run script
-    script = create_autotune_script("results", config_dir=config_dir, model=model, path=logs_path, 
+    script = create_autotune_script("results", config_dir=config_dir, model=model, logs_path=logs_path, 
                                    log_prefix=log_prefix, top_n=top_n, force_reconstruct=force_reconstruct, 
                                    cost_per_gpu_hour=cost_per_gpu_hour, quiet=quiet)
     run.run(
@@ -294,20 +282,16 @@ def launch_results_remote(config_dir: str, model: str, logs_path: str, log_prefi
     )
 
 def launch_list_configs_remote(config_dir: str, model: str, launcher_node_group: Optional[str] = None, 
-                              mount_from: Optional[str] = None, training_node_group: Optional[str] = None,
-                              mount_path: Optional[str] = None, path: Optional[str] = None):
+                              mount_from: str, training_node_group: Optional[str] = None,
+                              mount_path: str, mount_source_path: str):
     """Launch list-configs step using remote executor."""
-    
-    # Form mounts consistently
-    mounts = []
-    if mount_from and mount_path:
-        mounts = [
-            {
-                "path": path,
-                "mount_path": mount_path,
-                "from": mount_from
-            }
-        ]
+    mounts = [
+        {
+            "path": mount_source_path,
+            "mount_path": mount_path,
+            "from": mount_from
+        }
+    ]
     
     # Create executor for remote execution
     executor = create_lepton_executor(
@@ -337,10 +321,10 @@ def create_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
                 Examples:
-                python launcher.py generate --config-dir /path/to/configs --model llama3_70b
-                python launcher.py run --config-dir /path/to/configs --model llama3_70b
-                python launcher.py results --config-dir /path/to/configs --model llama3_70b --path /path/to/logs
-                python launcher.py list-configs --config-dir /path/to/configs --model llama3_70b
+                python launcher.py generate --config-dir /path/to/configs --model llama3_70b --launcher-node-group group1 --training-node-group group2 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
+                python launcher.py run --config-dir /path/to/configs --model llama3_70b --launcher-node-group group1 --training-node-group group2 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
+                python launcher.py results --config-dir /path/to/configs --model llama3_70b --logs-path /path/to/logs --launcher-node-group group1 --training-node-group group2 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
+                python launcher.py list-configs --config-dir /path/to/configs --model llama3_70b --launcher-node-group group1 --mount-from node-nfs:shared --mount-source-path /local/path --mount-path /nemo-workspace
                 """
     )
     
@@ -352,9 +336,9 @@ def create_parser():
     generate_parser.add_argument('--model', required=True, help='Model name')
     generate_parser.add_argument('--launcher-node-group', required=True, help='Launcher node group')
     generate_parser.add_argument('--training-node-group', required=True, help='Training node group')
-    generate_parser.add_argument('--mount-from', help='Mount source')
-    generate_parser.add_argument('--path', help='Mount path')
-    generate_parser.add_argument('--mount-path', help='Mount destination path')
+    generate_parser.add_argument('--mount-from', required=True, help='Mount source')
+    generate_parser.add_argument('--mount-source-path', required=True, help='Mount source path')
+    generate_parser.add_argument('--mount-path', required=True, help='Mount destination path')
     # Add other generate arguments as needed
     
     # Run command
@@ -365,9 +349,9 @@ def create_parser():
     run_parser.add_argument('--training-node-group', required=True, help='Training node group')
     run_parser.add_argument('--sequential', action='store_true', help='Run sequentially')
     run_parser.add_argument('--run-all', action='store_true', help='Run all configurations')
-    run_parser.add_argument('--mount-from', help='Mount source')
-    run_parser.add_argument('--path', help='Mount path')
-    run_parser.add_argument('--mount-path', help='Mount destination path')
+    run_parser.add_argument('--mount-from', required=True, help='Mount source')
+    run_parser.add_argument('--mount-source-path', required=True, help='Mount source path')
+    run_parser.add_argument('--mount-path', required=True, help='Mount destination path')
     
     # Results command
     results_parser = subparsers.add_parser('results', help='Analyze AutoTune results')
@@ -381,18 +365,18 @@ def create_parser():
     results_parser.add_argument('--force-reconstruct', action='store_true', help='Force reconstruction')
     results_parser.add_argument('--cost-per-gpu-hour', type=float, default=24.0, help='Cost per GPU hour')
     results_parser.add_argument('--quiet', action='store_true', help='Quiet mode')
-    results_parser.add_argument('--mount-from', help='Mount source')
-    results_parser.add_argument('--mount-path', help='Mount destination path')
-    results_parser.add_argument('--path', help='Mount destination path')
+    results_parser.add_argument('--mount-from', required=True, help='Mount source')
+    results_parser.add_argument('--mount-path', required=True, help='Mount destination path')
+    results_parser.add_argument('--mount-source-path', required=True, help='Mount source path')
     
     # List-configs command
     list_configs_parser = subparsers.add_parser('list-configs', help='List AutoTune configurations')
     list_configs_parser.add_argument('--config-dir', required=True, help='Configuration directory')
     list_configs_parser.add_argument('--model', required=True, help='Model name')
     list_configs_parser.add_argument('--launcher-node-group', required=True, help='Launcher node group')
-    list_configs_parser.add_argument('--mount-from', help='Mount source')
-    list_configs_parser.add_argument('--mount-path', help='Mount destination path')
-    list_configs_parser.add_argument('--path', help='Mount destination path')
+    list_configs_parser.add_argument('--mount-from', required=True, help='Mount source')
+    list_configs_parser.add_argument('--mount-path', required=True, help='Mount destination path')
+    list_configs_parser.add_argument('--mount-source-path', required=True, help='Mount source path')
     
     return parser
 
@@ -401,25 +385,34 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
     
-    if args.command == 'generate':
-        # Convert args to dict for generate
-        args_dict = vars(args)
-        launch_generate_remote(args_dict, args.launcher_node_group, args.training_node_group,
-                             args.mount_from, args.path, args.mount_path)
-    elif args.command == 'run':
-        launch_run_remote(args.config_dir, args.model, args.sequential, args.run_all, 
-                         args.launcher_node_group, args.training_node_group,
-                         args.mount_from, args.path, args.mount_path)
-    elif args.command == 'results':
-        launch_results_remote(args.config_dir, args.model, args.path, args.log_prefix,
-                            args.top_n, args.force_reconstruct, args.cost_per_gpu_hour, args.quiet,
-                            args.launcher_node_group, args.training_node_group,
-                            args.mount_from, args.mount_path, args.path)
-    elif args.command == 'list-configs':
-        launch_list_configs_remote(args.config_dir, args.model, args.launcher_node_group,
-                                 args.mount_from, args.training_node_group, args.mount_path, args.path)
-    else:
+    # Validate required arguments
+    if not args.command:
         parser.print_help()
+        return
+    
+    try:
+        if args.command == 'generate':
+            # Convert args to dict for generate
+            args_dict = vars(args)
+            launch_generate_remote(args_dict, args.launcher_node_group, args.training_node_group,
+                                 args.mount_from, args.mount_source_path, args.mount_path)
+        elif args.command == 'run':
+            launch_run_remote(args.config_dir, args.model, args.sequential, args.run_all, 
+                             args.launcher_node_group, args.training_node_group,
+                             args.mount_from, args.mount_source_path, args.mount_path)
+        elif args.command == 'results':
+            launch_results_remote(args.config_dir, args.model, args.logs_path, args.log_prefix,
+                                args.top_n, args.force_reconstruct, args.cost_per_gpu_hour, args.quiet,
+                                args.launcher_node_group, args.training_node_group,
+                                args.mount_from, args.mount_path, args.mount_source_path)
+        elif args.command == 'list-configs':
+            launch_list_configs_remote(args.config_dir, args.model, args.launcher_node_group,
+                                     args.mount_from, args.training_node_group, args.mount_path, args.mount_source_path)
+        else:
+            parser.print_help()
+    except Exception as e:
+        logger.error(f"Error executing command '{args.command}': {e}")
+        raise
 
 if __name__ == "__main__":
     main()
