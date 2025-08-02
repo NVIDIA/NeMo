@@ -31,9 +31,9 @@ from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.preprocessing.segment import get_samples
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.common.tokenizers.canary_tokenizer import CanaryBPETokenizer
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
-from nemo.collections.common.tokenizers.canary_tokenizer import CanaryBPETokenizer
 
 # Minimum number of tokens required to assign a LCS merge step, otherwise ignore and
 # select all i-1 and ith buffer tokens to merge.
@@ -294,7 +294,14 @@ def longest_common_subsequence_merge(X, Y, filepath=None):
 
 
 def lcs_alignment_merge_buffer(
-    buffer, data, delay, model, max_steps_per_timestep: int = 5, filepath: str = None, min_lcs_length: int = 1, parallel_chunking: bool = False
+    buffer,
+    data,
+    delay,
+    model,
+    max_steps_per_timestep: int = 5,
+    filepath: str = None,
+    min_lcs_length: int = 1,
+    parallel_chunking: bool = False,
 ):
     """
     Merges the new text from the current frame with the previous text contained in the buffer.
@@ -304,7 +311,7 @@ def lcs_alignment_merge_buffer(
     merge will be incorrect (or at least obtain worse WER overall).
 
     If the LCS found is shorter than min_lcs_length, no deduplication is performed.
-    
+
     Args:
         buffer: The existing buffer of tokens
         data: New data to merge with buffer
@@ -331,14 +338,14 @@ def lcs_alignment_merge_buffer(
     if parallel_chunking:
         base = len(buffer) - len(buffer_slice)
         i_abs_start = base + i_rel
-        i_abs_end   = i_abs_start + length       # end position (exclusive) in `buffer`
-        j_after     = j_rel + length            # first index after LCS in `data`
+        i_abs_end = i_abs_start + length  # end position (exclusive) in `buffer`
+        j_after = j_rel + length  # first index after LCS in `data`
 
         merged = buffer[:i_abs_end] + data[j_after:]
         return merged
     else:
         # Slice off new data based on LCS and concatenate
-        slice_idx = j_rel + length 
+        slice_idx = j_rel + length
         data = data[slice_idx:]
         buffer += data
         return buffer
