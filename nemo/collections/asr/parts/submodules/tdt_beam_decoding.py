@@ -26,7 +26,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -34,6 +33,7 @@ import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import pack_hypotheses
 from nemo.collections.asr.parts.submodules.tdt_malsd_batched_computer import ModifiedALSDBatchedTDTComputer
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
@@ -851,8 +851,10 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs)
         score_norm: bool = True,
         max_symbols_per_step: Optional[int] = None,
         preserve_alignments: bool = False,
-        ngram_lm_model: Optional[str | Path] = None,
-        ngram_lm_alpha: float = 0.0,
+        ngram_lm_model: Optional[str] = None,
+        ngram_lm_alpha: Optional[float] = 0.0,
+        fusion_models: Optional[List[NGramGPULanguageModel]] = None,
+        fusion_models_alpha: Optional[List[float]] = None,
         blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE,
         pruning_mode: Optional[str | PruningMode] = PruningMode.EARLY,
         allow_cuda_graphs: Optional[bool] = True,
@@ -868,8 +870,8 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs)
             beam_size: beam size
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
             preserve_alignments: if alignments are needed
-            ngram_lm_model: path to the NGPU-LM n-gram LM model: .arpa or .nemo formats
-            ngram_lm_alpha: weight for the n-gram LM scores
+            fusion_models: list of fusion models to use for decoding
+            fusion_models_alpha: list of alpha values for fusion models
             blank_lm_score_mode: mode for scoring blank symbol with LM
             pruning_mode: mode for pruning hypotheses with LM
             allow_cuda_graphs: whether to allow CUDA graphs
@@ -891,6 +893,10 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs)
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
 
+        if ngram_lm_model is not None and fusion_models is None:
+            fusion_models = [NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=blank_index)]
+            fusion_models_alpha = [ngram_lm_alpha]
+
         if search_type == "malsd_batch":
             # Depending on availability of `blank_as_pad` support
             # switch between more efficient batch decoding technique
@@ -902,8 +908,8 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs)
                 blank_index=self._blank_index,
                 max_symbols_per_step=self.max_symbols,
                 preserve_alignments=preserve_alignments,
-                ngram_lm_model=ngram_lm_model,
-                ngram_lm_alpha=ngram_lm_alpha,
+                fusion_models=fusion_models,
+                fusion_models_alpha=fusion_models_alpha,
                 blank_lm_score_mode=blank_lm_score_mode,
                 pruning_mode=pruning_mode,
                 allow_cuda_graphs=allow_cuda_graphs,
