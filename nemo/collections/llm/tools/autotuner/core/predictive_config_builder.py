@@ -66,7 +66,7 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
         etp_size=getattr(recipe.trainer.strategy, 'expert_tensor_parallel_size', None),
         enable_cuda_graphs=False,  # Disabled for FSDP compatibility
         use_mcore_fsdp=False,  # Disabled for compatibility with NeMo
-        use_user_buffer_registration=True,  # Enable for performance
+        use_user_buffer_registration=False,  # Disabled to avoid nccl_ub error
         use_sharp=False,  # Enable SHARP for collective communication
         recompute_layers=0,  # No recompute for base config
         activation_offload_layers=0,  # No offload for base config
