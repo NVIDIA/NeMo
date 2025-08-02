@@ -47,6 +47,8 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import (
     get_forced_aligned_timestamps_with_external_model,
     process_aed_timestamp_outputs,
+    get_words_offsets,
+    get_segment_offsets,
 )
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
@@ -1008,19 +1010,21 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         del enc_states, enc_mask, decoder_input_ids
 
+        merge_to_be_done = trcfg.do_dynamic_caching and len(hypotheses) > 1
+
         if trcfg.timestamps and self.timestamps_asr_model is not None:
             hypotheses = get_forced_aligned_timestamps_with_external_model(
                 audio=[audio.squeeze()[:audio_len] for audio, audio_len in zip(batch.audio, batch.audio_lens)],
                 batch_size=len(batch.audio),
                 external_ctc_model=self.timestamps_asr_model,
                 main_model_predictions=hypotheses,
+                timestamp_type='char' if merge_to_be_done else ['word', 'segment'],
                 viterbi_device=trcfg._internal.device,
             )
         else:
             hypotheses = process_aed_timestamp_outputs(
                 hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
-
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
