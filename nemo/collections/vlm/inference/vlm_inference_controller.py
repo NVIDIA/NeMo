@@ -63,10 +63,10 @@ class VLMTextGenerationController(SimpleTextGenerationController):
         return tokens, image_dict
 
     def prep_inference_input(
-            self,
-            prompts_tokens: torch.Tensor,
-            active_requests: OrderedDict[str, InferenceRequest],
-            use_attention_mask: bool = False,
+        self,
+        prompts_tokens: torch.Tensor,
+        active_requests: OrderedDict[str, InferenceRequest],
+        use_attention_mask: bool = False,
     ):
         """Preparing input data for inference, using respective wrapper's prep_inference_input method
 
