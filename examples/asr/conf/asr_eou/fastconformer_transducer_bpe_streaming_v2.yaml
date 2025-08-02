@@ -41,7 +41,6 @@ model:
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
     skip_augment: true
-    lhotse_eou: true
     random_padding:
       prob: 0.99
       min_pad_duration: 1.0  # minimum duration of pre/post padding in seconds
