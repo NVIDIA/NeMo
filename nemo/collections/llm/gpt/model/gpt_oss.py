@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional, Tuple, Union, Literal, List
 import torch
 from megatron.core.fusions.fused_bias_geglu import quick_gelu
+from megatron.core.transformer.enums import AttnBackend
 from safetensors import safe_open
 from torch import nn
 import math
@@ -69,11 +70,12 @@ class GPTOSSConfig(GPTConfig):
     moe_router_load_balancing_type: str = "none"
     seq_length: int = 131072
     window_size: Optional[Tuple[int, int]] = (128, 0)
-    attention_softmax_denominator_offset: Optional[Union[Literal['learnable'], float]] = "learnable"
+    softmax_type: Literal['vanilla', 'off-by-one', 'learnable'] = "learnable"
     activation_func: Callable = quick_gelu
     glu_linear_offset: float = 1.0
     bias_activation_fusion: bool = True
     window_attn_skip_freq: Optional[Union[int, List[int]]] = 2  # alternative SWA/full
+    attention_backend: AttnBackend = AttnBackend.local  # supports "local" and "fused"
 
 @dataclass
 class GPTOSSConfig120B(GPTOSSConfig):
@@ -229,7 +231,7 @@ class HFGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]):
             "**.attn.norm.scale": "**.self_attention.linear_qkv.layer_norm_weight",
             "**.attn.out.bias": "**.self_attention.linear_proj.bias",
             "**.attn.out.weight": "**.self_attention.linear_proj.weight",
-            "**.attn.sinks": "**.self_attention.core_attention.scale_mask_softmax.softmax_denominator_weight",
+            "**.attn.sinks": "**.self_attention.core_attention.softmax_offset",
             "**.mlp.norm.scale": "**.pre_mlp_layernorm.weight",
             "**.mlp.gate.bias": "**.mlp.router.bias",
             "**.mlp.gate.weight": "**.mlp.router.weight",

@@ -95,7 +95,7 @@ def _set_gpt_mamba_modelopt_spec(
         model_cfg.transformer_layer_spec = partial(
             get_gpt_modelopt_spec,
             remap_te_layernorm=True,
-            local_core_attention=model_cfg.attention_softmax_denominator_offset is not None
+            local_core_attention=model_cfg.softmax_offset != "vanilla"
         )
     elif isinstance(model_cfg, llm.SSMConfig):
         model_cfg.mamba_stack_spec = partial(get_mamba_stack_modelopt_spec, remap_te_layernorm=True)
