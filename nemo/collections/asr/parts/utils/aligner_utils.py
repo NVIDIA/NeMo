@@ -34,6 +34,8 @@ SPACE_TOKEN = "<space>"
 class Token:
     text: str = None
     text_cased: str = None
+    token_id: int = None
+    token: str = None
     s_start: int = None
     s_end: int = None
     t_start: float = None
@@ -111,6 +113,9 @@ def restore_token_case(word: str, word_tokens: List[str]) -> List[str]:
     while "__" in word:
         word = word.replace("__", "_")
 
+    while " " in word:
+        word = word.replace(" ", "")
+
     word_tokens_cased = []
     word_char_pointer = 0
 
@@ -163,11 +168,13 @@ def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     return utt_id
 
 
+
 def get_utt_obj(
     text: str,
     T: int,
     model: ASRModel,
-    separator: Union[str, List[str]] = ['.', '?', '!', '...'],
+    segment_separators: Union[str, List[str]] = ['.', '?', '!', '...'],
+    word_separator: Optional[str] = " ",
     audio_filepath: Optional[str] = None,
     utt_id: Optional[str] = None,
 ):
@@ -207,10 +214,10 @@ def get_utt_obj(
         utt_id=utt_id,
     )
 
-    if not separator:  # if separator is not defined - treat the whole text as one segment
+    if not segment_separators:  # if separator is not defined - treat the whole text as one segment
         segments = [text.strip()]
     else:
-        separator = [separator] if isinstance(separator, str) else separator
+        segment_separators = [segment_separators] if isinstance(segment_separators, str) else segment_separators
         segments = []
         last_sep_idx = -1
 
@@ -218,7 +225,7 @@ def get_utt_obj(
             # check if the current letter is a separator and the next letter is a space
             # the additional space check is done to avoid splitting the words like "a.m." into segments
             next_letter = text[i + 1] if i + 1 < len(text) else ""
-            if letter in separator and next_letter == " ":
+            if letter in segment_separators and next_letter == " ":
                 segments.append(text[last_sep_idx + 1 : i + 1].strip())
                 last_sep_idx = i + 1
 
@@ -263,6 +270,7 @@ def get_utt_obj(
             Token(
                 text=BLANK_TOKEN,
                 text_cased=BLANK_TOKEN,
+                token_id=BLANK_ID,
                 s_start=0,
                 s_end=0,
             )
@@ -295,7 +303,7 @@ def get_utt_obj(
             )
             segment_s_pointer = s_end + 2
 
-            words = segment.split(" ")  # we define words to be space-separated sub-strings
+            words = segment.split(word_separator) if word_separator not in [None, ""] else [segment]
 
             for word_i, word in enumerate(words):
 
@@ -326,6 +334,7 @@ def get_utt_obj(
                         Token(
                             text=token,
                             text_cased=token_cased,
+                            token_id=token_id,
                             # utt.token_ids_with_blanks has the form [...., <this non-blank token>, <blank>] =>
                             # => if do len(utt.token_ids_with_blanks) - 1 you get the index of the final <blank>
                             # => we want to do len(utt.token_ids_with_blanks) - 2 to get the index of <this non-blank token>
@@ -342,6 +351,7 @@ def get_utt_obj(
                             Token(
                                 text=BLANK_TOKEN,
                                 text_cased=BLANK_TOKEN,
+                                token_id=BLANK_ID,
                                 # utt.token_ids_with_blanks has the form [...., <this blank token>] =>
                                 # => if do len(utt.token_ids_with_blanks) -1 you get the index of this <blank>
                                 s_start=len(utt.token_ids_with_blanks) - 1,
@@ -357,6 +367,7 @@ def get_utt_obj(
                         Token(
                             text=BLANK_TOKEN,
                             text_cased=BLANK_TOKEN,
+                            token_id=BLANK_ID,
                             # utt.token_ids_with_blanks has the form [...., <this blank token>] =>
                             # => if do len(utt.token_ids_with_blanks) -1 you get the index of this <blank>
                             s_start=len(utt.token_ids_with_blanks) - 1,
@@ -370,6 +381,7 @@ def get_utt_obj(
                 Token(
                     text=BLANK_TOKEN,
                     text_cased=BLANK_TOKEN,
+                    token_id=BLANK_ID,
                     # utt.token_ids_with_blanks has the form [...., <this blank token>] =>
                     # => if do len(utt.token_ids_with_blanks) -1 you get the index of this <blank>
                     s_start=len(utt.token_ids_with_blanks) - 1,
@@ -410,6 +422,7 @@ def get_utt_obj(
             Token(
                 text=BLANK_TOKEN,
                 text_cased=BLANK_TOKEN,
+                token_id=BLANK_ID,
                 s_start=0,
                 s_end=0,
             )
@@ -467,6 +480,7 @@ def get_utt_obj(
                         Token(
                             text=token,
                             text_cased=token,
+                            token_id=token_id,
                             # utt.token_ids_with_blanks has the form [..., <this non-blank token>]
                             # => do len(utt.token_ids_with_blanks) - 1 to get the index of this non-blank token
                             s_start=len(utt.token_ids_with_blanks) - 1,
@@ -481,6 +495,7 @@ def get_utt_obj(
                             Token(
                                 text=BLANK_TOKEN,
                                 text_cased=BLANK_TOKEN,
+                                token_id=BLANK_ID,
                                 # utt.token_ids_with_blanks has the form [..., <this blank token>]
                                 # => do len(utt.token_ids_with_blanks) - 1 to get the index of this blank token
                                 s_start=len(utt.token_ids_with_blanks) - 1,
@@ -496,6 +511,7 @@ def get_utt_obj(
                         Token(
                             text=BLANK_TOKEN,
                             text_cased=BLANK_TOKEN,
+                            token_id=BLANK_ID,
                             # utt.token_ids_with_blanks has the form
                             # [..., <final token of previous word>, <blank token>, <space token>, <blank token>]
                             # => do len(utt.token_ids_with_blanks) - 3 to get the index of the blank token before the space token
@@ -508,6 +524,7 @@ def get_utt_obj(
                         Token(
                             text=SPACE_TOKEN,
                             text_cased=SPACE_TOKEN,
+                            token_id=SPACE_ID,
                             # utt.token_ids_with_blanks has the form
                             # [..., <final token of previous word>, <blank token>, <space token>, <blank token>]
                             # => do len(utt.token_ids_with_blanks) - 2 to get the index of the space token
@@ -520,6 +537,7 @@ def get_utt_obj(
                         Token(
                             text=BLANK_TOKEN,
                             text_cased=BLANK_TOKEN,
+                            token_id=BLANK_ID,
                             # utt.token_ids_with_blanks has the form
                             # [..., <final token of previous word>, <blank token>, <space token>, <blank token>]
                             # => do len(utt.token_ids_with_blanks) - 1 to get the index of the blank token after the space token
@@ -535,6 +553,7 @@ def get_utt_obj(
                 Token(
                     text=BLANK_TOKEN,
                     text_cased=BLANK_TOKEN,
+                    token_id=BLANK_ID,
                     # utt.token_ids_with_blanks has the form [..., <this blank token>]
                     # => do len(utt.token_ids_with_blanks) - 1 to get the index of this blank token
                     s_start=len(utt.token_ids_with_blanks) - 1,
@@ -549,6 +568,7 @@ def get_utt_obj(
                     Token(
                         text=SPACE_TOKEN,
                         text_cased=SPACE_TOKEN,
+                        token_id=SPACE_ID,
                         # utt.token_ids_with_blanks has the form
                         # [..., <space token>, <blank token>]
                         # => do len(utt.token_ids_with_blanks) - 2 to get the index of the space token
@@ -561,6 +581,7 @@ def get_utt_obj(
                     Token(
                         text=BLANK_TOKEN,
                         text_cased=BLANK_TOKEN,
+                        token_id=BLANK_ID,
                         # utt.token_ids_with_blanks has the form
                         # [..., <space token>, <blank token>]
                         # => do len(utt.token_ids_with_blanks) - 1 to get the index of the blank token
@@ -828,7 +849,8 @@ def viterbi_decoding(
 def get_batch_variables(
     audio: Union[str, List[str], np.ndarray, DataLoader],
     model: ASRModel,
-    separator: Union[str, List[str]] = ['.', '?', '!', '...'],
+    segment_separators: Union[str, List[str]] = ['.', '?', '!', '...'],
+    word_separator: Optional[str] = " ",
     align_using_pred_text: bool = False,
     audio_filepath_parts_in_utt_id: int = 1,
     gt_text_batch: Union[List[str], str] = None,
@@ -950,7 +972,8 @@ def get_batch_variables(
         utt_obj = get_utt_obj(
             text=gt_text_for_alignment,
             model=model,
-            separator=separator,
+            segment_separators=segment_separators,
+            word_separator=word_separator,
             T=T_list_batch[idx],
             audio_filepath=sample if isinstance(sample, str) else f"audio_{idx}",
             utt_id=_get_utt_id(sample if isinstance(sample, str) else f"audio_{idx}", audio_filepath_parts_in_utt_id),
