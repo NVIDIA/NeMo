@@ -15,7 +15,6 @@
 from typing import Any, Dict, List
 
 import torch
-from megatron.core import tensor_parallel
 from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
     AbstractModelInferenceWrapper,
 )
