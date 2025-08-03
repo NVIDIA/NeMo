@@ -498,6 +498,9 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
 
     # 2. Optional augmentations.
+    if config.get("random_padding", None) is not None:
+        cuts = cuts.map(partial(lhotse_asr_eou_cut_random_pad_transform, config))
+
     # 2.a. Noise mixing.
     if config.noise_path is not None:
         noise = guess_parse_cutset(config.noise_path)
@@ -548,9 +551,6 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     if tokenizer is not None and config.pretokenize:
         cuts = cuts.filter(TokenPerSecondFilter(config.min_tps, config.max_tps))
         cuts = cuts.filter(TokenPerTokenFilter(config.min_tpt, config.max_tpt))
-
-    if config.get("random_padding", None) is not None:
-        cuts = cuts.map(partial(lhotse_asr_eou_cut_random_pad_transform, config))
 
     # Select the strategy customizing Lhotse sampler behaviour.
     # Provides support for dynamic batch sizes, multimodal dataloading, 2D bucketing, etc.
