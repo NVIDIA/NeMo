@@ -998,30 +998,40 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         cumulative_offset = 0
         j_token = 0
+        # Track time adjustments for filtered tokens within this chunk
+        time_adjustment_frames = 0
         for i, h in enumerate(hypotheses):
+            
             cumulative_offset += chunk_offsets[i]  # self.chunk_offsets starts with 0,
 
             # update frame numbers
             offset = cumulative_offset // self.encoder.subsampling_factor
-
             # Update each char timestamp, adjusting offsets unless they are -1
             updated_timestamps = []
             for char in h.timestamp['char']:
                 if not char:
                     continue
+                
                 # If merged_tokens is provided, filter based on token matching
                 if merged_tokens is not None:
                     # Skip if we've processed all merged tokens or token doesn't match
                     if j_token >= len(merged_tokens) or char['token_id'] != merged_tokens[j_token]:
+                        # Calculate the duration of this filtered token and add to adjustment
+                        if char['start_offset'] != -1 and char['end_offset'] != -1:
+                            token_duration_frames = char['end_offset'] - char['start_offset']
+                            time_adjustment_frames += token_duration_frames
                         continue
+                
                 start = char['start_offset']
                 end = char['end_offset']
 
                 updated_char = dict(char)  # copy all existing keys
+                
+                # Apply both the chunk offset and the time adjustment from filtered tokens
                 if start != -1:
-                    updated_char['start_offset'] = start + offset
+                    updated_char['start_offset'] = start + offset - time_adjustment_frames
                 if end != -1:
-                    updated_char['end_offset'] = end + offset
+                    updated_char['end_offset'] = end + offset - time_adjustment_frames
 
                 updated_timestamps.append(updated_char)
                 j_token += 1
@@ -1032,7 +1042,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     **char,
                     'start': (
                         -1
-                        if char['start'] == -1
+                        if char['start_offset'] == -1
                         else char['start_offset']
                         * self.cfg['preprocessor']['window_stride']
                         * self.encoder.subsampling_factor
