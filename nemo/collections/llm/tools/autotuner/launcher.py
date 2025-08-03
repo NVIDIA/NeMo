@@ -84,9 +84,9 @@ def setup_nemo_environment():
     # Install NeMo directly from GitHub
     print("Installing NeMo from GitHub...")
     subprocess.run([
-        sys.executable, "-m", "pip", "install", "--no-cache-dir",
+        sys.executable, "-m", "pip", "install", "--no-cache-dir", "-v",
         "git+https://github.com/prekshivyas/NeMo.git"
-    ], check=True)
+    ], check=True, capture_output=False)
 
 if __name__ == "__main__":
     setup_nemo_environment()
