@@ -80,6 +80,8 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
         use_sharp=False,  # Enable SHARP for collective communication
         recompute_layers=0,  # No recompute for base config
         activation_offload_layers=0,  # No offload for base config
+        use_fsdp_double_buffer=False,  # Disabled for compatibility with NeMo
+        keep_fsdp_fp8_transpose_cache=False,  # Disabled for compatibility with NeMo
         compute_dtype=compute_dtype,
         fp8_recipe=None,  # Use default FP8 recipe
         recompute_modules=None,  # No selective recompute

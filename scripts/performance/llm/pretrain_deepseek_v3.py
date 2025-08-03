@@ -19,13 +19,15 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.deepseek_v3 import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
+from nemo.lightning.pytorch.callbacks.megatron_enable_experimental_callback import MegatronEnableExperimentalCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import hf_tokenizer
+from ..utils import dump_config_diff_from_base_recipe, hf_tokenizer
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 USE_TOKEN_DROP = True  # Use token drop callback
@@ -47,28 +49,73 @@ def override_recipe_configs(
     recompute_layers: int,
     activation_offload_layers: int,
     recompute_modules: Optional[List[str]] = None,
+    use_user_buffer_registration: Optional[bool] = None,
+    use_sharp: Optional[bool] = None,
 ):
     """
     DeepSeek V3 pre-train recipe aimed at achieving best possible performance.
     """
     recipe = pretrain_recipe(performance_mode=True)
-    recipe.model.config.moe_permute_fusion = True
-    recipe.model.config.recompute_granularity = "selective"
-    recipe.model.config.recompute_num_layers = None
-    recipe.model.config.recompute_method = None
-    recipe.model.config.cross_entropy_fusion_impl = "te"
-    recipe.model.config.moe_router_dtype = 'fp32'
 
-    assert pp_size is None or pp_size == 1 or (64 % pp_size == 0), "pp_size must be 1 or a factor of 64"
-    num_layers_in_middle_pipeline_stages = 64 // pp_size
-
-    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = num_layers_in_middle_pipeline_stages - 1
-    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = num_layers_in_middle_pipeline_stages - 2
+    # reset recompute args in the default recipe
+    if args.recompute_modules is None:
+        recipe.model.config.recompute_granularity = None
+        recipe.model.config.recompute_method = None
+        recipe.model.config.recompute_num_layers = None
+        recipe.model.config.recompute_modules = None
 
     if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
-    if USE_TOKEN_DROP:
-        recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+
+    # Token dispatcher configs. For H100 we use deepEP and for Blackwell,
+    # because deepEP is not supported yet, we use all-to-all dispatcher with
+    # token drop. After deepEP is supported, we can use deepEP dispatcher.
+    if args.gpu.lower() in ['h100']:
+        recipe.model.config.moe_token_dispatcher_type = "flex"
+        recipe.model.config.moe_enable_deepep = True
+        recipe.model.config.moe_shared_expert_overlap = False  # not supported for deepEP
+        # use force load balance for reducing variance in benchmarking
+        recipe.model.config.moe_router_force_load_balancing = True
+    else:
+        recipe.model.config.moe_token_dispatcher_type = "alltoall"
+        recipe.model.config.moe_enable_deepep = False
+        recipe.model.config.moe_shared_expert_overlap = True
+        if USE_TOKEN_DROP:
+            recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
+
+    # Performance optimization knobs
+    recipe.model.config.moe_permute_fusion = True
+    recipe.model.config.apply_rope_fusion = True
+    recipe.trainer.callbacks.append(run.Config(MegatronEnableExperimentalCallback))
+
+    # Pipeline parallelism configs. We infer PP layout from the provided PP and VP size
+    map_pp_vp_to_layout = {
+        (1, 1): None,
+        (4, 1): [['embedding'] + ['decoder'] * 16, ['decoder'] * 16, ['decoder'] * 16, ['decoder'] * 13 + ['loss']],
+        (8, 1): [['embedding'] + ['decoder'] * 8] + [['decoder'] * 8] * 6 + [['decoder'] * 5 + ['loss']],
+        (4, 2): [['embedding'] + ['decoder'] * 8] + [['decoder'] * 8] * 6 + [['decoder'] * 5 + ['loss']],
+        (16, 1): [['embedding'] + ['decoder'] * 4] + [['decoder'] * 4] * 14 + [['decoder', 'loss']],
+        (8, 2): [['embedding'] + ['decoder'] * 4] + [['decoder'] * 4] * 14 + [['decoder', 'loss']],
+        (4, 4): [['embedding'] + ['decoder'] * 4] + [['decoder'] * 4] * 14 + [['decoder', 'loss']],
+    }
+    pp_size = pp_size or 1
+    vp_size = vp_size or 1
+    if (pp_size, vp_size) not in map_pp_vp_to_layout:
+        raise ValueError(
+            f"Invalid PP and VP size: {pp_size} and {vp_size} to infer PP layout "
+            f"for DeepSeek V3. Known PP and VP combinations: {map_pp_vp_to_layout.keys()}"
+        )
+    layout = map_pp_vp_to_layout[(pp_size, vp_size)]
+
+    if layout is not None:
+        layout = list([list(x) for x in layout])  # yield all the elements
+    recipe.trainer.strategy.pipeline_model_parallel_layout = layout
+
+    # The following knobs are not needed if we specify layout
+    recipe.trainer.strategy.account_for_embedding_in_pipeline_split = False
+    recipe.trainer.strategy.account_for_loss_in_pipeline_split = False
+    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = None
+    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = None
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -86,8 +133,9 @@ def override_recipe_configs(
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
-        use_user_buffer_registration=args.use_user_buffer_registration,
-        use_sharp=args.use_sharp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_user_buffer_registration=use_user_buffer_registration,
+        use_sharp=use_sharp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
@@ -114,10 +162,6 @@ def override_recipe_configs(
         )
     recipe.model.tokenizer = recipe.data.tokenizer
 
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
-
     return recipe
 
 
@@ -141,7 +185,10 @@ if __name__ == "__main__":
         recompute_layers,
         activation_offload_layers,
         recompute_modules,
-    ) = kwargs
+        _,  # keep_fsdp_fp8_transpose_cache
+        use_user_buffer_registration,
+        use_sharp,
+    ) = kwargs[:17]
 
     recipe = override_recipe_configs(
         args,
@@ -159,6 +206,8 @@ if __name__ == "__main__":
         recompute_layers,
         activation_offload_layers,
         recompute_modules,
+        use_user_buffer_registration,
+        use_sharp,
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
@@ -178,7 +227,7 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
-        network='sharp' if args.use_sharp else None,
+        network='sharp' if use_sharp else None,
     )
 
     plugins = [
@@ -206,3 +255,14 @@ if __name__ == "__main__":
             exp.run(sequential=True, detach=True)
         else:
             exp.dryrun()
+
+    if args.dump_config_diff_from_base_recipe:
+        output_dir = exp.jobs[0].executor.job_dir
+        # dump difference from base recipe
+        base_recipe = pretrain_recipe(performance_mode=False)
+        file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)
+        # dump difference from default perf recipe
+        default_perf_recipe = pretrain_recipe(performance_mode=True)
+        file_name = f"diff_from_default_perf_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(default_perf_recipe, recipe, output_dir, file_name=file_name)
