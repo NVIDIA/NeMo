@@ -498,8 +498,13 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
 
     # 2. Optional augmentations.
+    import time
+
+    t0 = time.time()
     if config.get("random_padding", None) is not None:
         cuts = cuts.map(partial(lhotse_asr_eou_cut_random_pad_transform, config))
+    t1 = time.time()
+    logging.info(f"Random padding time: {t1 - t0} seconds")
 
     # 2.a. Noise mixing.
     if config.noise_path is not None:
