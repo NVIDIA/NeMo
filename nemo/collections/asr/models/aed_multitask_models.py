@@ -1007,8 +1007,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             # Update each char timestamp, adjusting offsets unless they are -1
             updated_timestamps = []
             for char in h.timestamp['char']:
-                if not char or (merged_tokens is not None and char['token_id'] != merged_tokens[j_token]):
+                if not char:
                     continue
+                # If merged_tokens is provided, filter based on token matching
+                if merged_tokens is not None:
+                    # Skip if we've processed all merged tokens or token doesn't match
+                    if j_token >= len(merged_tokens) or char['token_id'] != merged_tokens[j_token]:
+                        continue
                 start = char['start_offset']
                 end = char['end_offset']
 
@@ -1072,7 +1077,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         segment_offsets = get_segment_offsets(
             word_offsets=word_offsets, segment_delimiter_tokens={'.', '!', '?', "..."}
         )
-
+        import pdb; pdb.set_trace()
         # Update the merged hypothesis with word and segment timestamps
         merged_hypotheses.timestamp['word'] = word_offsets
         merged_hypotheses.timestamp['segment'] = segment_offsets
@@ -1108,16 +1113,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Repear decoder_input_ids to match number of chunks
         if trcfg.do_parallel_chunking and num_chunks > decoder_input_ids.shape[0]:
             decoder_input_ids = decoder_input_ids.repeat(num_chunks, 1)
-
         hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
             encoder_input_mask=enc_mask,
             decoder_input_ids=decoder_input_ids,
             return_hypotheses=trcfg.return_hypotheses,
         )
-        merge_to_be_done = trcfg.do_dynamic_caching and len(hypotheses) > 1
+        merge_to_be_done = trcfg.do_parallel_chunking and len(hypotheses) > 1
 
-        if trcfg.do_dynamic_caching:
+        if trcfg.do_parallel_chunking:
             # importing here to avoid circular import
             from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
 
@@ -1149,6 +1153,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 batch_size=len(batch.audio),
                 external_ctc_model=self.timestamps_asr_model,
                 main_model_predictions=hypotheses,
+                timestamp_type='char' if merge_to_be_done else ['word', 'segment'],
                 viterbi_device=trcfg._internal.device,
             )
         else:
@@ -1160,7 +1165,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 score=0.0,
                 y_sequence=torch.tensor([]),
                 timestamp={
-                    'char': [],
                     'word': [],
                     'segment': [],
                 },

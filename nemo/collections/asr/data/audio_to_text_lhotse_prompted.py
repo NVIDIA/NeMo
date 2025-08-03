@@ -133,7 +133,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         return tokens, token_lens
 
     def _find_optimal_chunk_size(
-        self, total_len: int, min_sec: int = 5, max_sec: int = 10, sample_rate: int = 16000, overlap_sec: float = 1.0
+        self, total_len: int, min_sec: int = 30, max_sec: int = 40, sample_rate: int = 16000, overlap_sec: float = 1.0
     ) -> int:
         """
         Find the optimal chunk size for audio processing that minimizes paddings to the last chunk.
