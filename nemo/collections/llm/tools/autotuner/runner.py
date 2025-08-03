@@ -7,21 +7,24 @@
 #   list_models() -> list NeMo supported models
 #   results(analysis_data: dict) -> None
 
-import os
-import json
 import base64
-import pickle
+import json
 import logging
-from typing import Dict, Any
+import os
+import pickle
+from typing import Any, Dict
 
-from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate as generate_impl, list_models as list_models_impl, list_configs as list_configs_impl
-from nemo.collections.llm.tools.autotuner.core.pretraining import run_pretraining
 from nemo.collections.llm.tools.autotuner.core.display import display_performance_analysis
 from nemo.collections.llm.tools.autotuner.core.performance import results as performance_results
+from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate as generate_impl
+from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import list_configs as list_configs_impl
+from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import list_models as list_models_impl
+from nemo.collections.llm.tools.autotuner.core.pretraining import run_pretraining
 
 logger = logging.getLogger(__name__)
 
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
+
 
 def generate(args: 'AutoTuneArgs') -> dict:
     """
@@ -29,6 +32,7 @@ def generate(args: 'AutoTuneArgs') -> dict:
     """
     result = generate_impl(**args.to_dict())
     return result
+
 
 def run(args: 'AutoTuneArgs') -> dict:
     """
@@ -41,8 +45,9 @@ def run(args: 'AutoTuneArgs') -> dict:
         sequential=args.sequential,
         executor_config=args.get_executor_config(),
         memory_analysis=args.get_memory_analysis(),
-        run_all=args.metadata.get('run_all', False)
+        run_all=args.metadata.get('run_all', False),
     )
+
 
 def list_configs(config_dir: str, model_name: str = None) -> None:
     """
@@ -50,13 +55,23 @@ def list_configs(config_dir: str, model_name: str = None) -> None:
     """
     list_configs_impl(config_dir, model_name)
 
+
 def list_models() -> list:
     """
     Return a list of supported models.
     """
     list_models_impl()
 
-def results(args: 'AutoTuneArgs', logs_path: str, log_prefix: str = '', top_n: int = 5, force_reconstruct: bool = False, cost_per_node_hour: float = 3.0, quiet: bool = False) -> Dict[str, Any]:
+
+def results(
+    args: 'AutoTuneArgs',
+    logs_path: str,
+    log_prefix: str = '',
+    top_n: int = 5,
+    force_reconstruct: bool = False,
+    cost_per_node_hour: float = 3.0,
+    quiet: bool = False,
+) -> Dict[str, Any]:
     """
     Collect, analyze, and display AutoConfigurator results in one step.
     Returns a dict with performance_dict and analysis_data.

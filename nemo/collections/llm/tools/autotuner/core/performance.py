@@ -1,17 +1,31 @@
-import os
-import logging
 import datetime
-from typing import Dict, Any, Optional
-from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
-from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate_recipe_configs
-from nemo.collections.llm.tools.autotuner.core.display import display_performance_analysis
-from nemo.collections.llm.tools.autotuner.core.utils import extract_all_values, _load_args_from_config_dir, update_args_with_performance_results
+import logging
+import os
+from typing import Any, Dict, Optional
+
 from nemo.collections.llm.tools.auto_configurator.core.calculate_performance import get_results
+from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
+from nemo.collections.llm.tools.autotuner.core.display import display_performance_analysis
+from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate_recipe_configs
+from nemo.collections.llm.tools.autotuner.core.utils import (
+    _load_args_from_config_dir,
+    extract_all_values,
+    update_args_with_performance_results,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int = 5, force_reconstruct: bool = False, cost_per_gpu_hour: float = 24.0, quiet: bool = False) -> Dict[str, Any]:
+
+def results(
+    args: AutoTuneArgs,
+    logs_path: str,
+    log_prefix: str = '',
+    top_n: int = 5,
+    force_reconstruct: bool = False,
+    cost_per_gpu_hour: float = 24.0,
+    quiet: bool = False,
+) -> Dict[str, Any]:
     """
     Collect, analyze, and display AutoConfigurator results in one step.
     Returns a dict with performance_dict and analysis_data.
@@ -33,12 +47,14 @@ def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int
 
     logger.info(f"Collecting AutoTune results from: {logs_path}")
     logger.info(f"Loaded configuration for model: {args.model}")
-    logger.info(f"Resources: {args.nodes} nodes × {args.gpus_per_node} GPUs = {args.nodes * args.gpus_per_node} total GPUs")
+    logger.info(
+        f"Resources: {args.nodes} nodes × {args.gpus_per_node} GPUs = {args.nodes * args.gpus_per_node} total GPUs"
+    )
     logger.info(f"Resource shape: {args.resource_shape}")
     logger.info(f"Batch sizes: micro={args.micro_batch_sizes}, global={args.global_batch_sizes}")
     logger.info(f"Sequence length: {args.seq_length}")
     logger.info(f"Training: max_steps={args.max_steps}, val_check_interval={args.val_check_interval}")
-    
+
     performance_dict = get_results(
         base_config=base_config,
         train_config=runner,
@@ -47,7 +63,9 @@ def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int
         log_file_prefix=log_prefix,
     )
 
-    logger.info(f"Results collection completed. Total configs: {metadata.get('num_configs_generated')}, Base config matches: {len(metadata.get('base_config_matches', []))}")
+    logger.info(
+        f"Results collection completed. Total configs: {metadata.get('num_configs_generated')}, Base config matches: {len(metadata.get('base_config_matches', []))}"
+    )
 
     if performance_dict:
         update_args_with_performance_results(args.model, performance_dict, args.config_dir)
@@ -61,11 +79,8 @@ def results(args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int
         analysis_data = calculate_performance_analysis(performance_dict, args, total_tokens, cost_per_gpu_hour)
         display_performance_analysis(analysis_data)
 
-    return {
-        'performance_dict': performance_dict,
-        'analysis_data': analysis_data,
-        'metadata': metadata
-    }
+    return {'performance_dict': performance_dict, 'analysis_data': analysis_data, 'metadata': metadata}
+
 
 def calculate_performance_analysis(performance_dict, args, total_tokens, cost_per_gpu_hour):
     """
@@ -96,15 +111,9 @@ def calculate_performance_analysis(performance_dict, args, total_tokens, cost_pe
             'total_training_time_hours': total_training_time_hours,
             'total_training_time_days': total_training_time_hours / 24,
             'total_cost': total_cost,
-            'cost_per_tflop': total_cost / (m_tflops_gpu * total_gpus) if m_tflops_gpu > 0 else float('inf')
+            'cost_per_tflop': total_cost / (m_tflops_gpu * total_gpus) if m_tflops_gpu > 0 else float('inf'),
         }
     sorted_configs = sorted(
-        config_analysis.items(),
-        key=lambda x: x[1].get('total_training_time_hours', float('inf')),
-        reverse=False
+        config_analysis.items(), key=lambda x: x[1].get('total_training_time_hours', float('inf')), reverse=False
     )
-    return {
-        'config_analysis': config_analysis,
-        'sorted_configs': sorted_configs,
-        'args': args
-    }
+    return {'config_analysis': config_analysis, 'sorted_configs': sorted_configs, 'args': args}

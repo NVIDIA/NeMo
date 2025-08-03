@@ -1,11 +1,14 @@
 import os
-from rich.table import Table
+from typing import Any, Dict, Optional
+
 from rich.console import Console
-from typing import Dict, Any, Optional
-from nemo.collections.llm.tools.autotuner.core.utils import extract_all_values
+from rich.table import Table
+
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
+from nemo.collections.llm.tools.autotuner.core.utils import extract_all_values
 
 console = Console()
+
 
 def _display_memory_analysis(memory_analysis):
     if not memory_analysis:
@@ -33,17 +36,12 @@ def _display_memory_analysis(memory_analysis):
             memory_status = "[green]Safe[/green]"
             run_status = "[green]▶ Run[/green]"
             safe_count += 1
-        if config_name != "base_config" and all(v in [1, 512, 8192] for v in [
-            config_values.get('tp', 1), config_values.get('mbs', 1), config_values.get('gbs', 512)
-        ]):
+        if config_name != "base_config" and all(
+            v in [1, 512, 8192]
+            for v in [config_values.get('tp', 1), config_values.get('mbs', 1), config_values.get('gbs', 512)]
+        ):
             config_values = extract_all_values(config_name)
-        table.add_row(
-            config_name,
-            memory_status,
-            run_status,
-            f"{usage_gb:.1f}",
-            f"{total_gb:.0f}"
-        )
+        table.add_row(config_name, memory_status, run_status, f"{usage_gb:.1f}", f"{total_gb:.0f}")
     console.print(table)
     console.print(f"\n[cyan]Memory Analysis Summary:[/cyan]")
     console.print(f"Safe configurations (will run): {safe_count}")
@@ -53,6 +51,7 @@ def _display_memory_analysis(memory_analysis):
         console.print("[yellow]These configurations may cause CUDA OOM errors[/yellow]")
         console.print("[blue]To run them anyway: use run_all=True[/blue]")
         console.print("[blue] To fix: reduce micro batch sizes or increase parallelism[/blue]")
+
 
 def _display_configs_table(config_dir, model_name=None):
     try:
@@ -131,7 +130,9 @@ def _display_configs_table(config_dir, model_name=None):
             oom_configs = [name for name, analysis in memory_analysis.items() if analysis.get("will_oom", False)]
             if oom_configs:
                 console.print(f"\n[yellow]Run Behavior Notes:[/yellow]")
-                console.print(f"  • By default, autotune run will SKIP the {len(oom_configs)} flagged configuration(s)")
+                console.print(
+                    f"  • By default, autotune run will SKIP the {len(oom_configs)} flagged configuration(s)"
+                )
                 console.print(f"  • Use run_all=True to run ALL configurations including potential OOM ones")
         if args and hasattr(args, 'has_performance_results') and args.has_performance_results():
             results_timestamp = metadata.get('results_timestamp', 'Unknown')
@@ -149,6 +150,7 @@ def _display_configs_table(config_dir, model_name=None):
     else:
         console.print(f"Configuration files: {len(json_files)}")
         console.print("[yellow]No metadata available. Re-run generate() for detailed status.[/yellow]")
+
 
 def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> None:
     if not analysis_data or not analysis_data.get('sorted_configs'):
@@ -183,8 +185,13 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         console.print(f"  Time per Global Step: {base_config.get('time_per_global_step', 'N/A'):.4f}s")
         console.print(f"  Total Training Time: {base_config.get('total_training_time_days', 'N/A'):.1f} days")
         console.print(f"  Total Training Cost: ${base_config.get('total_cost', 'N/A'):,.2f}")
-        tflops_improvement = ((best_config.get('m_tflops_gpu', 0) - base_config.get('m_tflops_gpu', 0)) / base_config.get('m_tflops_gpu', 1)) * 100
-        time_savings = base_config.get('total_training_time_hours', 0) - best_config.get('total_training_time_hours', 0)
+        tflops_improvement = (
+            (best_config.get('m_tflops_gpu', 0) - base_config.get('m_tflops_gpu', 0))
+            / base_config.get('m_tflops_gpu', 1)
+        ) * 100
+        time_savings = base_config.get('total_training_time_hours', 0) - best_config.get(
+            'total_training_time_hours', 0
+        )
         cost_savings = base_config.get('total_cost', 0) - best_config.get('total_cost', 0)
         cost_savings_percent = (cost_savings / base_config.get('total_cost', 1)) * 100
         console.print(f"\n[yellow]Best vs Base Performance & Cost Savings:[/yellow]")
@@ -203,7 +210,10 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         console.print(f"  Total Training Cost: ${worst_config.get('total_cost', 'N/A'):,.2f}")
         time_diff = worst_config.get('total_training_time_hours', 0) - best_config.get('total_training_time_hours', 0)
         cost_diff = worst_config.get('total_cost', 0) - best_config.get('total_cost', 0)
-        tflops_diff = ((best_config.get('m_tflops_gpu', 0) - worst_config.get('m_tflops_gpu', 0)) / worst_config.get('m_tflops_gpu', 1)) * 100
+        tflops_diff = (
+            (best_config.get('m_tflops_gpu', 0) - worst_config.get('m_tflops_gpu', 0))
+            / worst_config.get('m_tflops_gpu', 1)
+        ) * 100
         console.print(f"\n[yellow] Best vs Worst Performance & Cost Difference:[/yellow]")
         console.print(f"  M-TFLOPs/GPU difference: {tflops_diff:+.1f}%")
         console.print(f"  Training time difference: {time_diff:.1f} hours ({time_diff/24:.1f} days)")
@@ -229,7 +239,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
             f"{config_data.get('m_tflops_gpu', 0):.2f}",
             f"{config_data.get('total_training_time_days', 0):.1f}",
             f"${config_data.get('total_cost', 0):,.0f}",
-            status
+            status,
         )
     console.print(table)
     console.print(f"\n[cyan] Cost Efficiency Analysis[/cyan]")

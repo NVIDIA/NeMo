@@ -5,19 +5,20 @@ This module contains the AutoTuneArgs class that handles all configuration
 parameters and serialization/deserialization for the AutoTuner system.
 """
 
-import os
-import json
 import base64
-import pickle
+import json
 import logging
-from typing import Dict, Any
+import os
+import pickle
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 class AutoTuneArgs:
     """Class to hold all AutoTune arguments and handle serialization."""
-    
+
     def __init__(self, **kwargs):
         self.model = kwargs.get('model')
         self.nodes = kwargs.get('nodes')
@@ -69,15 +70,11 @@ class AutoTuneArgs:
                 '_type': 'pickled_object',
                 '_class': obj.__class__.__name__,
                 '_module': obj.__class__.__module__,
-                '_data': encoded_data
+                '_data': encoded_data,
             }
         except Exception as e:
             logger.warning(f"Could not serialize object {type(obj).__name__}: {e}")
-            return {
-                '_type': 'serialization_failed',
-                '_class': obj.__class__.__name__,
-                '_error': str(e)
-            }
+            return {'_type': 'serialization_failed', '_class': obj.__class__.__name__, '_error': str(e)}
 
     def _deserialize_object(self, obj_dict):
         """Deserialize a base64-encoded pickle string back to Python object."""
@@ -95,7 +92,7 @@ class AutoTuneArgs:
                 '_type': 'deserialization_failed',
                 '_class': obj_dict.get('_class', 'unknown'),
                 '_error': str(e),
-                '_original': obj_dict
+                '_original': obj_dict,
             }
 
     def _process_metadata_for_serialization(self, metadata):
@@ -114,7 +111,7 @@ class AutoTuneArgs:
     def _process_metadata_for_deserialization(self, metadata):
         """Process metadata to deserialize complex objects."""
         processed = {}
-        
+
         for key, value in metadata.items():
             if isinstance(value, dict) and value.get('_type') == 'pickled_object':
                 # Deserialize complex objects
@@ -125,13 +122,17 @@ class AutoTuneArgs:
             elif isinstance(value, list):
                 # Process lists that might contain serialized objects
                 processed[key] = [
-                    self._deserialize_object(item) if isinstance(item, dict) and item.get('_type') == 'pickled_object'
-                    else item for item in value
+                    (
+                        self._deserialize_object(item)
+                        if isinstance(item, dict) and item.get('_type') == 'pickled_object'
+                        else item
+                    )
+                    for item in value
                 ]
             else:
                 # Keep simple types as-is
                 processed[key] = value
-                
+
         return processed
 
     def to_dict(self):
@@ -179,7 +180,7 @@ class AutoTuneArgs:
     def get_full_logs_path(self):
         """Get the full logs path by combining mount_path and logs_subdir."""
         return os.path.join(self.mount_path, self.logs_subdir, self.model)
-        
+
     @classmethod
     def from_dict(cls, data):
         """Create from dictionary loaded from JSON."""
@@ -200,21 +201,21 @@ class AutoTuneArgs:
         with open(filepath, 'r') as f:
             data = json.load(f)
         instance = cls.from_dict(data)
-        
+
         # infer config_dir from filepath if not set
         if not instance.config_dir:
             # filepath should be: /path/to/config_dir/model/args.json
             # So config_dir should be: /path/to/config_dir
             config_dir = os.path.dirname(os.path.dirname(filepath))
             instance.config_dir = config_dir
-            
+
         return instance
 
     def update_metadata(self, result):
         """Update metadata with generation results."""
         if not hasattr(self, 'metadata') or self.metadata is None:
             self.metadata = {}
-        
+
         # Update with all result data (serialization will handle complex objects)
         self.metadata.update(result)
 
@@ -290,4 +291,4 @@ class AutoTuneArgs:
             "wandb_api_key": self.wandb_api_key,
             "torch_home": self.torch_home,
             "pythonpath": self.pythonpath,
-        } 
+        }

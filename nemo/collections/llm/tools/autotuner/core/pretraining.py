@@ -1,19 +1,20 @@
-import os
 import json
 import logging
-from typing import Dict, Any, List, Optional
-from nemo.lightning.run.plugins import PerfEnvPlugin
-from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
-from nemo.collections.llm.tools.autotuner.core.utils import validate_all_configs, _load_args_from_config_dir
+import os
+from typing import Any, Dict, List, Optional
 
 import nemo_run as run
+
+from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
+from nemo.collections.llm.tools.autotuner.core.utils import _load_args_from_config_dir, validate_all_configs
+from nemo.lightning.run.plugins import PerfEnvPlugin
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
 def lepton_executor(
-    nodes: int, 
+    nodes: int,
     devices: int,
     resource_shape: str = "gpu.8xh200",
     container_image: str = "nvcr.io/nvidia/nemo:25.02",
@@ -24,21 +25,17 @@ def lepton_executor(
     hf_token: Optional[str] = None,
     wandb_api_key: Optional[str] = None,
     torch_home: str = "/nemo-workspace/.cache",
-    pythonpath: str = "/nemo-workspace/nemo-run:$PYTHONPATH"
+    pythonpath: str = "/nemo-workspace/nemo-run:$PYTHONPATH",
 ) -> run.LeptonExecutor:
     """Create a Lepton executor for training with dynamic configuration.
-    
+
     Includes performance optimization environment variables for:
     - NCCL communication buffer optimization
     - Flash Attention and cuDNN fused attention
     - Memory usage logging
     - Tokenizer parallelism control
     """
-    mounts = [{
-        "path": "/",
-        "mount_path": mount_path,
-        "from": mount_from
-    }]
+    mounts = [{"path": "/", "mount_path": mount_path, "from": mount_from}]
     env_vars = {
         "PYTHONPATH": pythonpath,
         "TORCH_HOME": torch_home,
@@ -69,18 +66,19 @@ def lepton_executor(
         launcher="torchrun",
     )
 
+
 def run_pretraining(
-    base_config, 
-    configs: Dict, 
-    base_config_matches: List[str] = None, 
+    base_config,
+    configs: Dict,
+    base_config_matches: List[str] = None,
     sequential: bool = False,
     executor_config: Dict[str, Any] = None,
     memory_analysis: Dict[str, Dict[str, Any]] = None,
-    run_all: bool = False
+    run_all: bool = False,
 ):
     """Run pretraining only without results collection."""
     logger.info("Starting AutoTune pretraining...")
-    
+
     if base_config_matches is None:
         base_config_matches = []
     if executor_config is None:
@@ -125,31 +123,37 @@ def run_pretraining(
             'configs_run': 0,
             'configs_skipped': skipped_count,
             'skipped_configs': skipped_configs,
-            'status': 'no_configs_to_run'
+            'status': 'no_configs_to_run',
         }
 
     logger.info("Executor Settings...")
     logger.info(executor_config)
 
     executor = lepton_executor(
-        nodes=base_config.trainer.num_nodes,
-        devices=base_config.trainer.devices,
-        **executor_config
+        nodes=base_config.trainer.num_nodes, devices=base_config.trainer.devices, **executor_config
     )
 
     logger.info("Running filtered configurations...")
 
     with run.Experiment("pretrain-magic") as exp:
         if not base_config_matches and base_config_will_run:
-            plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if base_config.trainer.strategy.pipeline_model_parallel_size > 1 else None)]
+            plugins = [
+                PerfEnvPlugin(
+                    enable_vboost=True,
+                    nccl_pp_comm_chunksize=(
+                        2097152 if base_config.trainer.strategy.pipeline_model_parallel_size > 1 else None
+                    ),
+                )
+            ]
             exp.add(base_config, executor=executor, name="base-config", plugins=plugins)
             logger.info("Added base_config to experiment")
         elif not base_config_matches and not base_config_will_run:
             logger.info("Skipped base_config due to potential CUDA OOM")
         else:
             logger.info(f"Skipping base_config as it matches: {', '.join(base_config_matches)}")
-        
+
         idx = 2
+
         def extract_config_number(config_name):
             """Extract numerical part from config name for sorting."""
             try:
@@ -161,10 +165,17 @@ def run_pretraining(
                     return float('inf')  # unknown configs go last
             except (ValueError, IndexError):
                 return float('inf')  # invalid configs go last
-        
+
         sorted_configs = sorted(configs_to_run.items(), key=lambda x: extract_config_number(x[0]))
         for config_name, recipe in sorted_configs:
-            plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if recipe.trainer.strategy.pipeline_model_parallel_size > 1 else None)]
+            plugins = [
+                PerfEnvPlugin(
+                    enable_vboost=True,
+                    nccl_pp_comm_chunksize=(
+                        2097152 if recipe.trainer.strategy.pipeline_model_parallel_size > 1 else None
+                    ),
+                )
+            ]
             if config_name in base_config_matches:
                 exp.add(recipe, executor=executor, name=f'base-config', plugins=plugins)
                 logger.info(f"Added {config_name} as base_config_equivalent (matches base config)")
@@ -177,7 +188,9 @@ def run_pretraining(
 
     logger.info("AutoTune pretraining completed successfully!")
     if base_config_matches:
-        logger.info(f"Note: Base config was not run separately as it matches {len(base_config_matches)} generated config(s)")
+        logger.info(
+            f"Note: Base config was not run separately as it matches {len(base_config_matches)} generated config(s)"
+        )
     if skipped_count > 0:
         logger.info(f"Note: {skipped_count} configuration(s) were skipped due to potential CUDA OOM")
 
@@ -186,5 +199,5 @@ def run_pretraining(
         'configs_run': configs_to_run_count,
         'configs_skipped': skipped_count,
         'skipped_configs': skipped_configs,
-        'status': 'completed'
+        'status': 'completed',
     }

@@ -14,10 +14,13 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
-from nemo.collections.llm.tools.auto_configurator.core.performance_utils import configure_tp_comm_overlap_intelligently, apply_per_config_tp_comm_overlap_optimization
+from nemo.collections.llm.tools.auto_configurator.core.performance_utils import (
+    apply_per_config_tp_comm_overlap_optimization,
+    configure_tp_comm_overlap_intelligently,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -35,11 +38,7 @@ GPT_BASED_MODELS = [
 ]
 
 
-def generate_grid_search_configs(
-    base_cfg: dict,
-    train_cfg: dict,
-    resource_shape: str
-) -> Tuple[dict, dict]:
+def generate_grid_search_configs(base_cfg: dict, train_cfg: dict, resource_shape: str) -> Tuple[dict, dict]:
     """Generates the grid of all possible configurations for the given model,
         and stores each different configuration in a yaml file.
 
@@ -74,7 +73,6 @@ def generate_grid_search_configs(
         train_cfg=train_cfg,
     )
 
-
     max_steps = train_cfg.max_steps_per_run
     num_nodes = train_cfg.num_nodes
     valid_tp_pp_list = []
@@ -99,7 +97,6 @@ def generate_grid_search_configs(
                         and params.min_model_parallel <= model_parallelism <= params.max_model_parallel
                     ):
                         valid_tp_pp_list.append((tp, pp, cp, ep))
-    
 
     # Generate grid search configs.
     configs = {}
@@ -107,7 +104,7 @@ def generate_grid_search_configs(
     for tp, pp, cp, ep in valid_tp_pp_list:
         logger.debug(f"Processing TP={tp}, PP={pp}, CP={cp}, EP={ep}")
         valid_virtual_pipelines = []
-        
+
         if virtual_pipeline_parallel_sizes is not None:
             for vp_size in virtual_pipeline_parallel_sizes:
                 if num_layers % (pp * vp_size) == 0:
@@ -129,7 +126,9 @@ def generate_grid_search_configs(
                 model_size_in_b,
                 model_name,
             )
-            valid_virtual_pipelines = [calculated_virtual_pipelines] if calculated_virtual_pipelines is not None else [None]
+            valid_virtual_pipelines = (
+                [calculated_virtual_pipelines] if calculated_virtual_pipelines is not None else [None]
+            )
         else:
             (
                 _,
