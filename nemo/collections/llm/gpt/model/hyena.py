@@ -469,6 +469,7 @@ class Hyena40bConfig(HyenaConfig):
     hyena_init_method: str = 'small_init'
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
+    rotary_base: int = 1000000
 
 
 @dataclass
