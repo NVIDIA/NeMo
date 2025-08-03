@@ -212,7 +212,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     console.print(f"\n[cyan] Top 5 Configurations - Performance & Cost Analysis[/cyan]")
     table = Table(show_header=True, show_lines=True, title="Performance & Cost Ranking")
     table.add_column("Rank", style="yellow", width=6)
-    table.add_column("Configuration", style="cyan", width=70)
+    table.add_column("Configuration", style="cyan", width=120)
     table.add_column("M-TFLOPs/GPU", style="green", width=12)
     table.add_column("Training Days", style="blue", width=12)
     table.add_column("Total Cost", style="red", width=12)
