@@ -999,26 +999,24 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         merged_tokens=None,
     ):
         char_timestamps = []
-        cumulative_offset = 0          # raw (pre-subsampling) frames already emitted
-        overall_removed_offset = 0     # subsampled frames trimmed so far
-        j_token = 0                    # cursor in merged_tokens
+        cumulative_offset = 0  # raw (pre-subsampling) frames already emitted
+        overall_removed_offset = 0  # subsampled frames trimmed so far
+        j_token = 0  # cursor in merged_tokens
 
         subsamp = self.encoder.subsampling_factor
-        stride  = self.cfg['preprocessor']['window_stride']  # sec per raw frame
+        stride = self.cfg['preprocessor']['window_stride']  # sec per raw frame
 
         for i, h in enumerate(hypotheses):
-            cumulative_offset += chunk_offsets[i]            # raw frames
+            cumulative_offset += chunk_offsets[i]  # raw frames
             chunk_frame_offset = cumulative_offset // subsamp
 
             # 1) figure out how much of the *front* of this chunk we will drop
             removed_in_chunk = 0
             for char in h.timestamp['char']:
-                keep = (
-                    merged_tokens is None
-                    or (j_token < len(merged_tokens)
-                        and char and char['token_id'] == merged_tokens[j_token])
+                keep = merged_tokens is None or (
+                    j_token < len(merged_tokens) and char and char['token_id'] == merged_tokens[j_token]
                 )
-                if keep:                            
+                if keep:
                     break
                 if char and char['end_offset'] != -1:
                     removed_in_chunk = char['end_offset'] + 1
@@ -1026,43 +1024,30 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             for char in h.timestamp['char']:
                 if not char:
                     continue
-                keep = (
-                    merged_tokens is None
-                    or (j_token < len(merged_tokens)
-                        and char['token_id'] == merged_tokens[j_token])
+                keep = merged_tokens is None or (
+                    j_token < len(merged_tokens) and char['token_id'] == merged_tokens[j_token]
                 )
                 if not keep:
                     continue
 
                 # adjust offsets: chunk start + global chunk shift − total removed
                 start_off = char['start_offset']
-                end_off   = char['end_offset']
+                end_off = char['end_offset']
 
                 upd = dict(char)
                 if start_off != -1:
                     upd['start_offset'] = (
                         start_off
-                        + chunk_frame_offset         # place chunk globally
-                        - overall_removed_offset     # past trims
-                        - removed_in_chunk           # trims in this chunk
+                        + chunk_frame_offset  # place chunk globally
+                        - overall_removed_offset  # past trims
+                        - removed_in_chunk  # trims in this chunk
                     )
                 if end_off != -1:
-                    upd['end_offset'] = (
-                        end_off
-                        + chunk_frame_offset
-                        - overall_removed_offset
-                        - removed_in_chunk
-                    )
+                    upd['end_offset'] = end_off + chunk_frame_offset - overall_removed_offset - removed_in_chunk
 
                 # convert to seconds
-                upd['start'] = (
-                    -1 if upd['start_offset'] == -1
-                    else upd['start_offset'] * stride * subsamp
-                )
-                upd['end'] = (
-                    -1 if upd['end_offset'] == -1
-                    else upd['end_offset'] * stride * subsamp
-                )
+                upd['start'] = -1 if upd['start_offset'] == -1 else upd['start_offset'] * stride * subsamp
+                upd['end'] = -1 if upd['end_offset'] == -1 else upd['end_offset'] * stride * subsamp
 
                 char_timestamps.append(upd)
                 j_token += 1
@@ -1071,7 +1056,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             overall_removed_offset += removed_in_chunk
 
         return char_timestamps
-
 
     def _join_timestamp_and_add_word_and_segment_level_timestamps(
         self, merged_hypotheses, hypotheses, chunk_offsets, merged_tokens=None
@@ -1155,7 +1139,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             for i in range(1, len(hypotheses)):
                 merged_tokens = lcs_alignment_merge_buffer(
                     buffer=merged_tokens,
-                    data=hypotheses[i].y_sequence.tolist()[:int(delay * 0.6)],  # only approximately 60% of the tokens are non blank
+                    data=hypotheses[i].y_sequence.tolist()[
+                        : int(delay * 0.6)
+                    ],  # only approximately 60% of the tokens are non blank
                     delay=delay,
                     model=self,
                     max_steps_per_timestep=1,
@@ -1191,7 +1177,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 },
             )
             chunk_offsets = [0] + [x * self.encoder.subsampling_factor for x in encoded_len.tolist()]
-            
+
             merged_hypotheses = self._join_y_sequence(merged_hypotheses, hypotheses)
             merged_hypotheses.text = final_text
             merged_hypotheses = self._join_timestamp_and_add_word_and_segment_level_timestamps(
