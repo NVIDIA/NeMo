@@ -991,75 +991,87 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
         return merged_hypothesis
 
-    def _join_char_level_timestamps(self, merged_hypothesis, hypotheses, chunk_offsets, merged_tokens=None):
-        """Join character-level timestamps from multiple chunks."""
-        # Create a list for character timestamps
+    def _join_char_level_timestamps(
+        self,
+        merged_hypothesis,
+        hypotheses,
+        chunk_offsets,
+        merged_tokens=None,
+    ):
         char_timestamps = []
+        cumulative_offset = 0          # raw (pre-subsampling) frames already emitted
+        overall_removed_offset = 0     # subsampled frames trimmed so far
+        j_token = 0                    # cursor in merged_tokens
 
-        cumulative_offset = 0
-        j_token = 0
-        # Track time adjustments for filtered tokens within this chunk
-        time_adjustment_frames = 0
+        subsamp = self.encoder.subsampling_factor
+        stride  = self.cfg['preprocessor']['window_stride']  # sec per raw frame
+
         for i, h in enumerate(hypotheses):
-            
-            cumulative_offset += chunk_offsets[i]  # self.chunk_offsets starts with 0,
+            cumulative_offset += chunk_offsets[i]            # raw frames
+            chunk_frame_offset = cumulative_offset // subsamp
 
-            # update frame numbers
-            offset = cumulative_offset // self.encoder.subsampling_factor
-            # Update each char timestamp, adjusting offsets unless they are -1
-            updated_timestamps = []
+            # 1) figure out how much of the *front* of this chunk we will drop
+            removed_in_chunk = 0
+            for char in h.timestamp['char']:
+                keep = (
+                    merged_tokens is None
+                    or (j_token < len(merged_tokens)
+                        and char and char['token_id'] == merged_tokens[j_token])
+                )
+                if keep:                            
+                    break
+                if char and char['end_offset'] != -1:
+                    removed_in_chunk = char['end_offset'] + 1
+
             for char in h.timestamp['char']:
                 if not char:
                     continue
-                
-                # If merged_tokens is provided, filter based on token matching
-                if merged_tokens is not None:
-                    # Skip if we've processed all merged tokens or token doesn't match
-                    if j_token >= len(merged_tokens) or char['token_id'] != merged_tokens[j_token]:
-                        # Calculate the duration of this filtered token and add to adjustment
-                        if char['start_offset'] != -1 and char['end_offset'] != -1:
-                            token_duration_frames = char['end_offset'] - char['start_offset']
-                            time_adjustment_frames += token_duration_frames
-                        continue
-                
-                start = char['start_offset']
-                end = char['end_offset']
+                keep = (
+                    merged_tokens is None
+                    or (j_token < len(merged_tokens)
+                        and char['token_id'] == merged_tokens[j_token])
+                )
+                if not keep:
+                    continue
 
-                updated_char = dict(char)  # copy all existing keys
-                
-                # Apply both the chunk offset and the time adjustment from filtered tokens
-                if start != -1:
-                    updated_char['start_offset'] = start + offset - time_adjustment_frames
-                if end != -1:
-                    updated_char['end_offset'] = end + offset - time_adjustment_frames
+                # adjust offsets: chunk start + global chunk shift − total removed
+                start_off = char['start_offset']
+                end_off   = char['end_offset']
 
-                updated_timestamps.append(updated_char)
+                upd = dict(char)
+                if start_off != -1:
+                    upd['start_offset'] = (
+                        start_off
+                        + chunk_frame_offset         # place chunk globally
+                        - overall_removed_offset     # past trims
+                        - removed_in_chunk           # trims in this chunk
+                    )
+                if end_off != -1:
+                    upd['end_offset'] = (
+                        end_off
+                        + chunk_frame_offset
+                        - overall_removed_offset
+                        - removed_in_chunk
+                    )
+
+                # convert to seconds
+                upd['start'] = (
+                    -1 if upd['start_offset'] == -1
+                    else upd['start_offset'] * stride * subsamp
+                )
+                upd['end'] = (
+                    -1 if upd['end_offset'] == -1
+                    else upd['end_offset'] * stride * subsamp
+                )
+
+                char_timestamps.append(upd)
                 j_token += 1
 
-            # update times
-            updated_timestamps = [
-                {
-                    **char,
-                    'start': (
-                        -1
-                        if char['start_offset'] == -1
-                        else char['start_offset']
-                        * self.cfg['preprocessor']['window_stride']
-                        * self.encoder.subsampling_factor
-                    ),
-                    'end': (
-                        -1
-                        if char['end_offset'] == -1
-                        else char['end_offset']
-                        * self.cfg['preprocessor']['window_stride']
-                        * self.encoder.subsampling_factor
-                    ),
-                }
-                for char in updated_timestamps
-            ]
+            # 3) make the trim visible to later chunks
+            overall_removed_offset += removed_in_chunk
 
-            char_timestamps.extend(updated_timestamps)
         return char_timestamps
+
 
     def _join_timestamp_and_add_word_and_segment_level_timestamps(
         self, merged_hypotheses, hypotheses, chunk_offsets, merged_tokens=None
