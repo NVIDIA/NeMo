@@ -481,7 +481,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             repeated_batch[key] = repeated_value
         return repeated_batch
 
-    def generate_and_reward(self, batch, num_generations_per_item, mode='train'):
+    def generate_and_reward(self, batch, num_generations_per_item, mode='train', use_local_transformer_for_inference=False):
         batch_repeated = self.repeat_items_in_batch(batch, num_generations_per_item)
         temperature = self.cfg.get('inference_temperature', 0.7)
         topk = self.cfg.get('inference_topk', 80)
@@ -500,7 +500,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             temperature=temperature,
             topk=topk,
             use_cfg=use_cfg,
-            cfg_scale=cfg_scale
+            cfg_scale=cfg_scale,
+            use_local_transformer_for_inference=use_local_transformer_for_inference
         )
         predicted_audio_paths = []
         audio_durations = []
@@ -679,9 +680,21 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             self.use_kv_cache_for_inference = True
             self.decoder.reset_cache(use_cache=True)
 
+        use_local_transformer_for_inference = False
+        logits_key = 'logits'
+        use_local_transformer_prob = self.cfg.get('use_local_transformer_prob', 0.0)
+        if use_local_transformer_prob > 0.0 and mode == 'train':
+            use_local_transformer_for_inference = random.random() < use_local_transformer_prob
+            logits_key = 'local_transformer_logits'
+            
         with torch.no_grad():
             self.eval()
-            generated_codes_and_metrics = self.generate_and_reward(batch, n_generations_per_item, mode)
+            generated_codes_and_metrics = self.generate_and_reward(
+                batch,
+                n_generations_per_item,
+                mode,
+                use_local_transformer_for_inference=use_local_transformer_for_inference
+            )
             self.train()
 
         if use_kv_cache_during_online_po:
@@ -720,7 +733,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             reference_codebook_loss_mask = reference_model_output['loss_mask'][:,codebook_idx,:] if not self.reference_free else None
             si = codebook_idx * self.num_all_tokens_per_codebook
             ei = si + self.num_all_tokens_per_codebook
-            codebook_logits = policy_model_outputs['logits'][:, :, si:ei] # B, T, C
+            
+            codebook_logits = policy_model_outputs[logits_key][:, :, si:ei] # B, T, C
             codebook_labels = batch_repeated['audio_codes'][:,codebook_idx,1:]
             
             per_token_codebook_log_probs = self._get_per_token_logps(codebook_logits, codebook_labels, policy_codebook_loss_mask)
@@ -730,7 +744,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
 
             if not self.reference_free:
                 with torch.no_grad():
-                    ref_codebook_logits = reference_model_output['logits'][:, :, si:ei]
+                    ref_codebook_logits = reference_model_output[logits_key][:, :, si:ei]
                     per_token_ref_codebook_log_probs = self._get_per_token_logps(ref_codebook_logits, codebook_labels, reference_codebook_loss_mask)
                     # https://github.com/huggingface/trl/blob/ffcb9f4aee725a2bd072d0387afe68a4b1c7967c/trl/trainer/grpo_trainer.py#L703
                 per_token_codebook_kl = torch.exp(per_token_ref_codebook_log_probs - per_token_codebook_log_probs) - (per_token_ref_codebook_log_probs - per_token_codebook_log_probs) - 1
