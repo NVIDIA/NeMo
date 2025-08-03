@@ -1077,7 +1077,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         segment_offsets = get_segment_offsets(
             word_offsets=word_offsets, segment_delimiter_tokens={'.', '!', '?', "..."}
         )
-        import pdb; pdb.set_trace()
         # Update the merged hypothesis with word and segment timestamps
         merged_hypotheses.timestamp['word'] = word_offsets
         merged_hypotheses.timestamp['segment'] = segment_offsets
