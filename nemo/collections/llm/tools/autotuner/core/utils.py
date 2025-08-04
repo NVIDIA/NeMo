@@ -760,7 +760,7 @@ def create_log_dir_name(model_name: str, config_values: Dict[str, Any]) -> str:
     match = re.match(r'^([a-zA-Z]+)', model_name.lower())
     model_family = match.group(1) if match else model_name.lower()
     model_info = extract_all_values(model_name)
-    model_size_b = model_info.get('model_size_b')
+    model_size_b = int(float(model_info.get('model_size_b')))
 
     return (
         f"{model_family}_{model_size_b}b_{config_values['nodes']}nodes_"

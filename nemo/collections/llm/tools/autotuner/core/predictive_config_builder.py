@@ -57,6 +57,7 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
     vp_size = getattr(recipe.trainer.strategy, 'virtual_pipeline_model_parallel_size', 1)
     if vp_size is None:
         vp_size = 1
+    
     # Determine if NCCL User Buffer should be enabled based on model size
     model_info = extract_all_values(args.model)
     model_size_b = model_info.get('model_size_b', 0)
@@ -89,8 +90,8 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
         use_sharp=False,  # Enable SHARP for collective communication
         recompute_layers=0,  # No recompute for base config
         activation_offload_layers=0,  # No offload for base config
-        use_fsdp_double_buffer=False,  # Disabled for compatibility with NeMo
-        keep_fsdp_fp8_transpose_cache=False,  # Disabled for compatibility with NeMo
+        use_fsdp_double_buffer=False,
+        keep_fsdp_fp8_transpose_cache=False,
         compute_dtype=compute_dtype,
         fp8_recipe=None,  # Use default FP8 recipe
         recompute_modules=None,  # No selective recompute
