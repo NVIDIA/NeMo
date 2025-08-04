@@ -35,7 +35,6 @@ def create_lepton_executor(
 
     # Add default environment variables
     default_env_vars = {
-        "PYTHONPATH": "/tmp/nemo:/tmp/nemo_run:$PYTHONPATH",
         "TORCH_HOME": "/workspace/.cache",
     }
 
