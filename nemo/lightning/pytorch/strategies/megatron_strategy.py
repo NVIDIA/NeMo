@@ -574,8 +574,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         """Setups dist env"""
         setup_parallel_ranks(self)
 
-        # Capture Cudagraph on a side stream
-        if self.model.config.external_cuda_graph:
+        # Capture the external cudagraph on a side stream
+        if hasattr(self.model, 'config') and getattr(self.model.config, 'external_cuda_graph', False):
             torch.cuda.set_stream(torch.cuda.Stream())
 
         # Implementation from superclass copied below in order to pass the store to the process group init
@@ -726,9 +726,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert self.lightning_module is not None
         assert isinstance(self.model, MegatronParallel)
 
-        # (TODO:) Capture the cuda graph for the first step
-        if self.trainer.global_step == 0 and self.model.config.external_cuda_graph:
-            # disable prehook
+        # Capture the external cuda graph for the first step
+        if self.trainer.global_step == 0 and hasattr(self.model, 'config') and getattr(self.model.config, 'external_cuda_graph', False):
+            # disable the prehook
             if self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:
                 self.model.disable_forward_pre_hook()
                 param_sync_func = self.model.config.param_sync_func
@@ -771,8 +771,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
                 reduced_train_loss = out["loss"]
 
-            if self.trainer.global_step == 0 and self.model.config.external_cuda_graph:
+            if self.trainer.global_step == 0 and hasattr(self.model, 'config') and getattr(self.model.config, 'external_cuda_graph', False):
                 if self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:
+                    # enable the prehook
                     self.model.enable_forward_pre_hook()
                     self.model.config.param_sync_func = param_sync_func
                     param_sync_func = None
