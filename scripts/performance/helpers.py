@@ -318,7 +318,7 @@ def set_perf_optimization_configs(
         assert (
             use_fsdp_double_buffer is not False
         ), "use_fsdp_double_buffer cannot be False when use_user_buffer_registration is True"
-        
+
     if use_mcore_fsdp and enable_cuda_graphs:
         logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
         enable_cuda_graphs = False
