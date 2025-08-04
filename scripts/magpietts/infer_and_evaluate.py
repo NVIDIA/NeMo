@@ -73,7 +73,10 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
         # For older checkpoints trained with a different parameter name
         model_cfg.local_transformer_type = "autoregressive"
         del model_cfg.use_local_transformer
-
+    if hasattr(model_cfg, 'downsample_factor'):
+        # Backward compatibility for models trained with the config option`downsample_factor` which was renamed to `frame_stacking_factor`
+        model_cfg.frame_stacking_factor = model_cfg.downsample_factor
+        del model_cfg.downsample_factor
     if legacy_codebooks:
         # Added to address backward compatibility arising from
         #  https://github.com/blisc/NeMo/pull/64
