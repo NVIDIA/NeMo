@@ -50,6 +50,17 @@ coverage run -a \
     --operator_type=hyena_medium_conv \
     --log_dir=$LOG_DIR
 
+echo "Running LI Hyena Mixer CP test with torchrun..."
+coverage run -a \
+    --data-file=/workspace/.coverage \
+    --source=/workspace/nemo \
+    -m torch.distributed.run \
+    --nproc_per_node=2 \
+    tests/collections/llm/gpt/model/test_hyena_mixer_cp.py \
+    --context_parallel_size=2 \
+    --operator_type=hyena \
+    --log_dir=$LOG_DIR
+
 # Check exit status
 STATUS=$?
 if [ $STATUS -eq 0 ]; then

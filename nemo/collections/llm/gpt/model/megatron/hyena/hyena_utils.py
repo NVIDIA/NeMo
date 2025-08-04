@@ -519,9 +519,9 @@ class ImplicitModalFilter(nn.Module):
             gamma = gamma.cuda().log()
             self.gamma = nn.Parameter(gamma)
 
-            R = 1e-1 * torch.randn(d_model, order, dtype=torch.float32) / math.sqrt(order)
+            R = 1e-1 * torch.randn(d_model, order, dtype=torch.float32, device=torch.cuda.current_device()) / math.sqrt(order)
             self.R = nn.Parameter(R)
-            self.p = nn.Parameter(-torch.ones(d_model, order, dtype=torch.float32))
+            self.p = nn.Parameter(-torch.ones(d_model, order, dtype=torch.float32, device=torch.cuda.current_device()))
             setattr(self.gamma, 'tensor_model_parallel', True)
             setattr(self.R, 'tensor_model_parallel', True)
             setattr(self.p, 'tensor_model_parallel', True)

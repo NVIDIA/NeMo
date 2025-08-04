@@ -216,8 +216,8 @@ if __name__ == "__main__":
         "--operator_type",
         type=str,
         default="hyena_short_conv",
-        choices=["hyena_short_conv", "hyena_medium_conv"],
-        help="Operator type. Options: hyena_short_conv, hyena_medium_conv",
+        choices=["hyena_short_conv", "hyena_medium_conv", "hyena"],
+        help="Operator type. Options: hyena_short_conv, hyena_medium_conv, hyena",
     )
     parser.add_argument(
         "--tensor_model_parallel_size",
