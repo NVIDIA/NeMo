@@ -20,30 +20,31 @@ This module provides a callback that integrates OneLogger telemetry with NeMo tr
 
 import functools
 import time
-from typing import Any, Optional
+import uuid
+from typing import Any, Dict, Optional
 
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
     from nv_one_logger.training_telemetry.api.config import TrainingLoopConfig, TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-    from nv_one_logger.training_telemetry.integration.pytorch_lightning import (
-        TimeEventCallback as OneLoggerNeMoCallback,
-    )
+    from nv_one_logger.api.config import OneLoggerConfig
     from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
+    from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeEventCallback as OneLoggerNeMoCallback
 
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
     HAVE_ONELOGGER = False
+
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.core import LightningModule
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-
 from nemo.utils.meta_info_manager import (
-    enable_onelogger,
-    get_onelogger_init_config,
-    get_onelogger_training_loop_config,
+    get_onelogger_init_config, 
+    get_nemo_v1_telemetry_config,
+    get_nemo_v2_telemetry_config,
+    enable_onelogger
 )
 
 # Export OneLogger availability flag
@@ -53,6 +54,8 @@ __all__ = [
     'get_one_logger_callbacks',
     'update_one_logger_config',
 ]
+
+_ONELOGGER_CALLBACK = None
 
 
 def get_current_time_msec() -> float:
@@ -135,7 +138,7 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
     cls.__init__ = wrapped_init
 
 
-def _init_one_logger() -> None:
+def init_one_logger() -> None:
     """Initialize OneLogger with configuration from OneLoggerMetaInfoManager.
 
     This function initializes OneLogger by reading all configuration from OneLoggerMetaInfoManager.
@@ -146,6 +149,8 @@ def _init_one_logger() -> None:
     - Initialization configuration
     - WandB configuration
     """
+    global _ONELOGGER_CALLBACK
+    
     if not HAVE_ONELOGGER:
         return
 
@@ -158,64 +163,63 @@ def _init_one_logger() -> None:
         return
 
     # Get initialization configuration
-    app_start_time = get_current_time_msec()
     init_config = get_onelogger_init_config()
-    training_telemetry_config = TrainingTelemetryConfig(**init_config)
+    one_logger_config = OneLoggerConfig(**init_config)
 
     # Get WandB configuration
     exporter = V1CompatibleExporter(
-        training_telemetry_config=training_telemetry_config,
+        one_logger_config=one_logger_config,
         async_mode=False,
     )
 
-    # Configure the provider with exporter (this automatically calls on_app_start)
-    TrainingTelemetryProvider.instance().with_base_telemetry_config(training_telemetry_config).with_exporter(
-        exporter.exporter
-    ).configure_provider()
-    get_one_logger_callbacks("on_app_start", start_time_msec=app_start_time)
+    # Configure the provider without exporter (this automatically calls on_app_start)
+    TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_exporter(exporter.exporter).configure_provider()
+    _ONELOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
 
 
 def update_one_logger_config(
+    nemo_version: str,
     trainer: Trainer,
-    job_name: str,
-    model: Optional[Any] = None,
+    **kwargs,
 ) -> None:
-    """Update OneLogger configuration with training loop config.
+    """Update OneLogger with the latest training telemetry configuration.
 
-    This function updates the OneLogger configuration that was initialized early.
-    It converts the provided dictionary to a TrainingLoopConfig instance.
+    This function updates the OneLogger configuration after initialization by
+    generating and applying a TrainingTelemetryConfig based on the current training context.
+    The configuration is constructed using the appropriate NeMo v1 or v2 telemetry config
+    generator, depending on the provided version.
 
     Args:
-        trainer: PyTorch Lightning trainer to add callback to
-        job_name: Job name for the experiment
-        model: Optional PyTorch Lightning model instance
+        nemo_version: 'v1' or 'v2', selects which telemetry config generator to use.
+        kwargs: Additional keyword arguments to pass to the telemetry config generator.
     """
     # Check if TrainingTelemetryProvider is already configured
     if not HAVE_ONELOGGER or not TrainingTelemetryProvider.instance().one_logger_ready:
         return
 
-    config = get_onelogger_training_loop_config(
-        trainer=trainer,
-        job_name=job_name,
-        model=model,
-    )
+    if nemo_version == 'v1':
+        config = get_nemo_v1_telemetry_config(trainer=trainer, **kwargs)
+    elif nemo_version == 'v2':
+        config = get_nemo_v2_telemetry_config(trainer=trainer, **kwargs)
+    else:
+        raise ValueError(f"Invalid NeMo version: {nemo_version}")
 
-    # Convert dict to TrainingLoopConfig
-    training_loop_config = TrainingLoopConfig(**config)
-
-    # Training loop specific config update
-    TrainingTelemetryProvider.instance().set_training_loop_config(training_loop_config)
+    # Convert dict to TrainingTelemetryConfig
+    training_telemetry_config = TrainingTelemetryConfig(**config)
+    
+    # Training telemetry specific config update
+    TrainingTelemetryProvider.instance().set_training_telemetry_config(training_telemetry_config)
 
     # Add the OneLogger callback to the trainer if provided
     if trainer is not None:
         # Check if OneLoggerNeMoCallback is already in the trainer's callbacks
         has_onelogger_callback = any(isinstance(callback, OneLoggerNeMoCallback) for callback in trainer.callbacks)
 
-        if not has_onelogger_callback:
+        if not has_onelogger_callback and _ONELOGGER_CALLBACK is not None:
             # Create the callback with metadata
-            onelogger_callback = OneLoggerNeMoCallback()
-            trainer.callbacks.insert(0, onelogger_callback)
+            onelogger_callback = _ONELOGGER_CALLBACK
+            trainer.callbacks.append(onelogger_callback)
 
 
 # Initialize OneLogger when this module is imported
-_init_one_logger()
+init_one_logger()

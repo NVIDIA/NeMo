@@ -1243,7 +1243,7 @@ def _setup(
     )
 
     # Configure OneLogger callback
-    update_one_logger_config(trainer=trainer, model=model, job_name=_log.name)
+    update_one_logger_config(nemo_version='v2', trainer=trainer, job_name=_log.name, nemo_logger_config=_log, data=data)
 
     if resume is not None:
         get_one_logger_callbacks('on_load_checkpoint_start')
