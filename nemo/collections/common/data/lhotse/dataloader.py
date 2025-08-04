@@ -38,7 +38,10 @@ from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.data.audio_to_eou_label_lhotse import lhotse_asr_eou_cut_random_pad_transform
+from nemo.collections.asr.data.audio_to_eou_label_lhotse import (
+    LhotseEOURandomPadding,
+    lhotse_asr_eou_cut_random_pad_transform,
+)
 from nemo.collections.common.data.lhotse.cutset import (
     IncompleteConfigError,
     guess_parse_cutset,
@@ -502,9 +505,16 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
 
     t0 = time.time()
     if config.get("random_padding", None) is not None:
-        cuts = cuts.map(partial(lhotse_asr_eou_cut_random_pad_transform, config))
+        # random_padding_augmentation = LhotseEOURandomPadding(**config.random_padding)
+        # cuts = random_padding_augmentation(cuts)
+        cuts = cuts.map(
+            partial(lhotse_asr_eou_cut_random_pad_transform, config.random_padding),
+        )
     t1 = time.time()
     logging.info(f"Random padding time: {t1 - t0} seconds")
+
+    # cuts = cuts.pad(duration=0.5, direction="left", preserve_id=True)
+    # cuts = cuts.pad(duration=1.5, direction="right", preserve_id=True)
 
     # 2.a. Noise mixing.
     if config.noise_path is not None:

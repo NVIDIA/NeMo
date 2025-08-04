@@ -22,6 +22,7 @@ import torch.utils.data
 from lhotse.cut import Cut, CutSet, MixedCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
+from lhotse.lazy import Dillable, LazyIteratorChain
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -255,6 +256,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         audio_filepaths = []
         for i in range(len(cuts)):
             c = cuts[i]
+
             if isinstance(c, MixedCut):
                 c = c.first_non_padding_cut
 
@@ -619,10 +621,8 @@ def lhotse_asr_eou_cut_random_pad_transform(config: DictConfig, cut: Cut):
     """
     perform random padding to data
     """
-    padding_cfg = config.get('random_padding', None)
-    if padding_cfg is not None:
-        padding_cfg = OmegaConf.to_container(padding_cfg, resolve=True)
-        padding_cfg = RandomPaddingConfig(**padding_cfg)
+    padding_cfg = OmegaConf.to_container(config, resolve=True)
+    padding_cfg = RandomPaddingConfig(**padding_cfg)
     p = np.random.rand()
     if not padding_cfg or p > padding_cfg.prob:
         # do nothing
@@ -699,9 +699,23 @@ def lhotse_asr_eou_cut_random_pad_transform(config: DictConfig, cut: Cut):
     return cut_both_padded
 
 
-class LhotseASREOURandomPadding:
-    def __init__(self, cfg: DictConfig) -> None:
+class LazyLhotseEOURandomPadding(Dillable):
+    def __init__(self, cuts: CutSet, cfg: DictConfig) -> None:
+        self.source = cuts
         self.cfg = cfg
 
+    def __iter__(self):
+        for cut in self.source:
+            yield lhotse_asr_eou_cut_random_pad_transform(config=self.cfg, cut=cut)
+
+    def __len__(self):
+        return len(self.source)
+
+    def __add__(self, other) -> "LazyIteratorChain":
+        return LazyIteratorChain(self, other)
+
+
+class LhotseEOURandomPadding(RandomPaddingConfig):
     def __call__(self, cuts: CutSet) -> CutSet:
-        return CutSet.from_cuts(lhotse_asr_eou_cut_random_pad_transform(config=self.cfg, cut=cut) for cut in cuts)
+        config = OmegaConf.create(self.__dict__)
+        return CutSet(LazyLhotseEOURandomPadding(cuts, config))

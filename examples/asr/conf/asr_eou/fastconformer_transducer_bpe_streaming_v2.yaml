@@ -42,7 +42,7 @@ model:
     shuffle_buffer_size: 10000
     skip_augment: true
     random_padding:
-      prob: 0.99
+      prob: 1.0
       min_pad_duration: 1.0  # minimum duration of pre/post padding in seconds
       max_pad_duration: 10.0  # maximum duration of pre/post padding in seconds
       max_total_duration: 40.0  # maximum total duration of the padded audio in seconds
@@ -51,7 +51,7 @@ model:
       normal_std: 2.0  # standard deviation of normal distribution  used when pad_distribution='normal'
   
     noise_path: ???
-    noise_mix_prob: 0.7
+    noise_mix_prob: 1.0
     noise_snr: [0, 20.0]
 
 
