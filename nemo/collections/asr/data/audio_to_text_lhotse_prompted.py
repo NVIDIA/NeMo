@@ -111,7 +111,6 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         return tokens, token_lens
 
 
-
 class ProbablyIncorrectLanguageKeyError(RuntimeError):
     pass
 
