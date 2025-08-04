@@ -1011,15 +1011,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         del enc_states, enc_mask, decoder_input_ids
 
-        merge_to_be_done = trcfg.do_dynamic_caching and len(hypotheses) > 1
-
         if trcfg.timestamps and self.timestamps_asr_model is not None:
             hypotheses = get_forced_aligned_timestamps_with_external_model(
                 audio=[audio.squeeze()[:audio_len] for audio, audio_len in zip(batch.audio, batch.audio_lens)],
                 batch_size=len(batch.audio),
                 external_ctc_model=self.timestamps_asr_model,
                 main_model_predictions=hypotheses,
-                timestamp_type='char' if merge_to_be_done else ['word', 'segment'],
+                timestamp_type=['word', 'segment'],
                 viterbi_device=trcfg._internal.device,
             )
         else:
