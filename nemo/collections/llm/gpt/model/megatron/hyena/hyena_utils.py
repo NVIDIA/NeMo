@@ -956,9 +956,14 @@ class ParallelHyenaOperator(nn.Module):
 
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
 
-            x1, x2, v = [
-                AllToAllSingleFunction.apply(tensor, cp_group, "split_to_full", True) for tensor in [x1, x2, v]
-            ]
+            if inference_context is not None:  # reconstruct ALL tensors from split to full
+                x1, x2, v = [
+                    AllToAllSingleFunction.apply(tensor, cp_group, "split_to_full", True) for tensor in [x1, x2, v]
+                ]
+            else:  # only reconstruct z (post gating) for non-inference case
+                z = x2 * v
+                z = AllToAllSingleFunction.apply(z, cp_group, "split_to_full", True)
+
             # the tensors are now split across channels, but have full length.
             # [ B, H // num_ranks, L]
 
@@ -977,13 +982,12 @@ class ParallelHyenaOperator(nn.Module):
 
         h = h.repeat_interleave(self.group_dim, dim=-2)
 
-        if inference_context is not None:
+        if inference_context is not None:  # Needs full length x1 x2 v
             if self.operator_type == "hyena_medium_conv":
                 return self.forward_medium(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
             elif self.operator_type == "hyena":
                 return self.forward_long(x1=x1, x2=x2, v=v, h=h, bias=conv_bias, inference_context=inference_context)
-        else:
-            z = x2 * v
+        else:  # Needs full length z (post gating)
             # with torch.autocast("cuda"):
             z = fftconv_func(
                 u=z.to(torch.float32),
@@ -994,11 +998,11 @@ class ParallelHyenaOperator(nn.Module):
                 bidirectional=self.bidirectional,
             )
             z = z.to(v.dtype)
-            z = x1 * z
 
             if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
                 z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
                 # [ B, H, L // num_ranks]
+            z = x1 * z
             return z  # [B, (G, DG), L]
 
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
