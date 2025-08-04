@@ -24,12 +24,12 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules import tdt_beam_decoding
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
@@ -158,7 +158,12 @@ def check_beam_decoding(test_data_dir, beam_config):
             print()
 
 
-def check_tdt_greedy_decoding(test_data_dir, use_cuda_graph_decoder: bool, lm_path: Optional[str | Path] = None, boosting_tree: Optional[BoostingTreeModelConfig] = None):
+def check_tdt_greedy_decoding(
+    test_data_dir,
+    use_cuda_graph_decoder: bool,
+    lm_path: Optional[str | Path] = None,
+    boosting_tree: Optional[BoostingTreeModelConfig] = None,
+):
     model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
 
     model_config = model.to_config_dict()
@@ -494,7 +499,9 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize("use_cuda_graph_decoder", [True, False])
     @pytest.mark.parametrize("use_lm", [True, False])
     @pytest.mark.parametrize("use_boosting_tree", [True, False])
-    def test_tdt_greedy_decoding(self, test_data_dir, use_cuda_graph_decoder: bool, use_lm: bool, use_boosting_tree: bool):
+    def test_tdt_greedy_decoding(
+        self, test_data_dir, use_cuda_graph_decoder: bool, use_lm: bool, use_boosting_tree: bool
+    ):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
         boosting_tree = BoostingTreeModelConfig(key_phrases_list=["hello", "nvidia"]) if use_boosting_tree else None
         check_tdt_greedy_decoding(
