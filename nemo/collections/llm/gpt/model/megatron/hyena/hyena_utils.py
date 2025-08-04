@@ -955,8 +955,8 @@ class ParallelHyenaOperator(nn.Module):
         conv_bias = self.conv_bias
         local_size = None
 
-        if inference_context is not None:
-            z = x2 * v
+        # Initialize z split for non-inference cases
+        z = x2 * v
 
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
 
@@ -1005,6 +1005,7 @@ class ParallelHyenaOperator(nn.Module):
             if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
                 z = AllToAllSingleFunction.apply(z, cp_group, "full_to_split", True)
                 # [ B, H, L // num_ranks]
+
             z = x1 * z
             return z  # [B, (G, DG), L]
 
