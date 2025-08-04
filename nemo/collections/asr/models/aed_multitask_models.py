@@ -46,9 +46,9 @@ from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifi
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import (
     get_forced_aligned_timestamps_with_external_model,
-    process_aed_timestamp_outputs,
-    get_words_offsets,
     get_segment_offsets,
+    get_words_offsets,
+    process_aed_timestamp_outputs,
 )
 from nemo.collections.common import tokenizers
 from nemo.collections.common.data.lhotse.dataloader import get_lhotse_dataloader_from_config
@@ -1000,7 +1000,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         batch = outputs.pop('batch')
 
         del log_probs, encoded_len
-
 
         hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
