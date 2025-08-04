@@ -69,6 +69,7 @@ except ImportError:
 
 try:
     from cuhyena.rearrange import rearrange as cuhyena_rearrange
+
     CUHYENA_AVAILABLE = True
 except ImportError:
     cuhyena_rearrange = None
@@ -319,7 +320,8 @@ class HyenaMixer(MegatronModule):
             features = rearrange(features, "l b d -> b d l").contiguous()
 
         if (
-            self.use_b2b_causal_conv1d and CUHYENA_AVAILABLE
+            self.use_b2b_causal_conv1d
+            and CUHYENA_AVAILABLE
             and self.operator_type in ["hyena_short_conv", "hyena_medium_conv"]
             and inference_context is None
         ):

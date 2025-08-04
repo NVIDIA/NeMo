@@ -39,7 +39,6 @@ from torch.autograd.function import Function
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 
-
 try:
     from einops import rearrange
 except ImportError:
@@ -56,7 +55,9 @@ except ImportError:
 
 try:
     from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
-    from cuhyena.fft_causal_conv1d import fft_causal_conv1d, is_supported as is_fused_supported
+    from cuhyena.fft_causal_conv1d import fft_causal_conv1d
+    from cuhyena.fft_causal_conv1d import is_supported as is_fused_supported
+
     CUHYENA_AVAILABLE = True
 except ImportError:
     b2b_causal_conv1d = None
