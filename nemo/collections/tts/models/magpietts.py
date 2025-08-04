@@ -650,6 +650,24 @@ class MagpieTTSModel(ModelPT):
             print(c, end="")
         print()
 
+    def check_for_likely_forbidden_tokens(self, logits, parralel=False):
+        logit_thresh = 0
+        for cb in range(logits.size(1)):
+            has_mask = (logits[:,cb,self.mask_token_id] > logit_thresh).any()
+            has_bos = (logits[:,cb,self.audio_bos_id] > logit_thresh).any()
+            has_audio_bos = (logits[:,cb,self.context_audio_bos_id] > logit_thresh).any()
+            has_audio_eos = (logits[:,cb,self.context_audio_eos_id] > logit_thresh).any()
+            if has_mask or has_bos or has_audio_bos or has_audio_eos:
+                print()
+                print(f"Has likely forbidden tokens: {has_mask} {has_bos} {has_audio_bos} {has_audio_eos}")
+                print(f"special logits: {logits[:,cb,-8:]}")
+                print(f"max logits: {logits[:,cb].max()}")
+                print(f"max special logits (excluding audio bos): {logits[:,cb,self.context_audio_bos_id:self.mask_token_id].max()}")
+                print(f"max special logits (audio bos): {logits[:,cb,self.audio_bos_id].max()}")
+                if parralel:
+                    print("parallel mode")
+                print()
+                   
     def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule_n_unmasked=None, dynamic_cfg_scale=False, sampling_type=None):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
@@ -684,7 +702,7 @@ class MagpieTTSModel(ModelPT):
             progress = step / n_steps
             # get mask fraction
             frac_masked = cosine_schedule(torch.tensor(progress))
-            if sampling_type == "causal":
+            if sampling_type == "causal" or sampling_type == "purity_causal":
                 frac_masked = torch.ones_like(frac_masked) * (1.0 - progress)
             # how many codebooks to mask
             if fixed_schedule_n_unmasked is None:
@@ -693,7 +711,7 @@ class MagpieTTSModel(ModelPT):
                 n_masked = codebook_seq_len - fixed_schedule_n_unmasked[step]
             n_unmasked = codebook_seq_len - n_masked
 
-            if sampling_type == "causal":# and n_unmasked <= self.num_audio_codebooks:
+            if sampling_type == "causal" or sampling_type == "purity_causal":# and n_unmasked <= self.num_audio_codebooks:
                 # force second frame not to be unmasked
                 n_frames_to_allow = int(np.floor(progress*self.downsampling_factor+1))
                 confidences[:,n_frames_to_allow*self.num_audio_codebooks:] = min_confidence-1 # only works for downsampling_factor=2
@@ -765,11 +783,13 @@ class MagpieTTSModel(ModelPT):
                 logits[item_idx, :, :] = float('-inf')
                 logits[item_idx, :, self.audio_eos_id] = 0.0
 
-            # HACK: disallow generation of MASK tokens. But is this happening?
-            logits[:,:,self.mask_token_id] = -200
-            logits[:,:,self.audio_bos_id] = -200
-            logits[:,:,self.context_audio_bos_id] = -200
-            logits[:,:,self.context_audio_eos_id] = -200
+            # HACK: disallow generation of MASK (and other special) tokens. But why is this happening?
+            self.check_for_likely_forbidden_tokens(logits)
+            logits[:,:,self.mask_token_id] = float('-inf')
+            logits[:,:,self.audio_bos_id] = float('-inf')
+            logits[:,:,self.context_audio_bos_id] = float('-inf')
+            logits[:,:,self.context_audio_eos_id] = float('-inf')
+
             # sample with top-k
             logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)
             indices_to_remove = logits < logits_topk[:, :, -1].unsqueeze(-1) # (B, C, num_audio_tokens_per_codebook)
@@ -780,8 +800,11 @@ class MagpieTTSModel(ModelPT):
             if use_cfg:
                 sampled_codes[actual_batch_size:] = sampled_codes[:actual_batch_size]
                 probs[actual_batch_size:] = probs[:actual_batch_size]
-            confidences = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
-
+            if sampling_type != "purity_causal" and sampling_type != "purity_default":
+                confidences = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
+            else:
+                # use the max probability across all tokens for each codebook as the confidence for each codebook; known as "purity sampling"
+                confidences = probs.max(dim=2)[0]
             # TODO
             # * are end of utterance-logits-somehow overwritten ? should we force those to max confidence?? may require
             #   special handling and may explain termination issues!
@@ -870,6 +893,8 @@ class MagpieTTSModel(ModelPT):
                 si = (idx + self.num_audio_codebooks * ds_index) * self.num_all_tokens_per_codebook
                 ei = si + self.num_all_tokens_per_codebook
                 codebook_logits = all_code_logits_t[:, si:ei]  # (B, num_tokens_per_codebook)
+                self.check_for_likely_forbidden_tokens(codebook_logits.unsqueeze(1), parralel=True)
+
                 for item_idx in unfinished_items:
                     codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
                 for item_idx in finished_items:

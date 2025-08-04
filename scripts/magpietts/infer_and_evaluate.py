@@ -458,7 +458,7 @@ def main():
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
     parser.add_argument('--fixed_schedule_n_unmasked', type=int, nargs='+', default=None)
-    parser.add_argument('--sampling_type', default=None, choices=["default", "alternate", "causal"])
+    parser.add_argument('--sampling_type', default=None, choices=["default", "alternate", "causal", "purity_causal", "purity_default"])
 
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=1.0)
@@ -514,7 +514,7 @@ def main():
                 clean_up_disk=args.clean_up_disk,
                 hparams_file_from_wandb=args.hparams_file_from_wandb,
                 log_exp_name=args.log_exp_name,
-                compute_fcd=compute_fcd
+                compute_fcd=compute_fcd,
                 fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
                 sampling_type=args.sampling_type
             )
