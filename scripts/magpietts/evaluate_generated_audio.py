@@ -97,7 +97,7 @@ def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_second
 
     n_samples = len(audio_np)
     min_samples = round(min_seconds * sampling_rate)
-    
+
     if n_samples < min_samples:
         print(f"Padding audio from {n_samples/sampling_rate} seconds to {min_samples/sampling_rate} seconds")
         padding_needed = min_samples - n_samples
@@ -107,7 +107,7 @@ def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_second
 @contextmanager
 def nemo_log_level(level):
     """
-    A context manager that temporarily sets the logging level for the NeMo logger 
+    A context manager that temporarily sets the logging level for the NeMo logger
     and restores the original level when the context manager is exited.
 
     Args:
@@ -148,7 +148,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
     device = "cuda"
 
     if language == "en":
-        if asr_model_name in ["nvidia/parakeet-tdt-1.1b", "nvidia/parakeet-ctc-0.6b", "stt_en_conformer_transducer_large"]:
+        if asr_model_name.startswith("nvidia/") or asr_model_name in ["stt_en_conformer_transducer_large"]:
             asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=asr_model_name)
         else:
             raise ValueError(f"ASR model {asr_model_name} not supported")
