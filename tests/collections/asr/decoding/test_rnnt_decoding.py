@@ -29,6 +29,7 @@ from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules import tdt_beam_decoding
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
@@ -157,16 +158,22 @@ def check_beam_decoding(test_data_dir, beam_config):
             print()
 
 
-def check_tdt_greedy_decoding(test_data_dir, use_cuda_graph_decoder: bool, lm_path: Optional[str | Path] = None):
+def check_tdt_greedy_decoding(test_data_dir, use_cuda_graph_decoder: bool, lm_path: Optional[str | Path] = None, boosting_tree: Optional[BoostingTreeModelConfig] = None):
     model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
 
     model_config = model.to_config_dict()
 
-    lm_model = (
-        NGramGPULanguageModel.from_file(lm_path=lm_path, vocab_size=model.decoder.blank_idx)
-        if lm_path is not None
-        else None
-    )
+    fusion_models, fusion_models_alpha = None, None
+    if lm_path or boosting_tree:
+        fusion_models = []
+        fusion_models_alpha = []
+
+    if lm_path:
+        fusion_models.append(NGramGPULanguageModel.from_file(lm_path=lm_path, vocab_size=model.decoder.blank_idx))
+        fusion_models_alpha.append(0.5)
+    if boosting_tree:
+        fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=model.tokenizer))
+        fusion_models_alpha.append(0.5)
 
     decoding_algo = greedy_decode.GreedyBatchedTDTInfer(
         model.decoder,
@@ -177,8 +184,8 @@ def check_tdt_greedy_decoding(test_data_dir, use_cuda_graph_decoder: bool, lm_pa
         preserve_alignments=False,
         preserve_frame_confidence=False,
         use_cuda_graph_decoder=use_cuda_graph_decoder,
-        fusion_models=[lm_model] if lm_model else None,
-        fusion_models_alpha=[0.5] if lm_model else None,
+        fusion_models=fusion_models,
+        fusion_models_alpha=fusion_models_alpha,
     )
 
     enc_out = encoded
@@ -486,10 +493,15 @@ class TestRNNTDecoding:
     @pytest.mark.unit
     @pytest.mark.parametrize("use_cuda_graph_decoder", [True, False])
     @pytest.mark.parametrize("use_lm", [True, False])
-    def test_tdt_greedy_decoding(self, test_data_dir, use_cuda_graph_decoder: bool, use_lm: bool):
+    @pytest.mark.parametrize("use_boosting_tree", [True, False])
+    def test_tdt_greedy_decoding(self, test_data_dir, use_cuda_graph_decoder: bool, use_lm: bool, use_boosting_tree: bool):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        boosting_tree = BoostingTreeModelConfig(key_phrases_list=["hello", "nvidia"]) if use_boosting_tree else None
         check_tdt_greedy_decoding(
-            test_data_dir, use_cuda_graph_decoder=use_cuda_graph_decoder, lm_path=kenlm_model_path if use_lm else None
+            test_data_dir,
+            use_cuda_graph_decoder=use_cuda_graph_decoder,
+            lm_path=kenlm_model_path if use_lm else None,
+            boosting_tree=boosting_tree,
         )
 
     @pytest.mark.skipif(

@@ -592,7 +592,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
 
         return batched_hyps
 
-    def topk_fusion_model(self, fusion_scores_list, log_probs):
+    def topk_fusion_model(self, fusion_scores_list, log_probs, eps=1e-2):
         """
         Computes the top-k log probabilities and corresponding labels for hypotheses,
         incorporating fusion models scores based on the pruning and blank scoring modes.
@@ -600,6 +600,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
         Args:
             fusion_scores_list (List[torch.Tensor]): List of fusion model scores for hypotheses, shape [batch_size, beam_size, vocab_size].
             log_probs (torch.Tensor): Log probabilities from the joint network, shape [batch_size, beam_size, vocab_size].
+            eps (float): Epsilon value for numerical stability. Default is 1e-2 for bf16 precision.
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor]:
@@ -620,7 +621,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
             case PruningMode.LATE, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 blank_logprob = log_probs[..., -1]
                 non_blank_logprob = torch.log1p(
-                    -torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-2)
+                    -torch.clamp(torch.exp(blank_logprob), max=1.0 - eps)
                 )  # 1e-2 is used here instead of 1e-6 to address numerical instability with bf16 precision.
                 log_probs[..., :-1] += non_blank_logprob.unsqueeze(-1) * fusion_scores_alpha_sum + fusion_scores_sum
                 log_probs[..., -1] *= 1 + fusion_scores_alpha_sum
@@ -643,7 +644,7 @@ class ModifiedALSDBatchedRNNTComputer(WithOptionalCudaGraphs, ConfidenceMethodMi
                 log_probs_top_k, labels_top_k = log_probs.topk(self.beam_size, dim=-1, largest=True, sorted=True)
 
                 blank_logprob = log_probs[..., -1]
-                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-2))
+                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - eps))
 
                 masked_labels = torch.where(labels_top_k == self._blank_index, 0, labels_top_k)
                 log_probs_top_k = torch.where(

@@ -374,7 +374,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         match strategy, model_type:
             # greedy strategy
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.RNNT:
-                # TODO: add boosting tree for the check
                 if ngram_lm_model is not None or fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
