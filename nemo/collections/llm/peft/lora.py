@@ -14,7 +14,7 @@
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Literal
+from typing import List, Literal, Tuple
 
 import torch
 
@@ -47,12 +47,233 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
-    def forward(self, x, *args, **kwargs):
+    def forward(self, x: torch.Tensor, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
         # pylint: disable=C0115,C0116
+        if getattr(self, "_enable_fused_impl", False):
+            return self._fused_forward(x)
         linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
         adapter_output = self.adapter(layernorm_output.contiguous())
         adapter_output = adapter_output.reshape(linear_output.shape)
         return linear_output + adapter_output, bias
+
+    def _fused_forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass with Transformer Engine operation fuser
+
+        The fused implementation is a PyTorch module that shares
+        params with this module. Since it owns no state, there is no
+        need for extra checkpointing logic.
+
+        """
+
+        # Construct fused impl if needed
+        fused_impl = getattr(self, "_fused_impl", (None,))[0]
+        if fused_impl is None:
+            if not HAVE_TE:
+                raise RuntimeError("Fused LoRALinear implementation requires Transformer Engine")
+            fused_impl = TEFusedLoRALinear.make_from_lora_linear(self)
+            self._fused_impl = (fused_impl,)  # Wrap in tuple to avoid registering submodule
+
+        # Apply fused impl
+        return fused_impl(x)
+
+
+if HAVE_TE:
+
+    class TEFusedLoRALinear(nn.Module):
+        """A LoRA adapter wrapper using Transformer Engine operation fuser
+
+        Its compute is equivalent to LoRALinear.
+
+        There are no guarantees on the checkpoint structure, either
+        for compatibility with other modules or for backward
+        compatibility. LoRALinear works around this by treating
+        TEFusedLoRALinear as stateless.
+
+        """
+
+        def __init__(
+            self,
+            in_features: int,
+            out_features: int,
+            lora_dim: int,
+            *,
+            bias: bool = True,
+            device: Optional[torch.device] = None,
+            dtype: Optional[torch.dtype] = None,
+            norm_type: Optional[str] = None,
+            norm_eps: float = 1e-5,
+            norm_zero_centered_gamma: bool = False,
+            lora_dropout: float = 0.0,
+            lora_dropout_position: str = "post",
+            lora_scale: float = 1.0,
+        ) -> None:
+            super().__init__()
+
+            # Split adapter into two branches
+            # Main branch: norm, fork, linear
+            # LoRA branch: lora_a, lora_b, add
+            main_branch = []
+            lora_branch = []
+
+            # Norm op
+            self.norm_main_branch_idx: Optional[int] = None
+            if norm_type is not None:
+                self.norm_main_branch_idx = len(main_branch)
+                norm_kwargs = {
+                    "eps": norm_eps,
+                    "device": device,
+                    "dtype": dtype,
+                    "zero_centered_gamma": norm_zero_centered_gamma,
+                }
+                if norm_type == "LayerNorm":
+                    main_branch.append(te.ops.LayerNorm(in_features, **norm_kwargs))
+                elif norm_type == "RMSNorm":
+                    main_branch.append(te.ops.RMSNorm(in_features, **norm_kwargs))
+                else:
+                    raise ValueError(f"Unsupported normalization ({norm_type})")
+                main_branch.append(te.ops.Quantize(forward=True, backward=False))
+
+            # Fork to LoRA branch
+            main_branch.append(te.ops.MakeExtraOutput())
+
+            # Main branch linear op
+            self.linear_main_branch_idx: int = len(main_branch)
+            main_branch.append(
+                te.ops.Linear(
+                    in_features,
+                    out_features,
+                    bias=bias,
+                    device=device,
+                    dtype=dtype,
+                    tensor_parallel_mode=None,  ### TODO Support TP
+                )
+            )
+
+            # LoRA pre-processing
+            if lora_dropout > 0 and lora_dropout_position == "pre":
+                lora_branch.append(te.ops.Dropout(lora_dropout))
+
+            # LoRA linear ops
+            self.lora_a_lora_branch_idx: int = len(lora_branch)
+            lora_branch.append(
+                te.ops.Linear(
+                    in_features,
+                    lora_dim,
+                    bias=False,
+                    device=device,
+                    dtype=dtype,
+                    tensor_parallel_mode=None,  ### TODO Support TP
+                )
+            )
+            self.lora_b_lora_branch_idx: int = len(lora_branch)
+            lora_branch.append(
+                te.ops.Linear(
+                    lora_dim,
+                    out_features,
+                    bias=False,
+                    device=device,
+                    dtype=dtype,
+                    tensor_parallel_mode=None,  ### TODO Support TP
+                )
+            )
+
+            # LoRA post-processing
+            if lora_scale != 1:
+                lora_branch.append(te.ops.ConstantScale(lora_scale))
+            if lora_dropout > 0 and lora_dropout_position == "post":
+                lora_branch.append(te.ops.Dropout(lora_dropout))
+
+            # Add with main branch
+            lora_branch.append(te.ops.AddExtraInput())
+
+            # Fuse ops in each branch
+            self.main_branch = te.ops.Sequential(*main_branch)
+            self.lora_branch = te.ops.Sequential(*lora_branch)
+
+        def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+            linear_output, linear_input = self.main_branch(x)
+            with te.fp8_autocast(enabled=False):
+                out = self.lora_branch(linear_input, linear_output)
+            return out, None
+
+        @staticmethod
+        def make_from_lora_linear(lora_linear: LoRALinear) -> TEFusedLoRALinear:
+            """Construct a fused LoRA adapter with the same params as an unfused adapter"""
+
+            # Check inputs
+            if not isinstance(lora_linear, LoRALinear):
+                raise ValueError(f"Expected LoRALinear, got {lora_linear.__class__}")
+            if not isinstance(lora_linear.to_wrap, (te.Linear, te.LayerNormLinear)):
+                raise ValueError(
+                    f"Expected LoRALinear to wrap a Transformer Engine linear module, but found {lora_linear.to_wrap.__class__}"
+                )
+
+            # Args for TEFusedLoRALinear constructor
+            constructor_kwargs = {"device": "meta"}  # Do not initialize params
+
+            # Extract linear params from base linear module
+            linear = lora_linear.to_wrap
+            weight = orig_linear.weight
+            bias = orig_linear.bias
+            if isinstance(bias, torch.Tensor) and bias.numel() == 0:
+                bias = None
+            constructor_kwargs["in_features"] = weight.size(1)
+            constructor_kwargs["out_features"] = weight.size(0)
+            constructor_kwargs["bias"] = bias is not None
+            constructor_kwargs["dtype"] = weight.dtype
+
+            # Extract norm params from base linear module
+            norm_type = None
+            norm_weight = None
+            norm_bias = None
+            if isinstance(orig_linear, te.LayerNormLinear):
+                norm_type = orig_linear.normalization
+                if norm_type == "LayerNorm":
+                    norm_weight = orig_linear.layer_norm_weight
+                    norm_bias = orig_linear.layer_norm_bias
+                elif norm_type == "RMSNorm":
+                    norm_weight = orig_linear.layer_norm_weight
+                else:
+                    raise RuntimeError("LayerNormLinear has unsupported norm type ({norm_type})")
+                constructor_kwargs["norm_type"] = norm_type
+                constructor_kwargs["norm_eps"] = orig_linear.eps
+                constructor_kwargs["norm_zero_centered_gamma"] = orig_linear.zero_centered_gamma
+
+            # Extract params from LoRA adapter
+            adapter = lora_linear.adapter
+            lora_a_weight = None
+            lora_b_weight = None
+            if isinstance(adapter, (LinearAdapter, TELinearAdapter)):
+                lora_a_weight = adapter.lora_a.weight
+                lora_b_weight = adapter.lora_b.weight
+                constructor_kwargs["lora_dim"] = lora_a_weight.size(0)
+                constructor_kwargs["lora_dropout"] = adapter.dropout.p
+                constructor_kwargs["lora_dropout_position"] = adapter.dropout_position
+                constructor_kwargs["lora_scale"] = adapter.scale
+            elif isinstance(adapter, ParallelLinearAdapter):
+                lora_a_weight = adapter.linear_in.weight
+                lora_b_weight = adapter.linear_out.weight
+                constructor_kwargs["lora_dim"] = lora_a_weight.size(0)
+                constructor_kwargs["lora_dropout"] = adapter.dropout.p
+                constructor_kwargs["lora_dropout_position"] = adapter.dropout_position
+                constructor_kwargs["lora_scale"] = adapter.alpha / adapter.dim
+
+            # Construct fused module
+            out = TEFusedLoRALinear(**constructor_kwargs)
+
+            # Replace fused module params
+            if norm_type is not None:
+                norm_op = out.main_branch[out.norm_main_branch_idx]
+                norm_op.weight = norm_weight
+                if norm_bias:
+                    norm_op.bias = norm_bias
+            linear_op = out.main_branch[out.linear_main_branch_idx]
+            linear_op.weight = weight
+            linear_op.bias = bias
+            out.lora_branch[out.lora_a_lora_branch_idx].weight = lora_a_weight
+            out.lora_branch[out.lora_b_lora_branch_idx].weight = lora_b_weight
+
+            return out
 
 
 if HAVE_TE:
