@@ -56,11 +56,13 @@ except ImportError:
 
 try:
     from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
+    from cuhyena.fft_causal_conv1d import fft_causal_conv1d, is_supported as is_fused_supported
+    CUHYENA_AVAILABLE = True
 except ImportError:
-
-    def b2b_causal_conv1d(*args, **kwargs):
-        """Not imported: b2b_causal_conv1d. An error will be raised if this is called."""
-        raise ImportError("b2b_causal_conv1d is required by the Hyena model but cannot be imported")
+    b2b_causal_conv1d = None
+    fft_causal_conv1d = None
+    is_fused_supported = None
+    CUHYENA_AVAILABLE = False
 
 
 def _get_zigzag_indices(N, device=None):
@@ -462,17 +464,20 @@ def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=Fal
 
     # causal
     else:
-        k_f = torch.fft.rfft(k, n=fft_size) / fft_size
-        if k_rev is not None:
-            k_rev_f = torch.fft.rfft(k_rev, n=fft_size) / fft_size
-            k_f = k_f + k_rev_f.conj()
+        if is_fused_supported is not None and is_fused_supported(k.shape[-1]) and fft_causal_conv1d is not None:
+            y = fft_causal_conv1d(u, k.squeeze(0))
+        else:
+            k_f = torch.fft.rfft(k, n=fft_size) / fft_size
+            if k_rev is not None:
+                k_rev_f = torch.fft.rfft(k_rev, n=fft_size) / fft_size
+                k_f = k_f + k_rev_f.conj()
 
-        u_f = torch.fft.rfft(u.to(dtype=k.dtype), n=fft_size)
+            u_f = torch.fft.rfft(u.to(dtype=k.dtype), n=fft_size)
 
-        if len(u.shape) > 3:
-            k_f = k_f.unsqueeze(1)
+            if len(u.shape) > 3:
+                k_f = k_f.unsqueeze(1)
 
-        y = torch.fft.irfft(u_f * k_f, n=fft_size, norm="forward")[..., :seqlen]
+            y = torch.fft.irfft(u_f * k_f, n=fft_size, norm="forward")[..., :seqlen]
 
     out = y + u * D.unsqueeze(-1)
     if gelu:
@@ -1385,12 +1390,9 @@ class B2BCausalConv1dModule(nn.Module):
             result = result[..., self.effective_pad_size :]  # Remove padding from output
             result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
         else:
-            # Add proper causal padding for the non-CP case
-            x = torch.nn.functional.pad(x, (self.effective_pad_size, 0))
-
-            # Call the CUDA kernel and remove the padding from result
+            # Call the CUDA kernel
+            # Padding is not required and is handled in the CUDA kernel when CP=1 (padding=0)
             result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
-            result = result[..., self.effective_pad_size :]  # Remove padding from output
         return result
 
 
