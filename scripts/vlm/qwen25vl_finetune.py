@@ -164,13 +164,13 @@ def main(args):
 
     # nsys callback
     from nemo.lightning.pytorch.callbacks.nsys import NsysCallback
+
     nsys_callback = NsysCallback(start_step=10, end_step=11, gen_shape=True)
 
     # tp_comm_overlap callback
     from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-    tp_comm_overlap_callback = MegatronCommOverlapCallback(tp_comm_overlap=True,
-                                                           tp_comm_bootstrap_backend='nccl')
 
+    tp_comm_overlap_callback = MegatronCommOverlapCallback(tp_comm_overlap=True, tp_comm_bootstrap_backend='nccl')
 
     # Trainer setup
     trainer = nl.Trainer(

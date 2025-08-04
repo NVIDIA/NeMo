@@ -311,9 +311,11 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
         ]
 
         # Set configs for all transformer components
-        for config in [self.language_transformer_config,
-                      self.vision_transformer_config,
-                      self.vision_projection_config]:
+        for config in [
+            self.language_transformer_config,
+            self.vision_transformer_config,
+            self.vision_projection_config,
+        ]:
             for attr in config_attrs:
                 setattr(config, attr, getattr(self, attr))
 
@@ -680,9 +682,13 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             pixel_values = pixel_values.to(next(self.vision_model.parameters()).dtype)
             if self.config.freeze_vision_model:
                 with torch.no_grad():
-                    image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
+                    image_embeddings = self.vision_model(
+                        pixel_values, grid_thw=image_grid_thw
+                    )  # [bs, img_seq_len, h_vision]
             else:
-                image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
+                image_embeddings = self.vision_model(
+                    pixel_values, grid_thw=image_grid_thw
+                )  # [bs, img_seq_len, h_vision]
             window_index = self.vision_model.window_index if self.model_version == "qwen25-vl" else None
 
             if self._drop_vision_class_token:
@@ -948,12 +954,14 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 final_embedding = final_embedding.transpose(1, 0).contiguous()  #  [seq_len, bs, h_language]
             else:
                 # pad to multiple of cp_size * 2
-                target_seq_len = ((final_embedding.shape[1] + 2 * self.context_parallel_lm - 1) // (2 * self.context_parallel_lm)) * (2 * self.context_parallel_lm)
+                target_seq_len = (
+                    (final_embedding.shape[1] + 2 * self.context_parallel_lm - 1) // (2 * self.context_parallel_lm)
+                ) * (2 * self.context_parallel_lm)
                 if final_embedding.shape[1] < target_seq_len:
                     padded_seq_len = target_seq_len - final_embedding.shape[1]
                     # Pad sequence dimension (dim=1) on the right
                     final_embedding = torch.nn.functional.pad(final_embedding, (0, 0, 0, padded_seq_len))
-                
+
             if self.sequence_parallel_lm:
                 final_embedding = scatter_to_sequence_parallel_region(final_embedding)
         truncate_labels = final_labels is not None and final_labels.shape[1] > self._language_max_sequence_length
