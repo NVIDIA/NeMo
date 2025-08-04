@@ -268,7 +268,7 @@ if __name__ == "__main__":
 
         # Model initialization
         batch_size = 2
-        seq_len = 512
+        seq_len = 1024  # Increased from 512 to provide more space for overlapping patches
         mixer_module_wrapper = MixerModuleWrapper(
             seq_len=seq_len,
             operator_type=args.operator_type,
