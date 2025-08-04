@@ -564,7 +564,7 @@ def main():
         maskgit_n_steps=args.maskgit_n_steps,
         maskgit_noise_scale=args.maskgit_noise_scale,
         fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
-        sampling_type=args.sampling_type
+        sampling_type=args.sampling_type,
         legacy_codebooks=args.legacy_codebooks,
         clean_up_disk=args.clean_up_disk,
         hparams_file_from_wandb=args.hparams_file_from_wandb,
