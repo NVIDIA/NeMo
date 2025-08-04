@@ -57,7 +57,7 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
     vp_size = getattr(recipe.trainer.strategy, 'virtual_pipeline_model_parallel_size', 1)
     if vp_size is None:
         vp_size = 1
-    
+
     # Determine if NCCL User Buffer should be enabled based on model size
     model_info = extract_all_values(args.model)
     model_size_b = model_info.get('model_size_b', 0)
