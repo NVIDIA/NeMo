@@ -109,6 +109,7 @@ def finetune_recipe(
         pipeline_model_parallel_size=1,
         encoder_pipeline_model_parallel_size=0,
         pipeline_dtype=torch.bfloat16,
+        ckpt_async_save=False,
     )
 
     trainer = run.Config(
@@ -220,6 +221,7 @@ def pretrain_recipe(
         pipeline_model_parallel_size=1,
         encoder_pipeline_model_parallel_size=0,
         pipeline_dtype=torch.bfloat16,
+        ckpt_async_save=False,
     )
 
     trainer = run.Config(
