@@ -84,6 +84,8 @@ def slurm_executor(
     numa_bind_factor = max(1, int(num_gpus_per_node / 2))  # Ensure at least 1 to avoid division by zero
     srun_args = [
         "--mpi=pmix",
+        "--container-writable",
+        "--no-container-mount-home",
     ]
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
