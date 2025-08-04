@@ -955,6 +955,9 @@ class ParallelHyenaOperator(nn.Module):
         conv_bias = self.conv_bias
         local_size = None
 
+        if inference_context is not None:
+            z = x2 * v
+
         if cp_group is not None and len(torch.distributed.get_process_group_ranks(cp_group)) > 1:
 
             if inference_context is not None:  # reconstruct ALL tensors from split to full
@@ -962,7 +965,6 @@ class ParallelHyenaOperator(nn.Module):
                     AllToAllSingleFunction.apply(tensor, cp_group, "split_to_full", True) for tensor in [x1, x2, v]
                 ]
             else:  # only reconstruct z (post gating) for non-inference case
-                z = x2 * v
                 z = AllToAllSingleFunction.apply(z, cp_group, "split_to_full", True)
 
             # the tensors are now split across channels, but have full length.
