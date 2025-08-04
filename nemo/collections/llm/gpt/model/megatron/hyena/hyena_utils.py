@@ -56,14 +56,20 @@ except ImportError:
 try:
     from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
     from cuhyena.fft_causal_conv1d import fft_causal_conv1d
-    from cuhyena.fft_causal_conv1d import is_supported as is_fused_supported
-
-    CUHYENA_AVAILABLE = True
+    from cuhyena.fft_causal_conv1d import short_fft_is_available as is_fused_supported
 except ImportError:
-    b2b_causal_conv1d = None
-    fft_causal_conv1d = None
-    is_fused_supported = None
-    CUHYENA_AVAILABLE = False
+
+    def b2b_causal_conv1d(*args, **kwargs):
+        """Not imported: b2b_causal_conv1d. An error will be raised if this is called."""
+        raise ImportError("b2b_causal_conv1d is required by the Hyena model but cannot be imported")
+
+    def fft_causal_conv1d(*args, **kwargs):
+        """Not imported: fft_causal_conv1d. An error will be raised if this is called."""
+        raise ImportError("fft_causal_conv1d is required by the Hyena model but cannot be imported")
+
+    def is_fused_supported(*args, **kwargs):
+        """Not imported: is_fused_supported. Will return False if called."""
+        return False
 
 
 def _get_zigzag_indices(N, device=None):
@@ -465,7 +471,7 @@ def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=Fal
 
     # causal
     else:
-        if is_fused_supported is not None and is_fused_supported(k.shape[-1]) and fft_causal_conv1d is not None:
+        if is_fused_supported(k.shape[-1]):
             y = fft_causal_conv1d(u, k.squeeze(0))
         else:
             k_f = torch.fft.rfft(k, n=fft_size) / fft_size
