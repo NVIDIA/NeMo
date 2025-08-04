@@ -19,6 +19,7 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.deepseek_v3 import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
 from nemo.lightning.pytorch.callbacks.megatron_enable_experimental_callback import MegatronEnableExperimentalCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
@@ -73,6 +74,8 @@ def override_recipe_configs(
         recipe.model.config.moe_token_dispatcher_type = "flex"
         recipe.model.config.moe_enable_deepep = True
         recipe.model.config.moe_shared_expert_overlap = False  # not supported for deepEP
+        # use force load balance for reducing variance in benchmarking
+        recipe.model.config.moe_router_force_load_balancing = True
     else:
         recipe.model.config.moe_token_dispatcher_type = "alltoall"
         recipe.model.config.moe_enable_deepep = False
