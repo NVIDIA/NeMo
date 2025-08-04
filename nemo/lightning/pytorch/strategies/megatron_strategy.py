@@ -727,7 +727,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         assert isinstance(self.model, MegatronParallel)
 
         # Capture the external cuda graph for the first step
-        if self.trainer.global_step == 0 and hasattr(self.model, 'config') and getattr(self.model.config, 'external_cuda_graph', False):
+        if (
+            self.trainer.global_step == 0
+            and hasattr(self.model, 'config')
+            and getattr(self.model.config, 'external_cuda_graph', False)
+        ):
             # disable the prehook
             if self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:
                 self.model.disable_forward_pre_hook()
@@ -771,7 +775,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
                 reduced_train_loss = out["loss"]
 
-            if self.trainer.global_step == 0 and hasattr(self.model, 'config') and getattr(self.model.config, 'external_cuda_graph', False):
+            if (
+                self.trainer.global_step == 0
+                and hasattr(self.model, 'config')
+                and getattr(self.model.config, 'external_cuda_graph', False)
+            ):
                 if self.ddp_config.use_distributed_optimizer and self.ddp_config.overlap_param_gather:
                     # enable the prehook
                     self.model.enable_forward_pre_hook()
