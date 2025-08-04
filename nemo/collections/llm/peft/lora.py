@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass, field
-from typing import List, Literal, Tuple
+from typing import Literal, Optional
 
 import torch
 
@@ -47,7 +49,7 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
-    def forward(self, x: torch.Tensor, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, *args, **kwargs) -> tuple[torch.Tensor, torch.Tensor]:
         # pylint: disable=C0115,C0116
         if getattr(self, "_enable_fused_impl", False):
             return self._fused_forward(x)
@@ -56,7 +58,7 @@ class LoRALinear(AdapterWrapper):
         adapter_output = adapter_output.reshape(linear_output.shape)
         return linear_output + adapter_output, bias
 
-    def _fused_forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _fused_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass with Transformer Engine operation fuser
 
         The fused implementation is a PyTorch module that shares
@@ -109,16 +111,48 @@ if HAVE_TE:
         ) -> None:
             super().__init__()
 
-            # Split adapter into two branches
-            # Main branch: norm, fork, linear
-            # LoRA branch: lora_a, lora_b, add
-            main_branch = []
-            lora_branch = []
+            self._make_main_branch(
+                in_features,
+                out_features,
+                bias=bias,
+                device=device,
+                dtype=dtype,
+                norm_type=norm_type,
+                norm_eps=norm_eps,
+                norm_zero_centered_gamma=norm_zero_centered_gamma,
+            )
+            with te.fp8_model_init(enabled=False):
+                self._make_lora_branch(
+                    in_features,
+                    out_features,
+                    lora_dim,
+                    device=device,
+                    dtype=dtype,
+                    lora_dropout=lora_dropout,
+                    lora_dropout_position=lora_dropout_position,
+                    lora_scale=lora_scale,
+                )
+
+        def _make_main_branch(
+            self,
+            in_features: int,
+            out_features: int,
+            *,
+            bias: bool,
+            device: Optional[torch.device],
+            dtype: Optional[torch.dtype],
+            norm_type: Optional[str],
+            norm_eps: float,
+            norm_zero_centered_gamma: bool,
+        ) -> None:
+
+            # List of ops
+            ops = []
 
             # Norm op
             self.norm_main_branch_idx: Optional[int] = None
             if norm_type is not None:
-                self.norm_main_branch_idx = len(main_branch)
+                self.norm_main_branch_idx = len(ops)
                 norm_kwargs = {
                     "eps": norm_eps,
                     "device": device,
@@ -126,19 +160,19 @@ if HAVE_TE:
                     "zero_centered_gamma": norm_zero_centered_gamma,
                 }
                 if norm_type == "LayerNorm":
-                    main_branch.append(te.ops.LayerNorm(in_features, **norm_kwargs))
+                    ops.append(te.ops.LayerNorm(in_features, **norm_kwargs))
                 elif norm_type == "RMSNorm":
-                    main_branch.append(te.ops.RMSNorm(in_features, **norm_kwargs))
+                    ops.append(te.ops.RMSNorm(in_features, **norm_kwargs))
                 else:
                     raise ValueError(f"Unsupported normalization ({norm_type})")
-                main_branch.append(te.ops.Quantize(forward=True, backward=False))
+                ops.append(te.ops.Quantize(forward=True, backward=False))
 
             # Fork to LoRA branch
-            main_branch.append(te.ops.MakeExtraOutput())
+            ops.append(te.ops.MakeExtraOutput())
 
             # Main branch linear op
-            self.linear_main_branch_idx: int = len(main_branch)
-            main_branch.append(
+            self.linear_main_branch_idx: int = len(ops)
+            ops.append(
                 te.ops.Linear(
                     in_features,
                     out_features,
@@ -149,13 +183,32 @@ if HAVE_TE:
                 )
             )
 
+            # Fuse ops
+            self.main_branch = te.ops.Sequential(*ops)
+
+        def _make_lora_branch(
+            self,
+            in_features: int,
+            out_features: int,
+            lora_dim: int,
+            *,
+            device: Optional[torch.device],
+            dtype: Optional[torch.dtype],
+            lora_dropout: float,
+            lora_dropout_position: str,
+            lora_scale: float,
+        ) -> None:
+
+            # List of ops
+            ops = []
+
             # LoRA pre-processing
             if lora_dropout > 0 and lora_dropout_position == "pre":
-                lora_branch.append(te.ops.Dropout(lora_dropout))
+                ops.append(te.ops.Dropout(lora_dropout))
 
             # LoRA linear ops
-            self.lora_a_lora_branch_idx: int = len(lora_branch)
-            lora_branch.append(
+            self.lora_a_lora_branch_idx: int = len(ops)
+            ops.append(
                 te.ops.Linear(
                     in_features,
                     lora_dim,
@@ -165,8 +218,8 @@ if HAVE_TE:
                     tensor_parallel_mode=None,  ### TODO Support TP
                 )
             )
-            self.lora_b_lora_branch_idx: int = len(lora_branch)
-            lora_branch.append(
+            self.lora_b_lora_branch_idx: int = len(ops)
+            ops.append(
                 te.ops.Linear(
                     lora_dim,
                     out_features,
@@ -179,18 +232,17 @@ if HAVE_TE:
 
             # LoRA post-processing
             if lora_scale != 1:
-                lora_branch.append(te.ops.ConstantScale(lora_scale))
+                ops.append(te.ops.ConstantScale(lora_scale))
             if lora_dropout > 0 and lora_dropout_position == "post":
-                lora_branch.append(te.ops.Dropout(lora_dropout))
+                ops.append(te.ops.Dropout(lora_dropout))
 
             # Add with main branch
-            lora_branch.append(te.ops.AddExtraInput())
+            ops.append(te.ops.AddExtraInput())
 
-            # Fuse ops in each branch
-            self.main_branch = te.ops.Sequential(*main_branch)
-            self.lora_branch = te.ops.Sequential(*lora_branch)
+            # Fuse ops
+            self.lora_branch = te.ops.Sequential(*ops)
 
-        def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
             linear_output, linear_input = self.main_branch(x)
             with te.fp8_autocast(enabled=False):
                 out = self.lora_branch(linear_input, linear_output)
@@ -200,19 +252,25 @@ if HAVE_TE:
         def make_from_lora_linear(lora_linear: LoRALinear) -> TEFusedLoRALinear:
             """Construct a fused LoRA adapter with the same params as an unfused adapter"""
 
+            from nemo.collections.llm.peft.utils import ParallelLinearAdapter
+
             # Check inputs
             if not isinstance(lora_linear, LoRALinear):
                 raise ValueError(f"Expected LoRALinear, got {lora_linear.__class__}")
-            if not isinstance(lora_linear.to_wrap, (te.Linear, te.LayerNormLinear)):
+            if not isinstance(lora_linear.to_wrap, (te.Linear, te.LayerNormLinear, torch.nn.Linear)):
                 raise ValueError(
-                    f"Expected LoRALinear to wrap a Transformer Engine linear module, but found {lora_linear.to_wrap.__class__}"
+                    f"Unsupported class for LoRALinear wrapped linear ({lora_linear.to_wrap.__class__})"
+                )
+            if not isinstance(lora_linear.adapter, (LinearAdapter, TELinearAdapter, ParallelLinearAdapter)):
+                raise ValueError(
+                    f"Unsupported class for LoRALinear adapter ({lora_linear.adapter.__class__})"
                 )
 
             # Args for TEFusedLoRALinear constructor
             constructor_kwargs = {"device": "meta"}  # Do not initialize params
 
             # Extract linear params from base linear module
-            linear = lora_linear.to_wrap
+            orig_linear = lora_linear.to_wrap
             weight = orig_linear.weight
             bias = orig_linear.bias
             if isinstance(bias, torch.Tensor) and bias.numel() == 0:
@@ -585,7 +643,7 @@ class LoRA(PEFT, ModuleMatcher):
     This class facilitates the application of LoRA to specific modules within the model architecture.
 
     Args:
-        target_modules (List[str], optional): A list of module names to apply LoRA to.
+        target_modules (list[str], optional): A list of module names to apply LoRA to.
             Defaults to all linear layers ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'].
                 - 'linear_qkv': Apply LoRA to the fused linear layer used for query, key, and value projections
                                 in self-attention.
@@ -595,7 +653,7 @@ class LoRA(PEFT, ModuleMatcher):
             Target modules can also contain wildcards. For example, you can specify
                 target_modules=['*.layers.0.*.linear_qkv', '*.layers.1.*.linear_qkv'] to add LoRA to only linear_qkv
                 on the first two layers.
-        exclude_modules (List[str], optional): A list of module names not to apply LoRa to. It will
+        exclude_modules (list[str], optional): A list of module names not to apply LoRa to. It will
             match all nn.Linear & nn.Linear-adjacent modules whose name does not match any string in
             exclude_modules. If used, will require target_modules to be empty list or None.
         dim (int): Dimension of the low-rank projection space. Defaults to 32.
@@ -626,7 +684,7 @@ class LoRA(PEFT, ModuleMatcher):
     )
     """
 
-    target_modules: List[str] = field(
+    target_modules: list[str] = field(
         default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
     )
     dim: int = 32
