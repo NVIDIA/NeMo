@@ -24,7 +24,8 @@ from nemo.collections import avlm, llm
 from nemo.collections.avlm import AVLMMockDataModule
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.peft import LoRA
-from nemo.collections.llm.recipes.log.default import tensorboard_logger
+from nemo.collections.llm.recipes.finetune_default import nemo_resume
+from nemo.collections.llm.recipes.log.default import default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.utils.exp_manager import TimingCallback
@@ -149,10 +150,7 @@ def finetune_recipe(
         ),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=2.0e-05, min_lr=2.0e-07, warmup_steps=150),
-        resume=run.Config(
-            nl.AutoResume,
-            restore_config=run.Config(nl.RestoreConfig, path=checkpoint_path),
-        ),
+        resume=nemo_resume(checkpoint_path),
     )
 
     if peft_scheme is None or peft_scheme.lower() == 'none':
@@ -264,6 +262,7 @@ def pretrain_recipe(
         ),
         log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=0.001, min_lr=2.0e-05, warmup_steps=150),
+        resume=default_resume(),
     )
 
     return recipe
