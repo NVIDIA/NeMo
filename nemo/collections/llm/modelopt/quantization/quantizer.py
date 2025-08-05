@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Optional, Union
 import torch
 from datasets import load_dataset
 from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core import parallel_state
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
@@ -332,26 +333,18 @@ class Quantizer:
             )
 
         # Print quantization summary with both tensor and pipeline parallelism awareness
-        from megatron.core import parallel_state
+        pp_rank = parallel_state.get_pipeline_model_parallel_rank()
+        pp_size = parallel_state.get_pipeline_model_parallel_world_size()
+        tp_rank = parallel_state.get_tensor_model_parallel_rank()
 
-        if parallel_state.is_initialized():
-            pp_rank = parallel_state.get_pipeline_model_parallel_rank()
-            pp_size = parallel_state.get_pipeline_model_parallel_world_size()
-            tp_rank = parallel_state.get_tensor_model_parallel_rank()
-            tp_size = parallel_state.get_tensor_model_parallel_world_size()
-
-            if pp_size > 1:
-                # For pipeline parallelism
-                if tp_rank == 0:
-                    print(f"[PP Rank {pp_rank}/{pp_size}, Quantization Summary:")
-                    mtq.print_quant_summary(unwrapped_model)
-                torch.distributed.barrier()  # Ensure ordered printing across all ranks
-            else:
-                # For single PP, tensor parallelism case
-                if is_global_rank_zero():
-                    mtq.print_quant_summary(unwrapped_model)
+        if pp_size > 1:
+            # For pipeline parallelism
+            if tp_rank == 0:
+                print(f"[PP Rank {pp_rank}/{pp_size}, Quantization Summary:")
+                mtq.print_quant_summary(unwrapped_model)
+            torch.distributed.barrier()  # Ensure ordered printing across all ranks
         else:
-            # Non-distributed case
+            # For single PP, tensor parallelism case
             if is_global_rank_zero():
                 mtq.print_quant_summary(unwrapped_model)
 
@@ -509,14 +502,12 @@ def export_hf_checkpoint(
 
         with torch.inference_mode():
             with tempfile.TemporaryDirectory() as tmp_dir:
-                exporter.config.save_pretrained(tmp_dir)
-                # For llama4, we only deal with the language_model, vision_model and multi_modal_projector will be acquired from the huggingface checkpoint
-                if (
-                    hasattr(unwrapped_model, 'language_model')
-                    and hasattr(unwrapped_model, 'vision_model')
-                    and hf_checkpoint
-                ):
+                if hasattr(unwrapped_model, 'language_model') and hasattr(unwrapped_model, 'vision_model'):
+                    # For llama4, we only deal with the language_model, vision_model and multi_modal_projector will be acquired from the huggingface checkpoint
+                    assert hf_checkpoint is not None, "hf_checkpoint is required for exporting VLMs to HF format"
                     tmp_dir = hf_checkpoint
+                else:
+                    exporter.config.save_pretrained(tmp_dir)
                 mte.export_mcore_gpt_to_hf(
                     unwrapped_model, pretrained_model_name_or_path=tmp_dir, export_dir=str(export_dir), **kwargs
                 )

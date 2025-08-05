@@ -239,8 +239,11 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             "model.layers.*.input_layernorm.weight": "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
             "model.layers.*.post_attention_layernorm.weight": "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
             "model.norm.weight": "decoder.final_layernorm.weight",
-            "lm_head.weight": "output_layer.weight",
         }
+
+        # Only map lm_head.weight if embeddings are not tied/shared
+        if not getattr(source.config, "tie_word_embeddings", False):
+            mapping["lm_head.weight"] = "output_layer.weight"
 
         transforms = [
             io.state_transform(
@@ -294,7 +297,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             gated_linear_unit=True,
             make_vocab_size_divisible_by=128,
             rotary_base=source.rope_theta,
-            share_embeddings_and_output_weights=False,
+            share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
             vocab_size=source.vocab_size,
             seq_length=source.max_position_embeddings,
             fp16=(dtype_from_hf(source) == torch.float16),
