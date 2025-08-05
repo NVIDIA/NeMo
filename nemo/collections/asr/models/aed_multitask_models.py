@@ -1131,6 +1131,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 if k not in entry:
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)
+                if k == "timestamp" and self.timestamps_asr_model is not None:
+                    entry[k] = 'notimestamp'
             out_json_items.append(entry)
         return out_json_items
 
@@ -1145,7 +1147,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         return MultiTaskTranscriptionConfig()
 
     def predict_step(
-        self, batch: PromptedAudioToTextMiniBatch, batch_idx=0, dataloader_idx=0, has_processed_signal=False
+        self, batch: PromptedAudioToTextMiniBatch, batch_idx=0, dataloader_idx=0, has_processed_signal=False, timestamps=False
     ):
         if has_processed_signal:
             processed_signal = batch.audio
@@ -1172,9 +1174,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             return_hypotheses=False,
         )
 
-        hypotheses = process_aed_timestamp_outputs(
-            hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
-        )
+        if timestamps and self.timestamps_asr_model is None:
+            hypotheses = process_aed_timestamp_outputs(
+                hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
 
         if batch.cuts:
             return list(zip(batch.cuts, hypotheses))

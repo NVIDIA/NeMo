@@ -12,19 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
-import soundfile as sf
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.utils import logging
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+
 
 BLANK_TOKEN = "<b>"
 SPACE_TOKEN = "<space>"
@@ -845,9 +845,8 @@ def viterbi_decoding(
 
     return alignments_batch
 
-
 def get_batch_variables(
-    audio: Union[str, List[str], np.ndarray, DataLoader],
+    audio: Union[str, List[str], np.ndarray, DataLoader, Hypothesis],
     model: ASRModel,
     segment_separators: Union[str, List[str]] = ['.', '?', '!', '...'],
     word_separator: Optional[str] = " ",
@@ -859,6 +858,7 @@ def get_batch_variables(
     use_buffered_chunked_streaming: bool = False,
     buffered_chunk_params: dict = {},
     padding_value: float = -3.4e38,
+    has_hypotheses: bool = False,
 ):
     """
     Args:
@@ -874,6 +874,7 @@ def get_batch_variables(
         use_buffered_chunked_streaming: a boolean, if True, the buffered chunked streaming will be used.
         buffered_chunk_params: a dictionary, containing the parameters for the buffered chunked streaming.
         padding_value: a float, the value to use for padding the log_probs tensor.
+        has_hypotheses: a boolean, if True, the audio has already been processed and hypotheses are provided.
 
     Returns:
         log_probs_batch: a tensor of shape (B, T_max, V) - contains the log probabilities of the tokens for each utterance in the batch.
@@ -921,7 +922,10 @@ def get_batch_variables(
     if not use_buffered_chunked_streaming:
         if not simulate_cache_aware_streaming:
             with torch.no_grad():
-                hypotheses = model.transcribe(audio, return_hypotheses=True, batch_size=batch_size)
+                if has_hypotheses:
+                    hypotheses = audio
+                else:
+                    hypotheses = model.transcribe(audio, return_hypotheses=True, batch_size=batch_size)
         else:
             assert isinstance(audio, list) or isinstance(
                 audio, str
