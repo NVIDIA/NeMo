@@ -49,6 +49,13 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
 ) or numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
+try:
+    import kenlm
+
+    KENLM_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    KENLM_AVAILABLE = False
+
 
 # available audio filename fixtures
 @pytest.fixture(scope="module")
@@ -395,7 +402,14 @@ class TestRNNTDecoding:
         blank_lm_score_mode,
     ):
         device = torch.device("cuda")
-        beam_config["ngram_lm_model"] = kenlm_model_path
+
+        if KENLM_AVAILABLE:
+            fusion_models = [kenlm.Model(kenlm_model_path)]
+            fusion_models_alpha = [beam_config["ngram_lm_alpha"]]
+        else:
+            raise ImportError(
+                "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
+            )
 
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
@@ -414,6 +428,8 @@ class TestRNNTDecoding:
             return_best_hypothesis=True,
             pruning_mode=pruning_mode,
             blank_lm_score_mode=blank_lm_score_mode,
+            fusion_models=fusion_models,
+            fusion_models_alpha=fusion_models_alpha,
             **beam_config,
         )
 
@@ -587,7 +603,14 @@ class TestTDTDecoding:
         blank_lm_score_mode,
     ):
         device = torch.device("cuda")
-        beam_config["ngram_lm_model"] = kenlm_model_path
+
+        if KENLM_AVAILABLE:
+            fusion_models = [kenlm.Model(kenlm_model_path)]
+            fusion_models_alpha = [beam_config["ngram_lm_alpha"]]
+        else:
+            raise ImportError(
+                "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
+            )
 
         num_samples = min(batch_size, len(test_audio_filenames))
         model = tdt_model.to(device)
@@ -610,6 +633,8 @@ class TestTDTDecoding:
             return_best_hypothesis=True,
             pruning_mode=pruning_mode,
             blank_lm_score_mode=blank_lm_score_mode,
+            fusion_models=fusion_models,
+            fusion_models_alpha=fusion_models_alpha,
             **beam_config,
         )
 
