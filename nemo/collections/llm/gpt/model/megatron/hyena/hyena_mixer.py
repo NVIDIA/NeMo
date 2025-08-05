@@ -334,6 +334,6 @@ class HyenaMixer(MegatronModule):
         if cuhyena_rearrange is not None:
             z = cuhyena_rearrange(z, bhl_to_lbh=True)
         else:
-            z = rearrange(z, "l b d -> b d l").contiguous()
+            z = rearrange(z, "b d l -> l b d").contiguous()
         y, bias = self.dense(z)
         return y, bias
