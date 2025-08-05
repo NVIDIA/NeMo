@@ -29,6 +29,7 @@ from nemo.collections.common.data.lhotse.cutset import cut_to_conversation, gues
 from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
 from nemo.collections.common.data.lhotse.text_adapters import TextTurn
 from nemo.collections.speechlm2 import SALM, SALMDataset
+from nemo.collections.speechlm2.models.salm_asr_decoder import SALMWithAsrDecoder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -52,7 +53,7 @@ class SalmEvalConfig:
 def main(cfg: SalmEvalConfig):
     logging.info(f"Hydra config:\n{OmegaConf.to_yaml(cfg)}")
 
-    model = SALM.from_pretrained(cfg.pretrained_name).eval().to(getattr(torch, cfg.dtype)).to(cfg.device)
+    model = SALMWithAsrDecoder.from_pretrained(cfg.pretrained_name).eval().to(getattr(torch, cfg.dtype)).to(cfg.device)
 
     conversations = (
         guess_parse_cutset(cfg.inputs)

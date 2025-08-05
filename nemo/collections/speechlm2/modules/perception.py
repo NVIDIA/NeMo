@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, open_dict
 from torch import nn
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.mixins import TranscribeConfig
 from nemo.core import Exportable, NeuralModule, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, AudioSignal, LengthsType, NeuralType, SpectrogramType
-
 
 class AudioPerceptionModule(NeuralModule, Exportable):
     """Audio perception module that consists of audio encoder(s) and modality adapter."""
@@ -192,10 +191,14 @@ class AudioTranscriptionPerceptionModule(NeuralModule, Exportable):
     def preprocessor(self) -> nn.Module:
         return self.asr.preprocessor
 
-    def __init__(self, cfg: DictConfig):
+    def __init__(self, cfg: DictConfig, pretrained_asr: str):
+        from nemo.collections.speechlm2.parts.pretrained import load_pretrained_nemo
         super().__init__()
         # Initialize components
         self.cfg = cfg
+        self.asr = load_pretrained_nemo(ASRModel, pretrained_asr)
+        with open_dict(self.cfg):
+            self.cfg.asr = self.asr.cfg
         # self.asr = ASRModel.from_config_dict(cfg.asr)
         self.spec_augmentation = None
         if 'spec_augment' in cfg and cfg.spec_augment is not None:

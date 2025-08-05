@@ -396,7 +396,6 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
         if config.get("cuts_path") is not None:
             warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
         if isinstance(config.shar_path, (str, Path)):
-            logging.info(f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'")
             cuts = CutSet.from_shar(
                 **_resolve_shar_inputs(config.shar_path, metadata_only), shuffle_shards=True, seed=shard_seed
             )
@@ -405,10 +404,6 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
         elif isinstance(config.shar_path, Sequence):
             # Multiple datasets in Lhotse Shar format: we will dynamically multiplex them
             # with probability approximately proportional to their size
-            logging.info(
-                "Initializing Lhotse Shar CutSet (tarred) from multiple data sources with a weighted multiplexer. "
-                "We found the following sources and weights: "
-            )
             cutsets = []
             weights = []
             for item in config.shar_path:
@@ -429,7 +424,6 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
                     cs = CutSet.from_shar(
                         **_resolve_shar_inputs(path, metadata_only), shuffle_shards=True, seed=shard_seed
                     )
-                logging.info(f"- {path=} {weight=}")
                 cutsets.append(cs)
                 weights.append(weight)
 
@@ -570,9 +564,8 @@ def s2s_cut_to_conversation(
             logging.warning(f"Speaker '{turn_speaker}' not found in user or agent roles for cut {cut.id}")
             return FailedConversion()
         idx += 1
-    if hasattr(cut, "system_prompt") and all(t.role != "system" for t in turns):
+    if hasattr(cut, "system_prompt"):
         turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
-
     return NeMoMultimodalConversation(
         id=cut.id,
         turns=turns,
@@ -584,6 +577,10 @@ def s2s_cut_to_conversation(
 @data_type_parser(["s2s_as_conversation"])
 def read_s2s_as_conversation(config) -> tuple[CutSet, bool]:
     cuts, is_tarred = read_cutset_from_config(config)
+    # Attach extra tags to every utterance dynamically, if provided.
+    # We need to attach them before cuts are converted to conversations.
+    if (extra_tags := config.get("tags")) is not None:
+        cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
     cuts = cuts.map(
         partial(
             s2s_cut_to_conversation,
@@ -674,10 +671,6 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
     notar_kwargs = {"metadata_only": metadata_only}
     is_tarred = config.get("tarred_audio_filepaths") is not None
     if isinstance(config.manifest_filepath, (str, Path)):
-        logging.info(
-            f"""Initializing Lhotse CutSet from a single NeMo manifest
-            (is_tarred={is_tarred}): '{config.manifest_filepath}'"""
-        )
         if is_tarred and not metadata_only:
             cuts = CutSet(
                 LazyNeMoTarredIterator(
@@ -705,11 +698,6 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
         # Format option 3:
         #   i.e., NeMo concatenated dataset
         #   Assume it's [path1, path2, ...] (while tarred_audio_filepaths in the same format).
-        logging.info(
-            f"""Initializing Lhotse CutSet from multiple NeMo manifest
-            (is_tarred={is_tarred}) sources with a weighted multiplexer.
-            We found the following sources and weights: """
-        )
         cutsets = []
         weights = []
         tar_paths = config.tarred_audio_filepaths if is_tarred else repeat((None,))
@@ -747,7 +735,6 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                     f"We got: '{manifest_info}'"
                 )
                 weight = manifest_info[1]
-            logging.info(f"- {manifest_path=} {weight=}")
             # [optional] When we have a limit on the number of open streams,
             #   split the manifest to individual shards if applicable.
             #   This helps the multiplexing achieve closer data distribution

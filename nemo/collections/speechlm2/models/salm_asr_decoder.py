@@ -20,7 +20,7 @@ from lightning import LightningModule
 from omegaconf import DictConfig, open_dict
 from peft import PeftModel
 from torch import Tensor
-from torch.distributed.fsdp import fully_shard
+from torch.distributed.fsdp import fully_shard, register_fsdp_forward_method
 from torch.distributed.tensor import Replicate, Shard
 from torch.distributed.tensor.parallel import (
     ColwiseParallel,
@@ -399,8 +399,23 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             token_embeds = self.embed_tokens(tokens_to_embed)
             # TODO: temporary workaround to perform batch_size=1 inference for audio encoder
             #   due to accuracy issues at bs>1
-            audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
-            audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
+            #audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
+            #audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
+
+            encoded, encoded_len = self.perception.forward_encoder(input_signal=audios, input_signal_length=audio_lens)
+            asr_hyps = self.perception.transcribe_encoded(encoded=encoded, encoded_len=encoded_len)
+            asr_tokens = [
+                torch.as_tensor(self.tokenizer.text_to_ids(f">> {hyp.text} <<" if hyp.text else ">> <<"))
+                for hyp in asr_hyps
+            ]
+            asr_tokens_len = [at.shape[0] for at in asr_tokens]
+            asr_tokens = torch.cat(asr_tokens, dim=0).unsqueeze(0).to(self.device)
+            transcript_embs = torch.split(self.embed_tokens(asr_tokens).squeeze(0), asr_tokens_len, dim=0)
+            audio_embeds, audio_embed_lens = self.perception(encoded=encoded, encoded_len=encoded_len)
+            audio_embeds = [
+                torch.cat([aemb[:aemblen], temb], dim=0)
+                for aemb, aemblen, temb in zip(audio_embeds, audio_embed_lens, transcript_embs)
+            ]
             # Insert audio embeddings into relevant positions in text embeddings.
             input_embeds, _, attention_mask = replace_placeholders_and_build_targets(
                 input_ids=tokens,
@@ -528,7 +543,12 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             llm.lm_head = fully_shard(llm.lm_head, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
+            #self.perception.modality_adapter = fully_shard(self.perception.modality_adapter, **fsdp_config)
+            #self.perception.asr.preprocessor = fully_shard(self.perception.asr.preprocessor **fsdp_config)
+            #self.perception.asr.encoder = fully_shard(self.perception.asr.encoder, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
+            register_fsdp_forward_method(self.perception, "forward_encoder")
+            register_fsdp_forward_method(self.perception, "transcribe_encoded")
 
     @property
     def oomptimizer_schema(self) -> dict:
@@ -558,13 +578,10 @@ def setup_speech_encoder_with_asr(model: torch.nn.Module, pretrained_weights: bo
     with a pretrained NeMo ``ASRModel``.
     The result is assigned to ``model.perception`` attribute and is trainable.
     """
-    if pretrained_weights:
-        asr = load_pretrained_nemo(ASRModel, model.cfg.pretrained_asr).eval()
-        with open_dict(model.cfg):
-            model.cfg.perception.asr = asr.cfg
-            model.cfg.perception.output_dim = model.llm.config.hidden_size
-        model.perception = AudioTranscriptionPerceptionModule(model.cfg.perception).train()
-        model.perception.asr = asr
-        # model.perception.asr.load_state_dict(asr.state_dict())
-    else:
-        model.perception = AudioTranscriptionPerceptionModule(model.cfg.perception).train()
+    with open_dict(model.cfg):
+        model.cfg.output_dim = model.llm.config.hidden_size
+    model.perception = AudioTranscriptionPerceptionModule(model.cfg.perception, model.cfg.pretrained_asr).train()
+
+    from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
+
+    WithOptionalCudaGraphs.disable_cuda_graphs_recursive(model.perception.asr, attribute_path="decoding.decoding")
