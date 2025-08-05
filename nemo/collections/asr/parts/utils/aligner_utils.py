@@ -168,7 +168,6 @@ def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     return utt_id
 
 
-
 def get_utt_obj(
     text: str,
     T: int,
