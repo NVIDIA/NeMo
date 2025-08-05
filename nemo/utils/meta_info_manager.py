@@ -16,10 +16,8 @@
 """MetaInfoManager module for handling experiment metadata configuration."""
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import torch
-
-from nemo.utils.import_utils import safe_import_from
 
 enable_onelogger = True
 
@@ -48,9 +46,8 @@ def get_onelogger_init_config() -> Dict[str, Any]:
 
     return init_config
 
-def _get_base_telemetry_config(
+def _get_base_callback_config(
     trainer: Any,
-    job_name: str,
     global_batch_size: int,
     seq_length: int,
 ) -> Dict[str, Any]:
@@ -62,15 +59,14 @@ def _get_base_telemetry_config(
     
     Args:
         trainer: PyTorch Lightning trainer instance
-        job_name: Job name for the experiment
         global_batch_size: Global batch size (calculated by version-specific function)
         seq_length: Sequence length (calculated by version-specific function)
         
     Returns:
-        Dictionary containing base training telemetry configuration
+        Dictionary containing base training callback configuration
     """
     # Extract values from trainer
-    job_name = os.environ.get('SLURM_JOB_NAME', job_name)
+    job_name = os.environ.get('SLURM_JOB_NAME', 'nemo-run')
     world_size = int(os.environ.get('WORLD_SIZE', 1))
     max_steps = getattr(trainer, 'max_steps', 1)
     # Use hardcoded value for log_every_n_steps instead of getting from trainer
@@ -84,6 +80,34 @@ def _get_base_telemetry_config(
     
     # Calculate train samples target
     train_samples_target = max_steps * global_batch_size
+
+    #Fallback values
+    is_save_checkpoint_enabled = False
+    is_validation_iterations_enabled = False
+    save_checkpoint_strategy = "sync"
+
+    checkpoint_callbacks = [cb for cb in trainer.callbacks if 'Checkpoint' in type(cb).__name__]
+    is_save_checkpoint_enabled = len(checkpoint_callbacks) > 0
+
+    val_check_interval = getattr(trainer, 'val_check_interval', -1)
+    is_validation_iterations_enabled = val_check_interval > 0
+
+    # Check for async_save in trainer strategy (handle both dict and object cases)
+    if hasattr(trainer, 'strategy') and trainer.strategy is not None:
+        try:
+            if isinstance(trainer.strategy, dict):
+                if trainer.strategy.get('async_save', False):
+                    save_checkpoint_strategy = "async"
+            else:
+                if hasattr(trainer.strategy, 'async_save') and trainer.strategy.async_save:
+                    save_checkpoint_strategy = "async"
+        except Exception:
+            pass
+    
+    for callback in checkpoint_callbacks:
+        if hasattr(callback, 'async_save') and callback.async_save:
+            save_checkpoint_strategy = "async"
+            break
 
     # Base training telemetry configuration
     base_config = {
@@ -99,105 +123,75 @@ def _get_base_telemetry_config(
         "train_samples_target_or_fn": train_samples_target,
         # Logging frequency
         "log_every_n_train_iterations": log_every_n_steps,
+        'is_validation_iterations_enabled_or_fn': is_validation_iterations_enabled,
+        'is_save_checkpoint_enabled_or_fn': is_save_checkpoint_enabled,
+        'save_checkpoint_strategy': save_checkpoint_strategy,
     }
     
     return base_config
 
 
-def get_nemo_v1_telemetry_config(
-    trainer: Any,
-    job_name: str,
-    exp_manager_config: Any,
+def get_nemo_v1_callback_config(
+    trainer: Any
 ) -> Dict[str, Any]:
-    """Generate NeMo v1 specific configuration for OneLogger training telemetry.
+    """Generate NeMo v1 specific configuration for OneLogger training callback.
     
     This function provides NeMo v1 specific configuration by extracting values from
     the exp_manager_config object and trainer object.
     
     Args:
         trainer: PyTorch Lightning trainer instance
-        job_name: Job name for the experiment
-        exp_manager_config: ExpManagerConfig from NeMo v1 (required)
         
     Returns:
-        Dictionary containing NeMo v1 training telemetry configuration
+        Dictionary containing NeMo v1 training callback configuration
     """
-    # Calculate batch size and sequence length for NeMo v1
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
-    
-    # Get global batch size from trainer's dataloader (most reliable source)
     global_batch_size = 1  # Default fallback
-    if hasattr(trainer, 'train_dataloader') and trainer.train_dataloader is not None:
-        try:
-            dataloader = trainer.train_dataloader
-            if hasattr(dataloader, 'batch_size'):
-                # Calculate global batch size: batch_size * world_size * accumulate_grad_batches
-                micro_batch_size = dataloader.batch_size
-                accumulate_grad_batches = getattr(trainer, 'accumulate_grad_batches', 1)
-                global_batch_size = micro_batch_size * world_size * accumulate_grad_batches
-
-    # Get sequence length from datamodule (most reliable source)
     seq_length = 1  # Default fallback
-    if hasattr(trainer, 'datamodule') and trainer.datamodule is not None:
-        try:
-            datamodule = trainer.datamodule
-            if hasattr(datamodule, 'seq_length'):
-                seq_length = datamodule.seq_length
-            elif hasattr(datamodule, 'max_len'):
-                seq_length = datamodule.max_len
+
+    if hasattr(trainer, 'lightning_module') and trainer.lightning_module is not None and hasattr(trainer.lightning_module, 'cfg'):
+        model_cfg = trainer.lightning_module.cfg
+        if hasattr(model_cfg, 'train_ds') and hasattr(model_cfg.train_ds, 'batch_size'):
+            micro_batch_size = model_cfg.train_ds.batch_size
+            global_batch_size = micro_batch_size * int(os.environ.get('WORLD_SIZE', 1))
+        elif hasattr(model_cfg, 'train_ds') and hasattr(model_cfg.train_ds, 'bucket_batch_size'):
+            # For ASR with bucketing, use the average batch size
+            bucket_batch_sizes = model_cfg.train_ds.bucket_batch_size
+            # Handle both ListConfig and regular list types
+            if hasattr(bucket_batch_sizes, '__len__') and len(bucket_batch_sizes) > 0:
+                # Convert to list if it's a ListConfig, otherwise use as is
+                bucket_list = list(bucket_batch_sizes) if hasattr(bucket_batch_sizes, '__iter__') else bucket_batch_sizes
+                avg_batch_size = sum(bucket_list) / len(bucket_list)
+                global_batch_size = int(avg_batch_size) * int(os.environ.get('WORLD_SIZE', 1))
+        if hasattr(model_cfg, 'encoder') and hasattr(model_cfg.encoder, 'd_model'):
+            seq_length = model_cfg.encoder.d_model
 
     # Get base configuration with calculated values
-    config = _get_base_telemetry_config(
+    config = _get_base_callback_config(
         trainer=trainer, 
-        job_name=job_name, 
         global_batch_size=global_batch_size,
         seq_length=seq_length,
     )
     
-    # NeMo v1: Extract from exp_manager_config
-    is_save_checkpoint_enabled = getattr(exp_manager_config, 'create_checkpoint_callback', True)
-    
-    # Extract checkpoint strategy from callback params if available
-    checkpoint_params = getattr(exp_manager_config, 'checkpoint_callback_params', None)
-    save_checkpoint_strategy = "async"  # Default for NeMo v1
-    if checkpoint_params and hasattr(checkpoint_params, 'async_save'):
-        save_checkpoint_strategy = "async" if checkpoint_params.async_save else "sync"
-
-    # Extract validation configuration from trainer object
-    # Use trainer.check_val_every_n_epoch to determine if validation is enabled (NeMo v1)
-    val_check_interval = getattr(trainer, 'check_val_every_n_epoch', -1)
-    is_validation_iterations_enabled = val_check_interval > 0
-    
-    # Add NeMo v1 specific configuration
-    config.update({
-        # Telemetry feature flags
-        "is_validation_iterations_enabled_or_fn": is_validation_iterations_enabled,
-        "is_save_checkpoint_enabled_or_fn": is_save_checkpoint_enabled,
-        "save_checkpoint_strategy": save_checkpoint_strategy,
-    })
-    
     return config
 
 
-def get_nemo_v2_telemetry_config(
+def get_nemo_v2_callback_config(
     trainer: Any,
-    job_name: str,
     nemo_logger_config: Any,
     data: Any,
 ) -> Dict[str, Any]:
-    """Generate NeMo v2 specific configuration for OneLogger training telemetry.
+    """Generate NeMo v2 specific configuration for OneLogger training callback.
     
     This function provides NeMo v2 specific configuration by extracting values from
     the trainer callbacks and nemo_logger_config object.
     
     Args:
         trainer: PyTorch Lightning trainer instance
-        job_name: Job name for the experiment
         nemo_logger_config: NeMoLogger config from NeMo v2 (required)
         data: Data module from NeMo v2 (required)
         
     Returns:
-        Dictionary containing NeMo v2 training telemetry configuration
+        Dictionary containing NeMo v2 training callback configuration
     """
     # NeMo v2: Extract batch size and sequence length from data module (most reliable source)
     global_batch_size = 1  # Default fallback
@@ -208,37 +202,11 @@ def get_nemo_v2_telemetry_config(
         seq_length = data.seq_length
     
     # Get base configuration with calculated values
-    config = _get_base_telemetry_config(
+    config = _get_base_callback_config(
         trainer=trainer, 
-        job_name=job_name, 
         global_batch_size=global_batch_size,
         seq_length=seq_length,
     )
-    
-    # Check if checkpoint callback is present
-    # First check if nemo_logger_config has a checkpoint callback configured
-    is_save_checkpoint_enabled = False
-    if hasattr(nemo_logger_config, 'ckpt') and nemo_logger_config.ckpt is not None:
-        is_save_checkpoint_enabled = True
-    else:
-        # Fallback to checking trainer callbacks
-        checkpoint_callbacks = [cb for cb in trainer.callbacks if 'Checkpoint' in type(cb).__name__]
-        is_save_checkpoint_enabled = len(checkpoint_callbacks) > 0
-
-    # Check if validation is enabled based on trainer configuration
-    # Use trainer.val_check_interval to determine if validation is enabled (NeMo v2)
-    val_check_interval = getattr(trainer, 'val_check_interval', -1)
-    is_validation_iterations_enabled = val_check_interval > 0
- 
-    # Determine save checkpoint strategy based on trainer strategy and checkpoint configuration
-    save_checkpoint_strategy = "async" if hasattr(trainer, 'strategy') and trainer.strategy.async_save else "sync"
-    # Add NeMo v2 specific configuration
-    config.update({
-        # Telemetry feature flags
-        "is_validation_iterations_enabled_or_fn": is_validation_iterations_enabled,
-        "is_save_checkpoint_enabled_or_fn": is_save_checkpoint_enabled,
-        "save_checkpoint_strategy": save_checkpoint_strategy,
-    })
 
     return config
 
