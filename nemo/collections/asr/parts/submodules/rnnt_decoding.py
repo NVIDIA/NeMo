@@ -41,6 +41,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     KENLM_AVAILABLE = False
 
+
 class TransducerModelType(PrettyStrEnum):
     RNNT = "rnnt"
     TDT = "tdt"
