@@ -228,6 +228,10 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             maybe_injected_best_model_path = self.best_model_path
 
         if self.save_best_model:
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+                logging.info(f"Saving best model on rank {torch.distributed.get_rank()}")
+
             if not os.path.exists(maybe_injected_best_model_path):
                 return
 

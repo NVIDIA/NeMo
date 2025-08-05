@@ -28,8 +28,8 @@ from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToCharDALIDataset, DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss, resolve_rnnt_default_loss_name
+from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.metrics.wer import WER
-from nemo.collections.asr.metrics.bleu import BLEU 
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoderJoint
 from nemo.collections.asr.parts.mixins import (
@@ -816,7 +816,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             )
             self.bleu.reset()
         # Log items
-        self.log_dict(tensorboard_logs)
+        self.log_dict(tensorboard_logs, sync_dist=True)
 
         # Preserve batch acoustic model T and language model U parameters if normalizing
         if self._optim_normalize_joint_txu:
