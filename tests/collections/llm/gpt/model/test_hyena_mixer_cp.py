@@ -167,17 +167,17 @@ def zigzag_gather_from_group_ranks(data, group, seq_dim=0):
 
 
 class MixerModuleWrapper(torch.nn.Module):
-    def __init__(self, seq_len, operator_type="hyena_short_conv", use_b2b_causal_conv1d=False):
+    def __init__(self, seq_len, operator_type="hyena_short_conv", use_cuhyena=False):
         super().__init__()
 
-        self.use_b2b_causal_conv1d = use_b2b_causal_conv1d
+        self.use_cuhyena = use_cuhyena
 
         # Create necessary submodules - use the mixer submodules like in the regular mixer fixture
         submodules = hyena_stack_spec_no_te.submodules.hyena_layer.submodules.mixer.submodules
 
         # Set the b2b parameter in the config
         hyena_config = HyenaConfig(num_groups_hyena=4096, num_groups_hyena_short=256, num_groups_hyena_medium=256)
-        hyena_test_config = HyenaTestConfig(params_dtype=torch.float32, use_b2b_causal_conv1d=use_b2b_causal_conv1d)
+        hyena_test_config = HyenaTestConfig(params_dtype=torch.float32, use_cuhyena=use_cuhyena)
 
         logging.info("Creating HyenaMixer...")
         self.mixer = HyenaMixer(
@@ -190,8 +190,8 @@ class MixerModuleWrapper(torch.nn.Module):
         )
 
     def forward(self, x, _use_cp=True):
-        if self.use_b2b_causal_conv1d:
-            logging.info(f"Using b2b_causal_conv1d: {self.use_b2b_causal_conv1d}")
+        if self.use_cuhyena:
+            logging.info(f"Using cuHyena: {self.use_cuhyena}")
             z = self.mixer.b2b_kernel(x, _use_cp=_use_cp)
         else:
             logging.info("Using PyTorch implementation")
@@ -207,10 +207,10 @@ if __name__ == "__main__":
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Test hyena mixer with context parallelism")
     parser.add_argument(
-        "--use_b2b_causal_conv1d",
+        "--use_cuhyena",
         action="store_true",
         default=False,
-        help="Whether to use b2b causal conv1d implementation",
+        help="Whether to use cuHyena implementation",
     )
     parser.add_argument(
         "--operator_type",
@@ -272,7 +272,7 @@ if __name__ == "__main__":
         mixer_module_wrapper = MixerModuleWrapper(
             seq_len=seq_len,
             operator_type=args.operator_type,
-            use_b2b_causal_conv1d=args.use_b2b_causal_conv1d,  # TODO: remove this
+            use_cuhyena=args.use_cuhyena,
         )
 
         ddp_mixer_module_wrapper = DDP(

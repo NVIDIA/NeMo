@@ -112,7 +112,7 @@ class HyenaMixer(MegatronModule):
         self.fast_conv_mixer = self.hyena_config.fast_conv_mixer
 
         # Use b2b causal conv1d
-        self.use_b2b_causal_conv1d = self.transformer_config.use_b2b_causal_conv1d
+        self.use_cuhyena = self.transformer_config.use_cuhyena
 
         # Per attention head and per partition values.
         assert torch.distributed.is_initialized()
@@ -190,7 +190,7 @@ class HyenaMixer(MegatronModule):
                 use_conv_bias=self.transformer_config.use_short_conv_bias,
             )
 
-            if self.use_b2b_causal_conv1d:
+            if self.use_cuhyena:
                 # Create a wrapper module that doesn't register parameters
                 # Use the existing weights from the original model
                 self.b2b_kernel = B2BCausalConv1dModule(
@@ -209,6 +209,8 @@ class HyenaMixer(MegatronModule):
                 self.num_groups = self.hyena_config.num_groups_hyena
             self.num_groups_per_tp_rank = self.num_groups // self.model_parallel_size
 
+            # cuHyena LI layer is handled internally in the ParallelHyenaOperator
+            # by transformer_configs.use_cuhyena
             self.mixer = ParallelHyenaOperator(
                 self.hidden_size,  # pass hidden size here to avoid recalculating
                 self.transformer_config,
@@ -218,7 +220,7 @@ class HyenaMixer(MegatronModule):
                 max_sequence_length,
             )
 
-            if self.use_b2b_causal_conv1d and self.operator_type == "hyena_medium_conv":
+            if self.use_cuhyena and self.operator_type == "hyena_medium_conv":
                 # Create a wrapper module that doesn't register parameters
                 # Use the existing weights from the original model
                 self.b2b_kernel = B2BCausalConv1dModule(
@@ -317,7 +319,7 @@ class HyenaMixer(MegatronModule):
             features = rearrange(features, "l b d -> b d l").contiguous()
 
         if (
-            self.use_b2b_causal_conv1d
+            self.use_cuhyena
             and self.operator_type in ["hyena_short_conv", "hyena_medium_conv"]
             and inference_context is None
         ):

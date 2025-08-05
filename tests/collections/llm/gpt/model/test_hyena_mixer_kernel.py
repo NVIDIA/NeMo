@@ -113,7 +113,7 @@ def operator_type(request):
 
 class B2BConv1d(torch.nn.Module):
     def __init__(
-        self, hyena_config, hyena_test_config, seq_len, use_b2b_causal_conv1d=False, operator_type="hyena_medium_conv"
+        self, hyena_config, hyena_test_config, seq_len, use_cuhyena=False, operator_type="hyena_medium_conv"
     ):
         super().__init__()
 
@@ -121,8 +121,8 @@ class B2BConv1d(torch.nn.Module):
         submodules = hyena_stack_spec_no_te.submodules.hyena_layer.submodules.mixer.submodules
 
         # Set the b2b parameter in the config
-        hyena_test_config.use_b2b_causal_conv1d = use_b2b_causal_conv1d
-        self.use_b2b_causal_conv1d = use_b2b_causal_conv1d
+        hyena_test_config.use_cuhyena = use_cuhyena
+        self.use_cuhyena = use_cuhyena
         self.operator_type = operator_type
 
         print("Creating HyenaMixer...")
@@ -136,7 +136,7 @@ class B2BConv1d(torch.nn.Module):
         )
 
     def forward(self, x, _use_cp=False):
-        if self.use_b2b_causal_conv1d:
+        if self.use_cuhyena:
             z = self.mixer.b2b_kernel(x, _use_cp=_use_cp)
         else:
             features = self.mixer.hyena_proj_conv(x, _use_cp=_use_cp)
@@ -153,7 +153,7 @@ def mixer(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
         mixer = B2BConv1d(
-            hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=False, operator_type=operator_type
+            hyena_config, test_config, seq_len=512, use_cuhyena=False, operator_type=operator_type
         )
         yield mixer
 
@@ -164,7 +164,7 @@ def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operat
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
         mixer_kernel = B2BConv1d(
-            hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=True, operator_type=operator_type
+            hyena_config, test_config, seq_len=512, use_cuhyena=True, operator_type=operator_type
         )
         yield mixer_kernel
 
