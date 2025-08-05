@@ -4,7 +4,7 @@
 # Sortformer Diarizer model checkpoint (.ckpt) and NeMo file (.nemo) contain Fast Conformer Encoder model (NEST Encoder) and the pre-trained NEST model is loaded along with the Transformer Encoder layers.
 # Example: a manifest line for training 
 # {"audio_filepath": "/path/to/audio01.wav", "offset": 390.83, "duration": 90.00, "text": "-", "num_speakers": 2, "rttm_filepath": "/path/to/audio01.rttm"}
-name: "SortFormerDiarizer"
+name: "StreamingSortFormerDiarizer"
 num_workers: 18
 batch_size: 4
 
