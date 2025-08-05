@@ -89,7 +89,8 @@ def assert_drv(err):
 
 def cu_call(f_call_out):
     """
-    Makes calls to cuda-python's functions inside cuda.cuda more python by throwing an exception if they return a status which is not cudaSuccess
+    Makes calls to cuda-python's functions inside cuda.cuda more python by throwing an exception
+    if they return a status which is not cudaSuccess
     """
     from cuda import cudart
 
