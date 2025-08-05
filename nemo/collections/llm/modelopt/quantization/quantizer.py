@@ -23,8 +23,8 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 from datasets import load_dataset
-from megatron.core.inference.common_inference_params import CommonInferenceParams
 from megatron.core import parallel_state
+from megatron.core.inference.common_inference_params import CommonInferenceParams
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
