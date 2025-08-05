@@ -48,7 +48,7 @@ def get_words_offsets(
             char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset",
                         where "char" is decoded with the tokenizer.
             encoded_char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset",
-                        where "char" is the original id/ids from the hypotheses (not decoded with the tokenizer).
+                        where "char" is the original id/ids from the hypotheses encoded as a token with the tokenizer.
                         This is needed for subword tokenization models.
             word_delimiter_char: Character token that represents the word delimiter. By default, " ".
             supported_punctuation: Set containing punctuation marks in the vocabulary.
@@ -439,6 +439,7 @@ def get_forced_aligned_timestamps_with_external_model(
     word_separator: Optional[str] = " ",
     supported_punctuation: Optional[Union[Set, List[str]]] = {',', '.', '!', '?'},
     timestamp_type: Optional[Union[str, List[str]]] = "all",
+    has_hypotheses: bool = False,
 ):
 
     def process_timestamps(utt_obj, output_timestep_duration, timestamp_type):
@@ -546,7 +547,7 @@ def get_forced_aligned_timestamps_with_external_model(
     for start_idx in range(0, len(audio), batch_size):
         end_idx = start_idx + batch_size
 
-        audio_batch = [audio[i] for i in range(start_idx, end_idx)]
+        audio_batch = audio[start_idx:end_idx]
 
         log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration = get_batch_variables(
             audio=audio_batch,
@@ -554,6 +555,7 @@ def get_forced_aligned_timestamps_with_external_model(
             segment_separators=segment_separators,
             word_separator=word_separator,
             gt_text_batch=[hyp.text for hyp in main_model_predictions[start_idx:end_idx]],
+            has_hypotheses=has_hypotheses,
         )
 
         alignments_batch = viterbi_decoding(
