@@ -26,11 +26,13 @@ from typing import Any, Dict, Optional
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
+    from nv_one_logger.api.config import OneLoggerConfig
     from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-    from nv_one_logger.api.config import OneLoggerConfig
+    from nv_one_logger.training_telemetry.integration.pytorch_lightning import (
+        TimeEventCallback as OneLoggerNeMoCallback,
+    )
     from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
-    from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeEventCallback as OneLoggerNeMoCallback
 
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
@@ -40,11 +42,12 @@ from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.core import LightningModule
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+
 from nemo.utils.meta_info_manager import (
-    get_onelogger_init_config, 
+    enable_onelogger,
     get_nemo_v1_callback_config,
     get_nemo_v2_callback_config,
-    enable_onelogger
+    get_onelogger_init_config,
 )
 
 # Export OneLogger availability flag
@@ -150,7 +153,7 @@ def init_one_logger() -> None:
     - WandB configuration
     """
     global _ONELOGGER_CALLBACK
-    
+
     if not HAVE_ONELOGGER:
         return
 
@@ -173,7 +176,9 @@ def init_one_logger() -> None:
     )
 
     # Configure the provider without exporter (this automatically calls on_app_start)
-    TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_exporter(exporter.exporter).configure_provider()
+    TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_exporter(
+        exporter.exporter
+    ).configure_provider()
     _ONELOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
 
 
@@ -206,7 +211,7 @@ def update_one_logger_config(
 
     # Convert dict to TrainingTelemetryConfig
     training_telemetry_config = TrainingTelemetryConfig(**config)
-    
+
     # Training telemetry specific config update
     TrainingTelemetryProvider.instance().set_training_telemetry_config(training_telemetry_config)
 
