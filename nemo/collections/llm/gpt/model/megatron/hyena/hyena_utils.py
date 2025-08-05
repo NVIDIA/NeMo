@@ -61,15 +61,15 @@ except ImportError:
 
     def b2b_causal_conv1d(*args, **kwargs):
         """Not imported: b2b_causal_conv1d. An error will be raised if this is called."""
-        raise ImportError("b2b_causal_conv1d is required by the Hyena model but cannot be imported")
+        raise ImportError("cuhyena not installed. b2b_causal_conv1d is not available.")
 
     def fft_causal_conv1d(*args, **kwargs):
         """Not imported: fft_causal_conv1d. An error will be raised if this is called."""
-        raise ImportError("fft_causal_conv1d is required by the Hyena model but cannot be imported")
+        raise ImportError("cuhyena not installed. fft_causal_conv1d is not available.")
 
     def is_fused_supported(*args, **kwargs):
-        """Not imported: is_fused_supported. Will return False if called."""
-        return False
+        """Not imported: is_fused_supported. An error will be raised if this is called."""
+        raise ImportError("cuhyena not installed. is_fused_supported is not available.")
 
 
 def _get_zigzag_indices(N, device=None):
@@ -439,7 +439,7 @@ def hyena_no_weight_decay_cond(name, param):
     return no_wd
 
 
-def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=False):
+def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=False, use_cuhyena=False):
     """Apply a 1D convolution to the input sequence u using the filter k and the shortcut D."""
     seqlen = u.shape[-1]
     fft_size = 2 * seqlen
@@ -471,7 +471,9 @@ def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=Fal
 
     # causal
     else:
-        if is_fused_supported(k.shape[-1]):
+        if use_cuhyena:
+            if not is_fused_supported(k.shape[-1]):  # TODO: Remove this check after full cuHyena support
+                raise ValueError("cuHyena FFT causal convolution is not supported for this filter length.")
             y = fft_causal_conv1d(u, k.squeeze(0))
         else:
             k_f = torch.fft.rfft(k, n=fft_size) / fft_size
@@ -759,6 +761,8 @@ class ParallelHyenaOperator(nn.Module):
         self.use_hyena_filter = hyena_config.use_hyena_filter
         self.zigzag = zigzag
 
+        self.use_cuhyena = transformer_config.use_cuhyena
+
         self.model_parallel_size = get_tensor_model_parallel_world_size()
         self.model_parallel_rank = get_tensor_model_parallel_rank()
 
@@ -1009,6 +1013,7 @@ class ParallelHyenaOperator(nn.Module):
                 dropout_mask=None,
                 gelu=False,
                 bidirectional=self.bidirectional,
+                use_cuhyena=self.use_cuhyena,
             )
             z = z.to(v.dtype)
 

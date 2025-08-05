@@ -70,7 +70,10 @@ except ImportError:
 try:
     from cuhyena.rearrange import rearrange as cuhyena_rearrange
 except ImportError:
-    cuhyena_rearrange = None
+
+    def cuhyena_rearrange(*args, **kwargs):
+        """Not imported: cuhyena_rearrange. An error will be raised if this is called."""
+        raise ImportError("cuhyena not installed. cuhyena_rearrange is not available.")
 
 
 def set_format_recipe():
@@ -313,7 +316,7 @@ class HyenaMixer(MegatronModule):
         else:
             features, _ = self.dense_projection(x)
 
-        if cuhyena_rearrange is not None:
+        if self.use_cuhyena:
             features = cuhyena_rearrange(features, bhl_to_lbh=False)
         else:
             features = rearrange(features, "l b d -> b d l").contiguous()
@@ -335,9 +338,9 @@ class HyenaMixer(MegatronModule):
             )
             z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp, inference_context=inference_context)
 
-        if cuhyena_rearrange is not None:
+        if self.use_cuhyena:
             z = cuhyena_rearrange(z, bhl_to_lbh=True)
         else:
-            z = rearrange(z, "l b d -> b d l").contiguous()
+            z = rearrange(z, "b d l -> l b d").contiguous()
         y, bias = self.dense(z)
         return y, bias
