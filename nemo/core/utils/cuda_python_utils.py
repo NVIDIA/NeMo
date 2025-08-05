@@ -111,7 +111,7 @@ def with_conditional_node(while_loop_kernel, while_loop_args, while_loop_conditi
     execute the next iteration of the loop).
     """
     from cuda import __version__ as cuda_python_version
-    from cuda import cuda, cudart, nvrtc
+    from cuda import cuda, cudart
 
     capture_status, _, graph, _, _ = cu_call(
         cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=device).cuda_stream)
