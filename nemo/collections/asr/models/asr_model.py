@@ -216,6 +216,7 @@ class ASRModel(ModelPT, WithOptionalCudaGraphs, ABC):
     def on_validation_epoch_start(self) -> None:
         """
         For validation, we enable CUDA graphs to speedup validation.
+        Force re-enabling required due to issues with trainer and mixed precision.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
         self.maybe_enable_cuda_graphs(force_reinit=True)
@@ -232,6 +233,7 @@ class ASRModel(ModelPT, WithOptionalCudaGraphs, ABC):
     def on_test_epoch_start(self) -> None:
         """
         For testing, we enable CUDA graphs to speedup validation.
+        Force re-enabling required due to issues with trainer and mixed precision.
         We do not need to disable CUDA graphs after testing, since `test` cannot be called in training loop.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
@@ -240,6 +242,7 @@ class ASRModel(ModelPT, WithOptionalCudaGraphs, ABC):
     def on_predict_epoch_start(self) -> None:
         """
         For predicting, we enable CUDA graphs to speedup validation.
+        Force re-enabling required due to issues with trainer and mixed precision.
         We do not need to disable CUDA graphs after predicting, since `predict` cannot be called in training loop.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
