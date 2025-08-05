@@ -94,8 +94,8 @@ Sortformer resolves permutation problem in diarization following the arrival-tim
         :width: 800px
         :alt: Streaming Sortformer Animated
 
-Streaming sortformer employs a pre-encoder layer in the Fast-Conformer to generate a speaker cache. At each step, speaker cache is filtered to only retain the high-quality speaker cache vectors.
-Aside from speaker-cache management part, streaming Sortformer follows the architecture of the offline version of Sortformer.
+Streaming Sortformer employs a pre-encoder layer in the Fast-Conformer to generate a speaker cache. At each step, speaker cache is filtered to only retain the high-quality speaker cache vectors.
+Aside from speaker-cache management part, Streaming Sortformer follows the architecture of the offline version of Sortformer.
 
 .. _Multi_Scale_Diarization_Decoder:
 

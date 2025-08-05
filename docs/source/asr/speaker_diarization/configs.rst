@@ -12,7 +12,7 @@ Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<
 
 .. code-block:: yaml
 
-  name: "SortFormerDiarizer"
+  name: "SortformerDiarizer"
   num_workers: 18
   batch_size: 8
 
@@ -220,18 +220,16 @@ Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<
       name: null
       project: null
 
-Hydra Configurations for Sortformer Diarizer Training 
+Hydra Configurations for Streaming Sortformer Diarizer Training 
 -----------------------------------------------------
 
-Sortformer Diarizer is an end-to-end speaker diarization model that is solely based on Transformer-encoder type of architecture.
-Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<speaker count limit>-<version>.yaml
+Model name convention for Streaming Sortformer Diarizer: streaming_sortformer_diarizer_<speaker count limit>-<version>.yaml
 
-
-* Example `<NeMo_root>/examples/speaker_tasks/diarization/neural_diarizer/conf/sortformer_diarizer_hybrid_loss_4spk-v1.yaml`.
+* Example `<NeMo_root>/examples/speaker_tasks/diarization/neural_diarizer/conf/streaming_sortformer_diarizer_4spk-v2.yaml`.
 
 .. code-block:: yaml
 
-  name: "StreamingSortFormerDiarizer"
+  name: "StreamingSortformerDiarizer"
   num_workers: 18
   batch_size: 4
 
@@ -320,7 +318,7 @@ Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<
 
     preprocessor:
       _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
-      normalize: "per_feature"
+      normalize: "NA"
       window_size: 0.025
       sample_rate: ${model.sample_rate}
       window_stride: 0.01
@@ -340,7 +338,7 @@ Model name convention for Sortformer Diarizer: sortformer_diarizer_<loss_type>_<
       spkcache_len: 188 # Length of speaker cache buffer (total number of frames for all speakers)
       fifo_len: 0 # Length of FIFO buffer for streaming processing (0 = disabled)
       chunk_len: 188 # Number of frames processed in each streaming chunk
-      spkcache_refresh_rate: 1 # Speaker cache update period in frames (1 = update every chunk)
+      spkcache_update_period: 1 # Speaker cache update period in frames
       chunk_left_context: 1 # Number of previous frames for each streaming chunk
       chunk_right_context: 1 # Number of future frames for each streaming chunk
       # Speaker cache update parameters

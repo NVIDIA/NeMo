@@ -37,7 +37,7 @@ Use the following command to run inference on a Sortformer diarizer model.
   PP_YAML2=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/sortformer_diar_4spk-v1_callhome-part1.yaml   
   python ${NEMO_ROOT}/examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \  
     batch_size=1 \  
-    model_path=/path/to/diar_sortformer_4spk_v1.nemo \  
+    model_path=/path/to/diar_sortformer_4spk-v1.nemo \  
     postprocessing_yaml=${PP_YAML2} \  
     dataset_manifest=/path/to/diarization_manifest.json  
 
@@ -45,13 +45,13 @@ Use the following command to run inference on a Sortformer diarizer model.
 Streaming Sortformer Diarizer Training
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use the following command to train a Sortformer diarizer model.
+Use the following command to train a Streaming Sortformer diarizer model.
   
 .. code-block:: bash  
   
   # Feed the config for Sortformer diarizer model training
   python ${NEMO_ROOT}/examples/speaker_tasks/diarization/neural_diarizer/sortformer_diar_train.py --config-path='../conf/neural_diarizer' \  
-    --config-name='streaming_sortformer_diarizer_hybrid_loss_4spk-v2.yaml' \  
+    --config-name='streaming_sortformer_diarizer_4spk-v2.yaml' \  
     trainer.devices=1 \   
     model.streaming_mode=True \   
     model.train_ds.manifest_filepath="<train_manifest_path>" \   
@@ -63,16 +63,16 @@ Use the following command to train a Sortformer diarizer model.
 Streaming Sortformer Diarizer Inference with Post-processing
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use the following command to run inference on a Sortformer diarizer model.
+Use the following command to run inference on a Streaming Sortformer diarizer model.
 
 .. code-block:: bash  
 
   # Config for post-processing  
-  STREAM_PP_YAML1=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/streaming_sortformer_diar_4spk-v2_dihard3-dev.yaml  
-  STREAM_PP_YAML2=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/streaming_sortformer_diar_4spk-v2_callhome-part1.yaml   
+  STREAM_PP_YAML1=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/diar_streaming_sortformer_4spk-v2_dihard3-dev.yaml  
+  STREAM_PP_YAML2=${NEMO_ROOT}/examples/speaker_tasks/diarization/conf/post_processing/diar_streaming_sortformer_4spk-v2_callhome-part1.yaml   
   python ${NEMO_ROOT}/examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \  
     batch_size=1 \  
-    model_path=/path/to/diar_sortformer_4spk_v1.nemo \  
+    model_path=/path/to/diar_streaming_sortformer_4spk-v2.nemo \  
     postprocessing_yaml=${STREAM_PP_YAML2} \  
     dataset_manifest=/path/to/diarization_manifest.json  
 
@@ -102,7 +102,7 @@ End-to-end Speaker Diarization Models
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. csv-table::
-   :file: data/e2e_diar_models.csv
+   :file: /asr/speaker_diarization/data/e2e_diar_models.csv
    :align: left
    :widths: 30, 30, 40
    :header-rows: 1
@@ -189,7 +189,7 @@ Models for Speaker Diarization Pipeline
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. csv-table::
-   :file: data/diarization_results.csv
+   :file: /asr/speaker_diarization/data/diarization_results.csv
    :align: left
    :widths: 30, 30, 40
    :header-rows: 1
