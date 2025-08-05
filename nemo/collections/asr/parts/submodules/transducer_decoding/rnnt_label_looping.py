@@ -29,7 +29,6 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
 )
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
-from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import cu_call, run_nvrtc, with_conditional_node
 
 try:
@@ -169,9 +168,7 @@ class LabelLoopingState:
         )
 
 
-class GreedyBatchedRNNTLabelLoopingComputer(
-    GreedyBatchedLabelLoopingComputerBase, WithOptionalCudaGraphs, ConfidenceMethodMixin
-):
+class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBase, ConfidenceMethodMixin):
     """
     Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220 for optimized batched greedy decoding.
     Iterates over labels, on each step finding the next non-blank label

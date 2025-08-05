@@ -689,39 +689,43 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                 raise NotImplementedError("N-Gram Language Model fusion is not implemented with `blank_as_pad=False`")
             self._greedy_decode = self._greedy_decode_masked
 
-    def disable_cuda_graphs(self):
+    def disable_cuda_graphs(self) -> bool:
         """Disable CUDA graphs (e.g., for decoding in training)"""
         if not self.use_cuda_graph_decoder:
             # CUDA graphs not allowed, nothing to do
-            return
+            return False
 
         if not self.decoder.blank_as_pad:
             # blank as pad uses decoding without CUDA graphs
-            return
+            return False
 
         if self.loop_labels:
             # Label-Looping implementation
-            self.decoding_computer.disable_cuda_graphs()
+            return self.decoding_computer.disable_cuda_graphs()
         else:
+            greedy_decode_prev = self._greedy_decode
             self._greedy_decode = self._greedy_decode_blank_as_pad_loop_frames
+            return self._greedy_decode != greedy_decode_prev
 
-    def maybe_enable_cuda_graphs(self):
+    def maybe_enable_cuda_graphs(self) -> bool:
         """Enable CUDA graphs (if allowed)"""
         if not self.use_cuda_graph_decoder:
             # CUDA graphs not allowed, nothing to do
-            return
+            return False
 
         if not self.decoder.blank_as_pad:
             # blank as pad uses decoding without CUDA graphs
-            return
+            return False
 
         if self.loop_labels:
             # Label-Looping implementation
-            self.decoding_computer.maybe_enable_cuda_graphs()
+            return self.decoding_computer.maybe_enable_cuda_graphs()
         else:
             from nemo.collections.asr.parts.submodules.cuda_graph_rnnt_greedy_decoding import RNNTGreedyDecodeCudaGraph
 
+            greedy_decode_prev = self._greedy_decode
             self._greedy_decode = RNNTGreedyDecodeCudaGraph(self.max_symbols, self)
+            return self._greedy_decode != greedy_decode_prev
 
     @typecheck()
     def forward(
@@ -2941,12 +2945,14 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             return partial_hypotheses
         return hyps
 
-    def disable_cuda_graphs(self):
+    def disable_cuda_graphs(self) -> bool:
         """Disable CUDA graphs (e.g., for decoding in training)"""
         if self.decoding_computer is not None:
-            self.decoding_computer.disable_cuda_graphs()
+            return self.decoding_computer.disable_cuda_graphs()
+        return False
 
-    def maybe_enable_cuda_graphs(self):
+    def maybe_enable_cuda_graphs(self) -> bool:
         """Enable CUDA graphs (if allowed)"""
         if self.decoding_computer is not None:
-            self.decoding_computer.maybe_enable_cuda_graphs()
+            return self.decoding_computer.maybe_enable_cuda_graphs()
+        return False

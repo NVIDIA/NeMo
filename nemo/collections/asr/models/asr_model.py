@@ -173,11 +173,31 @@ class ASRModel(ModelPT, WithOptionalCudaGraphs, ABC):
                 logging.warning('detected inf or nan values in gradients! Setting gradients to zero.')
                 self.zero_grad()
 
-    def maybe_enable_cuda_graphs(self, force_reinit: bool = False):
-        return
+    def maybe_enable_cuda_graphs(self, force_reinit=False) -> bool:
+        """Enable CUDA graphs if all conditions met, return True if state changed"""
+        state_changed = False
+        if force_reinit:
+            state_changed = self.disable_cuda_graphs()
+        if hasattr(self.decoding, "decoding") and isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
+            state_changed |= self.decoding.decoding.maybe_enable_cuda_graphs()
+        if state_changed:
+            logging.info(
+                f"CUDA graphs enabled for {type(self).__name__}::{type(self.decoding).__name__}::"
+                f"{type(self.decoding.decoding).__name__}"
+            )
+        return state_changed
 
-    def disable_cuda_graphs(self):
-        return
+    def disable_cuda_graphs(self) -> bool:
+        """Disable (maybe temporary) CUDA graphs, return True if state changed"""
+        state_changed = False
+        if hasattr(self.decoding, "decoding") and isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
+            state_changed = self.decoding.decoding.disable_cuda_graphs()
+        if state_changed:
+            logging.info(
+                f"CUDA graphs disabled for {type(self).__name__}::{type(self.decoding).__name__}::"
+                f"{type(self.decoding.decoding).__name__}"
+            )
+        return state_changed
 
     def on_train_epoch_start(self) -> None:
         """

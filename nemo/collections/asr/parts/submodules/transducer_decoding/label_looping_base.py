@@ -13,13 +13,13 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import torch
 
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.utils.cuda_python_utils import check_cuda_python_cuda_graphs_conditional_nodes_supported
 from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
@@ -59,7 +59,7 @@ class LabelLoopingStateItem:
     time_jump: Optional[torch.Tensor] = None
 
 
-class GreedyBatchedLabelLoopingComputerBase(ABC):
+class GreedyBatchedLabelLoopingComputerBase(WithOptionalCudaGraphs, ABC):
     """
     Base class for Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220
     for optimized batched greedy decoding.
@@ -87,11 +87,11 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
         self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
         self.state = None
 
-    def maybe_enable_cuda_graphs(self):
+    def maybe_enable_cuda_graphs(self) -> bool:
         """Enable CUDA graphs if conditions met"""
         if self.cuda_graphs_mode is not None:
             # CUDA graphs are already enabled
-            return
+            return False
 
         if not self.allow_cuda_graphs:
             self.cuda_graphs_mode = None
@@ -113,14 +113,16 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
                 )
                 self.cuda_graphs_mode = self.CudaGraphsMode.NO_WHILE_LOOPS
         self.reset_cuda_graphs_state()
+        return self.cuda_graphs_mode is not None
 
-    def disable_cuda_graphs(self):
+    def disable_cuda_graphs(self) -> bool:
         """Disable CUDA graphs, can be used to disable graphs temporary, e.g., in training process"""
         if self.cuda_graphs_mode is None:
             # nothing to disable
-            return
+            return False
         self.cuda_graphs_mode = None
         self.reset_cuda_graphs_state()
+        return True
 
     @abstractmethod
     def torch_impl(
