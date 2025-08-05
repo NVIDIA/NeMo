@@ -807,13 +807,6 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
 
     add_handlers_to_mcore_logger()
 
-    update_one_logger_config(
-        nemo_version='v1',
-        trainer=trainer, 
-        job_name=cfg.name,
-        exp_manager_config=cfg,  # TODO: remove this
-    )
-
     return log_dir
 
 

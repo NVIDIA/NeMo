@@ -48,7 +48,7 @@ from nemo.core import optim
 from nemo.core.classes.common import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.optim import McoreDistributedOptimizer, prepare_lr_scheduler
-from nemo.lightning.one_logger_callback import get_one_logger_callbacks
+from nemo.lightning.one_logger_callback import get_one_logger_callbacks, update_one_logger_config
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.debug_hook import register_debug_hooks
@@ -157,8 +157,8 @@ class ModelPT(LightningModule, Model):
         if torch.cuda.is_available() and torch.cuda.current_device() is not None:
             app_state.device_id = torch.cuda.current_device()
 
-        self._timing_tracker.track_event('on_model_init_end')
-        self._timing_tracker.track_event('on_dataloader_init_start')
+        get_one_logger_callbacks('on_model_init_end')
+        get_one_logger_callbacks('on_dataloader_init_start')
         if self._cfg is not None and not self._is_model_being_restored():
             # Setup data loaders now (default) or defer setup to `self.setup()`
             # if `defer_setup` is set in the config of the corresponding dataloader.
@@ -205,7 +205,7 @@ class ModelPT(LightningModule, Model):
                     f"Test config : \n{OmegaConf.to_yaml(self._cfg.test_ds)}"
                 )
 
-        self._timing_tracker.track_event('on_dataloader_init_end')
+        get_one_logger_callbacks('on_dataloader_init_end')
 
         # Create list of lists for val and test outputs to support multiple dataloaders
         # Initialize an empty list as sometimes self._validation_dl can be None at this stage
@@ -914,10 +914,10 @@ class ModelPT(LightningModule, Model):
         Configure the optimizer and scheduler.
         """
         # Track optimizer init start
-        self._timing_tracker.track_event('on_optimizer_init_start')
+        get_one_logger_callbacks('on_optimizer_init_start')
         self.setup_optimization()
 
-        self._timing_tracker.track_event('on_optimizer_init_end')
+        get_one_logger_callbacks('on_optimizer_init_end')
 
         if self._scheduler is None:
             return self._optimizer
@@ -981,6 +981,12 @@ class ModelPT(LightningModule, Model):
             )
             if no_test_dataloader and test_deferred_setup:
                 self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
+
+        if stage == 'fit':
+            update_one_logger_config(
+                nemo_version='v1',
+                trainer=self._trainer,
+            )
 
     def train_dataloader(self):
         """
@@ -1355,7 +1361,7 @@ class ModelPT(LightningModule, Model):
 
         """
         # TODO: there might be other ways to load checkpoints, need to cover them all
-        self._timing_tracker.track_event('on_load_checkpoint_start')
+        get_one_logger_callbacks('on_load_checkpoint_start')
         args = [
             'init_from_nemo_model',
             'init_from_pretrained_model',
@@ -1490,7 +1496,7 @@ class ModelPT(LightningModule, Model):
                     raise TypeError("Invalid type: init_from_ptl_ckpt is not a string or a dict!")
 
         # Track load checkpoint end
-        self._timing_tracker.track_event('on_load_checkpoint_end')
+        get_one_logger_callbacks('on_load_checkpoint_end')
 
     def teardown(self, stage: str):
         """

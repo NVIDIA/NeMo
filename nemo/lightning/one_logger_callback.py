@@ -26,7 +26,7 @@ from typing import Any, Dict, Optional
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
     import nv_one_logger.training_telemetry.api.callbacks as CB
-    from nv_one_logger.training_telemetry.api.config import TrainingLoopConfig, TrainingTelemetryConfig
+    from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
     from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
     from nv_one_logger.api.config import OneLoggerConfig
     from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
@@ -42,8 +42,8 @@ from lightning.pytorch.core import LightningModule
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from nemo.utils.meta_info_manager import (
     get_onelogger_init_config, 
-    get_nemo_v1_telemetry_config,
-    get_nemo_v2_telemetry_config,
+    get_nemo_v1_callback_config,
+    get_nemo_v2_callback_config,
     enable_onelogger
 )
 
@@ -198,9 +198,9 @@ def update_one_logger_config(
         return
 
     if nemo_version == 'v1':
-        config = get_nemo_v1_telemetry_config(trainer=trainer, **kwargs)
+        config = get_nemo_v1_callback_config(trainer=trainer, **kwargs)
     elif nemo_version == 'v2':
-        config = get_nemo_v2_telemetry_config(trainer=trainer, **kwargs)
+        config = get_nemo_v2_callback_config(trainer=trainer, **kwargs)
     else:
         raise ValueError(f"Invalid NeMo version: {nemo_version}")
 
