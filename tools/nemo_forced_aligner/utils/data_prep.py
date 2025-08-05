@@ -20,13 +20,13 @@ from typing import List, Union
 import lhotse.dataset
 import soundfile as sf
 import torch
-from lhotse import CutSet
 from tqdm.auto import tqdm
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoTarredIterator
 from nemo.utils import logging
 
+<<<<<<< HEAD
 
 class ToAudio(torch.utils.data.Dataset):
     def __init__(self, return_dict=True):
@@ -45,6 +45,8 @@ class ToAudio(torch.utils.data.Dataset):
             return audios, audio_lens, tokens, token_lens
 
 
+=======
+>>>>>>> 39a9c92b0b (Remove get_lhotse_dataloader from data_prep)
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     fp_parts = Path(audio_filepath).parts[-audio_filepath_parts_in_utt_id:]
     utt_id = Path("_".join(fp_parts)).stem
