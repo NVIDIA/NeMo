@@ -19,6 +19,7 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.deepseek_v3 import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
 from nemo.lightning.pytorch.callbacks.megatron_enable_experimental_callback import MegatronEnableExperimentalCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
@@ -26,7 +27,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import hf_tokenizer
+from ..utils import dump_config_diff_from_base_recipe, hf_tokenizer
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 USE_TOKEN_DROP = True  # Use token drop callback
@@ -73,6 +74,8 @@ def override_recipe_configs(
         recipe.model.config.moe_token_dispatcher_type = "flex"
         recipe.model.config.moe_enable_deepep = True
         recipe.model.config.moe_shared_expert_overlap = False  # not supported for deepEP
+        # use force load balance for reducing variance in benchmarking
+        recipe.model.config.moe_router_force_load_balancing = True
     else:
         recipe.model.config.moe_token_dispatcher_type = "alltoall"
         recipe.model.config.moe_enable_deepep = False
@@ -252,3 +255,14 @@ if __name__ == "__main__":
             exp.run(sequential=True, detach=True)
         else:
             exp.dryrun()
+
+    if args.dump_config_diff_from_base_recipe:
+        output_dir = exp.jobs[0].executor.job_dir
+        # dump difference from base recipe
+        base_recipe = pretrain_recipe(performance_mode=False)
+        file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)
+        # dump difference from default perf recipe
+        default_perf_recipe = pretrain_recipe(performance_mode=True)
+        file_name = f"diff_from_default_perf_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(default_perf_recipe, recipe, output_dir, file_name=file_name)

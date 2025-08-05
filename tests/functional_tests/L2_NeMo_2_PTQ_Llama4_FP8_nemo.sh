@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+NEMO_ORI_PATH=/home/TestData/llm/models/llama_4_16e_toy/
 
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/llama4/llama4_ptq.py -ctp 1 -nc ${NEMO_ORI_PATH} -algo fp8 -out /tmp/nemo2_llama4_ptq_ckpt -bs 1 --export_format nemo --model_id hf-internal-testing/tiny-random-llama4 --legacy_ckpt
 
-
-TRANSFORMERS_OFFLINE=1 HF_HOME=/home/TestData/diffusion/ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/diffusion/models/flux/test_flux_controlnet_training.py --yes -v --factory flux_training
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/vlm/llama4/llama4_generate.py --local_model_path /tmp/nemo2_llama4_ptq_ckpt --tp 1 --model_id hf-internal-testing/tiny-random-llama4
