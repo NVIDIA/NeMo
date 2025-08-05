@@ -147,7 +147,7 @@ class _BaseGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]
                 continue  # process scales in the iteration of blocks
             blocks = v
             scales = loaded_mxfp4_data[k.replace("blocks", "scales")].to(torch.int32) - 127
-            new_key = k.replace(".blocks", "")
+            new_key = k.replace(".blocks", "").replace("_blocks", "")
             loaded_bf16_data[new_key] = self._dequantize_mxfp4(blocks, scales)
             logging.debug(f"Successfully dequantized {new_key}")
 
@@ -201,13 +201,10 @@ class _BaseGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]
 @io.model_importer(GPTOSSModel, "hf")
 class HFGPTOSSImporter(_BaseGPTOSSImporter):
     def apply(self, output_path: Path) -> Path:
-        # logging.setLevel(logging.DEBUG)
+        logging.setLevel(logging.DEBUG)
         source_state = self.hf_ckpt_load()
-
         source = _ModelState(source_state)
-        # source_state = self.hf_ckpt_load()
-        # source = _ModelState(source_state)
-        source = AutoModelForCausalLM.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
+        # source = AutoModelForCausalLM.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -261,7 +258,7 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
             io.state_transform(
                 source_key="**.mlp.experts.gate_up_proj",
                 target_key="**.mlp.experts.linear_fc1.weight*",
-                fn=lambda x: [interleave(e) for e in [*x.transpose(-1, -2)]],
+                fn=lambda x: [interleave(e) for e in [*x]],
             ),
             io.state_transform(
                 source_key="**.mlp.experts.down_proj_bias",
@@ -271,7 +268,7 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
             io.state_transform(
                 source_key="**.mlp.experts.down_proj",
                 target_key="**.mlp.experts.linear_fc2.weight*",
-                fn=lambda x: [*x.transpose(-1, -2)],
+                fn=lambda x: [*x],
             ),
         ]
 
