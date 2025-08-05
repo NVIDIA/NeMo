@@ -297,7 +297,7 @@ if HAVE_TE:
             if lora_dropout > 0 and lora_dropout_position == "post":
                 ops.append(te.ops.Dropout(lora_dropout))
             if tensor_parallel_mode == "row":
-                # Note: All-gather along dim -1
+                # All-gather along dim -1
                 raise NotImplementedError("Row tensor parallelism is not yet supported")
 
             # Add with main branch
