@@ -50,6 +50,20 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
+    def __init__(
+        self,
+        to_wrap: nn.Module,
+        adapter: nn.Module,
+        enable_op_fuser: bool = False,
+    ):
+        super().__init__(to_wrap, adapter)
+
+        # Whether to enable implementation with Transformer Engine operation fuser
+        self._op_fuser_enabled: bool = enable_op_fuser
+        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+            # TP is not yet supported
+            self._op_fuser_enabled = False
+
     def forward(
         self,
         x: torch.Tensor,
@@ -59,11 +73,8 @@ class LoRALinear(AdapterWrapper):
         # pylint: disable=C0115,C0116
 
         # Fused implementation
-        if (
-                getattr(self, "_enable_fused_impl", False)
-                and parallel_state.get_tensor_model_parallel_world_size() == 1
-        ):  # TP is not yet supported
-                return self._fused_forward(x)
+        if self._op_fuser_enabled:
+            return self._fused_forward(x)
 
         linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
         adapter_output = self.adapter(layernorm_output.contiguous())
@@ -80,12 +91,12 @@ class LoRALinear(AdapterWrapper):
         """
 
         # Construct fused impl if needed
-        fused_impl = getattr(self, "_fused_impl", (None,))[0]
+        fused_impl = getattr(self, "_op_fuser_impl", (None,))[0]
         if fused_impl is None:
             if not HAVE_TE:
                 raise RuntimeError("Fused LoRALinear implementation requires Transformer Engine")
             fused_impl = TEFusedLoRALinear.make_from_lora_linear(self)
-            self._fused_impl = (fused_impl,)  # Wrap in tuple to avoid registering submodule
+            self._op_fuser_impl = (fused_impl,)  # Wrap in tuple to avoid registering submodule
 
         # Apply fused impl
         return fused_impl(x)
@@ -815,6 +826,7 @@ class LoRA(PEFT, ModuleMatcher):
                 else:
                     lora_cls = LinearAdapter
 
+                # Construct LoRA module
                 return lora_cls(
                     m,
                     dim=self.dim,
@@ -827,6 +839,7 @@ class LoRA(PEFT, ModuleMatcher):
             input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
                 get_adapter_attributes_from_linear(m)
             )
+            enable_op_fuser = hasattr(m, "config") and m.config.use_transformer_engine_op_fuser
             logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
@@ -849,7 +862,7 @@ class LoRA(PEFT, ModuleMatcher):
                 dropout_recompute=self.dropout_recompute,
                 base_linear_is_parallel=base_linear_is_parallel,
             )
-            return LoRALinear(m, adapter)
+            return LoRALinear(m, adapter, enable_op_fuser=enable_op_fuser)
         return m
 
 
