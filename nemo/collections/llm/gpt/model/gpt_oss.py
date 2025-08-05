@@ -24,7 +24,7 @@ from safetensors import safe_open
 from torch import nn
 import math
 
-from transformers import GenerationConfig
+from transformers import GenerationConfig, AutoModelForCausalLM
 
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.gpt.model.base import GPTModel, GPTConfig, torch_dtype_from_mcore_config
@@ -197,22 +197,6 @@ class _BaseGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]
 
         return out.reshape(*prefix_shape, G, B * 2).view(*prefix_shape, G * B * 2)
 
-    @cached_property
-    def config(self) -> GPTOSSConfig:
-        with open(self / "config.json") as f:
-            ckpt_config = json.load(f)
-        generation_config = GenerationConfig.from_pretrained(str(self))
-        try:
-            num_moe_experts = ckpt_config['num_experts']
-        except KeyError:
-            num_moe_experts = ckpt_config['num_local_experts']
-        return GPTOSSConfig(
-            num_layers=ckpt_config['num_hidden_layers'],
-            num_moe_experts=num_moe_experts,
-            bf16=True,
-            params_dtype=torch.bfloat16,
-            generation_config=generation_config,
-        )
 
 @io.model_importer(GPTOSSModel, "hf")
 class HFGPTOSSImporter(_BaseGPTOSSImporter):
@@ -221,6 +205,9 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
         source_state = self.hf_ckpt_load()
 
         source = _ModelState(source_state)
+        # source_state = self.hf_ckpt_load()
+        # source = _ModelState(source_state)
+        source = AutoModelForCausalLM.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -266,20 +253,27 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
                 target_key="**.self_attention.linear_qkv.weight",
                 fn=TransformFns.merge_qkv,
             ),
+            io.state_transform(
+                source_key="**.mlp.experts.gate_up_proj_bias",
+                target_key="**.mlp.experts.linear_fc1.bias*",
+                fn=lambda x: [interleave(e) for e in [*x]],
+            ),
+            io.state_transform(
+                source_key="**.mlp.experts.gate_up_proj",
+                target_key="**.mlp.experts.linear_fc1.weight*",
+                fn=lambda x: [interleave(e) for e in [*x.transpose(-1, -2)]],
+            ),
+            io.state_transform(
+                source_key="**.mlp.experts.down_proj_bias",
+                target_key="**.mlp.experts.linear_fc2.bias*",
+                fn=lambda x: [*x],
+            ),
+            io.state_transform(
+                source_key="**.mlp.experts.down_proj",
+                target_key="**.mlp.experts.linear_fc2.weight*",
+                fn=lambda x: [*x.transpose(-1, -2)],
+            ),
         ]
-
-        # moe names for TEGroupedMLP
-        for source_key, target_key in (
-            ("**.mlp.experts.gate_up_proj_bias", "**.mlp.experts.linear_fc1.bias*"),
-            ("**.mlp.experts.gate_up_proj_blocks", "**.mlp.experts.linear_fc1.weight*"),
-        ):
-            transforms.append(io.state_transform(source_key, target_key, lambda x: [interleave(e) for e in [*x]]))
-
-        for source_key, target_key in (
-            ("**.mlp.experts.down_proj_bias", "**.mlp.experts.linear_fc2.bias*"),
-            ("**.mlp.experts.down_proj_blocks", "**.mlp.experts.linear_fc2.weight*"),
-        ):
-            transforms.append(io.state_transform(source_key, target_key, lambda x: [*x]))
 
         io.apply_transforms(source, target, mapping=mapping, transforms=transforms, cast_dtype=torch.bfloat16)
         return target
@@ -289,6 +283,21 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+
+    @cached_property
+    def config(self) -> GPTOSSConfig:
+        from transformers import AutoConfig as HFAutoConfig
+        from transformers import GenerationConfig
+
+        source = HFAutoConfig.from_pretrained(str(self), trust_remote_code=True)
+        generation_config = GenerationConfig.from_pretrained(str(self))
+        return GPTOSSConfig(
+            num_layers=source.num_hidden_layers,
+            num_moe_experts=source.num_local_experts,
+            bf16=True,
+            params_dtype=torch.bfloat16,
+            generation_config=generation_config,
+        )
 
 
 @io.model_importer(GPTOSSModel, "openai")
@@ -356,6 +365,19 @@ class OpenAIGPTOSSImporter(_BaseGPTOSSImporter):
         from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
 
         return TiktokenTokenizer(encoding_name="o200k_base")
+
+    @cached_property
+    def config(self) -> GPTOSSConfig:
+        with open(self / "config.json") as f:
+            ckpt_config = json.load(f)
+        generation_config = GenerationConfig.from_pretrained(str(self))
+        return GPTOSSConfig(
+            num_layers=ckpt_config['num_hidden_layers'],
+            num_moe_experts=ckpt_config['num_experts'],
+            bf16=True,
+            params_dtype=torch.bfloat16,
+            generation_config=generation_config,
+        )
 
 
 
