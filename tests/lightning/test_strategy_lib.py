@@ -14,12 +14,12 @@
 
 from unittest.mock import ANY, MagicMock, patch
 
-import torch
 import pytest
+import torch
 from torch import nn
 
-from nemo.lightning import MegatronStrategy, _strategy_lib  # , DataConfig
 from nemo.core.optim import MainParamsOptimizerWrapper
+from nemo.lightning import MegatronStrategy, _strategy_lib  # , DataConfig
 
 
 class Identity(nn.Identity):
@@ -32,12 +32,10 @@ class WithCopy(nn.Identity):
         return WithCopy()
 
 
-class Optimizer():
+class Optimizer:
     def state_dict(self):
         return {
-            "param_groups": [
-                {"params": torch.nn.Parameter(torch.randn(3, 3, device='cuda', dtype=torch.float32))}
-            ],
+            "param_groups": [{"params": torch.nn.Parameter(torch.randn(3, 3, device='cuda', dtype=torch.float32))}],
             "state": {0: {}, 1: {}},
         }
 
@@ -85,8 +83,7 @@ def make_optimizer_state():
 
     return {
         "found_inf_per_device": {
-            device: torch.tensor(val, dtype=torch.float32, device="cuda")
-            for device, val in found_inf_values.items()
+            device: torch.tensor(val, dtype=torch.float32, device="cuda") for device, val in found_inf_values.items()
         }
     }
 
@@ -255,9 +252,7 @@ def test_optimizer_sharded_state_dict():
     model = Model()
     optimizer = Optimizer()
     optimizer = OptimizerWrapper(optimizer)
-    optimizer_state_dict = _strategy_lib.optimizer_sharded_state_dict(
-        model, optimizer, sharding_type="test"
-    )
+    optimizer_state_dict = _strategy_lib.optimizer_sharded_state_dict(model, optimizer, sharding_type="test")
 
     assert optimizer_state_dict['fp32_from_fp16_params'] == [[]]
 
