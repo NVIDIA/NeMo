@@ -22,9 +22,8 @@ from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.utils import logging
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-
+from nemo.utils import logging
 
 BLANK_TOKEN = "<b>"
 SPACE_TOKEN = "<space>"
@@ -843,6 +842,7 @@ def viterbi_decoding(
         alignments_batch.append(alignment_b)
 
     return alignments_batch
+
 
 def get_batch_variables(
     audio: Union[str, List[str], np.ndarray, DataLoader, Hypothesis],
