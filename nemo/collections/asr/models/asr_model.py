@@ -178,7 +178,8 @@ class ASRModel(ModelPT, WithOptionalCudaGraphs, ABC):
         state_changed = False
         if force_reinit:
             state_changed = self.disable_cuda_graphs()
-        if hasattr(self.decoding, "decoding") and isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
+        # check that self.decoding.decoding exists and is instance of WithOptionalCudaGraphs
+        if isinstance(getattr(getattr(self, "decoding", None), "decoding", None), WithOptionalCudaGraphs):
             state_changed |= self.decoding.decoding.maybe_enable_cuda_graphs()
         if state_changed:
             logging.info(
@@ -190,7 +191,8 @@ class ASRModel(ModelPT, WithOptionalCudaGraphs, ABC):
     def disable_cuda_graphs(self) -> bool:
         """Disable (maybe temporary) CUDA graphs, return True if state changed"""
         state_changed = False
-        if hasattr(self.decoding, "decoding") and isinstance(self.decoding.decoding, WithOptionalCudaGraphs):
+        # check that self.decoding.decoding exists and is instance of WithOptionalCudaGraphs
+        if isinstance(getattr(getattr(self, "decoding", None), "decoding", None), WithOptionalCudaGraphs):
             state_changed = self.decoding.decoding.disable_cuda_graphs()
         if state_changed:
             logging.info(
