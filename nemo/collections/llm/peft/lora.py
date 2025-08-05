@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 import torch
+from megatron.core import parallel_state
 
 from nemo.utils.import_utils import safe_import
 
@@ -49,16 +50,27 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
-    def forward(self, x: torch.Tensor, *args, **kwargs) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self,
+        x: torch.Tensor,
+        *args,
+        **kwargs,
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         # pylint: disable=C0115,C0116
-        if getattr(self, "_enable_fused_impl", False):
-            return self._fused_forward(x)
+
+        # Fused implementation
+        if (
+                getattr(self, "_enable_fused_impl", False)
+                and parallel_state.get_tensor_model_parallel_world_size() == 1
+        ):  # TP is not yet supported
+                return self._fused_forward(x)
+
         linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
         adapter_output = self.adapter(layernorm_output.contiguous())
         adapter_output = adapter_output.reshape(linear_output.shape)
         return linear_output + adapter_output, bias
 
-    def _fused_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _fused_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward pass with Transformer Engine operation fuser
 
         The fused implementation is a PyTorch module that shares
@@ -102,6 +114,8 @@ if HAVE_TE:
             bias: bool = True,
             device: Optional[torch.device] = None,
             dtype: Optional[torch.dtype] = None,
+            tensor_parallel_mode: Optional[str] = None,
+            sequence_parallel: bool = False,
             norm_type: Optional[str] = None,
             norm_eps: float = 1e-5,
             norm_zero_centered_gamma: bool = False,
@@ -111,12 +125,26 @@ if HAVE_TE:
         ) -> None:
             super().__init__()
 
+            # Tensor parallel config
+            tensor_parallel_group = None
+            if tensor_parallel_mode is not None:
+                if parallel_state.get_tensor_model_parallel_world_size() == 1:
+                    tensor_parallel_mode = None
+                else:
+                    tensor_parallel_group = parallel_state.get_tensor_model_parallel_group()
+            if tensor_parallel_group is not None:
+                raise NotImplementedError("Tensor parallelism is not yet supported")
+
+            # Construct fused modules
             self._make_main_branch(
                 in_features,
                 out_features,
                 bias=bias,
                 device=device,
                 dtype=dtype,
+                tensor_parallel_mode=tensor_parallel_mode,
+                tensor_parallel_group=tensor_parallel_group,
+                sequence_parallel=sequence_parallel,
                 norm_type=norm_type,
                 norm_eps=norm_eps,
                 norm_zero_centered_gamma=norm_zero_centered_gamma,
@@ -128,6 +156,9 @@ if HAVE_TE:
                     lora_dim,
                     device=device,
                     dtype=dtype,
+                    tensor_parallel_mode=tensor_parallel_mode,
+                    tensor_parallel_group=tensor_parallel_group,
+                    sequence_parallel=sequence_parallel,
                     lora_dropout=lora_dropout,
                     lora_dropout_position=lora_dropout_position,
                     lora_scale=lora_scale,
@@ -141,10 +172,14 @@ if HAVE_TE:
             bias: bool,
             device: Optional[torch.device],
             dtype: Optional[torch.dtype],
+            tensor_parallel_mode: Optional[str],
+            tensor_parallel_group: Optional[torch.distributed.ProcessGroup],
+            sequence_parallel: bool,
             norm_type: Optional[str],
             norm_eps: float,
             norm_zero_centered_gamma: bool,
         ) -> None:
+            """Construct fused module for main branch (norm + fork + linear)"""
 
             # List of ops
             ops = []
@@ -179,7 +214,9 @@ if HAVE_TE:
                     bias=bias,
                     device=device,
                     dtype=dtype,
-                    tensor_parallel_mode=None,  ### TODO Support TP
+                    tensor_parallel_mode=tensor_parallel_mode,
+                    tensor_parallel_group=tensor_parallel_group,
+                    sequence_parallel=sequence_parallel,
                 )
             )
 
@@ -194,10 +231,14 @@ if HAVE_TE:
             *,
             device: Optional[torch.device],
             dtype: Optional[torch.dtype],
+            tensor_parallel_mode: Optional[str],
+            tensor_parallel_group: Optional[torch.distributed.ProcessGroup],
+            sequence_parallel: bool,
             lora_dropout: float,
             lora_dropout_position: str,
             lora_scale: float,
         ) -> None:
+            """Construct fused module for LoRA branch (lora_a + lora_b + add)"""
 
             # List of ops
             ops = []
@@ -206,7 +247,7 @@ if HAVE_TE:
             if lora_dropout > 0 and lora_dropout_position == "pre":
                 ops.append(te.ops.Dropout(lora_dropout))
 
-            # LoRA linear ops
+            # LoRA A linear op
             self.lora_a_lora_branch_idx: int = len(ops)
             ops.append(
                 te.ops.Linear(
@@ -215,9 +256,16 @@ if HAVE_TE:
                     bias=False,
                     device=device,
                     dtype=dtype,
-                    tensor_parallel_mode=None,  ### TODO Support TP
+                    tensor_parallel_mode=tensor_parallel_mode,
+                    tensor_parallel_group=tensor_parallel_group,
+                    sequence_parallel=sequence_parallel,
                 )
             )
+
+            # LoRA B linear op
+            if tensor_parallel_mode == "column":
+                # All-gather along dim -1
+                raise NotImplementedError("Column tensor parallelism is not yet supported")
             self.lora_b_lora_branch_idx: int = len(ops)
             ops.append(
                 te.ops.Linear(
@@ -226,7 +274,9 @@ if HAVE_TE:
                     bias=False,
                     device=device,
                     dtype=dtype,
-                    tensor_parallel_mode=None,  ### TODO Support TP
+                    tensor_parallel_mode=None if tensor_parallel_mode is None else "column",
+                    tensor_parallel_group=tensor_parallel_group,
+                    sequence_parallel=False,
                 )
             )
 
@@ -235,6 +285,9 @@ if HAVE_TE:
                 ops.append(te.ops.ConstantScale(lora_scale))
             if lora_dropout > 0 and lora_dropout_position == "post":
                 ops.append(te.ops.Dropout(lora_dropout))
+            if tensor_parallel_mode == "row":
+                # Note: All-gather along dim -1
+                raise NotImplementedError("Row tensor parallelism is not yet supported")
 
             # Add with main branch
             ops.append(te.ops.AddExtraInput())
@@ -242,7 +295,7 @@ if HAVE_TE:
             # Fuse ops
             self.lora_branch = te.ops.Sequential(*ops)
 
-        def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
             linear_output, linear_input = self.main_branch(x)
             with te.fp8_autocast(enabled=False):
                 out = self.lora_branch(linear_input, linear_output)
@@ -279,6 +332,21 @@ if HAVE_TE:
             constructor_kwargs["out_features"] = weight.size(0)
             constructor_kwargs["bias"] = bias is not None
             constructor_kwargs["dtype"] = weight.dtype
+
+            # Extract tensor parallel config
+            tensor_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
+            if tensor_parallel_size > 1:
+                tensor_parallel_mode = None
+                sequence_parallel = False
+                if isinstance(orig_linear, (te.Linear, te.LayerNormLinear)):
+                    tensor_parallel_mode = orig_linear.parallel_mode
+                    sequence_parallel = orig_linear.sequence_parallel
+                constructor_kwargs["tensor_parallel_mode"] = tensor_parallel_mode
+                constructor_kwargs["sequence_parallel"] = sequence_parallel
+                if tensor_parallel_mode == "row":
+                    constructor_kwargs["in_features"] *= tensor_parallel_size
+                elif tensor_parallel_mode == "column":
+                    constructor_kwargs["out_features"] *= tensor_parallel_size
 
             # Extract norm params from base linear module
             norm_type = None
@@ -319,17 +387,32 @@ if HAVE_TE:
             # Construct fused module
             out = TEFusedLoRALinear(**constructor_kwargs)
 
-            # Replace fused module params
+            # Replace norm params
             if norm_type is not None:
                 norm_op = out.main_branch[out.norm_main_branch_idx]
+                assert norm_op.weight.size() == norm_weight.size()
                 norm_op.weight = norm_weight
                 if norm_bias:
+                    assert norm_op.bias.size() == norm_bias.size()
                     norm_op.bias = norm_bias
+
+            # Replace base linear params
             linear_op = out.main_branch[out.linear_main_branch_idx]
+            assert linear_op.weight.size() == weight.size()
+            if bias is None:
+                assert linear_op.bias is None
+            else:
+                assert linear_op.bias.size() == bias.size()
             linear_op.weight = weight
             linear_op.bias = bias
-            out.lora_branch[out.lora_a_lora_branch_idx].weight = lora_a_weight
-            out.lora_branch[out.lora_b_lora_branch_idx].weight = lora_b_weight
+
+            # Replace LoRA params
+            lora_a_op = out.lora_branch[out.lora_a_lora_branch_idx]
+            lora_b_op = out.lora_branch[out.lora_b_lora_branch_idx]
+            assert lora_a_op.weight.size() == lora_a_weight.size()
+            assert lora_b_op.weight.size() == lora_b_weight.size()
+            lora_a_op.weight = lora_a_weight
+            lora_b_op.weight = lora_b_weight
 
             return out
 
