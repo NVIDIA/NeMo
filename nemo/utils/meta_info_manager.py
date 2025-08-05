@@ -46,22 +46,23 @@ def get_onelogger_init_config() -> Dict[str, Any]:
 
     return init_config
 
+
 def _get_base_callback_config(
     trainer: Any,
     global_batch_size: int,
     seq_length: int,
 ) -> Dict[str, Any]:
     """Generate base configuration for OneLogger training telemetry.
-    
+
     This function provides the common configuration needed for both NeMo v1 and v2.
     It extracts basic training information from trainer object and uses provided
     batch size and sequence length values.
-    
+
     Args:
         trainer: PyTorch Lightning trainer instance
         global_batch_size: Global batch size (calculated by version-specific function)
         seq_length: Sequence length (calculated by version-specific function)
-        
+
     Returns:
         Dictionary containing base training callback configuration
     """
@@ -77,11 +78,11 @@ def _get_base_callback_config(
 
     # Calculate performance tag
     perf_tag = f"{job_name}_{perf_version_tag}_bf{global_batch_size}_se{seq_length}_ws{world_size}"
-    
+
     # Calculate train samples target
     train_samples_target = max_steps * global_batch_size
 
-    #Fallback values
+    # Fallback values
     is_save_checkpoint_enabled = False
     is_validation_iterations_enabled = False
     save_checkpoint_strategy = "sync"
@@ -103,7 +104,7 @@ def _get_base_callback_config(
                     save_checkpoint_strategy = "async"
         except Exception:
             pass
-    
+
     for callback in checkpoint_callbacks:
         if hasattr(callback, 'async_save') and callback.async_save:
             save_checkpoint_strategy = "async"
@@ -127,28 +128,30 @@ def _get_base_callback_config(
         'is_save_checkpoint_enabled_or_fn': is_save_checkpoint_enabled,
         'save_checkpoint_strategy': save_checkpoint_strategy,
     }
-    
+
     return base_config
 
 
-def get_nemo_v1_callback_config(
-    trainer: Any
-) -> Dict[str, Any]:
+def get_nemo_v1_callback_config(trainer: Any) -> Dict[str, Any]:
     """Generate NeMo v1 specific configuration for OneLogger training callback.
-    
+
     This function provides NeMo v1 specific configuration by extracting values from
     the exp_manager_config object and trainer object.
-    
+
     Args:
         trainer: PyTorch Lightning trainer instance
-        
+
     Returns:
         Dictionary containing NeMo v1 training callback configuration
     """
     global_batch_size = 1  # Default fallback
     seq_length = 1  # Default fallback
 
-    if hasattr(trainer, 'lightning_module') and trainer.lightning_module is not None and hasattr(trainer.lightning_module, 'cfg'):
+    if (
+        hasattr(trainer, 'lightning_module')
+        and trainer.lightning_module is not None
+        and hasattr(trainer.lightning_module, 'cfg')
+    ):
         model_cfg = trainer.lightning_module.cfg
         if hasattr(model_cfg, 'train_ds') and hasattr(model_cfg.train_ds, 'batch_size'):
             micro_batch_size = model_cfg.train_ds.batch_size
@@ -159,7 +162,9 @@ def get_nemo_v1_callback_config(
             # Handle both ListConfig and regular list types
             if hasattr(bucket_batch_sizes, '__len__') and len(bucket_batch_sizes) > 0:
                 # Convert to list if it's a ListConfig, otherwise use as is
-                bucket_list = list(bucket_batch_sizes) if hasattr(bucket_batch_sizes, '__iter__') else bucket_batch_sizes
+                bucket_list = (
+                    list(bucket_batch_sizes) if hasattr(bucket_batch_sizes, '__iter__') else bucket_batch_sizes
+                )
                 avg_batch_size = sum(bucket_list) / len(bucket_list)
                 global_batch_size = int(avg_batch_size) * int(os.environ.get('WORLD_SIZE', 1))
         if hasattr(model_cfg, 'encoder') and hasattr(model_cfg.encoder, 'd_model'):
@@ -167,11 +172,11 @@ def get_nemo_v1_callback_config(
 
     # Get base configuration with calculated values
     config = _get_base_callback_config(
-        trainer=trainer, 
+        trainer=trainer,
         global_batch_size=global_batch_size,
         seq_length=seq_length,
     )
-    
+
     return config
 
 
@@ -181,15 +186,15 @@ def get_nemo_v2_callback_config(
     data: Any,
 ) -> Dict[str, Any]:
     """Generate NeMo v2 specific configuration for OneLogger training callback.
-    
+
     This function provides NeMo v2 specific configuration by extracting values from
     the trainer callbacks and nemo_logger_config object.
-    
+
     Args:
         trainer: PyTorch Lightning trainer instance
         nemo_logger_config: NeMoLogger config from NeMo v2 (required)
         data: Data module from NeMo v2 (required)
-        
+
     Returns:
         Dictionary containing NeMo v2 training callback configuration
     """
@@ -200,10 +205,10 @@ def get_nemo_v2_callback_config(
     if data is not None:
         global_batch_size = data.global_batch_size
         seq_length = data.seq_length
-    
+
     # Get base configuration with calculated values
     config = _get_base_callback_config(
-        trainer=trainer, 
+        trainer=trainer,
         global_batch_size=global_batch_size,
         seq_length=seq_length,
     )
