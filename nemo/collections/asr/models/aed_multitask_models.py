@@ -1146,7 +1146,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         return MultiTaskTranscriptionConfig()
 
     def predict_step(
-        self, batch: PromptedAudioToTextMiniBatch, batch_idx=0, dataloader_idx=0, has_processed_signal=False, timestamps=False
+        self,
+        batch: PromptedAudioToTextMiniBatch,
+        batch_idx=0,
+        dataloader_idx=0,
+        has_processed_signal=False,
+        timestamps=False,
     ):
         if has_processed_signal:
             processed_signal = batch.audio
