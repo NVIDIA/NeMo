@@ -44,6 +44,16 @@ EOU_LENGTH_PERTURBATION = ['speed', 'time_stretch']
 EOU_PROHIBITED_AUGMENTATIONS = ['random_segment']
 
 
+def first_supervised_cut(maybe_mixed_cut):
+    if isinstance(maybe_mixed_cut, MixedCut):
+        return [
+            t.cut
+            for t in maybe_mixed_cut.tracks
+            if len(t.cut.supervisions) > 0 and not t.cut.custom.get("is_mixed_noise")
+        ][0]
+    return maybe_mixed_cut
+
+
 @dataclass
 class AudioToTextEOUBatch:
     sample_ids: List | None = None
@@ -256,9 +266,8 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         audio_filepaths = []
         for i in range(len(cuts)):
             c = cuts[i]
-
             if isinstance(c, MixedCut):
-                c = c.first_non_padding_cut
+                c = first_supervised_cut(c)
 
             sample_ids.append(c.id)
             audio_filepaths.append(c.recording.sources[0].source)

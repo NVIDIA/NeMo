@@ -501,25 +501,24 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
 
     # 2. Optional augmentations.
-    import time
 
-    t0 = time.time()
     if config.get("random_padding", None) is not None:
         # random_padding_augmentation = LhotseEOURandomPadding(**config.random_padding)
         # cuts = random_padding_augmentation(cuts)
         cuts = cuts.map(
             partial(lhotse_asr_eou_cut_random_pad_transform, config.random_padding),
         )
-    t1 = time.time()
-    logging.info(f"Random padding time: {t1 - t0} seconds")
-
-    # cuts = cuts.pad(duration=0.5, direction="left", preserve_id=True)
-    # cuts = cuts.pad(duration=1.5, direction="right", preserve_id=True)
 
     # 2.a. Noise mixing.
     if config.noise_path is not None:
         noise = guess_parse_cutset(config.noise_path)
         noise = noise.resample(config.sample_rate)
+
+        def mark_as_mixed_in_noise(cut):
+            cut.is_mixed_noise = True
+            return cut
+
+        noise = noise.map(mark_as_mixed_in_noise)
         cuts = cuts.mix(
             cuts=noise,
             snr=tuple(config.noise_snr),
