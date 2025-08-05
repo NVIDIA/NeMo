@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import lhotse.dataset
 import torch
 from lhotse import CutSet
-import lhotse.dataset
 
 
 class ToAudio(torch.utils.data.Dataset):
@@ -42,5 +42,3 @@ def get_lhotse_dataloader(cuts, batch_size, return_dict=False):
         batch_size=None,
     )
     return dloader
-  
-   
