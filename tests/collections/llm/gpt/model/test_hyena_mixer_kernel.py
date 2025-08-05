@@ -112,9 +112,7 @@ def operator_type(request):
 
 
 class B2BConv1d(torch.nn.Module):
-    def __init__(
-        self, hyena_config, hyena_test_config, seq_len, use_cuhyena=False, operator_type="hyena_medium_conv"
-    ):
+    def __init__(self, hyena_config, hyena_test_config, seq_len, use_cuhyena=False, operator_type="hyena_medium_conv"):
         super().__init__()
 
         # Create necessary submodules - use the mixer submodules like in the regular mixer fixture
@@ -152,9 +150,7 @@ def mixer(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type
     """Create a HyenaMixer instance for testing with PyTorch implementation"""
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
-        mixer = B2BConv1d(
-            hyena_config, test_config, seq_len=512, use_cuhyena=False, operator_type=operator_type
-        )
+        mixer = B2BConv1d(hyena_config, test_config, seq_len=512, use_cuhyena=False, operator_type=operator_type)
         yield mixer
 
 
@@ -163,9 +159,7 @@ def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operat
     """Create a HyenaMixer instance for testing with CUDA kernel implementation"""
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
-        mixer_kernel = B2BConv1d(
-            hyena_config, test_config, seq_len=512, use_cuhyena=True, operator_type=operator_type
-        )
+        mixer_kernel = B2BConv1d(hyena_config, test_config, seq_len=512, use_cuhyena=True, operator_type=operator_type)
         yield mixer_kernel
 
 
