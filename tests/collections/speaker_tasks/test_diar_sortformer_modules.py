@@ -252,6 +252,7 @@ class TestSortformerModules_StreamingParameterCheck:
                 spkcache_update_period=spkcache_update_period,
             )
 
+
 class TestSortformerModules_GeneralUtils:
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -382,6 +383,7 @@ class TestSortformerModules_GeneralUtils:
         full_lengths = torch.full((batch_size,), n_frames, dtype=torch.long)
         full_masked_preds = SortformerModules.apply_mask_to_preds(spkcache_fifo_chunk_preds, full_lengths)
         assert torch.allclose(full_masked_preds, spkcache_fifo_chunk_preds)
+
 
 class TestSortformerModules_StreamingUtils:
     @pytest.mark.unit
@@ -689,6 +691,7 @@ class TestSortformerModules_StreamingUtils:
             assert streaming_state.fifo_lengths is None
             assert streaming_state.fifo_preds is None
             assert streaming_state.spk_perm is None
+
 
 class TestSortformerModules_StreamingScoreComputations:
     @pytest.mark.unit
@@ -1468,9 +1471,9 @@ class TestSortformerModules_StreamingUpdate:
     @pytest.mark.parametrize(
         "batch_size, emb_dim, n_spk, spkcache_len, cur_spkcache_len, fifo_len, cur_fifo_len, chunk_len, lc, rc",
         [
-            (2, 512, 4, 16, 0, 16, 0, 5, 1, 1), # Example 1: empty spkcache and fifo
-            (3, 256, 3, 32, 16, 32, 24, 6, 0, 0), # Example 2: non-empty spkcache and fifo
-            (4, 128, 5, 16, 16, 32, 20, 10, 1, 2), # Example 3: full spkcache, fifo not full
+            (2, 512, 4, 16, 0, 16, 0, 5, 1, 1),  # Example 1: empty spkcache and fifo
+            (3, 256, 3, 32, 16, 32, 24, 6, 0, 0),  # Example 2: non-empty spkcache and fifo
+            (4, 128, 5, 16, 16, 32, 20, 10, 1, 2),  # Example 3: full spkcache, fifo not full
         ],
     )
     def test_fifo_not_full(
@@ -1498,7 +1501,9 @@ class TestSortformerModules_StreamingUpdate:
         preds = torch.rand(batch_size, cur_spkcache_len + cur_fifo_len + chunk_total_len, n_spk)
 
         # Calculate expected states before the update
-        expected_chunk_preds = preds[:, cur_spkcache_len + cur_fifo_len + lc : cur_spkcache_len + cur_fifo_len + chunk_len + lc]
+        expected_chunk_preds = preds[
+            :, cur_spkcache_len + cur_fifo_len + lc : cur_spkcache_len + cur_fifo_len + chunk_len + lc
+        ]
         old_fifo_preds = preds[:, cur_spkcache_len : cur_spkcache_len + cur_fifo_len]
         expected_fifo_preds = torch.cat([old_fifo_preds, expected_chunk_preds], dim=1)
         expected_fifo_embs = torch.cat([streaming_state.fifo, chunk[:, lc : lc + chunk_len]], dim=1)
@@ -1528,7 +1533,7 @@ class TestSortformerModules_StreamingUpdate:
         [
             (2, 512, 4, 16, 0, 16, 15, 5, 10, 1, 1),  # Example 1: spkcache is empty
             (3, 256, 3, 32, 16, 16, 14, 7, 16, 1, 2),  # Example 2: spkcache is not empty
-            (4, 256, 5, 32, 16, 0, 0, 8, 16, 1, 2),  # Example 3: spkcache is not empty, no fifo 
+            (4, 256, 5, 32, 16, 0, 0, 8, 16, 1, 2),  # Example 3: spkcache is not empty, no fifo
         ],
     )
     def test_fifo_full_no_compression(
@@ -1579,7 +1584,9 @@ class TestSortformerModules_StreamingUpdate:
         assert cur_spkcache_len + pop_out_len <= spkcache_len
 
         # Calculate expected states before the update
-        expected_chunk_preds = preds[:, cur_spkcache_len + cur_fifo_len + lc : cur_spkcache_len + cur_fifo_len + chunk_len + lc]
+        expected_chunk_preds = preds[
+            :, cur_spkcache_len + cur_fifo_len + lc : cur_spkcache_len + cur_fifo_len + chunk_len + lc
+        ]
         old_fifo_preds = preds[:, cur_spkcache_len : cur_spkcache_len + cur_fifo_len]
         fifo_preds_before_split = torch.cat([old_fifo_preds, expected_chunk_preds], dim=1)
         fifo_embs_before_split = torch.cat([streaming_state.fifo, chunk[:, lc : lc + chunk_len]], dim=1)
@@ -1606,14 +1613,13 @@ class TestSortformerModules_StreamingUpdate:
         assert torch.allclose(streaming_state.spkcache, expected_spkcache_embs)
         assert streaming_state.spkcache_preds is None
 
-
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "batch_size, emb_dim, n_spk, spkcache_len, cur_spkcache_len, fifo_len, cur_fifo_len, chunk_len, spkcache_update_period, lc, rc",
         [
             (2, 512, 4, 16, 10, 16, 15, 5, 10, 1, 1),  # Example 1: spkcache is not full
             (3, 256, 3, 32, 32, 16, 14, 7, 16, 1, 2),  # Example 2: spkcache is full
-            (4, 256, 5, 32, 32, 0, 0, 8, 16, 1, 2),  # Example 3: spkcache is full, no fifo 
+            (4, 256, 5, 32, 32, 0, 0, 8, 16, 1, 2),  # Example 3: spkcache is full, no fifo
         ],
     )
     def test_fifo_full_with_compression(
@@ -1664,7 +1670,9 @@ class TestSortformerModules_StreamingUpdate:
         assert cur_spkcache_len + pop_out_len > spkcache_len
 
         # Calculate expected states before the update
-        expected_chunk_preds = preds[:, cur_spkcache_len + cur_fifo_len + lc : cur_spkcache_len + cur_fifo_len + chunk_len + lc]
+        expected_chunk_preds = preds[
+            :, cur_spkcache_len + cur_fifo_len + lc : cur_spkcache_len + cur_fifo_len + chunk_len + lc
+        ]
         old_fifo_preds = preds[:, cur_spkcache_len : cur_spkcache_len + cur_fifo_len]
         fifo_preds_before_split = torch.cat([old_fifo_preds, expected_chunk_preds], dim=1)
         fifo_embs_before_split = torch.cat([streaming_state.fifo, chunk[:, lc : lc + chunk_len]], dim=1)
@@ -1687,7 +1695,6 @@ class TestSortformerModules_StreamingUpdate:
         # Check updated streaming state's spkcache
         assert streaming_state.spkcache.shape == (batch_size, spkcache_len, emb_dim)
         assert streaming_state.spkcache_preds.shape == (batch_size, spkcache_len, n_spk)
-
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
