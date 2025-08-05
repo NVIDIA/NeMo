@@ -34,9 +34,9 @@ def combine_and_cleanup_ctms(output_dir, alignment_levels=("tokens", "words", "s
             continue  # Skip if folder doesn't exist
 
         # Combine all .ctm files into one
-        with open(combined_ctm_path, "w") as fout:
+        with open(combined_ctm_path, "w", encoding="utf-8") as fout:
             for ctm_file in glob.glob(os.path.join(level_dir, "*.ctm")):
-                with open(ctm_file, "r") as fin:
+                with open(ctm_file, "r", encoding="utf-8") as fin:
                     fout.writelines(fin)
 
         # Remove the entire per-level folder

@@ -26,6 +26,7 @@ from utils.constants import BLANK_TOKEN, SPACE_TOKEN, V_NEGATIVE_NUM
 
 from nemo.collections.common.data.lhotse.nemo_adapters import LazyNeMoTarredIterator
 from nemo.utils import logging
+import re
 
 def _get_utt_id(audio_filepath, audio_filepath_parts_in_utt_id):
     fp_parts = Path(audio_filepath).parts[-audio_filepath_parts_in_utt_id:]
@@ -231,6 +232,12 @@ class Utterance:
     utt_id: str = None
     saved_output_files: dict = field(default_factory=dict)
 
+def normalize_ellipsis(text):
+    # Replace unicode ellipsis with dot
+    text = text.replace('…', '.')
+    # Replace sequences of multiple dots (e.g. .., ..., ....) with a single dot
+    text = re.sub(r'\.{2,}', '.', text)
+    return text
 
 def get_utt_obj(
     text,
@@ -314,6 +321,8 @@ def get_utt_obj(
 
         for segment in segments:
             # add the segment to segment_info and increment the segment_s_pointer
+            segment = normalize_ellipsis(segment)
+ 
             segment_tokens = model.tokenizer.text_to_tokens(segment)
             utt.segments_and_tokens.append(
                 Segment(
@@ -899,5 +908,7 @@ def load_nemo_tarred_from_dir(manifest_path: str, tar_paths: str) -> CutSet:
     iterator = LazyNeMoTarredIterator(
         manifest_path=manifest_path,
         tar_paths=tar_paths,
+        allow_skipme=True,
+        skip_missing_manifest_entries=True,
     )
     return CutSet.from_cuts(iterator)
