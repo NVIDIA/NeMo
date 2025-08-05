@@ -34,6 +34,12 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging, logging_mode
 from nemo.utils.enum import PrettyStrEnum
 
+try:
+    import kenlm
+
+    KENLM_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    KENLM_AVAILABLE = False
 
 class TransducerModelType(PrettyStrEnum):
     RNNT = "rnnt"
@@ -359,10 +365,25 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         # load fusion models from paths (ngram_lm_model and boosting_tree_model)
         fusion_models, fusion_models_alpha = [], []
-        if ngram_lm_model is not None and ngram_lm_model.endswith('.nemo'):
-            fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id))
-            fusion_models_alpha.append(ngram_lm_alpha)
+        # load ngram_lm model from path
+        if ngram_lm_model is not None:
+            if strategy in {TransducerDecodingStrategyType.MAES, TransducerDecodingStrategyType.MAES_BATCH}:
+                if KENLM_AVAILABLE:
+                    fusion_models.append(kenlm.Model(ngram_lm_model))
+                    fusion_models_alpha.append(ngram_lm_alpha)
+                else:
+                    raise ImportError(
+                        "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
+                    )
+            else:
+                fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id))
+                fusion_models_alpha.append(ngram_lm_alpha)
+        # load boosting tree model from path
         if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
+            if strategy in {TransducerDecodingStrategyType.MAES, TransducerDecodingStrategyType.MAES_BATCH}:
+                raise NotImplementedError(
+                    f"Model {model_type} with strategy `{strategy}` does not support boosting tree."
+                )
             fusion_models.append(
                 GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=getattr(self, 'tokenizer', None))
             )
@@ -374,7 +395,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         match strategy, model_type:
             # greedy strategy
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.RNNT:
-                if ngram_lm_model is not None or fusion_models is not None:
+                if fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended greedy strategy with LM is `greedy_batch`."
@@ -391,7 +412,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     confidence_method_cfg=self.confidence_method_cfg,
                 )
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.TDT:
-                if ngram_lm_model is not None or fusion_models is not None:
+                if fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree. "
                         f"Recommended greedy strategy with LM is `greedy_batch`."
@@ -411,7 +432,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     confidence_method_cfg=self.confidence_method_cfg,
                 )
             case TransducerDecodingStrategyType.GREEDY, TransducerModelType.MULTI_BLANK:
-                if ngram_lm_model is not None or fusion_models is not None:
+                if fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                     )
@@ -463,7 +484,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     fusion_models_alpha=fusion_models_alpha,
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.MULTI_BLANK:
-                if ngram_lm_model is not None or fusion_models is not None:
+                if fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                     )
@@ -481,7 +502,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 )
             # beam, maes, alsd, tsd strategies
             case TransducerDecodingStrategyType.BEAM, TransducerModelType.RNNT:
-                if ngram_lm_model is not None or fusion_models is not None:
+                if fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
@@ -501,7 +522,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.BEAM, TransducerModelType.TDT:
-                if ngram_lm_model is not None or fusion_models is not None:
+                if fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
@@ -522,7 +543,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.TSD, TransducerModelType.RNNT:
-                if ngram_lm_model is not None or fusion_models is not None:
+                if fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
@@ -543,7 +564,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     preserve_alignments=self.preserve_alignments,
                 )
             case TransducerDecodingStrategyType.ALSD, TransducerModelType.RNNT:
-                if ngram_lm_model is not None or fusion_models is not None:
+                if fusion_models is not None:
                     raise NotImplementedError(
                         f"Model {model_type} with strategy `{strategy}` does not support n-gram LM models and boosting tree."
                         f"Recommended beam decoding strategy with LM is `malsd_batch`."
@@ -581,8 +602,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
                     softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                     preserve_alignments=self.preserve_alignments,
-                    ngram_lm_model=ngram_lm_model,
-                    ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                    ngram_lm_model=fusion_models[0] if fusion_models is not None else None,
+                    ngram_lm_alpha=fusion_models_alpha[0] if fusion_models_alpha is not None else 0.0,
                     hat_subtract_ilm=self.cfg.beam.get('hat_subtract_ilm', False),
                     hat_ilm_weight=self.cfg.beam.get('hat_ilm_weight', 0.0),
                 )
@@ -605,8 +626,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2.0),
                     softmax_temperature=self.cfg.beam.get('softmax_temperature', 1.0),
                     preserve_alignments=self.preserve_alignments,
-                    ngram_lm_model=ngram_lm_model,
-                    ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.3),
+                    ngram_lm_model=fusion_models[0] if fusion_models is not None else None,
+                    ngram_lm_alpha=fusion_models_alpha[0] if fusion_models_alpha is not None else 0.0,
                 )
             # beam batch: malsd_batch and maes_batch strategies
             case TransducerDecodingStrategyType.MALSD_BATCH, TransducerModelType.RNNT:
@@ -655,8 +676,8 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     maes_expansion_beta=self.cfg.beam.get('maes_expansion_beta', 2),
                     maes_expansion_gamma=self.cfg.beam.get('maes_expansion_gamma', 2.3),
                     preserve_alignments=self.preserve_alignments,
-                    ngram_lm_model=ngram_lm_model,
-                    ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                    fusion_models=fusion_models,
+                    fusion_models_alpha=fusion_models_alpha,
                     blank_lm_score_mode=self.cfg.beam.get('blank_lm_score_mode', BlankLMScoreMode.LM_WEIGHTED_FULL),
                     pruning_mode=self.cfg.beam.get('pruning_mode', PruningMode.LATE),
                     score_norm=self.cfg.beam.get('score_norm', True),
