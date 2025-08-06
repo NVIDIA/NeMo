@@ -20,6 +20,7 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.modules.sortformer_modules import SortformerModules
 
+
 class TestSortformerModules_CheckStreamingParameters:
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -27,7 +28,7 @@ class TestSortformerModules_CheckStreamingParameters:
         [
             (4, 188, 376, 376, 1, 1, 376, 0),  # Example 1: All equal values
             (3, 100, 200, 150, 0, 0, 150, 3),  # Example 2: Different values, zero contexts
-            (5, 50, 100, 50, 2, 2, 75, 9),     # Example 3: Small values, larger contexts
+            (5, 50, 100, 50, 2, 2, 75, 9),  # Example 3: Small values, larger contexts
         ],
     )
     def test_valid_parameters(
@@ -105,7 +106,9 @@ class TestSortformerModules_CheckStreamingParameters:
         }
         params[param_name] = param_value
 
-        with pytest.raises(TypeError, match=f"Parameter '{param_name}' must be an integer, but got {param_name}: {param_value}"):
+        with pytest.raises(
+            TypeError, match=f"Parameter '{param_name}' must be an integer, but got {param_name}: {param_value}"
+        ):
             SortformerModules(**params)
 
     @pytest.mark.unit
@@ -113,7 +116,7 @@ class TestSortformerModules_CheckStreamingParameters:
         "spkcache_len, n_spk, spkcache_sil_frames_per_spk",
         [
             (15, 4, 3),  # spkcache_len is 15, minimum is (1+3)*4=16
-            (1, 1, 1),   # spkcache_len is 1, minimum is (1+1)*1=2
+            (1, 1, 1),  # spkcache_len is 1, minimum is (1+1)*1=2
         ],
     )
     def test_invalid_spkcache_len(self, spkcache_len, n_spk, spkcache_sil_frames_per_spk):
@@ -134,7 +137,8 @@ class TestSortformerModules_CheckStreamingParameters:
             match=f"Parameter 'spkcache_len' must be at least {min_spkcache_len}, but got {spkcache_len}.",
         ):
             SortformerModules(**params)
-    
+
+
 class TestSortformerModules_GeneralUtils:
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -867,9 +871,7 @@ class TestSortformerModules_StreamingScoreComputations:
             (2, 12, 3, 6, 1),  # Example 4: Small cache size
         ],
     )
-    def test_get_topk_indices(
-        self, batch_size, n_frames, n_spk, spkcache_len, spkcache_sil_frames_per_spk
-    ):
+    def test_get_topk_indices(self, batch_size, n_frames, n_spk, spkcache_len, spkcache_sil_frames_per_spk):
         """Test the _get_topk_indices method that finds top-k highest scoring frames."""
         sortformer_modules = SortformerModules(
             num_spks=n_spk,
