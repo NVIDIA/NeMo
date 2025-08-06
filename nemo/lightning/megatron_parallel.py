@@ -296,7 +296,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.callbacks.event("on_megatron_microbatches_start", step=step)
 
         print(f"Forward only : {forward_only} num_microbatches: {num_microbatches}")
-        
+
         microbatch_outputs = step()
         self.callbacks.event("on_megatron_microbatches_end", step=step, microbatch_outputs=microbatch_outputs)
 
