@@ -503,7 +503,8 @@ def export_hf_checkpoint(
         with torch.inference_mode():
             with tempfile.TemporaryDirectory() as tmp_dir:
                 if hasattr(unwrapped_model, 'language_model') and hasattr(unwrapped_model, 'vision_model'):
-                    # For llama4, we only deal with the language_model, vision_model and multi_modal_projector will be acquired from the huggingface checkpoint
+                    # For llama4, we only deal with the language_model, vision_model and
+                    # multi_modal_projector will be acquired from the huggingface checkpoint
                     assert hf_checkpoint is not None, "hf_checkpoint is required for exporting VLMs to HF format"
                     tmp_dir = hf_checkpoint
                 else:
