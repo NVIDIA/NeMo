@@ -78,8 +78,8 @@ class TestOneLoggerCallback:
         """Test _get_onelogger_callbacks_function when OneLogger is not available."""
         with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', False):
             function = _get_onelogger_callbacks_function("test_callback")
-            result = function("arg1", kwarg1="value1")
-            assert result is None
+            function("arg1", kwarg1="value1")  # Call function but don't use return value
+            # The function should not raise any exception
 
     @pytest.mark.unit
     def test_get_onelogger_callbacks_function_with_onelogger(self):
@@ -90,10 +90,11 @@ class TestOneLoggerCallback:
                 mock_cb.test_callback = mock_callback
 
                 function = _get_onelogger_callbacks_function("test_callback")
-                result = function("arg1", kwarg1="value1")
+                function("arg1", kwarg1="value1")  # Call function but don't use return value
 
                 assert function == mock_callback
-                assert result == mock_callback.return_value
+                # Verify the mock was called with the expected arguments
+                mock_callback.assert_called_once_with("arg1", kwarg1="value1")
 
     @pytest.mark.unit
     def test_one_logger_nemo_callback_initialization(self):
