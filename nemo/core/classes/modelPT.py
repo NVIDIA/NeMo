@@ -1360,8 +1360,6 @@ class ModelPT(LightningModule, Model):
                 (from the pretrained model or checkpoint) will be loaded.
 
         """
-        # TODO: there might be other ways to load checkpoints, need to cover them all
-        get_one_logger_callbacks('on_load_checkpoint_start')
         args = [
             'init_from_nemo_model',
             'init_from_pretrained_model',
@@ -1378,6 +1376,8 @@ class ModelPT(LightningModule, Model):
                 f"Cannot pass more than one model initialization arguments to config!\n"
                 f"Found : {[args[idx] for idx, arg_present in enumerate(arg_matches) if arg_present]}"
             )
+
+        get_one_logger_callbacks('on_load_checkpoint_start')
 
         if 'init_from_nemo_model' in cfg and cfg.init_from_nemo_model is not None:
             with open_dict(cfg):
