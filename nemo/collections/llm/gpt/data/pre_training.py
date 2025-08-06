@@ -296,7 +296,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             train_iters = int(num_train_samples / self.data_sampler.global_batch_size)
 
         eval_iters = (train_iters // trainer_val_check_interval + 1) * trainer_limit_val_batches
-        num_val_samples = int(eval_iters * (self.global_batch_size if self.val_global_batch_size is None else self.val_global_batch_size))
+        num_val_samples = int(
+            eval_iters * (self.global_batch_size if self.val_global_batch_size is None else self.val_global_batch_size)
+        )
 
         test_iters = trainer_limit_test_batches
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
