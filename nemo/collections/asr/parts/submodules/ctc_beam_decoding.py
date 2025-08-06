@@ -946,15 +946,17 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer, WithOptionalCudaGraphs):
             allow_cuda_graphs=allow_cuda_graphs,
         )
 
-    def disable_cuda_graphs(self):
+    def disable_cuda_graphs(self) -> bool:
         """Disable CUDA graphs (e.g., for decoding in training)"""
         if isinstance(self.search_algorithm, WithOptionalCudaGraphs):
-            self.search_algorithm.disable_cuda_graphs()
+            return self.search_algorithm.disable_cuda_graphs()
+        return False
 
-    def maybe_enable_cuda_graphs(self):
+    def maybe_enable_cuda_graphs(self) -> bool:
         """Enable CUDA graphs (if allowed)"""
         if isinstance(self.search_algorithm, WithOptionalCudaGraphs):
-            self.search_algorithm.maybe_enable_cuda_graphs()
+            return self.search_algorithm.maybe_enable_cuda_graphs()
+        return False
 
     @typecheck()
     def forward(
