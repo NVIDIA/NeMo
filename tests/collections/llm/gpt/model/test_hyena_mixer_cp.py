@@ -171,6 +171,7 @@ class MixerModuleWrapper(torch.nn.Module):
         super().__init__()
 
         self.use_cuhyena = use_cuhyena
+        self.operator_type = operator_type
 
         # Create necessary submodules - use the mixer submodules like in the regular mixer fixture
         submodules = hyena_stack_spec_no_te.submodules.hyena_layer.submodules.mixer.submodules
