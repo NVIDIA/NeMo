@@ -31,6 +31,46 @@ class Evo2Dataset(GPTDataset):
     DEFAULT_EOD = 0
     TO_UPPER_TOKENS: bool = True  # If set, do an in-place transform to make all tokens capital letters
     RESET_PAD_EOD_MASK: bool = True  # If set, unset the mask for [pad] and [eod] tokens (matches Evo2 paper).
+    # Valid DNA tokens: A, C, G, T, U, W, S, M, K, R, Y, B, D, H, V, N, -,  (both uppercase and lowercase and
+    #   degenerate bases and RNA)
+
+    VALID_DNA_AND_DEGENERATE: ClassVar[set[int]] = {
+        45,
+        45,
+        65,
+        66,
+        67,
+        68,
+        71,
+        72,
+        75,
+        77,
+        78,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        89,
+        97,
+        98,
+        99,
+        100,
+        103,
+        104,
+        107,
+        109,
+        110,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        121,
+    }
+    DNA_TOKENS: list[int] = [65, 67, 71, 84, 97, 99, 103, 116]
 
     def _get_gpt_batch(self, idx: Optional[int]) -> dict[str, torch.Tensor]:
         return super().__getitem__(idx)
@@ -47,7 +87,9 @@ class Evo2Dataset(GPTDataset):
 
         # Mask special label tags in loss.
         control_mask = torch.isin(labels, torch.tensor(self.CONTROL_TAGS, device=labels.device))
-        loss_mask[control_mask] = 0
+        # Mask degenerate (and U) DNA tokens
+        not_dna_mask = ~torch.isin(labels, torch.tensor(self.DNA_TOKENS, device=labels.device))
+        loss_mask[control_mask | not_dna_mask] = 0
         phylotag_mask = self.mask_phylogenetic_tags(
             labels,
             self.TAG_BOUNDS,
@@ -142,10 +184,8 @@ class Evo2Dataset(GPTDataset):
         batch_size, seq_len = tokenized_sequence.shape
         first_taxonomy_prefix_token: int = 100
 
-        # Valid DNA tokens: A, C, G, T, N (both uppercase and lowercase)
-        valid_dna = {65, 67, 71, 84, 78, 97, 99, 103, 116, 110}
         valid_dna_or_control_tensor = torch.tensor(
-            list(valid_dna | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype
+            list(Evo2Dataset.VALID_DNA_AND_DEGENERATE | set(Evo2Dataset.CONTROL_TAGS)), device=device, dtype=dtype
         )
 
         # Initialize output mask to all ones.
