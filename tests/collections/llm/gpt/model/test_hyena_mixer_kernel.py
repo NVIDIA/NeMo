@@ -182,6 +182,8 @@ def test_cuhyena_kernel(mixer: MixerModuleWrapper, mixer_kernel: MixerModuleWrap
     # Copy filter parameters to ensure identical initialization
     if operator_type == "hyena":
         mixer.mixer.mixer.filter.gamma.data.copy_(mixer_kernel.mixer.mixer.filter.gamma.data)  # type: ignore
+        mixer.mixer.mixer.filter.R.data.copy_(mixer_kernel.mixer.mixer.filter.R.data)  # type: ignore
+        mixer.mixer.mixer.filter.p.data.copy_(mixer_kernel.mixer.mixer.filter.p.data)  # type: ignore
     elif operator_type == "hyena_medium_conv":
         mixer.mixer.mixer.filter.h.data.copy_(mixer_kernel.mixer.mixer.filter.h.data)  # type: ignore
 

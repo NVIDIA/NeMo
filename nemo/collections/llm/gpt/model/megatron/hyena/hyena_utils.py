@@ -523,11 +523,11 @@ class ImplicitModalFilter(nn.Module):
 
             R = (
                 1e-1
-                * torch.randn(d_model, order, dtype=torch.float32, device=torch.cuda.current_device())
+                * torch.randn(d_model, order, dtype=torch.float32, device=self.t.device)
                 / math.sqrt(order)
             )
             self.R = nn.Parameter(R)
-            self.p = nn.Parameter(-torch.ones(d_model, order, dtype=torch.float32, device=torch.cuda.current_device()))
+            self.p = nn.Parameter(-torch.ones(d_model, order, dtype=torch.float32, device=self.t.device))
             setattr(self.gamma, 'tensor_model_parallel', True)
             setattr(self.R, 'tensor_model_parallel', True)
             setattr(self.p, 'tensor_model_parallel', True)
@@ -624,13 +624,13 @@ class ExplicitSingleDecayFilter(nn.Module):
             h[:, :1] = 1.0
         self.num_decay_repeats = num_decay_repeats
         self.h = nn.Parameter(h)
-        t = torch.linspace(0, 1, L_cache, device=torch.cuda.current_device())[None]
+        t = torch.linspace(0, 1, L_cache, device=self.h.device)[None]
         self.log_r_min = log_r_min
         self.log_r_max = log_r_max
         self.model_parallel_rank = get_tensor_model_parallel_rank()
         self.model_parallel_size = get_tensor_model_parallel_world_size()
         global_d_model = d_model * self.model_parallel_size // self.num_decay_repeats
-        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model, device=torch.cuda.current_device())[
+        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model, device=self.h.device)[
             :, None
         ].repeat(self.num_decay_repeats, 1)
         decay_domain = decay_domain[self.model_parallel_rank * d_model : (self.model_parallel_rank + 1) * d_model, :]
