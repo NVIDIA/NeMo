@@ -293,6 +293,9 @@ def override_recipe_configs(
     etp_size: int = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
+    use_fsdp_double_buffer: Optional[bool] = None,
+    use_user_buffer_registration: bool = False,
+    use_sharp: bool = False,
     recompute_layers: int = 0,
     activation_offload_layers: int = 0,
     compute_dtype: str = None,
@@ -317,6 +320,9 @@ def override_recipe_configs(
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
+        use_fsdp_double_buffer,
+        use_user_buffer_registration,
+        use_sharp,
         recompute_layers,
         activation_offload_layers,
         compute_dtype,
@@ -376,9 +382,12 @@ if __name__ == "__main__":
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
+        use_fsdp_double_buffer,
+        use_user_buffer_registration,
+        use_sharp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:15]
+    ) = kwargs[:18]
 
     recipe = override_recipe_configs(
         args,
@@ -396,6 +405,9 @@ if __name__ == "__main__":
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
+        use_fsdp_double_buffer,
+        use_user_buffer_registration,
+        use_sharp,
         recompute_layers,
         activation_offload_layers,
         args.compute_dtype,
