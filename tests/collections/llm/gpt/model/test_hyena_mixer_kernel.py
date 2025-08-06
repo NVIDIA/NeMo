@@ -140,7 +140,7 @@ class MixerModuleWrapper(torch.nn.Module):
         )
 
     def forward(self, x, _use_cp=False):
-        if self.use_cuhyena and not self.operator_type == "hyena":
+        if self.use_cuhyena and self.operator_type != "hyena":
             z = self.mixer.b2b_kernel(x, _use_cp=_use_cp)
         else:  # long `hyena` operator internally sets use_cuhyena from config
             features = self.mixer.hyena_proj_conv(x, _use_cp=_use_cp)

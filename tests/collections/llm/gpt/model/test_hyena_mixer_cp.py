@@ -190,7 +190,7 @@ class MixerModuleWrapper(torch.nn.Module):
         )
 
     def forward(self, x, _use_cp=True):
-        if self.use_cuhyena:
+        if self.use_cuhyena and self.operator_type != "hyena":
             logging.info(f"Using cuHyena: {self.use_cuhyena}")
             z = self.mixer.b2b_kernel(x, _use_cp=_use_cp)
         else:
