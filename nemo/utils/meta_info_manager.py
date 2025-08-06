@@ -32,11 +32,15 @@ def get_onelogger_init_config() -> Dict[str, Any]:
     Returns:
         Dictionary containing minimal initialization configuration
     """
+    if "EXP_NAME" in os.environ:
+        session_tag = os.environ.get("EXP_NAME") # For NeMo v1
+    else:
+        session_tag = os.environ.get("SLURM_JOB_NAME", "nemo-run")
     # Minimal configuration - required fields only
     init_config = {
         # Required fields (from OneLoggerConfig) - no defaults
         "application_name": "nemo-application",
-        "session_tag_or_fn": os.environ.get("SLURM_JOB_NAME", "nemo-run"),
+        "session_tag_or_fn": session_tag,
         # Important fields with defaults - provide if available from config
         "enable_for_current_rank": _should_enable_for_current_rank(),
         # Error handling strategy - use DISABLE_QUIETLY_AND_REPORT_METRIC_ERROR to prevent
@@ -67,11 +71,16 @@ def _get_base_callback_config(
         Dictionary containing base training callback configuration
     """
     # Extract values from trainer
-    job_name = os.environ.get('SLURM_JOB_NAME', 'nemo-run')
+    # Get job name from multiple sources in order of reliability
+    if "EXP_NAME" in os.environ:
+        job_name = os.environ.get("EXP_NAME") # For NeMo v1
+    else:
+        job_name = os.environ.get("SLURM_JOB_NAME", "nemo-run")
+
     world_size = int(os.environ.get('WORLD_SIZE', 1))
     max_steps = getattr(trainer, 'max_steps', 1)
     # Use hardcoded value for log_every_n_steps instead of getting from trainer
-    log_every_n_steps = 10  # Most common default value based on NeMo recipes
+    log_every_n_steps = getattr(trainer, 'log_every_n_steps', 10)
     micro_batch_size = global_batch_size // world_size
     # Get PERF_VERSION_TAG from environment
     perf_version_tag = os.environ.get('PERF_VERSION_TAG', '0.0.0')
@@ -179,21 +188,19 @@ def get_nemo_v1_callback_config(trainer: Any) -> Dict[str, Any]:
 
 def get_nemo_v2_callback_config(
     trainer: Any,
-    nemo_logger_config: Any,
     data: Any,
 ) -> Dict[str, Any]:
-    """Generate NeMo v2 specific configuration for OneLogger training callback.
+    """Generate NeMo v2 specific configuration for the OneLogger training callback.
 
-    This function provides NeMo v2 specific configuration by extracting values from
-    the trainer callbacks and nemo_logger_config object.
+    This function extracts the global batch size and sequence length from the provided NeMo v2 data module,
+    and uses them to construct the configuration dictionary for the OneLogger training callback.
 
     Args:
-        trainer: PyTorch Lightning trainer instance
-        nemo_logger_config: NeMoLogger config from NeMo v2 (required)
-        data: Data module from NeMo v2 (required)
+        trainer: PyTorch Lightning trainer instance.
+        data: NeMo v2 data module (required).
 
     Returns:
-        Dictionary containing NeMo v2 training callback configuration
+        Dictionary containing the NeMo v2 training callback configuration.
     """
     # NeMo v2: Extract batch size and sequence length from data module (most reliable source)
     global_batch_size = 1  # Default fallback
