@@ -17,17 +17,14 @@ from typing import Optional
 import lightning.pytorch as pl
 import nemo_run as run
 import torch
-from lightning.pytorch.loggers import WandbLogger
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
-from transformers import Qwen2Tokenizer
 from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
-from nemo.collections.vlm import Qwen2VLDataConfig
 from nemo.collections.vlm.qwen2vl.model import Qwen25VLVisionConfig
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
