@@ -492,14 +492,19 @@ class SortformerModules(NeuralModule, Exportable):
                 updated_fifo[batch_index, :new_fifo_len, :] = updated_fifo[
                     batch_index, pop_out_len : pop_out_len + new_fifo_len, :
                 ].clone()
+                updated_fifo_preds[batch_index, :new_fifo_len, :] = updated_fifo_preds[
+                    batch_index, pop_out_len : pop_out_len + new_fifo_len, :
+                ].clone()
                 updated_fifo[batch_index, new_fifo_len:, :] = 0
+                updated_fifo_preds[batch_index, new_fifo_len:, :] = 0
 
         streaming_state.fifo = updated_fifo[:, :max_fifo_len, :]
+        streaming_state.fifo_preds = updated_fifo_preds[:, :max_fifo_len, :]
 
         # update speaker cache
         need_compress = streaming_state.spkcache_lengths > self.spkcache_len
-        streaming_state.spkcache = updated_spkcache[:, : self.spkcache_len :, :]
-        streaming_state.spkcache_preds = updated_spkcache_preds[:, : self.spkcache_len :, :]
+        streaming_state.spkcache = updated_spkcache[:, :self.spkcache_len, :]
+        streaming_state.spkcache_preds = updated_spkcache_preds[:, :self.spkcache_len, :]
 
         idx = torch.where(need_compress)[0]
         if len(idx) > 0:

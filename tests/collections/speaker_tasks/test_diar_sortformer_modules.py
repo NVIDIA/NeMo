@@ -692,7 +692,6 @@ class TestSortformerModules_StreamingUtils:
             assert streaming_state.fifo_preds is None
             assert streaming_state.spk_perm is None
 
-
 class TestSortformerModules_StreamingScoreComputations:
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -1773,3 +1772,233 @@ class TestSortformerModules_StreamingUpdate:
 
         # Check that after permutation and inverse permutation we got the original chunk_preds
         assert torch.allclose(chunk_preds, chunk_preds_perm_inv)
+
+
+class TestSortformerModules_StreamingUpdateAsync:
+    def _assert_async_batch_item_state(
+        self,
+        chunk_preds,
+        expected_chunk_preds,
+        fifo_len,
+        expected_fifo_len,
+        fifo,
+        expected_fifo_embs,
+        fifo_preds,
+        expected_fifo_preds,
+        spkcache_len,
+        expected_spkcache_len,
+        spkcache,
+        expected_spkcache_embs,
+        spkcache_preds,
+        expected_spkcache_preds,
+    ):
+        """Helper function to assert the state of a single item in an async batch."""
+        assert chunk_preds.shape == expected_chunk_preds.shape
+        assert torch.allclose(chunk_preds, expected_chunk_preds)
+        assert fifo_len == expected_fifo_len
+        assert fifo.shape == expected_fifo_embs.shape
+        assert torch.allclose(fifo, expected_fifo_embs)
+        assert fifo_preds.shape == expected_fifo_preds.shape
+        assert torch.allclose(fifo_preds, expected_fifo_preds)
+        assert spkcache_len == expected_spkcache_len
+        assert spkcache.shape == expected_spkcache_embs.shape
+        assert torch.allclose(spkcache, expected_spkcache_embs)
+        assert spkcache_preds.shape == expected_spkcache_preds.shape
+        assert torch.allclose(spkcache_preds, expected_spkcache_preds)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "batch_size, emb_dim, n_spk, max_spkcache_len, spkcache_lengths, max_fifo_len, fifo_lengths, "
+        "max_chunk_len, chunk_lengths, spkcache_update_period, lc, rc",
+        [
+            (
+                3,
+                256,
+                4,
+                32,
+                torch.tensor([0, 16, 32]),
+                16,
+                torch.tensor([0, 8, 16]),
+                8,
+                torch.tensor([8, 5, 0]),
+                16,
+                1,
+                1,
+            ),  # Example 1: fifo not full
+            (
+                3,
+                128,
+                4,
+                32,
+                torch.tensor([0, 10, 12]),
+                16,
+                torch.tensor([16, 14, 14]),
+                8,
+                torch.tensor([8, 5, 8]),
+                20,
+                1,
+                1,
+            ),  # Example 2: fifo is full, spkcache is not full (no compression)
+            (
+                3,
+                64,
+                4,
+                32,
+                torch.tensor([24, 32, 21]),
+                16,
+                torch.tensor([16, 14, 14]),
+                8,
+                torch.tensor([8, 5, 3]),
+                12,
+                1,
+                1,
+            ),  # Example 3: fifo and spkcache are full (do compression)
+            (
+                6,
+                32,
+                5,
+                32,
+                torch.tensor([0, 10, 0, 20, 30, 32]),
+                16,
+                torch.tensor([5, 13, 13, 16, 16, 15]),
+                5,
+                torch.tensor([5, 3, 4, 3, 5, 3]),
+                10,
+                2,
+                3,
+            ),  # Example 4: mixed cases
+        ],
+    )
+    def test_streaming_update_async(
+        self,
+        batch_size,
+        emb_dim,
+        n_spk,
+        max_spkcache_len,
+        spkcache_lengths,
+        max_fifo_len,
+        fifo_lengths,
+        max_chunk_len,
+        chunk_lengths,
+        spkcache_update_period,
+        lc,
+        rc,
+    ):
+        """Tests the async streaming update method."""
+        sortformer_modules = SortformerModules(
+            num_spks=n_spk,
+            spkcache_len=max_spkcache_len,
+            fifo_len=max_fifo_len,
+            chunk_len=max_chunk_len,
+            fc_d_model=emb_dim,
+            spkcache_update_period=spkcache_update_period,
+        )
+        sortformer_modules.training = False
+
+        # Check that the input lengths are correct
+        assert spkcache_lengths.shape == (batch_size,)
+        assert fifo_lengths.shape == (batch_size,)
+        assert chunk_lengths.shape == (batch_size,)
+        assert spkcache_lengths.max() <= max_spkcache_len
+        assert fifo_lengths.max() <= max_fifo_len
+        assert chunk_lengths.max() <= max_chunk_len
+        assert spkcache_lengths.min() >= 0
+        assert fifo_lengths.min() >= 0
+        assert chunk_lengths.min() >= 0
+
+        # Initialize streaming state
+        streaming_state = sortformer_modules.init_streaming_state(batch_size=batch_size, async_streaming=True)
+        streaming_state.spkcache_lengths = spkcache_lengths.clone()
+        streaming_state.fifo_lengths = fifo_lengths.clone()
+        for b in range(batch_size):
+            streaming_state.spkcache[b, : spkcache_lengths[b]] = torch.randn(spkcache_lengths[b], emb_dim)
+            streaming_state.spkcache_preds[b, : spkcache_lengths[b]] = torch.rand(spkcache_lengths[b], n_spk)
+            streaming_state.fifo[b, : fifo_lengths[b]] = torch.randn(fifo_lengths[b], emb_dim)
+
+        # Keep spkcache and fifo from the initial state 
+        initial_spkcache = streaming_state.spkcache.clone()
+        initial_spkcache_preds = streaming_state.spkcache_preds.clone()
+        initial_fifo = streaming_state.fifo.clone()
+
+        # Create input chunk and preds
+        chunk_total_len = max_chunk_len + lc + rc
+        chunk = torch.randn(batch_size, chunk_total_len, emb_dim)
+        preds_total_len = max_spkcache_len + max_fifo_len + chunk_total_len
+        preds = torch.rand(batch_size, preds_total_len, n_spk)
+
+        # Run streaming_update_async
+        streaming_state, chunk_preds = sortformer_modules.streaming_update_async(
+            streaming_state, chunk, chunk_lengths + lc, preds, lc, rc
+        )
+
+        # Process batch items
+        for b in range(batch_size):
+            spkcache_len = spkcache_lengths[b].item()
+            fifo_len = fifo_lengths[b].item()
+            chunk_len = chunk_lengths[b].item()
+
+            expected_chunk_preds = preds[b, spkcache_len + fifo_len + lc : spkcache_len + fifo_len + lc + chunk_len]
+            updated_fifo_embs = torch.zeros(max_fifo_len + max_chunk_len, emb_dim)
+            updated_fifo_preds = torch.zeros(max_fifo_len + max_chunk_len, n_spk)
+            expected_spkcache_embs = torch.zeros(max_spkcache_len, emb_dim)
+            expected_spkcache_preds = torch.zeros(max_spkcache_len, n_spk)
+            updated_fifo_embs[:fifo_len] = initial_fifo[b, :fifo_len]
+            updated_fifo_embs[fifo_len:fifo_len + chunk_len] = chunk[b, lc : lc + chunk_len]
+            updated_fifo_preds[:fifo_len] = preds[b, spkcache_len : spkcache_len + fifo_len]
+            updated_fifo_preds[fifo_len:fifo_len + chunk_len] = expected_chunk_preds
+            expected_fifo_embs = torch.zeros(max_fifo_len, emb_dim)
+            expected_fifo_preds = torch.zeros(max_fifo_len, n_spk)
+
+            # Case 1: Fifo not full
+            if fifo_len + chunk_len <= max_fifo_len: 
+                expected_fifo_len = fifo_len + chunk_len
+                expected_spkcache_len = spkcache_len
+                expected_spkcache_embs = initial_spkcache[b]
+                expected_spkcache_preds = initial_spkcache_preds[b]
+                expected_fifo_embs[:fifo_len+chunk_len] = updated_fifo_embs[:fifo_len+chunk_len]
+                expected_fifo_preds[:fifo_len+chunk_len] = updated_fifo_preds[:fifo_len+chunk_len]
+
+            else:
+                pop_out_len = spkcache_update_period
+                pop_out_len = max(pop_out_len, max_chunk_len - max_fifo_len + fifo_len)
+                pop_out_len = min(pop_out_len, fifo_len + chunk_len)
+
+                expected_fifo_len = fifo_len + chunk_len - pop_out_len
+                expected_fifo_embs[:expected_fifo_len] = updated_fifo_embs[pop_out_len:pop_out_len+expected_fifo_len]
+                expected_fifo_preds[:expected_fifo_len] = updated_fifo_preds[pop_out_len:pop_out_len+expected_fifo_len]
+                pop_out_embs = updated_fifo_embs[:pop_out_len]
+                pop_out_preds = updated_fifo_preds[:pop_out_len]
+
+                #Case 2: spkcache not full (no compression)
+                if spkcache_len + pop_out_len <= max_spkcache_len: 
+                    expected_spkcache_len = spkcache_len + pop_out_len
+                    expected_spkcache_embs[:spkcache_len] = initial_spkcache[b, :spkcache_len]
+                    expected_spkcache_embs[spkcache_len:spkcache_len+pop_out_len] = pop_out_embs
+                    expected_spkcache_preds[:spkcache_len] = initial_spkcache_preds[b, :spkcache_len]
+                    expected_spkcache_preds[spkcache_len:spkcache_len+pop_out_len] = pop_out_preds
+
+                #Case 3: spkcache is full (do compression)
+                else: 
+                    expected_spkcache_len = max_spkcache_len
+                    # Compression logic is validated in its own unit test.
+                    # Here, we trust its output and verify the resulting state's integrity.
+                    expected_spkcache_embs = streaming_state.spkcache[b, :max_spkcache_len]
+                    expected_spkcache_preds = streaming_state.spkcache_preds[b, :max_spkcache_len]
+
+            self._assert_async_batch_item_state(
+                chunk_preds[b, :chunk_len],
+                expected_chunk_preds,
+                streaming_state.fifo_lengths[b].item(),
+                expected_fifo_len,
+                streaming_state.fifo[b, :max_fifo_len],
+                expected_fifo_embs,
+                streaming_state.fifo_preds[b, :max_fifo_len],
+                expected_fifo_preds,
+                streaming_state.spkcache_lengths[b].item(),
+                expected_spkcache_len,
+                streaming_state.spkcache[b, :max_spkcache_len],
+                expected_spkcache_embs,
+                streaming_state.spkcache_preds[b, :max_spkcache_len],
+                expected_spkcache_preds,
+            )
+
