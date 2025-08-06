@@ -503,8 +503,8 @@ class SortformerModules(NeuralModule, Exportable):
 
         # update speaker cache
         need_compress = streaming_state.spkcache_lengths > self.spkcache_len
-        streaming_state.spkcache = updated_spkcache[:, :self.spkcache_len, :]
-        streaming_state.spkcache_preds = updated_spkcache_preds[:, :self.spkcache_len, :]
+        streaming_state.spkcache = updated_spkcache[:, : self.spkcache_len, :]
+        streaming_state.spkcache_preds = updated_spkcache_preds[:, : self.spkcache_len, :]
 
         idx = torch.where(need_compress)[0]
         if len(idx) > 0:

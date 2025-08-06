@@ -692,6 +692,7 @@ class TestSortformerModules_StreamingUtils:
             assert streaming_state.fifo_preds is None
             assert streaming_state.spk_perm is None
 
+
 class TestSortformerModules_StreamingScoreComputations:
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -1915,7 +1916,7 @@ class TestSortformerModules_StreamingUpdateAsync:
             streaming_state.spkcache_preds[b, : spkcache_lengths[b]] = torch.rand(spkcache_lengths[b], n_spk)
             streaming_state.fifo[b, : fifo_lengths[b]] = torch.randn(fifo_lengths[b], emb_dim)
 
-        # Keep spkcache and fifo from the initial state 
+        # Keep spkcache and fifo from the initial state
         initial_spkcache = streaming_state.spkcache.clone()
         initial_spkcache_preds = streaming_state.spkcache_preds.clone()
         initial_fifo = streaming_state.fifo.clone()
@@ -1943,20 +1944,20 @@ class TestSortformerModules_StreamingUpdateAsync:
             expected_spkcache_embs = torch.zeros(max_spkcache_len, emb_dim)
             expected_spkcache_preds = torch.zeros(max_spkcache_len, n_spk)
             updated_fifo_embs[:fifo_len] = initial_fifo[b, :fifo_len]
-            updated_fifo_embs[fifo_len:fifo_len + chunk_len] = chunk[b, lc : lc + chunk_len]
+            updated_fifo_embs[fifo_len : fifo_len + chunk_len] = chunk[b, lc : lc + chunk_len]
             updated_fifo_preds[:fifo_len] = preds[b, spkcache_len : spkcache_len + fifo_len]
-            updated_fifo_preds[fifo_len:fifo_len + chunk_len] = expected_chunk_preds
+            updated_fifo_preds[fifo_len : fifo_len + chunk_len] = expected_chunk_preds
             expected_fifo_embs = torch.zeros(max_fifo_len, emb_dim)
             expected_fifo_preds = torch.zeros(max_fifo_len, n_spk)
 
             # Case 1: Fifo not full
-            if fifo_len + chunk_len <= max_fifo_len: 
+            if fifo_len + chunk_len <= max_fifo_len:
                 expected_fifo_len = fifo_len + chunk_len
                 expected_spkcache_len = spkcache_len
                 expected_spkcache_embs = initial_spkcache[b]
                 expected_spkcache_preds = initial_spkcache_preds[b]
-                expected_fifo_embs[:fifo_len+chunk_len] = updated_fifo_embs[:fifo_len+chunk_len]
-                expected_fifo_preds[:fifo_len+chunk_len] = updated_fifo_preds[:fifo_len+chunk_len]
+                expected_fifo_embs[: fifo_len + chunk_len] = updated_fifo_embs[: fifo_len + chunk_len]
+                expected_fifo_preds[: fifo_len + chunk_len] = updated_fifo_preds[: fifo_len + chunk_len]
 
             else:
                 pop_out_len = spkcache_update_period
@@ -1964,21 +1965,25 @@ class TestSortformerModules_StreamingUpdateAsync:
                 pop_out_len = min(pop_out_len, fifo_len + chunk_len)
 
                 expected_fifo_len = fifo_len + chunk_len - pop_out_len
-                expected_fifo_embs[:expected_fifo_len] = updated_fifo_embs[pop_out_len:pop_out_len+expected_fifo_len]
-                expected_fifo_preds[:expected_fifo_len] = updated_fifo_preds[pop_out_len:pop_out_len+expected_fifo_len]
+                expected_fifo_embs[:expected_fifo_len] = updated_fifo_embs[
+                    pop_out_len : pop_out_len + expected_fifo_len
+                ]
+                expected_fifo_preds[:expected_fifo_len] = updated_fifo_preds[
+                    pop_out_len : pop_out_len + expected_fifo_len
+                ]
                 pop_out_embs = updated_fifo_embs[:pop_out_len]
                 pop_out_preds = updated_fifo_preds[:pop_out_len]
 
-                #Case 2: spkcache not full (no compression)
-                if spkcache_len + pop_out_len <= max_spkcache_len: 
+                # Case 2: spkcache not full (no compression)
+                if spkcache_len + pop_out_len <= max_spkcache_len:
                     expected_spkcache_len = spkcache_len + pop_out_len
                     expected_spkcache_embs[:spkcache_len] = initial_spkcache[b, :spkcache_len]
-                    expected_spkcache_embs[spkcache_len:spkcache_len+pop_out_len] = pop_out_embs
+                    expected_spkcache_embs[spkcache_len : spkcache_len + pop_out_len] = pop_out_embs
                     expected_spkcache_preds[:spkcache_len] = initial_spkcache_preds[b, :spkcache_len]
-                    expected_spkcache_preds[spkcache_len:spkcache_len+pop_out_len] = pop_out_preds
+                    expected_spkcache_preds[spkcache_len : spkcache_len + pop_out_len] = pop_out_preds
 
-                #Case 3: spkcache is full (do compression)
-                else: 
+                # Case 3: spkcache is full (do compression)
+                else:
                     expected_spkcache_len = max_spkcache_len
                     # Compression logic is validated in its own unit test.
                     # Here, we trust its output and verify the resulting state's integrity.
@@ -2001,4 +2006,3 @@ class TestSortformerModules_StreamingUpdateAsync:
                 streaming_state.spkcache_preds[b, :max_spkcache_len],
                 expected_spkcache_preds,
             )
-
