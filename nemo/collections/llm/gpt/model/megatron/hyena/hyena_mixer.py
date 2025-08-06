@@ -66,7 +66,6 @@ except ImportError:
     te = _te()  # if a user accesses anything in this module, an error will be raised
     logger.warning("WARNING: transformer_engine not installed. Using default recipe.")
 
-
 try:
     from cuhyena.rearrange import rearrange as cuhyena_rearrange
 except ImportError:
