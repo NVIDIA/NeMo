@@ -94,7 +94,6 @@ class SortformerModules(NeuralModule, Exportable):
         strong_boost_rate: float = 0.75,
         weak_boost_rate: float = 1.5,
         min_pos_scores_rate: float = 0.5,
-        minimum_spkcache_len: int = 16,
     ):
         super().__init__()
         # General params
@@ -128,66 +127,45 @@ class SortformerModules(NeuralModule, Exportable):
         self.strong_boost_rate = strong_boost_rate
         self.weak_boost_rate = weak_boost_rate
         self.min_pos_scores_rate = min_pos_scores_rate
-        self.minimum_spkcache_len = minimum_spkcache_len
+        self._check_streaming_parameters()
 
-        self._comparative_parameter_check()
-
-    def _comparative_parameter_check(self):
+    def _check_streaming_parameters(self):
         """
         Check if there are any illegal parameter combinations.
 
         Restrictions:
             - All streaming parameters should be non-negative integers.
             - Chunk length and speaker cache update period should be greater than 0.
-            - Speaker cache length should be greater than or equal to `self.minimum_spkcache_len`.
-            - The effective range of self.spkcache_update_period is:  spkcache_update_period <= fifo_len + chunk_len
+            - Speaker cache length should be greater than or equal to `(1 + spkcache_sil_frames_per_spk ) * n_spk`.
+            - The effective range of self.spkcache_update_period is: chunk_len <= spkcache_update_period <= fifo_len + chunk_len
         """
-        # Check if all streaming parameters are positive integers
-        streaming_params = [
-            'fifo_len',
-            'chunk_left_context',
-            'chunk_right_context',
-        ]
+        param_constraints = {
+            'spkcache_len': (1 + self.spkcache_sil_frames_per_spk) * self.n_spk,
+            'fifo_len': 0,
+            'chunk_len': 1,
+            'spkcache_update_period': 1,
+            'chunk_left_context': 0,
+            'chunk_right_context': 0,
+            'spkcache_sil_frames_per_spk': 0,
+        }
 
-        non_zero_streaming_params = [
-            'chunk_len',
-            'spkcache_update_period',
-        ]
-        min_value_constraint_streaming_params = [
-            'spkcache_len',
-        ]
-
-        all_params = streaming_params + non_zero_streaming_params + min_value_constraint_streaming_params
-
-        for param in all_params:
+        for param, min_val in param_constraints.items():
             val = getattr(self, param)
-            if val < 0:
-                raise ValueError(f"All streaming parameters should not be negative. " f"{param}: {val}")
-            # Check if all streaming parameters are integers
             if not isinstance(val, int):
-                raise ValueError(f"All streaming parameters should be integers. " f"{param}: {val}")
+                raise TypeError(f"Parameter '{param}' must be an integer, but got {param}: {val}")
+            if val < min_val:
+                raise ValueError(f"Parameter '{param}' must be at least {min_val}, but got {val}.")
 
-        # non-zero streaming parameters should be greater than 0
-        for param in non_zero_streaming_params:
-            val = getattr(self, param)
-            if val <= 0:
-                raise ValueError(f"Non-zero streaming parameters should be greater than 0. " f"{param}: {val}")
-
-        # min value constraint streaming parameters should be >= self.minimum_spkcache_len
-        for param in min_value_constraint_streaming_params:
-            val = getattr(self, param)
-            if val < self.minimum_spkcache_len:
-                raise ValueError(
-                    f"Min value constraint streaming parameters should be greater than or "
-                    f"equal to {self.minimum_spkcache_len}. {param}: {val}"
-                )
-
-        # The effective range of self.spkcache_update_period is: [ chunk_len, fifo_len+chunk_len ]
-        if self.fifo_len > 0 and self.spkcache_update_period > self.fifo_len + self.chunk_len:
-            raise ValueError(
-                f"The effective range of self.spkcache_update_period is: "
-                f"[ chunk_len: {self.chunk_len}, fifo_len+chunk_len: {self.fifo_len + self.chunk_len} ], "
-                f"but got {self.spkcache_update_period}"
+        if self.spkcache_update_period < self.chunk_len:
+            logging.warning(
+                f"spkcache_update_period ({self.spkcache_update_period}) is less than chunk_len ({self.chunk_len}). "
+                f"The effective update period will be {self.chunk_len}."
+            )
+        if self.spkcache_update_period > self.fifo_len + self.chunk_len:
+            logging.warning(
+                f"spkcache_update_period ({self.spkcache_update_period}) is greater than "
+                f"fifo_len + chunk_len ({self.fifo_len + self.chunk_len}). "
+                f"The effective update period will be {self.fifo_len + self.chunk_len}."
             )
 
     @staticmethod
@@ -518,12 +496,10 @@ class SortformerModules(NeuralModule, Exportable):
 
         if self.log:
             logging.info(
-                f"spkcache: {streaming_state.spkcache.shape}, "
-                f"chunk: {chunk.shape}, fifo: {streaming_state.fifo.shape}, "
+                f"spkcache: {streaming_state.spkcache.shape}, spkcache_lengths: {streaming_state.spkcache_lengths}, "
+                f"fifo: {streaming_state.fifo.shape}, fifo_lengths: {streaming_state.fifo_lengths}, "
+                f"chunk: {chunk.shape}, chunk_lengths: {chunk_lengths}, "
                 f"chunk_preds: {chunk_preds.shape}"
-            )
-            logging.info(
-                f"sil_emb: {streaming_state.mean_sil_emb.shape}, " f"sil_frames: {streaming_state.n_sil_frames}"
             )
 
         return streaming_state, chunk_preds
@@ -607,12 +583,8 @@ class SortformerModules(NeuralModule, Exportable):
 
         if self.log:
             logging.info(
-                f"spkcache: {streaming_state.spkcache.shape}, "
-                f"chunk: {chunk.shape}, fifo: {streaming_state.fifo.shape}, "
-                f"chunk_preds: {chunk_preds.shape}"
-            )
-            logging.info(
-                f"sil_emb: {streaming_state.mean_sil_emb.shape}, " f"sil_frames: {streaming_state.n_sil_frames}"
+                f"spkcache: {streaming_state.spkcache.shape}, fifo: {streaming_state.fifo.shape}, "
+                f"chunk: {chunk.shape}, chunk_preds: {chunk_preds.shape}"
             )
 
         return streaming_state, chunk_preds

@@ -117,7 +117,6 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         self.loss = instantiate(self._cfg.loss)
 
         self.async_streaming = self._cfg.get("async_streaming", False)
-        # self.async_streaming = self._cfg.get("async_streaming", True)
         self.streaming_mode = self._cfg.get("streaming_mode", False)
         self.save_hyperparameters("cfg")
         self._init_eval_metrics()

@@ -92,7 +92,7 @@ class DiarizationConfig:
     log: bool = False  # If True, log will be printed
 
     use_lhotse: bool = True
-    batch_duration: int = 33000
+    batch_duration: int = 100000
 
     # Eval Settings: (0.25, False) should be default setting for sortformer eval.
     collar: float = 0.25  # Collar in seconds for DER calculation
@@ -389,7 +389,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model.sortformer_modules.spkcache_update_period = cfg.spkcache_update_period
 
     # Check if the streaming parameters are valid
-    diar_model.sortformer_modules._comparative_parameter_check()
+    diar_model.sortformer_modules._check_streaming_parameters()
 
     postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
     tensor_path, model_id, tensor_filename = get_tensor_path(cfg)

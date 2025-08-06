@@ -18,72 +18,63 @@ import pytest
 import torch
 from omegaconf import DictConfig
 
-from nemo.collections.asr.models import SortformerEncLabelModel
 from nemo.collections.asr.modules.sortformer_modules import SortformerModules
-from tests.collections.speaker_tasks.test_diar_sortformer_models import sortformer_model
 
-
-class TestSortformerModules_StreamingParameterCheck:
-    @pytest.mark.unit
-    def test_constructor_for_inference(self, sortformer_model):
-        sortformer_model.streaming_mode = True
-        sortformer_diar_model = sortformer_model.eval()
-        confdict = sortformer_diar_model.to_config_dict()
-        instance2 = SortformerEncLabelModel.from_config_dict(confdict)
-        assert isinstance(instance2, SortformerEncLabelModel)
-
+class TestSortformerModules_CheckStreamingParameters:
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "spkcache_len, fifo_len, chunk_len, chunk_left_context, chunk_right_context, spkcache_update_period",
+        "n_spk, spkcache_len, fifo_len, chunk_len, lc, rc, spkcache_update_period, spkcache_sil_frames_per_spk",
         [
-            (188, 376, 376, 1, 1, 376),  # Example 1: All equal values
-            (100, 200, 150, 0, 0, 150),  # Example 2: Different values, zero contexts
-            (50, 100, 50, 2, 2, 75),  # Example 3: Small values, larger contexts
+            (4, 188, 376, 376, 1, 1, 376, 0),  # Example 1: All equal values
+            (3, 100, 200, 150, 0, 0, 150, 3),  # Example 2: Different values, zero contexts
+            (5, 50, 100, 50, 2, 2, 75, 9),     # Example 3: Small values, larger contexts
         ],
     )
-    def test_rule1_valid_non_negative_parameters(
-        self, spkcache_len, fifo_len, chunk_len, chunk_left_context, chunk_right_context, spkcache_update_period
+    def test_valid_parameters(
+        self, n_spk, spkcache_len, fifo_len, chunk_len, lc, rc, spkcache_update_period, spkcache_sil_frames_per_spk
     ):
-        """Test Rule 1: All streaming parameters should be non-negative integers - Valid case."""
+        """Test 1: All streaming parameters are valid."""
         sortformer_modules = SortformerModules(
-            num_spks=4,
+            num_spks=n_spk,
             spkcache_len=spkcache_len,
             fifo_len=fifo_len,
             chunk_len=chunk_len,
-            chunk_left_context=chunk_left_context,
-            chunk_right_context=chunk_right_context,
+            chunk_left_context=lc,
+            chunk_right_context=rc,
             spkcache_update_period=spkcache_update_period,
+            spkcache_sil_frames_per_spk=spkcache_sil_frames_per_spk,
         )
         # Should not raise any exception
-        sortformer_modules._comparative_parameter_check()
+        sortformer_modules._check_streaming_parameters()
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "param_name, param_value",
+        "param_name, param_value, expected_min",
         [
-            ("spkcache_len", -1),
-            ("fifo_len", -5),
-            ("chunk_len", -10),
-            ("chunk_left_context", -2),
-            ("chunk_right_context", -3),
-            ("spkcache_update_period", -7),
+            ("fifo_len", -5, 0),
+            ("chunk_len", 0, 1),
+            ("chunk_left_context", -2, 0),
+            ("chunk_right_context", -3, 0),
+            ("spkcache_update_period", 0, 1),
+            ("spkcache_sil_frames_per_spk", -1, 0),
         ],
     )
-    def test_rule1_invalid_negative_parameters(self, param_name, param_value):
-        """Test Rule 1: All streaming parameters should be non-negative integers - Invalid case."""
+    def test_invalid_parameters(self, param_name, param_value, expected_min):
+        """Test that _check_streaming_parameters raises ValueError for parameters below their minimum."""
         params = {
             "num_spks": 4,
             "spkcache_len": 188,
             "fifo_len": 376,
-            "chunk_len": 376,
+            "chunk_len": 12,
             "chunk_left_context": 1,
             "chunk_right_context": 1,
-            "spkcache_update_period": 376,
+            "spkcache_update_period": 12,
+            "spkcache_sil_frames_per_spk": 3,
         }
         params[param_name] = param_value
 
         with pytest.raises(
-            ValueError, match=f"All streaming parameters should not be negative. {param_name}: {param_value}"
+            ValueError, match=f"Parameter '{param_name}' must be at least {expected_min}, but got {param_value}."
         ):
             SortformerModules(**params)
 
@@ -97,162 +88,53 @@ class TestSortformerModules_StreamingParameterCheck:
             ("chunk_left_context", 2.11),
             ("chunk_right_context", 3.21),
             ("spkcache_update_period", 7.3),
+            ("spkcache_sil_frames_per_spk", 2.5),
         ],
     )
-    def test_rule1_invalid_float_parameters(self, param_name, param_value):
-        """Test Rule 1: All streaming parameters should be non-negative integers - Invalid case."""
+    def test_invalid_float_parameters(self, param_name, param_value):
+        """Test that _check_streaming_parameters raises TypeError for non-integer parameters."""
         params = {
             "num_spks": 4,
             "spkcache_len": 188,
             "fifo_len": 376,
-            "chunk_len": 376,
+            "chunk_len": 12,
             "chunk_left_context": 1,
             "chunk_right_context": 1,
-            "spkcache_update_period": 376,
+            "spkcache_update_period": 12,
+            "spkcache_sil_frames_per_spk": 3,
         }
         params[param_name] = param_value
 
-        with pytest.raises(
-            ValueError, match=f"All streaming parameters should be integers. {param_name}: {param_value}"
-        ):
+        with pytest.raises(TypeError, match=f"Parameter '{param_name}' must be an integer, but got {param_name}: {param_value}"):
             SortformerModules(**params)
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "param_name, param_value",
+        "spkcache_len, n_spk, spkcache_sil_frames_per_spk",
         [
-            ("chunk_len", 0),  # Zero value for chunk_len
-            ("chunk_len", -1),  # Negative value for chunk_len
-            ("spkcache_update_period", 0),  # Zero value for spkcache_update_period
-            ("spkcache_update_period", -1),  # Negative value for spkcache_update_period
+            (15, 4, 3),  # spkcache_len is 15, minimum is (1+3)*4=16
+            (1, 1, 1),   # spkcache_len is 1, minimum is (1+1)*1=2
         ],
     )
-    def test_rule2_invalid_non_zero_parameters(self, param_name, param_value):
-        """Test Rule 2: Non-zero streaming parameters (chunk_len, spkcache_update_period) should be greater than 0 - Invalid case."""
+    def test_invalid_spkcache_len(self, spkcache_len, n_spk, spkcache_sil_frames_per_spk):
+        """Test that spkcache_len is validated against the minimum required length."""
+        min_spkcache_len = (1 + spkcache_sil_frames_per_spk) * n_spk
         params = {
-            "num_spks": 4,
-            "spkcache_len": 188,
+            "num_spks": n_spk,
+            "spkcache_len": spkcache_len,
+            "spkcache_sil_frames_per_spk": spkcache_sil_frames_per_spk,
             "fifo_len": 376,
-            "chunk_len": 376,
+            "chunk_len": 12,
             "chunk_left_context": 1,
             "chunk_right_context": 1,
-            "spkcache_update_period": 376,
+            "spkcache_update_period": 12,
         }
-        params[param_name] = param_value
-
-        # For negative values, the first check (non-negative) will catch them
-        if param_value < 0:
-            expected_error = f"All streaming parameters should not be negative. {param_name}: {param_value}"
-        else:
-            expected_error = f"Non-zero streaming parameters should be greater than 0. {param_name}: {param_value}"
-
-        with pytest.raises(ValueError, match=expected_error):
-            SortformerModules(**params)
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize(
-        "spkcache_len",
-        [
-            16,  # Minimum value (minimum_spkcache_len)
-            50,  # Medium value
-            100,  # Large value
-        ],
-    )
-    def test_rule3_valid_min_value_constraint(self, spkcache_len):
-        """Test Rule 3: spkcache_len should be >= minimum_spkcache_len - Valid case."""
-        sortformer_modules = SortformerModules(
-            num_spks=4,
-            spkcache_len=spkcache_len,
-            fifo_len=376,
-            chunk_len=376,
-            chunk_left_context=1,
-            chunk_right_context=1,
-            spkcache_update_period=376,
-        )
-        # Should not raise any exception
-        sortformer_modules._comparative_parameter_check()
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize(
-        "spkcache_len, custom_minimum_spkcache_len",
-        [
-            (-1, 16),  # Negative value
-            (15, 16),  # Value less than minimum_spkcache_len (16)
-            (127, 128),  # Value less than minimum_spkcache_len (128)
-        ],
-    )
-    def test_rule3_invalid_min_value_constraint(self, spkcache_len, custom_minimum_spkcache_len):
-        """Test Rule 3: spkcache_len should be >= minimum_spkcache_len - Invalid case."""
-        # For zero or negative values, the first check (non-negative) will catch them
-
-        if spkcache_len < 0:
-            expected_error = f"All streaming parameters should not be negative. spkcache_len: {spkcache_len}"
-        else:
-            expected_error = f"Min value constraint streaming parameters should be greater than or equal to {custom_minimum_spkcache_len}. spkcache_len: {spkcache_len}"
-
-        with pytest.raises(ValueError, match=expected_error):
-            SortformerModules(
-                num_spks=4,
-                spkcache_len=spkcache_len,
-                fifo_len=376,
-                chunk_len=376,
-                chunk_left_context=1,
-                chunk_right_context=1,
-                spkcache_update_period=376,
-                minimum_spkcache_len=custom_minimum_spkcache_len,
-            )
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize(
-        "fifo_len, chunk_len, spkcache_update_period",
-        [
-            (376, 200, 300),  # Example 1: spkcache_update_period <= fifo_len + chunk_len
-            (100, 50, 75),  # Example 2: spkcache_update_period <= fifo_len + chunk_len, smaller values
-            (200, 100, 300),  # Example 3: spkcache_update_period == fifo_len + chunk_len
-            (150, 100, 250),  # Example 4: spkcache_update_period == fifo_len + chunk_len
-            (0, 100, 50),  # Example 5: fifo_len = 0 (no validation)
-        ],
-    )
-    def test_rule4_valid_spkcache_update_period_in_range(self, fifo_len, chunk_len, spkcache_update_period):
-        """Test Rule 4: spkcache_update_period should be <= fifo_len + chunk_len (when fifo_len > 0) - Valid case."""
-        sortformer_modules = SortformerModules(
-            num_spks=4,
-            spkcache_len=188,
-            fifo_len=fifo_len,
-            chunk_len=chunk_len,
-            chunk_left_context=1,
-            chunk_right_context=1,
-            spkcache_update_period=spkcache_update_period,
-        )
-        # Should not raise any exception
-        sortformer_modules._comparative_parameter_check()
-
-    @pytest.mark.unit
-    @pytest.mark.parametrize(
-        "fifo_len, chunk_len, spkcache_update_period",
-        [
-            (376, 200, 600),  # Example 1: spkcache_update_period > fifo_len + chunk_len
-            (100, 50, 151),  # Example 2: spkcache_update_period > fifo_len + chunk_len, smaller values
-            (50, 25, 76),  # Example 3: spkcache_update_period > fifo_len + chunk_len, very small values
-        ],
-    )
-    def test_rule4_invalid_spkcache_update_period_out_of_range(self, fifo_len, chunk_len, spkcache_update_period):
-        """Test Rule 4: spkcache_update_period should be <= fifo_len + chunk_len (when fifo_len > 0) - Invalid case."""
         with pytest.raises(
             ValueError,
-            match=f"The effective range of self.spkcache_update_period is: \\[ chunk_len: {chunk_len}, fifo_len\\+chunk_len: {fifo_len + chunk_len} \\], but got {spkcache_update_period}",
+            match=f"Parameter 'spkcache_len' must be at least {min_spkcache_len}, but got {spkcache_len}.",
         ):
-            SortformerModules(
-                num_spks=4,
-                spkcache_len=188,
-                fifo_len=fifo_len,
-                chunk_len=chunk_len,
-                chunk_left_context=1,
-                chunk_right_context=1,
-                spkcache_update_period=spkcache_update_period,
-            )
-
-
+            SortformerModules(**params)
+    
 class TestSortformerModules_GeneralUtils:
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -977,16 +859,16 @@ class TestSortformerModules_StreamingScoreComputations:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "batch_size, n_frames, n_spk, spkcache_len, spkcache_sil_frames_per_spk, custom_minimum_spkcache_len",
+        "batch_size, n_frames, n_spk, spkcache_len, spkcache_sil_frames_per_spk",
         [
-            (2, 20, 4, 10, 3, 9),  # Example 1: Default parameters
-            (1, 15, 2, 8, 2, 7),  # Example 2: Smaller dimensions
-            (3, 25, 6, 12, 4, 11),  # Example 3: Larger dimensions
-            (2, 12, 3, 6, 1, 5),  # Example 4: Small cache size
+            (2, 20, 4, 16, 3),  # Example 1: Default parameters
+            (1, 15, 2, 8, 2),  # Example 2: Smaller dimensions
+            (3, 25, 6, 40, 4),  # Example 3: Larger dimensions
+            (2, 12, 3, 6, 1),  # Example 4: Small cache size
         ],
     )
     def test_get_topk_indices(
-        self, batch_size, n_frames, n_spk, spkcache_len, spkcache_sil_frames_per_spk, custom_minimum_spkcache_len
+        self, batch_size, n_frames, n_spk, spkcache_len, spkcache_sil_frames_per_spk
     ):
         """Test the _get_topk_indices method that finds top-k highest scoring frames."""
         sortformer_modules = SortformerModules(
@@ -999,7 +881,6 @@ class TestSortformerModules_StreamingScoreComputations:
             spkcache_update_period=376,
             spkcache_sil_frames_per_spk=spkcache_sil_frames_per_spk,
             max_index=99999,
-            minimum_spkcache_len=custom_minimum_spkcache_len,
         )
 
         # Create test scores with some high values and some -inf values
@@ -1085,7 +966,6 @@ class TestSortformerModules_StreamingScoreComputations:
             spkcache_update_period=376,
             spkcache_sil_frames_per_spk=2,
             max_index=99999,
-            minimum_spkcache_len=4,
         )
 
         # Create test embeddings and predictions
@@ -1407,7 +1287,6 @@ class TestSortformerModules_StreamingScoreComputations:
             chunk_right_context=1,
             spkcache_update_period=376,
             spkcache_sil_frames_per_spk=2,
-            minimum_spkcache_len=4,
         )
 
         # Create test embeddings and predictions
@@ -1473,7 +1352,7 @@ class TestSortformerModules_StreamingUpdate:
         [
             (2, 512, 4, 16, 0, 16, 0, 5, 1, 1),  # Example 1: empty spkcache and fifo
             (3, 256, 3, 32, 16, 32, 24, 6, 0, 0),  # Example 2: non-empty spkcache and fifo
-            (4, 128, 5, 16, 16, 32, 20, 10, 1, 2),  # Example 3: full spkcache, fifo not full
+            (4, 128, 2, 16, 16, 32, 20, 10, 1, 2),  # Example 3: full spkcache, fifo not full
         ],
     )
     def test_fifo_not_full(
@@ -1486,8 +1365,9 @@ class TestSortformerModules_StreamingUpdate:
             fifo_len=fifo_len,
             chunk_len=chunk_len,
             fc_d_model=emb_dim,
+            spkcache_sil_frames_per_spk=3,
         )
-        sortformer_modules.training = False  # Set to eval mode for consistent behavior
+        sortformer_modules.training = False  # Disable training mode for consistent behavior
 
         # Initialize streaming state
         streaming_state = sortformer_modules.init_streaming_state(batch_size=batch_size, async_streaming=False)
