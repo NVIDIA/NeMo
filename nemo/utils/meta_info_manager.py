@@ -95,15 +95,12 @@ def _get_base_callback_config(
 
     # Check for async_save in trainer strategy (handle both dict and object cases)
     if hasattr(trainer, 'strategy') and trainer.strategy is not None:
-        try:
-            if isinstance(trainer.strategy, dict):
-                if trainer.strategy.get('async_save', False):
-                    save_checkpoint_strategy = "async"
-            else:
-                if hasattr(trainer.strategy, 'async_save') and trainer.strategy.async_save:
-                    save_checkpoint_strategy = "async"
-        except Exception:
-            pass
+        if isinstance(trainer.strategy, dict):
+            if trainer.strategy.get('async_save', False):
+                save_checkpoint_strategy = "async"
+        else:
+            if hasattr(trainer.strategy, 'async_save') and trainer.strategy.async_save:
+                save_checkpoint_strategy = "async"
 
     for callback in checkpoint_callbacks:
         if hasattr(callback, 'async_save') and callback.async_save:

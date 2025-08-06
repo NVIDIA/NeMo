@@ -20,8 +20,6 @@ This module provides a callback that integrates OneLogger telemetry with NeMo tr
 
 import functools
 import time
-import uuid
-from typing import Any, Dict, Optional
 
 # Centralized OneLogger import - this is the only place where nv_one_logger should be imported
 try:
@@ -39,9 +37,6 @@ except (ImportError, ModuleNotFoundError):
     HAVE_ONELOGGER = False
 
 from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import Callback
-from lightning.pytorch.core import LightningModule
-from lightning.pytorch.utilities.types import STEP_OUTPUT
 
 from nemo.utils.meta_info_manager import (
     enable_onelogger,
