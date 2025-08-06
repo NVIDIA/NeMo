@@ -179,6 +179,9 @@ def add_megatron_sampler(
     Returns:
         DataLoader: A new DataLoader instance with the configured Megatron sampler.
     """
+
+    print(f"Type : {dataloader_type} Mode : {dataloader_mode} Batch Sizes; {global_batch_size} and {micro_batch_size}")
+
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataloader.dataset),
@@ -290,7 +293,7 @@ class BaseMegatronSampler:
 
         logging.info(
             f"Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and"
-            f" consumed_samples: {consumed_samples}"
+            f" consumed_samples: {consumed_samples} and global_batch_size: {self.global_batch_size}"
         )
 
     def __len__(self):
