@@ -620,7 +620,6 @@ class NeMoMultimodalConversationJsonlAdapter:
                 )
 
 
-
 @dataclass
 class NeMoMultimodalConversationShareGPTJsonlAdapter:
     """
@@ -797,7 +796,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
 
         return turns
 
-      
+
 class TarIterator:
     """
     Copy of lhotse.shar.readers.tar.TarIterator, modified to read both Lhotse-Shar style audio tar files
@@ -841,7 +840,6 @@ def _iterate_tarfile_pairwise(
 
     if len(result) == 1:
         yield result[0], (None, None)
-
 
 
 class NeMoMultimodalConversationTarWriter:
