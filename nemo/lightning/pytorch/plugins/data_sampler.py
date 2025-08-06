@@ -123,7 +123,7 @@ class MegatronDataSampler(DataSampler):
             step,
             seq_length=self.seq_len,
             micro_batch_size=self.micro_batch_size,
-            num_microbatches=self.num_microbatches(is_train=step.trainer.training),
+            num_microbatches=self.num_microbatches if step.trainer.training else self.num_val_microbatches,
             decoder_seq_length=self.decoder_seq_len,
         )
 
@@ -180,9 +180,7 @@ class MegatronDataSampler(DataSampler):
         self.if_first_step = 1
 
     @property
-    def num_microbatches(self, is_train: bool = True) -> int:
-        if not is_train and self.val_num_microbatches_calculator is not None:
-            return self.val_num_microbatches_calculator.get()
+    def num_microbatches(self) -> int:
         try:
             from megatron.core.num_microbatches_calculator import get_num_microbatches
 
@@ -191,6 +189,12 @@ class MegatronDataSampler(DataSampler):
             from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         return get_num_microbatches()
+    
+    @property
+    def num_val_microbatches(self) -> int:
+        if self.val_num_microbatches_calculator is not None:
+            return self.val_num_microbatches_calculator.get()
+        return self.num_microbatches
 
     @property
     def current_global_batch_size(self) -> int:
