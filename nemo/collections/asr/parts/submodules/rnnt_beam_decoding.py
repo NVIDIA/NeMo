@@ -385,13 +385,6 @@ class BeamRNNTInfer(Typing):
         if ngram_lm_model:
             self.ngram_lm = ngram_lm_model
             self.ngram_lm_alpha = ngram_lm_alpha
-            # if KENLM_AVAILABLE:
-            #     self.ngram_lm = kenlm.Model(ngram_lm_model)
-            #     self.ngram_lm_alpha = ngram_lm_alpha
-            # else:
-            #     raise ImportError(
-            #         "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
-            #     )
         else:
             self.ngram_lm = None
 

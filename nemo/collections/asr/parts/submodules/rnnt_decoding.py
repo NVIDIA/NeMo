@@ -368,20 +368,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         fusion_models, fusion_models_alpha = [], []
         # load ngram_lm model from path
         if ngram_lm_model is not None:
-            if strategy in {TransducerDecodingStrategyType.MAES, TransducerDecodingStrategyType.MAES_BATCH}:
-                if KENLM_AVAILABLE:
-                    fusion_models.append(kenlm.Model(ngram_lm_model))
-                    fusion_models_alpha.append(ngram_lm_alpha)
-                else:
-                    raise ImportError(
-                        "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
-                    )
+            if strategy is TransducerDecodingStrategyType.MAES:
+                fusion_models.append(self._load_kenlm_model(ngram_lm_model))
             else:
                 fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self.blank_id))
-                fusion_models_alpha.append(ngram_lm_alpha)
+            fusion_models_alpha.append(ngram_lm_alpha)
         # load boosting tree model from path
         if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
-            if strategy in {TransducerDecodingStrategyType.MAES, TransducerDecodingStrategyType.MAES_BATCH}:
+            if strategy is TransducerDecodingStrategyType.MAES:
                 raise NotImplementedError(
                     f"Model {model_type} with strategy `{strategy}` does not support boosting tree."
                 )
@@ -1317,6 +1311,18 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         segment_words.clear()
 
         return segment_offsets
+
+    @staticmethod
+    def _load_kenlm_model(ngram_lm_model: str) -> kenlm.Model:
+        """
+        Load a KenLM model from a file path.
+        """
+        if KENLM_AVAILABLE:
+            return kenlm.Model(ngram_lm_model)
+        else:
+            raise ImportError(
+                "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
+            )
 
 
 class RNNTDecoding(AbstractRNNTDecoding):

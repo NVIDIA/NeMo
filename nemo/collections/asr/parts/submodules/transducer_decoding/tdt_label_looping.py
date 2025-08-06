@@ -393,7 +393,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
             scores, labels = logits[:, :-num_durations].max(dim=-1)
 
             if self.fusion_models is not None:
-                fision_scores_list, fusion_states_candidates_list = [], []
+                fusion_scores_list, fusion_states_candidates_list = [], []
                 logits_with_fusion = logits.clone()
                 for fusion_idx, fusion_model in enumerate(self.fusion_models):
                     fusion_scores, fusion_states_candidates = fusion_model.advance(
@@ -403,7 +403,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
                     # combine logits with fusion model without blank
                     logits_with_fusion[:, : -num_durations - 1] += self.fusion_models_alpha[fusion_idx] * fusion_scores
                     # save fusion scores and states candidates
-                    fision_scores_list.append(fusion_scores)
+                    fusion_scores_list.append(fusion_scores)
                     fusion_states_candidates_list.append(fusion_states_candidates)
                 # get max scores and labels without blank
                 fusion_scores_max, fusion_labels_max = logits_with_fusion[:, : -num_durations - 1].max(dim=-1)
@@ -455,7 +455,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
 
                 if self.fusion_models is not None:
                     logits_with_fusion = logits.clone()
-                    for fusion_idx, fusion_scores in enumerate(fision_scores_list):
+                    for fusion_idx, fusion_scores in enumerate(fusion_scores_list):
                         # combined scores with fusion model - without blank
                         logits_with_fusion[:, : -num_durations - 1] += (
                             self.fusion_models_alpha[fusion_idx] * fusion_scores
