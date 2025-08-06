@@ -434,10 +434,8 @@ def set_primary_perf_configs(
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         recompute_modules=recompute_modules,
-        use_fsdp_double_buffer=use_fsdp_double_buffer,
         use_user_buffer_registration=use_user_buffer_registration,
         use_sharp=use_sharp,
-        keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
     )
 
     return recipe
