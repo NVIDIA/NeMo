@@ -19,7 +19,6 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from nemo.collections.asr.parts.submodules.ctc_decoding import AbstractCTCDecoding
 from nemo.collections.asr.parts.utils.aligner_utils import (
     BLANK_TOKEN,
     Segment,
@@ -35,6 +34,7 @@ from nemo.utils import logging, logging_mode
 def get_words_offsets(
     char_offsets: List[Dict[str, Union[str, float]]],
     encoded_char_offsets: List[Dict[str, Union[str, float]]],
+    decode_tokens_to_str: Callable[[List[int]], str],
     word_delimiter_char: str = " ",
     tokenizer_type: str = "bpe",
     supported_punctuation: Optional[Set] = None,
@@ -62,40 +62,52 @@ def get_words_offsets(
         """
         Define the word start condition based on the tokenizer type and word delimiter character.
         """
-        if word_delimiter_char == " ":
+        if tokenizer_type in ["bpe", "wpe"] and word_delimiter_char == " ":
             if tokenizer_type == "wpe":
-                return lambda token, token_text: token_text and not token_text.startswith("##")
-            return lambda token, token_text: token != token_text
+                return lambda token, token_text, next_non_delimeter_token: token_text and not token_text.startswith("##") and next_non_delimeter_token not in supported_punctuation
+            return lambda token, token_text, next_non_delimeter_token: token != token_text and next_non_delimeter_token not in supported_punctuation
+        elif word_delimiter_char == " ":
+            return lambda token, token_text, next_non_delimeter_token: token_text == word_delimiter_char and next_non_delimeter_token not in supported_punctuation
         else:
-            return lambda token, token_text: token_text == word_delimiter_char
+            return lambda token, token_text, next_non_delimeter_token: token_text == word_delimiter_char
+
+    if encoded_char_offsets is None:
+        encoded_char_offsets = char_offsets
 
     word_offsets = []
     previous_token_index = 0
 
     # Built tokens should be list here as when dealing with wpe tokenizer,
     # ids should be decoded together to ensure tokens starting with ## are not split
-    built_word = ""
+    built_tokens = []
 
     condition_for_word_start = define_word_start_condition()
 
     # For every collapsed sub-word token
     for i, (char_offset, char_token_offset) in enumerate(zip(char_offsets, encoded_char_offsets)):
 
-        char_text = char_offset['char'].strip()
+        char_text = char_offset['char']
         char_token = char_token_offset['char']
-
-        curr_punctuation = supported_punctuation and char_text in supported_punctuation
+        
+        curr_punctuation = supported_punctuation and char_text in supported_punctuation and char_text != word_delimiter_char
+        next_non_delimeter_token = None
+        next_non_delimeter_token_index = i
+        while not next_non_delimeter_token and next_non_delimeter_token_index < len(char_offsets) - 1:
+            next_non_delimeter_token_index += 1
+            next_non_delimeter_token = char_offsets[next_non_delimeter_token_index]['char']
+            next_non_delimeter_token = next_non_delimeter_token if next_non_delimeter_token != word_delimiter_char else None
 
         # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
         # after forcing partial text conversion of the token.
         # AND it is not a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
-        if condition_for_word_start(char_token, char_text) and not curr_punctuation:
+        if condition_for_word_start(char_token, char_text, next_non_delimeter_token) and not curr_punctuation:
             # If there are any partially or fully built sub-word token ids, construct to text.
             # Note: This is "old" subword, that occurs *after* current sub-word has started.
-            if built_word:
+
+            if built_tokens:
                 word_offsets.append(
                     {
-                        "word": built_word,
+                        "word": decode_tokens_to_str(built_tokens),
                         "start_offset": char_offsets[previous_token_index]["start_offset"],
                         "end_offset": char_offsets[i - 1]["end_offset"],
                     }
@@ -106,29 +118,35 @@ def get_words_offsets(
                 if "end" in char_offset:
                     word_offsets[-1]["end"] = char_offsets[i - 1]["end"]
 
-            # Prepare new built_word
-            built_word = ""
+            # Prepare new built_tokens
+            built_tokens = []
 
             if char_text != word_delimiter_char:
-                built_word = char_text
+                built_tokens.append(char_token)
                 previous_token_index = i
 
         # If the token is a punctuation mark and there is no built word, then the previous word is complete
         # and lacks the punctuation mark. We need to add the punctuation mark to the previous formed word.
-        elif curr_punctuation and not built_word:
+        elif curr_punctuation and not built_tokens and word_offsets:
             last_built_word = word_offsets[-1]
             last_built_word['end_offset'] = char_offset['end_offset']
             if last_built_word['word'][-1] == ' ':
                 last_built_word['word'] = last_built_word['word'][:-1]
             last_built_word['word'] += char_text
+        # If the token is a punctuation mark and there is a built word,
+        # then we need to add the punctuation mark to the built word and remove preceding space.
+        elif curr_punctuation and built_tokens:
+            if built_tokens[-1] in [' ', "_", "▁"]:
+                built_tokens = built_tokens[:-1]
+            built_tokens.append(char_token)
         else:
             # If the token does not contain any sub-word start mark, then the sub-word has not completed yet
             # Append to current built word.
             # If this token is the first in the built_tokens, we should save its index as the previous token index
             # because it will be used to calculate the start offset of the word.
-            if not built_word:
+            if not built_tokens:
                 previous_token_index = i
-            built_word += char_text
+            built_tokens.append(char_token)
 
     # Inject the start offset of the first token to word offsets
     # This is because we always skip the delay the injection of the first sub-word due to the loop
@@ -136,10 +154,10 @@ def get_words_offsets(
     # Therefore without this forced injection, the start_offset appears as off by 1.
     if len(word_offsets) == 0:
         # alaptev: sometimes word_offsets can be empty
-        if built_word:
+        if built_tokens:
             word_offsets.append(
                 {
-                    "word": built_word,
+                    "word": decode_tokens_to_str(built_tokens),
                     "start_offset": char_offsets[0]["start_offset"],
                     "end_offset": char_offsets[-1]["end_offset"],
                 }
@@ -157,10 +175,10 @@ def get_words_offsets(
         # If there are any remaining tokens left, inject them all into the final word offset.
         # Note: The start offset of this token is the start time of the first token inside build_token.
         # Note: The end offset of this token is the end time of the last token inside build_token
-        if built_word:
+        if built_tokens:
             word_offsets.append(
                 {
-                    "word": built_word,
+                    "word": decode_tokens_to_str(built_tokens),
                     "start_offset": char_offsets[previous_token_index]["start_offset"],
                     "end_offset": char_offsets[-1]["end_offset"],
                 }
@@ -344,7 +362,7 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
                 }
             )
 
-            segments = AbstractCTCDecoding._get_segment_offsets(timestamp, segment_delimiter_tokens=['.', '?', '!'])
+            segments = get_segment_offsets(timestamp, segment_delimiter_tokens=['.', '?', '!'])
             hyp.timestamp['segment'] = segments_offset_to_time(segments, window_stride, subsampling_factor)
         else:
             hyp.timestamp = {
