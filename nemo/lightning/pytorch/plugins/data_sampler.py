@@ -189,7 +189,7 @@ class MegatronDataSampler(DataSampler):
             from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         return get_num_microbatches()
-    
+
     @property
     def num_val_microbatches(self) -> int:
         if self.val_num_microbatches_calculator is not None:
