@@ -1313,7 +1313,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         return segment_offsets
 
     @staticmethod
-    def _load_kenlm_model(ngram_lm_model: str) -> kenlm.Model:
+    def _load_kenlm_model(ngram_lm_model: str):
         """
         Load a KenLM model from a file path.
         """
