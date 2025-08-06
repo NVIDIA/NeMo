@@ -234,11 +234,11 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         self.cuda_graphs_mode = self.CudaGraphsMode(mode) if mode is not None else None
         self.state = None
 
-    def maybe_enable_cuda_graphs(self):
+    def maybe_enable_cuda_graphs(self) -> bool:
         """Enable CUDA graphs if conditions met"""
         if self.cuda_graphs_mode is not None:
             # CUDA graphs are already enabled
-            return
+            return False
 
         if not self.allow_cuda_graphs:
             self.cuda_graphs_mode = None
@@ -256,14 +256,16 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 )
                 self.cuda_graphs_mode = self.CudaGraphsMode.NO_GRAPHS
         self.reset_cuda_graphs_state()
+        return self.cuda_graphs_mode is not None
 
-    def disable_cuda_graphs(self):
+    def disable_cuda_graphs(self) -> bool:
         """Disable CUDA graphs, can be used to disable graphs temporary, e.g., in training process"""
         if self.cuda_graphs_mode is None:
             # nothing to disable
-            return
+            return False
         self.cuda_graphs_mode = None
         self.reset_cuda_graphs_state()
+        return True
 
     def reset_cuda_graphs_state(self):
         """Reset state to release memory (for CUDA graphs implementations)"""
