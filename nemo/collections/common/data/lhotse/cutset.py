@@ -37,6 +37,7 @@ from nemo.collections.common.data.lhotse.text_adapters import (
     LhotseTextPairAdapter,
     NeMoMultimodalConversation,
     NeMoMultimodalConversationJsonlAdapter,
+    NeMoMultimodalConversationShareGPTJsonlAdapter,
     NeMoSFTJsonlAdapter,
     TextTurn,
 )
@@ -292,6 +293,25 @@ def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
             system_prompt=config.get("tags", {}).get("system_prompt"),
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat()
+    return cuts, True
+
+
+@data_type_parser(["share_gpt"])
+def read_share_gpt_as_conversation(config) -> tuple[CutSet, bool]:
+    """Read paths to ShareGPT JSONL files and create a CutSet of NeMoMultimodalConversation."""
+    cuts = CutSet(
+        NeMoMultimodalConversationShareGPTJsonlAdapter(
+            manifest_filepath=config.manifest_filepath,
+            tarred_audio_filepaths=config.get("tarred_audio_filepaths"),
+            audio_locator_tag=config.audio_locator_tag,
+            audio_placeholders=config.audio_placeholders,
+            token_equivalent_duration=config.get("token_equivalent_duration"),
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
         )
     )
     if not config.get("force_finite", False):
