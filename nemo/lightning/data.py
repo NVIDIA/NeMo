@@ -40,6 +40,7 @@ def setup_microbatch_calculator(
     micro_batch_size: int,
     global_batch_size: int,
     rampup_batch_size: Optional[List[int]] = None,
+    val_global_batch_size: Optional[int] = None,
 ) -> None:
     """
     Initializes the data for distributed training by setting up the microbatch calculator
@@ -131,6 +132,19 @@ def setup_microbatch_calculator(
                 assert get_num_microbatches() == global_batch_size // (micro_batch_size * app_state.data_parallel_size)
             else:
                 raise Exception("Microbatch calculator already initialized.")
+    
+    if val_global_batch_size is not None:
+        val_num_microbatches_calculator = ConstantNumMicroBatchesCalculator(
+            global_batch_size = val_global_batch_size,
+            micro_batch_size = micro_batch_size,
+            data_parallel_size = app_state.data_parallel_size,
+            decrease_batch_size_if_needed = False,
+            rank = init_global_rank,
+        )
+        return val_num_microbatches_calculator
+
+    return None
+        
 
 
 def add_megatron_sampler(

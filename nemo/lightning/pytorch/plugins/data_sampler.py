@@ -39,8 +39,7 @@ class MegatronDataSampler(DataSampler):
         seq_len: int,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
-        val_micro_batch_size: int = 4,
-        val_global_batch_size: int = 8,
+        val_global_batch_size: Optional[int] = None,
         rampup_batch_size: Optional[List[int]] = None,
         dataloader_type: Literal["single", "cyclic", "batch"] = "single",
         init_consumed_samples: int = 0,
@@ -53,7 +52,6 @@ class MegatronDataSampler(DataSampler):
         self.output_log = output_log
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
-        self.val_micro_batch_size = val_micro_batch_size
         self.val_global_batch_size = val_global_batch_size
         self.rampup_batch_size = rampup_batch_size
         self.dataloader_type = dataloader_type
@@ -62,11 +60,12 @@ class MegatronDataSampler(DataSampler):
         self.if_first_step = 0
         self.prev_global_batch_size = None
         self.init_global_step = init_global_step
+        self.val_num_microbatches_calculator = None
 
     def setup(self, global_rank: int) -> None:
         from nemo.lightning.data import setup_microbatch_calculator
 
-        setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size)
+        self.val_num_microbatches_calculator = setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size, self.val_global_batch_size)
 
     def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
         from megatron.core import parallel_state
@@ -82,7 +81,7 @@ class MegatronDataSampler(DataSampler):
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         return add_megatron_sampler(
             dataloader,
-            micro_batch_size=self.val_micro_batch_size if mode == 'validation' else self.micro_batch_size,
+            micro_batch_size=self.micro_batch_size,
             global_batch_size=self.val_global_batch_size if mode == 'validation' else self.global_batch_size,
             rampup_batch_size=self.rampup_batch_size,
             consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
@@ -118,7 +117,7 @@ class MegatronDataSampler(DataSampler):
             step,
             seq_length=self.seq_len,
             micro_batch_size=self.micro_batch_size,
-            num_microbatches=48 if step.forward_only else self.num_microbatches,
+            num_microbatches=self.num_microbatches(is_train=step.trainer.training),
             decoder_seq_length=self.decoder_seq_len,
         )
 
@@ -175,7 +174,9 @@ class MegatronDataSampler(DataSampler):
         self.if_first_step = 1
 
     @property
-    def num_microbatches(self) -> int:
+    def num_microbatches(self, is_train: bool = True) -> int:
+        if not is_train and self.val_num_microbatches_calculator is not None:
+            return self.val_num_microbatches_calculator.get()
         try:
             from megatron.core.num_microbatches_calculator import get_num_microbatches
 
