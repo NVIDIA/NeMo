@@ -173,7 +173,6 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         seq_length: int = 2048,
         tokenizer: Optional["TokenizerSpec"] = None,
         micro_batch_size: int = 4,
-        val_micro_batch_size: Union[int, None] = None,
         global_batch_size: int = 8,
         val_global_batch_size: Union[int, None] = None,
         rampup_batch_size: Optional[List[int]] = None,
@@ -235,15 +234,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.build_kwargs = build_kwargs
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
-        if val_micro_batch_size is None:
-            self.val_micro_batch_size = self.micro_batch_size
-        else:
-            self.val_micro_batch_size = val_micro_batch_size
         self.global_batch_size = global_batch_size
-        if val_global_batch_size is None:
-            self.val_global_batch_size = self.global_batch_size
-        else:
-            self.val_global_batch_size = val_global_batch_size
+        self.val_global_batch_size = val_global_batch_size
         self.tokenizer = tokenizer
         self.num_workers = num_workers
         self.pin_memory = pin_memory
@@ -272,7 +264,6 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             seq_len=self.seq_length,
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
-            val_micro_batch_size=self.val_micro_batch_size,
             val_global_batch_size=self.val_global_batch_size,
             rampup_batch_size=rampup_batch_size,
             dataloader_type=self.dataloader_type,
@@ -304,8 +295,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             num_train_samples = self.num_train_samples
             train_iters = int(num_train_samples / self.data_sampler.global_batch_size)
 
-        val_iters = (train_iters // trainer_val_check_interval + 1) * trainer_limit_val_batches
-        num_val_samples = int(val_iters * self.val_global_batch_size)
+        eval_iters = (train_iters // trainer_val_check_interval + 1) * trainer_limit_val_batches
+        num_val_samples = int(eval_iters * (self.global_batch_size if self.val_global_batch_size is None else self.val_global_batch_size))
 
         test_iters = trainer_limit_test_batches
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
