@@ -911,15 +911,17 @@ class BeamBatchedTDTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs)
         else:
             raise Exception(f"Decoding strategy {search_type} nor implemented.")
 
-    def disable_cuda_graphs(self):
+    def disable_cuda_graphs(self) -> bool:
         """Disable CUDA graphs (e.g., for decoding in training)"""
         if isinstance(self._decoding_computer, WithOptionalCudaGraphs):
-            self._decoding_computer.disable_cuda_graphs()
+            return self._decoding_computer.disable_cuda_graphs()
+        return False
 
-    def maybe_enable_cuda_graphs(self):
+    def maybe_enable_cuda_graphs(self) -> bool:
         """Enable CUDA graphs (if allowed)"""
         if isinstance(self._decoding_computer, WithOptionalCudaGraphs):
-            self._decoding_computer.maybe_enable_cuda_graphs()
+            return self._decoding_computer.maybe_enable_cuda_graphs()
+        return False
 
     @property
     def output_types(self):
