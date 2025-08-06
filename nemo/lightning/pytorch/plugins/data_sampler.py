@@ -65,7 +65,13 @@ class MegatronDataSampler(DataSampler):
     def setup(self, global_rank: int) -> None:
         from nemo.lightning.data import setup_microbatch_calculator
 
-        self.val_num_microbatches_calculator = setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size, self.val_global_batch_size)
+        self.val_num_microbatches_calculator = setup_microbatch_calculator(
+            global_rank,
+            self.micro_batch_size,
+            self.global_batch_size,
+            self.rampup_batch_size,
+            self.val_global_batch_size,
+        )
 
     def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
         from megatron.core import parallel_state
