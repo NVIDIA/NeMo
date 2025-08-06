@@ -182,13 +182,13 @@ class NsysPlugin(run.Plugin):
             # NOTE: DO NOT change to f-string, `%q{}` is Slurm placeholder
             launcher.nsys_filename = "profile_%p_%q{SLURM_JOB_ID}_node%q{SLURM_NODEID}_rank%q{SLURM_PROCID}"
             launcher.nsys_extra_args = self.nsys_extra_args or [
-            "--force-overwrite=true",
-            "--capture-range=cudaProfilerApi",
-            "--capture-range-end=stop",
-            "--cuda-graph-trace=node",
-            "--cuda-event-trace=false",
-            "--nvtx-domain-include=NCCL",
-        ]
+                "--force-overwrite=true",
+                "--capture-range=cudaProfilerApi",
+                "--capture-range-end=stop",
+                "--cuda-graph-trace=node",
+                "--cuda-event-trace=false",
+                "--nvtx-domain-include=NCCL",
+            ]
         if self.nsys_gpu_metrics:
             if hasattr(launcher, "nsys_gpu_metrics"):
                 launcher.nsys_gpu_metrics = self.nsys_gpu_metrics
