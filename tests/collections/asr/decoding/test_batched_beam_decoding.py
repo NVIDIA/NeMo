@@ -51,6 +51,7 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 
 try:
     import kenlm
+
     KENLM_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     KENLM_AVAILABLE = False
