@@ -156,7 +156,9 @@ def mixer(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type
     """Create a HyenaMixer instance for testing with PyTorch implementation"""
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
-        mixer = MixerModuleWrapper(hyena_config, test_config, seq_len=512, use_cuhyena=False, operator_type=operator_type)
+        mixer = MixerModuleWrapper(
+            hyena_config, test_config, seq_len=512, use_cuhyena=False, operator_type=operator_type
+        )
         yield mixer
 
 
@@ -165,7 +167,9 @@ def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operat
     """Create a HyenaMixer instance for testing with CUDA kernel implementation"""
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
-        mixer_kernel = MixerModuleWrapper(hyena_config, test_config, seq_len=512, use_cuhyena=True, operator_type=operator_type)
+        mixer_kernel = MixerModuleWrapper(
+            hyena_config, test_config, seq_len=512, use_cuhyena=True, operator_type=operator_type
+        )
         yield mixer_kernel
 
 
