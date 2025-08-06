@@ -170,7 +170,7 @@ def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operat
 
 
 @pytest.mark.skipif(importlib.util.find_spec("cuhyena") is None, reason="cuhyena is not installed")
-def test_b2b_causal_conv1d(mixer: MixerModuleWrapper, mixer_kernel: MixerModuleWrapper, config_type, operator_type):
+def test_cuhyena_kernel(mixer: MixerModuleWrapper, mixer_kernel: MixerModuleWrapper, config_type, operator_type):
     # Skip bf16 with short convolution due to numerical instability
     if mixer.mixer.transformer_config.params_dtype == torch.bfloat16 and operator_type == "hyena_short_conv":
         pytest.skip("bf16 with short convolution is skipped due to numerical instability")
