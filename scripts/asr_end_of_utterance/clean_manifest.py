@@ -529,8 +529,8 @@ def clean_text(text: str, args) -> str:
 def clean_asr_manifest(manifest, text_field, args):
     for i, item in enumerate(manifest):
         text = str(item[text_field])
-        manifest[i]["origin_text"] = text
-        manifest[i]["text"] = clean_text(text, args)
+        manifest[i][f"origin_{text_field}"] = text
+        manifest[i][text_field] = clean_text(text, args)
     return manifest
 
 
