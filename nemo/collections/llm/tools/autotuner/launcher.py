@@ -76,6 +76,16 @@ if "LEPTON_AUTOTUNER_TOKEN" in os.environ:
     os.environ["LEPTON_TOKEN"] = os.environ["LEPTON_AUTOTUNER_TOKEN"]
 
 def setup_nemo_environment():
+    # First uninstall existing NeMo framework
+    print("Uninstalling existing NeMo framework...")
+    try:
+        subprocess.run([
+            sys.executable, "-m", "pip", "uninstall", "-y", "nemo-toolkit"
+        ], check=True, capture_output=False)
+        print("Successfully uninstalled existing NeMo framework")
+    except subprocess.CalledProcessError:
+        print("No existing NeMo framework found or already uninstalled")
+    
     # Install NeMo directly from GitHub
     print("Installing NeMo from GitHub...")
     subprocess.run([
