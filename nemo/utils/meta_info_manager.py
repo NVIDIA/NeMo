@@ -33,7 +33,7 @@ def get_onelogger_init_config() -> Dict[str, Any]:
         Dictionary containing minimal initialization configuration
     """
     if "EXP_NAME" in os.environ:
-        session_tag = os.environ.get("EXP_NAME") # For NeMo v1
+        session_tag = os.environ.get("EXP_NAME")  # For NeMo v1
     else:
         session_tag = os.environ.get("SLURM_JOB_NAME", "nemo-run")
     # Minimal configuration - required fields only
@@ -73,7 +73,7 @@ def _get_base_callback_config(
     # Extract values from trainer
     # Get job name from multiple sources in order of reliability
     if "EXP_NAME" in os.environ:
-        job_name = os.environ.get("EXP_NAME") # For NeMo v1
+        job_name = os.environ.get("EXP_NAME")  # For NeMo v1
     else:
         job_name = os.environ.get("SLURM_JOB_NAME", "nemo-run")
 
