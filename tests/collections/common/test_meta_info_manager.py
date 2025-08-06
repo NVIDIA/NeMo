@@ -193,7 +193,7 @@ class TestMetaInfoManager:
         data.seq_length = 1024
 
         with patch.dict(os.environ, {"WORLD_SIZE": "4"}):
-            config = get_nemo_v2_callback_config(trainer=trainer, nemo_logger_config=MagicMock(), data=data)
+            config = get_nemo_v2_callback_config(trainer=trainer, data=data)
 
             assert config["global_batch_size_or_fn"] == 64
             assert config["seq_length_or_fn"] == 1024
@@ -206,7 +206,7 @@ class TestMetaInfoManager:
         trainer.max_steps = 300
         trainer.val_check_interval = 0  # Set to 0 to avoid validation
 
-        config = get_nemo_v2_callback_config(trainer=trainer, nemo_logger_config=MagicMock(), data=None)
+        config = get_nemo_v2_callback_config(trainer=trainer, data=None)
 
         assert config["global_batch_size_or_fn"] == 1  # fallback
         assert config["seq_length_or_fn"] == 1  # fallback
