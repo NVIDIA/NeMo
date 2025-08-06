@@ -311,6 +311,7 @@ if HAVE_TE_FUSED_LORA:
             self.lora_branch = te.ops.Sequential(*ops)
 
         def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+            # pylint: disable=C0115,C0116
             linear_output, linear_input = self.main_branch(x)
             with te.fp8_autocast(enabled=False):
                 out = self.lora_branch(linear_input, linear_output)
