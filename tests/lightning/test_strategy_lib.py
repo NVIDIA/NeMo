@@ -51,8 +51,8 @@ class Optimizer:
 
 
 class OptimizerWrapper(MainParamsOptimizerWrapper):
-    def __init_():
-        super().__init__()
+    def __init_(self, optimizer):
+        super().__init__(optimizer)
 
 
 class DummyOptimizer:
@@ -277,7 +277,7 @@ def test_grad_scaler(mock_mpu, *args):
     try:
         scaler.update()
     except AssertionError:
-        None
+        pass
 
 
 # TODO @chcui uncomment after fabric API is merged
