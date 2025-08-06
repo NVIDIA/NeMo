@@ -51,7 +51,6 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
 
 try:
     import kenlm
-
     KENLM_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     KENLM_AVAILABLE = False
@@ -379,9 +378,9 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
-            {"search_type": "maes_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
+            {"search_type": "maes_batch", "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
     @pytest.mark.parametrize("batch_size", [4])
@@ -403,14 +402,6 @@ class TestRNNTDecoding:
     ):
         device = torch.device("cuda")
 
-        if KENLM_AVAILABLE:
-            fusion_models = [kenlm.Model(kenlm_model_path)]
-            fusion_models_alpha = [beam_config["ngram_lm_alpha"]]
-        else:
-            raise ImportError(
-                "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
-            )
-
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
         encoder_output, encoded_lengths = get_rnnt_encoder_output
@@ -419,6 +410,10 @@ class TestRNNTDecoding:
         )
 
         vocab_size = model.tokenizer.vocab_size
+
+        fusion_models = [NGramGPULanguageModel.from_file(lm_path=kenlm_model_path, vocab_size=vocab_size)]
+        fusion_models_alpha = [0.3]
+
         decoding = BeamBatchedRNNTInfer(
             model.decoder,
             model.joint,
@@ -573,16 +568,8 @@ class TestTDTDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-            },
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
     @pytest.mark.parametrize("batch_size", [4])
@@ -604,14 +591,6 @@ class TestTDTDecoding:
     ):
         device = torch.device("cuda")
 
-        if KENLM_AVAILABLE:
-            fusion_models = [kenlm.Model(kenlm_model_path)]
-            fusion_models_alpha = [beam_config["ngram_lm_alpha"]]
-        else:
-            raise ImportError(
-                "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
-            )
-
         num_samples = min(batch_size, len(test_audio_filenames))
         model = tdt_model.to(device)
         encoder_output, encoded_lengths = get_tdt_encoder_output
@@ -623,6 +602,10 @@ class TestTDTDecoding:
         durations = list(model_config["model_defaults"]["tdt_durations"])
 
         vocab_size = model.tokenizer.vocab_size
+
+        fusion_models = [NGramGPULanguageModel.from_file(lm_path=kenlm_model_path, vocab_size=vocab_size)]
+        fusion_models_alpha = [0.3]
+
         decoding = BeamBatchedTDTInfer(
             model.decoder,
             model.joint,
