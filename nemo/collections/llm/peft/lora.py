@@ -40,6 +40,7 @@ from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
+from nemo.utils.te_utils import te_version
 
 
 class LoRALinear(AdapterWrapper):
@@ -59,8 +60,8 @@ class LoRALinear(AdapterWrapper):
         super().__init__(to_wrap, adapter)
 
         # Whether to enable implementation with Transformer Engine operation fuser
-        self._op_fuser_enabled: bool = enable_op_fuser
-        if parallel_state.get_tensor_model_parallel_world_size() > 1:
+        self._op_fuser_enabled: bool = HAVE_TE_FUSED_LORA and enable_op_fuser
+        if self._op_fuser_enabled and parallel_state.get_tensor_model_parallel_world_size() > 1:
             # TP is not yet supported
             self._op_fuser_enabled = False
 
@@ -93,8 +94,8 @@ class LoRALinear(AdapterWrapper):
         # Construct fused impl if needed
         fused_impl = getattr(self, "_op_fuser_impl", (None,))[0]
         if fused_impl is None:
-            if not HAVE_TE:
-                raise RuntimeError("Fused LoRALinear implementation requires Transformer Engine")
+            if not HAVE_TE_FUSED_LORA:
+                raise RuntimeError("Fused LoRALinear implementation requires Transformer Engine 2.7+")
             fused_impl = TEFusedLoRALinear.make_from_lora_linear(self)
             self._op_fuser_impl = (fused_impl,)  # Wrap in tuple to avoid registering submodule
 
@@ -102,7 +103,10 @@ class LoRALinear(AdapterWrapper):
         return fused_impl(x)
 
 
-if HAVE_TE:
+# Fused LoRA requires Transformer Engine 2.7+
+HAVE_TE_FUSED_LORA: bool = HAVE_TE and te_version() >= (2, 7)
+
+if HAVE_TE_FUSED_LORA:
 
     class TEFusedLoRALinear(nn.Module):
         """A LoRA adapter wrapper using Transformer Engine operation fuser
@@ -839,7 +843,10 @@ class LoRA(PEFT, ModuleMatcher):
             input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
                 get_adapter_attributes_from_linear(m)
             )
-            enable_op_fuser = hasattr(m, "config") and m.config.use_transformer_engine_op_fuser
+            enable_op_fuser = (
+                hasattr(m, "config")
+                and getattr(m.config, "use_transformer_engine_op_fuser", False)
+            )
             logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
