@@ -327,13 +327,9 @@ if HAVE_TE_FUSED_LORA:
             if not isinstance(lora_linear, LoRALinear):
                 raise ValueError(f"Expected LoRALinear, got {lora_linear.__class__}")
             if not isinstance(lora_linear.to_wrap, (te.Linear, te.LayerNormLinear, torch.nn.Linear)):
-                raise ValueError(
-                    f"Unsupported class for LoRALinear wrapped linear ({lora_linear.to_wrap.__class__})"
-                )
+                raise ValueError(f"Unsupported class for LoRALinear wrapped linear ({lora_linear.to_wrap.__class__})")
             if not isinstance(lora_linear.adapter, (LinearAdapter, TELinearAdapter, ParallelLinearAdapter)):
-                raise ValueError(
-                    f"Unsupported class for LoRALinear adapter ({lora_linear.adapter.__class__})"
-                )
+                raise ValueError(f"Unsupported class for LoRALinear adapter ({lora_linear.adapter.__class__})")
 
             # Args for TEFusedLoRALinear constructor
             constructor_kwargs = {"device": "meta"}  # Do not initialize params
@@ -844,10 +840,7 @@ class LoRA(PEFT, ModuleMatcher):
             input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
                 get_adapter_attributes_from_linear(m)
             )
-            enable_op_fuser = (
-                hasattr(m, "config")
-                and getattr(m.config, "use_transformer_engine_op_fuser", False)
-            )
+            enable_op_fuser = hasattr(m, "config") and getattr(m.config, "use_transformer_engine_op_fuser", False)
             logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
