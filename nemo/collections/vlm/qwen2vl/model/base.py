@@ -667,7 +667,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         has_images = pixel_values is not None
         has_videos = pixel_values_videos is not None
-        torch.cuda.nvtx.range_push("vision_model_forward")
+
         image_embeddings = None
         if use_inference_kv_cache:
             # If running inference, we can skip media token computation if they were computed already earlier
@@ -723,9 +723,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             video_embeddings = self.vision_projection(video_embeddings)
         if not self.add_decoder:
             return image_embeddings
-        torch.cuda.nvtx.range_pop()  # end of vision_model_forward
 
-        torch.cuda.nvtx.range_push("language_model_forward")
         # language_embeddings is a container for text, image and video embeddings; to feed to decoder
         language_embeddings = None
 
@@ -799,7 +797,6 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             inference_params=inference_params,
             runtime_gather_output=runtime_gather_output,
         )  # output shape: [batch_size, seq length, vocab_size]
-        torch.cuda.nvtx.range_pop()  # end of language_model_forward
 
         if labels is None or loss_mask is None:
             return output
@@ -944,16 +941,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
             # TODO: check and add self.context_parallel_lm to MCoreQwen2VLModel
             # # Transpose to [s,b,h] if not using CP because CP Sharding expects seq in dim=1
-            if self.context_parallel_lm == 1:
-                final_embedding = final_embedding.transpose(1, 0).contiguous()  #  [seq_len, bs, h_language]
-            else:
-                # pad to multiple of cp_size * 2
-                target_seq_len = ((final_embedding.shape[1] + 2 * self.context_parallel_lm - 1) // (2 * self.context_parallel_lm)) * (2 * self.context_parallel_lm)
-                if final_embedding.shape[1] < target_seq_len:
-                    padded_seq_len = target_seq_len - final_embedding.shape[1]
-                    # Pad sequence dimension (dim=1) on the right
-                    final_embedding = torch.nn.functional.pad(final_embedding, (0, 0, 0, padded_seq_len))
-                
+            final_embedding = final_embedding.transpose(1, 0).contiguous()  #  [seq_len, bs, h_language]
             if self.sequence_parallel_lm:
                 final_embedding = scatter_to_sequence_parallel_region(final_embedding)
         truncate_labels = final_labels is not None and final_labels.shape[1] > self._language_max_sequence_length

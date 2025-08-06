@@ -45,11 +45,11 @@ def model() -> run.Config[pl.LightningModule]:
     Factory function to create a Qwen2.5VL 7B model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Configuration for the Qwen2.5VL 7B model model.
+        run.Config[pl.LightningModule]: Configuration for the Qwen2.5VL 7B model.
 
     Examples:
         CLI usage:
-            $ nemo vlm pretrain model=qwen25vl_7b ...
+            $ nemo llm finetune model=qwen25vl_7b ...
 
         Python API usage:
             >>> model_config = model()

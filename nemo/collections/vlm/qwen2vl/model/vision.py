@@ -113,7 +113,6 @@ class Qwen25VLVisionTransformerBlock(TransformerBlock):
             Union[Tensor, Tuple[Tensor, Tensor]]: The output hidden states tensor of shape
             [s, b, h], and optionally the updated context tensor if cross-attention is used.
         """
-        torch.cuda.nvtx.range_push("vision_transformer_block")
         inference_context = deprecate_inference_params(inference_context, inference_params)
 
         # Delete the obsolete reference to the initial input tensor if necessary
@@ -210,7 +209,6 @@ class Qwen25VLVisionTransformerBlock(TransformerBlock):
             # created to prevent this.
             hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
 
-        torch.cuda.nvtx.range_pop()  # end of vision_transformer_block
         return hidden_states
 
     def _checkpointed_forward(
@@ -705,13 +703,10 @@ class Qwen25VisionModel(VisionModule):
             x (torch.Tensor): output after final transformer block.
         """
         # pylint: disable=C0301
-        torch.cuda.nvtx.range_push("Convolution")
         x = x.view(-1, self.in_channels, self.temporal_patch_size, self.patch_dim, self.patch_dim)
         x = self.conv1(x).view(-1, self.visual_hidden_size)  # [seqlen, hidden_size]
-        torch.cuda.nvtx.range_pop()  # end of Convolution
         # add batch dim
 
-        torch.cuda.nvtx.range_push("Window Index")
         window_index, cu_window_seqlens = self.get_window_index(grid_thw)
         cu_window_seqlens = torch.tensor(
             cu_window_seqlens,
@@ -719,9 +714,7 @@ class Qwen25VisionModel(VisionModule):
             dtype=torch.int32,
         )
         cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens)
-        torch.cuda.nvtx.range_pop()  # end of Window Index
 
-        torch.cuda.nvtx.range_push("Rotary Pos Emb")
         seq_len, _ = x.size()
         # Refer to https://github.com/huggingface/transformers/blob/be37d34f44ff1bc928e59ffb8a30adecab8835a8/src/
         # transformers/models/qwen2_5_vl/modeling_qwen2_5_vl.py#L527C9-L530C59
@@ -739,14 +732,10 @@ class Qwen25VisionModel(VisionModule):
         rotary_pos_emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
         # https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/models/common/embeddings/rotary_pos_embedding.py#L164
         rotary_pos_emb = rotary_pos_emb[:, None, None, :]
-        torch.cuda.nvtx.range_pop()  # end of Rotary Pos Emb
 
-        torch.cuda.nvtx.range_push("packed_seq_params")
         packed_seq_params_full = self.get_packed_seq_params(grid_thw)
         packed_seq_params = self.get_packed_seq_params(None, cu_window_seqlens)
-        torch.cuda.nvtx.range_pop()  # end of packed_seq_params
 
-        torch.cuda.nvtx.range_push("decoder")
         x = self.decoder(
             x,
             attention_mask,
@@ -756,5 +745,4 @@ class Qwen25VisionModel(VisionModule):
         )
         x = x.squeeze(1).view(-1, self.merge_hidden_size)
         self.window_index = window_index
-        torch.cuda.nvtx.range_pop()  # end of decoder
         return x
