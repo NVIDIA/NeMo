@@ -89,7 +89,12 @@ Streaming Sortformer Diarizer
 
 Sortformer resolves permutation problem in diarization following the arrival-time order of the speech segments from each speaker.
 
-.. image:: images/streaming_sortformer_ani.gif
+.. image:: images/aosc_3spk_example.gif
+        :align: center
+        :width: 800px
+        :alt: Streaming Sortformer Animated
+
+.. image:: images/aosc_4spk_example.gif
         :align: center
         :width: 800px
         :alt: Streaming Sortformer Animated
