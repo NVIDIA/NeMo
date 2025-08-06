@@ -13,26 +13,26 @@
 # limitations under the License.
 
 from typing import Optional
-import lightning.pytorch as pl
 
+import lightning.pytorch as pl
+import nemo_run as run
 import torch
-from megatron.core.distributed import DistributedDataParallelConfig
 from lightning.pytorch.loggers import WandbLogger
+from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from transformers import Qwen2Tokenizer
 from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageProcessor
 
-import nemo_run as run
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.vlm import Qwen2VLDataConfig
 from nemo.collections.vlm.qwen2vl.model import Qwen25VLVisionConfig
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.llm.recipes.log.default import tensorboard_logger
 
 NAME = "qwen25vl_7b"
 
@@ -95,7 +95,8 @@ def finetune_recipe(
     """
 
     # Training strategy setup
-    strategy = run.Config(nl.MegatronStrategy,
+    strategy = run.Config(
+        nl.MegatronStrategy,
         tensor_model_parallel_size=1,
         context_parallel_size=1,
         pipeline_model_parallel_size=2,
@@ -112,10 +113,12 @@ def finetune_recipe(
     )
 
     # tp_comm_overlap callback
-    tp_comm_overlap_callback = run.Config(MegatronCommOverlapCallback, tp_comm_overlap=True,
-                                                           tp_comm_bootstrap_backend='nccl')
+    tp_comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback, tp_comm_overlap=True, tp_comm_bootstrap_backend='nccl'
+    )
     # Trainer setup
-    trainer = run.Config(nl.Trainer,
+    trainer = run.Config(
+        nl.Trainer,
         num_nodes=num_nodes,
         devices=num_gpus_per_node,
         max_steps=10,
@@ -129,8 +132,9 @@ def finetune_recipe(
         num_sanity_val_steps=0,
     )
     max_sequence_length = 8192
-    
-    data = run.Config(vlm.Qwen2VLMockDataModule,
+
+    data = run.Config(
+        vlm.Qwen2VLMockDataModule,
         seq_length=max_sequence_length,
         global_batch_size=64,
         micro_batch_size=1,
@@ -142,7 +146,8 @@ def finetune_recipe(
     # Submodules configurations
     language_transformer_config = run.Config(llm.Qwen25Config7B, seq_length=max_sequence_length)
     vision_transformer_config = run.Config(Qwen25VLVisionConfig)
-    vision_projection_config = run.Config(vlm.MultimodalProjectorConfig,
+    vision_projection_config = run.Config(
+        vlm.MultimodalProjectorConfig,
         projector_type="mcore_mlp",
         input_size=vision_transformer_config.hidden_size * (vision_transformer_config.spatial_merge_size**2),
         hidden_size=language_transformer_config.hidden_size,
@@ -150,7 +155,8 @@ def finetune_recipe(
     )
 
     # Qwen25VL model configuration
-    qwen25vl_config = run.Config(vlm.Qwen2VLConfig,
+    qwen25vl_config = run.Config(
+        vlm.Qwen2VLConfig,
         language_transformer_config=language_transformer_config,
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
@@ -169,7 +175,12 @@ def finetune_recipe(
         tp_comm_overlap_rs_dgrad=True,
         overlap_p2p_comm=True,
     )
-    model = run.Config(vlm.Qwen2VLModel, config=qwen25vl_config,model_version="qwen25-vl", tokenizer=run.Config(AutoTokenizer, HF_MODEL_NAME))
+    model = run.Config(
+        vlm.Qwen2VLModel,
+        config=qwen25vl_config,
+        model_version="qwen25-vl",
+        tokenizer=run.Config(AutoTokenizer, HF_MODEL_NAME),
+    )
 
     nemo_resume = run.Config(
         nl.AutoResume,
@@ -177,7 +188,8 @@ def finetune_recipe(
         resume_ignore_no_checkpoint=True,
     )
     # Optimizer and scheduler setup
-    opt_config = run.Config(OptimizerConfig,
+    opt_config = run.Config(
+        OptimizerConfig,
         optimizer='adam',
         lr=2.0e-06,
         adam_beta1=0.9,
@@ -185,7 +197,8 @@ def finetune_recipe(
         use_distributed_optimizer=True,
         bf16=True,
     )
-    sched = run.Config(CosineAnnealingScheduler,
+    sched = run.Config(
+        CosineAnnealingScheduler,
         max_steps=10,
         warmup_steps=0,
         constant_steps=1000,

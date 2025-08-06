@@ -21,6 +21,7 @@ from megatron.core.config_logger import has_config_logger_enabled, log_config_to
 from megatron.core.enums import Fp8Recipe
 from megatron.core.fp8_utils import get_fp8_context
 from megatron.core.inference.contexts import BaseInferenceContext
+from megatron.core.jit import jit_fuser
 from megatron.core.models.common.vision_module.vision_module import VisionModule
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.process_groups_config import ModelCommProcessGroups
@@ -29,7 +30,6 @@ from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_block import TransformerBlock, TransformerBlockSubmodules
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import WrappedTensor, deprecate_inference_params, make_viewless_tensor
-from megatron.core.jit import jit_fuser
 from torch import Tensor
 
 try:

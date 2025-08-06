@@ -311,9 +311,11 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
         ]
 
         # Set configs for all transformer components
-        for config in [self.language_transformer_config,
-                      self.vision_transformer_config,
-                      self.vision_projection_config]:
+        for config in [
+            self.language_transformer_config,
+            self.vision_transformer_config,
+            self.vision_projection_config,
+        ]:
             for attr in config_attrs:
                 setattr(config, attr, getattr(self, attr))
 
@@ -680,9 +682,13 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             pixel_values = pixel_values.to(next(self.vision_model.parameters()).dtype)
             if self.config.freeze_vision_model:
                 with torch.no_grad():
-                    image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
+                    image_embeddings = self.vision_model(
+                        pixel_values, grid_thw=image_grid_thw
+                    )  # [bs, img_seq_len, h_vision]
             else:
-                image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
+                image_embeddings = self.vision_model(
+                    pixel_values, grid_thw=image_grid_thw
+                )  # [bs, img_seq_len, h_vision]
             window_index = self.vision_model.window_index if self.model_version == "qwen25-vl" else None
 
             if self._drop_vision_class_token:
