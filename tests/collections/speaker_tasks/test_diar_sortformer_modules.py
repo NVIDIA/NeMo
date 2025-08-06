@@ -16,7 +16,6 @@ import math
 
 import pytest
 import torch
-from omegaconf import DictConfig
 
 from nemo.collections.asr.modules.sortformer_modules import SortformerModules
 
@@ -1125,6 +1124,10 @@ class TestSortformerModules_StreamingScoreComputations:
         mixed_scores = torch.randn(batch_size, n_frames, n_spk)
         mixed_max_perm = sortformer_modules._get_max_perm_index(mixed_scores)
 
+        # Check that max_perm_index is within valid range [0, n_spk]
+        assert torch.all(mixed_max_perm >= 0)
+        assert torch.all(mixed_max_perm <= n_spk)
+
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "batch_size, n_frames, n_spk, min_pos_scores_per_spk",
@@ -1274,6 +1277,7 @@ class TestSortformerModules_StreamingScoreComputations:
             (2, 20, 4, 12),  # Example 1: Default parameters
             (1, 15, 2, 8),  # Example 2: Smaller dimensions
             (3, 25, 6, 18),  # Example 3: Larger dimensions
+            (3, 25, 6, 25),  # Example 4: Equal spkcache_len and n_frames
         ],
     )
     def test_compress_spkcache(self, batch_size, n_frames, n_spk, spkcache_len):
@@ -1328,7 +1332,7 @@ class TestSortformerModules_StreamingScoreComputations:
         assert spk_perm_perm.shape == (batch_size, n_spk)  # Permutation tensor should be returned
 
         # Verify that compression reduces the number of frames
-        assert spkcache_len < n_frames
+        assert spkcache_len <= n_frames
 
         # Verify that the method handles edge case: n_frames = spkcache_len
         if n_frames == spkcache_len:

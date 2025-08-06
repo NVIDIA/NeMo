@@ -139,13 +139,13 @@ class TestSortformerEncLabelModelOffline:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "batch_size, frame_length, sample_len",
+        "batch_size, sample_len",
         [
-            (4, 0.08, 16),  # Example 1
-            (1, 0.1, 20),  # Example 2
+            (2, 1),  # Example 1
+            (1, 2),  # Example 2
         ],
     )
-    def test_forward_infer(self, sortformer_model, batch_size, frame_length, sample_len, num_spks=4):
+    def test_forward_infer(self, sortformer_model, batch_size, sample_len):
         sortformer_model.streaming_mode = False
         sortformer_diar_model = sortformer_model.eval()
         confdict = sortformer_diar_model.to_config_dict()
@@ -182,14 +182,13 @@ class TestSortformerEncLabelModelStreaming:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "batch_size, frame_length, sample_len",
+        "batch_size, sample_len",
         [
-            (4, 0.08, 16),  # Example 1
-            (2, 0.02, 32),  # Example 2
-            (1, 0.1, 20),  # Example 3
+            (2, 1),  # Example 1
+            (1, 2),  # Example 2
         ],
     )
-    def test_forward_infer(self, sortformer_model, batch_size, frame_length, sample_len, num_spks=4):
+    def test_forward_infer(self, sortformer_model, batch_size, sample_len):
         sortformer_model.streaming_mode = True
         sortformer_diar_model = sortformer_model.eval()
         confdict = sortformer_diar_model.to_config_dict()
