@@ -309,7 +309,7 @@ class HyenaMixer(MegatronModule):
         if (
             self.use_b2b_causal_conv1d
             and self.operator_type in ["hyena_short_conv", "hyena_medium_conv"]
-            and inference_context is not None
+            and inference_context is None
         ):
             # todo: support inference_context for b2b_kernel
             # Use the B2BCausalConv1dModule wrapper with the existing weights from the original model
