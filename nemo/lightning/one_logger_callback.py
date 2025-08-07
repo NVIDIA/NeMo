@@ -47,7 +47,6 @@ from nemo.utils.meta_info_manager import (
 
 # Export OneLogger availability flag
 __all__ = [
-    'OneLoggerNeMoCallback',
     'hook_class_init_with_callbacks',
     'get_one_logger_callbacks',
     'update_one_logger_config',
