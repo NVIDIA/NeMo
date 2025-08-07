@@ -581,6 +581,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
         global_rank = config.get("global_rank", self.global_rank)
         world_size = config.get("world_size", self.world_size)
+        do_parallel_chunking = config.get("do_parallel_chunking", False)
+        if do_parallel_chunking:
+            # Adding this to support processing audio files of arbitrary length by chunking them into hour-long segments.
+            config.cut_into_windows_duration = 3600
+            config.cut_into_windows_hop = 3600
         return get_lhotse_dataloader_from_config(
             config,
             global_rank=global_rank,
@@ -588,7 +593,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             dataset=PromptedAudioToTextLhotseDataset(
                 tokenizer=self.tokenizer,
                 prompt=self.prompt,
-                do_parallel_chunking=config.get("do_parallel_chunking", False),  # <-- enables chunking
+                do_parallel_chunking=do_parallel_chunking,  # <-- enables chunking
             ),
             tokenizer=self.tokenizer,
         )
@@ -1007,16 +1012,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         stride = self.cfg['preprocessor']['window_stride']  # sec per raw frame
 
         for i, h in enumerate(hypotheses):
-            cumulative_offset += chunk_offsets[i]  # raw frames
+            cumulative_offset += chunk_offsets[i]            # raw frames
             chunk_frame_offset = cumulative_offset // subsamp
 
             # 1) figure out how much of the *front* of this chunk we will drop
             removed_in_chunk = 0
             for char in h.timestamp['char']:
-                keep = merged_tokens is None or (
-                    j_token < len(merged_tokens) and char and char['token_id'] == merged_tokens[j_token]
+                keep = (
+                    merged_tokens is None
+                    or (j_token < len(merged_tokens)
+                        and char and char['token_id'] == merged_tokens[j_token])
                 )
-                if keep:
+                if keep:                            
                     break
                 if char and char['end_offset'] != -1:
                     removed_in_chunk = char['end_offset'] + 1
@@ -1024,15 +1031,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             for char in h.timestamp['char']:
                 if not char:
                     continue
-                keep = merged_tokens is None or (
-                    j_token < len(merged_tokens) and char['token_id'] == merged_tokens[j_token]
+                keep = (
+                    merged_tokens is None
+                    or (j_token < len(merged_tokens)
+                        and char['token_id'] == merged_tokens[j_token])
                 )
                 if not keep:
                     continue
 
                 # adjust offsets: chunk start + global chunk shift − total removed
                 start_off = char['start_offset']
-                end_off = char['end_offset']
+                end_off   = char['end_offset']
+
 
                 upd = dict(char)
                 if start_off != -1:
@@ -1043,11 +1053,22 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                         - removed_in_chunk  # trims in this chunk
                     )
                 if end_off != -1:
-                    upd['end_offset'] = end_off + chunk_frame_offset - overall_removed_offset - removed_in_chunk
+                    upd['end_offset'] = (
+                        end_off
+                        + chunk_frame_offset
+                        - overall_removed_offset
+                        - removed_in_chunk
+                    )
 
                 # convert to seconds
-                upd['start'] = -1 if upd['start_offset'] == -1 else upd['start_offset'] * stride * subsamp
-                upd['end'] = -1 if upd['end_offset'] == -1 else upd['end_offset'] * stride * subsamp
+                upd['start'] = (
+                    -1 if upd['start_offset'] == -1
+                    else upd['start_offset'] * stride * subsamp
+                )
+                upd['end'] = (
+                    -1 if upd['end_offset'] == -1
+                    else upd['end_offset'] * stride * subsamp
+                )
 
                 char_timestamps.append(upd)
                 j_token += 1
@@ -1126,7 +1147,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
         merge_to_be_done = trcfg.do_parallel_chunking and len(hypotheses) > 1
 
-        if trcfg.do_parallel_chunking:
+        if merge_to_be_done:
             # importing here to avoid circular import
             from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
 
@@ -1297,6 +1318,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 if k not in entry:
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)
+                if k == "timestamp" and self.timestamps_asr_model is not None:
+                    entry[k] = 'notimestamp'
             out_json_items.append(entry)
         return out_json_items
 

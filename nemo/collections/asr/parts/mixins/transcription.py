@@ -357,10 +357,13 @@ class TranscriptionMixin(ABC):
                 else:
                     dataloader = audio
 
-                if hasattr(transcribe_cfg, 'verbose'):
-                    verbose = transcribe_cfg.verbose
-                else:
-                    verbose = True
+                verbose = getattr(transcribe_cfg, 'verbose', True)
+                is_parallel_chunking = getattr(transcribe_cfg, 'do_parallel_chunking', False)
+
+                # Initialize parallel chunking state if needed
+                if is_parallel_chunking:
+                    combined_batches_of_same_audio = {}
+                    prev_cut_id = None
 
                 for test_batch in tqdm(dataloader, desc="Transcribing", disable=not verbose):
                     # Move batch to device
@@ -369,13 +372,42 @@ class TranscriptionMixin(ABC):
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
 
-                    # clear up memory
-                    del test_batch, model_outputs
+                    if is_parallel_chunking:
+                        cut_id = test_batch.cuts[0].id.split("-", 1)[0]
 
-                    # Yield results if generator
-                    yield processed_outputs
+                        # if we switched to a new audio, flush the previous one
+                        if prev_cut_id is not None and cut_id != prev_cut_id:     
+                            # Merge hypotheses before yielding with proper time offsets
+                            if len(combined_batches_of_same_audio[prev_cut_id]) > 1:
+                                merged_result = self._merge_hypotheses_list(
+                                    combined_batches_of_same_audio[prev_cut_id], 
+                                    transcribe_cfg,
+                                    chunk_duration_hours=1.0  # Adjust this based on your chunk duration
+                                )
+                            else:
+                                merged_result = combined_batches_of_same_audio[prev_cut_id][0]
 
-                    del processed_outputs
+                            yield merged_result     
+                            del combined_batches_of_same_audio[prev_cut_id]     
+                        # Gathered hypotheses for the same audio.
+                        combined_batches_of_same_audio.setdefault(cut_id, []).append(processed_outputs)
+                        prev_cut_id = cut_id
+                        del test_batch, model_outputs
+                        continue
+                
+                    else:
+                        del test_batch, model_outputs
+                        yield processed_outputs
+                        del processed_outputs
+
+                if hasattr(transcribe_cfg, 'do_parallel_chunking') and transcribe_cfg.do_parallel_chunking and prev_cut_id is not None:
+                    # Merge hypotheses before yielding the final batch with proper time offsets
+                    merged_result = self._merge_hypotheses_list(
+                        combined_batches_of_same_audio[prev_cut_id], 
+                        transcribe_cfg,
+                    )
+                    yield merged_result
+                    del combined_batches_of_same_audio[prev_cut_id]
 
         finally:
             # set mode back to its original value
@@ -384,6 +416,112 @@ class TranscriptionMixin(ABC):
     """
     Transcribe Execution Flow
     """
+
+    def _merge_hypotheses_list(self, hypotheses_list, transcribe_cfg, chunk_duration_seconds=3600):
+        """
+        Merge a list of hypotheses from parallel chunking into a single hypothesis.
+        Each hypothesis in the list represents a time chunk (e.g., 1 hour).
+        
+        Args:
+            hypotheses_list: List of hypothesis lists (one per time chunk)
+            transcribe_cfg: Transcription configuration
+            chunk_duration_hours: Duration of each chunk in hours (default: 1.0)
+            
+        Returns:
+            List containing a single merged hypothesis
+        """
+        
+        # Flatten the list of hypothesis lists into a single list
+
+        # Create merged hypothesis with empty initial values
+        
+        merged_hypothesis = Hypothesis(
+            score=0.0,
+            y_sequence=torch.tensor([]),
+            timestamp={
+                'word': [],
+                'segment': [],
+            },
+        )
+        
+        # Join y_sequences
+        merged_hypothesis.y_sequence = torch.cat([h[0].y_sequence for h in hypotheses_list])
+        
+        # Create final text by joining text from all hypotheses
+        text_parts = []
+        for hyp in hypotheses_list:
+            if  hyp[0].text:
+                text_parts.append(hyp[0].text.strip())
+        merged_hypothesis.text = ' '.join(text_parts)
+        
+        # Handle timestamps with proper time offsets (word and segment only)
+        if transcribe_cfg.timestamps and len(hypotheses_list) > 0 and getattr(hypotheses_list[0][0], "timestamp", {}):
+            # Calculate time offsets for each chunk (in seconds)
+            
+            merged_word_timestamps = []
+            merged_segment_timestamps = []
+
+            for chunk_idx, hyp in enumerate(hypotheses_list):
+                hyp = hyp[0]
+                if not hasattr(hyp, 'timestamp') or not hyp.timestamp:
+                    continue
+                    
+                # Time offset for this chunk
+                time_offset = chunk_idx * chunk_duration_seconds
+                # Frame offset for this chunk (convert time to frames)
+                frame_offset = int(time_offset * 1000 / self.encoder.subsampling_factor)
+                
+                # Merge word timestamps with offset
+                if 'word' in hyp.timestamp and hyp.timestamp['word']:
+                    for word_info in hyp.timestamp['word']:
+                        if isinstance(word_info, dict):
+                            adjusted_word = word_info.copy()
+                            # Adjust start and end times
+                            if 'start' in adjusted_word and adjusted_word['start'] is not None and adjusted_word['start'] != -1:
+                                adjusted_word['start'] += time_offset
+                            if 'end' in adjusted_word and adjusted_word['end'] is not None and adjusted_word['end'] != -1:
+                                adjusted_word['end'] += time_offset
+                            # Adjust start and end offsets (frame counts)
+                            if 'start_offset' in adjusted_word and adjusted_word['start_offset'] is not None and adjusted_word['start_offset'] != -1:
+                                adjusted_word['start_offset'] += frame_offset
+                            if 'end_offset' in adjusted_word and adjusted_word['end_offset'] is not None and adjusted_word['end_offset'] != -1:
+                                adjusted_word['end_offset'] += frame_offset
+                            merged_word_timestamps.append(adjusted_word)
+                        else:
+                            merged_word_timestamps.append(word_info)
+                
+                # Merge segment timestamps with offset
+                if 'segment' in hyp.timestamp and hyp.timestamp['segment']:
+                    for segment_info in hyp.timestamp['segment']:
+                        if isinstance(segment_info, dict):
+                            adjusted_segment = segment_info.copy()
+                            # Adjust start and end times
+                            if 'start' in adjusted_segment and adjusted_segment['start'] is not None and adjusted_segment['start'] != -1:
+                                adjusted_segment['start'] += time_offset
+                            if 'end' in adjusted_segment and adjusted_segment['end'] is not None and adjusted_segment['end'] != -1:
+                                adjusted_segment['end'] += time_offset
+                            # Adjust start and end offsets (frame counts)
+                            if 'start_offset' in adjusted_segment and adjusted_segment['start_offset'] is not None and adjusted_segment['start_offset'] != -1:
+                                adjusted_segment['start_offset'] += frame_offset
+                            if 'end_offset' in adjusted_segment and adjusted_segment['end_offset'] is not None and adjusted_segment['end_offset'] != -1:
+                                adjusted_segment['end_offset'] += frame_offset
+                            merged_segment_timestamps.append(adjusted_segment)
+                        else:
+                            merged_segment_timestamps.append(segment_info)
+            
+            # Set the merged timestamps
+            merged_hypothesis.timestamp = {
+                'word': merged_word_timestamps,
+                'segment': merged_segment_timestamps,
+            }
+        elif len(hypotheses_list) == 1:
+            merged_hypothesis.timestamp = {
+                'word': hypotheses_list[0][0].timestamp['word'],
+                'segment': hypotheses_list[0][0].timestamp['segment'],
+            }
+
+        
+        return [merged_hypothesis]
 
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
         """

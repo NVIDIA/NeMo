@@ -113,8 +113,8 @@ def restore_token_case(word: str, word_tokens: List[str]) -> List[str]:
     while "__" in word:
         word = word.replace("__", "_")
 
-    while " " in word:
-        word = word.replace(" ", "")
+#    while " " in word:
+#        word = word.replace(" ", "")
 
     word_tokens_cased = []
     word_char_pointer = 0
@@ -135,7 +135,7 @@ def restore_token_case(word: str, word_tokens: List[str]) -> List[str]:
                     word_char_pointer += 1
                 else:
                     if token_char == "▁" or token_char == "_":
-                        if word[word_char_pointer] == "▁" or word[word_char_pointer] == "_":
+                        if word[word_char_pointer] == "▁" or word[word_char_pointer] == "_" or word[word_char_pointer] == " ":
                             token_cased += token_char
                             word_char_pointer += 1
                         elif word_char_pointer == 0:
@@ -310,6 +310,25 @@ def get_utt_obj(
                     word_tokens = [UNK_TOKEN]
                     word_token_ids = [UNK_ID]
                     word_tokens_cased = [UNK_TOKEN]
+                elif UNK_WORD in word:
+                    word_tokens = []
+                    word_token_ids = []
+                    word_tokens_cased = []
+                    for sub_word in word.split(UNK_WORD):
+                        sub_word_tokens = model.tokenizer.text_to_tokens(sub_word)
+                        sub_word_token_ids = model.tokenizer.text_to_ids(sub_word)
+                        sub_word_tokens_cased = restore_token_case(sub_word, sub_word_tokens)
+
+                        word_tokens.extend(sub_word_tokens)
+                        word_token_ids.extend(sub_word_token_ids)
+                        word_tokens_cased.extend(sub_word_tokens_cased)
+                        word_tokens.append(UNK_TOKEN)
+                        word_token_ids.append(UNK_ID)
+                        word_tokens_cased.append(UNK_TOKEN)
+
+                    word_tokens = word_tokens[:-1]
+                    word_token_ids = word_token_ids[:-1]
+                    word_tokens_cased = word_tokens_cased[:-1]
                 else:
                     word_tokens = model.tokenizer.text_to_tokens(word)
                     word_token_ids = model.tokenizer.text_to_ids(word)
