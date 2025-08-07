@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass, field
-from typing import List, Literal
+from typing import Literal, Optional
 
 import torch
+from megatron.core import parallel_state
 
 from nemo.utils.import_utils import safe_import
 
@@ -37,6 +40,7 @@ from nemo.collections.llm.peft.module_matcher import ModuleMatcher
 from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear, is_expert_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
+from nemo.utils.te_utils import te_version
 
 
 class LoRALinear(AdapterWrapper):
@@ -47,12 +51,382 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
-    def forward(self, x, *args, **kwargs):
+    def __init__(
+        self,
+        to_wrap: nn.Module,
+        adapter: nn.Module,
+        enable_op_fuser: bool = False,
+    ):
+        super().__init__(to_wrap, adapter)
+
+        # Whether to enable implementation with Transformer Engine operation fuser
+        self._op_fuser_enabled: bool = HAVE_TE_FUSED_LORA and enable_op_fuser
+        if self._op_fuser_enabled and parallel_state.get_tensor_model_parallel_world_size() > 1:
+            # TP is not yet supported
+            self._op_fuser_enabled = False
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        *args,
+        **kwargs,
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
         # pylint: disable=C0115,C0116
+
+        # Fused implementation
+        if self._op_fuser_enabled:
+            return self._fused_forward(x)
+
         linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
         adapter_output = self.adapter(layernorm_output.contiguous())
         adapter_output = adapter_output.reshape(linear_output.shape)
         return linear_output + adapter_output, bias
+
+    def _fused_forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """Forward pass with Transformer Engine operation fuser
+
+        The fused implementation is a PyTorch module that shares
+        params with this module. Since it owns no state, there is no
+        need for extra checkpointing logic.
+
+        """
+
+        # Construct fused impl if needed
+        fused_impl = getattr(self, "_op_fuser_impl", (None,))[0]
+        if fused_impl is None:
+            if not HAVE_TE_FUSED_LORA:
+                raise RuntimeError("Fused LoRALinear implementation requires Transformer Engine 2.7+")
+            fused_impl = TEFusedLoRALinear.make_from_lora_linear(self)
+            self._op_fuser_impl = (fused_impl,)  # Wrap in tuple to avoid registering submodule
+
+        # Apply fused impl
+        return fused_impl(x)
+
+
+# Fused LoRA requires Transformer Engine 2.7+
+HAVE_TE_FUSED_LORA: bool = HAVE_TE and te_version() >= (2, 7)
+
+if HAVE_TE_FUSED_LORA:
+
+    class TEFusedLoRALinear(nn.Module):
+        """A LoRA adapter wrapper using Transformer Engine operation fuser
+
+        Its compute is equivalent to LoRALinear.
+
+        There are no guarantees on the checkpoint structure, either
+        for compatibility with other modules or for backward
+        compatibility. LoRALinear works around this by treating
+        TEFusedLoRALinear as stateless.
+
+        """
+
+        def __init__(
+            self,
+            in_features: int,
+            out_features: int,
+            lora_dim: int,
+            *,
+            bias: bool = True,
+            device: Optional[torch.device] = None,
+            dtype: Optional[torch.dtype] = None,
+            tensor_parallel_mode: Optional[str] = None,
+            sequence_parallel: bool = False,
+            norm_type: Optional[str] = None,
+            norm_eps: float = 1e-5,
+            norm_zero_centered_gamma: bool = False,
+            lora_dropout: float = 0.0,
+            lora_dropout_position: str = "post",
+            lora_scale: float = 1.0,
+        ) -> None:
+            super().__init__()
+
+            # Tensor parallel config
+            tensor_parallel_group = None
+            if tensor_parallel_mode is not None:
+                if parallel_state.get_tensor_model_parallel_world_size() == 1:
+                    tensor_parallel_mode = None
+                else:
+                    tensor_parallel_group = parallel_state.get_tensor_model_parallel_group()
+            if tensor_parallel_group is not None:
+                raise NotImplementedError("Tensor parallelism is not yet supported")
+
+            # Construct fused modules
+            self._make_main_branch(
+                in_features,
+                out_features,
+                bias=bias,
+                device=device,
+                dtype=dtype,
+                tensor_parallel_mode=tensor_parallel_mode,
+                tensor_parallel_group=tensor_parallel_group,
+                sequence_parallel=sequence_parallel,
+                norm_type=norm_type,
+                norm_eps=norm_eps,
+                norm_zero_centered_gamma=norm_zero_centered_gamma,
+            )
+            with te.fp8_model_init(enabled=False):
+                self._make_lora_branch(
+                    in_features,
+                    out_features,
+                    lora_dim,
+                    device=device,
+                    dtype=dtype,
+                    tensor_parallel_mode=tensor_parallel_mode,
+                    tensor_parallel_group=tensor_parallel_group,
+                    sequence_parallel=sequence_parallel,
+                    lora_dropout=lora_dropout,
+                    lora_dropout_position=lora_dropout_position,
+                    lora_scale=lora_scale,
+                )
+
+        def _make_main_branch(
+            self,
+            in_features: int,
+            out_features: int,
+            *,
+            bias: bool,
+            device: Optional[torch.device],
+            dtype: Optional[torch.dtype],
+            tensor_parallel_mode: Optional[str],
+            tensor_parallel_group: Optional[torch.distributed.ProcessGroup],
+            sequence_parallel: bool,
+            norm_type: Optional[str],
+            norm_eps: float,
+            norm_zero_centered_gamma: bool,
+        ) -> None:
+            """Construct fused module for main branch (norm + fork + linear)"""
+
+            # List of ops
+            ops = []
+
+            # Norm op
+            self.norm_main_branch_idx: Optional[int] = None
+            if norm_type is not None:
+                self.norm_main_branch_idx = len(ops)
+                norm_kwargs = {
+                    "eps": norm_eps,
+                    "device": device,
+                    "dtype": dtype,
+                    "zero_centered_gamma": norm_zero_centered_gamma,
+                }
+                if norm_type == "LayerNorm":
+                    ops.append(te.ops.LayerNorm(in_features, **norm_kwargs))
+                elif norm_type == "RMSNorm":
+                    ops.append(te.ops.RMSNorm(in_features, **norm_kwargs))
+                else:
+                    raise ValueError(f"Unsupported normalization ({norm_type})")
+                ops.append(te.ops.Quantize(forward=True, backward=False))
+
+            # Fork to LoRA branch
+            ops.append(te.ops.MakeExtraOutput())
+
+            # Main branch linear op
+            self.linear_main_branch_idx: int = len(ops)
+            ops.append(
+                te.ops.Linear(
+                    in_features,
+                    out_features,
+                    bias=bias,
+                    device=device,
+                    dtype=dtype,
+                    tensor_parallel_mode=tensor_parallel_mode,
+                    tensor_parallel_group=tensor_parallel_group,
+                    sequence_parallel=sequence_parallel,
+                )
+            )
+
+            # Fuse ops
+            self.main_branch = te.ops.Sequential(*ops)
+
+        def _make_lora_branch(
+            self,
+            in_features: int,
+            out_features: int,
+            lora_dim: int,
+            *,
+            device: Optional[torch.device],
+            dtype: Optional[torch.dtype],
+            tensor_parallel_mode: Optional[str],
+            tensor_parallel_group: Optional[torch.distributed.ProcessGroup],
+            sequence_parallel: bool,
+            lora_dropout: float,
+            lora_dropout_position: str,
+            lora_scale: float,
+        ) -> None:
+            """Construct fused module for LoRA branch (lora_a + lora_b + add)"""
+
+            # List of ops
+            ops = []
+
+            # LoRA pre-processing
+            if lora_dropout > 0 and lora_dropout_position == "pre":
+                ops.append(te.ops.Dropout(lora_dropout))
+
+            # LoRA A linear op
+            self.lora_a_lora_branch_idx: int = len(ops)
+            ops.append(
+                te.ops.Linear(
+                    in_features,
+                    lora_dim,
+                    bias=False,
+                    device=device,
+                    dtype=dtype,
+                    tensor_parallel_mode=tensor_parallel_mode,
+                    tensor_parallel_group=tensor_parallel_group,
+                    sequence_parallel=sequence_parallel,
+                )
+            )
+
+            # LoRA B linear op
+            if tensor_parallel_mode == "column":
+                # All-gather along dim -1
+                raise NotImplementedError("Column tensor parallelism is not yet supported")
+            self.lora_b_lora_branch_idx: int = len(ops)
+            ops.append(
+                te.ops.Linear(
+                    lora_dim,
+                    out_features,
+                    bias=False,
+                    device=device,
+                    dtype=dtype,
+                    tensor_parallel_mode=None if tensor_parallel_mode is None else "column",
+                    tensor_parallel_group=tensor_parallel_group,
+                    sequence_parallel=False,
+                )
+            )
+
+            # LoRA post-processing
+            if lora_scale != 1:
+                ops.append(te.ops.ConstantScale(lora_scale))
+            if lora_dropout > 0 and lora_dropout_position == "post":
+                ops.append(te.ops.Dropout(lora_dropout))
+            if tensor_parallel_mode == "row":
+                # All-gather along dim -1
+                raise NotImplementedError("Row tensor parallelism is not yet supported")
+
+            # Add with main branch
+            ops.append(te.ops.AddExtraInput())
+
+            # Fuse ops
+            self.lora_branch = te.ops.Sequential(*ops)
+
+        def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
+            # pylint: disable=C0115,C0116
+            linear_output, linear_input = self.main_branch(x)
+            with te.fp8_autocast(enabled=False):
+                out = self.lora_branch(linear_input, linear_output)
+            return out, None
+
+        @staticmethod
+        def make_from_lora_linear(lora_linear: LoRALinear) -> TEFusedLoRALinear:
+            """Construct a fused LoRA adapter with the same params as an unfused adapter"""
+
+            from nemo.collections.llm.peft.utils import ParallelLinearAdapter
+
+            # Check inputs
+            if not isinstance(lora_linear, LoRALinear):
+                raise ValueError(f"Expected LoRALinear, got {lora_linear.__class__}")
+            if not isinstance(lora_linear.to_wrap, (te.Linear, te.LayerNormLinear, torch.nn.Linear)):
+                raise ValueError(f"Unsupported class for LoRALinear wrapped linear ({lora_linear.to_wrap.__class__})")
+            if not isinstance(lora_linear.adapter, (LinearAdapter, TELinearAdapter, ParallelLinearAdapter)):
+                raise ValueError(f"Unsupported class for LoRALinear adapter ({lora_linear.adapter.__class__})")
+
+            # Args for TEFusedLoRALinear constructor
+            constructor_kwargs = {"device": "meta"}  # Do not initialize params
+
+            # Extract linear params from base linear module
+            orig_linear = lora_linear.to_wrap
+            weight = orig_linear.weight
+            bias = orig_linear.bias
+            if isinstance(bias, torch.Tensor) and bias.numel() == 0:
+                bias = None
+            constructor_kwargs["in_features"] = weight.size(1)
+            constructor_kwargs["out_features"] = weight.size(0)
+            constructor_kwargs["bias"] = bias is not None
+            constructor_kwargs["dtype"] = weight.dtype
+
+            # Extract tensor parallel config
+            tensor_parallel_size = parallel_state.get_tensor_model_parallel_world_size()
+            if tensor_parallel_size > 1:
+                tensor_parallel_mode = None
+                sequence_parallel = False
+                if isinstance(orig_linear, (te.Linear, te.LayerNormLinear)):
+                    tensor_parallel_mode = orig_linear.parallel_mode
+                    sequence_parallel = orig_linear.sequence_parallel
+                constructor_kwargs["tensor_parallel_mode"] = tensor_parallel_mode
+                constructor_kwargs["sequence_parallel"] = sequence_parallel
+                if tensor_parallel_mode == "row":
+                    constructor_kwargs["in_features"] *= tensor_parallel_size
+                elif tensor_parallel_mode == "column":
+                    constructor_kwargs["out_features"] *= tensor_parallel_size
+
+            # Extract norm params from base linear module
+            norm_type = None
+            norm_weight = None
+            norm_bias = None
+            if isinstance(orig_linear, te.LayerNormLinear):
+                norm_type = orig_linear.normalization
+                if norm_type == "LayerNorm":
+                    norm_weight = orig_linear.layer_norm_weight
+                    norm_bias = orig_linear.layer_norm_bias
+                elif norm_type == "RMSNorm":
+                    norm_weight = orig_linear.layer_norm_weight
+                else:
+                    raise RuntimeError("LayerNormLinear has unsupported norm type ({norm_type})")
+                constructor_kwargs["norm_type"] = norm_type
+                constructor_kwargs["norm_eps"] = orig_linear.eps
+                constructor_kwargs["norm_zero_centered_gamma"] = orig_linear.zero_centered_gamma
+
+            # Extract params from LoRA adapter
+            adapter = lora_linear.adapter
+            lora_a_weight = None
+            lora_b_weight = None
+            if isinstance(adapter, (LinearAdapter, TELinearAdapter)):
+                lora_a_weight = adapter.lora_a.weight
+                lora_b_weight = adapter.lora_b.weight
+                constructor_kwargs["lora_dim"] = lora_a_weight.size(0)
+                constructor_kwargs["lora_dropout"] = adapter.dropout.p
+                constructor_kwargs["lora_dropout_position"] = adapter.dropout_position
+                constructor_kwargs["lora_scale"] = adapter.scale
+            elif isinstance(adapter, ParallelLinearAdapter):
+                lora_a_weight = adapter.linear_in.weight
+                lora_b_weight = adapter.linear_out.weight
+                constructor_kwargs["lora_dim"] = lora_a_weight.size(0)
+                constructor_kwargs["lora_dropout"] = adapter.dropout.p
+                constructor_kwargs["lora_dropout_position"] = adapter.dropout_position
+                constructor_kwargs["lora_scale"] = adapter.alpha / adapter.dim
+
+            # Construct fused module
+            out = TEFusedLoRALinear(**constructor_kwargs)
+
+            # Replace norm params
+            if norm_type is not None:
+                norm_op = out.main_branch[out.norm_main_branch_idx]
+                assert norm_op.weight.size() == norm_weight.size()
+                norm_op.weight = norm_weight
+                if norm_bias:
+                    assert norm_op.bias.size() == norm_bias.size()
+                    norm_op.bias = norm_bias
+
+            # Replace base linear params
+            linear_op = out.main_branch[out.linear_main_branch_idx]
+            assert linear_op.weight.size() == weight.size()
+            if bias is None:
+                assert linear_op.bias is None
+            else:
+                assert linear_op.bias.size() == bias.size()
+            linear_op.weight = weight
+            linear_op.bias = bias
+
+            # Replace LoRA params
+            lora_a_op = out.lora_branch[out.lora_a_lora_branch_idx]
+            lora_b_op = out.lora_branch[out.lora_b_lora_branch_idx]
+            assert lora_a_op.weight.size() == lora_a_weight.size()
+            assert lora_b_op.weight.size() == lora_b_weight.size()
+            lora_a_op.weight = lora_a_weight
+            lora_b_op.weight = lora_b_weight
+
+            return out
 
 
 if HAVE_TE:
@@ -364,7 +738,7 @@ class LoRA(PEFT, ModuleMatcher):
     This class facilitates the application of LoRA to specific modules within the model architecture.
 
     Args:
-        target_modules (List[str], optional): A list of module names to apply LoRA to.
+        target_modules (list[str], optional): A list of module names to apply LoRA to.
             Defaults to all linear layers ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2'].
                 - 'linear_qkv': Apply LoRA to the fused linear layer used for query, key, and value projections
                                 in self-attention.
@@ -374,7 +748,7 @@ class LoRA(PEFT, ModuleMatcher):
             Target modules can also contain wildcards. For example, you can specify
                 target_modules=['*.layers.0.*.linear_qkv', '*.layers.1.*.linear_qkv'] to add LoRA to only linear_qkv
                 on the first two layers.
-        exclude_modules (List[str], optional): A list of module names not to apply LoRa to. It will
+        exclude_modules (list[str], optional): A list of module names not to apply LoRa to. It will
             match all nn.Linear & nn.Linear-adjacent modules whose name does not match any string in
             exclude_modules. If used, will require target_modules to be empty list or None.
         dim (int): Dimension of the low-rank projection space. Defaults to 32.
@@ -405,7 +779,7 @@ class LoRA(PEFT, ModuleMatcher):
     )
     """
 
-    target_modules: List[str] = field(
+    target_modules: list[str] = field(
         default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
     )
     dim: int = 32
@@ -453,6 +827,7 @@ class LoRA(PEFT, ModuleMatcher):
                 else:
                     lora_cls = LinearAdapter
 
+                # Construct LoRA module
                 return lora_cls(
                     m,
                     dim=self.dim,
@@ -465,6 +840,7 @@ class LoRA(PEFT, ModuleMatcher):
             input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
                 get_adapter_attributes_from_linear(m)
             )
+            enable_op_fuser = hasattr(m, "config") and getattr(m.config, "use_transformer_engine_op_fuser", False)
             logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
@@ -487,7 +863,7 @@ class LoRA(PEFT, ModuleMatcher):
                 dropout_recompute=self.dropout_recompute,
                 base_linear_is_parallel=base_linear_is_parallel,
             )
-            return LoRALinear(m, adapter)
+            return LoRALinear(m, adapter, enable_op_fuser=enable_op_fuser)
         return m
 
 
