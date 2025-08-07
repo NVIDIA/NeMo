@@ -16,7 +16,7 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-# Tokenizer is handled by the recipe
+from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.vlm.recipes.qwen25vl_7b import finetune_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
@@ -64,6 +64,7 @@ def override_recipe_configs(
         use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
     )
+
     recipe = set_exp_logging_configs(
         recipe,
         "finetune",
@@ -73,6 +74,10 @@ def override_recipe_configs(
         args.wandb,
         args.wandb_prj_name,
         args.wandb_job_name,
+    )
+
+    recipe.data.tokenizer = run.Config(
+        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=152064
     )
 
     return recipe
