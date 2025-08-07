@@ -357,13 +357,10 @@ class TranscriptionMixin(ABC):
                 else:
                     dataloader = audio
 
-                verbose = getattr(transcribe_cfg, 'verbose', True)
-                is_parallel_chunking = getattr(transcribe_cfg, 'do_parallel_chunking', False)
-
-                # Initialize parallel chunking state if needed
-                if is_parallel_chunking:
-                    combined_batches_of_same_audio = {}
-                    prev_cut_id = None
+                if hasattr(transcribe_cfg, 'verbose'):
+                    verbose = transcribe_cfg.verbose
+                else:
+                    verbose = True
 
                 for test_batch in tqdm(dataloader, desc="Transcribing", disable=not verbose):
                     # Move batch to device
@@ -372,9 +369,14 @@ class TranscriptionMixin(ABC):
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
 
+                    # clear up memory
                     del test_batch, model_outputs
+
+                    # Yield results if generator
                     yield processed_outputs
+
                     del processed_outputs
+
         finally:
             # set mode back to its original value
             self._transcribe_on_end(transcribe_cfg)
@@ -382,7 +384,6 @@ class TranscriptionMixin(ABC):
     """
     Transcribe Execution Flow
     """
-    
 
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
         """
