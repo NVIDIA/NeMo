@@ -48,7 +48,7 @@ def model() -> run.Config[pl.LightningModule]:
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
-    resume_path: str = "???",
+    resume_path: str = "openai/gpt-oss-20b",
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
@@ -95,7 +95,7 @@ def finetune_recipe(
     recipe.trainer.strategy.expert_tensor_parallel_size = 1
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 1
-        recipe.trainer.strategy.expert_model_parallel_size = 2
+        recipe.trainer.strategy.expert_model_parallel_size = 4
         recipe.trainer.strategy.pipeline_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:

@@ -48,7 +48,7 @@ def model() -> run.Config[pl.LightningModule]:
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
-    resume_path: str = "???",
+    resume_path: str = "openai/gpt-oss-120b",
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
