@@ -37,6 +37,7 @@ def get_model_from_config(
     wrap_with_ddp: bool = True,
     data_parallel_random_init: bool = True,
     model_post_init_fns: Optional[list[Callable]] = None,
+    wrap_cast_to_fp32: bool = True,
 ):
     # This method should only be called after `init_distributed()`.
     # model_provider_func is equivalent to llm.gpt.GPTConfig.configure_model()
@@ -112,7 +113,7 @@ def get_model_from_config(
         model_module.cuda(torch.cuda.current_device())
 
     # Fp16 conversion.
-    if model_config.fp16 or model_config.bf16:
+    if model_config.fp16 or model_config.bf16 and wrap_cast_to_fp32:
         model = [Float16Module(model_config, model_module) for model_module in model]
 
     if model_post_init_fns:
