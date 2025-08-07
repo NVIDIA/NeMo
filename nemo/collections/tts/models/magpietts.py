@@ -87,6 +87,7 @@ class MagpieTTSModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+        print(f"cfg: {cfg}")
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
@@ -1716,6 +1717,7 @@ class MagpieTTSModel(ModelPT):
                 for _timestep in attended_timestep_counter[bidx]:
                     if attended_timestep_counter[bidx][_timestep] >= 10:
                         # This means the timestep has been attended to more than 10 times (To avoid getting stuck)
+                        _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
                         _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
 
                 unfinished_texts[bidx] = False
