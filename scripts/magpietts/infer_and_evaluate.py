@@ -221,7 +221,6 @@ def run_inference(
         checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     elif nemo_file is not None:
         model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
-        print(model_cfg)
         with open_dict(model_cfg):
             model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
         model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
@@ -244,7 +243,6 @@ def run_inference(
     else:
         exp_name = ""
 
-    checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0] if checkpoint_file is not None else checkpoint_name
     checkpoint_name = "{}{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
         exp_name,
         checkpoint_name,
@@ -489,7 +487,7 @@ def main():
     parser.add_argument('--hparams_file_from_wandb', action='store_true')
     parser.add_argument('--checkpoint_files', type=str, default=None)
     parser.add_argument('--nemo_files', type=str, default=None)
-    parser.add_argument('--codecmodel_path', type=str, default=None, help="Path to codec model (used for FCD computation unless --disable_fcd is specified)")
+    parser.add_argument('--codecmodel_path', type=str, default=None, help="Path to codec model")
     parser.add_argument('--datasets', type=str, default=None)
     # Parameters for running inference experiments locally
     parser.add_argument('--out_dir', type=str, default="/datap/misc/Evals/LocalTransformerAblations2")
@@ -505,7 +503,7 @@ def main():
     parser.add_argument('--apply_prior_to_layers', type=str, default=None)
     parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=0)
     parser.add_argument('--topk', type=int, default=80)
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--batch_size', type=int, default=32)
     # Parameters for evaluation
     parser.add_argument('--sv_model', type=str, default="titanet") # titanet, wavlm
     parser.add_argument('--asr_model_name', type=str, default="nvidia/parakeet-tdt-1.1b") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b

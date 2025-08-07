@@ -80,7 +80,6 @@ class MagpieTTSModel(ModelPT):
     """
 
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
-        print(f"cfg: {cfg}")
         self.world_size = 1
         if trainer is not None:
             self.world_size = trainer.num_nodes * trainer.num_devices
@@ -1473,7 +1472,7 @@ class MagpieTTSModel(ModelPT):
 
     def construct_inference_prior(self, prior_epsilon, cross_attention_scores,
                                   text_lens, text_time_step_attended, attended_timestep_counter,
-                                  unfinished_texts, finished_texts_counter, end_indices, batch_size):
+                                  unfinished_texts, finished_texts_counter, end_indices, lookahead_window_size, batch_size):
         # Attn prior for the next timestep
         _attn_prior = torch.zeros(cross_attention_scores.shape[0], 1, cross_attention_scores.shape[1]) + prior_epsilon
         _attn_prior = _attn_prior.to(cross_attention_scores.device)
@@ -1486,17 +1485,13 @@ class MagpieTTSModel(ModelPT):
                 else:
                     _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1)] = 1.0 # Slight exposure to history for better pronounciation. Not very important.
                     _attn_prior[bidx, 0, text_time_step_attended[bidx]] = 1.0 # Slightly bias to continue moving forward. Not very important.
-                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+1, _text_len - 1) ] = 1.0
-                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2, _text_len - 1) ] = 1.0
-                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+3, _text_len - 1) ] = 1.0
-                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+4, _text_len - 1) ] = 1.0
-                    _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+5, _text_len - 1) ] = 1.0
+                    for ind in range(1, lookahead_window_size + 1):
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+ind, _text_len - 1) ] = 1.0
 
                 # Penalize timesteps that have been attended to more than 10 times
                 for _timestep in attended_timestep_counter[bidx]:
                     if attended_timestep_counter[bidx][_timestep] >= 10:
                         # This means the timestep has been attended to more than 10 times (To avoid getting stuck)
-                        _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
                         _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
 
                 unfinished_texts[bidx] = False
@@ -1701,6 +1696,7 @@ class MagpieTTSModel(ModelPT):
                         unfinished_texts=unfinished_texts,
                         finished_texts_counter=finished_texts_counter,
                         end_indices=end_indices,
+                        lookahead_window_size=lookahead_window_size,
                         batch_size=batch_size
                     )
 
