@@ -163,7 +163,9 @@ class FluxInferencePipeline(nn.Module):
         self.scheduler = FlowMatchEulerDiscreteScheduler(num_train_timesteps=scheduler_steps)
         self.params = params
 
-    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model_to=None, load_dist_ckpt=False):
+    def load_from_pretrained(
+        self, ckpt_path, do_convert_from_hf=True, save_converted_model_to=None, load_dist_ckpt=False
+    ):
         """
         Loads the model's weights from a checkpoint. If HF ckpt is provided, it will be converted to NeMo
         format and save it to local folder.
@@ -702,7 +704,12 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         self.flux_controlnet = FluxControlNet(contorlnet_config) if flux_controlnet is None else flux_controlnet
 
     def load_from_pretrained(
-        self, flux_ckpt_path, controlnet_ckpt_path, do_convert_from_hf=True, save_converted_model_to=None, load_dist_ckpt=False,
+        self,
+        flux_ckpt_path,
+        controlnet_ckpt_path,
+        do_convert_from_hf=True,
+        save_converted_model_to=None,
+        load_dist_ckpt=False,
     ):
         '''
         Converts both flux base model and flux controlnet ckpt into NeMo format.

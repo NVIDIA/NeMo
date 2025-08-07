@@ -124,12 +124,12 @@ class AdaLN(MegatronModule):
         self.n_adaln_chunks = n_adaln_chunks
         self.activation = nn.SiLU()
         self.linear = ColumnParallelLinear(
-                config.hidden_size,
-                self.n_adaln_chunks * config.hidden_size,
-                config=config,
-                init_method=nn.init.normal_,
-                bias=modulation_bias,
-                gather_output=True,
+            config.hidden_size,
+            self.n_adaln_chunks * config.hidden_size,
+            config=config,
+            init_method=nn.init.normal_,
+            bias=modulation_bias,
+            gather_output=True,
         )
         self.use_second_norm = use_second_norm
         if self.use_second_norm:
