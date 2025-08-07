@@ -95,8 +95,6 @@ class TestOneLoggerCallback:
                 # Verify the mock was called with the expected arguments
                 mock_callback.assert_called_once_with("arg1", kwarg1="value1")
 
-
-
     @pytest.mark.unit
     def test_hook_class_init_with_callbacks_no_init(self):
         """Test hook_class_init_with_callbacks with class that has no __init__."""
@@ -273,7 +271,9 @@ class TestOneLoggerCallback:
             with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
                 with patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config') as mock_get_config:
                     with patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig') as mock_config_class:
-                        with patch('nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', MagicMock()) as mock_callback:
+                        with patch(
+                            'nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', MagicMock()
+                        ) as mock_callback:
                             mock_instance = MagicMock()
                             mock_instance.one_logger_ready = True
                             mock_provider.instance.return_value = mock_instance
