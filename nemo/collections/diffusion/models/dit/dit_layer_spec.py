@@ -122,27 +122,26 @@ class AdaLN(MegatronModule):
         else:
             self.ln = norm(config.hidden_size, elementwise_affine=False, eps=self.config.layernorm_epsilon)
         self.n_adaln_chunks = n_adaln_chunks
-        self.adaLN_modulation = nn.Sequential(
-            nn.SiLU(),
-            ColumnParallelLinear(
+        self.activation = nn.SiLU()
+        self.linear = ColumnParallelLinear(
                 config.hidden_size,
                 self.n_adaln_chunks * config.hidden_size,
                 config=config,
                 init_method=nn.init.normal_,
                 bias=modulation_bias,
                 gather_output=True,
-            ),
         )
         self.use_second_norm = use_second_norm
         if self.use_second_norm:
             self.ln2 = nn.LayerNorm(config.hidden_size, elementwise_affine=False, eps=1e-6)
-        nn.init.constant_(self.adaLN_modulation[-1].weight, 0)
+        nn.init.constant_(self.linear.weight, 0)
 
-        setattr(self.adaLN_modulation[-1].weight, "sequence_parallel", config.sequence_parallel)
+        setattr(self.linear.weight, "sequence_parallel", config.sequence_parallel)
 
     @jit_fuser
     def forward(self, timestep_emb):
-        output, bias = self.adaLN_modulation(timestep_emb)
+        timestep_emb = self.activation(timestep_emb)
+        output, bias = self.linear(timestep_emb)
         output = output + bias if bias else output
         return output.chunk(self.n_adaln_chunks, dim=-1)
 

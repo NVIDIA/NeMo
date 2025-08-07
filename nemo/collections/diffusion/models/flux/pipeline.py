@@ -163,7 +163,7 @@ class FluxInferencePipeline(nn.Module):
         self.scheduler = FlowMatchEulerDiscreteScheduler(num_train_timesteps=scheduler_steps)
         self.params = params
 
-    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model_to=None):
+    def load_from_pretrained(self, ckpt_path, do_convert_from_hf=True, save_converted_model_to=None, load_dist_ckpt=False):
         """
         Loads the model's weights from a checkpoint. If HF ckpt is provided, it will be converted to NeMo
         format and save it to local folder.
@@ -175,11 +175,23 @@ class FluxInferencePipeline(nn.Module):
                 Whether to convert the checkpoint from Hugging Face format before loading. Default is True.
             save_converted_model_to (str, optional):
                 Path to save the converted checkpoint if `do_convert_from_hf` is True. Default is None.
+            load_dist_ckpt (bool, optional):
+                Whether to load the checkpoint from dist.ckpt format (NeMo2 checkpoint). Default is False.
 
         Logs:
             The function logs information about missing or unexpected keys during checkpoint loading.
         """
-        if do_convert_from_hf:
+        assert not do_convert_from_hf and load_dist_ckpt, 'do_convert_from_hf and load_dist_ckpt cannot both be true'
+
+        if load_dist_ckpt:
+            from megatron.core import dist_checkpointing
+
+            sharded_state_dict = dict(state_dict=self.transformer.sharded_state_dict(prefix="module."))
+            loaded_state_dict = dist_checkpointing.load(
+                sharded_state_dict=sharded_state_dict, checkpoint_dir=ckpt_path
+            )
+            ckpt = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+        elif do_convert_from_hf:
             ckpt = flux_transformer_converter(ckpt_path, self.transformer.config)
             if save_converted_model_to is not None:
                 save_path = os.path.join(save_converted_model_to, 'nemo_flux_transformer.safetensors')
@@ -196,6 +208,11 @@ class FluxInferencePipeline(nn.Module):
                 f"please check the ckpt provided or the image quality may be compromised.\n {missing}"
             )
             logging.info(f"Found unexepected keys: \n {unexpected}")
+        if len(unexpected) > 0:
+            logging.info(
+                f"The following keys are unexpected during checkpoint loading, "
+                f"please check the ckpt provided or the image quality may be compromised.\n {unexpected}"
+            )
 
     def encoder_prompt(
         self,
@@ -685,12 +702,21 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         self.flux_controlnet = FluxControlNet(contorlnet_config) if flux_controlnet is None else flux_controlnet
 
     def load_from_pretrained(
-        self, flux_ckpt_path, controlnet_ckpt_path, do_convert_from_hf=True, save_converted_model_to=None
+        self, flux_ckpt_path, controlnet_ckpt_path, do_convert_from_hf=True, save_converted_model_to=None, load_dist_ckpt=False,
     ):
         '''
         Converts both flux base model and flux controlnet ckpt into NeMo format.
         '''
-        if do_convert_from_hf:
+        assert not do_convert_from_hf and load_dist_ckpt, 'do_convert_from_hf and load_dist_ckpt cannot both be true'
+        if load_dist_ckpt:
+            from megatron.core import dist_checkpointing
+
+            sharded_state_dict = dict(state_dict=self.transformer.sharded_state_dict(prefix="module."))
+            loaded_state_dict = dist_checkpointing.load(
+                sharded_state_dict=sharded_state_dict, checkpoint_dir=flux_ckpt_path
+            )
+            flux_ckpt = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+        elif do_convert_from_hf:
             flux_ckpt = flux_transformer_converter(flux_ckpt_path, self.transformer.config)
             flux_controlnet_ckpt = flux_transformer_converter(controlnet_ckpt_path, self.flux_controlnet.config)
 

@@ -65,6 +65,12 @@ def parse_args():
         help="Must be true if provided checkpoint is not already converted to NeMo version",
     )
     parser.add_argument(
+        "--load_dist_ckpt",
+        action='store_true',
+        default=False,
+        help="Load distributed checkpoint for Flux",
+    )
+    parser.add_argument(
         "--save_converted_model_to",
         type=str,
         default=None,
@@ -143,6 +149,7 @@ if __name__ == '__main__':
             args.controlnet_ckpt,
             do_convert_from_hf=args.do_convert_from_hf,
             save_converted_model_to=args.save_converted_model_to,
+            load_dist_ckpt=args.load_dist_ckpt,
         )
     dtype = torch.float32
     text = args.prompts.split(',')

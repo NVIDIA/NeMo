@@ -816,10 +816,10 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
     def convert_state(self, source, target):
         # pylint: disable=C0301
         mapping = {
-            'transformer_blocks.*.norm1.linear.weight': 'double_blocks.*.adaln.adaLN_modulation.1.weight',
-            'transformer_blocks.*.norm1.linear.bias': 'double_blocks.*.adaln.adaLN_modulation.1.bias',
-            'transformer_blocks.*.norm1_context.linear.weight': 'double_blocks.*.adaln_context.adaLN_modulation.1.weight',
-            'transformer_blocks.*.norm1_context.linear.bias': 'double_blocks.*.adaln_context.adaLN_modulation.1.bias',
+            'transformer_blocks.*.norm1.linear.weight': 'double_blocks.*.adaln.linear.weight',
+            'transformer_blocks.*.norm1.linear.bias': 'double_blocks.*.adaln.linear.bias',
+            'transformer_blocks.*.norm1_context.linear.weight': 'double_blocks.*.adaln_context.linear.weight',
+            'transformer_blocks.*.norm1_context.linear.bias': 'double_blocks.*.adaln_context.linear.bias',
             'transformer_blocks.*.attn.norm_q.weight': 'double_blocks.*.self_attention.q_layernorm.weight',
             'transformer_blocks.*.attn.norm_k.weight': 'double_blocks.*.self_attention.k_layernorm.weight',
             'transformer_blocks.*.attn.norm_added_q.weight': 'double_blocks.*.self_attention.added_q_layernorm.weight',
@@ -836,8 +836,8 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
             'transformer_blocks.*.ff_context.net.0.proj.bias': 'double_blocks.*.context_mlp.linear_fc1.bias',
             'transformer_blocks.*.ff_context.net.2.weight': 'double_blocks.*.context_mlp.linear_fc2.weight',
             'transformer_blocks.*.ff_context.net.2.bias': 'double_blocks.*.context_mlp.linear_fc2.bias',
-            'single_transformer_blocks.*.norm.linear.weight': 'single_blocks.*.adaln.adaLN_modulation.1.weight',
-            'single_transformer_blocks.*.norm.linear.bias': 'single_blocks.*.adaln.adaLN_modulation.1.bias',
+            'single_transformer_blocks.*.norm.linear.weight': 'single_blocks.*.adaln.linear.weight',
+            'single_transformer_blocks.*.norm.linear.bias': 'single_blocks.*.adaln.linear.bias',
             'single_transformer_blocks.*.proj_mlp.weight': 'single_blocks.*.mlp.linear_fc1.weight',
             'single_transformer_blocks.*.proj_mlp.bias': 'single_blocks.*.mlp.linear_fc1.bias',
             'single_transformer_blocks.*.attn.norm_q.weight': 'single_blocks.*.self_attention.q_layernorm.weight',
