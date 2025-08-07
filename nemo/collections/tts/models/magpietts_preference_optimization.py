@@ -432,7 +432,6 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
 
         use_pesq = self.cfg.get('use_pesq', False)
         if use_pesq:
-            # import ipdb; ipdb.set_trace()
             assert HAVE_TORCHAUDIO, "torchaudio is required for PESQ reward"
             self.squim_objective_model = SQUIM_OBJECTIVE.get_model()
         
@@ -660,7 +659,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         advantages = [x['advantage'] for x in batch_metrics]
         advantages = torch.tensor(advantages, device=self.device)
         print("Mean reward: ", all_groups_mean_reward)
-        # import ipdb; ipdb.set_trace()
+        
         group_validities = torch.tensor(group_validities, device=self.device)
         return {
             'mean_reward': torch.tensor(all_groups_mean_reward, device=self.device),
