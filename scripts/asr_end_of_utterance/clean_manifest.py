@@ -381,6 +381,26 @@ def replace_numbers_with_words(text):
     pattern = re.compile(r'\$?\d{1,3}(?:,\d{3})*(?:\.\d+)?|\$?\d+(?:\.\d+)?')
     result = pattern.sub(convert_number, text)
     result = result.replace("$", " dollars ")  # Handle dollar sign separately
+
+    def merge_th(text: str) -> str:
+        # merge th with the preceding digit
+        candidates = ["four th ", "five th ", "six th ", "seven th ", "eight th ", "nine th "]
+        for key in candidates:
+            if key in text:
+                if "five" in key:
+                    target = "fifth "
+                else:
+                    target = f"{key.split(' ')[0]}th "
+                text = text.replace(key, target)
+            elif text.endswith(key.strip()):
+                if "five" in key:
+                    target = "fifth"
+                else:
+                    target = f"{key.split(' ')[0]}th"
+                text = text.replace(key.strip(), target)
+        return text
+
+    result = merge_th(result)
     result = " ".join(result.split())  # Remove extra spaces
     return result
 
