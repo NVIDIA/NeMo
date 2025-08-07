@@ -39,6 +39,7 @@ class MegatronDataSampler(DataSampler):
         seq_len: int,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
+        val_global_batch_size: Optional[int] = None,
         rampup_batch_size: Optional[List[int]] = None,
         dataloader_type: Literal["single", "cyclic", "batch"] = "single",
         init_consumed_samples: int = 0,
@@ -51,6 +52,7 @@ class MegatronDataSampler(DataSampler):
         self.output_log = output_log
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
+        self.val_global_batch_size = val_global_batch_size
         self.rampup_batch_size = rampup_batch_size
         self.dataloader_type = dataloader_type
         self.init_consumed_samples = init_consumed_samples
@@ -58,25 +60,35 @@ class MegatronDataSampler(DataSampler):
         self.if_first_step = 0
         self.prev_global_batch_size = None
         self.init_global_step = init_global_step
+        self.val_num_microbatches_calculator = None
 
     def setup(self, global_rank: int) -> None:
         from nemo.lightning.data import setup_microbatch_calculator
 
-        setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size)
+        self.val_num_microbatches_calculator = setup_microbatch_calculator(
+            global_rank,
+            self.micro_batch_size,
+            self.global_batch_size,
+            self.rampup_batch_size,
+            self.val_global_batch_size,
+        )
 
     def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
         from megatron.core import parallel_state
 
         from nemo.lightning.data import add_megatron_sampler
 
+        mode = getattr(dataloader, 'mode')
+        print(f"mode1: {mode}")
         mode = getattr(dataloader, 'mode', 'train')
+        print(f"mode2: {mode}")
 
         data_parallel_rank = parallel_state.get_data_parallel_rank()
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         return add_megatron_sampler(
             dataloader,
             micro_batch_size=self.micro_batch_size,
-            global_batch_size=self.global_batch_size,
+            global_batch_size=self.val_global_batch_size if mode == 'validation' else self.global_batch_size,
             rampup_batch_size=self.rampup_batch_size,
             consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
             dataloader_type=self.dataloader_type,
@@ -111,7 +123,7 @@ class MegatronDataSampler(DataSampler):
             step,
             seq_length=self.seq_len,
             micro_batch_size=self.micro_batch_size,
-            num_microbatches=self.num_microbatches,
+            num_microbatches=self.num_microbatches if step.trainer.training else self.num_val_microbatches,
             decoder_seq_length=self.decoder_seq_len,
         )
 
@@ -177,6 +189,12 @@ class MegatronDataSampler(DataSampler):
             from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
         return get_num_microbatches()
+
+    @property
+    def num_val_microbatches(self) -> int:
+        if self.val_num_microbatches_calculator is not None:
+            return self.val_num_microbatches_calculator.get()
+        return self.num_microbatches
 
     @property
     def current_global_batch_size(self) -> int:
