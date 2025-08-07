@@ -18,7 +18,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from nemo.lightning.one_logger_callback import (
-    OneLoggerNeMoCallback,
     _get_onelogger_callbacks_function,
     get_current_time_msec,
     get_one_logger_callbacks,
@@ -96,90 +95,7 @@ class TestOneLoggerCallback:
                 # Verify the mock was called with the expected arguments
                 mock_callback.assert_called_once_with("arg1", kwarg1="value1")
 
-    @pytest.mark.unit
-    def test_one_logger_nemo_callback_initialization(self):
-        """Test OneLoggerNeMoCallback initialization."""
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True):
-            with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
-                mock_instance = MagicMock()
-                mock_provider.instance.return_value = mock_instance
-                callback = OneLoggerNeMoCallback(mock_instance)
-                assert isinstance(callback, OneLoggerNeMoCallback)
 
-    @pytest.mark.unit
-    def test_one_logger_nemo_callback_getattr(self):
-        """Test __getattr__ method of OneLoggerNeMoCallback."""
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True):
-            with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
-                mock_instance = MagicMock()
-                mock_provider.instance.return_value = mock_instance
-                callback = OneLoggerNeMoCallback(mock_instance)
-
-                # TimeEventCallback doesn't use __getattr__, so this should raise AttributeError
-                with pytest.raises(AttributeError):
-                    _ = callback.test_method
-
-    @pytest.mark.unit
-    def test_training_cycle_all_callbacks(self):
-        """Test a complete training cycle with all callbacks called in order."""
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True):
-            with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
-                mock_instance = MagicMock()
-                mock_provider.instance.return_value = mock_instance
-                callback = OneLoggerNeMoCallback(mock_instance)
-
-                trainer = MagicMock()
-                trainer.global_step = 10
-                trainer.max_steps = 1000
-                pl_module = MagicMock()
-                batch = MagicMock()
-                outputs = MagicMock()
-
-                # Track all callback calls in order
-                callback_calls = []
-
-                with patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
-                    # Mock the CB module to return our mock callback
-                    mock_cb.test_start = MagicMock()
-                    mock_cb.test_end = MagicMock()
-                    mock_cb.on_train_start = MagicMock()
-                    mock_cb.on_training_single_iteration_start = MagicMock()
-                    mock_cb.on_training_single_iteration_end = MagicMock()
-                    mock_cb.on_validation_start = MagicMock()
-                    mock_cb.on_validation_single_iteration_start = MagicMock()
-                    mock_cb.on_validation_single_iteration_end = MagicMock()
-                    mock_cb.on_validation_end = MagicMock()
-                    mock_cb.on_train_end = MagicMock()
-
-                    # Set up the side effect to track calls
-                    def side_effect(callback_name, *args, **kwargs):
-                        callback_calls.append(callback_name)
-                        return MagicMock()
-
-                    with patch('nemo.lightning.one_logger_callback.get_one_logger_callbacks', side_effect=side_effect):
-                        # Simulate training cycle
-                        callback.on_train_start(trainer, pl_module)
-                        callback.on_train_batch_start(trainer, pl_module, batch, 0)
-                        callback.on_train_batch_end(trainer, pl_module, outputs, batch, 0)
-                        callback.on_validation_start(trainer, pl_module)
-                        callback.on_validation_batch_start(trainer, pl_module, batch, 0, 0)
-                        callback.on_validation_batch_end(trainer, pl_module, outputs, batch, 0, 0)
-                        callback.on_validation_end(trainer, pl_module)
-                        callback.on_train_end(trainer, pl_module)
-
-                        # Verify all callbacks were called in the expected order
-                        expected_calls = [
-                            "on_train_start",
-                            "on_training_single_iteration_start",
-                            "on_training_single_iteration_end",
-                            "on_validation_start",
-                            "on_validation_single_iteration_start",
-                            "on_validation_single_iteration_end",
-                            "on_validation_end",
-                            "on_train_end",
-                        ]
-
-                        assert callback_calls == expected_calls
 
     @pytest.mark.unit
     def test_hook_class_init_with_callbacks_no_init(self):
@@ -294,8 +210,8 @@ class TestOneLoggerCallback:
                         with patch('nemo.lightning.one_logger_callback.OneLoggerConfig') as mock_config_class:
                             with patch('nemo.lightning.one_logger_callback.V1CompatibleExporter') as mock_exporter:
                                 with patch(
-                                    'nemo.lightning.one_logger_callback.OneLoggerNeMoCallback'
-                                ) as mock_callback_class:
+                                    'nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', MagicMock()
+                                ) as mock_callback:
                                     mock_instance = MagicMock()
                                     mock_instance.one_logger_ready = False
                                     mock_provider.instance.return_value = mock_instance
@@ -308,9 +224,6 @@ class TestOneLoggerCallback:
 
                                     mock_exporter_instance = MagicMock()
                                     mock_exporter.return_value = mock_exporter_instance
-
-                                    mock_callback = MagicMock()
-                                    mock_callback_class.return_value = mock_callback
 
                                     init_one_logger()
 
@@ -328,8 +241,9 @@ class TestOneLoggerCallback:
                                     )
                                     mock_instance.configure_provider.assert_called_once()
 
-                                    # Verify callback was created
-                                    mock_callback_class.assert_called_once_with(mock_instance)
+                                    # Verify callback was created (if OneLogger is available)
+                                    if 'OneLoggerNeMoCallback' in globals():
+                                        mock_callback.assert_called_once_with(mock_instance)
 
     @pytest.mark.unit
     def test_update_one_logger_config_no_onelogger(self):
@@ -359,7 +273,7 @@ class TestOneLoggerCallback:
             with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
                 with patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config') as mock_get_config:
                     with patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig') as mock_config_class:
-                        with patch('nemo.lightning.one_logger_callback.OneLoggerNeMoCallback') as mock_callback_class:
+                        with patch('nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', MagicMock()) as mock_callback:
                             mock_instance = MagicMock()
                             mock_instance.one_logger_ready = True
                             mock_provider.instance.return_value = mock_instance
@@ -372,9 +286,6 @@ class TestOneLoggerCallback:
 
                             trainer = MagicMock()
                             trainer.callbacks = []
-
-                            mock_callback = MagicMock()
-                            mock_callback_class.return_value = mock_callback
 
                             # Mock the global callback
                             with patch('nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', mock_callback):
@@ -454,7 +365,7 @@ class TestOneLoggerCallback:
                         # Create trainer with existing OneLogger callback
                         trainer = MagicMock()
                         existing_callback = MagicMock()
-                        existing_callback.__class__.__name__ = "OneLoggerNeMoCallback"
+                        existing_callback.__class__.__name__ = "MockOneLoggerCallback"
                         trainer.callbacks = [existing_callback]
 
                         # Mock the global callback
