@@ -49,13 +49,6 @@ NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
 ) or numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
 
-try:
-    import kenlm
-
-    KENLM_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    KENLM_AVAILABLE = False
-
 
 # available audio filename fixtures
 @pytest.fixture(scope="module")
