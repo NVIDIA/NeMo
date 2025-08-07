@@ -170,7 +170,7 @@ def override_recipe_configs(
         recipe.trainer.plugins.fp8_param_gather = False
         recipe.trainer.strategy.ddp.reuse_grad_buf_for_mxfp8_param_ag = False
         recipe.optim.config.reuse_grad_buf_for_mxfp8_param_ag = False
- 
+
     return recipe
 
 
