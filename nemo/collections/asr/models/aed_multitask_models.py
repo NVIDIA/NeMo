@@ -71,7 +71,8 @@ from nemo.core.neural_types import (
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.collections.asr.parts.utils.chunking_utils import (
-    merge_parallel_chunks
+    merge_parallel_chunks,
+    merge_hypotheses_list
 )
 __all__ = ['EncDecMultiTaskModel']
 
@@ -578,8 +579,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         is_one_audio = is_one_audio or (isinstance(audio, list) and len(audio) == 1)
         # Check if batch_size is one
         trcfg.enable_parallel_chunking = is_one_audio or (override_config.batch_size == 1)
+        results = super().transcribe(audio=audio, override_config=trcfg)
+        if trcfg.enable_parallel_chunking:
+            results = merge_hypotheses_list(results, trcfg, self.encoder.subsampling_factor)
 
-        return super().transcribe(audio=audio, override_config=trcfg)
+        return results[0]
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
@@ -1064,7 +1068,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 window_stride=self.cfg['preprocessor']['window_stride'],
                 tokenizer=self.tokenizer
             )
+            setattr(merged_hypotheses, 'id', batch.cuts[0].id.split("-", 1)[0])
             return [merged_hypotheses]
+
+        if  trcfg.enable_parallel_chunking and  len(hypotheses) == 1:
+            #inject the id of the cut to hypothese to later be used for separate batches
+            setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])            
         
         return hypotheses
 
