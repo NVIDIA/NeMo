@@ -583,7 +583,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         if trcfg.enable_parallel_chunking:
             results = merge_hypotheses_list(results, trcfg, self.encoder.subsampling_factor)
 
-        return results[0]
+        return results
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
@@ -1068,11 +1068,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 window_stride=self.cfg['preprocessor']['window_stride'],
                 tokenizer=self.tokenizer
             )
+            #Inject the id of the cut to hypothese to later be used for separate batches
             setattr(merged_hypotheses, 'id', batch.cuts[0].id.split("-", 1)[0])
             return [merged_hypotheses]
-
+        
         if  trcfg.enable_parallel_chunking and  len(hypotheses) == 1:
-            #inject the id of the cut to hypothese to later be used for separate batches
             setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])            
         
         return hypotheses

@@ -33,7 +33,7 @@ def merge_parallel_chunks(
     
     Args:
         hypotheses: List of Hypothesis objects from each chunk
-        encoded_len: Tensor of encoded lengths for each chunk
+        encoded_len: Tensor of encoded lengths for each chunk to use for finding offsets
         model: The ASR model instance (needed for LCS alignment)
         subsampling_factor: The encoder's subsampling factor
         window_stride: The preprocessor's window stride
@@ -88,14 +88,37 @@ def merge_parallel_chunks(
     return merged_hypotheses
 
 def join_y_sequence(merged_hypothesis, hypotheses):
-        merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
-        return merged_hypothesis
+    """
+    Concatenate y_sequence tensors from multiple hypotheses into a single sequence.
+    
+    Args:
+        merged_hypothesis: Target hypothesis to update with concatenated sequence
+        hypotheses: List of hypotheses containing y_sequence tensors
+        
+    Returns:
+        Updated merged_hypothesis with concatenated y_sequence
+    """
+    merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
+    return merged_hypothesis
 
 
 def join_timestamp_and_add_word_and_segment_level_timestamps(
         merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens=None
     ):
-    # Initialize empty timestamp structure
+    """
+    Combine character-level timestamps from chunks and generate word/segment timestamps.
+    
+    Args:
+        merged_hypotheses: Target hypothesis to update with timestamps
+        hypotheses: List of hypotheses from different chunks
+        chunk_offsets: Frame offsets for each chunk
+        subsampling_factor: Subsampling factor of the encoder
+        window_stride: Time stride per frame in seconds
+        merged_tokens: Optional token sequence for filtering (default: None)
+        
+    Returns:
+        Updated merged_hypotheses with word and segment timestamps
+    """
 
     # First, combine char-level timestamps from all chunks
     char_timestamps = join_char_level_timestamps(hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens)
@@ -207,6 +230,18 @@ def join_char_level_timestamps(
     return char_timestamps
 
 def merge_hypotheses_list(hypotheses_list, transcribe_cfg, subsampling_factor, chunk_duration_seconds=3600):
+    """
+    Group hypotheses by ID and merge each group into a single hypothesis.
+    
+    Args:
+        hypotheses_list: List of hypothesis objects with 'id' attributes
+        transcribe_cfg: Transcription configuration for merging settings
+        subsampling_factor: Subsampling factor of the encoder
+        chunk_duration_seconds: Duration of each chunk in seconds (default: 3600)
+        
+    Returns:
+        List of merged hypotheses, one per unique ID
+    """
     same_audio_hypotheses = []
     all_merged_hypotheses = []
     prev_id = None
@@ -227,28 +262,28 @@ def merge_hypotheses_list(hypotheses_list, transcribe_cfg, subsampling_factor, c
     # Process the final group of hypotheses
     if same_audio_hypotheses:
         all_merged_hypotheses.append(merge_hypotheses_list_same_audio(same_audio_hypotheses, transcribe_cfg, subsampling_factor, chunk_duration_seconds))
-    return [all_merged_hypotheses]
+    return all_merged_hypotheses
 
 
 
 def merge_hypotheses_list_same_audio( hypotheses_list, transcribe_cfg, subsampling_factor, chunk_duration_seconds=3600):
         """
-        Merge a list of hypotheses from parallel chunking into a single hypothesis.
-        Each hypothesis in the list represents a time chunk (e.g., 1 hour).
+        Merge hypotheses from the same audio source into a single hypothesis.
+        Used for combining results when long audio is split into hour-long segments 
+        processed as separate batches.
         
         Args:
-            hypotheses_list: List of hypothesis lists (one per time chunk)
+            hypotheses_list: List of hypothesis objects from time chunks
             transcribe_cfg: Transcription configuration
-            chunk_duration_hours: Duration of each chunk in hours (default: 1.0)
+            subsampling_factor: Subsampling factor of the encoder
+            chunk_duration_seconds: Duration of each chunk in seconds (default: 3600)
             
         Returns:
-            List containing a single merged hypothesis
+            Single merged hypothesis
         """
         
-        # Flatten the list of hypothesis lists into a single list
 
         # Create merged hypothesis with empty initial values
-        
         merged_hypothesis = Hypothesis(
             score=0.0,
             y_sequence=torch.tensor([]),
