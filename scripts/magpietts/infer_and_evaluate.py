@@ -38,6 +38,9 @@ from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
 from nemo.collections.tts.models import MagpieTTSModel
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer, IPATokenizer
 
+# EVALUATION_DATASETS is the full list of datasets for evaluation of a new model.
+EVALUATION_DATASETS = "riva_hard_digits,riva_hard_letters,riva_hard_money,riva_hard_short,vctk,libritts_seen,libritts_test_clean"
+
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
     for key in metric_keys:
@@ -218,6 +221,7 @@ def run_inference(
         checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     elif nemo_file is not None:
         model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
+        print(model_cfg)
         with open_dict(model_cfg):
             model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
         model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
@@ -485,13 +489,9 @@ def main():
     parser.add_argument('--hparams_file_from_wandb', action='store_true')
     parser.add_argument('--checkpoint_files', type=str, default=None)
     parser.add_argument('--nemo_files', type=str, default=None)
-    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo", help="Path to codec model (used for FCD computation unless --disable_fcd is specified)")
-    parser.add_argument('--datasets', type=str, default="libri_unseen_test_12.5")
-    parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmountedresson/")
-    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTS_FixedPosEmb/AllKernselSize3/EdressonCodecExperiments/")
-    parser.add_argument('--server_address', type=str, default="pneekhara@login-eos02.eos.clusters.nvidia.com")
-    parser.add_argument('--exp_names', type=str, default="koel_12.5_FPS_causal_13codebooks_codecmodel_context5sec_LTN1,koel_12.5_FPS_causal_13codebooks_codecmodel_context5sec_LTN3")
-    parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/experiment_checkpoints/localtransformer")
+    parser.add_argument('--codecmodel_path', type=str, default=None, help="Path to codec model (used for FCD computation unless --disable_fcd is specified)")
+    parser.add_argument('--datasets', type=str, default=None)
+    # Parameters for running inference experiments locally
     parser.add_argument('--out_dir', type=str, default="/datap/misc/Evals/LocalTransformerAblations2")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--use_cfg', action='store_true')
@@ -499,13 +499,14 @@ def main():
     parser.add_argument('--maskgit_n_steps', type=int, default=3)
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
-    parser.add_argument('--attention_prior_epsilon', type=float, default=1e-3)
-    parser.add_argument('--attention_prior_lookahead_window', type=int, default=10)
+    parser.add_argument('--attention_prior_epsilon', type=float, default=0.1)
+    parser.add_argument('--attention_prior_lookahead_window', type=int, default=5)
     parser.add_argument('--estimate_alignment_from_layers', type=str, default=None)
     parser.add_argument('--apply_prior_to_layers', type=str, default=None)
-    parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=10)
+    parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=0)
     parser.add_argument('--topk', type=int, default=80)
     parser.add_argument('--batch_size', type=int, default=16)
+    # Parameters for evaluation
     parser.add_argument('--sv_model', type=str, default="titanet") # titanet, wavlm
     parser.add_argument('--asr_model_name', type=str, default="nvidia/parakeet-tdt-1.1b") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
     parser.add_argument('--num_repeats', type=int, default=1)
@@ -518,6 +519,9 @@ def main():
     parser.add_argument('--disable_fcd', action='store_true', help="Disable Frechet Codec Distance computation")
     parser.add_argument('--violin_plot_metrics', type=str, nargs='*', default=['cer','pred_context_ssim'], help="Which metrics to add the violin plot.")
     args = parser.parse_args()
+
+    if args.datasets is None:
+        args.datasets = EVALUATION_DATASETS
 
     # FCD computation is enabled by default, disabled only when --disable_fcd is specified
     compute_fcd = not args.disable_fcd
@@ -582,55 +586,11 @@ def main():
                 checkpoint_file=None,
                 nemo_file=nemo_file,
             )
-    # Mode 3: Discover and run experiments from a base directory
-    #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
-    #   sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
-    elif args.base_exp_dir:
-        BASE_EXP_DIR = args.base_exp_dir
-        DRACO_EXP_DIR = args.draco_exp_dir
-        if args.exp_names is None:
-            exp_names = os.listdir(BASE_EXP_DIR)
-        else:
-            exp_names = args.exp_names.split(",")
-
-        for exp_name in exp_names:
-            exp_dir = os.path.join(BASE_EXP_DIR, exp_name)
-            # recurisvely look for hparams.yaml
-            try:
-                hparams_file = glob.glob(f"{exp_dir}/**/hparams.yaml", recursive=True)[0]
-                checkpoints_dir = glob.glob(f"{exp_dir}/**/checkpoints", recursive=True)[0]
-                last_checkpoint = (glob.glob(f"{checkpoints_dir}/*last.ckpt"))[0]
-            except:
-                print(f"Skipping experiment {exp_name} as hparams or last checkpoint not found.")
-                continue
-            last_checkpoint_path_draco = last_checkpoint.replace(BASE_EXP_DIR, DRACO_EXP_DIR)
-            epoch_num = last_checkpoint.split("epoch=")[1].split("-")[0]
-
-            checkpoint_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_epoch_{epoch_num}.ckpt")
-            hparams_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_hparams.yaml")
-
-            scp_command = f"scp {args.server_address}:{last_checkpoint_path_draco} {checkpoint_copy_path}"
-            print(f"Running command: {scp_command}")
-            os.system(scp_command)
-            print("Copied checkpoint.")
-            hparams_path_draco = hparams_file.replace(BASE_EXP_DIR, DRACO_EXP_DIR)
-            scp_command_hparams = f"scp {args.server_address}:{hparams_path_draco} {hparams_copy_path}"
-            print(f"Running command: {scp_command_hparams}")
-            os.system(scp_command_hparams)
-            print("Copied hparams file.")
-            print("Hparams file path: ", hparams_copy_path)
-            print("Checkpoint file path: ", checkpoint_copy_path)
-            run_inference_w_args(
-                hparams_copy_path,
-                checkpoint_copy_path,
-                nemo_file=None,
-            )
     else:
         parser.error(
             "You must provide a model to run. Please specify either:\n"
             "1. --hparams_files and --checkpoint_files\n"
             "2. --nemo_file\n"
-            "3. --base_exp_dir to discover experiments"
         )
     if args.cer_target is not None and cer > float(args.cer_target):
         raise ValueError()
