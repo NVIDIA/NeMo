@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+from functools import partial
 from typing import TYPE_CHECKING
 
 from nemo.collections.llm.gpt.model.qwen2 import HFQwen2Exporter as _NeMo2HFQwen2Exporter
@@ -28,6 +29,7 @@ from nemo.tron.converter.common import BaseExporter, BaseImporter
 if TYPE_CHECKING:
     from transformers import Qwen2Config as HFQwen2Config
     from transformers import Qwen3Config as HFQwen3Config
+    from transformers import Qwen3MoeConfig as HFQwen3MoeConfig
 
 logger = logging.getLogger(__name__)
 
@@ -124,13 +126,31 @@ class HFQwen3Exporter(BaseExporter):
             return self._hf_config
 
         from transformers import Qwen3Config as HFQwen3Config
+        from transformers import Qwen3MoeConfig as HFQwen3MoeConfig
 
         source = self.tron_config
-        self._hf_config = HFQwen3Config(
+        
+        is_moe = source.num_moe_experts is not None
+        hf_config_cls = (
+            partial(
+                HFQwen3MoeConfig,
+                moe_intermediate_size=source.moe_ffn_hidden_size,
+                num_experts=source.num_moe_experts,
+                num_experts_per_tok=source.moe_router_topk,
+                router_aux_loss_coef=source.moe_aux_loss_coeff,
+                norm_topk_prob=True,
+            )
+            if is_moe
+            else HFQwen3Config
+        )
+
+        self._hf_config = hf_config_cls(
+            architectures=["Qwen3ForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
+            head_dim=source.kv_channels,
             max_position_embeddings=source.max_position_embeddings,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
@@ -138,8 +158,11 @@ class HFQwen3Exporter(BaseExporter):
             rope_theta=source.rotary_base,
             vocab_size=getattr(source, "vocab_size",
                                self.tokenizer.vocab_size),
-            sliding_window=source.seq_length,
+            sliding_window=None,
             tie_word_embeddings=source.share_embeddings_and_output_weights,
+            max_window_layers=source.num_layers,
+            bos_token_id=151643,
+            eos_token_id=151645,
         )
         return self._hf_config
 
