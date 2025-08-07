@@ -70,7 +70,9 @@ from nemo.core.neural_types import (
 )
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
-
+from nemo.collections.asr.parts.utils.chunking_utils import (
+    merge_parallel_chunks
+)
 __all__ = ['EncDecMultiTaskModel']
 
 
@@ -992,123 +994,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             batch=batch,
         )
 
-    def _join_y_sequence(self, merged_hypothesis, hypotheses):
-        merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
-        return merged_hypothesis
-
-    def _join_char_level_timestamps(
-        self,
-        merged_hypothesis,
-        hypotheses,
-        chunk_offsets,
-        merged_tokens=None,
-    ):
-        char_timestamps = []
-        cumulative_offset = 0  # raw (pre-subsampling) frames already emitted
-        overall_removed_offset = 0  # subsampled frames trimmed so far
-        j_token = 0  # cursor in merged_tokens
-
-        subsamp = self.encoder.subsampling_factor
-        stride = self.cfg['preprocessor']['window_stride']  # sec per raw frame
-
-        for i, h in enumerate(hypotheses):
-            cumulative_offset += chunk_offsets[i]            # raw frames
-            chunk_frame_offset = cumulative_offset // subsamp
-
-            # 1) figure out how much of the *front* of this chunk we will drop
-            removed_in_chunk = 0
-            for char in h.timestamp['char']:
-                keep = (
-                    merged_tokens is None
-                    or (j_token < len(merged_tokens)
-                        and char and char['token_id'] == merged_tokens[j_token])
-                )
-                if keep:                            
-                    break
-                if char and char['end_offset'] != -1:
-                    removed_in_chunk = char['end_offset'] + 1
-
-            for char in h.timestamp['char']:
-                if not char:
-                    continue
-                keep = (
-                    merged_tokens is None
-                    or (j_token < len(merged_tokens)
-                        and char['token_id'] == merged_tokens[j_token])
-                )
-                if not keep:
-                    continue
-
-                # adjust offsets: chunk start + global chunk shift − total removed
-                start_off = char['start_offset']
-                end_off   = char['end_offset']
-
-
-                upd = dict(char)
-                if start_off != -1:
-                    upd['start_offset'] = (
-                        start_off
-                        + chunk_frame_offset  # place chunk globally
-                        - overall_removed_offset  # past trims
-                        - removed_in_chunk  # trims in this chunk
-                    )
-                if end_off != -1:
-                    upd['end_offset'] = (
-                        end_off
-                        + chunk_frame_offset
-                        - overall_removed_offset
-                        - removed_in_chunk
-                    )
-
-                # convert to seconds
-                upd['start'] = (
-                    -1 if upd['start_offset'] == -1
-                    else upd['start_offset'] * stride * subsamp
-                )
-                upd['end'] = (
-                    -1 if upd['end_offset'] == -1
-                    else upd['end_offset'] * stride * subsamp
-                )
-
-                char_timestamps.append(upd)
-                j_token += 1
-
-            # 3) make the trim visible to later chunks
-            overall_removed_offset += removed_in_chunk
-
-        return char_timestamps
-
-    def _join_timestamp_and_add_word_and_segment_level_timestamps(
-        self, merged_hypotheses, hypotheses, chunk_offsets, merged_tokens=None
-    ):
-        # Initialize empty timestamp structure
-
-        # First, combine char-level timestamps from all chunks
-        char_timestamps = self._join_char_level_timestamps(merged_hypotheses, hypotheses, chunk_offsets, merged_tokens)
-
-        # Create encoded_char_offsets for word/segment generation
-        encoded_char_offsets = []
-        for char_offset in char_timestamps:
-            enc_char_offset = char_offset.copy()
-            enc_char_offset['char'] = enc_char_offset['token']
-            encoded_char_offsets.append(enc_char_offset)
-
-        # Generate word-level timestamps from combined char timestamps
-        word_offsets = get_words_offsets(
-            char_offsets=char_timestamps,
-            encoded_char_offsets=encoded_char_offsets,
-            supported_punctuation={',', '.', '!', '?'},
-        )
-
-        # Generate segment-level timestamps from word timestamps
-        segment_offsets = get_segment_offsets(
-            word_offsets=word_offsets, segment_delimiter_tokens={'.', '!', '?', "..."}
-        )
-        # Update the merged hypothesis with word and segment timestamps
-        merged_hypotheses.timestamp['word'] = word_offsets
-        merged_hypotheses.timestamp['segment'] = segment_offsets
-
-        return merged_hypotheses
+    
 
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
@@ -1147,32 +1033,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
         merge_to_be_done = trcfg.do_parallel_chunking and len(hypotheses) > 1
 
-        if merge_to_be_done:
-            # importing here to avoid circular import
-            from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
-
-            # delay is the number of tokens to merge with the previous chunk
-            delay = int(1 / (self.encoder.subsampling_factor / 100))
-            # Start with the first chunk
-            merged_tokens = hypotheses[0].y_sequence.tolist()
-
-            # Merge each subsequent chunk
-            for i in range(1, len(hypotheses)):
-                merged_tokens = lcs_alignment_merge_buffer(
-                    buffer=merged_tokens,
-                    data=hypotheses[i].y_sequence.tolist()[
-                        : int(delay * 0.6)
-                    ],  # only approximately 60% of the tokens are non blank
-                    delay=delay,
-                    model=self,
-                    max_steps_per_timestep=1,
-                    min_lcs_length=1,
-                    parallel_chunking=True,
-                )
-                merged_tokens += hypotheses[i].y_sequence.tolist()[int(delay * 0.6) :]
-
-            final_text = self.tokenizer.ids_to_text(merged_tokens)
-
         del enc_states, enc_mask, decoder_input_ids
 
         if trcfg.timestamps and self.timestamps_asr_model is not None:
@@ -1188,24 +1048,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             hypotheses = process_aed_timestamp_outputs(
                 hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
-        if merge_to_be_done:
-            merged_hypotheses = Hypothesis(
-                score=0.0,
-                y_sequence=torch.tensor([]),
-                timestamp={
-                    'word': [],
-                    'segment': [],
-                },
+            
+        if merge_to_be_done:            
+            merged_hypotheses = merge_parallel_chunks(
+                hypotheses=hypotheses,
+                encoded_len=encoded_len,
+                model=self,
+                subsampling_factor=self.encoder.subsampling_factor,
+                window_stride=self.cfg['preprocessor']['window_stride'],
+                tokenizer=self.tokenizer
             )
-            chunk_offsets = [0] + [x * self.encoder.subsampling_factor for x in encoded_len.tolist()]
-
-            merged_hypotheses = self._join_y_sequence(merged_hypotheses, hypotheses)
-            merged_hypotheses.text = final_text
-            merged_hypotheses = self._join_timestamp_and_add_word_and_segment_level_timestamps(
-                merged_hypotheses, hypotheses, chunk_offsets, merged_tokens
-            )
-
             return [merged_hypotheses]
+        
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
