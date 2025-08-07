@@ -340,6 +340,7 @@ def predictive_model_transformer_unet_params_base():
     )
     return model_config
 
+
 @pytest.fixture()
 def predictive_model_conformer_unet():
 
@@ -411,6 +412,7 @@ def predictive_model_conformer_unet():
 
     return model
 
+
 @pytest.fixture()
 def predictive_model_streaming_conformer_unet():
 
@@ -481,6 +483,7 @@ def predictive_model_streaming_conformer_unet():
         model = PredictiveAudioToAudioModel(cfg=model_config)
 
     return model
+
 
 @pytest.fixture
 def predictive_model_transformer_unet_params(predictive_model_transformer_unet_params_base, request):
@@ -821,6 +824,7 @@ class TestPredictiveModelTransformerUNet:
         model, trainer = predictive_model_transformer_unet_with_trainer_and_mock_dataset
         model = model.train()
         trainer.fit(model)
+
 
 class TestPredictiveModelConformerUNet:
     """Test predictive model with conformer U-Net estimator."""
