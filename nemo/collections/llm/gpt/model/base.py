@@ -387,6 +387,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             kwargs = {}
 
+        if (self.attention_backend == AttnBackend.local and getattr(self, "softmax_type", "vanilla") != "vanilla"):
+            if hasattr(transformer_layer_spec, 'submodules'):
+                transformer_layer_spec.submodules.self_attention.submodules.core_attention = MCoreDotProductAttention
         with model_init_device_context():
             model = MCoreGPTModel(
                 self,
