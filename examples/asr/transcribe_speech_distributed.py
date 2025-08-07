@@ -114,6 +114,7 @@ class TranscriptionConfig(SingleTranscribeConfig):
     node_idx: int = 0
     num_gpus_per_node: int = 1
     gpu_idx: int = 0
+    bind_gpu_to_cuda: bool = False
 
     # handle long manifest
     split_size: int = -1  # -1 means no split
@@ -253,7 +254,7 @@ def run_distributed_transcribe(cfg: TranscriptionConfig):
 
     logging.info(f"Processing {len(manifest_list)} manifest files with GPU {cfg.gpu_idx} on node {cfg.node_idx}.")
 
-    cfg.cuda = cfg.gpu_idx
+    cfg.cuda = cfg.gpu_idx if cfg.bind_gpu_to_cuda else None
     for manifest_file in tqdm(manifest_list):
         logging.info(f"Processing {manifest_file}...")
         output_filename = output_dir / Path(manifest_file).name
