@@ -183,7 +183,7 @@ class FluxInferencePipeline(nn.Module):
         Logs:
             The function logs information about missing or unexpected keys during checkpoint loading.
         """
-        assert not do_convert_from_hf and load_dist_ckpt, 'do_convert_from_hf and load_dist_ckpt cannot both be true'
+        assert do_convert_from_hf and load_dist_ckpt, 'do_convert_from_hf and load_dist_ckpt cannot both be true'
 
         if load_dist_ckpt:
             from megatron.core import dist_checkpointing
@@ -714,7 +714,7 @@ class FluxControlNetInferencePipeline(FluxInferencePipeline):
         '''
         Converts both flux base model and flux controlnet ckpt into NeMo format.
         '''
-        assert not do_convert_from_hf and load_dist_ckpt, 'do_convert_from_hf and load_dist_ckpt cannot both be true'
+        assert do_convert_from_hf and load_dist_ckpt, 'do_convert_from_hf and load_dist_ckpt cannot both be true'
         if load_dist_ckpt:
             from megatron.core import dist_checkpointing
 
