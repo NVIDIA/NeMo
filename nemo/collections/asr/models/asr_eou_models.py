@@ -46,6 +46,7 @@ from nemo.collections.common.data.utils import move_data_to_device
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.core.classes.common import Serialization
 from nemo.core.classes.mixins import AccessMixin
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, LogprobsType, NeuralType, SpectrogramType
 from nemo.utils import logging
 
 __all__ = ['EncDecRNNTBPEEOUModel', 'EncDecHybridRNNTCTCBPEEOUModel']
@@ -60,6 +61,25 @@ class EOUPrediction:
 
 
 class ASREOUModelMixin:
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": AudioToTextEOUBatch,
+            "inputs": [
+                {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input", "name": "audio_signal"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "audio_lengths"},
+                {"type": NeuralType(("B", "T"), LabelsType()), "seq_length": "input", "name": "text_tokens"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "text_token_lengths"},
+                {"type": NeuralType(("B", "T"), LabelsType()), "seq_length": "input", "name": "eou_targets"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "eou_target_lengths"},
+            ],
+        }
+
     def _patch_decoding_cfg(self, cfg: DictConfig):
         """
         Patch the decoding config as needed for EOU computation
