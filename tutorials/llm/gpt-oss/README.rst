@@ -64,7 +64,7 @@ For LoRA-tuning the model, you will use the NeMo Framework which is available as
    git lfs install
 
    # Clone the model repo
-   git clone https://huggingface.co/openai/gpt-oss-20b gpt-oss-20b-hf
+   git clone https://huggingface.co/openai/gpt-oss-20b
 
 
 
