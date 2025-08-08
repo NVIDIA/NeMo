@@ -96,4 +96,4 @@ For LoRA-tuning the model, you will use the NeMo Framework which is available as
    jupyter lab --ip 0.0.0.0 --port=8888 --allow-root
 
 
-4. Then, navigate to `this notebook <./gpt-oss-lora-nemofw.ipynb>`__. The result of this notebook will be a .safetensors formatted finetuned full-weights checkpoint.
+4. Then, navigate to `this notebook <./gpt-oss-lora.ipynb>`__. The result of this notebook will be a .safetensors formatted finetuned full-weights checkpoint.
