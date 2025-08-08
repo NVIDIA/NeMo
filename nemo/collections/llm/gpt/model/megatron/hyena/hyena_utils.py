@@ -1190,8 +1190,10 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
 
         self.group_dim = self.d_model // self.num_groups
 
-        if self.use_fast_causal_conv:
+        if self.use_fast_causal_conv and not self.use_cuhyena:
             assert causal_conv1d_fn is not None, "custom causal conv not installed"
+            weight_shape = [self.num_groups, kernel_size]
+        elif self.use_fast_causal_conv and self.use_cuhyena:  # hyena_proj_conv of LI layer when cuhyena is enabled
             weight_shape = [self.num_groups, kernel_size]
         # use torch
         else:
