@@ -6,6 +6,7 @@ ZIIR = chr(0x0650)
 ZBAR = chr(0x064E)
 PISH = chr(0x064F)
 TSHD = chr(0x0651) #  _ ّ_
+SOKN = chr(0x0652) # _ ْ _
 
 # SOH = chr(0x0001) # start of heading
 # EOT = chr(0x0003) # end of text
@@ -17,7 +18,7 @@ CNST = r'[بپتثجچحخدذرزژسشصضطظعغفقکگلمنوهیbptcjCHx
 
 PUNC = r'[!،؛.؟\u200c\s]+|^|$'
 
-
+AEO = r'[َُِaeo]'
 SVOW = r'[َُِaeoęąó]'
 LVOW = r'[اآAΛ]'  # how to add ای and او
 
@@ -64,10 +65,13 @@ RegexPatterns = [
     
     # اً
         (r'اً', 'Ą'),
+        (r' ًً', 'Ą'),       
     # اٍ
         (r'اٍ', 'Ę'),
+        (r' ٍٍ', 'Ę'),      
     # اٌ
         (r'اٌ', 'Ó'),
+        (r'ٌ', 'Ó'),
     # اَ
         (r'اَ', 'ą'),
     # اِ
@@ -220,6 +224,9 @@ RegexPatterns = [
         (rf'([آA])(ی)', r'\1y'), # آینده
         (rf'([و])(ی)', r'\1y'), # گوینده
     
+    # ة
+        (rf'ة', 't'),
+    
     # َ
         (rf'{ZBAR}', 'a'),
     # ِ
@@ -237,12 +244,16 @@ RegexPatterns = [
     #  ّ
         (rf'({CNST}){TSHD}', r'\1\1'),
         (rf'({CNST})({SVOW}){TSHD}', r'\1\1\2'),
-        (rf'{TSHD}', r'\1'),
+        (rf'{TSHD}', r''),
 
+    #        
+        (rf'{AEO}{SOKN}', r''),
+        (rf'{SOKN}', r''),
     
     # << ARABIC Form of words in Persian >>
         (rf'({PUNC})({L03})(وا)({L03})({L03})({PUNC})', rf'\1\2{ZBAR}vΛ\4{ZIIR}\5\6'),  # فواعل
         (rf'({PUNC})({L03})(ا)({L03})({L03})({PUNC})', rf'\1\2Λ\4{ZIIR}\5\6'),  # فاعل
+        (rf'({PUNC})({L03})(ا)({L03})({L03})(ا)(ن)({PUNC})', rf'\1\2Λ\4{ZIIR}\5\6\7\8'),  # فاعلان
         (rf'({PUNC})(م)({L03})({L03})(و)({L03})({PUNC})', rf'\1\2{ZBAR}\3\4\5\6\7'),  # مفعول
         (rf'({PUNC})({L03})({L03})(و)({L03})({PUNC})', rf'\1\2{PISH}\3u\5\6'),  # فعول
         (rf'({PUNC})({L03})({L03})(ا)({L03})({PUNC})', rf'\1\2{ZBAR}\3Λ\5\6'),  # فعال
