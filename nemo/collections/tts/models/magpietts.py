@@ -856,7 +856,7 @@ class MagpieTTSModel(ModelPT):
 
         return text_embedded
 
-    def compute_alignment_loss(self, attention_scores, text_lens, audio_lens, dec_context_size=0, context_lens=None):
+    def compute_alignment_loss(self, attention_scores, text_lens, audio_lens, context_lens=None):
         # attention scores: List of (B, C, audio_timesteps, text_timesteps)
         attention_scores_combined = torch.cat(attention_scores, dim=1)  # (B, C, audio_timesteps, text_timesteps)
         attention_scores_mean = attention_scores_combined.mean(
@@ -965,7 +965,6 @@ class MagpieTTSModel(ModelPT):
         return sliced
     
     def prepare_context_tensors(self, batch):
-        dec_context_size = 0
         additional_decoder_input = None
         additional_decoder_input_lens = None
         additional_decoder_mask = None
@@ -1042,7 +1041,8 @@ class MagpieTTSModel(ModelPT):
             attn_prior = [_attn_prior, None]
 
         elif self.model_type in ['decoder_context_tts', 'decoder_ce']:
-            dec_context_size = context_mask.size(1)
+            # dec_context_size = context_mask.size(1)
+            additional_decoder_input_lens = context_input_lens
             if self.model_type == 'decoder_context_tts':
                 context_embeddings = context_input_embedded
             elif self.model_type == 'decoder_ce':
@@ -1051,17 +1051,25 @@ class MagpieTTSModel(ModelPT):
                 )['output']
             attn_prior = _attn_prior
             if attn_prior is not None:
+                _max_dec_len = (additional_decoder_input_lens + batch['audio_codes_lens'] - 1).max().item()
+                _attn_prior = torch.zeros(attn_prior.size(0), _max_dec_len, attn_prior.size(2), device=attn_prior.device)
+                batch_idx = torch.arange(attn_prior.size(0), device=attn_prior.device).unsqueeze(1)       # (B, 1)
+                audio_offset = torch.arange(attn_prior.size(1), device=attn_prior.device).unsqueeze(0) # (1, T_max)
+                audio_idx = additional_decoder_input_lens.unsqueeze(1) + audio_offset # (B, T_max)
+                batch_idx = batch_idx.expand(-1, _max_dec_len) # (B, T_max)
+                _attn_prior[batch_idx, audio_idx] = attn_prior
+                # TODO_paarth
                 # B, audio_timesteps, text_timesteps
-                padding_zeros = torch.zeros(
-                    attn_prior.size(0), dec_context_size, attn_prior.size(2), device=attn_prior.device
-                )
-                attn_prior = torch.cat([padding_zeros, attn_prior], dim=1)
+                # padding_zeros = torch.zeros(
+                #     attn_prior.size(0), dec_context_size, attn_prior.size(2), device=attn_prior.device
+                # )
+                # attn_prior = torch.cat([padding_zeros, attn_prior], dim=1)
             cond = text_encoder_out
             cond_mask = text_mask
             multi_encoder_mapping = None
             additional_decoder_input = context_embeddings
             additional_decoder_mask = context_mask
-            additional_decoder_input_lens = context_input_lens
+            
 
         if attn_prior is not None and self.ctc_prior_layer_ids is not None:
             # Convert prior to a list of tensors, one for each layer
@@ -1083,7 +1091,6 @@ class MagpieTTSModel(ModelPT):
             'additional_decoder_input': additional_decoder_input,
             'additional_decoder_input_lens': additional_decoder_input_lens,
             'additional_decoder_mask': additional_decoder_mask,
-            'dec_context_size': dec_context_size,
             'text': text,
             'text_embedded': text_embedded,
             'text_mask': text_mask,
@@ -1310,16 +1317,14 @@ class MagpieTTSModel(ModelPT):
 
         # logits: (B, T', num_codebooks * num_tokens_per_codebook)
         # dec_out: (B, T', E)
-        dec_context_size = context_tensors['dec_context_size']
-        logits = logits[:, dec_context_size:, :]  # Remove the context audio embeddings from the logits
-
+        
         codebook_loss, loss_mask = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
         alignment_loss = None
         if self.alignment_loss_scale > 0.0 and not disable_alignment_loss:
             text_lens = context_tensors['text_lens']
             cross_attention_scores = [attn['cross_attn_probabilities'][1] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.ctc_prior_layer_ids]
             alignment_loss = self.compute_alignment_loss(
-                cross_attention_scores, text_lens, audio_codes_lens_target, dec_context_size, context_lens=context_tensors['additional_decoder_input_lens']
+                cross_attention_scores, text_lens, audio_codes_lens_target, context_lens=context_tensors['additional_decoder_input_lens']
             )
             loss = self.codebook_loss_scale * codebook_loss + alignment_loss
         else:
@@ -1331,13 +1336,13 @@ class MagpieTTSModel(ModelPT):
             if self.local_transformer_type == LocalTransformerType.MASKGIT:
                 # randomly replace some positions with MASK_TOKEN
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
-                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
+                local_transformer_logits = self.compute_local_transformer_logits(dec_out, audio_codes_masked, targets_offset_by_one=True)
                 #audio_codes_masked = audio_codes_masked[:, 1:, :]
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, mask_tokens_mask)
             else:
                 # autoregressive
                 assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
-                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target, targets_offset_by_one=False)
+                local_transformer_logits = self.compute_local_transformer_logits(dec_out, audio_codes_target, targets_offset_by_one=False)
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, None)
             loss = loss + self.local_transformer_loss_scale * local_transformer_loss
 
@@ -1360,7 +1365,6 @@ class MagpieTTSModel(ModelPT):
             'text_lens': context_tensors['text_lens'],
             'context_audio_codes': context_tensors['context_audio_codes'],
             'context_audio_codes_lens': context_tensors['context_audio_codes_lens'],
-            'dec_context_size': dec_context_size,
             'aligner_attn_soft': aligner_attn_soft,
             'aligner_attn_hard': aligner_attn_hard,
         }
@@ -1427,7 +1431,7 @@ class MagpieTTSModel(ModelPT):
         context_audio_codes_lens = batch_output['context_audio_codes_lens']
         attn_info = batch_output['attn_info']
         text_lens = batch_output['text_lens']
-        dec_context_size = batch_output['dec_context_size']
+        
         if alignment_loss is None:
             alignment_loss = torch.tensor(0.0, device=loss.device)
         if aligner_encoder_loss is None:
@@ -1457,7 +1461,6 @@ class MagpieTTSModel(ModelPT):
                         audio_codes_lens_target,
                         text_lens,
                         prefix="val",
-                        dec_context_size=dec_context_size,
                     )
                 )
 
@@ -1469,7 +1472,6 @@ class MagpieTTSModel(ModelPT):
                             audio_codes_lens_target,
                             text_lens,
                             prefix=f"val/layer_{layer_idx}",
-                            dec_context_size=dec_context_size
                         )
                     )
 
