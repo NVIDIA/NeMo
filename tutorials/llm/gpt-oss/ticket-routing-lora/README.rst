@@ -47,8 +47,8 @@ You may manually download the dataset as a .zip from Kaggle by using the Downloa
 Ensure your data is in the ``nemo-experiments/data`` folder before proceeding.
 
 
-`LoRA with NeMo Framework <./gpt-oss-lora-nemofw.ipynb>`_
----------------------------------------------------------
+`LoRA with NeMo Framework <./gpt-oss-lora.ipynb>`_
+--------------------------------------------------
 
 For LoRA-tuning the model, you will use the NeMo Framework which is available as a `docker container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`__.
 
