@@ -62,24 +62,6 @@ class EOUPrediction:
 
 class ASREOUModelMixin:
 
-    @property
-    def oomptimizer_schema(self) -> dict:
-        """
-        Return a typing schema for optimal batch size calibration for various
-        sequence lengths using OOMptimizer.
-        """
-        return {
-            "cls": AudioToTextEOUBatch,
-            "inputs": [
-                {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input", "name": "audio_signal"},
-                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "audio_lengths"},
-                {"type": NeuralType(("B", "T"), LabelsType()), "seq_length": "input", "name": "text_tokens"},
-                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "text_token_lengths"},
-                {"type": NeuralType(("B", "T"), LabelsType()), "seq_length": "input", "name": "eou_targets"},
-                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "eou_target_lengths"},
-            ],
-        }
-
     def _patch_decoding_cfg(self, cfg: DictConfig):
         """
         Patch the decoding config as needed for EOU computation
@@ -687,6 +669,24 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel, ASREOUModelMixin):
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         return self.multi_inference_epoch_end(outputs, dataloader_idx, mode='test')
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": AudioToTextEOUBatch,
+            "inputs": [
+                {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input", "name": "audio_signal"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "audio_lengths"},
+                {"type": NeuralType(("B", "T"), LabelsType()), "seq_length": "input", "name": "text_tokens"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "text_token_lengths"},
+                {"type": NeuralType(("B", "T"), LabelsType()), "seq_length": "input", "name": "eou_targets"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "eou_target_lengths"},
+            ],
+        }
 
 
 class EncDecHybridRNNTCTCBPEEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin):
