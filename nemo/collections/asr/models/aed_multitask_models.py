@@ -542,14 +542,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
             as paths2audio_files 
         """
-<<<<<<< Updated upstream
-        print("transcribe")
-        print("transcribe")   
-        
-        import pdb; pdb.set_trace()
-=======
-        
->>>>>>> Stashed changes
         if timestamps is not None:
             if self.cfg.get('timestamps_asr_model', None) is None:
                 # TODO: Handle this key gracefully later
@@ -581,13 +573,17 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 )
             trcfg = override_config
             trcfg.timestamps = timestamps
-        # Check if only one audio is provided with string 
-        is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl"))
-        # Check if it is provided as a list of strings
-        is_one_audio = is_one_audio or (isinstance(audio, list) and len(audio) == 1)
-        # Check if batch_size is one
-        import pdb; pdb.set_trace()
-        trcfg.enable_chunking = is_one_audio or (override_config.batch_size == 1)
+        
+        if trcfg.enable_chunking:
+            # Check if only one audio is provided with string 
+            is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl"))
+            # Check if it is provided as a list of strings
+            is_one_audio = is_one_audio or (isinstance(audio, list) and len(audio) == 1)
+            #Check if chunking will be enabled
+            trcfg.enable_chunking = is_one_audio or (override_config.batch_size == 1)
+            if not trcfg.enable_chunking:
+                logging.warning("Chunking is disabled. Please pass a single audio file or set batch_size to 1")
+
         results = super().transcribe(audio=audio, override_config=trcfg)
         if trcfg.enable_chunking:
             results = merge_hypotheses_list(results, trcfg, self.encoder.subsampling_factor)
@@ -927,10 +923,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A config dict that is used to setup the dataloader for transcription.
         """
         manifest_filepath = trcfg._internal.manifest_filepath
-
         audio_files = self._may_be_make_dict_and_fix_paths(audio_files, manifest_filepath, trcfg)
 
-        return super()._transcribe_input_manifest_processing(audio_files, temp_dir, trcfg)
+        ds_config = super()._transcribe_input_manifest_processing(audio_files, temp_dir, trcfg)
+        if trcfg.enable_chunking:
+            ds_config['enable_chunking'] = True
+        return ds_config
 
     def _transcribe_forward(
         self, batch: PromptedAudioToTextMiniBatch | tuple[torch.Tensor, ...], trcfg: MultiTaskTranscriptionConfig
@@ -1109,8 +1107,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             # when using a list of audio files instead of a manifest (added from TranscrptionMixin)
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
             batch_size = min(config['batch_size'], len(config['paths2audio_files']))
-        # check this part!
-        enable_chunking = batch_size == 1  # <-- enables chunking for batch size 1
         dl_config = {
             'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
@@ -1127,7 +1123,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             'channel_selector': config.get('channel_selector', None),
             'pad_min_duration': config.get('pad_min_duration', 1.0),
             'pad_direction': config.get('pad_direction', 'both'),
-            'enable_chunking': enable_chunking,
+            'enable_chunking': config.get('enable_chunking', False),
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
