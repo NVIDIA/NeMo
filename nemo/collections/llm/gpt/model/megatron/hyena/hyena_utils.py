@@ -54,11 +54,12 @@ except ImportError:
 
 
 try:
-    from cuhyena.causal_conv1d import causal_conv1d
     from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
+    from cuhyena.causal_conv1d import causal_conv1d
     from cuhyena.fft_causal_conv1d import fft_causal_conv1d
     from cuhyena.fft_causal_conv1d import short_fft_is_available as is_fused_supported
 except ImportError:
+
     def causal_conv1d(*args, **kwargs):
         """Not imported: causal_conv1d. An error will be raised if this is called."""
         raise ImportError("cuhyena not installed. causal_conv1d is not available.")
