@@ -542,6 +542,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
             as paths2audio_files 
         """
+        print("transcribe")
+        print("transcribe")   
+        
+        import pdb; pdb.set_trace()
         if timestamps is not None:
             if self.cfg.get('timestamps_asr_model', None) is None:
                 # TODO: Handle this key gracefully later
