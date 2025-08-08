@@ -78,6 +78,7 @@ class GPTOSSConfig(GPTConfig):
     bias_activation_fusion: bool = True
     window_attn_skip_freq: Optional[Union[int, List[int]]] = 2  # alternative SWA/full
     attention_backend: AttnBackend = AttnBackend.local  # supports "local" and "fused"
+    activation_func_clamp_value: Optional[float] = 7.0
 
 @dataclass
 class GPTOSSConfig120B(GPTOSSConfig):
