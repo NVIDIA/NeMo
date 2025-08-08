@@ -293,6 +293,7 @@ class Llama32Config1B(Llama31Config):
     scale_factor: float = 32.0
     share_embeddings_and_output_weights: bool = True
     rotary_base: int = 500_000
+    seq_length: int = 131072
     num_layers: int = 16
     hidden_size: int = 2048
     ffn_hidden_size: int = 8192
@@ -312,6 +313,7 @@ class Llama32Config3B(Llama31Config):
     scale_factor: int = 32
     share_embeddings_and_output_weights: bool = True
     rotary_base: int = 500_000
+    seq_length: int = 131072
     num_layers: int = 28
     hidden_size: int = 3072
     ffn_hidden_size: int = 8192
@@ -901,6 +903,13 @@ class HFLlamaExporter(io.ModelConnector[LlamaModel, "LlamaForCausalLM"]):
                     "decoder.layers.*.mlp.experts.linear_fc1.weight": "model.layers.*.feed_forward.experts.gate_up_proj",
                 }
             )
+
+            # Remove the transform with source_key "decoder.layers.*.mlp.linear_fc1.weight" from transforms
+            # Llama4's HF model has a different mapping for the MLP weights (map to feed_forward instead of mlp)
+            transforms = [
+                t for t in transforms if getattr(t, "source_key", None) != "decoder.layers.*.mlp.linear_fc1.weight"
+            ]
+
             transforms.extend(
                 [
                     io.state_transform(

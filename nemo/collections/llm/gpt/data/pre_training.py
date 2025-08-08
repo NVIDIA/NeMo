@@ -16,7 +16,7 @@ import logging
 import os
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Type, Union
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
@@ -29,6 +29,7 @@ from nemo.lightning.data import WrappedDataLoader
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 from nemo.utils.import_utils import safe_import
+from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
 _, HAVE_TE = safe_import("transformer_engine")
 
@@ -85,7 +86,12 @@ def validate_dataset_asset_accessibility(paths):
     if not isinstance(paths, str) and not isinstance(paths, Path):
         raise ValueError("Expected path to be of string or Path type.")
 
-    path = Path(paths)
+    if is_multistorageclient_url(paths):
+        msc = import_multistorageclient()
+        path = msc.Path(paths)
+    else:
+        path = Path(paths)
+
     suffices = (".bin", ".idx")
     if path.is_dir():
         if not os.access(path, os.R_OK):
@@ -97,7 +103,7 @@ def validate_dataset_asset_accessibility(paths):
             raise PermissionError(f"Expected {str(path)} to be readable.")
         return
     for suffix in suffices:
-        file_path = Path(str(path) + suffix)
+        file_path = path.with_name(path.name + suffix)
         if not file_path.exists():
             raise FileNotFoundError(f"Expected {str(file_path)} to exist.")
         if not os.access(file_path, os.R_OK):
@@ -153,6 +159,12 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total
             test steps times global batch size.
         dataset_cls (Optional[Type[MegatronDataset]]): The dataset class to use for the data module.
+        dataloader_type (Optional[Literal["single", "cyclic", "batch"]]): Data loading strategy.
+        init_consumed_samples: (Optional[int]): Number of samples already consumed at initialization.
+        init_global_step: (Optional[int]): Starting global training step count, used for resuming training.
+        output_log: (Optional[bool]): Whether to print logging/debug output during sampling.
+        mmap_bin_files: (Optional[bool]): Whether to mmap the .bin files or use file pointers.
+        object_storage_cache_path: (Optional[str]): Path for caching indices for s3 or msc dataloading.
     """
 
     def __init__(
@@ -177,7 +189,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         num_train_samples: Optional[int] = None,
         num_val_samples: Optional[int] = None,
         num_test_samples: Optional[int] = None,
+        dataloader_type: Optional[Literal["single", "cyclic", "batch"]] = "single",
+        init_consumed_samples: Optional[int] = 0,
+        init_global_step: Optional[int] = 0,
+        output_log: Optional[bool] = True,
         dataset_cls: Type[MegatronDataset] = GPTDataset,
+        mmap_bin_files: Optional[bool] = True,
+        object_storage_cache_path: Optional[str] = None,
     ) -> None:
         super().__init__()
         if not isinstance(paths, (list, tuple, dict)):
@@ -190,6 +208,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         validate_dataset_asset_accessibility(paths)
 
         build_kwargs = {}
+        build_kwargs["mmap_bin_files"] = mmap_bin_files
         if isinstance(paths, dict):
             if split is not None:
                 warnings.warn(
@@ -206,6 +225,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                 weights = None
             build_kwargs["blend"] = [paths, weights]
             build_kwargs["split"] = split
+
+        if object_storage_cache_path:
+            build_kwargs["object_storage_cache_path"] = object_storage_cache_path
+            build_kwargs["mmap_bin_files"] = False
 
         self.build_kwargs = build_kwargs
         self.seq_length = seq_length
@@ -227,6 +250,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
+        self.dataloader_type = dataloader_type
+        self.init_consumed_samples = init_consumed_samples
+        self.init_global_step = init_global_step
+        self.output_log = output_log
 
         from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
@@ -236,6 +263,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
             rampup_batch_size=rampup_batch_size,
+            dataloader_type=self.dataloader_type,
+            init_consumed_samples=self.init_consumed_samples,
+            init_global_step=self.init_global_step,
+            output_log=self.output_log,
         )
 
     def build(

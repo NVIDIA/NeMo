@@ -57,13 +57,49 @@ def model():
         "prompt_format": PROMPT,
         "audio_locator_tag": AUDIO_LOCATOR_TAG,
         "perception": {
-            "_target_": "nemo.collections.speechlm2.modules.perception.AudioPerceptionModule",
-            "modality_adapter": {
+            "target": "nemo.collections.speechlm2.modules.perception.AudioPerceptionModule",
+            "output_dim": 2048,
+            "encoder": {
                 "_target_": "nemo.collections.asr.modules.ConformerEncoder",
-                "feat_in": 1024,
-                "feat_out": -1,
-                "n_layers": 1,
+                "att_context_size": [-1, -1],
+                "causal_downsampling": False,
+                "conv_context_size": None,
+                "conv_kernel_size": 9,
+                "conv_norm_type": "batch_norm",
                 "d_model": 1024,
+                "dropout": 0.1,
+                "dropout_att": 0.1,
+                "dropout_emb": 0.0,
+                "dropout_pre_encoder": 0.1,
+                "feat_in": 128,
+                "feat_out": -1,
+                "ff_expansion_factor": 4,
+                "n_heads": 8,
+                "n_layers": 2,
+                "pos_emb_max_len": 5000,
+                "self_attention_model": "rel_pos",
+                "subsampling": "dw_striding",
+                "subsampling_conv_channels": 256,
+                "subsampling_factor": 8,
+            },
+            "modality_adapter": {
+                "_target_": "nemo.collections.speechlm2.modules.perception.IdentityConnector",
+                "d_model": 1024,
+            },
+            "preprocessor": {
+                "_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
+                "dither": 1e-05,
+                "features": 128,
+                "frame_splicing": 1,
+                "log": True,
+                "n_fft": 512,
+                "normalize": "per_feature",
+                "pad_to": 0,
+                "pad_value": 0.0,
+                "sample_rate": 16000,
+                "window": "hann",
+                "window_size": 0.025,
+                "window_stride": 0.01,
             },
         },
         "optimizer": {"_target_": "torch.optim.AdamW"},
@@ -151,7 +187,43 @@ def test_salm_generation(model):
         ],
         audios=torch.randn(1, 16000),
         audio_lens=torch.tensor([16000]),
+        max_new_tokens=4,
+    )
+    assert answer.shape == (1, 4)
+    assert answer.dtype == torch.long
+    assert (answer >= 0).all()
+    assert (answer < model.text_vocab_size).all()
+
+
+def test_salm_generation_audios_via_prompt(model, tmp_path):
+    audio_path = tmp_path / "audio.wav"
+    dummy_cut(0, with_data=True).save_audio(audio_path)
+
+    answer = model.generate(
+        prompts=[
+            [{"role": "user", "content": f"Repeat after me: {AUDIO_LOCATOR_TAG}", "audio": [audio_path]}],
+            [
+                {
+                    "role": "user",
+                    "content": f"Repeat after me: {AUDIO_LOCATOR_TAG} and {AUDIO_LOCATOR_TAG}",
+                    "audio": [audio_path, audio_path],
+                }
+            ],
+        ],
         generation_config=GenerationConfig(max_new_tokens=4),
+    )
+    assert answer.shape == (2, 4)
+    assert answer.dtype == torch.long
+    assert (answer >= 0).all()
+    assert (answer < model.text_vocab_size).all()
+
+
+def test_salm_generation_prompts_as_tensor(model):
+    answer = model.generate(
+        prompts=torch.tensor([[1, 2, 3, 4, 5, 6, 7, model.audio_locator_tag_id]]),
+        audios=torch.randn(1, 16000),
+        audio_lens=torch.tensor([16000]),
+        max_new_tokens=4,
     )
     assert answer.shape == (1, 4)
     assert answer.dtype == torch.long

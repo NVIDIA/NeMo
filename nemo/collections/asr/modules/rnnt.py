@@ -405,16 +405,37 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         cls,
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
+        batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
-        dst_states[0].copy_(src_states[0])
+        if batch_size is None:
+            dst_states[0].copy_(src_states[0])
+        else:
+            dst_states[0][:batch_size].copy_(src_states[0][:batch_size])
 
-    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+    @classmethod
+    def clone_state(cls, state: list[torch.Tensor]) -> list[torch.Tensor]:
+        """Return copy of the states"""
+        return [sub_state.clone() for sub_state in state]
+
+    @classmethod
+    def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
         """
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
         """
         return [sub_state.split(1, dim=0) for sub_state in batch_states]
+
+    @classmethod
+    def batch_unsplit_states(
+        cls, batch_states: list[list[torch.Tensor]], device=None, dtype=None
+    ) -> list[torch.Tensor]:
+        """
+        Concatenate a batch of decoder state to a packed state. Inverse of `batch_split_states`.
+        """
+        return [
+            torch.stack([state[0] for state in batch_states], dim=0).to(device=device, dtype=dtype),
+        ]
 
     def batch_copy_states(
         self,
@@ -1148,19 +1169,53 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         cls,
         src_states: Tuple[torch.Tensor, torch.Tensor],
         dst_states: Tuple[torch.Tensor, torch.Tensor],
+        batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
-        dst_states[0].copy_(src_states[0])
-        dst_states[1].copy_(src_states[1])
+        if batch_size is None:
+            dst_states[0].copy_(src_states[0])
+            dst_states[1].copy_(src_states[1])
+        else:
+            dst_states[0][:, :batch_size].copy_(src_states[0][:, :batch_size])
+            dst_states[1][:, :batch_size].copy_(src_states[1][:, :batch_size])
 
+    @classmethod
+    def clone_state(cls, state: tuple[torch.Tensor, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return copy of the states"""
+        return state[0].clone(), state[1].clone()
+
+    @classmethod
     def batch_split_states(
-        self, batch_states: Tuple[torch.Tensor, torch.Tensor]
-    ) -> list[Tuple[torch.Tensor, torch.Tensor]]:
+        cls, batch_states: tuple[torch.Tensor, torch.Tensor]
+    ) -> list[tuple[torch.Tensor, torch.Tensor]]:
         """
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
         """
-        return list(zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1)))
+        return [
+            (sub_state_1.squeeze(1), sub_state_2.squeeze(1))
+            for sub_state_1, sub_state_2 in zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1))
+        ]
+
+    @classmethod
+    def batch_unsplit_states(
+        cls, batch_states: list[tuple[torch.Tensor, torch.Tensor]], device=None, dtype=None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Concatenate a batch of decoder state to a packed state. Inverse of `batch_split_states`.
+
+        Args:
+            batch_states (list): batch of decoder states
+                B x ([L x (H)], [L x (H)])
+
+        Returns:
+            (tuple): decoder states
+                (L x B x H, L x B x H)
+        """
+        return (
+            torch.stack([state[0] for state in batch_states], dim=1).to(device=device, dtype=dtype),
+            torch.stack([state[1] for state in batch_states], dim=1).to(device=device, dtype=dtype),
+        )
 
     def batch_copy_states(
         self,

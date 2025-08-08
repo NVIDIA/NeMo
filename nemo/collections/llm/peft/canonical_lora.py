@@ -81,7 +81,7 @@ class LoRALinearSplitQKV(AdapterWrapper):
         qkv_4d = torch.cat([query_4d, key_4d, value_4d], dim=2)
         adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
 
-        return linear_output + adapter_output, bias
+        return linear_output + adapter_output.reshape(linear_output.shape), bias
 
 
 class LoRALinearSplitFC1UpGate(AdapterWrapper):
@@ -99,7 +99,7 @@ class LoRALinearSplitFC1UpGate(AdapterWrapper):
         adapter_output_gate = self.adapter.adapter_gate(layernorm_output)
         adapter_output_up = self.adapter.adapter_up(layernorm_output)
         adapter_output = torch.cat([adapter_output_gate, adapter_output_up], dim=2)
-        return linear_output + adapter_output, bias
+        return linear_output + adapter_output.reshape(linear_output.shape), bias
 
 
 @dataclass
@@ -230,7 +230,9 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                     m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
                 )
 
-            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm, base_linear_is_parallel = (
+                get_adapter_attributes_from_linear(m)
+            )
 
             adapter_kwargs = dict(
                 dim=self.dim,
@@ -247,6 +249,7 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                 alpha=self.alpha,
                 is_expert=is_expert_linear(full_name),
                 disable_sequence_parallel_comm=disable_sp_comm,
+                base_linear_is_parallel=base_linear_is_parallel,
             )
             if name in ['linear_proj', 'linear_fc2']:
                 adapter = ParallelLinearAdapter(in_features, out_features, **adapter_kwargs)

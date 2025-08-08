@@ -33,6 +33,7 @@ from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
+from tests.collections.asr.decoding.utils import load_audio
 
 RNNT_MODEL = "stt_en_conformer_transducer_small"
 CTC_MODEL = "nvidia/stt_en_conformer_ctc_small"
@@ -47,13 +48,6 @@ if torch.cuda.is_available():
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
 ) or numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__)
-
-
-def load_audio(file_path, target_sr=16000):
-    import librosa
-
-    audio, sr = librosa.load(file_path, sr=target_sr)
-    return torch.tensor(audio, dtype=torch.float32), sr
 
 
 # available audio filename fixtures
@@ -378,9 +372,9 @@ class TestRNNTDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {"search_type": "malsd_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
-            {"search_type": "maes_batch", "allow_cuda_graphs": False, "ngram_lm_alpha": 0.3},
-            {"search_type": "malsd_batch", "allow_cuda_graphs": True, "ngram_lm_alpha": 0.3},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
+            {"search_type": "maes_batch", "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
     @pytest.mark.parametrize("batch_size", [4])
@@ -401,7 +395,6 @@ class TestRNNTDecoding:
         blank_lm_score_mode,
     ):
         device = torch.device("cuda")
-        beam_config["ngram_lm_model"] = kenlm_model_path
 
         num_samples = min(batch_size, len(test_audio_filenames))
         model = rnnt_model.to(device)
@@ -411,6 +404,10 @@ class TestRNNTDecoding:
         )
 
         vocab_size = model.tokenizer.vocab_size
+
+        fusion_models = [NGramGPULanguageModel.from_file(lm_path=kenlm_model_path, vocab_size=vocab_size)]
+        fusion_models_alpha = [0.3]
+
         decoding = BeamBatchedRNNTInfer(
             model.decoder,
             model.joint,
@@ -420,6 +417,8 @@ class TestRNNTDecoding:
             return_best_hypothesis=True,
             pruning_mode=pruning_mode,
             blank_lm_score_mode=blank_lm_score_mode,
+            fusion_models=fusion_models,
+            fusion_models_alpha=fusion_models_alpha,
             **beam_config,
         )
 
@@ -563,16 +562,8 @@ class TestTDTDecoding:
     @pytest.mark.parametrize(
         "beam_config",
         [
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": False,
-                "ngram_lm_alpha": 0.3,
-            },
-            {
-                "search_type": "malsd_batch",
-                "allow_cuda_graphs": True,
-                "ngram_lm_alpha": 0.3,
-            },
+            {"search_type": "malsd_batch", "allow_cuda_graphs": False},
+            {"search_type": "malsd_batch", "allow_cuda_graphs": True},
         ],
     )
     @pytest.mark.parametrize("batch_size", [4])
@@ -593,7 +584,6 @@ class TestTDTDecoding:
         blank_lm_score_mode,
     ):
         device = torch.device("cuda")
-        beam_config["ngram_lm_model"] = kenlm_model_path
 
         num_samples = min(batch_size, len(test_audio_filenames))
         model = tdt_model.to(device)
@@ -606,6 +596,10 @@ class TestTDTDecoding:
         durations = list(model_config["model_defaults"]["tdt_durations"])
 
         vocab_size = model.tokenizer.vocab_size
+
+        fusion_models = [NGramGPULanguageModel.from_file(lm_path=kenlm_model_path, vocab_size=vocab_size)]
+        fusion_models_alpha = [0.3]
+
         decoding = BeamBatchedTDTInfer(
             model.decoder,
             model.joint,
@@ -616,6 +610,8 @@ class TestTDTDecoding:
             return_best_hypothesis=True,
             pruning_mode=pruning_mode,
             blank_lm_score_mode=blank_lm_score_mode,
+            fusion_models=fusion_models,
+            fusion_models_alpha=fusion_models_alpha,
             **beam_config,
         )
 

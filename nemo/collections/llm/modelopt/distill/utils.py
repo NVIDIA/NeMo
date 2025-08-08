@@ -23,7 +23,7 @@ from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
 from megatron.core.pipeline_parallel.schedules import get_tensor_shapes
 from megatron.core.transformer import TransformerLayer
-from megatron.core.utils import get_model_config, get_model_type, get_model_xattn
+from megatron.core.utils import get_model_config, get_model_type
 
 from nemo import lightning as nl
 from nemo.collections import llm
@@ -172,8 +172,7 @@ def adjust_distillation_model_for_mcore(model: DistillationModel, distill_cfg: D
     # NOTE: If re-placed, above losses need modifcation as `TransformerConfig` has non-pickleable elements.
     existing_state = mto.ModeloptStateManager(model).state_dict()
     assert len(existing_state) == 1 and existing_state[0][0] == "kd_loss", f"{existing_state=}"
-    # mto.ModeloptStateManager.remove_state(model)
-    delattr(model, mto.ModeloptStateManager._state_key)  # Use above method from modelopt 0.27
+    mto.ModeloptStateManager.remove_state(model)
 
     # Hide teacher during `sharded_state_dict` method.
     def _sharded_state_dict(self, *args, **kwargs) -> "ShardedStateDict":
@@ -262,7 +261,6 @@ def get_tensor_shapes_adjust_fn_for_distillation(
         rank = parallel_state.get_pipeline_model_parallel_rank()
         teacher_config = get_model_config(model.teacher_model)
         teacher_model_type = get_model_type(model.teacher_model)
-        teacher_encoder_decoder_xattn = get_model_xattn(model.teacher_model)
 
         teacher_recv_tensor_shapes = get_tensor_shapes(
             rank=rank - 1,
@@ -271,7 +269,6 @@ def get_tensor_shapes_adjust_fn_for_distillation(
             micro_batch_size=micro_batch_size,
             decoder_seq_length=decoder_seq_length,
             config=teacher_config,
-            encoder_decoder_xattn=teacher_encoder_decoder_xattn,
         )
         teacher_send_tensor_shapes = get_tensor_shapes(
             rank=rank,
@@ -280,7 +277,6 @@ def get_tensor_shapes_adjust_fn_for_distillation(
             micro_batch_size=micro_batch_size,
             decoder_seq_length=decoder_seq_length,
             config=teacher_config,
-            encoder_decoder_xattn=teacher_encoder_decoder_xattn,
         )
         model.set_student_input_tensor_shape(recv_tensor_shapes)
 
