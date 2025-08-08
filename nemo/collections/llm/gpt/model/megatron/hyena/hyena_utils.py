@@ -54,10 +54,14 @@ except ImportError:
 
 
 try:
+    from cuhyena.causal_conv1d import causal_conv1d
     from cuhyena.b2b_causal_conv1d import b2b_causal_conv1d
     from cuhyena.fft_causal_conv1d import fft_causal_conv1d
     from cuhyena.fft_causal_conv1d import short_fft_is_available as is_fused_supported
 except ImportError:
+    def causal_conv1d(*args, **kwargs):
+        """Not imported: causal_conv1d. An error will be raised if this is called."""
+        raise ImportError("cuhyena not installed. causal_conv1d is not available.")
 
     def b2b_causal_conv1d(*args, **kwargs):
         """Not imported: b2b_causal_conv1d. An error will be raised if this is called."""
@@ -1178,6 +1182,8 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         self.use_conv_bias = bias
         self.use_fast_causal_conv = use_fast_causal_conv
         self.num_groups = num_groups
+        self.transformer_config = transformer_config
+        self.use_cuhyena = transformer_config.use_cuhyena
 
         if self.num_groups is None:
             self.num_groups = self.d_model
@@ -1251,9 +1257,12 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         # maybe handle num_groups
         weight = weight.repeat_interleave(self.group_dim, dim=0)
 
-        if self.use_fast_causal_conv:
-            y = causal_conv1d_fn(x, weight, bias=None, activation=None)[..., pad_size:]
-        else:
+        if self.use_fast_causal_conv:  # hyena_proj_conv case
+            if self.use_cuhyena:  # hyena_proj_conv of LI layer when cuhyena is enabled
+                y = causal_conv1d(x, weight)[..., pad_size:]
+            else:
+                y = causal_conv1d_fn(x, weight, bias=None, activation=None)[..., pad_size:]
+        else:  # hyena_short_conv case
 
             y = F.conv1d(
                 x,
