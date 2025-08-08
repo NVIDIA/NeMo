@@ -64,7 +64,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     This is useful, for example, in code-switched scenarios where each segment is spoken in a different language.
 
     Chunking:
-    If `enable_parallel_chunking` is True, each audio sample is split into optimally sized chunks
+    If `enable_chunking` is True, each audio sample is split into optimally sized chunks
     (see `find_optimal_chunk_size` and `chunk_waveform`). This is useful for long audio inputs,
     allowing the model to process them in manageable segments.
     """
@@ -73,20 +73,20 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self,
         tokenizer: TokenizerSpec,
         prompt: PromptFormatter,
-        enable_parallel_chunking: bool = False,
+        enable_chunking: bool = False,
     ):
         super().__init__()
         self.tokenizer = tokenizer
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.padding_value = self.tokenizer.pad_id
         self.prompt = prompt
-        self.enable_parallel_chunking = enable_parallel_chunking
+        self.enable_chunking = enable_chunking
 
     def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
         audio, audio_lens, cuts = self.load_audio(cuts)
 
         # Will work if batch_size is set to 1.
-        if self.enable_parallel_chunking:
+        if self.enable_chunking:
             # If dynamic chunking is enabled, split each audio sample into chunks.
             new_audio = []
             new_audio_lens = []

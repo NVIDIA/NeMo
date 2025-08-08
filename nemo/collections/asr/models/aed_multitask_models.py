@@ -43,7 +43,6 @@ from nemo.collections.asr.parts.mixins.transcription import (
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
-from nemo.collections.asr.parts.utils.chunking_utils import merge_hypotheses_list, merge_parallel_chunks
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import (
     get_forced_aligned_timestamps_with_external_model,
@@ -71,7 +70,10 @@ from nemo.core.neural_types import (
 )
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
-
+from nemo.collections.asr.parts.utils.chunking_utils import (
+    merge_parallel_chunks,
+    merge_hypotheses_list
+)
 __all__ = ['EncDecMultiTaskModel']
 
 
@@ -117,8 +119,8 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     """
     Configuration for Multi Task Transcription
 
-    enable_parallel_chunking: bool = False
-            Whether to enable parallel processing of audio chunks for long-form audio.
+    enable_chunking: bool = False 
+            Whether to enable parallel processing of audio chunks for long-form audio. 
             It will be automatically enabled for batch size 1.
     """
 
@@ -129,7 +131,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
         default_factory=lambda: MultiTaskTranscriptionInternalConfig()
     )
-    enable_parallel_chunking: bool = False
+    enable_chunking: bool = False 
 
     def __post_init__(self):
         self.prompt = parse_multitask_prompt(self.prompt)
@@ -540,10 +542,14 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
             as paths2audio_files 
         """
+<<<<<<< Updated upstream
         print("transcribe")
         print("transcribe")   
         
         import pdb; pdb.set_trace()
+=======
+        
+>>>>>>> Stashed changes
         if timestamps is not None:
             if self.cfg.get('timestamps_asr_model', None) is None:
                 # TODO: Handle this key gracefully later
@@ -575,14 +581,15 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 )
             trcfg = override_config
             trcfg.timestamps = timestamps
-        # Check if only one audio is provided with string
+        # Check if only one audio is provided with string 
         is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl"))
         # Check if it is provided as a list of strings
         is_one_audio = is_one_audio or (isinstance(audio, list) and len(audio) == 1)
         # Check if batch_size is one
-        trcfg.enable_parallel_chunking = is_one_audio or (override_config.batch_size == 1)
+        import pdb; pdb.set_trace()
+        trcfg.enable_chunking = is_one_audio or (override_config.batch_size == 1)
         results = super().transcribe(audio=audio, override_config=trcfg)
-        if trcfg.enable_parallel_chunking:
+        if trcfg.enable_chunking:
             results = merge_hypotheses_list(results, trcfg, self.encoder.subsampling_factor)
 
         return results
@@ -595,8 +602,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
         global_rank = config.get("global_rank", self.global_rank)
         world_size = config.get("world_size", self.world_size)
-        enable_parallel_chunking = config.get("enable_parallel_chunking", False)
-        if enable_parallel_chunking:
+        enable_chunking = config.get("enable_chunking", False)
+        if enable_chunking:
             # Adding this to support processing audio files of arbitrary length by chunking them into hour-long segments.
             config.cut_into_windows_duration = 3600
             config.cut_into_windows_hop = 3600
@@ -607,7 +614,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             dataset=PromptedAudioToTextLhotseDataset(
                 tokenizer=self.tokenizer,
                 prompt=self.prompt,
-                enable_parallel_chunking=enable_parallel_chunking,  # <-- enables chunking
+                enable_chunking=enable_chunking,  # <-- enables chunking
             ),
             tokenizer=self.tokenizer,
         )
@@ -1006,11 +1013,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             batch=batch,
         )
 
+    
+
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
         `transcribe()` and `transcribe_generator()` to process the model's outputs.
-        If parallel chunking was used (enable_parallel_chunking=True), merges the hypotheses from each chunk
+        If parallel chunking was used (enable_chunking=True), merges the hypotheses from each chunk
         into a single hypothesis, joining text, token sequences, and timestamps.
 
         Args:
@@ -1033,7 +1042,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         del log_probs
         num_chunks = enc_states.shape[0]
         # Repear decoder_input_ids to match number of chunks
-        if trcfg.enable_parallel_chunking and num_chunks > decoder_input_ids.shape[0]:
+        if trcfg.enable_chunking and num_chunks > decoder_input_ids.shape[0]:
             decoder_input_ids = decoder_input_ids.repeat(num_chunks, 1)
         hypotheses = self.decoding.decode_predictions_tensor(
             encoder_hidden_states=enc_states,
@@ -1041,7 +1050,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             decoder_input_ids=decoder_input_ids,
             return_hypotheses=trcfg.return_hypotheses,
         )
-        merge_to_be_done = trcfg.enable_parallel_chunking and len(hypotheses) > 1
+        merge_to_be_done = trcfg.enable_chunking and len(hypotheses) > 1
 
         del enc_states, enc_mask, decoder_input_ids
 
@@ -1058,23 +1067,23 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             hypotheses = process_aed_timestamp_outputs(
                 hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
-
-        if merge_to_be_done:
+            
+        if merge_to_be_done:            
             merged_hypotheses = merge_parallel_chunks(
                 hypotheses=hypotheses,
                 encoded_len=encoded_len,
                 model=self,
                 subsampling_factor=self.encoder.subsampling_factor,
                 window_stride=self.cfg['preprocessor']['window_stride'],
-                tokenizer=self.tokenizer,
+                tokenizer=self.tokenizer
             )
-            # Inject the id of the cut to hypothese to later be used for separate batches
+            #Inject the id of the cut to hypothese to later be used for separate batches
             setattr(merged_hypotheses, 'id', batch.cuts[0].id.split("-", 1)[0])
             return [merged_hypotheses]
-
-        if trcfg.enable_parallel_chunking and len(hypotheses) == 1:
-            setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])
-
+        
+        if  trcfg.enable_chunking and  len(hypotheses) == 1:
+            setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])            
+        
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
@@ -1101,7 +1110,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
             batch_size = min(config['batch_size'], len(config['paths2audio_files']))
         # check this part!
-        enable_parallel_chunking = batch_size == 1  # <-- enables chunking for batch size 1
+        enable_chunking = batch_size == 1  # <-- enables chunking for batch size 1
         dl_config = {
             'manifest_filepath': manifest_filepath,
             'sample_rate': self.preprocessor._sample_rate,
@@ -1118,7 +1127,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             'channel_selector': config.get('channel_selector', None),
             'pad_min_duration': config.get('pad_min_duration', 1.0),
             'pad_direction': config.get('pad_direction', 'both'),
-            'enable_parallel_chunking': enable_parallel_chunking,
+            'enable_chunking': enable_chunking,
         }
 
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
