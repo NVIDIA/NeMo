@@ -14,7 +14,7 @@
 import os
 import random
 import time
-from typing import List
+from typing import List, Sequence, Tuple
 import soundfile as sf
 import torch
 import wandb
@@ -145,32 +145,29 @@ class MagpieTTSModel(ModelPT):
             audio_embeddings.append(nn.Embedding(self.num_all_tokens_per_codebook, cfg.embedding_dim))
         self.audio_embeddings = nn.ModuleList(audio_embeddings)
 
-        if self.model_type != 'decoder_pretrain_synthesizer':
-            # Decoder pretrain synthesizer doesn't have transcript encoder/text embeddings
+        if self.use_bpe_char_tokenizer:
+            # BPE char tokenizer
+            assert len(self.tokenizer.tokenizers) == 1, "BPE char tokenizer should only be used with one tokenizer"
+            tokenizer_name = self.tokenizer.tokenizer_names[0]
+            tokenizer = self.tokenizer.tokenizers[tokenizer_name]
+            subword_vocab = tokenizer.get_vocab()
+            # special tokens will be stored as it is in the char_vocab
+            # Each special token will only be mapped to one char id
+            special_vocab = {
+                '<BOS>': self.bos_id,
+                '<EOS>': self.eos_id,
+            }
+            self.cas_encoder = CharAwareSubwordEncoder(
+                d_embed=cfg.embedding_dim,
+                llm_tokenizer_vocab=subword_vocab,
+                subword_padding_idx=self.tokenizer.pad,
+                special_vocab=special_vocab
+            )
+        else:
+            # Regular text embedding
+            self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
 
-            if self.use_bpe_char_tokenizer:
-                # BPE char tokenizer
-                assert len(self.tokenizer.tokenizers) == 1, "BPE char tokenizer should only be used with one tokenizer"
-                tokenizer_name = self.tokenizer.tokenizer_names[0]
-                tokenizer = self.tokenizer.tokenizers[tokenizer_name]
-                subword_vocab = tokenizer.get_vocab()
-                # special tokens will be stored as it is in the char_vocab
-                # Each special token will only be mapped to one char id
-                special_vocab = {
-                    '<BOS>': self.bos_id,
-                    '<EOS>': self.eos_id,
-                }
-                self.cas_encoder = CharAwareSubwordEncoder(
-                    d_embed=cfg.embedding_dim,
-                    llm_tokenizer_vocab=subword_vocab,
-                    subword_padding_idx=self.tokenizer.pad,
-                    special_vocab=special_vocab
-                )
-            else:
-                # Regular text embedding
-                self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
-
-            self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
+        self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
         
@@ -208,18 +205,7 @@ class MagpieTTSModel(ModelPT):
                 temperature=15.0,
             )
 
-        if self.model_type == 'single_encoder_sv_tts':
-            # Context audio goes through Titanet to get speaker embedding
-            # Speaker embedding is added to the transcript encoder output
-            self._speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
-                model_name='titanet_large'
-            )
-            self._speaker_verification_model.freeze()  #Lightning does requires_grad = False and self.eval()
-            self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
-            self.transcript_decoder_layers = [
-                idx for idx in range(self.decoder.n_layers)
-            ]  # All layers are used for text
-        elif self.model_type == 'multi_encoder_context_tts':
+        if self.model_type == 'multi_encoder_context_tts':
             # Transcript and context audio/text go to different encoders.
             # Output of the encoders goes to the decoder through the cross-attention layers
             self.transcript_decoder_layers = cfg.get('transcript_decoder_layers', [3, 4, 5, 6, 7, 8])
@@ -245,10 +231,6 @@ class MagpieTTSModel(ModelPT):
             self.transcript_decoder_layers = [
                 idx for idx in range(cfg.decoder.n_layers)
             ]  # All layers are used for text
-
-        elif self.model_type == 'decoder_pretrain_synthesizer':
-            # This is for pretraining the decoder only on audio data using next frame prediction loss
-            assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
 
@@ -874,23 +856,118 @@ class MagpieTTSModel(ModelPT):
 
         return text_embedded
 
-    def compute_alignment_loss(self, attention_scores, text_lens, audio_lens, dec_context_size=0):
+    def compute_alignment_loss(self, attention_scores, text_lens, audio_lens, dec_context_size=0, context_lens=None):
         # attention scores: List of (B, C, audio_timesteps, text_timesteps)
         attention_scores_combined = torch.cat(attention_scores, dim=1)  # (B, C, audio_timesteps, text_timesteps)
         attention_scores_mean = attention_scores_combined.mean(
             dim=1, keepdim=True
         )  # (B, 1, audio_timesteps, text_timesteps)
-        attention_scores_mean = attention_scores_mean[
-            :, :, dec_context_size:, :
-        ]  # Remove the context audio embeddings from the attention scores
+        if context_lens is not None:
+            attention_scores_mean = attention_scores_mean.squeeze(1)  # (B, audio_timesteps, text_timesteps)
+            attention_scores_mean = self.slice_pred_embeddings(
+                attention_scores_mean, context_lens=context_lens, target_lens=audio_lens
+            ) # (B, T_max, text_timesteps) where T_max = max(audio_lens)
+            attention_scores_mean = attention_scores_mean.unsqueeze(1)  # (B, 1, T_max, text_timesteps)
+        
+        # attention_scores_mean = attention_scores_mean[
+        #     :, :, dec_context_size:, :
+        # ]  # Remove the context audio embeddings from the attention scores
+        
         alignment_loss = self.alignment_loss(
             attn_logprob=attention_scores_mean, in_lens=text_lens, out_lens=audio_lens
         )
+
         return alignment_loss
 
+    def join_embeddings_temporally(
+        self,
+        embeddings: Sequence[torch.Tensor],     # [ (B, Ti, E), … ]
+        lengths:  Sequence[torch.Tensor],     # [ (B,), … ]  same order/size as `embeddings`
+        pad_embed: torch.Tensor | None = None # (E,)  defaults to zeros
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Merges Multiple Embedding sequences into a single Embedding Sequence.
+
+        Args:
+            embeddings  : Sequence of tensors, each of shape (B, Ti, E) — batch, time, embedding
+            lengths     : Sequence of tensors, each of shape (B,)
+            pad_embed   : (E,)  — embedding to use for padding, defaults to zeros
+        
+        Returns:
+            joined      : (B, max_sum_len, E)  — merged & padded
+            out_lengths : (B,)  — total lengths of each batch element after merging
+        """
+        if len(embeddings) == 0:
+            raise ValueError("contexts must be non-empty")
+
+        B, _, E = embeddings[0].shape
+        device = embeddings[0].device
+        dtype = embeddings[0].dtype
+
+        # 1. compute output sizes
+        len_stack   = torch.stack(tuple(lengths), dim=0)          # (N, B)
+        out_lengths = len_stack.sum(0)
+        max_len     = int(out_lengths.max())
+
+        if pad_embed is None:
+            pad_embed = torch.zeros(E, dtype=dtype, device=device)
+
+        joined = pad_embed.expand(B, max_len, E).clone()          # (B,max_len,E)
+
+        # batch row indices
+        batch_rows = torch.arange(B, device=device).unsqueeze(1)  # (B,1)
+
+        # running offset keeps “write cursor” for each row
+        offset = torch.zeros(B, dtype=torch.long, device=device)  # (B,)
+
+        for i, (embedding_i, len_i) in enumerate(zip(embeddings, lengths)):
+            Ti = embedding_i.shape[1]
+            t_idx  = torch.arange(Ti, device=device) # (Ti,)
+            mask   = t_idx.unsqueeze(0) < len_i.unsqueeze(1) # (B,Ti)
+
+            # destination columns: offset + t
+            dest_cols = offset.unsqueeze(1) + t_idx # (B,Ti)
+
+            # Assign embedding_i to the correct positions in joined
+            joined[batch_rows.expand_as(mask)[mask],
+                dest_cols[mask]] = embedding_i[mask]
+
+            # move cursor past this segment
+            offset += len_i
+
+        return joined, out_lengths
+    
+    def slice_pred_embeddings(self, transformer_out, context_lens, target_lens):
+        """
+        Slices the transformer output to get the predicted embeddings for the target sequence.
+        Args:
+            transformer_out: (B, T, E)
+            context_lens: (B,) - start index of target per batch
+            target_lens: (B,) - length of target per batch
+        
+        Returns: (B, T_max, E) tensor where T_max = max(target_lens)
+        """
+        B, T, E = transformer_out.shape
+        device = transformer_out.device
+
+        # Compute max target length in batch for padding
+        max_len = target_lens.max().item()
+
+        # Build index tensor for each batch element
+        # Shape: (B, max_len)
+        range_indices = torch.arange(max_len, device=device).unsqueeze(0).expand(B, -1)
+        gather_indices = context_lens.unsqueeze(1) + range_indices  # (B, max_len)
+        gather_indices = torch.clamp(gather_indices, max=transformer_out.size(1) - 1)
+        
+        # Expand to shape (B, max_len, E) for gather
+        gather_indices_exp = gather_indices.unsqueeze(2).expand(-1, -1, E)
+        sliced = torch.gather(transformer_out, dim=1, index=gather_indices_exp)
+        return sliced
+    
     def prepare_context_tensors(self, batch):
         dec_context_size = 0
         additional_decoder_input = None
+        additional_decoder_input_lens = None
         additional_decoder_mask = None
         context_audio_codes = None
         context_audio_codes_lens = None
@@ -902,104 +979,89 @@ class MagpieTTSModel(ModelPT):
         text = None
         text_lens = None
 
-        # self.model_type must be one of
-        # [single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts, decoder_ce, decoder_pretrain_synthesizer]
-        if self.model_type != 'decoder_pretrain_synthesizer':
-            text = batch['text']
-            text_lens = batch['text_lens']
-            text_mask = get_mask_from_lengths(text_lens)  # (B, T)
-            text_embedded = self.embed_text(text, text_mask)  # (B, T, E)
-            text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
-            _attn_prior = batch.get('align_prior_matrix', None)
-            _attn_prior = self.scale_prior(_attn_prior, self.global_step)
+        text = batch['text']
+        text_lens = batch['text_lens']
+        text_mask = get_mask_from_lengths(text_lens)  # (B, T)
+        text_embedded = self.embed_text(text, text_mask)  # (B, T, E)
+        text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
+        _attn_prior = batch.get('align_prior_matrix', None)
+        _attn_prior = self.scale_prior(_attn_prior, self.global_step)
 
-        if self.model_type == 'single_encoder_sv_tts':
-            target_audio_16khz = batch['audio_16khz']
-            target_audio_lens_16khz = batch['audio_lens_16khz']
-            speaker_embeddings = self.get_speaker_embeddings(target_audio_16khz, target_audio_lens_16khz)
-            speaker_embeddings_projected = self.speaker_projection_layer(speaker_embeddings)
-            cond = text_encoder_out + speaker_embeddings_projected.unsqueeze(1)
-            cond_mask = text_mask
-            multi_encoder_mapping = None
-            attn_prior = _attn_prior
-        elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts', 'decoder_ce']:
-            if 'context_audio_codes' in batch:
-                context_audio_codes = batch['context_audio_codes']
-                context_audio_codes_lens = batch['context_audio_codes_lens']
-            else:
-                context_audio_codes, context_audio_codes_lens = self.audio_to_codes(
-                    batch['context_audio'], batch['context_audio_lens'], audio_type='context'
+        
+        if 'context_audio_codes' in batch:
+            context_audio_codes = batch['context_audio_codes']
+            context_audio_codes_lens = batch['context_audio_codes_lens']
+        else:
+            context_audio_codes, context_audio_codes_lens = self.audio_to_codes(
+                batch['context_audio'], batch['context_audio_lens'], audio_type='context'
+            )
+        context_audio_embedded = self.embed_audio_tokens(context_audio_codes)  # (B, T', E)
+
+        if self.use_text_conditioning_encoder:
+            context_text_tokens = batch['context_text_tokens']
+            context_text_lens = batch['context_text_tokens_lens']
+            context_text_embedded = self.context_text_embedding(context_text_tokens)  # (B, L, E)
+            # Pad context_audio_embedded or context_text_embedded so that they have same number of timesteps
+            if context_audio_embedded.size(1) < context_text_embedded.size(1):
+                padding = torch.zeros(
+                    context_audio_embedded.size(0),
+                    context_text_embedded.size(1) - context_audio_embedded.size(1),
+                    context_audio_embedded.size(2),
+                    device=context_audio_embedded.device,
                 )
-            context_audio_embedded = self.embed_audio_tokens(context_audio_codes)  # (B, T', E)
-
-            if self.use_text_conditioning_encoder:
-                context_text_tokens = batch['context_text_tokens']
-                context_text_lens = batch['context_text_tokens_lens']
-                context_text_embedded = self.context_text_embedding(context_text_tokens)  # (B, L, E)
-                # Pad context_audio_embedded or context_text_embedded so that they have same number of timesteps
-                if context_audio_embedded.size(1) < context_text_embedded.size(1):
-                    padding = torch.zeros(
-                        context_audio_embedded.size(0),
-                        context_text_embedded.size(1) - context_audio_embedded.size(1),
-                        context_audio_embedded.size(2),
-                        device=context_audio_embedded.device,
-                    )
-                    context_audio_embedded = torch.cat([context_audio_embedded, padding], dim=1)
-                elif context_audio_embedded.size(1) > context_text_embedded.size(1):
-                    padding = torch.zeros(
-                        context_text_embedded.size(0),
-                        context_audio_embedded.size(1) - context_text_embedded.size(1),
-                        context_text_embedded.size(2),
-                        device=context_text_embedded.device,
-                    )
-                    context_text_embedded = torch.cat([context_text_embedded, padding], dim=1)  # (B, T, E)
-                has_text_context = batch['has_text_context'].unsqueeze(-1).unsqueeze(-1).float()  # (B, 1, 1)
-                context_input_embedded = (
-                    has_text_context * context_text_embedded + (1 - has_text_context) * context_audio_embedded
+                context_audio_embedded = torch.cat([context_audio_embedded, padding], dim=1)
+            elif context_audio_embedded.size(1) > context_text_embedded.size(1):
+                padding = torch.zeros(
+                    context_text_embedded.size(0),
+                    context_audio_embedded.size(1) - context_text_embedded.size(1),
+                    context_text_embedded.size(2),
+                    device=context_text_embedded.device,
                 )
-                context_input_lens = (
-                    batch['has_text_context'].float() * context_text_lens
-                    + (1 - batch['has_text_context'].float()) * context_audio_codes_lens
-                )  # (B,)
-            else:
-                context_input_embedded = context_audio_embedded
-                context_input_lens = context_audio_codes_lens
+                context_text_embedded = torch.cat([context_text_embedded, padding], dim=1)  # (B, T, E)
+            has_text_context = batch['has_text_context'].unsqueeze(-1).unsqueeze(-1).float()  # (B, 1, 1)
+            context_input_embedded = (
+                has_text_context * context_text_embedded + (1 - has_text_context) * context_audio_embedded
+            )
+            context_input_lens = (
+                batch['has_text_context'].float() * context_text_lens
+                + (1 - batch['has_text_context'].float()) * context_audio_codes_lens
+            )  # (B,)
+        else:
+            context_input_embedded = context_audio_embedded
+            context_input_lens = context_audio_codes_lens
 
-            context_mask = get_mask_from_lengths(context_input_lens)
+        context_mask = get_mask_from_lengths(context_input_lens)
 
-            if self.model_type == 'multi_encoder_context_tts':
+        if self.model_type == 'multi_encoder_context_tts':
+            context_embeddings = self.context_encoder(
+                context_input_embedded, context_mask, cond=None, cond_mask=None
+            )['output']
+            cond = [text_encoder_out, context_embeddings]
+            cond_mask = [text_mask, context_mask]
+            multi_encoder_mapping = self.multi_encoder_mapping
+            attn_prior = [_attn_prior, None]
+
+        elif self.model_type in ['decoder_context_tts', 'decoder_ce']:
+            dec_context_size = context_mask.size(1)
+            if self.model_type == 'decoder_context_tts':
+                context_embeddings = context_input_embedded
+            elif self.model_type == 'decoder_ce':
                 context_embeddings = self.context_encoder(
                     context_input_embedded, context_mask, cond=None, cond_mask=None
                 )['output']
-                cond = [text_encoder_out, context_embeddings]
-                cond_mask = [text_mask, context_mask]
-                multi_encoder_mapping = self.multi_encoder_mapping
-                attn_prior = [_attn_prior, None]
-
-            elif self.model_type in ['decoder_context_tts', 'decoder_ce']:
-                dec_context_size = context_mask.size(1)
-                if self.model_type == 'decoder_context_tts':
-                    context_embeddings = context_input_embedded
-                elif self.model_type == 'decoder_ce':
-                    context_embeddings = self.context_encoder(
-                        context_input_embedded, context_mask, cond=None, cond_mask=None
-                    )['output']
-                attn_prior = _attn_prior
-                if attn_prior is not None:
-                    # B, audio_timesteps, text_timesteps
-                    padding_zeros = torch.zeros(
-                        attn_prior.size(0), dec_context_size, attn_prior.size(2), device=attn_prior.device
-                    )
-                    attn_prior = torch.cat([padding_zeros, attn_prior], dim=1)
-                cond = text_encoder_out
-                cond_mask = text_mask
-                multi_encoder_mapping = None
-                additional_decoder_input = context_embeddings
-                additional_decoder_mask = context_mask
-        elif self.model_type == 'decoder_pretrain_synthesizer':
-            pass
-        else:
-            raise ValueError(f"Unsupported model type {self.model_type}")
+            attn_prior = _attn_prior
+            if attn_prior is not None:
+                # B, audio_timesteps, text_timesteps
+                padding_zeros = torch.zeros(
+                    attn_prior.size(0), dec_context_size, attn_prior.size(2), device=attn_prior.device
+                )
+                attn_prior = torch.cat([padding_zeros, attn_prior], dim=1)
+            cond = text_encoder_out
+            cond_mask = text_mask
+            multi_encoder_mapping = None
+            additional_decoder_input = context_embeddings
+            additional_decoder_mask = context_mask
+            additional_decoder_input_lens = context_input_lens
 
         if attn_prior is not None and self.ctc_prior_layer_ids is not None:
             # Convert prior to a list of tensors, one for each layer
@@ -1019,6 +1081,7 @@ class MagpieTTSModel(ModelPT):
             'prior_used': _attn_prior is not None,
             'multi_encoder_mapping': multi_encoder_mapping,
             'additional_decoder_input': additional_decoder_input,
+            'additional_decoder_input_lens': additional_decoder_input_lens,
             'additional_decoder_mask': additional_decoder_mask,
             'dec_context_size': dec_context_size,
             'text': text,
@@ -1176,8 +1239,13 @@ class MagpieTTSModel(ModelPT):
                 audio_codes_embedded = self.embed_audio_tokens(audio_codes_input) # (B, T', E)
 
         if context_tensors['additional_decoder_input'] is not None:
-            dec_input_embedded = torch.cat([additional_decoder_input, audio_codes_embedded], dim=1)
-            dec_input_mask = torch.cat([additional_decoder_mask, audio_codes_mask], dim=1)
+            # dec_input_embedded = torch.cat([additional_decoder_input, audio_codes_embedded], dim=1)
+            # dec_input_mask = torch.cat([additional_decoder_mask, audio_codes_mask], dim=1)
+            dec_input_embedded, dec_input_length = self.join_embeddings_temporally(
+                [context_tensors['additional_decoder_input'], audio_codes_embedded],
+                [context_tensors['additional_decoder_input_lens'], audio_codes_lens_input],
+            )
+            dec_input_mask = get_mask_from_lengths(dec_input_length)
         else:
             dec_input_embedded = audio_codes_embedded
             dec_input_mask = audio_codes_mask
@@ -1226,6 +1294,20 @@ class MagpieTTSModel(ModelPT):
             attn_prior=attn_prior,
             multi_encoder_mapping=context_tensors['multi_encoder_mapping'],
         )
+
+        if context_tensors['additional_decoder_input'] is not None:
+            logits = self.slice_pred_embeddings(
+                logits,
+                context_tensors['additional_decoder_input_lens'],
+                audio_codes_lens_input,
+            )
+            dec_out = self.slice_pred_embeddings(
+                dec_out,
+                context_tensors['additional_decoder_input_lens'],
+                audio_codes_lens_input,
+            )
+
+
         # logits: (B, T', num_codebooks * num_tokens_per_codebook)
         # dec_out: (B, T', E)
         dec_context_size = context_tensors['dec_context_size']
@@ -1237,7 +1319,7 @@ class MagpieTTSModel(ModelPT):
             text_lens = context_tensors['text_lens']
             cross_attention_scores = [attn['cross_attn_probabilities'][1] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.ctc_prior_layer_ids]
             alignment_loss = self.compute_alignment_loss(
-                cross_attention_scores, text_lens, audio_codes_lens_target, dec_context_size
+                cross_attention_scores, text_lens, audio_codes_lens_target, dec_context_size, context_lens=context_tensors['additional_decoder_input_lens']
             )
             loss = self.codebook_loss_scale * codebook_loss + alignment_loss
         else:
