@@ -375,7 +375,7 @@ def oomptimizer(
             ), "--pretrained-name cannot be used together with --module-name/--config-path"
             click.echo(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
             if pretrained_name.endswith('.nemo'):
-                model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
+                model = ASRModel.restore_from(pretrained_name, trainer=trainer).to(device)
             else:
                 model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
         else:
