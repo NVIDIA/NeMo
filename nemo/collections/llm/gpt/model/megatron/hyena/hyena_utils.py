@@ -1068,7 +1068,7 @@ class ParallelShortHyenaOperator(nn.Module):
 
         world_size: int = get_tensor_model_parallel_world_size() if not local_init else 1
         # assert, if using fast_conv_mixer, then the hyena_short_conv_len must be 3
-        if use_fast_causal_conv:
+        if use_fast_causal_conv and not transformer_config.use_cuhyena:
             assert hyena_config.hyena_short_conv_len <= 4, "fast_conv_mixer requires hyena_short_conv_len <= 4"
 
         kernel_size = hyena_config.hyena_short_conv_len
