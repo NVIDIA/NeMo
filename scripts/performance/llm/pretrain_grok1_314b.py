@@ -293,15 +293,17 @@ def override_recipe_configs(
     etp_size: int = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
-    use_fsdp_double_buffer: Optional[bool] = None,
-    use_user_buffer_registration: bool = False,
-    use_sharp: bool = False,
     recompute_layers: int = 0,
     activation_offload_layers: int = 0,
     compute_dtype: str = None,
     fp8_recipe: str = None,
 ):
     recipe = pretrain_recipe(performance_mode=True)
+
+    use_fsdp_double_buffer=args.use_fsdp_double_buffer
+    use_user_buffer_registration=args.use_user_buffer_registration
+    use_sharp=args.use_sharp
+
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -382,12 +384,9 @@ if __name__ == "__main__":
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
-        use_fsdp_double_buffer,
-        use_user_buffer_registration,
-        use_sharp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:18]
+    ) = kwargs[:15]
 
     recipe = override_recipe_configs(
         args,
@@ -405,9 +404,6 @@ if __name__ == "__main__":
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
-        use_fsdp_double_buffer,
-        use_user_buffer_registration,
-        use_sharp,
         recompute_layers,
         activation_offload_layers,
         args.compute_dtype,
