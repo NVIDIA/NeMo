@@ -121,7 +121,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
 
     enable_chunking: bool = False 
             Whether to enable parallel processing of audio chunks for long-form audio. 
-            It will be automatically enabled for batch size 1.
+            If enabled, batch_size should be set to 1 or single audio be passed.
     """
 
     prompt: list[dict[str, dict[str, str]]] | None = None
@@ -508,7 +508,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     ) -> Union[List[str], List[Hypothesis]]:
         """
         Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
-        If a single audio file or batch_size==1 is used, enables parallel chunking for long-form audio.
         This allows the model to process long audio in manageable chunks and merge the results.
         Args:
             audio: (a single or list) of paths to audio files or a np.ndarray/tensor audio array or path 
@@ -1087,7 +1086,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
         Setup function for a temporary data loader which wraps the provided audio file.
-        If batch_size==1, enables parallel chunking for long-form inference.
         Args:
             config: A python dictionary which contains keys such as:
                 paths2audio_files: (a list) of paths to audio files. The files should be relatively short fragments. \
