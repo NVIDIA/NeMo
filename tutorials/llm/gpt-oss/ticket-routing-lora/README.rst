@@ -1,17 +1,17 @@
 Fine-tuning OpenAI GPT-OSS with NVIDIA NeMo Framework
 =====================================================
 
-`GPT-OSS <https://blogs.nvidia.com/blog/openai-gpt-oss/>`_ are open-weights large language models by OpenAI that deliver state-of-the-art performance on a variety of tasks including reasoning and tool use. They are available in two sizes `gpt-oss-120b` and `gpt-oss-20b`. Both models employ a mixture-of-experts (MoE) transformer architecture to enable high capacity while running efficiently on modern GPUs.
+`GPT-OSS <https://blogs.nvidia.com/blog/openai-gpt-oss/>`_ are open-weights large language models by OpenAI that deliver state-of-the-art performance on a variety of tasks including reasoning and tool use. They are available in two sizes `gpt-oss-120b` and `gpt-oss-20b`. Both models employ a mixture-of-experts (MoE) transformer architecture enabling them with a larger parameter count to tackle complex tasks while running efficiently on modern GPUs.
 
 Supervised Finetuning (SFT) and `Low-Rank Adaptation (LoRA) <https://arxiv.org/pdf/2106.09685>`__ are popular techniques to adapt models for specific usecases. `NVIDIA NeMo
-Framework <https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html>`__ provides tools to perform SFT and/or LoRA on GPT-OSS models to fit your use case.
+Framework <https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html>`__ provides tools to perform SFT and/or LoRA on gpt-oss models to fit your use case.
 
-For more comprehensive information on the NeMo framework's support for GPT-OSS, please refer to the `official documentation <https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/gpt_oss.html>`_.
+For more comprehensive information on the NeMo framework's support for gpt-oss, please refer to the `official documentation <https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/gpt_oss.html>`_.
 
 Objectives
 ----------
 
-Customer service is a key use case for agents. This tutorial demonstrates how to perform LoRA PEFT on `gpt-oss-20b <https://huggingface.co/openai/gpt-oss-20b>`_ for a simple customer-service ticket-routing use case using the NeMo framework. The `multilingual-customer-support-tickets <https://www.kaggle.com/datasets/tobiasbueck/multilingual-customer-support-tickets>`_ dataset on Kaggle contains labeled email tickets, including agent responses, priority, and queue. We use this dataset to fine-tune the model for queue prediction.
+Customer service is a key use case for many enterprises today. It's an area where AI agents have shown early signs of positive business outcomes. This tutorial demonstrates how to perform LoRA PEFT on `gpt-oss-20b <https://huggingface.co/openai/gpt-oss-20b>`_ for a simple customer-service ticket-routing use case using the NeMo framework. The `multilingual-customer-support-tickets <https://www.kaggle.com/datasets/tobiasbueck/multilingual-customer-support-tickets>`_ dataset on Kaggle contains labeled email tickets, including agent responses, priority, and queue. We use this dataset to fine-tune the model for queue prediction.
 
 Requirements
 -------------
