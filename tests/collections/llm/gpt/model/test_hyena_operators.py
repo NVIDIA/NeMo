@@ -27,6 +27,7 @@ import torch.distributed as dist
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
 
+from nemo.collections.llm.gpt.model.hyena import HyenaTestConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.engine import (
     adjust_filter_shape_for_broadcast,
     fftconv_func,
@@ -37,7 +38,6 @@ from nemo.collections.llm.gpt.model.megatron.hyena.engine import (
     step_iir,
 )
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
-from nemo.collections.llm.gpt.model.hyena import HyenaTestConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     ParallelCausalDepthwiseConv1d,
     ParallelHyenaOperator,
