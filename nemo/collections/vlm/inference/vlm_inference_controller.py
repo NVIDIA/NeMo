@@ -62,12 +62,20 @@ class VLMTextGenerationController(SimpleTextGenerationController):
             }
         return tokens, image_dict
 
-    def prep_inference_input(self, prompts_tokens: torch.Tensor, active_requests: OrderedDict[str, InferenceRequest]):
+    def prep_inference_input(
+        self,
+        prompts_tokens: torch.Tensor,
+        active_requests: OrderedDict[str, InferenceRequest],
+        use_attention_mask: bool = False,
+    ):
         """Preparing input data for inference, using respective wrapper's prep_inference_input method
 
         Args:
             prompts_tokens (torch.Tensor): A tensor of shape [batch_size, max_sequence_length]
             active_requests (OrderedDict[int, InferenceRequest]): The input active requests
+            use_attention_mask (bool): Whether to use an attention mask. Should be set to True only
+                when exclusively doing prefill (no decode) with variable prompt lengths.
+                Currently unused and added to match an expected interface in Mcore.
         """
         images = list(map(lambda request: request.encoder_prompt, active_requests.values()))
 
