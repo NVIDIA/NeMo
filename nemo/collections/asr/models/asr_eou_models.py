@@ -681,10 +681,20 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel, ASREOUModelMixin):
             "inputs": [
                 {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input", "name": "audio_signal"},
                 {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "audio_lengths"},
-                {"type": NeuralType(("B", "T"), LabelsType()), "seq_length": "input", "name": "text_tokens"},
-                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "text_token_lengths"},
-                {"type": NeuralType(("B", "T"), LabelsType()), "seq_length": "input", "name": "eou_targets"},
-                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input", "name": "eou_target_lengths"},
+                {
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "name": "text_tokens",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "output", "name": "text_token_lengths"},
+                {
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "name": "eou_targets",
+                    "vocab_size": 4,
+                },
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "output", "name": "eou_target_lengths"},
             ],
         }
 
