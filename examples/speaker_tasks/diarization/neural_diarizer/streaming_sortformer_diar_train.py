@@ -24,13 +24,13 @@ from nemo.utils.exp_manager import exp_manager
 """
 Example training session (single node training)
 
-python ./sortformer_diar_train.py --config-path='../conf/neural_diarizer' \
+python ./streaming_sortformer_diar_train.py --config-path='../conf/neural_diarizer' \
     --config-name='streaming_sortformer_diarizer_4spk-v2.yaml' \
     trainer.devices=1 \
     model.train_ds.manifest_filepath="<train_manifest_path>" \
     model.validation_ds.manifest_filepath="<dev_manifest_path>" \
     exp_manager.name='sample_train' \
-    exp_manager.exp_dir='./sortformer_diar_train'
+    exp_manager.exp_dir='./streaming_sortformer_diar_train'
 """
 
 seed_everything(42)
