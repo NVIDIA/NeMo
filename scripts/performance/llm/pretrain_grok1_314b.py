@@ -300,9 +300,9 @@ def override_recipe_configs(
 ):
     recipe = pretrain_recipe(performance_mode=True)
 
-    use_fsdp_double_buffer=args.use_fsdp_double_buffer
-    use_user_buffer_registration=args.use_user_buffer_registration
-    use_sharp=args.use_sharp
+    use_fsdp_double_buffer = args.use_fsdp_double_buffer
+    use_user_buffer_registration = args.use_user_buffer_registration
+    use_sharp = args.use_sharp
 
     recipe = set_primary_perf_configs(
         recipe,
