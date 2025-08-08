@@ -229,7 +229,7 @@ def run_distributed_transcribe(cfg: TranscriptionConfig):
         raise ValueError(f"No manifest files found matching pattern: {cfg.pattern} in {input_manifest}")
 
     manifest_list = maybe_split_manifest(manifest_list, cfg)
-
+    original_manifest_list = list(manifest_list)
     logging.info(f"Found {len(manifest_list)} manifest files.")
 
     output_dir = Path(cfg.output_dir)
@@ -263,6 +263,13 @@ def run_distributed_transcribe(cfg: TranscriptionConfig):
         curr_cfg.output_filename = str(output_filename)
 
         single_transcribe_main(curr_cfg)
+
+    # check if all manifest files have been processed
+    unfinished_manifest = get_unfinished_manifest(original_manifest_list, output_dir=output_dir)
+    if not unfinished_manifest:
+        maybe_merge_manifest(cfg)
+        logging.info("All manifest files have been processed. Exiting.")
+        return
 
 
 if __name__ == '__main__':

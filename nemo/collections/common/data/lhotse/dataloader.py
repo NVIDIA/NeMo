@@ -38,10 +38,6 @@ from lhotse.lazy import LazyFlattener
 from lhotse.utils import fastcopy, fix_random_seed
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.data.audio_to_eou_label_lhotse import (
-    LhotseEOURandomPadding,
-    lhotse_asr_eou_cut_random_pad_transform,
-)
 from nemo.collections.common.data.lhotse.cutset import (
     IncompleteConfigError,
     guess_parse_cutset,
@@ -503,6 +499,12 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     # 2. Optional augmentations.
 
     if config.get("random_padding", None) is not None:
+        # put this here to avoid circular import
+        from nemo.collections.asr.data.audio_to_eou_label_lhotse import (
+            LhotseEOURandomPadding,
+            lhotse_asr_eou_cut_random_pad_transform,
+        )
+
         # random_padding_augmentation = LhotseEOURandomPadding(**config.random_padding)
         # cuts = random_padding_augmentation(cuts)
         cuts = cuts.map(
