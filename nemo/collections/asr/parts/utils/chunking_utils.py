@@ -363,8 +363,8 @@ def merge_hypotheses_list_same_audio( hypotheses_list, transcribe_cfg, subsampli
             }
         elif len(hypotheses_list) == 1:
             merged_hypothesis.timestamp = {
-                'word': hypotheses_list[0][0].timestamp['word'],
-                'segment': hypotheses_list[0][0].timestamp['segment'],
+                'word': hypotheses_list[0].timestamp['word'],
+                'segment': hypotheses_list[0].timestamp['segment'],
             }
 
         
