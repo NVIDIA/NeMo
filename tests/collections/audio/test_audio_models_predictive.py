@@ -825,7 +825,6 @@ class TestPredictiveModelTransformerUNet:
         model = model.train()
         trainer.fit(model)
 
-
 class TestPredictiveModelConformerUNet:
     """Test predictive model with conformer U-Net estimator."""
 
