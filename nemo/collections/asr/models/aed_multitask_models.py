@@ -131,7 +131,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
         default_factory=lambda: MultiTaskTranscriptionInternalConfig()
     )
-    enable_chunking: bool = False 
+    enable_chunking: bool = True 
 
     def __post_init__(self):
         self.prompt = parse_multitask_prompt(self.prompt)
