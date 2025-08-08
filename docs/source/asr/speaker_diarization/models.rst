@@ -86,6 +86,11 @@ Streaming Sortformer Diarizer
         :width: 800px
         :alt: Streaming Sortformer Steps
 
+.. image:: images/cache_fifo_queue.png
+        :align: center
+        :width: 800px
+        :alt: Streaming Sortformer Steps
+
 
 Sortformer resolves permutation problem in diarization following the arrival-time order of the speech segments from each speaker.
 

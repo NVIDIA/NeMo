@@ -91,10 +91,20 @@ In general, you can load models with model name in the following format,
   pip install -U "huggingface_hub[cli]"
   huggingface-cli login
 
+Load Offline Sortformer Diarizer from HuggingFace
+
 .. code-block:: python
 
   from nemo.collections.asr.models import SortformerEncLabelModel
   diar_model = SortformerEncLabelModel.from_pretrained("nvidia/diar_sortformer_4spk-v1")
+
+
+Load Streaming Sortformer Diarizer from HuggingFace
+
+.. code-block:: python
+
+  from nemo.collections.asr.models import SortformerEncLabelModel
+  diar_model = SortformerEncLabelModel.from_pretrained("nvidia/diar_streaming_sortformer_4spk-v2")
 
 where the model name is the value under "Model Name" entry in the tables below.
 
