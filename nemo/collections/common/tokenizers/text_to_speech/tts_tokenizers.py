@@ -33,9 +33,9 @@ from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     french_text_preprocessing,
     italian_text_preprocessing,
     japanese_text_preprocessing,
+    persian_text_preprocessing,
     spanish_text_preprocessing,
     vietnamese_text_preprocessing,
-    persian_text_preprocessing,
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
@@ -762,7 +762,7 @@ class PersianPhonemesTokenizer(BaseTokenizer):
     
     # Valid characters in the phoneme system
     VALID_PHONEME_CHARS = set("bćtHEhqTĄ‌/mfkxĆUoZąCcay٬jlpnD?ʔAðręSdXvOIVsΛgYe'ɔGzuʊʒói")
-    
+
     # fmt: on
 
     def __init__(
@@ -785,7 +785,7 @@ class PersianPhonemesTokenizer(BaseTokenizer):
         use_speed_tokens=True,
     ):
         """Enhanced Persian phoneme-based tokenizer with emotion and control tokens.
-        
+
         Args:
             g2p: Grapheme to phoneme module.
             punct: Whether to reserve grapheme for basic punctuation or not.
@@ -806,7 +806,7 @@ class PersianPhonemesTokenizer(BaseTokenizer):
         self.phoneme_probability = None
         if hasattr(g2p, "phoneme_probability"):
             self.phoneme_probability = g2p.phoneme_probability
-        
+
         tokens = []
         self.space, tokens = len(tokens), tokens + [space]  # Space
 
@@ -830,27 +830,27 @@ class PersianPhonemesTokenizer(BaseTokenizer):
                 )
             # Only add characters that are part of the Persian phoneme system
             tokens.extend(sorted(self.VALID_PHONEME_CHARS))
-        
+
         if apostrophe:
             tokens.append("'")  # Apostrophe
-        
+
         # Add control tokens
         if use_emotion_tokens:
             tokens.extend(self.EMOTION_TOKENS)
-        
+
         if use_pause_tokens:
             tokens.extend(self.PAUSE_TOKENS)
             tokens.extend(self.PUNCT_CONTROL_TOKENS)  # Add punctuation-derived control tokens
-            
+
         if use_speed_tokens:
             tokens.extend(self.SPEED_TOKENS)
-        
+
         # Add punctuation
         if punct:
             # Add mapped punctuation tokens (already added via pause tokens)
             # Add other punctuation marks
             tokens.extend(self.OTHER_PUNCT)
-        
+
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
         self.chars = chars if self.phoneme_probability is None else True
@@ -867,14 +867,14 @@ class PersianPhonemesTokenizer(BaseTokenizer):
     def encode(self, text):
         """Encode text to token IDs."""
         text = self.text_preprocessing_func(text)
-        
+
         # Pre-process to handle Persian punctuation
         if self.use_pause_tokens:
             text = self._apply_punct_mappings(text)
-        
+
         # Extract control tokens and text segments
         segments, _ = self._extract_control_tokens(text)
-        
+
         # Process each text segment through G2P
         processed_segments = []
         for segment in segments:
@@ -889,12 +889,12 @@ class PersianPhonemesTokenizer(BaseTokenizer):
                 elif segment == ' ':
                     # Preserve spaces between control tokens and text
                     processed_segments.append([' '])
-        
+
         # Flatten the results
         g2p_text = []
         for segment in processed_segments:
             g2p_text.extend(segment)
-        
+
         return self.encode_from_g2p(g2p_text, text)
 
     def _apply_punct_mappings(self, text: str) -> str:
@@ -907,38 +907,38 @@ class PersianPhonemesTokenizer(BaseTokenizer):
 
     def _extract_control_tokens(self, text: str) -> Tuple[List[str], List[str]]:
         """Extract control tokens and text segments separately.
-        
+
         Args:
             text: Input text possibly containing control tokens
-            
+
         Returns:
             Tuple of (segments, control_tokens) where segments is a list of text/token segments
         """
         import re
-        
+
         # Pattern to match control tokens
         control_pattern = r'(<[^>]+>)'
-        
+
         # Split by control tokens, keeping the tokens
         parts = re.split(control_pattern, text)
-        
+
         segments = []
         for part in parts:
             if part:  # Skip empty strings
                 segments.append(part)
-        
+
         return segments, []
 
     def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None):
         """
         Encodes text that has already been run through G2P.
-        
+
         Args:
             g2p_text: G2P's output, mixture of phonemes and graphemes
             raw_text: original raw input
         """
         ps, space, tokens = [], self.tokens[self.space], set(self.tokens)
-        
+
         for p in g2p_text:
             # Handle control tokens first
             if p.startswith('<') and p.endswith('>'):
@@ -948,7 +948,7 @@ class PersianPhonemesTokenizer(BaseTokenizer):
                     # Log warning for unknown control token
                     logging.warning(f"Unknown control token: [{p}]. Skipping.")
                 continue
-            
+
             # Remove stress if not needed
             if p.isalnum() and len(p) == 3 and not self.stresses:
                 p = p[:2]
@@ -969,7 +969,7 @@ class PersianPhonemesTokenizer(BaseTokenizer):
                 if raw_text is not None:
                     message += f" Original text: [{raw_text}]. Symbol will be skipped."
                 logging.warning(message)
-        
+
         # Remove trailing spaces
         while ps and ps[-1] == space:
             ps.pop()
@@ -978,28 +978,28 @@ class PersianPhonemesTokenizer(BaseTokenizer):
             ps = [space] + ps + [space]
 
         return [self._token2id[p] for p in ps]
-    
+
     def get_control_tokens(self) -> Dict[str, List[str]]:
         """Return available control tokens organized by category."""
         control_tokens = {}
-        
+
         if self.use_emotion_tokens:
             control_tokens['emotions'] = list(self.EMOTION_TOKENS)
-        
+
         if self.use_pause_tokens:
             control_tokens['pauses'] = list(self.PAUSE_TOKENS)
             control_tokens['punct_controls'] = list(self.PUNCT_CONTROL_TOKENS)
             control_tokens['punct_mappings'] = dict(self.PERSIAN_PUNCT_MAP)
-        
+
         if self.use_speed_tokens:
             control_tokens['speeds'] = list(self.SPEED_TOKENS)
-            
+
         return control_tokens
-    
+
     def debug_tokens(self, text: str):
         """Debug method to show token processing steps."""
         print(f"Original text: {text}")
-        
+
         # Check if control tokens are in vocabulary
         print("\nControl tokens in vocabulary:")
         for token in self.EMOTION_TOKENS + self.PAUSE_TOKENS + self.SPEED_TOKENS:
@@ -1007,20 +1007,20 @@ class PersianPhonemesTokenizer(BaseTokenizer):
                 print(f"  {token}: ID {self._token2id[token]}")
             else:
                 print(f"  {token}: NOT IN VOCABULARY!")
-        
+
         # Show processing steps
         text = self.text_preprocessing_func(text)
         print(f"\nAfter preprocessing: {text}")
-        
+
         if self.use_pause_tokens:
             text = self._apply_punct_mappings(text)
             print(f"After punct mapping: {text}")
-        
+
         segments, _ = self._extract_control_tokens(text)
         print(f"\nSegments: {segments}")
-        
+
         return segments
-    
+
     @contextmanager
     def set_phone_prob(self, prob):
         """Context manager to temporarily set phoneme probability."""
@@ -1032,6 +1032,7 @@ class PersianPhonemesTokenizer(BaseTokenizer):
         finally:
             if hasattr(self.g2p, "phoneme_probability"):
                 self.g2p.phoneme_probability = old_prob
+
 
 @experimental
 class IPATokenizer(BaseTokenizer):

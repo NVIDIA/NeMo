@@ -21,9 +21,9 @@ from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
     get_ipa_punctuation_list,
 )
 from nemo.collections.tts.g2p.models.base import BaseG2p
+from nemo.collections.tts.g2p.models.persian.phonemizer import PersianPhonemizer
 from nemo.collections.tts.g2p.utils import set_grapheme_case
 from nemo.utils import logging
-from nemo.collections.tts.g2p.models.persian.phonemizer import PersianPhonemizer
 
 
 class PersianG2p(BaseG2p):
@@ -43,7 +43,7 @@ class PersianG2p(BaseG2p):
         """
         assert phoneme_dict is not None, "Please set the phoneme_dict path."
         self.phoner = PersianPhonemizer(dictionary_path=phoneme_dict)
-        
+
     def __call__(self, text):
         phoneme_seq = self.phoner.phonemize(text)
         return phoneme_seq
