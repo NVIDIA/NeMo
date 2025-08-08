@@ -189,6 +189,17 @@ class IOMixin:
     def __init_subclass__(cls):
         _io_register_serialization(cls)
 
+        # Add OneLogger timing hooks for data modules
+        try:
+            import lightning.pytorch as pl
+
+            if issubclass(cls, pl.LightningDataModule):
+                from nemo.lightning.one_logger_callback import hook_class_init_with_callbacks
+
+                hook_class_init_with_callbacks(cls, "on_dataloader_init_start", "on_dataloader_init_end")
+        finally:
+            super().__init_subclass__()
+
     def io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
         """
         Transforms and captures the arguments passed to the `__init__` method, filtering out
