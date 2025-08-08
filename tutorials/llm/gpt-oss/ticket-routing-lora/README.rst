@@ -6,6 +6,7 @@ Fine-tuning OpenAI GPT-OSS with NVIDIA NeMo Framework
 Supervised Finetuning (SFT) and `Low-Rank Adaptation (LoRA) <https://arxiv.org/pdf/2106.09685>`__ are popular techniques to adapt models for specific usecases. `NVIDIA NeMo
 Framework <https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html>`__ provides tools to perform SFT and/or LoRA on GPT-OSS models to fit your use case.
 
+For more comprehensive information on the NeMo framework's support for GPT-OSS, please refer to the `official documentation <https://docs.nvidia.com/nemo-framework/user-guide/latest/llms/gpt_oss.html>`_.
 
 Objectives
 ----------
