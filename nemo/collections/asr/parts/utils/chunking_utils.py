@@ -12,25 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.asr.parts.utils.timestamp_utils import (
-    get_segment_offsets,
-    get_words_offsets,
-)
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 import torch
 
-def merge_parallel_chunks(
-    hypotheses, 
-    encoded_len, 
-    model, 
-    subsampling_factor, 
-    window_stride,
-    tokenizer
-):
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets, get_words_offsets
+
+
+def merge_parallel_chunks(hypotheses, encoded_len, model, subsampling_factor, window_stride, tokenizer):
     """
-    Merges hypotheses from parallel chunks into a single hypothesis with proper text, 
+    Merges hypotheses from parallel chunks into a single hypothesis with proper text,
     token sequences, and timestamps.
-    
+
     Args:
         hypotheses: List of Hypothesis objects from each chunk
         encoded_len: Tensor of encoded lengths for each chunk to use for finding offsets
@@ -38,17 +30,18 @@ def merge_parallel_chunks(
         subsampling_factor: The encoder's subsampling factor
         window_stride: The preprocessor's window stride
         tokenizer: The tokenizer instance for converting tokens to text
-        
+
     Returns:
         Hypothesis: A single merged hypothesis with combined text, tokens, and timestamps
     """
-    
+
     # we take the overlap to be 1 second, and count number of tokens in it
     delay = int(1 / (subsampling_factor / 100))
-    
+
     merged_tokens = hypotheses[0].y_sequence.tolist()
-    #avoid circular import
+    # avoid circular import
     from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
+
     for i in range(1, len(hypotheses)):
         merged_tokens = lcs_alignment_merge_buffer(
             buffer=merged_tokens,
@@ -62,10 +55,10 @@ def merge_parallel_chunks(
             parallel_chunking=True,
         )
         merged_tokens += hypotheses[i].y_sequence.tolist()[int(delay * 0.6) :]
-    
+
     # Convert merged tokens to text
     final_text = tokenizer.ids_to_text(merged_tokens)
-    
+
     merged_hypotheses = Hypothesis(
         score=0.0,
         y_sequence=torch.tensor([]),
@@ -74,27 +67,28 @@ def merge_parallel_chunks(
             'segment': [],
         },
     )
-    
+
     chunk_offsets = [0] + [x * subsampling_factor for x in encoded_len.tolist()]
-    
+
     merged_hypotheses = join_y_sequence(merged_hypotheses, hypotheses)
     merged_hypotheses.text = final_text
-    
+
     # Merge timestamps and add word and segment level timestamps
     merged_hypotheses = join_timestamp_and_add_word_and_segment_level_timestamps(
         merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens
     )
-    
+
     return merged_hypotheses
+
 
 def join_y_sequence(merged_hypothesis, hypotheses):
     """
     Concatenate y_sequence tensors from multiple hypotheses into a single sequence.
-    
+
     Args:
         merged_hypothesis: Target hypothesis to update with concatenated sequence
         hypotheses: List of hypotheses containing y_sequence tensors
-        
+
     Returns:
         Updated merged_hypothesis with concatenated y_sequence
     """
@@ -103,11 +97,11 @@ def join_y_sequence(merged_hypothesis, hypotheses):
 
 
 def join_timestamp_and_add_word_and_segment_level_timestamps(
-        merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens=None
-    ):
+    merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens=None
+):
     """
     Combine character-level timestamps from chunks and generate word/segment timestamps.
-    
+
     Args:
         merged_hypotheses: Target hypothesis to update with timestamps
         hypotheses: List of hypotheses from different chunks
@@ -115,13 +109,15 @@ def join_timestamp_and_add_word_and_segment_level_timestamps(
         subsampling_factor: Subsampling factor of the encoder
         window_stride: Time stride per frame in seconds
         merged_tokens: Optional token sequence for filtering (default: None)
-        
+
     Returns:
         Updated merged_hypotheses with word and segment timestamps
     """
 
     # First, combine char-level timestamps from all chunks
-    char_timestamps = join_char_level_timestamps(hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens)
+    char_timestamps = join_char_level_timestamps(
+        hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens
+    )
 
     # Create encoded_char_offsets for word/segment generation
     encoded_char_offsets = []
@@ -138,14 +134,13 @@ def join_timestamp_and_add_word_and_segment_level_timestamps(
     )
 
     # Generate segment-level timestamps from word timestamps
-    segment_offsets = get_segment_offsets(
-        word_offsets=word_offsets, segment_delimiter_tokens={'.', '!', '?', "..."}
-    )
+    segment_offsets = get_segment_offsets(word_offsets=word_offsets, segment_delimiter_tokens={'.', '!', '?', "..."})
     # Update the merged hypothesis with word and segment timestamps
     merged_hypotheses.timestamp['word'] = word_offsets
     merged_hypotheses.timestamp['segment'] = segment_offsets
 
     return merged_hypotheses
+
 
 def join_char_level_timestamps(
     hypotheses,
@@ -160,21 +155,19 @@ def join_char_level_timestamps(
     j_token = 0  # cursor in merged_tokens
 
     subsamp = subsampling_factor
-    stride = window_stride # sec per raw frame
+    stride = window_stride  # sec per raw frame
 
     for i, h in enumerate(hypotheses):
-        cumulative_offset += chunk_offsets[i]            # raw frames
+        cumulative_offset += chunk_offsets[i]  # raw frames
         chunk_frame_offset = cumulative_offset // subsamp
 
         # 1) figure out how much of the *front* of this chunk we will drop
         removed_in_chunk = 0
         for char in h.timestamp['char']:
-            keep = (
-                merged_tokens is None
-                or (j_token < len(merged_tokens)
-                    and char and char['token_id'] == merged_tokens[j_token])
+            keep = merged_tokens is None or (
+                j_token < len(merged_tokens) and char and char['token_id'] == merged_tokens[j_token]
             )
-            if keep:                            
+            if keep:
                 break
             if char and char['end_offset'] != -1:
                 removed_in_chunk = char['end_offset'] + 1
@@ -182,18 +175,15 @@ def join_char_level_timestamps(
         for char in h.timestamp['char']:
             if not char:
                 continue
-            keep = (
-                merged_tokens is None
-                or (j_token < len(merged_tokens)
-                    and char['token_id'] == merged_tokens[j_token])
+            keep = merged_tokens is None or (
+                j_token < len(merged_tokens) and char['token_id'] == merged_tokens[j_token]
             )
             if not keep:
                 continue
 
             # adjust offsets: chunk start + global chunk shift − total removed
             start_off = char['start_offset']
-            end_off   = char['end_offset']
-
+            end_off = char['end_offset']
 
             upd = dict(char)
             if start_off != -1:
@@ -204,22 +194,11 @@ def join_char_level_timestamps(
                     - removed_in_chunk  # trims in this chunk
                 )
             if end_off != -1:
-                upd['end_offset'] = (
-                    end_off
-                    + chunk_frame_offset
-                    - overall_removed_offset
-                    - removed_in_chunk
-                )
+                upd['end_offset'] = end_off + chunk_frame_offset - overall_removed_offset - removed_in_chunk
 
             # convert to seconds
-            upd['start'] = (
-                -1 if upd['start_offset'] == -1
-                else upd['start_offset'] * stride * subsamp
-            )
-            upd['end'] = (
-                -1 if upd['end_offset'] == -1
-                else upd['end_offset'] * stride * subsamp
-            )
+            upd['start'] = -1 if upd['start_offset'] == -1 else upd['start_offset'] * stride * subsamp
+            upd['end'] = -1 if upd['end_offset'] == -1 else upd['end_offset'] * stride * subsamp
 
             char_timestamps.append(upd)
             j_token += 1
@@ -229,16 +208,17 @@ def join_char_level_timestamps(
 
     return char_timestamps
 
+
 def merge_hypotheses_list(hypotheses_list, transcribe_cfg, subsampling_factor, chunk_duration_seconds=3600):
     """
     Group hypotheses by ID and merge each group into a single hypothesis.
-    
+
     Args:
         hypotheses_list: List of hypothesis objects with 'id' attributes
         transcribe_cfg: Transcription configuration for merging settings
         subsampling_factor: Subsampling factor of the encoder
         chunk_duration_seconds: Duration of each chunk in seconds (default: 3600)
-        
+
     Returns:
         List of merged hypotheses, one per unique ID
     """
@@ -247,125 +227,158 @@ def merge_hypotheses_list(hypotheses_list, transcribe_cfg, subsampling_factor, c
     prev_id = None
     for h in hypotheses_list:
         current_id = h.id
-        
+
         # If this is a new ID (different from previous), process the accumulated hypotheses
         if prev_id is not None and current_id != prev_id:
             if same_audio_hypotheses:  # Only merge if we have hypotheses to merge
 
-                all_merged_hypotheses.append(merge_hypotheses_list_same_audio(same_audio_hypotheses, transcribe_cfg, subsampling_factor, chunk_duration_seconds))
+                all_merged_hypotheses.append(
+                    merge_hypotheses_list_same_audio(
+                        same_audio_hypotheses, transcribe_cfg, subsampling_factor, chunk_duration_seconds
+                    )
+                )
             same_audio_hypotheses = []
-        
+
         # Add current hypothesis to the group
         same_audio_hypotheses.append(h)
         prev_id = current_id
-    
+
     # Process the final group of hypotheses
     if same_audio_hypotheses:
-        all_merged_hypotheses.append(merge_hypotheses_list_same_audio(same_audio_hypotheses, transcribe_cfg, subsampling_factor, chunk_duration_seconds))
+        all_merged_hypotheses.append(
+            merge_hypotheses_list_same_audio(
+                same_audio_hypotheses, transcribe_cfg, subsampling_factor, chunk_duration_seconds
+            )
+        )
     return all_merged_hypotheses
 
 
+def merge_hypotheses_list_same_audio(hypotheses_list, transcribe_cfg, subsampling_factor, chunk_duration_seconds=3600):
+    """
+    Merge hypotheses from the same audio source into a single hypothesis.
+    Used for combining results when long audio is split into hour-long segments
+    processed as separate batches.
 
-def merge_hypotheses_list_same_audio( hypotheses_list, transcribe_cfg, subsampling_factor, chunk_duration_seconds=3600):
-        """
-        Merge hypotheses from the same audio source into a single hypothesis.
-        Used for combining results when long audio is split into hour-long segments 
-        processed as separate batches.
-        
-        Args:
-            hypotheses_list: List of hypothesis objects from time chunks
-            transcribe_cfg: Transcription configuration
-            subsampling_factor: Subsampling factor of the encoder
-            chunk_duration_seconds: Duration of each chunk in seconds (default: 3600)
-            
-        Returns:
-            Single merged hypothesis
-        """
-        
+    Args:
+        hypotheses_list: List of hypothesis objects from time chunks
+        transcribe_cfg: Transcription configuration
+        subsampling_factor: Subsampling factor of the encoder
+        chunk_duration_seconds: Duration of each chunk in seconds (default: 3600)
 
-        # Create merged hypothesis with empty initial values
-        merged_hypothesis = Hypothesis(
-            score=0.0,
-            y_sequence=torch.tensor([]),
-            timestamp={
-                'word': [],
-                'segment': [],
-            },
-        )
-        
-        merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses_list])
-        
-        # Create final text by joining text from all hypotheses
-        text_parts = []
-        for hyp in hypotheses_list:
-            if  hyp.text:
-                text_parts.append(hyp.text.strip())
-        merged_hypothesis.text = ' '.join(text_parts)
-        
-        # Handle timestamps with proper time offsets (word and segment only)
-        if transcribe_cfg.timestamps and len(hypotheses_list) > 0 and getattr(hypotheses_list[0], "timestamp", {}):
-            # Calculate time offsets for each chunk (in seconds)
-            
-            merged_word_timestamps = []
-            merged_segment_timestamps = []
+    Returns:
+        Single merged hypothesis
+    """
 
-            for chunk_idx, hyp in enumerate(hypotheses_list):
-                if not hasattr(hyp, 'timestamp') or not hyp.timestamp:
-                    continue
-                    
-                # Time offset for this chunk
-                time_offset = chunk_idx * chunk_duration_seconds
-                # Frame offset for this chunk (convert time to frames)
-                frame_offset = int(time_offset * 1000 /subsampling_factor)
-                
-                # Merge word timestamps with offset
-                if 'word' in hyp.timestamp and hyp.timestamp['word']:
-                    for word_info in hyp.timestamp['word']:
-                        if isinstance(word_info, dict):
-                            adjusted_word = word_info.copy()
-                            # Adjust start and end times
-                            if 'start' in adjusted_word and adjusted_word['start'] is not None and adjusted_word['start'] != -1:
-                                adjusted_word['start'] += time_offset
-                            if 'end' in adjusted_word and adjusted_word['end'] is not None and adjusted_word['end'] != -1:
-                                adjusted_word['end'] += time_offset
-                            # Adjust start and end offsets (frame counts)
-                            if 'start_offset' in adjusted_word and adjusted_word['start_offset'] is not None and adjusted_word['start_offset'] != -1:
-                                adjusted_word['start_offset'] += frame_offset
-                            if 'end_offset' in adjusted_word and adjusted_word['end_offset'] is not None and adjusted_word['end_offset'] != -1:
-                                adjusted_word['end_offset'] += frame_offset
-                            merged_word_timestamps.append(adjusted_word)
-                        else:
-                            merged_word_timestamps.append(word_info)
-                
-                # Merge segment timestamps with offset
-                if 'segment' in hyp.timestamp and hyp.timestamp['segment']:
-                    for segment_info in hyp.timestamp['segment']:
-                        if isinstance(segment_info, dict):
-                            adjusted_segment = segment_info.copy()
-                            # Adjust start and end times
-                            if 'start' in adjusted_segment and adjusted_segment['start'] is not None and adjusted_segment['start'] != -1:
-                                adjusted_segment['start'] += time_offset
-                            if 'end' in adjusted_segment and adjusted_segment['end'] is not None and adjusted_segment['end'] != -1:
-                                adjusted_segment['end'] += time_offset
-                            # Adjust start and end offsets (frame counts)
-                            if 'start_offset' in adjusted_segment and adjusted_segment['start_offset'] is not None and adjusted_segment['start_offset'] != -1:
-                                adjusted_segment['start_offset'] += frame_offset
-                            if 'end_offset' in adjusted_segment and adjusted_segment['end_offset'] is not None and adjusted_segment['end_offset'] != -1:
-                                adjusted_segment['end_offset'] += frame_offset
-                            merged_segment_timestamps.append(adjusted_segment)
-                        else:
-                            merged_segment_timestamps.append(segment_info)
-            
-            # Set the merged timestamps
-            merged_hypothesis.timestamp = {
-                'word': merged_word_timestamps,
-                'segment': merged_segment_timestamps,
-            }
-        elif len(hypotheses_list) == 1:
-            merged_hypothesis.timestamp = {
-                'word': hypotheses_list[0].timestamp['word'],
-                'segment': hypotheses_list[0].timestamp['segment'],
-            }
+    # Create merged hypothesis with empty initial values
+    merged_hypothesis = Hypothesis(
+        score=0.0,
+        y_sequence=torch.tensor([]),
+        timestamp={
+            'word': [],
+            'segment': [],
+        },
+    )
 
-        
-        return merged_hypothesis
+    merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses_list])
+
+    # Create final text by joining text from all hypotheses
+    text_parts = []
+    for hyp in hypotheses_list:
+        if hyp.text:
+            text_parts.append(hyp.text.strip())
+    merged_hypothesis.text = ' '.join(text_parts)
+
+    # Handle timestamps with proper time offsets (word and segment only)
+    if transcribe_cfg.timestamps and len(hypotheses_list) > 0 and getattr(hypotheses_list[0], "timestamp", {}):
+        # Calculate time offsets for each chunk (in seconds)
+
+        merged_word_timestamps = []
+        merged_segment_timestamps = []
+
+        for chunk_idx, hyp in enumerate(hypotheses_list):
+            if not hasattr(hyp, 'timestamp') or not hyp.timestamp:
+                continue
+
+            # Time offset for this chunk
+            time_offset = chunk_idx * chunk_duration_seconds
+            # Frame offset for this chunk (convert time to frames)
+            frame_offset = int(time_offset * 1000 / subsampling_factor)
+
+            # Merge word timestamps with offset
+            if 'word' in hyp.timestamp and hyp.timestamp['word']:
+                for word_info in hyp.timestamp['word']:
+                    if isinstance(word_info, dict):
+                        adjusted_word = word_info.copy()
+                        # Adjust start and end times
+                        if (
+                            'start' in adjusted_word
+                            and adjusted_word['start'] is not None
+                            and adjusted_word['start'] != -1
+                        ):
+                            adjusted_word['start'] += time_offset
+                        if 'end' in adjusted_word and adjusted_word['end'] is not None and adjusted_word['end'] != -1:
+                            adjusted_word['end'] += time_offset
+                        # Adjust start and end offsets (frame counts)
+                        if (
+                            'start_offset' in adjusted_word
+                            and adjusted_word['start_offset'] is not None
+                            and adjusted_word['start_offset'] != -1
+                        ):
+                            adjusted_word['start_offset'] += frame_offset
+                        if (
+                            'end_offset' in adjusted_word
+                            and adjusted_word['end_offset'] is not None
+                            and adjusted_word['end_offset'] != -1
+                        ):
+                            adjusted_word['end_offset'] += frame_offset
+                        merged_word_timestamps.append(adjusted_word)
+                    else:
+                        merged_word_timestamps.append(word_info)
+
+            # Merge segment timestamps with offset
+            if 'segment' in hyp.timestamp and hyp.timestamp['segment']:
+                for segment_info in hyp.timestamp['segment']:
+                    if isinstance(segment_info, dict):
+                        adjusted_segment = segment_info.copy()
+                        # Adjust start and end times
+                        if (
+                            'start' in adjusted_segment
+                            and adjusted_segment['start'] is not None
+                            and adjusted_segment['start'] != -1
+                        ):
+                            adjusted_segment['start'] += time_offset
+                        if (
+                            'end' in adjusted_segment
+                            and adjusted_segment['end'] is not None
+                            and adjusted_segment['end'] != -1
+                        ):
+                            adjusted_segment['end'] += time_offset
+                        # Adjust start and end offsets (frame counts)
+                        if (
+                            'start_offset' in adjusted_segment
+                            and adjusted_segment['start_offset'] is not None
+                            and adjusted_segment['start_offset'] != -1
+                        ):
+                            adjusted_segment['start_offset'] += frame_offset
+                        if (
+                            'end_offset' in adjusted_segment
+                            and adjusted_segment['end_offset'] is not None
+                            and adjusted_segment['end_offset'] != -1
+                        ):
+                            adjusted_segment['end_offset'] += frame_offset
+                        merged_segment_timestamps.append(adjusted_segment)
+                    else:
+                        merged_segment_timestamps.append(segment_info)
+
+        # Set the merged timestamps
+        merged_hypothesis.timestamp = {
+            'word': merged_word_timestamps,
+            'segment': merged_segment_timestamps,
+        }
+    elif len(hypotheses_list) == 1:
+        merged_hypothesis.timestamp = {
+            'word': hypotheses_list[0].timestamp['word'],
+            'segment': hypotheses_list[0].timestamp['segment'],
+        }
+
+    return merged_hypothesis
