@@ -21,7 +21,6 @@ dataset_meta_info = {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
-        'load_cached_codes_if_available': False
     },
     'riva_challenging_shehzeen': {
         'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths_v2.json',
@@ -41,12 +40,6 @@ dataset_meta_info = {
         'audio_dir' : '/datap/misc/Datasets/riva',
         'feature_dir' : '/datap/misc/Datasets/riva',
     },
-    'libri_dev_clean_eval_huge': {
-        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_huge.json',
-        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
-        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-    },
-
     'libri_dev_clean_eval_large': {
         'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_large.json',
         'audio_dir' : '/datap/misc/Datasets/LibriTTS',
@@ -57,7 +50,6 @@ dataset_meta_info = {
         'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_mid.json',
         'audio_dir' : '/datap/misc/Datasets/LibriTTS',
         'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-        'load_cached_codes_if_available': False
     },
     'libri_dev_clean_eval_tiny': {
         'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_tiny.json',
@@ -90,7 +82,6 @@ dataset_meta_info = {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/test_clean_withContextAudioPaths.json',
         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
         'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'load_cached_codes_if_available': False
     },
     'libri_unseen_test_12.5': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/test_clean_withContextAudioPaths.json',
