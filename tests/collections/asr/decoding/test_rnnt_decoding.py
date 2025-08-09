@@ -581,7 +581,7 @@ class TestRNNTTimestamps(BaseTimestampsTest):
     def char_offsets_bpe(self):
         return self._convert_offsets(super().char_offsets_bpe)
 
-    @property 
+    @property
     def encoded_char_offsets_bpe(self):
         return self._convert_offsets(super().encoded_char_offsets_bpe)
 

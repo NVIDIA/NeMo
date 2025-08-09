@@ -30,6 +30,7 @@ from nemo.collections.asr.parts.utils.aligner_utils import (
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import logging, logging_mode
 
+
 def flatten_char_offsets(char_offsets: List[Dict[str, Union[int, float]]]) -> List[Dict[str, Union[int, float]]]:
     """
     Flatten the char offsets to contain only one char and one token per offset.
@@ -81,10 +82,20 @@ def get_words_offsets(
         """
         if tokenizer_type in ["bpe", "wpe"] and word_delimiter_char == " ":
             if tokenizer_type == "wpe":
-                return lambda token, token_text, next_non_delimeter_token: token_text and not token_text.startswith("##") and next_non_delimeter_token not in supported_punctuation
-            return lambda token, token_text, next_non_delimeter_token: token != token_text and next_non_delimeter_token not in supported_punctuation
+                return (
+                    lambda token, token_text, next_non_delimeter_token: token_text
+                    and not token_text.startswith("##")
+                    and next_non_delimeter_token not in supported_punctuation
+                )
+            return (
+                lambda token, token_text, next_non_delimeter_token: token != token_text
+                and next_non_delimeter_token not in supported_punctuation
+            )
         elif word_delimiter_char == " ":
-            return lambda token, token_text, next_non_delimeter_token: token_text == word_delimiter_char and next_non_delimeter_token not in supported_punctuation
+            return (
+                lambda token, token_text, next_non_delimeter_token: token_text == word_delimiter_char
+                and next_non_delimeter_token not in supported_punctuation
+            )
         else:
             return lambda token, token_text, next_non_delimeter_token: token_text == word_delimiter_char
 
@@ -108,14 +119,18 @@ def get_words_offsets(
 
         char_text = char_offset['char']
         char_token = char_token_offset['char']
-        
-        curr_punctuation = supported_punctuation and char_text in supported_punctuation and char_text != word_delimiter_char
+
+        curr_punctuation = (
+            supported_punctuation and char_text in supported_punctuation and char_text != word_delimiter_char
+        )
         next_non_delimeter_token = None
         next_non_delimeter_token_index = i
         while not next_non_delimeter_token and next_non_delimeter_token_index < len(char_offsets) - 1:
             next_non_delimeter_token_index += 1
             next_non_delimeter_token = char_offsets[next_non_delimeter_token_index]['char']
-            next_non_delimeter_token = next_non_delimeter_token if next_non_delimeter_token != word_delimiter_char else None
+            next_non_delimeter_token = (
+                next_non_delimeter_token if next_non_delimeter_token != word_delimiter_char else None
+            )
 
         # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
         # after forcing partial text conversion of the token.

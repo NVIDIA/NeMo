@@ -26,12 +26,12 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.collections.asr.parts.submodules import ctc_beam_decoding, ctc_greedy_decoding
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets, get_words_offsets
+from nemo.collections.asr.parts.utils.tokenizer_utils import define_spe_tokenizer_type, extract_punctuation_from_vocab
 from nemo.collections.common.tokenizers.aggregate_tokenizer import DummyTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging, logging_mode
 
-from nemo.collections.asr.parts.utils.timestamp_utils import get_words_offsets, get_segment_offsets
-from nemo.collections.asr.parts.utils.tokenizer_utils import extract_punctuation_from_vocab, define_spe_tokenizer_type
 
 def move_dimension_to_the_front(tensor, dim_index):
     all_dims = list(range(tensor.ndim))
@@ -1100,6 +1100,7 @@ class CTCDecoding(AbstractCTCDecoding):
         token_list = [self.labels_map[c] for c in tokens if c != self.blank_id]
         return token_list
 
+
 class CTCBPEDecoding(AbstractCTCDecoding):
     """
     Used for performing CTC auto-regressive / non-auto-regressive decoding of the logprobs for subword based
@@ -1288,11 +1289,9 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
             self.decoding.set_decoding_type('subword')
 
-
     @property
     def tokenizer_type(self):
         return define_spe_tokenizer_type(self.tokenizer.vocab)
-
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
