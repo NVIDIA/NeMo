@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import json
-import re
 import os
 import shutil
 import tarfile
-import unicodedata
 from abc import ABC, abstractmethod
 from typing import List
 
