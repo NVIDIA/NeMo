@@ -31,7 +31,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging, logging_mode
 
 from nemo.collections.asr.parts.utils.timestamp_utils import get_words_offsets, get_segment_offsets
-from nemo.collections.asr.parts.utils.tokenizer_utils import extract_punctuation_from_vocab
+from nemo.collections.asr.parts.utils.tokenizer_utils import extract_punctuation_from_vocab, define_spe_tokenizer_type
 
 def move_dimension_to_the_front(tensor, dim_index):
     all_dims = list(range(tensor.ndim))
@@ -1267,19 +1267,10 @@ class CTCBPEDecoding(AbstractCTCDecoding):
 
             self.decoding.set_decoding_type('subword')
 
-    @staticmethod
-    def define_tokenizer_type(vocabulary: List[str]) -> str:
-        """
-        Define the tokenizer type based on the vocabulary.
-        """
-        if any(token.startswith("##") for token in vocabulary):
-            return "wpe"
-        return "bpe"
 
     @property
     def tokenizer_type(self):
-        return self.define_tokenizer_type(self.tokenizer.vocab)
-
+        return define_spe_tokenizer_type(self.tokenizer.vocab)
 
 
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
@@ -1303,7 +1294,7 @@ class CTCBPEDecoding(AbstractCTCDecoding):
         Implemented by subclass in order to decoder a token list into a string.
 
         Args:
-            tokens: List of str representing the token str.
+            tokens: List of str representing the tokens.
 
         Returns:
             A decoded string.
