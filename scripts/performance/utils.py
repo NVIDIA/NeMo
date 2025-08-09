@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import difflib
 import os
 from typing import List
 
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
+from nemo_run.core.serialization.yaml import YamlSerializer
+from nemo_run.run.torchx_backend.packaging import _serialize
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -189,3 +192,24 @@ def get_comm_overlap_callback_idx(callbacks: List[Callback]) -> int | None:
             if callback.__fn_or_cls__ == MegatronCommOverlapCallback:
                 return idx
     return None
+
+
+def dump_config_diff_from_base_recipe(
+    base_recipe: str, new_recipe: str, output_dir: str, file_name: str = "config_diff.txt"
+):
+    """
+    Dump the config diff from the base recipe.
+    """
+    base_recipe_config = _serialize(base_recipe, serializer_cls=YamlSerializer)
+    new_recipe_config = _serialize(new_recipe, serializer_cls=YamlSerializer)
+    diff = difflib.unified_diff(
+        base_recipe_config.splitlines(keepends=True),
+        new_recipe_config.splitlines(keepends=True),
+        fromfile="base_recipe",
+        tofile="new_recipe",
+        lineterm="",
+    )
+    diff = "".join(diff)
+    print("dumping config diff to ", os.path.join(output_dir, file_name))
+    with open(os.path.join(output_dir, file_name), "w") as f:
+        f.write(diff)
