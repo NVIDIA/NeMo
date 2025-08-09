@@ -253,7 +253,7 @@ def run_inference(
         f"Prior_{apply_attention_prior}_"
     )
     if apply_attention_prior:
-        # Only add prior config details if prior is enabled
+        # Only add prior config details if prior is enabled (to avoid super long checkpoint names)
         checkpoint_name += (
             f"{attention_prior_epsilon}_{attention_prior_lookahead_window}_{start_prior_after_n_audio_steps}_"
             f"{''.join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else 'None'}_"
