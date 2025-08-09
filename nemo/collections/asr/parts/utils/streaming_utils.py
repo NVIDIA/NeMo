@@ -13,10 +13,15 @@
 # limitations under the License.
 
 import copy
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Optional
+<<<<<<< HEAD
+=======
+
+>>>>>>> 12836c7e1337bd96c813f76be8c07a006afe5302
 import librosa
 import numpy as np
 import torch
@@ -30,10 +35,9 @@ from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.preprocessing.segment import get_samples
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.asr.parts.utils.timestamp_utils import get_forced_aligned_timestamps_with_external_model
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
-
-from nemo.collections.asr.parts.utils.timestamp_utils import get_forced_aligned_timestamps_with_external_model
 
 # Minimum number of tokens required to assign a LCS merge step, otherwise ignore and
 # select all i-1 and ith buffer tokens to merge.
@@ -1719,12 +1723,11 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
         self.timestamps_asr_model = asr_model.timestamps_asr_model
         if self.timestamps_asr_model is not None:
             self.timestamps_frame_asr = FrameBatchASR(
-                        asr_model=self.timestamps_asr_model,
-                        frame_len=frame_len,
-                        total_buffer=total_buffer,
-                        batch_size=batch_size,
-                    )
-
+                asr_model=self.timestamps_asr_model,
+                frame_len=frame_len,
+                total_buffer=total_buffer,
+                batch_size=batch_size,
+            )
 
         super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
         self.window_stride = asr_model._cfg.preprocessor.window_stride
@@ -1732,7 +1735,7 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
         self.chunk_offsets = [
             0,
         ]  # chunk offsets in terms of num frames before subsampling
-        
+
     def reset(self):
         super().reset()
         self.chunk_offsets = [
@@ -1810,13 +1813,15 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             ts_model_feature_stride = self.timestamps_asr_model._cfg.preprocessor['window_stride']
             ts_model_stride_in_secs = ts_model_feature_stride * self.timestamps_asr_model.encoder.subsampling_factor
 
-            ts_model_padded_samples = np.pad(samples, (0, int(delay * ts_model_stride_in_secs * self.timestamps_asr_model._cfg.sample_rate)))
+            ts_model_padded_samples = np.pad(
+                samples, (0, int(delay * ts_model_stride_in_secs * self.timestamps_asr_model._cfg.sample_rate))
+            )
 
             ts_model_frame_reader = AudioFeatureIterator(
-                ts_model_padded_samples, 
-                self.frame_len, 
-                self.timestamps_frame_asr.raw_preprocessor, 
-                self.timestamps_frame_asr.asr_model.device
+                ts_model_padded_samples,
+                self.frame_len,
+                self.timestamps_frame_asr.raw_preprocessor,
+                self.timestamps_frame_asr.asr_model.device,
             )
             self.timestamps_frame_asr.set_frame_reader(ts_model_frame_reader)
 
@@ -1847,7 +1852,11 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             del predictions
 
     def transcribe(
-        self, tokens_per_chunk: Optional[int] = None, delay: Optional[int] = None, keep_logits: bool = False, timestamps: bool = False
+        self,
+        tokens_per_chunk: Optional[int] = None,
+        delay: Optional[int] = None,
+        keep_logits: bool = False,
+        timestamps: bool = False,
     ):
         """
         unsued params are for keeping the same signature as the parent class
@@ -1855,7 +1864,9 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
         self.infer_logits(keep_logits=keep_logits, timestamps=timestamps)
         if timestamps and self.timestamps_asr_model is not None:
             self.timestamps_frame_asr.infer_logits(keep_logits=True)
-            timestamps_model_hypotheses = [rnnt_utils.Hypothesis(y_sequence=logits, score=0.0) for logits in self.timestamps_frame_asr.all_logits]
+            timestamps_model_hypotheses = [
+                rnnt_utils.Hypothesis(y_sequence=logits, score=0.0) for logits in self.timestamps_frame_asr.all_logits
+            ]
             self.all_preds = get_forced_aligned_timestamps_with_external_model(
                 audio=timestamps_model_hypotheses,
                 external_ctc_model=self.timestamps_asr_model,
@@ -1890,9 +1901,8 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
 
         merged_hypthesis = self._join_y_sequence(merged_hypthesis, hypotheses)
 
-
         if timestamps:
-            merged_hypthesis.timestamp={
+            merged_hypthesis.timestamp = {
                 'char': [],
                 'word': [],
                 'segment': [],

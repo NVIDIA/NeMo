@@ -233,8 +233,8 @@ def get_buffered_pred_feat_multitaskAED(
                 if not line:
                     continue
                 sample = json.loads(line)
-                if timestamps:  
-                # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
+                if timestamps:
+                    # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
                     sample['timestamp'] = 'yes'
                 if 'text' in sample:
                     refs.append(sample['text'])
