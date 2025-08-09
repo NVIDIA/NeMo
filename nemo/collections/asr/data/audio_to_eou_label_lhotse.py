@@ -70,7 +70,7 @@ class AudioToTextEOUBatch:
 class RandomPaddingConfig:
     prob: float = 0.9  # probability of applying padding
     min_pad_duration: float = 0.5  # minimum duration of pre/post padding in seconds
-    max_pad_duration: float = 2.0  # maximum duration of pre/post padding in seconds
+    max_pad_duration: float = 5.0  # maximum duration of pre/post padding in seconds
     max_total_duration: float = 30.0  # maximum total duration of the padded audio in seconds
     min_pre_pad_duration: float = 0.0  # minimum duration of pre-padding in seconds
     min_post_pad_duration: float = 0.0  # minimum duration of post-padding in seconds
@@ -519,15 +519,18 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         # apply padding
         audio = audio[:audio_len]
 
+        self.padding_cfg.min_pre_pad_duration = max(
+            self.padding_cfg.min_pre_pad_duration, self.padding_cfg.min_pad_duration
+        )
+        self.padding_cfg.min_post_pad_duration = max(
+            self.padding_cfg.min_post_pad_duration, self.padding_cfg.min_pad_duration
+        )
+
         max_padding_duration = max(0, self.padding_cfg.max_total_duration - duration)
-        if max_padding_duration <= 2 * self.padding_cfg.min_pad_duration:
+        if max_padding_duration <= self.padding_cfg.min_pre_pad_duration + self.padding_cfg.min_post_pad_duration:
             min_padding_duration = 0
         else:
-            min_padding_duration = max(
-                2 * self.padding_cfg.min_pad_duration,
-                self.padding_cfg.min_pre_pad_duration + self.padding_cfg.min_post_pad_duration,
-            )
-        min_padding_duration = min(min_padding_duration, max_padding_duration)
+            min_padding_duration = self.padding_cfg.min_pre_pad_duration + self.padding_cfg.min_post_pad_duration
 
         pre_padding_duration = None
         post_padding_duration = None
@@ -666,13 +669,12 @@ def lhotse_asr_eou_cut_random_pad_transform(config: DictConfig, cut: Cut):
     cut.custom["origin_eou_time"] = eou_time
 
     max_padding_duration = max(0, padding_cfg.max_total_duration - duration)
-    if max_padding_duration <= 2 * padding_cfg.min_pad_duration:
+    padding_cfg.min_pre_pad_duration = max(padding_cfg.min_pre_pad_duration, padding_cfg.min_pad_duration)
+    padding_cfg.min_post_pad_duration = max(padding_cfg.min_post_pad_duration, padding_cfg.min_pad_duration)
+    if max_padding_duration <= padding_cfg.min_pre_pad_duration + padding_cfg.min_post_pad_duration:
         min_padding_duration = 0
     else:
-        min_padding_duration = max(
-            2 * padding_cfg.min_pad_duration, padding_cfg.min_pre_pad_duration + padding_cfg.min_post_pad_duration
-        )
-    min_padding_duration = min(min_padding_duration, max_padding_duration)
+        min_padding_duration = padding_cfg.min_pre_pad_duration + padding_cfg.min_post_pad_duration
 
     pre_padding_duration = None
     post_padding_duration = None
