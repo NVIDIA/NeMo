@@ -323,13 +323,14 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             tokenizer=self.tokenizer,
         )
 
+        logging.info("setting dist_sync_on_step to False from bpe 1")
         # Setup wer object
         self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=0,
             use_cer=self._cfg.get('use_cer', False),
             log_prediction=self._cfg.get('log_prediction', True),
-            dist_sync_on_step=True,
+            dist_sync_on_step=False,
         )
 
         # Setup fused Joint step if flag is set
@@ -427,12 +428,13 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             tokenizer=self.tokenizer,
         )
 
+        logging.info("setting dist_sync_on_step to False from bpe 2")
         self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=self.wer.batch_dim_index,
             use_cer=self.wer.use_cer,
             log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
+            dist_sync_on_step=False,
         )
 
         # Setup fused Joint step
@@ -480,13 +482,14 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             joint=self.joint,
             tokenizer=self.tokenizer,
         )
-
+        
+        logging.info("setting dist_sync_on_step to False from bpe 3")
         self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=self.wer.batch_dim_index,
             use_cer=self.wer.use_cer,
             log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
+            dist_sync_on_step=False,
         )
 
         # Setup fused Joint step

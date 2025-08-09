@@ -109,12 +109,13 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             vocabulary=self.joint.vocabulary,
         )
         # Setup WER calculation
+        logging.info("setting dist_sync_on_step to False from base 1")
         self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=0,
             use_cer=self._cfg.get('use_cer', False),
             log_prediction=self._cfg.get('log_prediction', True),
-            dist_sync_on_step=True,
+            dist_sync_on_step=False,
         )
         
         self.bleu = BLEU(
@@ -385,12 +386,13 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                 vocabulary=self.joint.vocabulary,
             )
 
+            logging.info("setting dist_sync_on_step to False from base 2")
             self.wer = WER(
                 decoding=self.decoding,
                 batch_dim_index=self.wer.batch_dim_index,
                 use_cer=self.wer.use_cer,
                 log_prediction=self.wer.log_prediction,
-                dist_sync_on_step=True,
+                dist_sync_on_step=False,
             )
 
             # Setup fused Joint step
@@ -445,12 +447,13 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             vocabulary=self.joint.vocabulary,
         )
 
+        logging.info("setting dist_sync_on_step to False from base 3")
         self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=self.wer.batch_dim_index,
             use_cer=self.wer.use_cer,
             log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
+            dist_sync_on_step=False,
         )
 
         # Setup fused Joint step
@@ -816,7 +819,7 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             )
             self.bleu.reset()
         # Log items
-        self.log_dict(tensorboard_logs, sync_dist=True)
+        self.log_dict(tensorboard_logs)
 
         # Preserve batch acoustic model T and language model U parameters if normalizing
         if self._optim_normalize_joint_txu:
