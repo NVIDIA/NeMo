@@ -532,8 +532,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
             as paths2audio_files
         """
-        if timestamps is not None:
-            if self.cfg.get('timestamps_asr_model', None) is None:
+        if timestamps is not None and timestamps is not False:
+            if self.timestamps_asr_model is None:
                 # TODO: Handle this key gracefully later
                 if timestamps is True:
                     timestamps = 'yes'
@@ -543,6 +543,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     timestamps = str(timestamps)
                     assert timestamps in ('yes', 'no', 'timestamp', 'notimestamp', '1', '0')
                 prompt['timestamp'] = timestamps
+            else:
+                prompt['timestamp'] = 'no'
 
         if override_config is None:
             trcfg = MultiTaskTranscriptionConfig(
@@ -1019,7 +1021,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 timestamp_type=['word', 'segment'],
                 viterbi_device=trcfg._internal.device,
             )
-        else:
+        elif trcfg.timestamps:
             hypotheses = process_aed_timestamp_outputs(
                 hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
@@ -1093,6 +1095,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # This method is a legacy helper for Canary that checks whether prompt slot values were provided
         # in the input manifest and if not, it injects the defaults.
         out_json_items = []
+        timestamps_required = False
         for item in json_items:
             if isinstance(item, str):
                 # assume it is a path to audio file
@@ -1130,9 +1133,16 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 if k not in entry:
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)
-                if k == "timestamp" and self.timestamps_asr_model is not None:
-                    entry[k] = 'notimestamp'
+                if k == "timestamp":
+                    if entry[k] != 'notimestamp' and self.timestamps_asr_model is not None:
+                        timestamps_required = True
+                        entry[k] = 'notimestamp'
             out_json_items.append(entry)
+
+        if timestamps_required:
+            trcfg.timestamps = True
+            logging.warning("Timestamps are enabled for at least one of the input items."
+                            "Setting timestamps to True for all the input items, as the current model is using external ASR model for alignment.")
         return out_json_items
 
     @classmethod
@@ -1220,6 +1230,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         app_state = AppState()
         model_restore_path = app_state.model_restore_path
 
+        if not model_restore_path:
+            return None
+
         save_restore_connector = SaveRestoreConnector()
 
         filter_fn = lambda name: "timestamps_asr_model" in name
@@ -1231,7 +1244,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 save_restore_connector.model_weights_ckpt = "timestamps_asr_model_weights.ckpt"
                 external_timestamps_model = ASRModel.restore_from(model_restore_path, save_restore_connector=save_restore_connector)
                 external_timestamps_model.eval()
-
                 return external_timestamps_model
         except Exception as e:
             raise RuntimeError(
