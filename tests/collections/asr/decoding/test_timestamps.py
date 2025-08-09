@@ -18,7 +18,8 @@ from typing import Any
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
-from nemo.collections.asr.parts.utils.timestamp_utils import get_words_offsets, get_segment_offsets
+from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets, get_words_offsets
+
 
 class BaseTimestampsTest:
     """
@@ -259,7 +260,7 @@ class BaseTimestampsTest:
         assert word_offsets == self.word_offsets_wpe_expected_output
 
     def test_word_offsets_subword_wpe_other_delimiter(self):
-        
+
         word_offsets = get_words_offsets(
             char_offsets=self.char_offsets_wpe,
             encoded_char_offsets=None,

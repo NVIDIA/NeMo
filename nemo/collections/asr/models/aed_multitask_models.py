@@ -1138,8 +1138,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         if timestamps_required:
             trcfg.timestamps = True
-            logging.warning("Timestamps are enabled for at least one of the input items. "
-                            "Setting timestamps to True for all the input items, as the current model is using external ASR model for alignment.")
+            logging.warning(
+                "Timestamps are enabled for at least one of the input items. "
+                "Setting timestamps to True for all the input items, as the current model is using external ASR model for alignment."
+            )
         return out_json_items
 
     @classmethod
@@ -1244,7 +1246,9 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             if members:
                 save_restore_connector.model_config_yaml = "timestamps_asr_model_config.yaml"
                 save_restore_connector.model_weights_ckpt = "timestamps_asr_model_weights.ckpt"
-                external_timestamps_model = ASRModel.restore_from(model_restore_path, save_restore_connector=save_restore_connector)
+                external_timestamps_model = ASRModel.restore_from(
+                    model_restore_path, save_restore_connector=save_restore_connector
+                )
                 external_timestamps_model.eval()
                 return external_timestamps_model
         except Exception as e:

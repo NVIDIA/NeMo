@@ -28,9 +28,12 @@ from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASRAdapterModel
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.utils import asr_module_utils
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+from nemo.collections.asr.parts.utils.tokenizer_utils import (
+    extract_capitalized_tokens_from_vocab,
+    extract_punctuation_from_vocab,
+)
 from nemo.collections.common import tokenizers
 from nemo.utils import app_state, logging
-from nemo.collections.asr.parts.utils.tokenizer_utils import extract_punctuation_from_vocab, extract_capitalized_tokens_from_vocab
 
 
 class ASRBPEMixin(ABC):

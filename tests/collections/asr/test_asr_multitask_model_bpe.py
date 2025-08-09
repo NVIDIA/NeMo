@@ -898,6 +898,7 @@ def test_aed_timestamp_processing():
     assert processed[0].timestamp['word'] == []
     assert processed[0].timestamp['segment'] == []
 
+
 @pytest.mark.unit
 def test_aed_forced_aligned_timestamps(canary_1b_v2):
 
@@ -918,7 +919,7 @@ def test_aed_forced_aligned_timestamps(canary_1b_v2):
     assert "word" in ts_hypotheses[0].timestamp
     assert "segment" in ts_hypotheses[0].timestamp
     assert "char" not in ts_hypotheses[0].timestamp
-    
+
     assert ts_hypotheses[0].text == hypotheses[0].text
 
     assert len(ts_hypotheses[0].timestamp['word']) == len(ts_hypotheses[0].text.split())
@@ -933,13 +934,16 @@ def test_aed_forced_aligned_timestamps(canary_1b_v2):
 
     assert len(ts_hypotheses[0].timestamp['segment']) == segment_count
     assert [word_offset['word'] for word_offset in ts_hypotheses[0].timestamp['word']] == ts_hypotheses[0].text.split()
-    assert " ".join(
-        [word_offset['word'] for word_offset in ts_hypotheses[0].timestamp['word']]
-        ) == " ".join(
+    assert " ".join([word_offset['word'] for word_offset in ts_hypotheses[0].timestamp['word']]) == " ".join(
         [segment_offset['segment'] for segment_offset in ts_hypotheses[0].timestamp['segment']]
-        )
+    )
 
     assert ts_hypotheses[0].timestamp['segment'][0]['start'] == ts_hypotheses[0].timestamp['word'][0]['start']
     assert ts_hypotheses[0].timestamp['segment'][-1]['end'] == ts_hypotheses[0].timestamp['word'][-1]['end']
-    assert ts_hypotheses[0].timestamp['segment'][0]['start_offset'] == ts_hypotheses[0].timestamp['word'][0]['start_offset']
-    assert ts_hypotheses[0].timestamp['segment'][-1]['end_offset'] == ts_hypotheses[0].timestamp['word'][-1]['end_offset']
+    assert (
+        ts_hypotheses[0].timestamp['segment'][0]['start_offset']
+        == ts_hypotheses[0].timestamp['word'][0]['start_offset']
+    )
+    assert (
+        ts_hypotheses[0].timestamp['segment'][-1]['end_offset'] == ts_hypotheses[0].timestamp['word'][-1]['end_offset']
+    )

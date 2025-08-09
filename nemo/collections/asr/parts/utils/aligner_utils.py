@@ -131,7 +131,11 @@ def restore_token_case(word: str, word_tokens: List[str]) -> List[str]:
                     word_char_pointer += 1
                 else:
                     if token_char == "▁" or token_char == "_":
-                        if word[word_char_pointer] == "▁" or word[word_char_pointer] == "_" or word[word_char_pointer] == " ":
+                        if (
+                            word[word_char_pointer] == "▁"
+                            or word[word_char_pointer] == "_"
+                            or word[word_char_pointer] == " "
+                        ):
                             token_cased += token_char
                             word_char_pointer += 1
                         elif word_char_pointer == 0:

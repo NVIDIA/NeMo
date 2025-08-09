@@ -29,13 +29,12 @@ from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig, ConfidenceMixin
 from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BlankLMScoreMode, PruningMode
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets, get_words_offsets
+from nemo.collections.asr.parts.utils.tokenizer_utils import define_spe_tokenizer_type, extract_punctuation_from_vocab
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging, logging_mode
 from nemo.utils.enum import PrettyStrEnum
-
-from nemo.collections.asr.parts.utils.timestamp_utils import get_words_offsets, get_segment_offsets
-from nemo.collections.asr.parts.utils.tokenizer_utils import extract_punctuation_from_vocab, define_spe_tokenizer_type
 
 try:
     import kenlm
@@ -1734,7 +1733,6 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
     def tokenizer_type(self):
         return define_spe_tokenizer_type(self.tokenizer.vocab)
 
-
     def _aggregate_token_confidence(self, hypothesis: Hypothesis) -> List[float]:
         """
         Implemented by subclass in order to reduce token confidence to a word-level confidence.
@@ -1838,6 +1836,7 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
                 )
 
         return hypotheses
+
 
 @dataclass
 class RNNTDecodingConfig:
