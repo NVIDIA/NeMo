@@ -603,6 +603,12 @@ def deploy(
     enable_flash_decode: bool = True,
     legacy_ckpt: bool = False,
 ):
+    warnings.warn(
+        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
     This deploy method is intended to be used for evaluation.
@@ -791,6 +797,12 @@ def evaluate(
     eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
     adapter_cfg: AdapterConfig | None = None,
 ) -> dict:
+    warnings.warn(
+        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     """
     Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval
 
@@ -1364,9 +1376,16 @@ def _validate_config(
                         model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
                     ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
                 if isinstance(data, FineTuningDataModule):
-                    assert model.config.calculate_per_token_loss, (
-                        "When finetuning with CP>1, " "model.config.calculate_per_token_loss must be True"
-                    )
+                    # check calculate_per_token_loss to be True
+                    # check average_in_collective to be False
+                    # for context parallel to solve the issue of nan loss on ranks with all tokens masked
+                    # (only happens in SFT)
+                    assert (
+                        model.config.calculate_per_token_loss
+                    ), "When finetuning with CP>1, model.config.calculate_per_token_loss must be True"
+                    assert (
+                        not trainer.strategy.ddp_config.average_in_collective
+                    ), "When finetuning with CP>1, average_in_collective must be False"
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:
