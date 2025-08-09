@@ -69,11 +69,11 @@ class AudioToTextEOUBatch:
 @dataclass
 class RandomPaddingConfig:
     prob: float = 0.9  # probability of applying padding
-    min_pad_duration: float = 0.5  # minimum duration of pre/post padding in seconds
+    min_pad_duration: float = 0.0  # minimum duration of pre/post padding in seconds
     max_pad_duration: float = 5.0  # maximum duration of pre/post padding in seconds
-    max_total_duration: float = 30.0  # maximum total duration of the padded audio in seconds
+    max_total_duration: float = 40.0  # maximum total duration of the padded audio in seconds
     min_pre_pad_duration: float = 0.0  # minimum duration of pre-padding in seconds
-    min_post_pad_duration: float = 0.0  # minimum duration of post-padding in seconds
+    min_post_pad_duration: float = 2.0  # minimum duration of post-padding in seconds
     pad_distribution: str = 'uniform'  # distribution of padding duration, 'uniform' or 'normal' or 'constant'
     normal_mean: float = 0.5  # mean of normal distribution for padding duration
     normal_std: float = 2.0  # standard deviation of normal distribution for padding duration
