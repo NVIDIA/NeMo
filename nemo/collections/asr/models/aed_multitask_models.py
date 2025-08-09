@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import tempfile
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -1252,6 +1251,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             raise RuntimeError(
                 f"Error restoring external timestamps ASR model with timestamps_asr_model_config.yaml and timestamps_asr_model_weights.ckpt: {e}"
             )
+
+        return None
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:

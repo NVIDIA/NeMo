@@ -18,10 +18,6 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Optional
-<<<<<<< HEAD
-=======
-
->>>>>>> 12836c7e1337bd96c813f76be8c07a006afe5302
 import librosa
 import numpy as np
 import torch
