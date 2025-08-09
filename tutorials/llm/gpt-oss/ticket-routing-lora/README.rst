@@ -1,4 +1,4 @@
-Fine-tuning OpenAI GPT-OSS with NVIDIA NeMo Framework
+Fine-tuning OpenAI gpt-oss with NVIDIA NeMo Framework
 =====================================================
 
 `GPT-OSS <https://blogs.nvidia.com/blog/openai-gpt-oss/>`_ are open-weights large language models by OpenAI that deliver state-of-the-art performance on a variety of tasks including reasoning and tool use. They are available in two sizes `gpt-oss-120b` and `gpt-oss-20b`. Both models employ a mixture-of-experts (MoE) transformer architecture enabling them with a larger parameter count to tackle complex tasks while running efficiently on modern GPUs.
