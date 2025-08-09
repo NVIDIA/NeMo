@@ -197,6 +197,7 @@ class FrechetCodecDistance(Metric):
             self.num_fake_frames += valid_frame_count
             self.fake_sum += torch.sum(embeddings, dim=0)
             self.fake_cov_sum += torch.matmul(embeddings.T, embeddings)
+
         return self
 
     def compute(self) -> Tensor:
