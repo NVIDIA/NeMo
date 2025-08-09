@@ -1217,34 +1217,25 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         }
 
     def restore_timestamps_asr_model(self):
-        if self.cfg.get('timestamps_asr_model', None) is None:
-            return None
-        external_timestamps_model_path = self.cfg.timestamps_asr_model
-
         app_state = AppState()
         model_restore_path = app_state.model_restore_path
 
         save_restore_connector = SaveRestoreConnector()
 
-        filter_fn = lambda name: external_timestamps_model_path in name
+        filter_fn = lambda name: "timestamps_asr_model" in name
         members = save_restore_connector._filtered_tar_info(model_restore_path, filter_fn=filter_fn)
 
         try:
-            if not members:
-                external_timestamps_model = ASRModel.from_pretrained(external_timestamps_model_path)
-            else:
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    save_restore_connector._unpack_nemo_file(
-                        path2file=model_restore_path, out_folder=tmpdir, members=members
-                    )
-                    external_timestamps_model_path = os.path.join(tmpdir, external_timestamps_model_path)
-                    external_timestamps_model = ASRModel.restore_from(external_timestamps_model_path)
+            if members:
+                save_restore_connector.model_config_yaml = "timestamps_asr_model_config.yaml"
+                save_restore_connector.model_weights_ckpt = "timestamps_asr_model_weights.ckpt"
+                external_timestamps_model = ASRModel.restore_from(model_restore_path, save_restore_connector=save_restore_connector)
+                external_timestamps_model.eval()
 
-            external_timestamps_model.eval()
-            return external_timestamps_model
+                return external_timestamps_model
         except Exception as e:
             raise RuntimeError(
-                f"Error restoring external timestamps ASR model from {external_timestamps_model_path}: {e}"
+                f"Error restoring external timestamps ASR model with timestamps_asr_model_config.yaml and timestamps_asr_model_weights.ckpt: {e}"
             )
 
 
