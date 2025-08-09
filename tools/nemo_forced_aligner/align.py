@@ -137,7 +137,7 @@ class AlignmentConfig:
     viterbi_device: Optional[str] = None
     batch_size: int = 1
     use_local_attention: bool = True
-    additional_segment_grouping_separator: Optional[str] = None
+    additional_segment_grouping_separator: Optional[List[str]] = field(default_factory=lambda: ['.', '?', '!', '...'])
     audio_filepath_parts_in_utt_id: int = 1
 
     # Buffered chunked streaming configs
@@ -332,7 +332,7 @@ def main(cfg: AlignmentConfig):
         ) = get_batch_variables(
             audio=[line['audio_filepath'] for line in manifest_lines_batch],
             model=model,
-            separator=cfg.additional_segment_grouping_separator,
+            segment_separators=cfg.additional_segment_grouping_separator,
             align_using_pred_text=cfg.align_using_pred_text,
             audio_filepath_parts_in_utt_id=cfg.audio_filepath_parts_in_utt_id,
             gt_text_batch=gt_text_batch,

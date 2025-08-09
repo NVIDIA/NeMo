@@ -1141,7 +1141,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         if timestamps_required:
             trcfg.timestamps = True
-            logging.warning("Timestamps are enabled for at least one of the input items."
+            logging.warning("Timestamps are enabled for at least one of the input items. "
                             "Setting timestamps to True for all the input items, as the current model is using external ASR model for alignment.")
         return out_json_items
 
