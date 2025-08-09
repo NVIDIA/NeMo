@@ -22,9 +22,7 @@ from typing import List, Optional
 import torch
 from omegaconf import OmegaConf
 from utils.data_prep import (
-    add_t_start_end_to_utt_obj,
     get_batch_starts_ends,
-    get_batch_variables,
     get_manifest_lines_batch,
     is_entry_in_all_lines,
     is_entry_in_any_lines,
@@ -32,10 +30,14 @@ from utils.data_prep import (
 from utils.make_ass_files import make_ass_files
 from utils.make_ctm_files import make_ctm_files
 from utils.make_output_manifest import write_manifest_out_line
-from utils.viterbi_decoding import viterbi_decoding
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
+from nemo.collections.asr.parts.utils.aligner_utils import (
+    add_t_start_end_to_utt_obj,
+    get_batch_variables,
+    viterbi_decoding,
+)
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
@@ -315,16 +317,29 @@ def main(cfg: AlignmentConfig):
     for start, end in zip(starts, ends):
         manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
 
-        (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
-            manifest_lines_batch,
-            model,
-            cfg.additional_segment_grouping_separator,
-            cfg.align_using_pred_text,
-            cfg.audio_filepath_parts_in_utt_id,
+        if not cfg.align_using_pred_text:
+            gt_text_batch = [line.get('text', '') for line in manifest_lines_batch]
+        else:
+            gt_text_batch = None
+
+        (
+            log_probs_batch,
+            y_batch,
+            T_batch,
+            U_batch,
+            utt_obj_batch,
             output_timestep_duration,
-            cfg.simulate_cache_aware_streaming,
-            cfg.use_buffered_chunked_streaming,
-            buffered_chunk_params,
+        ) = get_batch_variables(
+            audio=[line['audio_filepath'] for line in manifest_lines_batch],
+            model=model,
+            separator=cfg.additional_segment_grouping_separator,
+            align_using_pred_text=cfg.align_using_pred_text,
+            audio_filepath_parts_in_utt_id=cfg.audio_filepath_parts_in_utt_id,
+            gt_text_batch=gt_text_batch,
+            output_timestep_duration=output_timestep_duration,
+            simulate_cache_aware_streaming=cfg.simulate_cache_aware_streaming,
+            use_buffered_chunked_streaming=cfg.use_buffered_chunked_streaming,
+            buffered_chunk_params=buffered_chunk_params,
         )
 
         alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
@@ -334,13 +349,18 @@ def main(cfg: AlignmentConfig):
             utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
 
             if "ctm" in cfg.save_output_file_formats:
-                utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
+                utt_obj = make_ctm_files(
+                    utt_obj,
+                    cfg.output_dir,
+                    cfg.ctm_file_config,
+                )
 
             if "ass" in cfg.save_output_file_formats:
                 utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
 
             write_manifest_out_line(
-                f_manifest_out, utt_obj,
+                f_manifest_out,
+                utt_obj,
             )
 
     f_manifest_out.close()
