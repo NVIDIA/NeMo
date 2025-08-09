@@ -32,13 +32,13 @@ from nemo.utils import logging, logging_mode
 
 
 def get_words_offsets(
-    char_offsets: List[Dict[str, Union[str, float]]],
-    encoded_char_offsets: List[Dict[str, Union[str, float]]],
+    char_offsets: List[Dict[str, Union[int, float]]],
+    encoded_char_offsets: List[Dict[str, Union[int, float]]],
     decode_tokens_to_str: Callable[[List[int]], str],
     word_delimiter_char: str = " ",
     tokenizer_type: str = "bpe",
     supported_punctuation: Optional[Set] = None,
-) -> List[Dict[str, Union[str, float]]]:
+) -> List[Dict[str, Union[int, float]]]:
     """
     Utility method which constructs word time stamps out of sub-word time stamps.
 
