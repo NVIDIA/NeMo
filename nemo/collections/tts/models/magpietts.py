@@ -114,7 +114,8 @@ class MagpieTTSModel(ModelPT):
                 del cfg['text_tokenizer']
 
         self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
-        self.text_conditioning_tokenizer_name = cfg.get('text_conditioning_tokenizer_name', 'google-t5/t5-small')
+        self.text_conditioning_tokenizer_name = cfg.get('text_conditioning_tokenizer_name', None)
+        
         # TODO @xueyang: both tokenizers are only used to get some token ids. We
         # should kill them to save a small amount of mem resources since dataloader will initialize them
         # again after the worker processes are spawned.

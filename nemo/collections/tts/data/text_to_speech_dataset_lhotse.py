@@ -57,12 +57,15 @@ def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, tex
     text_conditioning_tokenizer = None
 
     if use_text_conditioning_tokenizer:
-        # TODO: make this configurable
         # Conditioning text tokenizer
-        if text_conditioning_tokenizer_name == 'google-t5/t5-small':
+        if text_conditioning_tokenizer_name is None:
+            # If no specific tokenizer is provided, use the first one as default
+            text_conditioning_tokenizer = tokenizers[0]  # Use the first tokenizer as default
+        elif text_conditioning_tokenizer_name == 'google-t5/t5-small':
             # For backward compatibility with T5Tokenizer
             text_conditioning_tokenizer = T5Tokenizer.from_pretrained(text_conditioning_tokenizer_name)
         else:
+            # For any other tokenizer, use AutoTokenizer
             text_conditioning_tokenizer = AutoTokenizer.from_pretrained(text_conditioning_tokenizer_name)
 
     return aggregated_tokenizer, text_conditioning_tokenizer
@@ -153,7 +156,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         context_duration_min: float = 3.0,
         context_duration_max: float = 10.0,
         use_text_conditioning_tokenizer: bool = False,
-        text_conditioning_tokenizer_name: str = 'google-t5/t5-small',
+        text_conditioning_tokenizer_name: str = None,
         tokenizer_config: DictConfig = None,
     ):
         super().__init__()
