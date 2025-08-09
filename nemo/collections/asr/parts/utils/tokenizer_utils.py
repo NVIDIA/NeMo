@@ -55,3 +55,13 @@ def extract_capitalized_tokens_from_vocab(vocab: List[str]) -> Set[str]:
     """
     capitalized_tokens = {token.strip() for token in vocab if any(char.isupper() for char in token)}
     return capitalized_tokens
+
+
+
+def define_spe_tokenizer_type(vocabulary: List[str]) -> str:
+    """
+    Define the tokenizer type based on the vocabulary.
+    """
+    if any(token.startswith("##") for token in vocabulary):
+        return "wpe"
+    return "bpe"

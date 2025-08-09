@@ -30,6 +30,25 @@ from nemo.collections.asr.parts.utils.aligner_utils import (
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import logging, logging_mode
 
+def flatten_char_offsets(char_offsets: List[Dict[str, Union[int, float]]]) -> List[Dict[str, Union[int, float]]]:
+    """
+    Flatten the char offsets to contain only one char and one token per offset.
+    This is needed for RNNT decoding, as they return a list of strings for offset['char'].
+    """
+    if not char_offsets:
+        return char_offsets
+
+    flattened_char_offsets = []
+    for char_offset in char_offsets:
+        if isinstance(char_offset['char'], list):
+            for char in char_offset['char']:
+                sub_char_offset = char_offset.copy()
+                sub_char_offset['char'] = char
+                flattened_char_offsets.append(sub_char_offset)
+        else:
+            flattened_char_offsets.append(char_offset)
+    return flattened_char_offsets
+
 
 def get_words_offsets(
     char_offsets: List[Dict[str, Union[int, float]]],
@@ -41,8 +60,6 @@ def get_words_offsets(
 ) -> List[Dict[str, Union[int, float]]]:
     """
     Utility method which constructs word time stamps out of sub-word time stamps.
-
-    **Note**: Only supports Sentencepiece based tokenizers !
 
     Args:
         char_offsets: A list of dictionaries, each containing "char", "start_offset" and "end_offset",
@@ -70,6 +87,9 @@ def get_words_offsets(
             return lambda token, token_text, next_non_delimeter_token: token_text == word_delimiter_char and next_non_delimeter_token not in supported_punctuation
         else:
             return lambda token, token_text, next_non_delimeter_token: token_text == word_delimiter_char
+
+    char_offsets = flatten_char_offsets(char_offsets)
+    encoded_char_offsets = flatten_char_offsets(encoded_char_offsets)
 
     if encoded_char_offsets is None:
         encoded_char_offsets = char_offsets
