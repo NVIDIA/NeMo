@@ -74,7 +74,7 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
         model_cfg.local_transformer_type = "autoregressive"
         del model_cfg.use_local_transformer
     if hasattr(model_cfg, 'downsample_factor'):
-        # Backward compatibility for models trained with the config option`downsample_factor` which was renamed to `frame_stacking_factor`
+        # Backward compatibility for models trained with the config option`downsample_factor` which was later renamed to `frame_stacking_factor`
         model_cfg.frame_stacking_factor = model_cfg.downsample_factor
         del model_cfg.downsample_factor
     if legacy_codebooks:
@@ -192,9 +192,9 @@ def run_inference(
         use_local_transformer=False,
         maskgit_n_steps=3,
         maskgit_noise_scale=0.0,
+        maskgit_fixed_schedule=None,
+        maskgit_sampling_type=None,
         legacy_codebooks=False,
-        fixed_schedule_n_unmasked=None,
-        sampling_type=None,
         clean_up_disk=False,
         hparams_file_from_wandb=False,
         log_exp_name=False,
@@ -247,23 +247,14 @@ def run_inference(
         exp_name = ""
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = "{}{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
-        exp_name,
-        checkpoint_name,
-        temperature,
-        topk,
-        use_cfg,
-        cfg_scale,
-        apply_attention_prior,
-        # attention_prior_epsilon,
-        # attention_prior_lookahead_window,
-        # start_prior_after_n_audio_steps,
-        # "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
-        # "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
-        use_local_transformer,
-        maskgit_n_steps,
-        sampling_type,
-        "".join([str(l) for l in fixed_schedule_n_unmasked]) if fixed_schedule_n_unmasked is not None else "None"
+    checkpoint_name = (
+        f"{exp_name}{checkpoint_name}_Temp{temperature}_Topk{topk}_Cfg_{use_cfg}_{cfg_scale}_"
+        f"Prior_{apply_attention_prior}_{attention_prior_epsilon}_{attention_prior_lookahead_window}_{start_prior_after_n_audio_steps}_"
+        f"{''.join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else 'None'}_"
+        f"{''.join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else 'None'}_"
+        f"LT_{use_local_transformer}_"
+        f"MaskGit_{maskgit_n_steps}_{maskgit_sampling_type}_{''.join([str(l) for l in maskgit_fixed_schedule]) if maskgit_fixed_schedule is not None else 'None'}_"
+        f"SV_{sv_model}"
     )
 
     dataset_meta_info = evalset_config.dataset_meta_info
@@ -379,8 +370,8 @@ def run_inference(
                     use_local_transformer_for_inference=use_local_transformer,
                     maskgit_n_steps=maskgit_n_steps,
                     maskgit_noise_scale=maskgit_noise_scale,
-                    fixed_schedule_n_unmasked=fixed_schedule_n_unmasked,
-                    sampling_type=sampling_type
+                    maskgit_fixed_schedule=maskgit_fixed_schedule,
+                    maskgit_sampling_type=maskgit_sampling_type
                 )
 
                 all_rtf_metrics.append(rtf_metrics)
@@ -508,6 +499,8 @@ def main():
     parser.add_argument('--use_local_transformer', action='store_true', help="Enables use of local transformer for inference; applies to both Autoregressive and MaskGit sampling.")
     parser.add_argument('--maskgit_n_steps', type=int, default=3)
     parser.add_argument('--maskgit_noise_scale', type=float, default=0.0)
+    parser.add_argument('--maskgit_fixed_schedule', type=int, nargs='+', default=None)
+    parser.add_argument('--maskgit_sampling_type', default=None, choices=["default", "alternate", "causal", "purity_causal", "purity_default"])    
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
     parser.add_argument('--attention_prior_epsilon', type=float, default=1e-3)
@@ -522,9 +515,6 @@ def main():
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
-    parser.add_argument('--fixed_schedule_n_unmasked', type=int, nargs='+', default=None)
-    parser.add_argument('--sampling_type', default=None, choices=["default", "alternate", "causal", "purity_causal", "purity_default"])
-
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=None)
     parser.add_argument('--ssim_target', type=float, default=None)
@@ -566,8 +556,8 @@ def main():
         use_local_transformer=args.use_local_transformer,
         maskgit_n_steps=args.maskgit_n_steps,
         maskgit_noise_scale=args.maskgit_noise_scale,
-        fixed_schedule_n_unmasked=args.fixed_schedule_n_unmasked,
-        sampling_type=args.sampling_type,
+        maskgit_fixed_schedule=args.maskgit_fixed_schedule,
+        maskgit_sampling_type=args.maskgit_sampling_type,
         legacy_codebooks=args.legacy_codebooks,
         clean_up_disk=args.clean_up_disk,
         hparams_file_from_wandb=args.hparams_file_from_wandb,

@@ -668,7 +668,7 @@ class MagpieTTSModel(ModelPT):
         # Note that audio EOS is not included because we *do* need to sample it at the end of the utterance.
         return [self.mask_token_id, self.audio_bos_id, self.context_audio_bos_id, self.context_audio_eos_id]
 
-    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule_n_unmasked=None, dynamic_cfg_scale=False, sampling_type=None):
+    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule=None, dynamic_cfg_scale=False, sampling_type=None):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
         """        
@@ -692,9 +692,9 @@ class MagpieTTSModel(ModelPT):
         sampled_codes = codes.clone()
         topk_indices = None
         if debug_print: print(f"Sampling type: {sampling_type}")
-        if fixed_schedule_n_unmasked is not None:
-            n_steps = len(fixed_schedule_n_unmasked)
-            if debug_print: print(f"Using fixed schedule: {fixed_schedule_n_unmasked}")        
+        if fixed_schedule is not None:
+            n_steps = len(fixed_schedule)
+            if debug_print: print(f"Using fixed schedule: {fixed_schedule}")        
         if dynamic_cfg_scale:
             if debug_print: print(f"Using dynamic CFG scale")
         for step in range(n_steps):
@@ -705,10 +705,10 @@ class MagpieTTSModel(ModelPT):
             if sampling_type == "causal" or sampling_type == "purity_causal":
                 frac_masked = torch.ones_like(frac_masked) * (1.0 - progress)
             # how many codebooks to mask
-            if fixed_schedule_n_unmasked is None:
+            if fixed_schedule is None:
                 n_masked = torch.ceil(codebook_seq_len * frac_masked).long()
             else:
-                n_masked = codebook_seq_len - fixed_schedule_n_unmasked[step]
+                n_masked = codebook_seq_len - fixed_schedule[step]
             n_unmasked = codebook_seq_len - n_masked
 
             if sampling_type == "causal" or sampling_type == "purity_causal":# and n_unmasked <= self.num_audio_codebooks:
@@ -1764,9 +1764,9 @@ class MagpieTTSModel(ModelPT):
             use_local_transformer_for_inference=False,
             maskgit_n_steps=3,
             maskgit_noise_scale=0.0,
-            fixed_schedule_n_unmasked=None,
-            dynamic_cfg_scale=False,
-            sampling_type=None):
+            maskgit_fixed_schedule=None,
+            maskgit_dynamic_cfg_scale=False,
+            maskgit_sampling_type=None):
         with torch.no_grad():
             start_time = time.time()
             self.decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
@@ -1938,9 +1938,9 @@ class MagpieTTSModel(ModelPT):
                             cfg_scale=cfg_scale,
                             n_steps=maskgit_n_steps,
                             noise_scale=maskgit_noise_scale,
-                            fixed_schedule_n_unmasked=fixed_schedule_n_unmasked,
-                            dynamic_cfg_scale=dynamic_cfg_scale,
-                            sampling_type=sampling_type
+                            fixed_schedule=maskgit_fixed_schedule,
+                            dynamic_cfg_scale=maskgit_dynamic_cfg_scale,
+                            sampling_type=maskgit_sampling_type
                         )
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
