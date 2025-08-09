@@ -22,7 +22,7 @@ import torch
 from tqdm.auto import tqdm
 
 from nemo.utils import logging
-from tools.nemo_forced_aligner.utils.constants import BLANK_TOKEN, SPACE_TOKEN
+from nemo.collections.asr.parts.utils.aligner_utils import BLANK_TOKEN, SPACE_TOKEN
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):
