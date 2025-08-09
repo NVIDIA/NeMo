@@ -248,16 +248,22 @@ def run_inference(
 
     # Build checkpoint name
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = (f"{exp_name}{checkpoint_name}_Temp{temperature}_Topk{topk}_Cfg_{use_cfg}_{cfg_scale}_"
-                      f"Prior_{apply_attention_prior}_")
+    checkpoint_name = (
+        "{exp_name}{checkpoint_name}_Temp{temperature}_Topk{topk}_Cfg_{use_cfg}_{cfg_scale}_"
+        f"Prior_{apply_attention_prior}_"
+    )
     if apply_attention_prior:
         # Only add prior config details if prior is enabled
-        checkpoint_name += (f"{attention_prior_epsilon}_{attention_prior_lookahead_window}_{start_prior_after_n_audio_steps}_"
-        f"{''.join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else 'None'}_"
-        f"{''.join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else 'None'}_")
-    checkpoint_name += (f"LT_{use_local_transformer}_"
-                        f"MaskGit_{maskgit_n_steps}_{maskgit_sampling_type}_{''.join([str(l) for l in maskgit_fixed_schedule]) if maskgit_fixed_schedule is not None else 'None'}_"
-                        f"SV_{sv_model}")
+        checkpoint_name += (
+            f"{attention_prior_epsilon}_{attention_prior_lookahead_window}_{start_prior_after_n_audio_steps}_"
+            f"{''.join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else 'None'}_"
+            f"{''.join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else 'None'}_"
+    )
+    checkpoint_name += (
+        f"LT_{use_local_transformer}_"
+        f"MaskGit_{maskgit_n_steps}_{maskgit_sampling_type}_{''.join([str(l) for l in maskgit_fixed_schedule]) if maskgit_fixed_schedule is not None else 'None'}_"
+        f"SV_{sv_model}"
+    )
 
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
