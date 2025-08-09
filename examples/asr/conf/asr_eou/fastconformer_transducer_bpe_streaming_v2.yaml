@@ -49,7 +49,8 @@ model:
       pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
       normal_mean: 0.5  # mean of normal distribution used when pad_distribution='normal'
       normal_std: 2.0  # standard deviation of normal distribution  used when pad_distribution='normal'
-  
+      min_post_pad_duration: 3.0 
+
     noise_path: ???
     noise_mix_prob: 1.0
     noise_snr: [0, 20.0]

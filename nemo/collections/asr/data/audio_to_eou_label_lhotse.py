@@ -72,6 +72,8 @@ class RandomPaddingConfig:
     min_pad_duration: float = 0.5  # minimum duration of pre/post padding in seconds
     max_pad_duration: float = 2.0  # maximum duration of pre/post padding in seconds
     max_total_duration: float = 30.0  # maximum total duration of the padded audio in seconds
+    min_pre_pad_duration: float = 0.0  # minimum duration of pre-padding in seconds
+    min_post_pad_duration: float = 0.0  # minimum duration of post-padding in seconds
     pad_distribution: str = 'uniform'  # distribution of padding duration, 'uniform' or 'normal' or 'constant'
     normal_mean: float = 0.5  # mean of normal distribution for padding duration
     normal_std: float = 2.0  # standard deviation of normal distribution for padding duration
@@ -521,7 +523,11 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         if max_padding_duration <= 2 * self.padding_cfg.min_pad_duration:
             min_padding_duration = 0
         else:
-            min_padding_duration = 2 * self.padding_cfg.min_pad_duration
+            min_padding_duration = max(
+                2 * self.padding_cfg.min_pad_duration,
+                self.padding_cfg.min_pre_pad_duration + self.padding_cfg.min_post_pad_duration,
+            )
+        min_padding_duration = min(min_padding_duration, max_padding_duration)
 
         pre_padding_duration = None
         post_padding_duration = None
@@ -543,10 +549,10 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             pre_padding_duration = total_padding_duration / 2
             post_padding_duration = total_padding_duration / 2
         else:
-            pre_padding_duration = np.random.uniform(
-                min_padding_duration, total_padding_duration - min_padding_duration
+            post_padding_duration = np.random.uniform(
+                self.padding_cfg.min_post_pad_duration, total_padding_duration - self.padding_cfg.min_pre_pad_duration
             )
-            post_padding_duration = total_padding_duration - pre_padding_duration
+            pre_padding_duration = total_padding_duration - post_padding_duration
 
         if self.padding_cfg.max_pad_duration is not None:
             pre_padding_duration = min(pre_padding_duration, self.padding_cfg.max_pad_duration)
@@ -663,7 +669,10 @@ def lhotse_asr_eou_cut_random_pad_transform(config: DictConfig, cut: Cut):
     if max_padding_duration <= 2 * padding_cfg.min_pad_duration:
         min_padding_duration = 0
     else:
-        min_padding_duration = 2 * padding_cfg.min_pad_duration
+        min_padding_duration = max(
+            2 * padding_cfg.min_pad_duration, padding_cfg.min_pre_pad_duration + padding_cfg.min_post_pad_duration
+        )
+    min_padding_duration = min(min_padding_duration, max_padding_duration)
 
     pre_padding_duration = None
     post_padding_duration = None
@@ -687,8 +696,10 @@ def lhotse_asr_eou_cut_random_pad_transform(config: DictConfig, cut: Cut):
         pre_padding_duration = total_padding_duration / 2
         post_padding_duration = total_padding_duration / 2
     else:
-        pre_padding_duration = np.random.uniform(min_padding_duration, total_padding_duration - min_padding_duration)
-        post_padding_duration = total_padding_duration - pre_padding_duration
+        post_padding_duration = np.random.uniform(
+            padding_cfg.min_post_pad_duration, total_padding_duration - padding_cfg.min_pre_pad_duration
+        )
+        pre_padding_duration = total_padding_duration - post_padding_duration
 
     if padding_cfg.max_pad_duration is not None:
         pre_padding_duration = min(pre_padding_duration, padding_cfg.max_pad_duration)
