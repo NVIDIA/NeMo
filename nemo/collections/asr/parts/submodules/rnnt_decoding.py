@@ -1234,7 +1234,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         return encoded_char_offsets, char_offsets
 
-
     @staticmethod
     def _load_kenlm_model(ngram_lm_model: str):
         """
