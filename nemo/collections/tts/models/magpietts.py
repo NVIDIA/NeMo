@@ -399,7 +399,7 @@ class MagpieTTSModel(ModelPT):
             # audio_len: (B,)
             return audio, audio_len
 
-    def embed_audio_tokens_with_frame_stacking(self, audio_tokens, frame_stacking_factor):
+    def embed_audio_tokens(self, audio_tokens, frame_stacking_factor):
         B, C, T = audio_tokens.shape
         audio_embedding = None
         for i in range(frame_stacking_factor):
@@ -640,7 +640,7 @@ class MagpieTTSModel(ModelPT):
             print(c, end="")
         print()
 
-    def debug_check_for_likely_forbidden_logits(self, logits):
+    def debug_check_for_forbidden_logits(self, logits):
         """Debug function to check for logits whose values should be 
         small because we don't expect to sample those tokens (like `context_audio_bos_id`)
         """
@@ -784,7 +784,7 @@ class MagpieTTSModel(ModelPT):
                 logits[item_idx, :, self.audio_eos_id] = 0.0
 
             if debug_print:
-                self.debug_check_for_likely_forbidden_logits(logits)
+                self.debug_check_for_forbidden_logits(logits)
             # Disallow generation of MASK (and other special) tokens. (But why does this happen?)
             logits[:,:,self.get_forbidden_tokens()] = float('-inf')
 
@@ -1119,7 +1119,7 @@ class MagpieTTSModel(ModelPT):
                     batch['context_audio'], batch['context_audio_lens'], audio_type='context'
                 )
             context_audio_codes = self.pad_audio_codes(context_audio_codes, self.frame_stacking_factor, pad_token=0)
-            context_audio_embedded = self.embed_audio_tokens_with_frame_stacking(context_audio_codes, frame_stacking_factor=self.frame_stacking_factor)  # (B, T/frame_stacking_factor, E)
+            context_audio_embedded = self.embed_audio_tokens(context_audio_codes, frame_stacking_factor=self.frame_stacking_factor)  # (B, T/frame_stacking_factor, E)
 
             if self.use_text_conditioning_encoder:
                 context_text_tokens = batch['context_text_tokens']
@@ -1325,7 +1325,7 @@ class MagpieTTSModel(ModelPT):
         audio_codes_lens_input_full_rate =  audio_codes_lens - self.frame_stacking_factor
         audio_codes_lens_target_full_rate_orig = audio_codes_lens_input_full_rate
         audio_codes_lens_input_stacked = torch.ceil(audio_codes_lens_target_full_rate_orig / self.frame_stacking_factor).long()
-        audio_codes_embedded_all = self.embed_audio_tokens_with_frame_stacking(audio_codes, frame_stacking_factor=self.frame_stacking_factor) # (B, T, E) # Computing this to be use in the alignment encoder
+        audio_codes_embedded_all = self.embed_audio_tokens(audio_codes, frame_stacking_factor=self.frame_stacking_factor) # (B, T, E) # Computing this to be use in the alignment encoder
         audio_codes_embedded = audio_codes_embedded_all[:, :-1, :] # (B, T', E) Input to the decoder; this is already in frame-stacked form hence the -1 (not `frame_stacking_factor`)
 
         audio_codes_mask = get_mask_from_lengths(audio_codes_lens_input_stacked)
@@ -1371,7 +1371,7 @@ class MagpieTTSModel(ModelPT):
                 )
                 # timestep_mask is True for timesteps to be kept
                 audio_codes_input = audio_codes_input * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
-                audio_codes_embedded = self.embed_audio_tokens_with_frame_stacking(audio_codes_input, frame_stacking_factor=self.frame_stacking_factor) # (B, T', E)
+                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input, frame_stacking_factor=self.frame_stacking_factor) # (B, T', E)
 
         if context_tensors['additional_decoder_input'] is not None:
             dec_input_embedded = torch.cat([additional_decoder_input, audio_codes_embedded], dim=1)
@@ -1806,7 +1806,7 @@ class MagpieTTSModel(ModelPT):
                     time_to_first_prediction = time.time() - start_time
                 if idx % 20 == 0:
                     print(f"Decoding timestep {idx}")
-                audio_codes_embedded = self.embed_audio_tokens_with_frame_stacking(audio_codes_input, frame_stacking_factor=self.frame_stacking_factor)
+                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input, frame_stacking_factor=self.frame_stacking_factor)
                 if context_tensors['additional_decoder_input'] is not None:
                     _audio_codes_embedded = torch.cat(
                         [context_tensors['additional_decoder_input'], audio_codes_embedded], dim=1
@@ -1971,6 +1971,9 @@ class MagpieTTSModel(ModelPT):
                     break
             tts_generation_time = time.time() - start_time
             tts_generation_time_per_frame = tts_generation_time / len(all_predictions)
+
+            # Concatenate the list of predictions along the time dimension.
+            # Note that when frame stacking is on, this will also undo the stacking.
             predicted_codes = torch.cat(all_predictions, dim=-1)  # (B, num_codebooks, T')
             # TODO @rfejgin when frame stacking is on, the next line could trim too coarsely; we need to also check within the stack.
             #       Could be the cause of partial last word cutoff observed when stacking is on.
