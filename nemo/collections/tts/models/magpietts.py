@@ -640,7 +640,10 @@ class MagpieTTSModel(ModelPT):
             print(c, end="")
         print()
 
-    def check_for_likely_forbidden_tokens(self, logits, parralel=False):
+    def debug_check_for_likely_forbidden_logits(self, logits):
+        """Debug function to check for logits whose values should be 
+        small because we don't expect to sample those tokens (like `context_audio_bos_id`)
+        """
         logit_thresh = 0
         for cb in range(logits.size(1)):
             has_mask = (logits[:,cb,self.mask_token_id] > logit_thresh).any()
@@ -654,10 +657,17 @@ class MagpieTTSModel(ModelPT):
                 print(f"max logits: {logits[:,cb].max()}")
                 print(f"max special logits (excluding audio bos): {logits[:,cb,self.context_audio_bos_id:self.mask_token_id].max()}")
                 print(f"max special logits (audio bos): {logits[:,cb,self.audio_bos_id].max()}")
-                if parralel:
-                    print("parallel mode")
                 print()
-                   
+
+    def get_forbidden_tokens(self):
+        """
+        Returns a list of tokens that should not be sampled.
+
+        returns: list of token ids
+        """
+        # Note that audio EOS is not included because we *do* need to sample it at the end of the utterance.
+        return [self.mask_token_id, self.audio_bos_id, self.context_audio_bos_id, self.context_audio_eos_id]
+
     def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule_n_unmasked=None, dynamic_cfg_scale=False, sampling_type=None):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
@@ -773,12 +783,10 @@ class MagpieTTSModel(ModelPT):
                 logits[item_idx, :, :] = float('-inf')
                 logits[item_idx, :, self.audio_eos_id] = 0.0
 
-            # HACK: disallow generation of MASK (and other special) tokens. But why is this happening?
-            self.check_for_likely_forbidden_tokens(logits)
-            logits[:,:,self.mask_token_id] = float('-inf')
-            logits[:,:,self.audio_bos_id] = float('-inf')
-            logits[:,:,self.context_audio_bos_id] = float('-inf')
-            logits[:,:,self.context_audio_eos_id] = float('-inf')
+            if debug_print:
+                self.debug_check_for_likely_forbidden_logits(logits)
+            # Disallow generation of MASK (and other special) tokens. (But why does this happen?)
+            logits[:,:,self.get_forbidden_tokens()] = float('-inf')
 
             # sample with top-k
             logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)
@@ -883,7 +891,6 @@ class MagpieTTSModel(ModelPT):
                 si = (idx + self.num_audio_codebooks * ds_index) * self.num_all_tokens_per_codebook
                 ei = si + self.num_all_tokens_per_codebook
                 codebook_logits = all_code_logits_t[:, si:ei]  # (B, num_tokens_per_codebook)
-                self.check_for_likely_forbidden_tokens(codebook_logits.unsqueeze(1), parralel=True)
 
                 for item_idx in unfinished_items:
                     codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
