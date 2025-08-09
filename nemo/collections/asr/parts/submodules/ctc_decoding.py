@@ -478,7 +478,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                     all_hypotheses.append(decoded_hyps)
 
             if return_hypotheses:
-                return all_hypotheses  # type: list[list[Hypothesis]]
+                return all_hypotheses  # type: List[List[Hypothesis]]
 
             # alaptev: The line below might contain a bug. Do we really want all_hyp_text to be flat?
             all_hyp = [[Hypothesis(h.score, h.y_sequence, h.text) for h in hh] for hh in all_hypotheses]
