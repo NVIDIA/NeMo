@@ -34,10 +34,8 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.utils import logging, logging_mode
 from nemo.utils.enum import PrettyStrEnum
 
-<<<<<<< HEAD
 from nemo.collections.asr.parts.utils.timestamp_utils import get_words_offsets, get_segment_offsets
 from nemo.collections.asr.parts.utils.tokenizer_utils import extract_punctuation_from_vocab, define_spe_tokenizer_type
-=======
 try:
     import kenlm
 
@@ -45,7 +43,6 @@ try:
 except (ImportError, ModuleNotFoundError):
     KENLM_AVAILABLE = False
 
->>>>>>> 6251117f4c12288bd9e12bbbf43b0720153d542f
 
 class TransducerModelType(PrettyStrEnum):
     RNNT = "rnnt"
@@ -1236,94 +1233,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         return encoded_char_offsets, char_offsets
 
-<<<<<<< HEAD
-=======
-    @staticmethod
-    def _get_segment_offsets(
-        offsets: List[Dict[str, Union[str, float]]],
-        segment_delimiter_tokens: List[str],
-        supported_punctuation: Optional[Set] = None,
-        segment_gap_threshold: Optional[int] = None,
-    ) -> List[Dict[str, Union[str, float]]]:
-        """
-        Utility method which constructs segment time stamps out of word time stamps.
-
-        Args:
-            offsets: A list of dictionaries, each containing "word", "start_offset" and "end_offset".
-            segments_delimiter_tokens: List containing tokens representing the seperator(s) between segments.
-            supported_punctuation: Set containing punctuation marks in the vocabulary.
-            segment_gap_threshold: Number of frames between 2 consecutive words necessary to form segments out of plain
-            text.
-        Returns:
-            A list of dictionaries containing the segment offsets. Each item contains "segment", "start_offset" and
-            "end_offset".
-        """
-        if (
-            supported_punctuation
-            and not set(segment_delimiter_tokens).intersection(supported_punctuation)
-            and not segment_gap_threshold
-        ):
-            logging.warning(
-                f"Specified segment seperators are not in supported punctuation {supported_punctuation}. "
-                "If the seperators are not punctuation marks, ignore this warning. "
-                "Otherwise, specify 'segment_gap_threshold' parameter in decoding config to form segments.",
-                mode=logging_mode.ONCE,
-            )
-
-        segment_offsets = []
-        segment_words = []
-        previous_word_index = 0
-
-        # For every offset word
-        for i, offset in enumerate(offsets):
-
-            word = offset['word']
-            if segment_gap_threshold and segment_words:
-                gap_between_words = offset['start_offset'] - offsets[i - 1]['end_offset']
-                if gap_between_words >= segment_gap_threshold:
-                    segment_offsets.append(
-                        {
-                            "segment": ' '.join(segment_words),
-                            "start_offset": offsets[previous_word_index]["start_offset"],
-                            "end_offset": offsets[i - 1]["end_offset"],
-                        }
-                    )
-
-                    segment_words = [word]
-                    previous_word_index = i
-                    continue
-
-            # check if the word ends with any delimeter token or the word itself is a delimeter
-            elif word and (word[-1] in segment_delimiter_tokens or word in segment_delimiter_tokens):
-                segment_words.append(word)
-                if segment_words:
-                    segment_offsets.append(
-                        {
-                            "segment": ' '.join(segment_words),
-                            "start_offset": offsets[previous_word_index]["start_offset"],
-                            "end_offset": offset["end_offset"],
-                        }
-                    )
-
-                segment_words = []
-                previous_word_index = i + 1
-                continue
-
-            segment_words.append(word)
-
-        if segment_words:
-            start_offset = offsets[previous_word_index]["start_offset"]
-            segment_offsets.append(
-                {
-                    "segment": ' '.join(segment_words),
-                    "start_offset": start_offset,
-                    "end_offset": offsets[-1]["end_offset"],
-                }
-            )
-        segment_words.clear()
-
-        return segment_offsets
-
     @staticmethod
     def _load_kenlm_model(ngram_lm_model: str):
         """
@@ -1336,7 +1245,6 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                 "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
             )
 
->>>>>>> 6251117f4c12288bd9e12bbbf43b0720153d542f
 
 class RNNTDecoding(AbstractRNNTDecoding):
     """
