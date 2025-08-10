@@ -1129,7 +1129,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)
                 if k == "timestamp":
-                    if str(entry[k]).lower() not in ['notimestamp', "no", "false", "0"] and self.timestamps_asr_model is not None:
+                    if (
+                        str(entry[k]).lower() not in ['notimestamp', "no", "false", "0"]
+                        and self.timestamps_asr_model is not None
+                    ):
                         timestamps_required = True
                         entry[k] = 'notimestamp'
             out_json_items.append(entry)
