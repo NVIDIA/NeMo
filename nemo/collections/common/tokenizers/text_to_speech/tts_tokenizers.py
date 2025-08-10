@@ -1089,12 +1089,13 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
 # TODO @xueyang: subclassing from `nemo/collections/common/tokenizers/tokenizer_spec.py::TokenizerSpec`, and/or
 #  adjust to reuse `nemo/collections/common/tokenizers/aggregate_tokenizer.py::AggregateTokenizer`
 class AggregatedTTSTokenizer:
-    def __init__(self, tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]], tokenizer_names: List[str]):
+    def __init__(self, tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]], tokenizer_names: List[str], limit_to_vocab_size: bool = False):
         """A simple aggregated tokenizer. Aggregates multiple tokenizers into one by combining (simply concatenating)
         their tokens into one vocabulary.
         Args:
             tokenizers: List of tokenizers to aggregate.
             tokenizer_names: List of names for each tokenizer (usually the language identifier).
+            limit_to_vocab_size: If True, will limit the vocabulary size of HF tokenizers to the size of each tokenizer's vocabulary.
         """
         assert len(tokenizers) == len(tokenizer_names), "Number of tokenizers and tokenizer names must be the same."
         tokens = []
@@ -1109,6 +1110,9 @@ class AggregatedTTSTokenizer:
                 num_tokens = len(tokenizer.tokens)
             elif isinstance(tokenizer, PreTrainedTokenizerBase):
                 _tokens = list(tokenizer.get_vocab().keys())
+                if limit_to_vocab_size:
+                    _tokens = _tokens[:tokenizer.vocab_size]
+
                 tokens.extend(_tokens)
                 num_tokens = len(_tokens)
             else:
@@ -1118,6 +1122,7 @@ class AggregatedTTSTokenizer:
         self.tokens = tokens
         self.tokenizer_names = tokenizer_names
         self.toknizer_offsets = toknizer_offsets
+        self.vocab_size = len(tokens)
         # Define aggregated token's pad value from the first tokenizer's pad value
         first_tokenizer = self.tokenizers[tokenizer_names[0]]
         if hasattr(first_tokenizer, "pad_token_id"):  # Defined in PreTrainedTokenizerBase subclasses
@@ -1127,12 +1132,18 @@ class AggregatedTTSTokenizer:
         else:
            raise ValueError("AggregatedTTSTokenizer could not find a padding token in the first tokenizer")
 
-    def encode(self, text: str, tokenizer_name: str) -> List[int]:
+    def encode(self, text: str, tokenizer_name: str = None) -> List[int]:
+        if tokenizer_name is None:
+            # Default to the first tokenizer if no name is provided
+            tokenizer_name = self.tokenizer_names[0]
         tokenizer = self.tokenizers[tokenizer_name]
         tokens = tokenizer.encode(text)
         return [self.toknizer_offsets[tokenizer_name] + token for token in tokens]
 
-    def decode(self, tokens: List[int], tokenizer_name: str) -> str:
+    def decode(self, tokens: List[int], tokenizer_name: str = None) -> str:
+        if tokenizer_name is None:
+            # Default to the first tokenizer if no name is provided
+            tokenizer_name = self.tokenizer_names[0]
         tokenizer = self.tokenizers[tokenizer_name]
         return tokenizer.decode([token - self.toknizer_offsets[tokenizer_name] for token in tokens])
 
