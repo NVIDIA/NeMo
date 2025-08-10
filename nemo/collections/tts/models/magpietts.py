@@ -1512,8 +1512,8 @@ class MagpieTTSModel(ModelPT):
 
         for bidx in finished_texts_counter:
             finished_texts_counter[bidx] += 1
-            if finished_texts_counter[bidx] > 10:
-                # This means we have been within the text EOS window for atleast 10 timesteps
+            if finished_texts_counter[bidx] > 5:
+                # This means we have been within the text EOS window for atleast 5 timesteps
                 # We should allow EOS to be predicted now.
                 unfinished_texts[bidx] = False
 
