@@ -43,8 +43,6 @@ from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifi
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import (
     get_forced_aligned_timestamps_with_external_model,
-    get_segment_offsets,
-    get_words_offsets,
     process_aed_timestamp_outputs,
 )
 from nemo.collections.common import tokenizers
@@ -1131,7 +1129,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)
                 if k == "timestamp":
-                    if entry[k] != 'notimestamp' and self.timestamps_asr_model is not None:
+                    if str(entry[k]).lower() not in ['notimestamp', "no", "false", "0"] and self.timestamps_asr_model is not None:
                         timestamps_required = True
                         entry[k] = 'notimestamp'
             out_json_items.append(entry)

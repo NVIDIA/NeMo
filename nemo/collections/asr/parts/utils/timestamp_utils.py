@@ -492,7 +492,30 @@ def get_forced_aligned_timestamps_with_external_model(
     supported_punctuation: Optional[Union[Set, List[str]]] = {',', '.', '!', '?'},
     timestamp_type: Optional[Union[str, List[str]]] = "all",
     has_hypotheses: bool = False,
-):
+) -> List[Hypothesis]:
+
+    """
+    Extracts the word, segment and char timestamps by aligning the audio with the external ASR model and adds them to the provided Hypothesis objects.
+    Args:
+        audio: The audio to align.
+        external_ctc_model: The external ASR CTC model to use for alignment.
+        main_model_predictions: The predictions from the main model the pred_texts of which will be used for alignment.
+        batch_size: The batch size to use for alignment (this is used both for CTC model inference and viterbi decoding).
+        viterbi_device: The device to use for viterbi decoding. Batch variables got with get_batch_variables() are moved to this device before viterbi decoding.
+        segment_separators: The segment separators to use for splitting the pred_text into segments. Default is ['.', '?', '!', '...']
+        word_separator: The word separator to use for splitting the pred_text into words. Default is " ".
+        supported_punctuation: The supported punctuation is punctuation marks in the vocabulary of the main model. 
+                            This is used for refining the timestamps extracted with the external ASR model. 
+                            As sometimes punctuation marks can be assigned to multiple audio frames, which is not correct, so we should neutralize these cases.
+                            Default is {',', '.', '!', '?'}.
+        timestamp_type: The type of timestamps to return. Default is "all". Can be "segment", "word", "char" or "all", or a list of these.
+        has_hypotheses: Whether `audio` is a list of Hypothesis objects resulted from the external ASR CTC model inference. 
+                        This is used in external alignment generation script, e.g. `examples/asr/asr_chunked_inference/aed/speech_to_text_aed_chunked_infer.py`.
+                        If True, `audio` will be used as a list of Hypothesis objects and the inference to the external ASR CTC model will be skipped.
+
+    Returns:
+        List of provided Hypothesis objects with processed timestamps
+    """
 
     def process_timestamps(utt_obj, output_timestep_duration, timestamp_type):
         if isinstance(timestamp_type, str):

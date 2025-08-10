@@ -14,10 +14,9 @@
 
 import copy
 import re
-import unicodedata
 from abc import abstractmethod, abstractproperty
 from dataclasses import dataclass, field, is_dataclass
-from typing import Callable, Dict, List, Optional, Set, Union
+from typing import Dict, List, Optional, Set, Union
 
 import numpy as np
 import torch
@@ -33,7 +32,7 @@ from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets
 from nemo.collections.asr.parts.utils.tokenizer_utils import define_spe_tokenizer_type, extract_punctuation_from_vocab
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.utils import logging, logging_mode
+from nemo.utils import logging
 from nemo.utils.enum import PrettyStrEnum
 
 try:

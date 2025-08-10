@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -924,6 +924,9 @@ def get_batch_variables(
         ):
             raise ValueError("Audio must be a list of audio files or a single audio file when using streaming mode.")
 
+        if isinstance(audio, str):
+            audio = [audio]
+
     if gt_text_batch is not None:
         if isinstance(gt_text_batch, str):
             gt_text_batch = [gt_text_batch]
@@ -967,9 +970,9 @@ def get_batch_variables(
         delay = buffered_chunk_params["delay"]
         model_stride_in_secs = buffered_chunk_params["model_stride_in_secs"]
         tokens_per_chunk = buffered_chunk_params["tokens_per_chunk"]
-        for l in tqdm(audio, desc="Sample:"):
+        for audio_sample in tqdm(audio, desc="Sample:"):
             model.reset()
-            model.read_audio_file(l, delay, model_stride_in_secs)
+            model.read_audio_file(audio_sample, delay, model_stride_in_secs)
             hyp, logits = model.transcribe(tokens_per_chunk, delay, keep_logits=True)
             log_probs_list_batch.append(logits)
             T_list_batch.append(logits.shape[0])

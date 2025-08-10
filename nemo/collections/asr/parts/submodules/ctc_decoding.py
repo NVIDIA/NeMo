@@ -14,10 +14,9 @@
 
 import copy
 import re
-import unicodedata
 from abc import abstractmethod, abstractproperty
 from dataclasses import dataclass, field, is_dataclass
-from typing import Callable, Dict, List, Optional, Set, Union
+from typing import Dict, List, Optional, Set, Union
 
 import numpy as np
 import torch
