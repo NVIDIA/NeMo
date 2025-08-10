@@ -565,7 +565,7 @@ class TestEncDecMultiTaskModel:
         )
 
         audio_file = "/home/TestData/asr/longform/earnings22/sample_4469669.wav"
-        
+
         meta = {
             'audio_filepath': audio_file,
             'duration': 100000,
