@@ -441,8 +441,10 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         self.scale_rewards = self.cfg.get('scale_rewards', True)
         self.max_decoder_steps = self.cfg.get('max_decoder_steps', 430)
         # If the best record in the group is above this threshold, we will not use that group for training
+        # Setting this to 1.0, because we clamp the ASR rewards to be in [0, 1] for OnlinePO
         self.best_cer_threshold = self.cfg.get('best_cer_threshold', 1.0)
         # If the worst record in the group exceeds this threshold, we will not use that group for training
+        # Setting this to 1.0, because we clamp the ASR rewards to be in [0, 1] for OnlinePO
         self.worst_cer_threshold = self.cfg.get('worst_cer_threshold', 1.0)
         
 
@@ -492,7 +494,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             # Randomly set use_cfg based on the given probability
             use_cfg = random.random() < self.cfg.inference_cfg_prob
             cfg_scale = self.cfg.get('inference_cfg_scale', 1.0)
-        print("use_cfg", use_cfg)
+        
         predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, _ = self.infer_batch(
             batch_repeated,
             max_decoder_steps=self.max_decoder_steps,
@@ -500,7 +502,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             topk=topk,
             use_cfg=use_cfg,
             cfg_scale=cfg_scale,
-            use_local_transformer_for_inference=use_local_transformer_for_inference
+            use_local_transformer_for_inference=use_local_transformer_for_inference,
+            use_LT_kv_cache=False, # We don't use KV caching for local transformer in GRPO due to issues.
         )
         predicted_audio_paths = []
         audio_durations = []
