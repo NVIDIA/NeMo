@@ -527,7 +527,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             A list of transcriptions (or raw log probabilities if logprobs is True) in the same order 
             as paths2audio_files
         """
-        if timestamps is not None and timestamps is not False:
+        if timestamps is not None:
             if self.timestamps_asr_model is None:
                 # TODO: Handle this key gracefully later
                 if timestamps is True:

@@ -565,6 +565,7 @@ class TestEncDecMultiTaskModel:
         )
 
         audio_file = "/home/TestData/asr/longform/earnings22/sample_4469669.wav"
+        
         meta = {
             'audio_filepath': audio_file,
             'duration': 100000,
@@ -577,7 +578,7 @@ class TestEncDecMultiTaskModel:
         }
         model_stride_in_secs = 0.01 * 8  # feature_stride in sec * model_stride
         model.read_audio_file(audio_file, delay=0.0, model_stride_in_secs=model_stride_in_secs, meta_data=meta)
-        outputs = model.transcribe()
+        outputs = model.transcribe(timestamps=True)
 
         # check hypothesis object
         assert isinstance(outputs, Hypothesis)
