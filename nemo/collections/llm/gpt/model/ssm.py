@@ -702,6 +702,9 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
         elif type(source) == NemotronHConfig56B:
             model_path = local_model_path if local_model_path else "nvidia/Nemotron-H-56B-Base-8K"
             hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+        elif type(source) == NemotronNano9Bv2:
+            model_path = local_model_path if local_model_path else "nvidia/NVIDIA-Nemotron-Nano-9B-v2"
+            hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
         else:
             raise ValueError(f"Unsupported model size: {source}")
 
@@ -1038,6 +1041,20 @@ class NemotronHConfig56B(NemotronHConfigBase):
     ffn_hidden_size: int = 32768
     num_attention_heads: int = 64
 
+@dataclass
+class NemotronNano9Bv2(NemotronHConfigBase):
+    """NemotronNano9Bv2"""
+
+    hybrid_override_pattern: str = "M-M-M-MM-M-M-M*-M-M-M*-M-M-M-M*-M-M-M-M*-M-MM-M-M-M-M-M-"
+    num_layers: int = 56
+    hidden_size: int = 4480
+    mamba_num_heads: int = 128
+    kv_channels: int = 128
+    mamba_state_dim: int = 128
+    ffn_hidden_size: int = 15680
+    num_attention_heads: int = 40
+    mamba_head_dim: int = 80
+    use_mamba_mem_eff_path: bool = False
 
 __all__ = [
     "SSMConfig",
@@ -1053,4 +1070,5 @@ __all__ = [
     "NemotronHConfig8B",
     "NemotronHConfig47B",
     "NemotronHConfig56B",
+    "NemotronNano9Bv2",
 ]
