@@ -14,7 +14,7 @@
 
 import dataclasses
 import logging
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
@@ -37,8 +37,9 @@ class MegatronDataSampler(DataSampler):
     def __init__(
         self,
         seq_len: int,
-        micro_batch_size: int = 4,
+        micro_batch_size: Union[int, List[int]] = 4,
         global_batch_size: int = 8,
+        cu_global_batch_splits: Optional[List[int]] = None,
         rampup_batch_size: Optional[List[int]] = None,
         dataloader_type: Literal["single", "cyclic", "batch"] = "single",
         init_consumed_samples: int = 0,
@@ -46,11 +47,25 @@ class MegatronDataSampler(DataSampler):
         output_log: bool = True,
         decoder_seq_len: Optional[int] = None,
     ):
+        """
+        Args:
+            micro_batch_size: int or list of ints, default is 4.
+                The size of the micro-batch to use for each GPU. An int config means the same value for all GPUs.
+                If a list is provided, the size will be different for each GPU. For example, in multi-dataceter
+                running, GPUs of each dataceter can have different micro-batch sizes.
+            cu_global_batch_splits: list of ints, default is None.
+                Cumulative global batch size splits for multiple GPU world ranges. This is to support cases where
+                GPU world size is split into multiple ranges, which are collection of same or different GPUs (e.g.,
+                multi-datacenters). Global batch size is split and assigned to each range.
+                For example, with 2 GPU ranges/datacenters and global_batch_size=16, cu_global_batch_splits can be
+                [0, 4, 16], or [0, 8, 16], etc. [0, 4, 16] means global batch split of 4 and 8 for each range.
+        """
         self.seq_len = seq_len
         self.decoder_seq_len = decoder_seq_len
         self.output_log = output_log
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
+        self.cu_global_batch_splits = cu_global_batch_splits
         self.rampup_batch_size = rampup_batch_size
         self.dataloader_type = dataloader_type
         self.init_consumed_samples = init_consumed_samples
@@ -60,47 +75,79 @@ class MegatronDataSampler(DataSampler):
         self.init_global_step = init_global_step
 
     def setup(self, global_rank: int) -> None:
+        from megatron.core import parallel_state
         from nemo.lightning.data import setup_microbatch_calculator
 
-        setup_microbatch_calculator(global_rank, self.micro_batch_size, self.global_batch_size, self.rampup_batch_size)
+        self.data_parallel_rank = parallel_state.get_data_parallel_rank()
+        self.data_parallel_size = parallel_state.get_data_parallel_world_size()
+        self.global_batch_split_range = None
+        assert (
+            isinstance(self.micro_batch_size, int) or self.cu_global_batch_splits is not None
+        ), f"micro_batch_size: {self.micro_batch_size} can be a list only when cu_global_batch_splits is provided!"
+
+        if self.cu_global_batch_splits is not None:
+            # calculate DP info and global batch split range for the rank range where the current GPU belongs to
+            # GPU world size consists of (len(cu_global_batch_splits) - 1) rank ranges, assuming all ranges have
+            # same number of GPUs and same parallelism config.
+            num_rank_ranges = len(self.cu_global_batch_splits) - 1
+            self.data_parallel_size = self.data_parallel_size // num_rank_ranges
+            rank_range_id = self.data_parallel_rank // self.data_parallel_size
+            self.data_parallel_rank = self.data_parallel_rank % self.data_parallel_size
+
+            if isinstance(self.micro_batch_size, list):
+                assert (
+                    len(self.micro_batch_size) == num_rank_ranges
+                ), f"The length of micro_batch_size: {self.micro_batch_size} should be same as the number of \
+                    world size split ranges: {num_rank_ranges}!"
+                self.micro_batch_size = self.micro_batch_size[rank_range_id]
+
+            assert (
+                self.cu_global_batch_splits[0] == 0 and self.cu_global_batch_splits[-1] == self.global_batch_size
+            ), f"cu_global_batch_splits: {self.cu_global_batch_splits} should start with 0 and end with \
+                {self.global_batch_size}!"
+            self.global_batch_split_range = (
+                self.cu_global_batch_splits[rank_range_id],
+                self.cu_global_batch_splits[rank_range_id + 1],
+            )
+
+        setup_microbatch_calculator(
+            global_rank,
+            self.data_parallel_size,
+            self.micro_batch_size,
+            self.global_batch_size,
+            self.global_batch_split_range,
+            self.rampup_batch_size,
+        )
 
     def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
-        from megatron.core import parallel_state
-
         from nemo.lightning.data import add_megatron_sampler
 
         mode = getattr(dataloader, 'mode', 'train')
 
-        data_parallel_rank = parallel_state.get_data_parallel_rank()
-        data_parallel_size = parallel_state.get_data_parallel_world_size()
         return add_megatron_sampler(
             dataloader,
             micro_batch_size=self.micro_batch_size,
             global_batch_size=self.global_batch_size,
+            global_batch_split_range=self.global_batch_split_range,
             rampup_batch_size=self.rampup_batch_size,
             consumed_samples=self.init_consumed_samples if mode == 'train' else 0,
             dataloader_type=self.dataloader_type,
             drop_last=mode not in ["test", "predict"],  # don't drop the incomplete batch in test and predict methods
             dataloader_mode=mode,  # dataloader wrapped with nemo.lightning.data.WrappedDataLoader has mode attribute
-            rank=data_parallel_rank,
-            world_size=data_parallel_size,
+            rank=self.data_parallel_rank,
+            world_size=self.data_parallel_size,
         )
 
     def compute_consumed_samples(self, steps_since_resume=0) -> int:
         from nemo.lightning.pytorch.strategies import MegatronStrategy
-        from nemo.utils import AppState
 
         if not hasattr(self, "trainer") or not isinstance(self.trainer.strategy, MegatronStrategy):
             return 0
 
-        app_state = AppState()
         if self.rampup_batch_size is not None:
             consumed_samples = self.prev_consumed_samples + self.if_first_step * self.current_global_batch_size
         else:
-            consumed_samples = (
-                self.init_consumed_samples
-                + steps_since_resume * app_state.data_parallel_size * self.micro_batch_size * self.num_microbatches
-            )
+            consumed_samples = self.init_consumed_samples + steps_since_resume * self.current_global_batch_size
 
         return int(consumed_samples)
 

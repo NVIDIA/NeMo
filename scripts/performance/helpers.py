@@ -14,7 +14,7 @@
 
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import nemo_run as run
 import pandas as pd
@@ -63,7 +63,7 @@ def get_csv_configs(gpu: str, task: str, model_name: str, model_size: str, args)
     return config
 
 
-def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
+def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[Union[int, List[int]]]:
     """
     Choose recommended configs tuned for performance from a csv file if available.
     User (command line) provided args override the recommended configs.
@@ -93,6 +93,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     vp_size = config.get("vp_size") if vp_size is None else vp_size
     etp_size = args.expert_tensor_parallel_size
     etp_size = config.get("etp_size") if etp_size is None else etp_size
+
+    if isinstance(mbs, list) and len(mbs) == 1:
+        mbs = mbs[0]
 
     enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
     enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
@@ -139,7 +142,7 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     use_sharp = False if use_sharp is None else bool(int(use_sharp))
 
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
-    kwargs = [int(arg) if arg is not None else arg for arg in kwargs]
+    kwargs = [int(arg) if arg is not None and not isinstance(arg, list) else arg for arg in kwargs]
     kwargs += [
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -349,7 +352,7 @@ def set_primary_perf_configs(
     task: str,
     num_nodes: int,
     num_gpus_per_node: int,
-    mbs: int,
+    mbs: Union[int, List[int]],
     gbs: int,
     max_steps: int,
     tp_size: int,
@@ -370,6 +373,8 @@ def set_primary_perf_configs(
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
     keep_fsdp_fp8_transpose_cache: Optional[bool] = None,
+    num_distributed_optimizer_instances: Optional[int] = 1,
+    cu_global_batch_splits: Optional[List[int]] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -383,6 +388,7 @@ def set_primary_perf_configs(
     # lightning.pytorch.LightningDataModule configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
+    recipe.data.cu_global_batch_splits = cu_global_batch_splits
     if recipe.data.__fn_or_cls__ == MockDataModule:
         recipe.data.num_train_samples = max_steps * gbs  # ensure only 1 epoch for whole run
 
@@ -394,6 +400,7 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
+    recipe.trainer.strategy.num_distributed_optimizer_instances = num_distributed_optimizer_instances
     if nccl_communicator_config_path is not None:
         recipe.trainer.strategy.nccl_communicator_config_path = nccl_communicator_config_path
 
