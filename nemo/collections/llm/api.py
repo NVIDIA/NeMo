@@ -797,12 +797,6 @@ def evaluate(
     eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
     adapter_cfg: AdapterConfig | None = None,
 ) -> dict:
-    warnings.warn(
-        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
-        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     """
     Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval
 
@@ -813,6 +807,12 @@ def evaluate(
         adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.
             Default: None.
     """
+    warnings.warn(
+        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:

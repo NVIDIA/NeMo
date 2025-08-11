@@ -565,6 +565,7 @@ def loss_flops_calculator(
     hidden_size,
     vocab_size,
 ):
+    """Calculate the flops for the loss"""
     return (seqlen * hidden_size * vocab_size) * 6
 
 
@@ -582,6 +583,7 @@ def gpt_oss_flops_calculator(
     swa_window_size: int = 128,
     window_attn_skip_freq: Optional[int] = 2,
 ):
+    """Calculate the flops for the GPT-OSS model"""
     flops = 0
     for i in range(num_layers):
         if i % window_attn_skip_freq == 0:
