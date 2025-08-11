@@ -107,7 +107,9 @@ class MagpieTTSModel(ModelPT):
 
         # The frame stacking factor controls how many consecutive frames are processed together by the
         # base decoder (and then refined into individual frames by the local transformer).
-        # A value of 1 means no frame stacking.
+        # We have a separate embedding table for each of the stacked frames, e.g. for frame stacking
+        # factor of 3, the codes of codebook 0 appears 3 times in the embedding table.
+        # A frame stacking factor of 1 means no frame stacking.
         self.frame_stacking_factor = cfg.get('frame_stacking_factor', 1)
         assert not 'downsample_factor' in cfg, '`downsample_factor` is deprecated, use `frame_stacking_factor` instead'
         # Setup tokenizer
@@ -253,14 +255,7 @@ class MagpieTTSModel(ModelPT):
 
         elif self.model_type == 'decoder_pretrain_synthesizer':
             # This is for pretraining the decoder only on audio data using next frame prediction loss
-            assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
-        elif self.model_type == 'decoder_ce':
-            # Similar to decoder_context_tts, but we don't use context encoder
-            # Decoder gets output from context encoder instead of raw context tokens
-            self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
-            self.transcript_decoder_layers = [
-                idx for idx in range(cfg.decoder.n_layers)
-            ]  # All layers are used for text            
+            assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"    
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
 
@@ -475,7 +470,6 @@ class MagpieTTSModel(ModelPT):
                 # Checked the time - this loop is not taking much time (compared to the local transformer forward pass)
                 codebook_logits = self.local_transformer_out_projections[codebook_num + ds_index*C](local_transformer_output[:, codebook_num + ds_index*C, :]) # (B*T', num_all_tokens_per_codebook)
                 all_code_logits.append(codebook_logits)
-        # TODO @rfejgin: make sure all frame_stacking_factor * num_codebooks are in the same dimension (expected by loss calculation)
         all_code_logits = torch.cat(all_code_logits, dim=1) # (B*T'/frame_stacking_factor, num_codebooks * num_all_tokens_per_codebook * frame_stacking_factor)
 
         all_code_logits = all_code_logits.view(
@@ -659,11 +653,9 @@ class MagpieTTSModel(ModelPT):
                 print(f"max special logits (audio bos): {logits[:,cb,self.audio_bos_id].max()}")
                 print()
 
-    def get_forbidden_tokens(self):
+    def get_forbidden_tokens(self) -> list[int]:
         """
         Returns a list of tokens that should not be sampled.
-
-        returns: list of token ids
         """
         # Note that audio EOS is not included because we *do* need to sample it at the end of the utterance.
         return [self.mask_token_id, self.audio_bos_id, self.context_audio_bos_id, self.context_audio_eos_id]
