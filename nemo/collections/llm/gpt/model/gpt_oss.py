@@ -221,7 +221,8 @@ class _BaseGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]
 
 @io.model_importer(GPTOSSModel, "hf")
 class HFGPTOSSImporter(_BaseGPTOSSImporter):
-    """ Importer for GPT-OSS models from Hugging Face"""
+    """Importer for GPT-OSS models from Hugging Face"""
+
     # pylint: disable=C0115,C0116
     def apply(self, output_path: Path) -> Path:
         logging.setLevel(logging.DEBUG)
@@ -322,7 +323,8 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
 
 @io.model_importer(GPTOSSModel, "openai")
 class OpenAIGPTOSSImporter(_BaseGPTOSSImporter):
-    """ Importer for GPT-OSS models from OpenAI's checkpoint format"""
+    """Importer for GPT-OSS models from OpenAI's checkpoint format"""
+
     # pylint: disable=C0115,C0116
     def apply(self, output_path: Path) -> Path:
         source_state = self.hf_ckpt_load()
