@@ -275,9 +275,6 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             encoder_output_length: lengths of the utterances in `encoder_output`
             prev_batched_state: previous batched decoding state
         """
-        if self.window_size > 1:
-            # TODO: implement
-            raise NotImplementedError()
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
         if self.fusion_models is not None:
