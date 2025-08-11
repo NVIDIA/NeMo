@@ -12,22 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import math
 import os
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Callable, Optional, Tuple, Union, Literal, List
+from typing import TYPE_CHECKING, Annotated, Callable, List, Literal, Optional, Tuple, Union
+
 import torch
 from megatron.core.fusions.fused_bias_geglu import quick_gelu
 from megatron.core.transformer.enums import AttnBackend
 from safetensors import safe_open
 from torch import nn
-import math
-
-from transformers import GenerationConfig, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, GenerationConfig
 
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.llm.gpt.model.base import GPTModel, GPTConfig, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
@@ -42,6 +42,7 @@ class GPTOSSConfig(GPTConfig):
     """
     Base config for GPT-OSS
     """
+
     hidden_size: int = 2880
     num_attention_heads: int = 64
     num_query_groups: int = 8
@@ -57,10 +58,10 @@ class GPTOSSConfig(GPTConfig):
 
     position_embedding_type: str = "yarn"
     rotary_base: int = 150000
-    rotary_scaling_factor: float = 32.
+    rotary_scaling_factor: float = 32.0
     yarn_original_max_position_embeddings: int = 131072
-    yarn_beta_fast: float = 32.
-    yarn_beta_slow: float = 1.
+    yarn_beta_fast: float = 32.0
+    yarn_beta_slow: float = 1.0
     yarn_correction_range_round_to_int: bool = False
 
     moe_router_topk: int = 4
@@ -80,15 +81,19 @@ class GPTOSSConfig(GPTConfig):
     attention_backend: AttnBackend = AttnBackend.local  # supports "local" and "fused"
     activation_func_clamp_value: Optional[float] = 7.0
 
+
 @dataclass
 class GPTOSSConfig120B(GPTOSSConfig):
-    """Config for GPT-OSS 120B """
+    """Config for GPT-OSS 120B"""
+
     num_layers: int = 36
     num_moe_experts: int = 128
 
+
 @dataclass
 class GPTOSSConfig20B(GPTOSSConfig):
-    """Config for GPT-OSS 20B """
+    """Config for GPT-OSS 20B"""
+
     num_layers: int = 24
     num_moe_experts: int = 32
 
@@ -97,6 +102,7 @@ class GPTOSSModel(GPTModel):
     """
     Base model for GPT-OSS
     """
+
     def __init__(
         self,
         config: Annotated[Optional[GPTOSSConfig], Config[GPTOSSConfig]] = None,
@@ -105,6 +111,7 @@ class GPTOSSModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(config or GPTOSSConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+
 
 class _BaseGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]):
     # pylint: disable=C0115,C0116
@@ -155,19 +162,31 @@ class _BaseGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]
         return loaded_bf16_data
 
     def _dequantize_mxfp4(
-            self,
-            blocks: torch.Tensor,
-            scales: torch.Tensor,
-            *,
-            dtype: torch.dtype = torch.bfloat16,
-            rows_per_chunk: int = 32768 * 1024,
+        self,
+        blocks: torch.Tensor,
+        scales: torch.Tensor,
+        *,
+        dtype: torch.dtype = torch.bfloat16,
+        rows_per_chunk: int = 32768 * 1024,
     ) -> torch.Tensor:
-        assert blocks.shape[:-1] == scales.shape, (
-            f"{blocks.shape=} does not match {scales.shape=}"
-        )
+        assert blocks.shape[:-1] == scales.shape, f"{blocks.shape=} does not match {scales.shape=}"
         FP4_VALUES = [
-            +0.0, +0.5, +1.0, +1.5, +2.0, +3.0, +4.0, +6.0,
-            -0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0,
+            +0.0,
+            +0.5,
+            +1.0,
+            +1.5,
+            +2.0,
+            +3.0,
+            +4.0,
+            +6.0,
+            -0.0,
+            -0.5,
+            -1.0,
+            -1.5,
+            -2.0,
+            -3.0,
+            -4.0,
+            -6.0,
         ]
         lut = torch.tensor(FP4_VALUES, dtype=dtype, device=blocks.device)
 
@@ -378,9 +397,9 @@ class OpenAIGPTOSSImporter(_BaseGPTOSSImporter):
         )
 
 
-
 def interleave(elem):
     return torch.cat((elem[::2, ...], elem[1::2, ...]), dim=0)
+
 
 def uninterleave(elem):
     gate, up = torch.chunk(elem, 2, dim=0)
@@ -388,6 +407,7 @@ def uninterleave(elem):
     output[::2, ...] = gate
     output[1::2, ...] = up
     return output
+
 
 @io.model_exporter(GPTOSSModel, "hf")
 class HFGPTOSSExporter(io.ModelConnector[GPTOSSModel, "AutoModelForCausalLM"]):
@@ -443,6 +463,7 @@ class HFGPTOSSExporter(io.ModelConnector[GPTOSSModel, "AutoModelForCausalLM"]):
                 fn=TransformFns.split_qkv,
             ),
         ]
+
         def stack_experts(*args):
             t = torch.stack(args)
             if len(t.shape) == 3:

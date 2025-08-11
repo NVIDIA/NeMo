@@ -96,7 +96,9 @@ class TiktokenTokenizer(TokenizerSpec):
             if special_tokens is None:
                 special_tokens = SPECIAL_TOKENS.copy()
 
-            assert len(special_tokens) == len(set(special_tokens)), f"Special tokens should be unique: {special_tokens}"
+            assert len(special_tokens) == len(
+                set(special_tokens)
+            ), f"Special tokens should be unique: {special_tokens}"
             assert len(special_tokens) <= num_special_tokens < vocab_size
             assert set(SPECIAL_TOKENS) <= set(special_tokens), f"Custom special tokens should include {SPECIAL_TOKENS}"
 
@@ -116,14 +118,15 @@ class TiktokenTokenizer(TokenizerSpec):
 
             print(f'{self._vocab_size = }')
             self.num_special_tokens = num_special_tokens
-            special_filler = [SPECIAL_TOKEN_TEMPLATE.format(id=i) for i in
-                              range(len(special_tokens), num_special_tokens)]
+            special_filler = [
+                SPECIAL_TOKEN_TEMPLATE.format(id=i) for i in range(len(special_tokens), num_special_tokens)
+            ]
             self.special_filler = special_filler
             if special_filler:
                 print(f"Adding special tokens {special_filler[0]}, ..., {special_filler[-1]}")
             self.special_tokens = special_tokens + special_filler
             assert len(set(self.special_tokens)) == len(self.special_tokens) == num_special_tokens, self.special_tokens
-            encoding_special_tokens = {},  # special tokens are handled manually
+            encoding_special_tokens = ({},)  # special tokens are handled manually
             self.allowed_special = set()
         else:
             self._unk_id = -1
@@ -161,9 +164,7 @@ class TiktokenTokenizer(TokenizerSpec):
                 "<|reserved_200011|>": 200011,
                 "<|call|>": 200012,
                 "<|refusal|>": 200013,
-            } | {
-                f"<|reserved_{i}|>": i for i in range(200014, 201088)
-            }
+            } | {f"<|reserved_{i}|>": i for i in range(200014, 201088)}
             self.allowed_special = set(encoding_special_tokens.keys())
 
         id2token = {v: k for k, v in self.token2id.items()}
