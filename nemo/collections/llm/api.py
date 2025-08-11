@@ -603,12 +603,6 @@ def deploy(
     enable_flash_decode: bool = True,
     legacy_ckpt: bool = False,
 ):
-    warnings.warn(
-        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
-        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
     This deploy method is intended to be used for evaluation.
@@ -656,6 +650,12 @@ def deploy(
             the trtllm backend).
         legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False
     """
+    warnings.warn(
+        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     import os
 
     import uvicorn

@@ -61,7 +61,7 @@ def reload_mergeable_ranks(
 
     return ranks
 
-
+# pylint: disable=C0301
 PATTERN_TIKTOKEN = "[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]*[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]+|[^\\r\\n\\p{L}\\p{N}]?[\\p{Lu}\\p{Lt}\\p{Lm}\\p{Lo}\\p{M}]+[\\p{Ll}\\p{Lm}\\p{Lo}\\p{M}]*|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n/]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
 DEFAULT_TIKTOKEN_MAX_VOCAB = 2**17  # 131072
 SPECIAL_TOKENS = ["<unk>", "<s>", "</s>", "<mask>", "<pad>", "<cls>", "<sep>"]
@@ -69,6 +69,7 @@ SPECIAL_TOKEN_TEMPLATE = "<SPECIAL_{id}>"
 
 
 class TiktokenTokenizer(TokenizerSpec):
+    # pylint: disable=C0115,C0116
     """
     TiktokenTokenizer https://github.com/openai/tiktoken.
 

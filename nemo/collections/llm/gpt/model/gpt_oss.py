@@ -27,6 +27,7 @@ from torch import nn
 from transformers import AutoModelForCausalLM, GenerationConfig
 
 from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
@@ -220,6 +221,8 @@ class _BaseGPTOSSImporter(io.ModelConnector["AutoModelForCausalLM", GPTOSSModel]
 
 @io.model_importer(GPTOSSModel, "hf")
 class HFGPTOSSImporter(_BaseGPTOSSImporter):
+    """ Importer for GPT-OSS models from Hugging Face"""
+    # pylint: disable=C0115,C0116
     def apply(self, output_path: Path) -> Path:
         logging.setLevel(logging.DEBUG)
         source_state = self.hf_ckpt_load()
@@ -273,12 +276,12 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
             io.state_transform(
                 source_key="**.mlp.experts.gate_up_proj_bias",
                 target_key="**.mlp.experts.linear_fc1.bias*",
-                fn=lambda x: [interleave(e) for e in [*x]],
+                fn=lambda x: [_interleave(e) for e in [*x]],
             ),
             io.state_transform(
                 source_key="**.mlp.experts.gate_up_proj",
                 target_key="**.mlp.experts.linear_fc1.weight*",
-                fn=lambda x: [interleave(e) for e in [*x]],
+                fn=lambda x: [_interleave(e) for e in [*x]],
             ),
             io.state_transform(
                 source_key="**.mlp.experts.down_proj_bias",
@@ -319,6 +322,8 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
 
 @io.model_importer(GPTOSSModel, "openai")
 class OpenAIGPTOSSImporter(_BaseGPTOSSImporter):
+    """ Importer for GPT-OSS models from OpenAI's checkpoint format"""
+    # pylint: disable=C0115,C0116
     def apply(self, output_path: Path) -> Path:
         source_state = self.hf_ckpt_load()
 
@@ -367,7 +372,7 @@ class OpenAIGPTOSSImporter(_BaseGPTOSSImporter):
             ("**.mlp.mlp1_weight", "**.mlp.experts.linear_fc1.weight*"),
             ("**.mlp.mlp1_bias", "**.mlp.experts.linear_fc1.bias*"),
         ):
-            transforms.append(io.state_transform(source_key, target_key, lambda x: [interleave(e) for e in [*x]]))
+            transforms.append(io.state_transform(source_key, target_key, lambda x: [_interleave(e) for e in [*x]]))
         for source_key, target_key in (
             ("**.mlp.mlp2_bias", "**.mlp.experts.linear_fc2.bias*"),
             ("**.mlp.mlp2_weight", "**.mlp.experts.linear_fc2.weight*"),
@@ -379,8 +384,6 @@ class OpenAIGPTOSSImporter(_BaseGPTOSSImporter):
 
     @cached_property
     def tokenizer(self) -> "TiktokenTokenizer":
-        from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
-
         return TiktokenTokenizer(encoding_name="o200k_harmony")
 
     @cached_property
@@ -397,11 +400,11 @@ class OpenAIGPTOSSImporter(_BaseGPTOSSImporter):
         )
 
 
-def interleave(elem):
+def _interleave(elem):
     return torch.cat((elem[::2, ...], elem[1::2, ...]), dim=0)
 
 
-def uninterleave(elem):
+def _uninterleave(elem):
     gate, up = torch.chunk(elem, 2, dim=0)
     output = torch.empty_like(elem)
     output[::2, ...] = gate
@@ -471,7 +474,7 @@ class HFGPTOSSExporter(io.ModelConnector[GPTOSSModel, "AutoModelForCausalLM"]):
             return t
 
         def stack_uninterleave_experts(*args):
-            t = torch.stack([uninterleave(e) for e in args])
+            t = torch.stack([_uninterleave(e) for e in args])
             if len(t.shape) == 3:
                 t = t.transpose(-1, -2)
             return t
@@ -499,7 +502,7 @@ class HFGPTOSSExporter(io.ModelConnector[GPTOSSModel, "AutoModelForCausalLM"]):
         return io.load_context(str(self), subpath="model.tokenizer")
 
     @cached_property
-    def config(self) -> "HFGptOssConfig":
+    def config(self):
         from transformers import GptOssConfig as HFGptOssConfig
 
         source: GPTOSSConfig = io.load_context(str(self), subpath="model.config")
