@@ -1238,6 +1238,9 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         weight = self.short_conv_weight
         pad_size = self.kernel_size - 1
 
+        # maybe handle num_groups
+        weight = weight.repeat_interleave(self.group_dim, dim=0)
+
         if _use_cp and get_context_parallel_world_size() > 1:
 
             cp_group = get_context_parallel_group()
@@ -1257,12 +1260,15 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         else:
             x = F.pad(x, (pad_size, 0))
 
-        # maybe handle num_groups
-        weight = weight.repeat_interleave(self.group_dim, dim=0)
-
+        # cuHyena causal_conv1d is only applied to the projection conv of Hyena LI layer
+        # Projection conv is fused with SE/MR layers (B2BCausalConv1dModule)
+        # cuHyena handles padding in the kernel, so we don't need to pad (when CP=1)
+        # for cp > 1 padding == overlapping regions for conv
         if self.use_fast_causal_conv:  # hyena_proj_conv case
-            if self.use_cuhyena:  # hyena_proj_conv of LI layer when cuhyena is enabled
+            if self.use_cuhyena and _use_cp:  # hyena_proj_conv of LI layer when cuhyena is enabled
                 y = causal_conv1d(x, weight)[..., pad_size:]
+            elif self.use_cuhyena and not _use_cp:  # hyena_proj_conv of LI layer when cuhyena is enabled
+                y = causal_conv1d(x[..., pad_size:], weight)  # drop padding handling for cuhyena with no CP
             else:
                 y = causal_conv1d_fn(x, weight, bias=None, activation=None)[..., pad_size:]
         else:  # hyena_short_conv case

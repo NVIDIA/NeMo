@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Usage:
-torchrun --nproc_per_node=2 tests/collections/llm/gpt/model/test_hyena_mixer_cp.py
+"""Example Usage:
+torchrun --nproc_per_node=2 tests/collections/llm/gpt/model/test_hyena_mixer_cp.py --operator_type hyena_short_conv [--use_cuhyena]
 """
 
 import argparse
