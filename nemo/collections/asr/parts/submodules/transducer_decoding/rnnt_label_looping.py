@@ -57,11 +57,13 @@ class LabelLoopingState:
     scores: torch.Tensor  # storage for current scores
 
     batch_indices: torch.Tensor  # indices of elements in batch (constant, range [0, batch_size-1])
+    expanded_batch_indices: torch.Tensor  # expanded batch indices for WIND [Batch x Window]
 
     time_indices: torch.Tensor  # current time indices for each element in batch
     safe_time_indices: torch.Tensor  # current time indices, but guaranteed to be < encoder_output_length
     time_indices_current_labels: torch.Tensor  # time indices for found labels (corresponding to `labels` field)
     last_timesteps: torch.Tensor  # indices of the last timesteps for each element (encoder_output_length - 1)
+    window_offsets: torch.Tensor  # indices for WIND decoding, [Window]
 
     active_mask: torch.Tensor  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
     advance_mask: torch.Tensor  # mask for "advancing" hypotheses (blank is found for the element on the current step)
@@ -92,6 +94,7 @@ class LabelLoopingState:
         max_time: int,
         encoder_dim: int,
         max_symbols: int,
+        window_size: int,
         device: torch.device,
         float_dtype: torch.dtype,
         logits_dim: int,
@@ -115,6 +118,7 @@ class LabelLoopingState:
         self.float_dtype = float_dtype
         self.batch_size = batch_size
         self.max_time = max_time
+        self.window_size = window_size
 
         self.encoder_output_projected = torch.zeros(
             (self.batch_size, self.max_time, encoder_dim),
@@ -128,11 +132,13 @@ class LabelLoopingState:
 
         # indices of elements in batch (constant)
         self.batch_indices = torch.arange(self.batch_size, dtype=torch.long, device=self.device)
+        self.expanded_batch_indices = self.batch_indices.unsqueeze(1).expand(-1, window_size)
 
         self.time_indices = torch.zeros_like(self.batch_indices)
         self.safe_time_indices = torch.zeros_like(self.batch_indices)
         self.time_indices_current_labels = torch.zeros_like(self.time_indices)
         self.last_timesteps = torch.zeros_like(self.time_indices)
+        self.window_offsets = torch.arange(self.window_size, device=self.device)
 
         self.active_mask = torch.zeros([self.batch_size], dtype=torch.bool, device=self.device)
         self.advance_mask = torch.zeros_like(self.active_mask)
@@ -445,7 +451,12 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
                         decoder_output,
                     ).squeeze(2)
                     selected_window_idx, more_scores, more_labels = self._wind_selection_stateless(logits)
-                    time_indices.add_(selected_window_idx)
+                    torch.where(
+                        advance_mask,
+                        time_indices + selected_window_idx,
+                        time_indices,
+                        out=time_indices,
+                    )
                     if self.fusion_models is not None or self.preserve_frame_confidence:
                         # need logits of [Batch x Vocab]
                         logits = logits[batch_indices, selected_window_idx]
@@ -860,6 +871,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             max_time=max(max_time, self.INITIAL_MAX_TIME),
             encoder_dim=encoder_dim,
             max_symbols=self.max_symbols,
+            window_size=self.window_size,
             device=encoder_output_projected.device,
             float_dtype=encoder_output_projected.dtype,
             logits_dim=self.joint.num_classes_with_blank,
@@ -1093,21 +1105,37 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
         """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
         # stage 1: get joint output, iteratively seeking for non-blank labels
         # blank label in `labels` tensor means "end of hypothesis" (for this index)
-        if self.window_size > 1:
-            # TODO: implement
-            raise NotImplementedError
-        logits = (
-            self.joint.joint_after_projection(
-                self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
-                    1
-                ),
-                self.state.decoder_output,
+        if self.window_size == 1:
+            logits = (
+                self.joint.joint_after_projection(
+                    self.state.encoder_output_projected[
+                        self.state.batch_indices, self.state.safe_time_indices
+                    ].unsqueeze(1),
+                    self.state.decoder_output,
+                )
+                .squeeze(1)
+                .squeeze(1)
             )
-            .squeeze(1)
-            .squeeze(1)
-        )
-        # same as: scores, labels = logits.max(-1)
-        torch.max(logits, dim=-1, out=(self.state.scores, self.state.labels))
+            # same as: scores, labels = logits.max(-1)
+            torch.max(logits, dim=-1, out=(self.state.scores, self.state.labels))
+        else:
+            # indices: [Batch x Window]
+            indices = torch.minimum(
+                self.state.safe_time_indices[:, None] + self.state.window_offsets[None, :],
+                self.state.last_timesteps[:, None],
+            )
+            # TODO: maybe gather?
+            logits = self.joint.joint_after_projection(
+                self.state.encoder_output_projected[self.state.expanded_batch_indices, indices],
+                self.state.decoder_output,
+            ).squeeze(2)
+            selected_window_idx, scores, labels = self._wind_selection_stateless(logits)
+            self.state.scores.copy_(scores)
+            self.state.labels.copy_(labels)
+            self.state.time_indices.add_(selected_window_idx)
+            if self.fusion_models is not None or self.preserve_frame_confidence:
+                # need logits of [Batch x Vocab]
+                logits = logits[self.state.batch_indices, selected_window_idx]
 
         if self.fusion_models is not None:
             for fusion_model_idx, fusion_model in enumerate(self.fusion_models):
@@ -1182,22 +1210,41 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             self.state.time_indices_current_labels,
             out=self.state.time_indices_current_labels,
         )
-        if self.window_size > 1:
-            # TODO: implement
-            raise NotImplementedError
-        logits = (
-            self.joint.joint_after_projection(
-                self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
-                    1
-                ),
-                self.state.decoder_output,
+        if self.window_size == 1:
+            logits = (
+                self.joint.joint_after_projection(
+                    self.state.encoder_output_projected[
+                        self.state.batch_indices, self.state.safe_time_indices
+                    ].unsqueeze(1),
+                    self.state.decoder_output,
+                )
+                .squeeze(1)
+                .squeeze(1)
             )
-            .squeeze(1)
-            .squeeze(1)
-        )
-        # get labels (greedy) and scores from current logits, replace labels/scores with new
-        # labels[advance_mask] are blank, and we are looking for non-blank labels
-        more_scores, more_labels = logits.max(-1)
+            # get labels (greedy) and scores from current logits, replace labels/scores with new
+            # labels[advance_mask] are blank, and we are looking for non-blank labels
+            more_scores, more_labels = logits.max(-1)
+        else:
+            # indices: [Batch x Window]
+            indices = torch.minimum(
+                self.state.safe_time_indices[:, None] + self.state.window_offsets[None, :],
+                self.state.last_timesteps[:, None],
+            )
+            # TODO: maybe gather?
+            logits = self.joint.joint_after_projection(
+                self.state.encoder_output_projected[self.state.expanded_batch_indices, indices],
+                self.state.decoder_output,
+            ).squeeze(2)
+            selected_window_idx, more_scores, more_labels = self._wind_selection_stateless(logits)
+            torch.where(
+                self.state.advance_mask,
+                self.state.time_indices + selected_window_idx,
+                self.state.time_indices,
+                out=self.state.time_indices,
+            )
+            if self.fusion_models is not None or self.preserve_frame_confidence:
+                # need logits of [Batch x Vocab]
+                logits = logits[self.state.batch_indices, selected_window_idx]
 
         if self.fusion_models is not None:
             for fusion_model_idx, fusion_scores in enumerate(self.state.fusion_scores_list):
