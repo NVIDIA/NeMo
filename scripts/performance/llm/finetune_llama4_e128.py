@@ -21,6 +21,8 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
+from ..executors import slurm_executor
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, build_perf_env_plugin
 from ..utils import (
     args_sanity_check,
     get_user_configs,
@@ -141,34 +143,32 @@ if __name__ == "__main__":
         activation_offload_layers,
     ) = kwargs[0:13]
 
-    recipe = override_recipe_configs(
-        args,
-        num_nodes,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-        etp_size,
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
-    )
-    exp_config = (
-        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
-    )
-    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+    recipe = None
+    custom_env_vars = {}
+    if args.skip_finetuning is not True:
+        # Configure experiment setup for finetuning (recipe, plugins, executor, etc)
+        exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_mbs{mbs}_gbs{gbs}"
+        base_name = splitext(basename(__file__))[0].replace("finetune_", "sft_")
+        exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
+        recipe = override_recipe_configs(
+            args,
+            num_nodes,
+            mbs,
+            gbs,
+            tp_size,
+            pp_size,
+            cp_size,
+            vp_size,
+            ep_size,
+            num_layers,
+            hidden_size,
+            etp_size,
+            enable_cuda_graphs,
+            use_mcore_fsdp,
+            recompute_layers,
+            activation_offload_layers,
         )
-    ]
+        plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
 
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))

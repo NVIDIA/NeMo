@@ -30,8 +30,8 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import dump_config_diff_from_base_recipe, get_comm_overlap_callback_idx, hf_tokenizer
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, build_perf_env_plugin
+from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
 
 
 def override_recipe_configs(
@@ -179,6 +179,31 @@ if __name__ == "__main__":
         env_vars = {"NVTE_NORM_FWD_USE_CUDNN": "1", "NVTE_NORM_BWD_USE_CUDNN": "1"}
     else:
         env_vars = {}
+
+    if args.gpu.lower() == 'gb200':
+        env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
+    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+
+    if args.enable_nsys:
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+                nsys_gpu_metrics=args.profiling_gpu_metrics,
+            )
+        )
+        # nsys takes precedent over ncclttrace
+    elif args.enable_nccltrace:
+        exp_name = exp_name + "_nccltrace"
+        env_vars |= {
+            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+            "NCCL_DEBUG": "INFO",
+        }
 
     executor = slurm_executor(
         args.gpu.lower(),

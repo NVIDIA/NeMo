@@ -394,4 +394,51 @@ def parse_cli_args():
         default=None,
     )
 
+    parser.add_argument(
+        "--skip_import_checkpoint",
+        help="Skips checkpoint import, finetuning job and only downloads the dataset.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip_dataset_download",
+        help="Skips dataset download, finetuning job and only downloads the checkpoint.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "--skip_finetuning",
+        help="Skips finetuning and only downloads the checkpoint and dataset.",
+        action="store_true",
+        required=False,
+    )
+
+    parser.add_argument(
+        "-ev",
+        "--custom_env_vars",
+        type=str,
+        required=False,
+        default={},
+    )
+
+    parser.add_argument(
+        "-cpin",
+        "--cpu_pinning",
+        type=int,
+        help="Enable CPU pinning to improve performance on some clusters by setting numbers of CPUs per task. Disabled by default",
+        required=False,
+        default=0,
+    )
+
+    parser.add_argument(
+        "-vb",
+        "--enable_vboost",
+        help="Enable VBoost which steers more power towards tensor cores. Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,  
+    )
+
     return parser
