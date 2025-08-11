@@ -16,8 +16,8 @@ from typing import Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
-from nemo.collections.llm import GPTOSSModel, GPTOSSConfig20B
 
+from nemo.collections.llm import GPTOSSConfig20B, GPTOSSModel
 from nemo.collections.llm.api import finetune
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
@@ -44,6 +44,7 @@ def model() -> run.Config[pl.LightningModule]:
     """
     conf = run.Config(GPTOSSConfig20B)
     return run.Config(GPTOSSModel, config=conf)
+
 
 @run.cli.factory(target=finetune, name=NAME)
 def finetune_recipe(
@@ -88,9 +89,7 @@ def finetune_recipe(
     Note:
         This recipe uses the SQuAD dataset for fine-tuning.
     """
-    recipe = default_finetune_recipe(
-        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
-    )
+    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
     # recipe.data.dataset_kwargs = {'add_bos': True, "get_attention_mask_from_fusion": True}
     recipe.trainer.strategy.expert_tensor_parallel_size = 1
     if peft_scheme is None or peft_scheme.lower() == 'none':

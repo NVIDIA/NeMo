@@ -591,9 +591,7 @@ class TransformFns:
         head_num = megatron_config.num_attention_heads
         num_query_groups = megatron_config.num_query_groups
         head_size = megatron_config.kv_channels
-        q, k, v = qkv.split(
-            [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0
-        )
+        q, k, v = qkv.split([head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0)
         return TransformFns.merge_qkv(ctx, q, k, v)
 
     @staticmethod

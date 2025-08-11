@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple, Union
 
 from nemo.collections.common.parts.perf_metrics_utils import LLM_VOCAB_SIZE_MAP
 
@@ -511,6 +511,7 @@ def nemotronh(config: FLOPSConfig):
     """Model FLOPs for NemotronH"""
     return _hybrid_model_flops(config)
 
+
 def attention_flops_calculator(
     seqlen,
     hidden_size,
@@ -520,28 +521,26 @@ def attention_flops_calculator(
     is_swa: bool = False,
     swa_window_size: int = 128,
 ):
-  """ Calculate the flops for the attention part. """
-  kv_channels = kv_channels or (hidden_size // num_attention_heads)
+    """Calculate the flops for the attention part."""
+    kv_channels = kv_channels or (hidden_size // num_attention_heads)
 
-  linear_qkv = seqlen * hidden_size * (
-      kv_channels * (num_attention_heads + num_query_groups * 2)
-  )
+    linear_qkv = seqlen * hidden_size * (kv_channels * (num_attention_heads + num_query_groups * 2))
 
-  linear_proj = seqlen * hidden_size * (kv_channels * num_attention_heads)
+    linear_proj = seqlen * hidden_size * (kv_channels * num_attention_heads)
 
-  if is_swa:
-    attention_mask_nz_elem = (
-        swa_window_size * (swa_window_size + 1) / 2
-        + (seqlen - swa_window_size) * swa_window_size
-    )
-    attention = num_attention_heads * (attention_mask_nz_elem * kv_channels) * 2
-  else:
-    bmm_k = kv_channels
-    bmm_b = num_attention_heads
-    attention_mask_nz_elem = seqlen * (seqlen + 1) / 2
-    attention = bmm_b * attention_mask_nz_elem * bmm_k * 2
+    if is_swa:
+        attention_mask_nz_elem = (
+            swa_window_size * (swa_window_size + 1) / 2 + (seqlen - swa_window_size) * swa_window_size
+        )
+        attention = num_attention_heads * (attention_mask_nz_elem * kv_channels) * 2
+    else:
+        bmm_k = kv_channels
+        bmm_b = num_attention_heads
+        attention_mask_nz_elem = seqlen * (seqlen + 1) / 2
+        attention = bmm_b * attention_mask_nz_elem * bmm_k * 2
 
-  return (linear_qkv + linear_proj + attention) * 6
+    return (linear_qkv + linear_proj + attention) * 6
+
 
 def moe_mlp_flops_calculator(
     seqlen,
@@ -550,20 +549,20 @@ def moe_mlp_flops_calculator(
     moe_router_topk,
     gated_linear_unit: bool = True,
 ):
-  """ Calculate the flops for the MLP"""
-  total_num_tokens = seqlen * moe_router_topk
-  linear_fc1 = total_num_tokens * hidden_size * moe_ffn_hidden_size * (
-      2 if gated_linear_unit else 1
-  )
-  linear_fc2 = total_num_tokens * moe_ffn_hidden_size * hidden_size
-  return (linear_fc1 + linear_fc2) * 6
+    """Calculate the flops for the MLP"""
+    total_num_tokens = seqlen * moe_router_topk
+    linear_fc1 = total_num_tokens * hidden_size * moe_ffn_hidden_size * (2 if gated_linear_unit else 1)
+    linear_fc2 = total_num_tokens * moe_ffn_hidden_size * hidden_size
+    return (linear_fc1 + linear_fc2) * 6
+
 
 def loss_flops_calculator(
     seqlen,
     hidden_size,
     vocab_size,
 ):
-  return (seqlen * hidden_size * vocab_size) * 6
+    return (seqlen * hidden_size * vocab_size) * 6
+
 
 def gpt_oss_flops_calculator(
     gbs,
@@ -577,7 +576,7 @@ def gpt_oss_flops_calculator(
     vocab_size,
     kv_channels: Optional[int] = None,
     swa_window_size: int = 128,
-    window_attn_skip_freq: Optional[int] = 2
+    window_attn_skip_freq: Optional[int] = 2,
 ):
     flops = 0
     for i in range(num_layers):
@@ -609,6 +608,7 @@ def gpt_oss_flops_calculator(
     flops += loss_flops_calculator(seqlen, hidden_size, vocab_size)
     flops *= gbs
     return flops
+
 
 def gpt_oss(config: FLOPSConfig):
     """Model FLOPs for GPT-OSS"""
