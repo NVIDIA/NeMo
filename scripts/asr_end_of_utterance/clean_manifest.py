@@ -405,7 +405,24 @@ def replace_numbers_with_words(text):
     return result
 
 
-def drop_punctuations(text):
+def unicode_to_ascii(text: str) -> str:
+    """
+    Converts text with accented or special Latin characters (e.g., ó, ñ, ū, ō)
+    into their closest ASCII equivalents.
+    """
+    # Normalize the string to NFKD to separate base characters from diacritics
+    normalized = unicodedata.normalize('NFKD', text)
+
+    # Encode to ASCII bytes, ignoring characters that can't be converted
+    ascii_bytes = normalized.encode('ascii', 'ignore')
+
+    # Decode back to string
+    ascii_text = ascii_bytes.decode('ascii')
+
+    return ascii_text
+
+
+def drop_punctuations(text: str) -> str:
     """
     Clean the text by removing invalid characters and converting to lowercase.
 
@@ -413,9 +430,13 @@ def drop_punctuations(text):
     :return: Cleaned text.
     """
     valid_chars = "abcdefghijklmnopqrstuvwxyz'"
-    text = ''.join([c for c in text if c in valid_chars or c.isspace() or c == "'"])
-    text = ' '.join(text.split())  # Remove extra spaces
-    return text.strip()
+    text = text.lower()
+    text = unicode_to_ascii(text)
+    text = text.replace(":", " ")
+    text = text.replace("-", " ")
+    text = ''.join([c for c in text if c in valid_chars or c.isspace()])
+    text = ' '.join(text.split()).strip()
+    return text
 
 
 def clean_label(_str: str) -> str:

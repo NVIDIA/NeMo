@@ -110,6 +110,7 @@ def drop_pnc(text: str) -> str:
     text = unicode_to_ascii(text)
     text = text.replace(":", " ")
     text = text.replace("-", " ")
+    text = text.replace("_", " ")
     text = ''.join([c for c in text if c in valid_chars or c.isspace()])
     text = ' '.join(text.split()).strip()
     return text
