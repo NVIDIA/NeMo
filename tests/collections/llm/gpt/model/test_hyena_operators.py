@@ -219,6 +219,30 @@ class TestParallelShortHyenaOperator:
         assert output.shape[1] == operator.hidden_size
         assert output.shape[2] == seq_len
 
+    def test_fast_causal_conv_short_conv_len_validation(self, test_config: HyenaTestConfig, hyena_config: HyenaConfig):
+        """
+        Test that ParallelShortHyenaOperator raises an assertion error when use_fast_causal_conv=True
+        and hyena_short_conv_len > 4, which is not supported.
+        """
+        # Create a config with hyena_short_conv_len > 4
+        hyena_config.hyena_short_conv_len = 5
+        
+        # Ensure transformer_config.use_cuhyena is False
+        test_config.use_cuhyena = False
+        
+        with simple_parallel_state():
+            with pytest.raises(AssertionError, match="fast_conv_mixer requires hyena_short_conv_len <= 4"):
+                ParallelShortHyenaOperator(
+                    hidden_size=test_config.hidden_size,
+                    transformer_config=test_config,
+                    hyena_config=hyena_config,
+                    init_method="small_init",
+                    short_conv_class=ParallelCausalDepthwiseConv1d,
+                    use_fast_causal_conv=True,  # This should trigger the assertion
+                    local_init=False,
+                    use_conv_bias=False,
+                )
+
 
 class TestParallelShortHyenaOperatorWithConvBias:
     """
