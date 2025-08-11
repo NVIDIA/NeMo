@@ -24,7 +24,7 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, build_perf_env_plugin
 from ..utils import (
     get_comm_overlap_callback_idx,
     hf_tokenizer,
@@ -163,13 +163,7 @@ if __name__ == "__main__":
             recompute_layers,
             activation_offload_layers,
         )
-        plugins = [
-            PerfEnvPlugin(
-                enable_vboost=True,
-                nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-                gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-            )
-        ]
+        plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
 
         if args.gpu.lower() == 'gb200':
             custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
