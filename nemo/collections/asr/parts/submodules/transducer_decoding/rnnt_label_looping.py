@@ -30,7 +30,6 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.core.utils.cuda_python_utils import cu_call, run_nvrtc, with_conditional_node
-from nemo.utils import logging
 
 try:
     from cuda import cudart
