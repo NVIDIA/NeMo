@@ -144,6 +144,7 @@ def get_mask_from_lengths(
     Args:
         lengths: Optional[torch.tensor] (torch.tensor): 1D tensor with lengths
         x: Optional[torch.tensor] = tensor to be used on, last dimension is for mask
+        pad_to_factor: Optional[int] = pad the mask to an integer multiple of this factor
     Returns:
         mask (torch.tensor): num_sequences x max_length binary tensor
     """
