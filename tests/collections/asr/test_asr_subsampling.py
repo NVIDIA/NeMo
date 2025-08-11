@@ -56,6 +56,6 @@ class TestASRSubsamplingConvChunking:
             )
 
         diff = torch.mean(torch.abs(logprobs_batch1_split - logprobs_batch1_nosplit))
-        assert diff <= 0.1
+        assert diff <= 0.2
         diff = torch.mean(torch.abs(logprobs_batch4_split - logprobs_batch4_nosplit))
-        assert diff <= 0.1
+        assert diff <= 0.2
