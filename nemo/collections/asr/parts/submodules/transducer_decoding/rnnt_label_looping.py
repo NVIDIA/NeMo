@@ -1116,6 +1116,24 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
         # same as: self.advance_mask_any = advance_mask.any()
         torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
+    def _wind_selection_stateless(
+        self, logits: torch.Tensor  # [Batch x Window x Vocab]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        WIND selection, stateless: from [Batch x Window x Vocab] logits select first non-blank element greedily.
+        If only blanks are best, select last blank.
+        """
+        best_scores_window, best_labels_window = logits.max(dim=-1)  # [Batch, Window]
+        non_blank_mask = best_labels_window != self._blank_index
+        # NB: .argmax guarantees to return the first element if several equal
+        first_nonblank = non_blank_mask.to(torch.int32).argmax(dim=-1)
+        all_blank = ~non_blank_mask.any(dim=-1)
+        selected_window_idx = torch.where(all_blank, logits.shape[1] - 1, first_nonblank)
+
+        best_labels = torch.gather(best_labels_window, dim=-1, index=selected_window_idx.unsqueeze(-1)).squeeze(-1)
+        best_scores = torch.gather(best_scores_window, dim=-1, index=selected_window_idx.unsqueeze(-1)).squeeze(-1)
+        return selected_window_idx, best_labels, best_scores
+
     def _inner_loop_step_find_next_non_blank(self):
         """Find next non-blank labels - one iteration"""
         # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
