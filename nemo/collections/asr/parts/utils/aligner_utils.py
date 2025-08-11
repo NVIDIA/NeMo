@@ -112,6 +112,9 @@ def restore_token_case(word: str, word_tokens: List[str]) -> List[str]:
     while "__" in word:
         word = word.replace("__", "_")
 
+    #    while " " in word:
+    #        word = word.replace(" ", "")
+
     word_tokens_cased = []
     word_char_pointer = 0
 
@@ -329,7 +332,6 @@ def get_utt_obj(
                     word_tokens = word_tokens[:-1]
                     word_token_ids = word_token_ids[:-1]
                     word_tokens_cased = word_tokens_cased[:-1]
-
                 else:
                     word_tokens = model.tokenizer.text_to_tokens(word)
                     word_token_ids = model.tokenizer.text_to_ids(word)
