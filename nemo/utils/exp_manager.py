@@ -127,8 +127,9 @@ class IPLEpochStopperParams:
     """
     Parameters for the IPLEpochStopper callback used in iterative pseudo-label training.
 
-    This is part of the TopIPL pipeline, a semi-supervised training method for ASR that uses iterative pseudo-labeling (IPL) —
-    periodically stopping training to generate pseudo-labels for unlabeled data and fine-tuning the model on them.
+    This is part of the TopIPL pipeline, a semi-supervised training method for ASR 
+    that uses iterative pseudo-labeling (IPL) — periodically stopping training to generate 
+    pseudo-labels for unlabeled data and fine-tuning the model on them.
 
     For more details, see:
     🔗 Top-IPL: Top-N Pseudo-Label Averaging for Iterative ASR Training
