@@ -129,8 +129,8 @@ class ParallelismConfig:
     num_distributed_optimizer_instances: int = 1
     nccl_communicator_config_path: str = None
     use_sharp: bool = False
-    use_gloo_process_groups: bool = True
     pipeline_model_parallel_layout: Optional[Union[str, List[List[str]]]] = None
+    use_gloo_process_groups: bool = True
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -170,6 +170,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         ckpt_type (TrainerCkptProtocol): Checkpoint type. Defaults to TrainerCheckpoint.
         ckpt_load_optimizer (bool): Load optimizer state from trainer.ckpt_path. Defaults to True.
         ckpt_save_optimizer (bool): Save optimizer states in checkpoint. Defaults to True.
+        ckpt_load_main_params (bool): Load main parameters from trainer.ckpt_path. Defaults to False.
         ddp (Union[DDPLiteral, DistributedDataParallelConfig]): DDP configuration. Defaults to "megatron".
         fsdp (Optional[FSDPLiteral]): Option of using torch FSDP2, select from ["megatron", "pytorch"].
             Defaults to None.
@@ -220,9 +221,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         nccl_communicator_config_path (Optional[str]): Path to the yaml file of NCCL communicator configurations.
             `min_ctas`, `max_ctas`, and `cga_cluster_size` can be set for each communicator.
         use_sharp (bool): Whether to use SHARP. Defaults to False.
-        use_gloo_process_groups (bool): Whether to use Gloo process groups. Defaults to True.
         pipeline_model_parallel_layout (Optional[Union[str, List[List[str]]]]): The layout of all layers among
             different PP and VP stages.
+        use_gloo_process_groups (bool): Whether to use Gloo process groups. Defaults to True.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -257,6 +258,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         find_unused_parameters: bool = False,
         ckpt_load_optimizer: bool = True,
         ckpt_save_optimizer: bool = True,
+        ckpt_load_main_params: bool = False,
         ddp: Union[DDPLiteral, DistributedDataParallelConfig] = "megatron",
         fsdp: Optional[FSDPLiteral] = None,
         lazy_init: bool = False,
@@ -282,8 +284,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         use_tp_pp_dp_mapping: bool = False,
         num_distributed_optimizer_instances: int = 1,
         nccl_communicator_config_path: Optional[str] = None,
-        use_gloo_process_groups: bool = True,
         pipeline_model_parallel_layout: Optional[Union[str, List[List[str]]]] = None,
+        use_gloo_process_groups: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -319,6 +321,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.lazy_init = lazy_init
         self.ckpt_load_optimizer = ckpt_load_optimizer
         self.ckpt_save_optimizer = ckpt_save_optimizer
+        self.ckpt_load_main_params = ckpt_load_main_params
         self.ckpt_load_strictness = ckpt_load_strictness
         self.use_te_rng_tracker = use_te_rng_tracker
         self.use_sharp = use_sharp
@@ -390,6 +393,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.no_ddp_communication_hook = False
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
+
+        if self.ckpt_load_optimizer and self.ckpt_load_main_params:
+            raise ValueError("ckpt_load_optimizer and ckpt_load_main_params cannot be both set to True.")
 
         if isinstance(self.ddp_config, DistributedDataParallelConfig):
             self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
@@ -707,6 +713,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.optimizers = _optimizers
 
         _optimizers_to_device(self.optimizers, self.root_device)
+
+    @override
+    def on_validation_end(self) -> None:
+        "Runs after validation loop"
+        for model_chunk in self.model:
+            model_chunk.train()
+
+    @override
+    def on_test_end(self) -> None:
+        "Runs after test loop"
+        for model_chunk in self.model:
+            model_chunk.train()
 
     @override
     def training_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
@@ -1052,7 +1070,13 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if not 'optimizer' in checkpoint:
             for opt in self.optimizers:
-                opt.reload_model_params()
+                if self.ckpt_load_main_params:
+                    if "state_dict" in checkpoint:
+                        opt.reload_model_params(checkpoint["state_dict"])
+                    else:
+                        opt.reload_model_params(checkpoint)
+                else:
+                    opt.reload_model_params()
 
     @property
     @override
@@ -1139,8 +1163,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             num_distributed_optimizer_instances=self.num_distributed_optimizer_instances,
             nccl_communicator_config_path=self.nccl_communicator_config_path,
             use_sharp=self.use_sharp,
-            use_gloo_process_groups=self.use_gloo_process_groups,
             pipeline_model_parallel_layout=self.pipeline_model_parallel_layout,
+            use_gloo_process_groups=self.use_gloo_process_groups,
         )
 
     @contextmanager

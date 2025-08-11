@@ -14,10 +14,11 @@
 import warnings
 from collections import defaultdict
 from itertools import repeat
+from pathlib import Path
 from typing import Any, Optional
 
 import torch
-from lhotse.dataset.collation import collate_vectors
+from lhotse import CutSet
 from lightning import LightningModule
 from omegaconf import DictConfig
 from peft import PeftModel
@@ -36,10 +37,12 @@ from transformers import GenerationConfig
 
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.speechlm2.data.salm_dataset import left_collate_vectors
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
 from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, move_embedding, setup_speech_encoder
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 
 
@@ -64,7 +67,7 @@ class SALM(LightningModule, HFHubMixin):
         maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
-        setup_speech_encoder(self)
+        setup_speech_encoder(self, pretrained_weights=self.cfg.pretrained_weights)
 
         self._use_fsdp = False
         self._use_tp = False
@@ -97,6 +100,17 @@ class SALM(LightningModule, HFHubMixin):
     @property
     def audio_locator_tag_id(self) -> int:
         return self.tokenizer.token_to_id(self.audio_locator_tag)
+
+    @property
+    def token_equivalent_duration(self) -> float:
+        """
+        Returns the audio duration corresponding to a single frame/token at the output of ``self.perception``.
+        """
+        return self.perception.token_equivalent_duration
+
+    @property
+    def sampling_rate(self) -> int:
+        return self.perception.preprocessor.featurizer.sample_rate
 
     def forward(
         self,
@@ -170,8 +184,6 @@ class SALM(LightningModule, HFHubMixin):
                 target_ids = target_ids[:, :-remainder]
 
         return {
-            "audio_embeds": audio_embs,
-            "text_embeds": text_embs,
             "input_embeds": input_embs,
             "attention_mask": attention_mask,
             "target_ids": target_ids,
@@ -252,7 +264,7 @@ class SALM(LightningModule, HFHubMixin):
                 )
 
             preds = forward_outputs["logits"].argmax(dim=-1).view(-1)
-            refs = inputs["target_ids"].view(-1)
+            refs = inputs["target_ids"].reshape(-1)
             preds = preds[refs != -100]
             refs = refs[refs != -100]
             accuracy = preds.eq(refs).float().mean()
@@ -276,34 +288,91 @@ class SALM(LightningModule, HFHubMixin):
     @torch.no_grad()
     def generate(
         self,
-        prompts: list[list[dict[str]]],
+        prompts: list[list[dict[str]]] | torch.Tensor,
         audios: torch.Tensor = None,
         audio_lens: torch.Tensor = None,
         generation_config: GenerationConfig = None,
+        **generation_kwargs,
     ) -> torch.Tensor:
         """
         Generate LLM answers given text or mixed text+audio prompts.
 
+        Example 1. High-level API using ``prompts`` to provide both text and audio::
+
+            >>> answer_ids = model.generate(
+            ...    prompts=[
+            ...        [
+            ...             {
+            ...                 "role": "user",
+            ...                 "content": f"Transcribe the following: {model.audio_locator_tag}",
+            ...                 "audio": ["path/to/audio.wav"],
+            ...             }
+            ...         ]
+            ...    ],
+            ...    max_new_tokens=128,
+            ... )
+
+        You may also include a ``transformers.GenerationConfig`` object to customize decoding strategy::
+
+            >>> answer_ids = model.generate(..., generation_config=GenerationConfig(do_sample=True, num_beams=5))
+
+        Example 2. Lower-level API, using ``prompts`` for the text part,
+        and pre-loaded ``audio`` and ``audio_lens`` tensors::
+
+            >>> answer_ids = model.generate(
+            ...    prompts=[
+            ...        [{"role": "user", "content": f"Transcribe the following: {model.audio_locator_tag}"}],
+            ...        [{"role": "user", "content": f"Transcribe the following in Polish: {model.audio_locator_tag}"}],
+            ...    ],
+            ...    audios=audios,  # torch.Tensor, float32, of shape (batch, time)
+            ...    audio_lens=audio_lens,  # torch.Tensor, int64, of shape (batch,)
+            ...    max_new_tokens=128,
+            ... )
+
+        Example 3. Lower-level API, using pre-tokenized and pre-formatted ``prompts`` for the text part,
+        and pre-loaded ``audio`` and ``audio_lens`` tensors::
+
+            >>> answer_ids = model.generate(
+            ...    prompts=prompts,  # torch.Tensor, int64, of shape (batch, num_tokens)
+            ...    audios=audios,  # torch.Tensor, float32, of shape (batch, time)
+            ...    audio_lens=audio_lens,  # torch.Tensor, int64, of shape (batch,)
+            ...    max_new_tokens=128,
+            ... )
+
         Inputs:
-            prompts: batch of prompts as list[dict] each in the following format
+            prompts: batch of prompts Tensor or as list[dict] each in the following format
                 [
                   # batch example id 0
-                  [{"role": "user"}, "slots": {"message": "Repeat after me, translating to Polish.<audio_locator_tag>"}]
+                  [{"role": "user"}, "slots": {"message": f"Transcribe the following: {model.audio_locator_tag}"}]
                   # batch example id 1
-                  [{"role": "user"}, "slots": {"message": "Repeat after me.<audio_locator_tag>"}]
+                  [{"role": "user"}, "slots": {"message": f"Transcribe the following in Polish: {model.audio_locator_tag}"}]
                 ]
                 "role" is LLM-specific, you can pass multiple turns as well.
+                If ``prompts`` is a Tensor, we assume it was already formatted in the relevant chat template
+                and tokenized with the model's tokenizer.
             audios: Optional. Time-domain audio signal zero-padded batch of shape (B, T).
                 The number of audios must correspond to the number of occurrences of <audio_locator_tag> in prompts.
                 Each prompt can have multiple audios.
             audio_lens: Optional. Length of each audio example.
             generation_config: Optional HuggingFace GenerationConfig object.
+            generation_kwargs: Keyword arguments passed directly to the underlying LLM's ``generate`` method.
         """
         # Encode prompt dicts into int token ids.
-        formatter = PromptFormatter.resolve(self.cfg.prompt_format)(self.tokenizer)
-        tokens = collate_vectors(
-            [formatter.encode_dialog(turns=prompt)["input_ids"] for prompt in prompts], padding_value=self.text_pad_id
-        ).to(self.device)
+        if isinstance(prompts, torch.Tensor):
+            tokens = prompts
+        else:
+            if (
+                maybe_audio := _resolve_audios_in_prompt(prompts, sampling_rate=self.sampling_rate, device=self.device)
+            ) is not None:
+                assert (
+                    audios is None and audio_lens is None
+                ), "Audios cannot be provided via ``prompts`` and ``audios``/``audio_lens`` arguments simultaneously."
+                audios, audio_lens = maybe_audio
+            formatter = PromptFormatter.resolve(self.cfg.prompt_format)(self.tokenizer)
+            tokens = left_collate_vectors(
+                [formatter.encode_dialog(turns=prompt)["input_ids"] for prompt in prompts],
+                padding_value=self.text_pad_id,
+            ).to(self.device)
         if audios is not None:
             # Audio + text input for generation.
             # Prepare token embeddings and audio embeddings.
@@ -311,11 +380,8 @@ class SALM(LightningModule, HFHubMixin):
             token_embeds = self.embed_tokens(tokens_to_embed)
             # TODO: temporary workaround to perform batch_size=1 inference for audio encoder
             #   due to accuracy issues at bs>1
-            # audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
-            # audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
-            audio_embeds = [
-                self.perception(a.unsqueeze(0), al.unsqueeze(0))[0][0] for a, al in zip(audios, audio_lens)
-            ]
+            audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
+            audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
             # Insert audio embeddings into relevant positions in text embeddings.
             input_embeds, _, attention_mask = replace_placeholders_and_build_targets(
                 input_ids=tokens,
@@ -330,11 +396,18 @@ class SALM(LightningModule, HFHubMixin):
             # Text-only generation.
             attention_mask = tokens != self.text_pad_id
             generation_inputs = {"input_ids": tokens, "attention_mask": attention_mask}
+        if generation_config is None:
+            generation_config = GenerationConfig(
+                bos_token_id=self.text_bos_id,
+                eos_token_id=self.text_eos_id,
+                pad_token_id=self.text_pad_id,
+            )
         # Generate the answers using HF Generate API.
         # Note: we need to put the text embedding layer back to the LLM for processing.
         with move_embedding(self):
             answer_tokens = self.llm.generate(
                 **generation_inputs,
+                **generation_kwargs,
                 generation_config=generation_config,
             )
         return answer_tokens
@@ -438,6 +511,27 @@ class SALM(LightningModule, HFHubMixin):
             self.llm = fully_shard(self.llm, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
 
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": dict,
+            "inputs": [
+                {"name": "audios", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "input_ids",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.text_vocab_size,
+                },
+                {"name": "loss_mask", "type": NeuralType(("B", "T"), MaskType()), "seq_length": "output"},
+            ],
+        }
+
 
 def replace_placeholders_and_build_targets(
     input_ids: torch.Tensor,
@@ -449,6 +543,9 @@ def replace_placeholders_and_build_targets(
 ) -> tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor]:
     """Replaces each occurrence of the placeholder_id in input_ids with the corresponding tensor
     from the replacements list in the embeds tensor, and creates corresponding adjusted target_ids.
+
+    Note: when padding is necessary, we apply left-padding to the examples not to introduce
+        anomalies at generation time.
 
     Args:
       input_ids (Tensor): shape (batch, sequence_length); input token ids.
@@ -476,6 +573,9 @@ def replace_placeholders_and_build_targets(
     hidden_dim = embeds.size(2)
     device, dtype = embeds.device, embeds.dtype
     ignore_index = -100  # Standard ignore_index value for CrossEntropyLoss
+
+    # Un-pad the tensors because we'll need to re-apply new padding after replacements anyway.
+    input_ids, embeds, target_ids = _unpad_inputs(input_ids, embeds, target_ids, padding_id)
 
     output_sequences = []
     output_target_ids = []
@@ -507,14 +607,14 @@ def replace_placeholders_and_build_targets(
         for pos in placeholder_positions:
             # Add segment before placeholder (if any)
             if pos > prev_pos:
-                segments.append(embeds[i, prev_pos:pos])
+                segments.append(embeds[i][prev_pos:pos])
 
                 # For target IDs: keep original targets but mark positions that were padding in input
                 if target_ids is not None:
-                    segment_target_ids = target_ids[i, prev_pos:pos].clone()
+                    segment_target_ids = target_ids[i][prev_pos:pos].clone()
                     segment_target_ids[segment_target_ids == padding_id] = ignore_index
                     target_segments.append(segment_target_ids)
-                att_masks.append(input_ids[i, prev_pos:pos] != padding_id)
+                att_masks.append(input_ids[i][prev_pos:pos] != padding_id)
 
             # Add replacement for embeddings
             rep = replacements[replacement_idx]
@@ -529,14 +629,14 @@ def replace_placeholders_and_build_targets(
 
         # Add remaining segment after last placeholder (if any)
         if prev_pos < seq_len:
-            segments.append(embeds[i, prev_pos:seq_len])
+            segments.append(embeds[i][prev_pos:seq_len])
 
             # For target IDs: keep original targets but mark positions that were padding in input
             if target_ids is not None:
-                segment_target_ids = target_ids[i, prev_pos:seq_len].clone()
+                segment_target_ids = target_ids[i][prev_pos:seq_len].clone()
                 segment_target_ids[segment_target_ids == padding_id] = ignore_index
                 target_segments.append(segment_target_ids)
-            att_masks.append(input_ids[i, prev_pos:seq_len] != padding_id)
+            att_masks.append(input_ids[i][prev_pos:seq_len] != padding_id)
 
         # Concatenate all segments for this example
         output_sequences.append(torch.cat(segments, dim=0))
@@ -561,9 +661,60 @@ def replace_placeholders_and_build_targets(
         output_target_ids = repeat(None)
     for i, (seq, tgt, att) in enumerate(zip(output_sequences, output_target_ids, output_att_masks)):
         seq_len = seq.size(0)
-        output[i, :seq_len] = seq
+        output[i, -seq_len:] = seq
         if tgt is not None:
-            new_target_ids[i, :seq_len] = tgt
-        attention_masks[i, :seq_len] = att
+            new_target_ids[i, -seq_len:] = tgt
+        attention_masks[i, -seq_len:] = att
 
     return output, new_target_ids, attention_masks
+
+
+def _unpad_inputs(
+    input_ids: torch.Tensor,
+    embeds: torch.Tensor,
+    target_ids: Optional[torch.Tensor],
+    padding_id: int,
+) -> tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    def first_index_not_value(tensor, value):
+        mask = tensor != value
+        indices = torch.nonzero(mask, as_tuple=False)
+        if indices.numel() > 0:
+            return indices[0].item()
+        else:
+            return -1
+
+    input_ids_unpad, embeds_unpad = [], []
+    target_ids_unpad = [] if target_ids is not None else None
+    for i in range(input_ids.shape[0]):
+        idx = first_index_not_value(input_ids[i], padding_id)
+        input_ids_unpad.append(input_ids[i, idx:])
+        embeds_unpad.append(embeds[i, idx:])
+        if target_ids is not None:
+            target_ids_unpad.append(target_ids[i, idx:])
+    return input_ids_unpad, embeds_unpad, target_ids_unpad
+
+
+def _resolve_audios_in_prompt(
+    prompts: list[list[dict]], sampling_rate: int, device: str | torch.device
+) -> tuple[torch.Tensor, torch.Tensor] | None:
+    from lhotse import Recording
+
+    paths = []
+    for conversation in prompts:
+        for turn in conversation:
+            if "audio" in turn:
+                turn_audio = turn["audio"]
+                if isinstance(turn_audio, (str, Path)):
+                    turn_audio = [turn_audio]
+                for p in turn_audio:
+                    assert isinstance(p, (str, Path)), f"Invalid value under prompt key 'audio': {p}"
+                    paths.append(p)
+    if not paths:
+        return None
+    cuts = CutSet([Recording.from_file(p).to_cut() for p in paths])
+    with torch.device("cpu"):  # workaround for a Lhotse issue when default device is CUDA during collation
+        audio, audio_lens = cuts.resample(sampling_rate).load_audio(collate=True)
+    return (
+        torch.as_tensor(audio).to(device, non_blocking=True),
+        torch.as_tensor(audio_lens).to(device, non_blocking=True),
+    )

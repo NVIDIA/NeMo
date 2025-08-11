@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import difflib
 import os
 from typing import List
 
 import nemo_run as run
 from lightning.pytorch.callbacks.callback import Callback
+from nemo_run.core.serialization.yaml import YamlSerializer
+from nemo_run.run.torchx_backend.packaging import _serialize
 
 from nemo.collections.common.tokenizers.huggingface import AutoTokenizer
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
@@ -73,6 +76,96 @@ def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTMod
     return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
 
 
+def get_nemo_home(nemo_home=None):
+    """
+    Get NEMO_HOME path. Checks for both nemo_home argument and NEMO_HOME environment variable.
+    """
+    arg_nemo_set = nemo_home is True
+    env_nemo_set = "NEMO_HOME" in os.environ
+
+    if arg_nemo_set and env_nemo_set:
+        if os.environ["NEMO_HOME"] != nemo_home:
+            logging.warning(f"Using nemo_home ({nemo_home}) instead of NEMO_HOME ({os.environ['NEMO_HOME']})")
+        return nemo_home
+
+    if arg_nemo_set:
+        return nemo_home
+
+    if env_nemo_set:
+        return os.environ["NEMO_HOME"]
+
+    raise ValueError("Neither -nh/--nemo_home argument nor NEMO_HOME environment variable is set")
+
+
+def prepare_squad_dataset(model_name: str, seq_length: int = 2048, nemo_home=None):
+    """Prepare the SQuAD dataset for fine-tuning.
+
+    Args:
+        model_name (str): The name of the model
+        seq_length (int): The sequence length to use for packing. Defaults to 2048.
+        nemo_home: Optional path to NEMO home directory set via args.nemo_home
+    """
+    from pathlib import Path
+
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from nemo.collections.llm.gpt.data.squad import SquadDataModule
+
+    nemo_home_path = Path(get_nemo_home(nemo_home))
+    dataset_root = nemo_home_path / "datasets" / "squad"
+    dataset_root.mkdir(parents=True, exist_ok=True)
+
+    tokenizer = AutoTokenizer(pretrained_model_name=model_name)
+
+    # Configure SquadDataModule with packing specs
+    datamodule = SquadDataModule(
+        dataset_root=dataset_root,
+        seq_length=seq_length,
+        global_batch_size=8,
+        micro_batch_size=1,
+        packed_sequence_specs=PackedSequenceSpecs(packed_sequence_size=seq_length),
+        tokenizer=tokenizer,
+        force_redownload=True,
+        delete_raw=False,
+        seed=1234,
+    )
+
+    # This will generate both JSONL and packed .bin files
+    datamodule.prepare_data()
+
+    # Verify the output
+    packed_dir = dataset_root / "packed" / model_name.replace("/", "--")
+    print(f"Packed files should be in: {packed_dir}")
+    if packed_dir.exists():
+        print("Files found:", list(packed_dir.glob("*")))
+    else:
+        raise FileNotFoundError(f"Packed dataset dir not found at {packed_dir}. Dataset download failed")
+
+
+def prepare_squad_dataset_experiment(
+    executor: run.SlurmExecutor, model_name: str, seq_length: int = 2048, nemo_home=None
+):
+    """
+    Downloads and prepares the SQuAD dataset for fine-tuning.
+    """
+    from copy import deepcopy
+
+    dataset_executor = deepcopy(executor)
+    dataset_executor.ntasks_per_node = 1
+    dataset_executor.nodes = 1
+
+    return (
+        run.Partial(
+            prepare_squad_dataset,
+            model_name=model_name,
+            seq_length=seq_length,
+            nemo_home=nemo_home,
+        ),
+        dataset_executor,
+        "prepare_squad_dataset_exp",
+    )
+
+
 def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
     """
     This method is used for fine-tuning. It checks if packed train data for a partiular
@@ -99,3 +192,24 @@ def get_comm_overlap_callback_idx(callbacks: List[Callback]) -> int | None:
             if callback.__fn_or_cls__ == MegatronCommOverlapCallback:
                 return idx
     return None
+
+
+def dump_config_diff_from_base_recipe(
+    base_recipe: str, new_recipe: str, output_dir: str, file_name: str = "config_diff.txt"
+):
+    """
+    Dump the config diff from the base recipe.
+    """
+    base_recipe_config = _serialize(base_recipe, serializer_cls=YamlSerializer)
+    new_recipe_config = _serialize(new_recipe, serializer_cls=YamlSerializer)
+    diff = difflib.unified_diff(
+        base_recipe_config.splitlines(keepends=True),
+        new_recipe_config.splitlines(keepends=True),
+        fromfile="base_recipe",
+        tofile="new_recipe",
+        lineterm="",
+    )
+    diff = "".join(diff)
+    print("dumping config diff to ", os.path.join(output_dir, file_name))
+    with open(os.path.join(output_dir, file_name), "w") as f:
+        f.write(diff)

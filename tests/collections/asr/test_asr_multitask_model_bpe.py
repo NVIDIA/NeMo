@@ -169,7 +169,7 @@ class TestEncDecMultiTaskModel:
         asr_model.compute_eval_loss = False
 
         input_signal = torch.randn(size=(4, 512))
-        length = torch.randint(low=161, high=500, size=[4])
+        length = torch.randint(low=321, high=500, size=[4])
 
         targets = torch.randint(low=0, high=100, size=[4, 10])
         targets_len = torch.randint(low=1, high=10, size=[4])
@@ -184,7 +184,6 @@ class TestEncDecMultiTaskModel:
                     transcript=targets[i : i + 1],
                     transcript_length=targets_len[i : i + 1],
                 )
-                print(log_probs.shape)
                 logprobs_instance.append(log_probs)
             logits_instance = torch.cat(logprobs_instance, 0)
 
@@ -293,17 +292,19 @@ class TestEncDecMultiTaskModel:
         with torch.no_grad():
             ans = asr_model.validation_pass(batch, batch_idx=0)
         print(ans)
-        assert list(ans.keys()) == [
-            "val_loss",
-            "val_wer",
-            "val_wer_num",
-            "val_wer_denom",
-            "val_bleu",
-            "val_bleu_pred_len",
-            "val_bleu_target_len",
-            "val_bleu_num",
-            "val_bleu_denom",
-        ]
+        assert set(ans.keys()) == set(
+            [
+                "val_loss",
+                "val_wer",
+                "val_wer_num",
+                "val_wer_denom",
+                "val_bleu",
+                "val_bleu_pred_len",
+                "val_bleu_target_len",
+                "val_bleu_num",
+                "val_bleu_denom",
+            ]
+        )
 
     @pytest.mark.unit
     def test_save_restore_artifact(self, asr_model):

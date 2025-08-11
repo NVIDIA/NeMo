@@ -170,7 +170,7 @@ def parse_cli_args():
     )
     nemo_home_msg = [
         "Sets env var `NEMO_HOME` (on compute node using sbatch script)- directory where NeMo searches",
-        "for models and datasets. This saves a lot of time (especially for bigger models) if checkpoints already",
+        "for models and checkpoints. This saves a lot of time (especially for bigger models) if checkpoints already",
         f"exist here. Missing files will be downloaded here from HuggingFace. Defaults to {DEFAULT_NEMO_HOME}",
     ]
     parser.add_argument(
@@ -302,6 +302,14 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
+        "-fsdp_db",
+        "--use_fsdp_double_buffer",
+        help="Enable FSDP double buffer. Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "-ubr",
         "--use_user_buffer_registration",
         help="Enable user buffer registration. Disabled by default",
@@ -369,6 +377,14 @@ def parse_cli_args():
         help="Use HuggingFace tokenizer. Disabled by default. Null tokenizer will be used if not provided.",
         action="store_true",
         required=False,
+    )
+    parser.add_argument(
+        "-dcdfr",
+        "--dump_config_diff_from_base_recipe",
+        help="Dump the config diff from the base recipe. Defaults to False",
+        action="store_true",
+        required=False,
+        default=False,
     )
     parser.add_argument(
         "--keep_fsdp_fp8_transpose_cache",

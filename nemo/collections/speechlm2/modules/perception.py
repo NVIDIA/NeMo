@@ -50,6 +50,17 @@ class AudioPerceptionModule(NeuralModule, Exportable):
             "encoded_len": NeuralType(tuple("B"), LengthsType()),
         }
 
+    @property
+    def token_equivalent_duration(self) -> float:
+        """
+        Returns the audio duration corresponding to a single frame/token in the output
+        of this module.
+        """
+        frame_shift = self.preprocessor.featurizer.hop_length / self.preprocessor.featurizer.sample_rate
+        encoder_subsampling = self.encoder.subsampling_factor
+        adapter_subsampling = getattr(self.modality_adapter, "subsampling_factor", 1.0)
+        return frame_shift * encoder_subsampling * adapter_subsampling
+
     def __init__(self, cfg: DictConfig):
         super().__init__()
         # Initialize components

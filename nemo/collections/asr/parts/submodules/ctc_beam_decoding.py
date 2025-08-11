@@ -21,11 +21,13 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.collections.asr.parts.k2.classes import GraphIntersectDenseConfig
 from nemo.collections.asr.parts.submodules.ctc_batched_beam_decoding import BatchedBeamCTCComputer
-from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET
+from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET, NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.wfst_decoder import RivaDecoderConfig, WfstNbestHypothesis
 from nemo.collections.asr.parts.utils import rnnt_utils
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
@@ -878,7 +880,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         return self.k2_decoder.decode(x.to(device=self.device), out_len.to(device=self.device))
 
 
-class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
+class BeamBatchedCTCInfer(AbstractBeamCTCInfer, WithOptionalCudaGraphs):
     """
     A batched beam CTC decoder.
 
@@ -897,6 +899,8 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         beam_beta: float, the word insertion weight.
         beam_threshold: float, the beam pruning threshold.
         ngram_lm_model: str, the path to the ngram model.
+        boosting_tree: BoostingTreeModelConfig, the boosting tree model config.
+        boosting_tree_alpha: float, the boosting tree alpha.
         allow_cuda_graphs: bool, whether to allow cuda graphs for the beam search algorithm.
     """
 
@@ -911,7 +915,10 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         beam_beta: float = 0.0,
         beam_threshold: float = 20.0,
         ngram_lm_model: str = None,
+        boosting_tree: BoostingTreeModelConfig = None,
+        boosting_tree_alpha: float = 0.0,
         allow_cuda_graphs: bool = True,
+        tokenizer: TokenizerSpec = None,
     ):
         super().__init__(blank_id=blank_index, beam_size=beam_size)
 
@@ -925,12 +932,24 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
         if self.preserve_alignments:
             raise ValueError("`Preserve alignments` is not supported for batched beam search.")
 
-        self.ngram_lm_alpha = ngram_lm_alpha
         self.beam_beta = beam_beta
         self.beam_threshold = beam_threshold
 
-        # Default beam search args
-        self.ngram_lm_model = ngram_lm_model
+        # load fusion models from paths (ngram_lm_model and boosting_tree_model)
+        fusion_models, fusion_models_alpha = [], []
+        if ngram_lm_model is not None:
+            assert blank_index != 0, "Blank should not be the first token in the vocabulary"
+            fusion_models.append(NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=blank_index))
+            fusion_models_alpha.append(ngram_lm_alpha)
+        if boosting_tree and not BoostingTreeModelConfig.is_empty(boosting_tree):
+            assert blank_index != 0, "Blank should not be the first token in the vocabulary"
+            fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=tokenizer))
+            fusion_models_alpha.append(boosting_tree_alpha)
+        if not fusion_models:
+            fusion_models = None
+            fusion_models_alpha = None
+
+        # # Default beam search args
 
         self.search_algorithm = BatchedBeamCTCComputer(
             blank_index=blank_index,
@@ -938,12 +957,24 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             return_best_hypothesis=return_best_hypothesis,
             preserve_alignments=preserve_alignments,
             compute_timestamps=compute_timestamps,
-            ngram_lm_alpha=ngram_lm_alpha,
+            fusion_models=fusion_models,
+            fusion_models_alpha=fusion_models_alpha,
             beam_beta=beam_beta,
             beam_threshold=beam_threshold,
-            ngram_lm_model=ngram_lm_model,
             allow_cuda_graphs=allow_cuda_graphs,
         )
+
+    def disable_cuda_graphs(self) -> bool:
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if isinstance(self.search_algorithm, WithOptionalCudaGraphs):
+            return self.search_algorithm.disable_cuda_graphs()
+        return False
+
+    def maybe_enable_cuda_graphs(self) -> bool:
+        """Enable CUDA graphs (if allowed)"""
+        if isinstance(self.search_algorithm, WithOptionalCudaGraphs):
+            return self.search_algorithm.maybe_enable_cuda_graphs()
+        return False
 
     @typecheck()
     def forward(
@@ -1017,6 +1048,8 @@ class BeamCTCInferConfig:
     kenlm_path: Optional[str] = None  # Deprecated, default should be None
     ngram_lm_alpha: Optional[float] = 1.0
     ngram_lm_model: Optional[str] = None
+    boosting_tree: BoostingTreeModelConfig = field(default_factory=BoostingTreeModelConfig)
+    boosting_tree_alpha: Optional[float] = 0.0
 
     flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
     pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
