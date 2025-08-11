@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import types
 from unittest.mock import MagicMock, patch
 
@@ -35,7 +36,6 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     wang_init_method,
     zigzag_get_overlapping_patches,
 )
-import importlib
 
 
 class MockProjConv(torch.nn.Module):
@@ -481,7 +481,9 @@ class TestFallbackFunctions:
     def test_is_fused_supported_fallback(self, mock_is_fused_supported):
         """Test that the fallback is_fused_supported function raises ImportError."""
         # Mock the function to raise ImportError
-        mock_is_fused_supported.side_effect = ImportError("cuhyena not installed. is_fused_supported is not available.")
+        mock_is_fused_supported.side_effect = ImportError(
+            "cuhyena not installed. is_fused_supported is not available."
+        )
 
         with pytest.raises(ImportError, match="cuhyena not installed. is_fused_supported is not available."):
             mock_is_fused_supported(128)
@@ -510,5 +512,6 @@ class TestFallbackFunctions:
             # Re-import the module to trigger the import error
             with pytest.raises(ImportError, match="einops is required by the Hyena model but cannot be imported"):
                 import nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils
+
                 # Force a reload of the module to trigger the import error
                 importlib.reload(nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils)
