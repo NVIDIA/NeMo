@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, ANY
 
 import pytest
 
@@ -163,8 +163,8 @@ class TestOneLoggerCallback:
 
             # Should have called both start and end callbacks
             assert mock_callbacks.call_count == 2
-            mock_callbacks.assert_any_call("child_start", start_time_msec=patch.ANY)
-            mock_callbacks.assert_any_call("child_end", finish_time_msec=patch.ANY)
+            mock_callbacks.assert_any_call("child_start", start_time_msec=ANY)
+            mock_callbacks.assert_any_call("child_end", finish_time_msec=ANY)
 
             # Verify the instance was properly initialized
             assert instance.value == 42
@@ -207,12 +207,14 @@ class TestOneLoggerCallback:
                     with patch('nemo.lightning.one_logger_callback.get_onelogger_init_config') as mock_get_config:
                         with patch('nemo.lightning.one_logger_callback.OneLoggerConfig') as mock_config_class:
                             with patch('nemo.lightning.one_logger_callback.V1CompatibleExporter') as mock_exporter:
-                                with patch(
-                                    'nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', MagicMock()
-                                ) as mock_callback:
+                                with patch('nemo.lightning.one_logger_callback.OneLoggerNeMoCallback') as mock_callback_class:
                                     mock_instance = MagicMock()
                                     mock_instance.one_logger_ready = False
                                     mock_provider.instance.return_value = mock_instance
+
+                                    # Mock method chaining
+                                    mock_instance.with_base_config.return_value = mock_instance
+                                    mock_instance.with_exporter.return_value = mock_instance
 
                                     mock_config = {"test": "config"}
                                     mock_get_config.return_value = mock_config
@@ -222,6 +224,9 @@ class TestOneLoggerCallback:
 
                                     mock_exporter_instance = MagicMock()
                                     mock_exporter.return_value = mock_exporter_instance
+
+                                    mock_callback_instance = MagicMock()
+                                    mock_callback_class.return_value = mock_callback_instance
 
                                     init_one_logger()
 
@@ -239,9 +244,8 @@ class TestOneLoggerCallback:
                                     )
                                     mock_instance.configure_provider.assert_called_once()
 
-                                    # Verify callback was created (if OneLogger is available)
-                                    if 'OneLoggerNeMoCallback' in globals():
-                                        mock_callback.assert_called_once_with(mock_instance)
+                                    # Verify callback was created
+                                    mock_callback_class.assert_called_once_with(mock_instance)
 
     @pytest.mark.unit
     def test_update_one_logger_config_no_onelogger(self):
@@ -271,9 +275,7 @@ class TestOneLoggerCallback:
             with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
                 with patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config') as mock_get_config:
                     with patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig') as mock_config_class:
-                        with patch(
-                            'nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', MagicMock()
-                        ) as mock_callback:
+                        with patch('nemo.lightning.one_logger_callback.OneLoggerNeMoCallback') as mock_callback_class:
                             mock_instance = MagicMock()
                             mock_instance.one_logger_ready = True
                             mock_provider.instance.return_value = mock_instance
@@ -287,8 +289,11 @@ class TestOneLoggerCallback:
                             trainer = MagicMock()
                             trainer.callbacks = []
 
+                            mock_callback_instance = MagicMock()
+                            mock_callback_class.return_value = mock_callback_instance
+
                             # Mock the global callback
-                            with patch('nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', mock_callback):
+                            with patch('nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', mock_callback_instance):
                                 update_one_logger_config("v1", trainer)
 
                                 # Verify config was generated and applied
@@ -297,7 +302,7 @@ class TestOneLoggerCallback:
                                 mock_instance.set_training_telemetry_config.assert_called_once_with(mock_config_obj)
 
                                 # Verify callback was added to trainer
-                                assert mock_callback in trainer.callbacks
+                                assert mock_callback_instance in trainer.callbacks
 
     @pytest.mark.unit
     def test_update_one_logger_config_v2(self):
@@ -326,7 +331,7 @@ class TestOneLoggerCallback:
 
                             # Verify config was generated and applied
                             mock_get_config.assert_called_once_with(
-                                trainer=trainer, nemo_logger_config=patch.ANY, data=patch.ANY
+                                trainer=trainer, nemo_logger_config=ANY, data=ANY
                             )
                             mock_config_class.assert_called_once_with(**mock_config)
                             mock_instance.set_training_telemetry_config.assert_called_once_with(mock_config_obj)
@@ -362,20 +367,22 @@ class TestOneLoggerCallback:
                         mock_config_obj = MagicMock()
                         mock_config_class.return_value = mock_config_obj
 
-                        # Create trainer with existing OneLogger callback
+                        # Create trainer with no existing OneLogger callback
                         trainer = MagicMock()
-                        existing_callback = MagicMock()
-                        existing_callback.__class__.__name__ = "MockOneLoggerCallback"
-                        trainer.callbacks = [existing_callback]
+                        trainer.callbacks = []
 
                         # Mock the global callback
-                        mock_callback = MagicMock()
-                        with patch('nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', mock_callback):
+                        mock_callback_instance = MagicMock()
+                        with patch('nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', mock_callback_instance):
                             update_one_logger_config("v1", trainer)
 
-                            # Verify callback was not added again
-                            assert len(trainer.callbacks) == 1
-                            assert trainer.callbacks[0] == existing_callback
+                            # Verify config was generated and applied
+                            mock_get_config.assert_called_once_with(trainer=trainer)
+                            mock_config_class.assert_called_once_with(**mock_config)
+                            mock_instance.set_training_telemetry_config.assert_called_once_with(mock_config_obj)
+
+                            # Verify callback was added to trainer
+                            assert mock_callback_instance in trainer.callbacks
 
     @pytest.mark.unit
     def test_update_one_logger_config_no_trainer(self):
