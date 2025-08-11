@@ -97,6 +97,7 @@ def finetune_recipe(
         recipe.trainer.strategy.expert_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.optim.config.lr = 5e-6
+        recipe.trainer.strategy.ckpt_async_save = False
     elif peft_scheme.lower() in ['lora', 'dora']:
         recipe.trainer.strategy.tensor_model_parallel_size = 1
         recipe.trainer.strategy.expert_model_parallel_size = 8
