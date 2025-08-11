@@ -114,7 +114,7 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
         start_callback (str): The name of the callback to call at the start of __init__.
         end_callback (str): The name of the callback to call at the end of __init__.
     """
-    if not hasattr(cls, '__init__'):
+    if not HAVE_ONELOGGER or not hasattr(cls, '__init__'):
         return
 
     original_init = cls.__init__
