@@ -1387,7 +1387,11 @@ class MegatronStep(Generic[ModelT, DataT]):
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         config = self.model[0].config if isinstance(self.model, list) else self.model.config
-        if config.enable_cuda_graph and config.cuda_graph_scope == 'full_iteration':
+        if (
+            hasattr(config, "enable_cuda_graph")
+            and config.enable_cuda_graph
+            and config.cuda_graph_scope == "full_iteration"
+        ):
             return FullCudaGraphWrapper(get_forward_backward_func())
         return get_forward_backward_func()
 
