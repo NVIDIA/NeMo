@@ -18,7 +18,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets, get_words_offsets
 
 
-def merge_parallel_chunks(hypotheses, encoded_len, model, subsampling_factor, window_stride, tokenizer):
+def merge_parallel_chunks(hypotheses, encoded_len, model, subsampling_factor, window_stride, decoding):
     """
     Merges hypotheses from parallel chunks into a single hypothesis with proper text,
     token sequences, and timestamps.
@@ -29,7 +29,7 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, subsampling_factor, wi
         model: The ASR model instance (needed for LCS alignment)
         subsampling_factor: The encoder's subsampling factor
         window_stride: The preprocessor's window stride
-        tokenizer: The tokenizer instance for converting tokens to text
+        decoding: The decoding instance for converting tokens to text
 
     Returns:
         Hypothesis: A single merged hypothesis with combined text, tokens, and timestamps
@@ -57,7 +57,7 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, subsampling_factor, wi
         merged_tokens += hypotheses[i].y_sequence.tolist()[int(delay * 0.6) :]
 
     # Convert merged tokens to text
-    final_text = tokenizer.ids_to_text(merged_tokens)
+    final_text = decoding.decode_tokens_to_str(merged_tokens)
 
     merged_hypotheses = Hypothesis(
         score=0.0,
@@ -75,7 +75,7 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, subsampling_factor, wi
 
     # Merge timestamps and add word and segment level timestamps
     merged_hypotheses = join_timestamp_and_add_word_and_segment_level_timestamps(
-        merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens
+        merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, decoding, merged_tokens
     )
 
     return merged_hypotheses
@@ -97,7 +97,7 @@ def join_y_sequence(merged_hypothesis, hypotheses):
 
 
 def join_timestamp_and_add_word_and_segment_level_timestamps(
-    merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens=None
+    merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, decoding, merged_tokens=None
 ):
     """
     Combine character-level timestamps from chunks and generate word/segment timestamps.
@@ -108,6 +108,7 @@ def join_timestamp_and_add_word_and_segment_level_timestamps(
         chunk_offsets: Frame offsets for each chunk
         subsampling_factor: Subsampling factor of the encoder
         window_stride: Time stride per frame in seconds
+        decoding: Decoding that is used for decoding tokens into text in `get_words_offsets`
         merged_tokens: Optional token sequence for filtering (default: None)
 
     Returns:
@@ -129,6 +130,7 @@ def join_timestamp_and_add_word_and_segment_level_timestamps(
     # Generate word-level timestamps from combined char timestamps
     word_offsets = get_words_offsets(
         char_offsets=char_timestamps,
+        decode_tokens_to_str=decoding.decode_tokens_to_str,
         encoded_char_offsets=encoded_char_offsets,
         supported_punctuation={',', '.', '!', '?'},
     )
