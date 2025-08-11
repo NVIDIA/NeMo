@@ -66,9 +66,11 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False, legacy_tex
     model_cfg.legacy_text_conditioning = legacy_text_conditioning
     if "t5_encoder" in model_cfg:
         model_cfg.encoder = model_cfg.t5_encoder
+        model_cfg.encoder.is_training = False # For inference this is necessary to toggle how attention prior is applied
         del model_cfg.t5_encoder
     if "t5_decoder" in model_cfg:
         model_cfg.decoder = model_cfg.t5_decoder
+        model_cfg.decoder.is_training = False # For inference this is necessary to toggle how attention prior is applied
         del model_cfg.t5_decoder
     if hasattr(model_cfg, 'decoder') and hasattr(model_cfg.decoder, 'prior_eps'):
         # Added to prevent crash after removing arg from transformer_2501.py in https://github.com/blisc/NeMo/pull/56
@@ -332,7 +334,6 @@ def run_inference(
     else:
         exp_name = ""
 
-<<<<<<< HEAD
     # Build checkpoint name
     checkpoint_name = (
         f"{exp_name}{checkpoint_name}_Temp{temperature}_Topk{topk}_Cfg_{use_cfg}_{cfg_scale}_"
@@ -349,24 +350,6 @@ def run_inference(
         f"LT_{use_local_transformer}_"
         f"MaskGit_{maskgit_n_steps}_{maskgit_sampling_type}_{''.join([str(l) for l in maskgit_fixed_schedule]) if maskgit_fixed_schedule is not None else 'None'}_"
         f"SV_{sv_model}"
-=======
-    checkpoint_name = "{}{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
-        exp_name,
-        checkpoint_name,
-        temperature,
-        topk,
-        use_cfg,
-        cfg_scale,
-        apply_attention_prior,
-        attention_prior_epsilon,
-        attention_prior_lookahead_window,
-        start_prior_after_n_audio_steps,
-        "".join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else "None",
-        "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
-        use_local_transformer,
-        maskgit_n_steps,
-        sv_model
->>>>>>> Bug fixes and incorporating reviews
     )
 
     dataset_meta_info = evalset_config.dataset_meta_info
