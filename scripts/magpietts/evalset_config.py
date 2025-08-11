@@ -61,6 +61,7 @@ dataset_meta_info = {
         'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_single.json',
         'audio_dir' : '/datap/misc/Datasets/LibriTTS',
         'feature_dir' : '/datap/misc/Datasets/LibriTTS',
+        'load_cached_codes_if_available': False
     },
     'libri_val': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
