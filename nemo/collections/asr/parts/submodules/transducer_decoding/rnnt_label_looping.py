@@ -30,6 +30,7 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
 from nemo.core.utils.cuda_python_utils import cu_call, run_nvrtc, with_conditional_node
+from nemo.utils import logging
 
 try:
     from cuda import cudart
@@ -171,7 +172,8 @@ class LabelLoopingState:
 
 class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBase, ConfidenceMethodMixin):
     """
-    Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220 for optimized batched greedy decoding.
+    Label-Looping algorithm implementation https://arxiv.org/abs/2406.06220 for optimized batched greedy decoding
+    with optional WIND https://arxiv.org/abs/2505.13765 and CUDA graphs https://arxiv.org/abs/2406.03791
     Iterates over labels, on each step finding the next non-blank label
     (evaluating Joint multiple times in inner loop); It uses a minimal possible amount of calls
     to prediction network (with maximum possible batch size),
@@ -193,6 +195,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
         joint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
+        window_size: int = 1,
         preserve_alignments=False,
         preserve_frame_confidence=False,
         confidence_method_cfg: Optional[DictConfig] = None,
@@ -207,6 +210,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             joint: Joint module from RNN-T
             blank_index: index of blank symbol
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
+            window_size: optional lookahead window size for non-blank label finding (WIND algorithm)
             preserve_alignments: if alignments are needed
             preserve_frame_confidence: if frame confidence is needed
             confidence_method_cfg: config for the confidence
@@ -218,6 +222,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
         self.joint = joint
         self._blank_index = blank_index
         self.max_symbols = max_symbols_per_step
+        self.window_size = window_size if window_size >= 1 else 1
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
         self.allow_cuda_graphs = allow_cuda_graphs
@@ -234,6 +239,11 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
 
         self.fusion_models = fusion_models
         self.fusion_models_alpha = fusion_models_alpha
+        if self.window_size > 1 and self.preserve_alignments:
+            logging.warning(
+                "preserve_alignments not supported with window_size > 1; turning off WIND algorithm, decoding could be slower"
+            )
+            self.window_size = 1
 
     def reset_cuda_graphs_state(self):
         """Reset state to release memory (for CUDA graphs implementations)"""
@@ -263,6 +273,9 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             encoder_output_length: lengths of the utterances in `encoder_output`
             prev_batched_state: previous batched decoding state
         """
+        if self.window_size > 1:
+            # TODO: implement
+            raise NotImplementedError()
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
         if self.fusion_models is not None:
@@ -1042,6 +1055,9 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
         """Get Joint output after decoder output, prepare inner loop to search for all next non-blank labels"""
         # stage 1: get joint output, iteratively seeking for non-blank labels
         # blank label in `labels` tensor means "end of hypothesis" (for this index)
+        if self.window_size > 1:
+            # TODO: implement
+            raise NotImplementedError
         logits = (
             self.joint.joint_after_projection(
                 self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
@@ -1110,6 +1126,9 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             self.state.time_indices_current_labels,
             out=self.state.time_indices_current_labels,
         )
+        if self.window_size > 1:
+            # TODO: implement
+            raise NotImplementedError
         logits = (
             self.joint.joint_after_projection(
                 self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
