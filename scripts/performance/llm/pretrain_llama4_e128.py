@@ -22,7 +22,13 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, build_perf_env_plugin
+from ..helpers import (
+    args_sanity_check,
+    build_perf_env_plugin,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+)
 from ..utils import dump_config_diff_from_base_recipe, hf_tokenizer
 
 
@@ -125,7 +131,7 @@ if __name__ == "__main__":
     )
 
     plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
-    
+
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=15, end_step=16, gen_shape=True))
     if args.enable_memory_profile:
