@@ -22,7 +22,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, build_perf_env_plugin
-from ..utils import hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata
+from ..utils import hf_tokenizer, import_ckpt_experiment, prepare_squad_dataset_experiment
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
 

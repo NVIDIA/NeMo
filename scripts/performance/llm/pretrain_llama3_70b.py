@@ -31,7 +31,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, build_perf_env_plugin
-from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
+from ..utils import dump_config_diff_from_base_recipe, get_comm_overlap_callback_idx, hf_tokenizer
 
 
 def override_recipe_configs(
