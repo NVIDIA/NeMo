@@ -35,6 +35,12 @@ try:
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
     HAVE_ONELOGGER = False
+    CB = None
+    TrainingTelemetryProvider = None
+    OneLoggerConfig = None
+    TrainingTelemetryConfig = None
+    OneLoggerNeMoCallback = None
+    V1CompatibleExporter = None
 
 from lightning.pytorch import Trainer
 
@@ -45,11 +51,14 @@ from nemo.utils.meta_info_manager import (
     get_onelogger_init_config,
 )
 
-# Export OneLogger availability flag
+# Export all symbols for testing and usage
 __all__ = [
     'hook_class_init_with_callbacks',
     'get_one_logger_callbacks',
     'update_one_logger_config',
+    'get_current_time_msec',
+    'init_one_logger',
+    'HAVE_ONELOGGER',
 ]
 
 _ONELOGGER_CALLBACK = None

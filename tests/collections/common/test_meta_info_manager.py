@@ -58,6 +58,7 @@ class TestMetaInfoManager:
         trainer.callbacks = []
         trainer.val_check_interval = 1.0
         trainer.strategy = None
+        trainer.log_every_n_steps = 10
 
         with patch.dict(os.environ, {"SLURM_JOB_NAME": "test_job", "WORLD_SIZE": "4", "PERF_VERSION_TAG": "1.0.0"}):
             config = _get_base_callback_config(trainer=trainer, global_batch_size=32, seq_length=512)
