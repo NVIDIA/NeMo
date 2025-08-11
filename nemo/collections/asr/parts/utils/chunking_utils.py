@@ -18,7 +18,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets, get_words_offsets
 
 
-def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsampling_factor, window_stride, tokenizer):
+def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsampling_factor, window_stride, decoding):
     """
     Merges hypotheses from parallel chunks into a single hypothesis with proper text,
     token sequences, and timestamps.
