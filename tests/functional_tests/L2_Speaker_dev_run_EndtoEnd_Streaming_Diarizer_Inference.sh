@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,20 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# WAR for trtllm and lightning conflict
-try:
-    from nemo.lightning import io
-
-    __all__ = ["io"]
-except (ImportError, ModuleNotFoundError):
-    pass
-
-import warnings
-
-warnings.warn(
-    "The 'nemo.export' is deprecated and will be removed in NeMo FW 25.09 container release. "
-    "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Export-Deploy",
-    DeprecationWarning,
-    stacklevel=2,
-)
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/speaker_tasks/diarization/neural_diarizer/e2e_diarize_speech.py \
+    model_path=/home/TestData/an4_diarizer/diar_streaming_sortformer_4spk-v2-tiny.nemo \
+    dataset_manifest=/home/TestData/an4_diarizer/simulated_valid/eesd_valid_tiny.json \
+    batch_size=1
