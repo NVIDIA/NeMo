@@ -98,11 +98,9 @@ class TestOneLoggerMixinHooks:
                 super().__init__()
                 self.value = value
 
-        # Mock the timing tracker to capture events
-        with patch('nemo.lightning.one_logger_callback.OneLoggerTimingTracker.get_instance') as mock_get_instance:
-            mock_tracker = MagicMock()
-            mock_tracker.track_event = mock_track_event
-            mock_get_instance.return_value = mock_tracker
+        # Mock the get_one_logger_callbacks function to capture events
+        with patch('nemo.lightning.one_logger_callback.get_one_logger_callbacks') as mock_callbacks:
+            mock_callbacks.side_effect = lambda name, **kwargs: mock_track_event(name)
 
             # Create an instance of the model
             model = FakeModel(value=42)
@@ -235,11 +233,9 @@ class TestOneLoggerIOMixinHooks:
                 super().__init__()
                 self.value = value
 
-        # Mock the timing tracker to capture events
-        with patch('nemo.lightning.one_logger_callback.OneLoggerTimingTracker.get_instance') as mock_get_instance:
-            mock_tracker = MagicMock()
-            mock_tracker.track_event = mock_track_event
-            mock_get_instance.return_value = mock_tracker
+        # Mock the get_one_logger_callbacks function to capture events
+        with patch('nemo.lightning.one_logger_callback.get_one_logger_callbacks') as mock_callbacks:
+            mock_callbacks.side_effect = lambda name, **kwargs: mock_track_event(name)
 
             # Create an instance of the datamodule
             datamodule = FakeDataModule(value=42)
