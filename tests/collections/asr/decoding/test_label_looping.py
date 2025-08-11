@@ -41,7 +41,7 @@ class TestLabelLooping:
             dtype=torch.float32,
         )
         assert logits.shape == (3, 4, 5)  # Batch x Window x Vocab
-        selected_window_idx, best_labels, best_scores = (
+        selected_window_idx, best_scores, best_labels = (
             GreedyBatchedRNNTLabelLoopingComputer._wind_selection_stateless(mock_computer, logits)
         )
         assert selected_window_idx.shape == (3,)

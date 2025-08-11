@@ -341,13 +341,13 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             fusion_states_list = prev_batched_state.fusion_states_list
 
         # variables for WIND decoding
-        if self.window_size > 1:
-            window_offsets = torch.arange(self.window_size, device=self.device)
-            expanded_batch_indices = batch_indices.unsqueeze(1).expand(-1, self.window_size)
+        window_size = min(self.window_size, max_time)
+        if window_size > 1:
+            window_offsets = torch.arange(window_size, device=device)
+            expanded_batch_indices = batch_indices.unsqueeze(1).expand(-1, window_size)
         else:
             window_offsets = None
             expanded_batch_indices = None
-        selected_window_idx = None
 
         # loop while there are active utterances
         while active_mask.any():
@@ -355,7 +355,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             # blank label in `labels` tensor means "end of hypothesis" (for this index)
 
             # stage 1.1: get first joint output
-            if self.window_size == 1:
+            if window_size == 1:
                 logits = (
                     self.joint.joint_after_projection(
                         encoder_output_projected[batch_indices, safe_time_indices].unsqueeze(1),
@@ -370,8 +370,8 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
                 indices = torch.minimum(safe_time_indices[:, None] + window_offsets[None, :], last_timesteps[:, None])
                 # TODO: maybe gather?
                 logits = self.joint.joint_after_projection(
-                    self.state.encoder_output_projected[expanded_batch_indices, indices],
-                    self.state.decoder_output,
+                    encoder_output_projected[expanded_batch_indices, indices],
+                    decoder_output,
                 ).squeeze(2)
                 selected_window_idx, scores, labels = self._wind_selection_stateless(logits)
                 time_indices.add_(selected_window_idx)
@@ -423,7 +423,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
                 # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
                 # store current time indices to use further for storing the results
                 torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
-                if self.window_size == 1:
+                if window_size == 1:
                     logits = (
                         self.joint.joint_after_projection(
                             encoder_output_projected[batch_indices, safe_time_indices].unsqueeze(1),
@@ -442,8 +442,8 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
                     )
                     # TODO: maybe gather?
                     logits = self.joint.joint_after_projection(
-                        self.state.encoder_output_projected[expanded_batch_indices, indices],
-                        self.state.decoder_output,
+                        encoder_output_projected[expanded_batch_indices, indices],
+                        decoder_output,
                     ).squeeze(2)
                     selected_window_idx, more_scores, more_labels = self._wind_selection_stateless(logits)
                     time_indices.add_(selected_window_idx)
@@ -1171,7 +1171,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
 
         best_labels = torch.gather(best_labels_window, dim=-1, index=selected_window_idx.unsqueeze(-1)).squeeze(-1)
         best_scores = torch.gather(best_scores_window, dim=-1, index=selected_window_idx.unsqueeze(-1)).squeeze(-1)
-        return selected_window_idx, best_labels, best_scores
+        return selected_window_idx, best_scores, best_labels
 
     def _inner_loop_step_find_next_non_blank(self):
         """Find next non-blank labels - one iteration"""
