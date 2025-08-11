@@ -59,6 +59,7 @@ from ..helpers import (
     get_user_configs,
     set_exp_logging_configs,
     set_primary_perf_configs,
+    build_perf_env_plugin,
 )
 from ..utils import hf_tokenizer
 
@@ -410,13 +411,7 @@ if __name__ == "__main__":
     if args.gpu.lower() == 'gb200':
         env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
 
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        ),
-    ]
+    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
 
     if args.enable_nsys:
         plugins.append(
