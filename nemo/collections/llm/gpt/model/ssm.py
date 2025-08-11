@@ -575,6 +575,8 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
             nemotron_h_config = NemotronHConfig47B()
         elif "56B" in source._name_or_path:
             nemotron_h_config = NemotronHConfig56B()
+        elif "Nano-9B-v2" in source._name_or_path:
+            nemotron_h_config = NemotronNano9Bv2()
         else:
             raise ValueError(f"Unsupported model size: {source._name_or_path}")
 
