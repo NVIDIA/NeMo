@@ -81,11 +81,26 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         #       messing up FSDP/TP hooks.
         self.embed_tokens = self.llm.model.embed_tokens
         del self.llm.model.embed_tokens
-        maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
         setup_speech_encoder_with_asr(self, pretrained_weights=self.cfg.pretrained_weights)
         assert isinstance(self.perception, AudioTranscriptionPerceptionModule)
+
+        # Load pretrained weights if provided
+        if (init_from_path := self.cfg.get("init_from_path", None)) is not None:
+            init_from_path = Path(init_from_path)
+            assert init_from_path.is_dir(), "init_from_path must be a directory containing HF checkpoint"
+            logging.warning(f"Loading pretrained weights from {str(init_from_path)}")
+            from safetensors import safe_open
+            tensors = {}
+            with safe_open(init_from_path / "model.safetensors", framework="pt") as f:
+                for k in f.keys():
+                    tensors[k] = f.get_tensor(k)
+            missing_keys, unexpected_keys = self.load_state_dict(tensors, strict=False)
+            logging.warning(f"Missing keys: {missing_keys}")
+            logging.warning(f"Unexpected keys: {unexpected_keys}")
+
+        maybe_install_lora(self)
 
         self._use_fsdp = False
         self._use_tp = False
