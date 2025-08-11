@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -82,9 +82,9 @@ class LabelLoopingState:
     alignments: Optional[rnnt_utils.BatchedAlignments] = None  # batched alignments
 
     # for fusion models
-    fusion_states_list: Optional[List[torch.Tensor]] = None
-    fusion_states_candidates_list: Optional[List[torch.Tensor]] = None
-    fusion_scores_list: Optional[List[torch.Tensor]] = None
+    fusion_states_list: Optional[list[torch.Tensor]] = None
+    fusion_states_candidates_list: Optional[list[torch.Tensor]] = None
+    fusion_scores_list: Optional[list[torch.Tensor]] = None
 
     def __init__(
         self,
@@ -186,7 +186,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
     separate_graphs: Optional[SeparateGraphsLabelLooping]
     full_graph: Optional[torch.cuda.CUDAGraph]
     state: Optional[LabelLoopingState]
-    fusion_models: Optional[List[NGramGPULanguageModel]]
+    fusion_models: Optional[list[NGramGPULanguageModel]]
 
     def __init__(
         self,
@@ -199,8 +199,8 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
         preserve_frame_confidence=False,
         confidence_method_cfg: Optional[DictConfig] = None,
         allow_cuda_graphs: bool = True,
-        fusion_models: Optional[List[NGramGPULanguageModel]] = None,
-        fusion_models_alpha: Optional[List[float]] = None,
+        fusion_models: Optional[list[NGramGPULanguageModel]] = None,
+        fusion_models_alpha: Optional[list[float]] = None,
     ):
         """
         Init method.
