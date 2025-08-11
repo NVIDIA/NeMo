@@ -24,6 +24,7 @@ from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import nn
 from torch.utils.data import get_worker_info
+import numpy as np
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -104,6 +105,13 @@ class MagpieTTSModel(ModelPT):
         self.mask_token_id = cfg.get('forced_mask_token_id', num_audio_tokens + SpecialAudioToken.MASK_TOKEN.value)
         self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
 
+        # The frame stacking factor controls how many consecutive frames are processed together by the
+        # base decoder (and then refined into individual frames by the local transformer).
+        # We have a separate embedding table for each of the stacked frames, e.g. for frame stacking
+        # factor of 3, the codes of codebook 0 appears 3 times in the embedding table.
+        # A frame stacking factor of 1 means no frame stacking.
+        self.frame_stacking_factor = cfg.get('frame_stacking_factor', 1)
+        assert not 'downsample_factor' in cfg, '`downsample_factor` is deprecated, use `frame_stacking_factor` instead'
         # Setup tokenizer
         if hasattr(cfg, 'text_tokenizer'):
             # For backward compatibility for English-only models
@@ -141,7 +149,7 @@ class MagpieTTSModel(ModelPT):
         self._codec_model.freeze()  #Lightning does requires_grad = False and self.eval()
 
         audio_embeddings = []
-        for _ in range(self.num_audio_codebooks):
+        for _ in range(self.num_audio_codebooks * self.frame_stacking_factor):
             audio_embeddings.append(nn.Embedding(self.num_all_tokens_per_codebook, cfg.embedding_dim))
         self.audio_embeddings = nn.ModuleList(audio_embeddings)
 
@@ -173,8 +181,7 @@ class MagpieTTSModel(ModelPT):
             self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
-        
-        self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
+        self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook * self.frame_stacking_factor)
 
         self.local_transformer_type = LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
         logging.info(f"Local transformer type: {self.local_transformer_type}")
@@ -191,11 +198,11 @@ class MagpieTTSModel(ModelPT):
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
                 is_causal=self.local_transformer_type == LocalTransformerType.AR,
-                max_length_causal_mask=self.num_audio_codebooks+2,
+                max_length_causal_mask=self.frame_stacking_factor*self.num_audio_codebooks+2,
                 use_learnable_pos_emb=True,
             )
             local_transformer_out_projections = []
-            for _ in range(self.num_audio_codebooks):
+            for _ in range(self.num_audio_codebooks * self.frame_stacking_factor):
                 # Have a separate projection layer for each codebook, to distinguish between them
                 local_transformer_out_projections.append(nn.Linear(local_transformer_hidden_dim, self.num_all_tokens_per_codebook))
             self.local_transformer_out_projections = nn.ModuleList(local_transformer_out_projections)
@@ -248,7 +255,7 @@ class MagpieTTSModel(ModelPT):
 
         elif self.model_type == 'decoder_pretrain_synthesizer':
             # This is for pretraining the decoder only on audio data using next frame prediction loss
-            assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
+            assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"    
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
 
@@ -359,7 +366,7 @@ class MagpieTTSModel(ModelPT):
             # Add a timestep to begining and end of codes tensor
             bos_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), audio_bos_id, dtype=codes.dtype, device=codes.device
-            )
+            ) # TODO @rfejgin: not tested with frame stacking factor > 1
             pad_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), 0, dtype=codes.dtype, device=codes.device
             )  # 0 is the padding token in the audio codebook
@@ -368,8 +375,7 @@ class MagpieTTSModel(ModelPT):
             # codes_len: (B,)
             for idx in range(codes.size(0)):
                 codes[idx, :, codes_len[idx] + 1] = audio_eos_id
-            codes_len = codes_len + 2
-
+            codes_len = codes_len + 2 # +1 for bos and +1 for eos
             return codes.long(), codes_len.long()
 
     def codes_to_audio(self, codes, codes_len):
@@ -388,17 +394,18 @@ class MagpieTTSModel(ModelPT):
             # audio_len: (B,)
             return audio, audio_len
 
-    def embed_audio_tokens(self, audio_tokens):
-        # audio_tokens: (B, C, T')
-        # Add and average the embeddings of the audio tokens across the codebooks
+    def embed_audio_tokens(self, audio_tokens, frame_stacking_factor):
+        B, C, T = audio_tokens.shape
         audio_embedding = None
-        for c in range(audio_tokens.size(1)):
-            embedding = self.audio_embeddings[c](audio_tokens[:, c, :])
-            if audio_embedding is None:
-                audio_embedding = embedding
-            else:
-                audio_embedding = audio_embedding + embedding
-        audio_embedding = audio_embedding / audio_tokens.size(1)
+        for i in range(frame_stacking_factor):
+            for c in range(C):
+                tokens = audio_tokens[:,c , i::self.frame_stacking_factor]
+                embedding = self.audio_embeddings[c + i * C](tokens)
+                if audio_embedding is None:
+                    audio_embedding = embedding
+                else:
+                    audio_embedding += embedding
+        audio_embedding = audio_embedding / (C * self.frame_stacking_factor)
         return audio_embedding
 
     def get_speaker_embeddings(self, audio_16khz, audio_len_16khz):
@@ -419,31 +426,36 @@ class MagpieTTSModel(ModelPT):
         (using an 8-codebook setup as an example):
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
         | AR target  |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |   none  |
+        | codebook   |         |         |         |         |         |         |         |         |         |
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
         | MG target  |  none   |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |
+        | codebook   |         |         |         |         |         |         |         |         |         |
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
-        |   Input    | Magpie  |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |
-        |            | Latent  | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK |
+        |  input     | Magpie  |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |
+        |  codebook  | latent  | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK | or MASK |
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
-        | Seq. Index |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |    8    |
+        | seq. index |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |    8    |
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
-
-        dec_out: (B, T', E)
+        
+        dec_out: (B, T'/frame_stacking_factor, E)
         audio_codes_target: (B, C, T')
         targets_offset_by_one: bool, if False, the target for index 0 is codebook 0, for index 1 is codebook 1, etc. (autoregressive)
-                                     if True,  the target for index 1 is codebook 0, for index 2 is codebook 1, etc. (MaskGit)
+                                     if True,  the target for index 1 is codebook 0, for index 2 is codebook 1, etc. 
+                                     (MaskGit)
         """
+        C = audio_codes_target.size(1)
         dec_out_all = dec_out.reshape(-1, dec_out.size(-1)) # (B*T', E)
         local_transformer_input = [dec_out_all]
-        for codebook_num in range(audio_codes_target.size(1)):
-            codes = audio_codes_target[:, codebook_num] # (B, T')
-            codes = codes.reshape(-1) # (B*T',)
-            codebook_embedding = self.audio_embeddings[codebook_num](codes) # (B*T', E)
-            local_transformer_input.append(codebook_embedding)
+        for ds_index in range(self.frame_stacking_factor):
+            for codebook_num in range(C):
+                codes = audio_codes_target[:, codebook_num, ds_index::self.frame_stacking_factor] # (B, T')
+                codes = codes.reshape(-1) # (B*T',)
+                codebook_embedding = self.audio_embeddings[codebook_num + ds_index * C](codes) # (B*T', E)
+                local_transformer_input.append(codebook_embedding)
 
         local_transformer_input = torch.stack(local_transformer_input, dim=1) # (B*T', C+1, E)
         local_transformer_input = self.local_transformer_in_projection(local_transformer_input) # (B*T', C+1, 128)
-        _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
+        _mask = torch.ones(local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
         local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B*T', C+1, E)
         if not targets_offset_by_one:
             # for autoregressive local transformer the target for index 0 is codebook 0, for index 1 is codebook 1, etc.
@@ -452,16 +464,17 @@ class MagpieTTSModel(ModelPT):
             # for MaskGit the target for index **1** is codebook 0, for index 2 is codebook 1, etc.
             local_transformer_output = local_transformer_output[:, 1:, :] # (B*T', C, E)
         all_code_logits = []
-        for codebook_num in range(audio_codes_target.size(1)):
-            # Using a separate projection layer for each codebook (to distinguish between them)
-            # Checked the time - this loop is not taking much time (compared to the local transformer forward pass)
-            codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, codebook_num, :]) # (B*T', num_all_tokens_per_codebook)
-            all_code_logits.append(codebook_logits)
-        all_code_logits = torch.cat(all_code_logits, dim=1) # (B*T', num_codebooks * num_all_tokens_per_codebook)
+        for ds_index in range(self.frame_stacking_factor):
+            for codebook_num in range(audio_codes_target.size(1)):
+                # Using a separate projection layer for each codebook (to distinguish between them)
+                # Checked the time - this loop is not taking much time (compared to the local transformer forward pass)
+                codebook_logits = self.local_transformer_out_projections[codebook_num + ds_index*C](local_transformer_output[:, codebook_num + ds_index*C, :]) # (B*T', num_all_tokens_per_codebook)
+                all_code_logits.append(codebook_logits)
+        all_code_logits = torch.cat(all_code_logits, dim=1) # (B*T'/frame_stacking_factor, num_codebooks * num_all_tokens_per_codebook * frame_stacking_factor)
 
         all_code_logits = all_code_logits.view(
-            audio_codes_target.size(0), audio_codes_target.size(2), -1
-        ) # (B, T', C * num_all_tokens_per_codebook)
+            audio_codes_target.size(0), audio_codes_target.size(2) // self.frame_stacking_factor, -1
+        ) # (B, T'/frame_stacking_factor, C * num_all_tokens_per_codebook * frame_stacking_factor)
 
         return all_code_logits
 
@@ -488,9 +501,9 @@ class MagpieTTSModel(ModelPT):
         #              # mask the top n_masked positions
         #              mask[b, perm[:n_masked[b,t]], t] = True
         #
-        # Create random permutations
-        random_permutations = torch.argsort(torch.rand(B, C, T, device=codes.device), dim=1)  # (B, C, T)
-        # Create a mask tensor where each position indicates if it should be masked
+        # Create random permutations 
+        random_permutations = torch.argsort(torch.rand(B, C, T, device=codes.device), dim=1)  # (B, C, T)        
+        # Create a mask tensor where each position indicates if it should be masked        
         mask_indices = torch.arange(C, device=codes.device).view(1, C, 1)
         mask = mask_indices < n_masked.view(B, 1, T) # (B, C, T)
         # Apply the random permutations to the mask
@@ -506,7 +519,7 @@ class MagpieTTSModel(ModelPT):
         codes_with_mask = torch.where(mask, self.mask_token_id, codes)
         return codes_with_mask, mask
 
-    def compute_loss(self, logits, audio_codes, audio_codes_lens, mask_tokens_mask=None):
+    def compute_loss(self, logits, audio_codes, audio_codes_lens, mask_tokens_mask=None, frame_stacking_factor=1):
         """
         Computes the audio codebook loss. Used by
         (1) The main Magpie-TTS transformer
@@ -516,10 +529,13 @@ class MagpieTTSModel(ModelPT):
         audio_codes: (B, C, T')
         audio_codes_lens: (B,)
         mask_tokens_mask: (B, C, T') True for tokens that were replaced with the MASK_TOKEN and should
-                                     therefore be the only ones included in the loss computation.
+                                     therefore be the only ones included in the loss computation (for MaskGit).
+        frame_stacking_factor: int, the stacking factor used in the model
         """
-        loss_mask = get_mask_from_lengths(audio_codes_lens)
+        loss_mask = get_mask_from_lengths(audio_codes_lens, pad_to_factor=frame_stacking_factor)
         if mask_tokens_mask is not None:
+            #@rfejgin TODO review this for frame-stacking
+
             # For MaskGit we only compute loss for the masked tokens.
             # *Both* conditions must be true:
             # 1. the token is masked
@@ -533,22 +549,27 @@ class MagpieTTSModel(ModelPT):
             # repeat loss mask for each codebook to simplify code below
             loss_mask = loss_mask.unsqueeze(1).repeat(1, audio_codes.size(1), 1)
         total_codebook_loss = None
-        for codebook in range(audio_codes.size(1)):
-            si = codebook * self.num_all_tokens_per_codebook
-            ei = si + self.num_all_tokens_per_codebook
-            codebook_logits = logits[:, :, si:ei]  # (B, T', num_tokens_per_codebook)
-            codebook_targets = audio_codes[:, codebook]  # (B, T')
-            codebook_loss = self.cross_entropy_loss(
-                codebook_logits.permute(0, 2, 1), codebook_targets  # (B, num_tokens_per_codebook, T')
-            )  # (B, T')
-            codebook_loss = codebook_loss * loss_mask[:, codebook, :]
-            codebook_loss = codebook_loss.sum() / loss_mask[:, codebook, :].sum()
-            if total_codebook_loss is None:
-                total_codebook_loss = codebook_loss
-            else:
-                total_codebook_loss = total_codebook_loss + codebook_loss
+        for ds_index in range(frame_stacking_factor):
+            for codebook in range(audio_codes.size(1)):
+                si = (codebook + self.num_audio_codebooks * ds_index) * self.num_all_tokens_per_codebook
+                ei = si + self.num_all_tokens_per_codebook
+                codebook_logits = logits[:, :, si:ei]  # (B, T', num_tokens_per_codebook)
+                codebook_targets = audio_codes[:, codebook, ds_index::frame_stacking_factor]  # (B, T')
+                codebook_loss = self.cross_entropy_loss(
+                    codebook_logits.permute(0, 2, 1), codebook_targets  # (B, num_tokens_per_codebook, T')
+                )  # (B, T')
+                codebook_loss_mask = loss_mask[:, codebook, ds_index::frame_stacking_factor]
+                codebook_loss = codebook_loss * codebook_loss_mask
+                if codebook_loss_mask.sum() == 0:
+                    logging.warning(f"Loss mask for codebook {codebook} is all zeros, global_step: {self.global_step}")
+                    continue
+                codebook_loss = codebook_loss.sum() / codebook_loss_mask.sum()
+                if total_codebook_loss is None:
+                    total_codebook_loss = codebook_loss
+                else:
+                    total_codebook_loss = total_codebook_loss + codebook_loss
 
-        total_codebook_loss = total_codebook_loss / audio_codes.size(1)
+        total_codebook_loss = total_codebook_loss / (audio_codes.size(1) * frame_stacking_factor) 
         return total_codebook_loss, loss_mask
 
     def forward(self, dec_input_embedded, dec_input_mask, cond, cond_mask, attn_prior, multi_encoder_mapping):
@@ -567,79 +588,184 @@ class MagpieTTSModel(ModelPT):
     def logits_to_audio_codes(self, all_code_logits, audio_codes_lens):
         # all_code_logits: (B, T', num_codebooks * num_tokens_per_codebook)
         # audio_codes_lens: (B,)
-        all_preds = []
-        for idx in range(self.num_audio_codebooks):
-            si = idx * self.num_all_tokens_per_codebook
-            ei = si + self.num_all_tokens_per_codebook
-            codebook_logits = all_code_logits[:, :, si:ei]
-            codebook_probs = torch.softmax(codebook_logits, dim=-1)  # (B, T', num_tokens_per_codebook)
-            # argmax to get the tokens
-            codebook_preds = torch.argmax(codebook_probs, dim=-1)  # (B, T')
-            all_preds.append(codebook_preds)
-
-        all_preds = torch.stack(all_preds, dim=1)  # (B, C, T')
+        all_preds = [[] for _ in range(self.frame_stacking_factor)]
+        for ds_index in range(self.frame_stacking_factor):
+            for idx in range(self.num_audio_codebooks):
+                si = (idx + self.num_audio_codebooks * ds_index) * self.num_all_tokens_per_codebook
+                ei = si + self.num_all_tokens_per_codebook
+                codebook_logits = all_code_logits[:, :, si:ei]
+                codebook_probs = torch.softmax(codebook_logits, dim=-1)  # (B, T', num_tokens_per_codebook)
+                # argmax to get the tokens
+                codebook_preds = torch.argmax(codebook_probs, dim=-1)  # (B, T')
+                all_preds[ds_index].append(codebook_preds)
+        all_preds = [torch.stack(p, dim=1) for p in all_preds] # list of `frame_stacking_factor`` elements of shape (B,C,T) each
+        all_preds = torch.stack(all_preds, dim=-1) # B, C, T, frame_stacking_factor
+        # interleave the time dimension, undoing the frame stacking
+        all_preds = all_preds.reshape(all_preds.size(0), all_preds.size(1), -1) # B, C, T*frame_stacking_factor
+        pred_max_len = all_preds.size(2)
+        real_max_len = audio_codes_lens.max()
+        assert (pred_max_len - real_max_len) < self.frame_stacking_factor
+        # trim padding introduced for frame stacking
+        all_preds = all_preds[:,:, :real_max_len]
         audio_mask = get_mask_from_lengths(audio_codes_lens)
         all_preds = all_preds * audio_mask.unsqueeze(1)
 
         return all_preds
 
-    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3):
+    def vis_codes(self,codes, mask_id=2020, frame_stacking_rate=2):
+        """
+        Visualize codes for debug purposes
+        codes: (B, C)
+        """
+        def vis(code):
+            if code==mask_id:
+                return "M    "
+            else:
+                return f"{code:04d} "
+        DS = frame_stacking_rate
+        B, C = codes.shape
+        if B > 1:
+            print("Warning: visualizing only first batch element")
+        codes = codes.clone().detach().cpu().numpy()[0]
+        codes = [vis(c) for c in codes]
+        for i, c in enumerate(codes):
+            if (i) % (C/frame_stacking_rate) == 0:
+                print("  |timestep| ", end="")
+            print(c, end="")
+        print()
+
+    def debug_check_for_forbidden_logits(self, logits):
+        """Debug function to check for logits whose values should be 
+        small because we don't expect to sample those tokens (like `context_audio_bos_id`)
+        """
+        logit_thresh = 0
+        for cb in range(logits.size(1)):
+            has_mask = (logits[:,cb,self.mask_token_id] > logit_thresh).any()
+            has_bos = (logits[:,cb,self.audio_bos_id] > logit_thresh).any()
+            has_audio_bos = (logits[:,cb,self.context_audio_bos_id] > logit_thresh).any()
+            has_audio_eos = (logits[:,cb,self.context_audio_eos_id] > logit_thresh).any()
+            if has_mask or has_bos or has_audio_bos or has_audio_eos:
+                print()
+                print(f"Has likely forbidden tokens: {has_mask} {has_bos} {has_audio_bos} {has_audio_eos}")
+                print(f"special logits: {logits[:,cb,-8:]}")
+                print(f"max logits: {logits[:,cb].max()}")
+                print(f"max special logits (excluding audio bos): {logits[:,cb,self.context_audio_bos_id:self.mask_token_id].max()}")
+                print(f"max special logits (audio bos): {logits[:,cb,self.audio_bos_id].max()}")
+                print()
+
+    def get_forbidden_tokens(self) -> list[int]:
+        """
+        Returns a list of tokens that should not be sampled.
+        """
+        # Note that audio EOS is not included because we *do* need to sample it at the end of the utterance.
+        return [self.mask_token_id, self.audio_bos_id, self.context_audio_bos_id, self.context_audio_eos_id]
+
+    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule=None, dynamic_cfg_scale=False, sampling_type=None):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
-        """
+        """        
+        debug_print = False
         # dec_output: (B, E)
         device = dec_output.device
         # disable KV cache since our transformer is not causal
         self.local_transformer.reset_cache(use_cache=False)
         dec_output = dec_output.unsqueeze(1) # (B, 1, E)
         local_transformer_input_init = self.local_transformer_in_projection(dec_output) # (B, 1, D) where D is the dimension of the local transformer
-        C = self.num_audio_codebooks
+        codebook_seq_len = self.num_audio_codebooks * self.frame_stacking_factor
         B = dec_output.size(0)
 
-        min_confidence = float("-inf")
-        max_confidence = 10000 # this needs to be large enough that unmasked items will always remain unmasked. # TODO @rfejgin: use float('inf')?
-        confidences = min_confidence * torch.ones(B, C, device=device)
+        min_confidence = 0
+        # this needs to be large enough that unmasked items will always remain unmasked (even after noise addition)
+        # Setting it smaller could allow "regret", i.e. re-masking a codebook that was previously unmasked; we might want to try that
+        max_confidence = 5 
+        confidences = min_confidence * torch.ones(B, codebook_seq_len, device=device)
         # initialize to all masked
-        codes = self.mask_token_id * torch.ones((B, C), device=device, dtype=torch.long)
+        codes = self.mask_token_id * torch.ones((B, codebook_seq_len), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
+        topk_indices = None
+        if debug_print: print(f"Sampling type: {sampling_type}")
+        if fixed_schedule is not None:
+            n_steps = len(fixed_schedule)
+            if debug_print: print(f"Using fixed schedule: {fixed_schedule}")        
+        if dynamic_cfg_scale:
+            if debug_print: print(f"Using dynamic CFG scale")
         for step in range(n_steps):
+            # how far along we are in the unmasking process
+            progress = step / n_steps
             # get mask fraction
-            frac_masked = cosine_schedule(torch.tensor(step / (n_steps)))
+            frac_masked = cosine_schedule(torch.tensor(progress))
+            if sampling_type == "causal" or sampling_type == "purity_causal":
+                frac_masked = torch.ones_like(frac_masked) * (1.0 - progress)
             # how many codebooks to mask
-            n_masked = torch.ceil(C * frac_masked).long() # TODO @rfejgin: should we force this to be initialized to exactly `C` (to avoid numerical issues)?
-            n_unmasked = C - n_masked
+            if fixed_schedule is None:
+                n_masked = torch.ceil(codebook_seq_len * frac_masked).long()
+            else:
+                n_masked = codebook_seq_len - fixed_schedule[step]
+            n_unmasked = codebook_seq_len - n_masked
+
+            if sampling_type == "causal" or sampling_type == "purity_causal":# and n_unmasked <= self.num_audio_codebooks:
+                # force second frame not to be unmasked
+                n_frames_to_allow = int(np.floor(progress*self.frame_stacking_factor+1))
+                confidences[:,n_frames_to_allow*self.num_audio_codebooks:] = min_confidence-1 # only works for frame_stacking_factor=2
+            elif sampling_type == "alternate":
+                # TODO: preserve already-unmasked codebooks
+                if step % 2 == 1:
+                    confidences[:,self.num_audio_codebooks:] = min_confidence-1
+                else:
+                    confidences[:,:self.num_audio_codebooks] = min_confidence-1
+                # for unmasked codebooks, set confidence to max so that they will remain unmasked
+                if topk_indices is not None:
+                    confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+
             # pick top-confidence codebooks up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
+            if use_cfg:
+                actual_batch_size = topk_indices.size(0) // 2
+                assert (topk_indices[actual_batch_size:] == topk_indices[:actual_batch_size]).all(), f"Topk indices are not the same for conditional and unconditional codes"
 
-            # replace masks of the top-k confident codebooks with the the codes that were sampled for them
+            # replace masks of the top-k confident codebooks with the codes that were sampled for them
             unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
             codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
+            if debug_print:
+                print(f"Transformer Input at step {step} of {n_steps}")
+                self.vis_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
+                print("--------------------------------")
 
             # build transformer input
             local_transformer_input = local_transformer_input_init
-            for codebook_num in range(C):
+            for codebook_num in range(codebook_seq_len):
                 next_local_transformer_input = self.audio_embeddings[codebook_num](codes[:, codebook_num]).unsqueeze(1) # (B, 1, 768)
                 next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, d_local)
                 local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, codebook_num+1, d_local)
 
             # run transformer
-            _mask = torch.ones(B, C+1, device=device)
+            _mask = torch.ones(B, codebook_seq_len+1, device=device)
             local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, C+1, d_local)
 
             # get logits
             logits = []
-            for codebook_num in range(C):
+            for codebook_num in range(codebook_seq_len):
                 # The `codebook_num+1` is to drop first position which corresponds to the magpie latent
                 codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, codebook_num+1, :]) # (B, num_audio_tokens_per_codebook)
                 logits.append(codebook_logits)
-            logits = torch.stack(logits, dim=1) # (B, C, num_audio_tokens_per_codebook)
+            logits = torch.stack(logits, dim=1) # (B, C*frame_stacking_factor, num_audio_tokens_per_codebook)
 
             # apply CFG
             if use_cfg:
                 actual_batch_size = logits.size(0) // 2
                 conditional_logits = logits[:actual_batch_size]
                 unconditional_logits = logits[actual_batch_size:]
-                cfg_logits = cfg_scale * conditional_logits +  (1.0 - cfg_scale) * unconditional_logits
+                if not dynamic_cfg_scale:
+                    current_cfg_scale = cfg_scale
+                else:
+                    # gradually increase the scale until mid point through sampling, then reduce it again
+                    progress = step / (n_steps-1)
+                    #interp = -abs(progress-0.5)+0.5 # increase from 0..1 in the interval from start to midpoint and then go back to zero
+                    #interp = 1.0 - progress  # decrease from 1 to 0
+                    interp = progress # gradually increase from 0 to 1
+                    current_cfg_scale = (cfg_scale - 1) * interp + 1.0  # 1.0 --> cfg_scale --> 1.0
+                    print(f"step={step}, current_cfg_scale={current_cfg_scale:.2f}")
+                cfg_logits = current_cfg_scale * conditional_logits +  (1.0 - current_cfg_scale) * unconditional_logits                                    
                 logits[:actual_batch_size] = cfg_logits
 
             # handle unfinished and finished items
@@ -649,29 +775,60 @@ class MagpieTTSModel(ModelPT):
                 logits[item_idx, :, :] = float('-inf')
                 logits[item_idx, :, self.audio_eos_id] = 0.0
 
+            if debug_print:
+                self.debug_check_for_forbidden_logits(logits)
+            # Disallow generation of MASK (and other special) tokens. (But why does this happen?)
+            logits[:,:,self.get_forbidden_tokens()] = float('-inf')
+
             # sample with top-k
             logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)
             indices_to_remove = logits < logits_topk[:, :, -1].unsqueeze(-1) # (B, C, num_audio_tokens_per_codebook)
             logits_rescored = logits.clone()
             logits_rescored[indices_to_remove] = float('-inf')
             probs = torch.softmax(logits_rescored / temperature, dim=-1) # (B, C, num_audio_tokens_per_codebook)
-            sampled_codes = torch.multinomial(probs.view(B*C, -1), 1).view(B, C)
+            sampled_codes = torch.multinomial(probs.view(B*codebook_seq_len, -1), 1).view(B, codebook_seq_len)
             if use_cfg:
-                # TODO @rfejgin: why do we need to keep second half of the batch? can probably optimize this
                 sampled_codes[actual_batch_size:] = sampled_codes[:actual_batch_size]
                 probs[actual_batch_size:] = probs[:actual_batch_size]
-            confidences  = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
-
-            # set confidence to max for unmasked codebooks so that they will remain unmasked
-            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+            if sampling_type != "purity_causal" and sampling_type != "purity_default":
+                confidences = torch.gather(probs, dim=2, index=sampled_codes.unsqueeze(-1)).squeeze(-1)
+            else:
+                # use the max probability across all tokens for each codebook as the confidence for each codebook; known as "purity sampling"
+                confidences = probs.max(dim=2)[0]
+            # TODO
+            # * are end of utterance-logits-somehow overwritten ? should we force those to max confidence?? may require
+            #   special handling and may explain termination issues!
 
             # replace entries in sampled_codes with previously unmasked codebooks
             sampled_codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
-            # optionally: add noise to confidences here (as in token-critic paper) (not implemented)
-
+            #  add noise to confidences (as in token-critic paper, https://arxiv.org/abs/2209.04439)
+            if noise_scale > 0.0:
+                # get noise from uniform distribution in the interval [-0.5, 0.5), scale it by `noise_scale`,
+                # and anneal it to 0 as we approach the end of the unmasking process
+                noise = (torch.rand_like(confidences) - 0.5) * noise_scale * (1-(step+2)/n_steps) # the +2 makes sure that by the last iteration the noise is exactly 0
+                confidences += noise
+                # the conditional and unconditional get different noise and must be fixed to be the same again
+                confidences[actual_batch_size:] = confidences[:actual_batch_size]                
+            confidence_eps = 0.1
+            assert confidences.max() + confidence_eps < max_confidence, f"Predicted confidence is approaching max_confidence: {confidences.max()}"
+            # for unmasked codebooks, set confidence to max so that they will remain unmasked
+            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+        rand_sampling = False
+        if rand_sampling:
+            print("Using random sampling")
+            confidences = torch.rand_like(confidences)
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
-        if use_cfg:
+
+        if debug_print:
+            print(f"Final codes after MaskGit sampling")
+            self.vis_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
+            print("--------------------------------")
+        # break stacked groups of frames into individual frames
+        codes = codes.reshape(B, self.frame_stacking_factor, self.num_audio_codebooks).permute(0,2,1) # B, C, frame_stacking_factor
+
+        if use_cfg: 
+            # drop unconditional codes
             codes = codes[:actual_batch_size]
         return codes
 
@@ -681,7 +838,7 @@ class MagpieTTSModel(ModelPT):
         dec_output = dec_output.unsqueeze(1) # (B, 1, E)
         local_transformer_input = self.local_transformer_in_projection(dec_output) # (B, 1, 128)
         all_preds = []
-        for codebook_num in range(self.num_audio_codebooks):
+        for codebook_num in range(self.num_audio_codebooks * self.frame_stacking_factor):
             _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
             local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, T, 128)
             codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, -1, :]) # (B, num_all_tokens_per_codebook)
@@ -711,36 +868,40 @@ class MagpieTTSModel(ModelPT):
             next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, 128)
             local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, T+1, 128)
 
-        all_preds = torch.cat(all_preds, dim=1).long() # (B, num_codebooks)
+        all_preds = torch.cat(all_preds, dim=1).long() # (B, num_codebooks * frame_stacking_factor)
+        all_preds = all_preds.reshape(-1, self.frame_stacking_factor, self.num_audio_codebooks).permute(0,2,1) # (B, num_codebooks, frame_stacking_factor)
         if use_cfg:
             all_preds = all_preds[:actual_batch_size]
 
         return all_preds
 
-
     def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80, unfinished_items={}, finished_items={}):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
-        all_preds = []
-        for idx in range(self.num_audio_codebooks):
-            si = idx * self.num_all_tokens_per_codebook
-            ei = si + self.num_all_tokens_per_codebook
-            codebook_logits = all_code_logits_t[:, si:ei]  # (B, num_tokens_per_codebook)
-            for item_idx in unfinished_items:
-                codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
-            for item_idx in finished_items:
-                codebook_logits[item_idx, :] = float('-inf')
-                codebook_logits[item_idx, self.audio_eos_id] = 0.0
-            codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0]  # (B, topk)
-            indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(
-                -1
-            )  # (B, num_tokens_per_codebook)
-            codebook_logits_rescored = codebook_logits.clone()
-            codebook_logits_rescored[indices_to_remove] = float('-inf')
+        all_preds = [[] for _ in range(self.frame_stacking_factor)]
+        for ds_index in range(self.frame_stacking_factor):
+            for idx in range(self.num_audio_codebooks):
+                si = (idx + self.num_audio_codebooks * ds_index) * self.num_all_tokens_per_codebook
+                ei = si + self.num_all_tokens_per_codebook
+                codebook_logits = all_code_logits_t[:, si:ei]  # (B, num_tokens_per_codebook)
 
-            codebook_probs = torch.softmax(codebook_logits_rescored / temperature, dim=-1)  # (B, num_tokens_per_codebook)
-            codebook_preds = torch.multinomial(codebook_probs, 1)  # (B, 1)
-            all_preds.append(codebook_preds)
-        all_preds = torch.cat(all_preds, dim=1).long()  # (B, num_codebooks)
+                for item_idx in unfinished_items:
+                    codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
+                for item_idx in finished_items:
+                    codebook_logits[item_idx, :] = float('-inf')
+                    codebook_logits[item_idx, self.audio_eos_id] = 0.0
+                codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0]  # (B, topk)
+                indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(
+                    -1
+                )  # (B, num_tokens_per_codebook)
+                codebook_logits_rescored = codebook_logits.clone()
+                codebook_logits_rescored[indices_to_remove] = float('-inf')
+
+                codebook_probs = torch.softmax(codebook_logits_rescored / temperature, dim=-1)  # (B, num_tokens_per_codebook)
+                codebook_preds = torch.multinomial(codebook_probs, 1)  # (B, 1)
+                all_preds[ds_index].append(codebook_preds)
+                
+        all_preds = [torch.cat(ds_preds, dim=1).long() for ds_preds in all_preds]  # list of frame_stacking_factor of (B, num_codebooks)
+        all_preds = torch.stack(all_preds, dim=2)  # (B, num_codebooks, frame_stacking_factor)
         return all_preds
 
     def log_attention_probs(self, attention_prob_matrix, audio_codes_lens, text_lens, prefix="", dec_context_size=0):
@@ -888,6 +1049,25 @@ class MagpieTTSModel(ModelPT):
         )
         return alignment_loss
 
+    def pad_audio_codes(self, audio_codes: torch.Tensor, frame_stacking_factor: int = 1, pad_token: int =0):
+        ## TODO @rfejgin: should this also pad each batch element based on its actual length ? or can we count
+        ##                on the dataloader to put padding tokens after the audio tokens
+        """
+        Pads the time dimension of the audio codes to a multiple of the frame stacking factor.
+        Args:
+            audio_codes (torch.Tensor): B, C, T
+            frame_stacking_factor (int): The factor that frames will be stacked by.
+            pad_token (int): The token ID to pad with.
+        Returns:
+            B, C, T_padded
+        """
+        T = audio_codes.size(2)
+        T_padded = int(np.ceil(T / frame_stacking_factor) * frame_stacking_factor)
+        if T_padded > T:
+            padding = pad_token * torch.ones(audio_codes.size(0), audio_codes.size(1), T_padded - T, device=audio_codes.device, dtype=audio_codes.dtype)
+            audio_codes = torch.cat([audio_codes, padding], dim=2)
+        return audio_codes
+
     def prepare_context_tensors(self, batch):
         dec_context_size = 0
         additional_decoder_input = None
@@ -930,7 +1110,8 @@ class MagpieTTSModel(ModelPT):
                 context_audio_codes, context_audio_codes_lens = self.audio_to_codes(
                     batch['context_audio'], batch['context_audio_lens'], audio_type='context'
                 )
-            context_audio_embedded = self.embed_audio_tokens(context_audio_codes)  # (B, T', E)
+            context_audio_codes = self.pad_audio_codes(context_audio_codes, self.frame_stacking_factor, pad_token=0)
+            context_audio_embedded = self.embed_audio_tokens(context_audio_codes, frame_stacking_factor=self.frame_stacking_factor)  # (B, T/frame_stacking_factor, E)
 
             if self.use_text_conditioning_encoder:
                 context_text_tokens = batch['context_text_tokens']
@@ -964,6 +1145,7 @@ class MagpieTTSModel(ModelPT):
             else:
                 context_input_embedded = context_audio_embedded
                 context_input_lens = context_audio_codes_lens
+                context_input_lens = torch.ceil(context_input_lens / self.frame_stacking_factor).to(context_input_lens.dtype)
 
             context_mask = get_mask_from_lengths(context_input_lens)
 
@@ -1123,14 +1305,22 @@ class MagpieTTSModel(ModelPT):
         else:
             audio_codes = batch['audio_codes']
             audio_codes_lens = batch['audio_codes_lens']
+        # TODO: @rfejgin: this assert might be slow due to GPU/CPU sync
+        assert (audio_codes[:,:,0] == self.audio_bos_id).all(), "Audio codes do not start with BOS token"
+        if self.frame_stacking_factor > 1:
+            # repeat the BOS token to frame_stacking_factor times
+            audio_codes = torch.cat([torch.full((audio_codes.size(0), audio_codes.size(1), self.frame_stacking_factor - 1), self.audio_bos_id, device=audio_codes.device, dtype=audio_codes.dtype), audio_codes], dim=2)
+            audio_codes_lens += self.frame_stacking_factor - 1
+        audio_codes = self.pad_audio_codes(audio_codes, self.frame_stacking_factor, pad_token=0)
+        audio_codes_input = audio_codes[:, :, :-self.frame_stacking_factor]  # B, C, T'
+        audio_codes_target = audio_codes[:, :, self.frame_stacking_factor:] # drop BOS
+        audio_codes_lens_input_full_rate =  audio_codes_lens - self.frame_stacking_factor
+        audio_codes_lens_target_full_rate_orig = audio_codes_lens_input_full_rate
+        audio_codes_lens_input_stacked = torch.ceil(audio_codes_lens_target_full_rate_orig / self.frame_stacking_factor).long()
+        audio_codes_embedded_all = self.embed_audio_tokens(audio_codes, frame_stacking_factor=self.frame_stacking_factor) # (B, T, E) # Computing this to be use in the alignment encoder
+        audio_codes_embedded = audio_codes_embedded_all[:, :-1, :] # (B, T', E) Input to the decoder; this is already in frame-stacked form hence the -1 (not `frame_stacking_factor`)
 
-        audio_codes_input = audio_codes[:, :, :-1]  # B, C, T'
-        audio_codes_target = audio_codes[:, :, 1:]
-        audio_codes_lens_input = audio_codes_lens_target = audio_codes_lens - 1
-        audio_codes_embedded_all = self.embed_audio_tokens(audio_codes) # (B, T, E) # Computing this to be use in the alignment encoder
-        audio_codes_embedded = audio_codes_embedded_all[:, :-1, :] # (B, T', E) Input to the decoder
-
-        audio_codes_mask = get_mask_from_lengths(audio_codes_lens_input)
+        audio_codes_mask = get_mask_from_lengths(audio_codes_lens_input_stacked)
         use_cfg = (
             (self.cfg_unconditional_prob > 0.0)
             and (mode == "train")
@@ -1173,7 +1363,7 @@ class MagpieTTSModel(ModelPT):
                 )
                 # timestep_mask is True for timesteps to be kept
                 audio_codes_input = audio_codes_input * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
-                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input) # (B, T', E)
+                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input, frame_stacking_factor=self.frame_stacking_factor) # (B, T', E)
 
         if context_tensors['additional_decoder_input'] is not None:
             dec_input_embedded = torch.cat([additional_decoder_input, audio_codes_embedded], dim=1)
@@ -1199,7 +1389,7 @@ class MagpieTTSModel(ModelPT):
                 )
 
                 aligner_encoder_loss = self.alignment_encoder_loss(
-                    attn_logprob=aligner_attn_logprobs, in_lens=context_tensors['text_lens'], out_lens=audio_codes_lens_input
+                    attn_logprob=aligner_attn_logprobs, in_lens=context_tensors['text_lens'], out_lens=audio_codes_lens_input_stacked # is this right?
                 )
             else:
                 with torch.no_grad():
@@ -1213,7 +1403,7 @@ class MagpieTTSModel(ModelPT):
 
             with torch.no_grad():
                 aligner_attn_hard = self.get_binarized_prior_matrix(
-                    aligner_attn_soft, audio_codes_lens_input, context_tensors['text_lens']
+                    aligner_attn_soft, audio_codes_lens_input_stacked, context_tensors['text_lens']
                 )
                 if (self.global_step > self.binarize_prior_after_step) and context_tensors['prior_used']:
                     attn_prior = self.replace_beta_binomial_prior_with_binarized(attn_prior, aligner_attn_hard)
@@ -1231,13 +1421,22 @@ class MagpieTTSModel(ModelPT):
         dec_context_size = context_tensors['dec_context_size']
         logits = logits[:, dec_context_size:, :]  # Remove the context audio embeddings from the logits
 
-        codebook_loss, loss_mask = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
+        with_parallel_loss = self.cfg.get('with_parallel_loss', True)
+        if with_parallel_loss:
+            codebook_loss, loss_mask = self.compute_loss(
+                logits, audio_codes_target, audio_codes_lens_target_full_rate_orig, frame_stacking_factor=self.frame_stacking_factor
+            )
+        else:
+            codebook_loss = torch.tensor(0.0, device=logits.device)
+            loss_mask = None
+
+        codebook_loss_scale = self.cfg.get('codebook_loss_scale', 1.0)
         alignment_loss = None
         if self.alignment_loss_scale > 0.0 and not disable_alignment_loss:
             text_lens = context_tensors['text_lens']
             cross_attention_scores = [attn['cross_attn_probabilities'][1] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.ctc_prior_layer_ids]
             alignment_loss = self.compute_alignment_loss(
-                cross_attention_scores, text_lens, audio_codes_lens_target, dec_context_size
+                cross_attention_scores, text_lens, audio_codes_lens_input_stacked, dec_context_size
             )
             loss = self.codebook_loss_scale * codebook_loss + alignment_loss
         else:
@@ -1249,14 +1448,15 @@ class MagpieTTSModel(ModelPT):
             if self.local_transformer_type == LocalTransformerType.MASKGIT:
                 # randomly replace some positions with MASK_TOKEN
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
+                # TODO @rfejgin: the very last position might be padding but the local transformer might look at it as part of
+                #                of a pair where the first position is valid. Is this an issue?
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
-                #audio_codes_masked = audio_codes_masked[:, 1:, :]
-                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, mask_tokens_mask)
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target_full_rate_orig, mask_tokens_mask, frame_stacking_factor=self.frame_stacking_factor)
             else:
                 # autoregressive
                 assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target, targets_offset_by_one=False)
-                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, None)
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target_full_rate_orig, None, frame_stacking_factor=self.frame_stacking_factor)
             loss = loss + self.local_transformer_loss_scale * local_transformer_loss
 
         if aligner_encoder_loss is not None:
@@ -1273,7 +1473,7 @@ class MagpieTTSModel(ModelPT):
             'alignment_loss': alignment_loss,
             'aligner_encoder_loss': aligner_encoder_loss,
             'audio_codes_target': audio_codes_target,
-            'audio_codes_lens_target': audio_codes_lens_target,
+            'audio_codes_lens_target': audio_codes_lens_target_full_rate_orig,
             'text': context_tensors['text'],
             'text_lens': context_tensors['text_lens'],
             'context_audio_codes': context_tensors['context_audio_codes'],
@@ -1554,8 +1754,11 @@ class MagpieTTSModel(ModelPT):
             start_prior_after_n_audio_steps=10,
             compute_all_heads_attn_maps=False,
             use_local_transformer_for_inference=False,
-            maskgit_n_steps=3
-        ):
+            maskgit_n_steps=3,
+            maskgit_noise_scale=0.0,
+            maskgit_fixed_schedule=None,
+            maskgit_dynamic_cfg_scale=False,
+            maskgit_sampling_type=None):
         with torch.no_grad():
             start_time = time.time()
             self.decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
@@ -1563,9 +1766,9 @@ class MagpieTTSModel(ModelPT):
             context_tensors = self.prepare_context_tensors(batch)
             text = context_tensors['text']
             audio_codes_bos = torch.full(
-                (text.size(0), self.num_audio_codebooks, 1), self.audio_bos_id, device=text.device
+                (text.size(0), self.num_audio_codebooks, self.frame_stacking_factor), self.audio_bos_id, device=text.device
             ).long()
-            audio_codes_lens = torch.full((text.size(0),), 1, device=text.device).long()
+            audio_codes_lens = torch.full((text.size(0),), 1, device=text.device).long() # intetionally 1 rather than self.frame_stacking_factor since this is in stacked form
             audio_codes_input = audio_codes_bos
             audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
 
@@ -1590,12 +1793,12 @@ class MagpieTTSModel(ModelPT):
             attended_timestep_counter = [{} for _ in range(text.size(0))]
             last_attended_timesteps = [[1 for _ in range(text.size(0))]] # Maintain a list of attended timesteps as we predict audio for each batch item
             time_to_first_prediction = 0.0
-            for idx in range(max_decoder_steps):
+            for idx in range(max_decoder_steps // self.frame_stacking_factor):
                 if idx == 1:
                     time_to_first_prediction = time.time() - start_time
                 if idx % 20 == 0:
                     print(f"Decoding timestep {idx}")
-                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input)
+                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input, frame_stacking_factor=self.frame_stacking_factor)
                 if context_tensors['additional_decoder_input'] is not None:
                     _audio_codes_embedded = torch.cat(
                         [context_tensors['additional_decoder_input'], audio_codes_embedded], dim=1
@@ -1725,16 +1928,20 @@ class MagpieTTSModel(ModelPT):
                             finished_items=finished_items,
                             use_cfg=use_cfg,
                             cfg_scale=cfg_scale,
-                            n_steps=maskgit_n_steps
+                            n_steps=maskgit_n_steps,
+                            noise_scale=maskgit_noise_scale,
+                            fixed_schedule=maskgit_fixed_schedule,
+                            dynamic_cfg_scale=maskgit_dynamic_cfg_scale,
+                            sampling_type=maskgit_sampling_type
                         )
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
                     # TODO @rfejgin: should we add argmax sampling for EOS here too?
-                    all_codes_next_argmax = audio_codes_next
+                    # all_codes_next_argmax = audio_codes_next
                 else:
                     # Parallel sampling from all codebooks
-                    audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks)
-                    all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks)
+                    audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks, frame_stacking_factor)
+                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks, frame_stacking_factor)
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
@@ -1746,9 +1953,9 @@ class MagpieTTSModel(ModelPT):
 
                 all_predictions.append(audio_codes_next)
                 audio_codes_input = torch.cat(
-                    [audio_codes_input, audio_codes_next.unsqueeze(-1)], dim=-1
+                    [audio_codes_input, audio_codes_next], dim=-1
                 )  # (B, C, T')
-                audio_codes_lens = audio_codes_lens + 1
+                audio_codes_lens = audio_codes_lens + 1 # already in stacked form
                 audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
                 if len(end_indices) == text.size(0) and len(all_predictions) >= 4:
                     # Codec must be of atleast 4 timesteps to be decoded properly
@@ -1756,9 +1963,13 @@ class MagpieTTSModel(ModelPT):
                     break
             tts_generation_time = time.time() - start_time
             tts_generation_time_per_frame = tts_generation_time / len(all_predictions)
-            predicted_codes = torch.stack(all_predictions, dim=-1)  # (B, num_codebooks, T')
 
-            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
+            # Concatenate the list of predictions along the time dimension.
+            # Note that when frame stacking is on, this will also undo the stacking.
+            predicted_codes = torch.cat(all_predictions, dim=-1)  # (B, num_codebooks, T')
+            # TODO @rfejgin when frame stacking is on, the next line could trim too coarsely; we need to also check within the stack.
+            #       Could be the cause of partial last word cutoff observed when stacking is on.
+            predicted_lens = [end_indices.get(idx, max_decoder_steps) * self.frame_stacking_factor for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
             predicted_codes_lens = torch.tensor(predicted_lens, device=text.device).long()
 
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
@@ -1774,6 +1985,10 @@ class MagpieTTSModel(ModelPT):
                 'batch_size': text.size(0),
             }
             torch.cuda.empty_cache()
+            if predicted_audio.numel() == 0 or predicted_codes.numel() == 0:
+                print("Zero length output")
+                raise ValueError("Zero length output")
+
             if return_cross_attn_probs:
                 cross_attention_maps, headwise_cross_attention_maps = self.get_inference_attention_plots(
                     cross_attention_scores_all_timesteps, all_heads_cross_attn_scores_all_timesteps,
@@ -1982,4 +2197,3 @@ class MagpieTTSModel(ModelPT):
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         return []
-
