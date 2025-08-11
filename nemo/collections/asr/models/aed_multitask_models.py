@@ -1070,7 +1070,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 timestamps=trcfg.timestamps,
                 subsampling_factor=self.encoder.subsampling_factor,
                 window_stride=self.cfg['preprocessor']['window_stride'],
-                tokenizer=self.tokenizer,
+                decoding=self.decoding,
             )
             # Inject the id of the cut to hypothese to later be used for separate batches
             setattr(merged_hypotheses, 'id', batch.cuts[0].id.split("-", 1)[0])
