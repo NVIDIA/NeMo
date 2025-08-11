@@ -381,7 +381,7 @@ class OpenAIGPTOSSImporter(_BaseGPTOSSImporter):
     def tokenizer(self) -> "TiktokenTokenizer":
         from nemo.collections.common.tokenizers.tiktoken_tokenizer import TiktokenTokenizer
 
-        return TiktokenTokenizer(encoding_name="o200k_base")
+        return TiktokenTokenizer(encoding_name="o200k_harmony")
 
     @cached_property
     def config(self) -> GPTOSSConfig:

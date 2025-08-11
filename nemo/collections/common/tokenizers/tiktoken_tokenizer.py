@@ -72,11 +72,32 @@ class TiktokenTokenizer(TokenizerSpec):
     """
     TiktokenTokenizer https://github.com/openai/tiktoken.
 
+    Usage 1 (vocab_file-based):
+        tokenizer = TiktokenTokenizer(
+            vocab_file="path/to/vocab.json",
+            vocab_size=131072,
+            num_special_tokens=1000,
+            special_tokens=["<unk>", "<s>", "</s>", "<mask>", "<pad>", "<cls>", "<sep>"],
+        )
+
+    Usage 2 (encoding_name-based):
+        tokenizer = TiktokenTokenizer(
+            encoding_name="o200_harmony",
+            bos_token="<|startoftext|>",
+            eos_token="<|endoftext|>",
+            pad_token="<|endoftext|>",
+        )
+
     Args:
-        model_path: path to tokenizer vocabulary
+        vocab_file: path to tokenizer vocabulary
+        encoding_name: name of the encoding to use
+        pattern: Regex pattern to split the text
+        vocab_size: size of the vocabulary
         num_special_tokens: number of special tokens to generate
         special_tokens: template for user-defined special tokens
-        pattern: Regex pattern to split the text
+        bos_token: beginning of sentence token
+        eos_token: end of sentence token
+        pad_token: padding token (default is eos_token)
     """
 
     def __init__(
@@ -87,6 +108,9 @@ class TiktokenTokenizer(TokenizerSpec):
         vocab_size: int = DEFAULT_TIKTOKEN_MAX_VOCAB,  # 131072
         num_special_tokens: int = 1000,
         special_tokens: Optional[List[str]] = None,
+        bos_token: str = "<|startoftext|>",
+        eos_token: str = "<|endoftext|>",
+        pad_token: str = "<|endoftext|>",
     ):
         if not encoding_name:
             if not vocab_file or not os.path.exists(vocab_file):
@@ -129,43 +153,24 @@ class TiktokenTokenizer(TokenizerSpec):
             encoding_special_tokens = ({},)  # special tokens are handled manually
             self.allowed_special = set()
         else:
-            self._unk_id = -1
-            self._bos_id = 200006
-            self._eos_id = 200002
-            self._mask_id = -1
-            self._pad_id = 200007
-            self._cls_id = -1
-            self._sep_id = -1
-
-            tokenizer_base = tiktoken.get_encoding(encoding_name)  # "o200k_base"
+            tokenizer_base = tiktoken.get_encoding(encoding_name)
             self.token2id = tokenizer_base._mergeable_ranks
             pattern = tokenizer_base._pat_str
             tokenizer_name = encoding_name
-            self.inner_vocab_size = len(self.token2id)
-            self.num_special_tokens = 0
+            self.inner_vocab_size = len(tokenizer_base._mergeable_ranks) + len(tokenizer_base._special_tokens)
+            self.num_special_tokens = 0  # special tokens handled inside tiktoken
             self._vocab_size = self.inner_vocab_size
             self.special_filler = []
             self.special_tokens = []
-            encoding_special_tokens = {
-                **tokenizer_base._special_tokens,
-                "<|startoftext|>": 199998,
-                "<|endoftext|>": 199999,
-                "<|reserved_200000|>": 200000,
-                "<|reserved_200001|>": 200001,
-                "<|return|>": 200002,
-                "<|constrain|>": 200003,
-                "<|reserved_200004|>": 200004,
-                "<|channel|>": 200005,
-                "<|start|>": 200006,
-                "<|end|>": 200007,
-                "<|message|>": 200008,
-                "<|reserved_200009|>": 200009,
-                "<|reserved_200010|>": 200010,
-                "<|reserved_200011|>": 200011,
-                "<|call|>": 200012,
-                "<|refusal|>": 200013,
-            } | {f"<|reserved_{i}|>": i for i in range(200014, 201088)}
-            self.allowed_special = set(encoding_special_tokens.keys())
+            self._bos_id = tokenizer_base.encode(bos_token, allowed_special="all")
+            self._eos_id = tokenizer_base.encode(eos_token, allowed_special="all")
+            self._pad_id = tokenizer_base.encode(pad_token, allowed_special="all")
+            self._unk_id = -1
+            self._mask_id = -1
+            self._cls_id = -1
+            self._sep_id = -1
+            self.allowed_special = "all"
+            encoding_special_tokens = tokenizer_base._special_tokens
 
         id2token = {v: k for k, v in self.token2id.items()}
         assert set(range(self.inner_vocab_size)) == set(id2token.keys())
