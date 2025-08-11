@@ -582,7 +582,6 @@ class MagpieTTSDataset(TextToSpeechDataset):
         if self.use_text_conditioning_tokenizer:
             if 'context_text' in data.manifest_entry:
                 context_tokens = self.text_conditioning_tokenizer.encode(data.manifest_entry['context_text'])
-                print("context_tokens", context_tokens)
                 example['has_text_context'] = True
             else:
                 context_tokens = self.text_conditioning_tokenizer.encode("[NO TEXT CONTEXT]")
@@ -591,14 +590,11 @@ class MagpieTTSDataset(TextToSpeechDataset):
                 _required_len = (
                     int(self.context_duration_max * self.sample_rate / self.codec_model_samples_per_frame) + 2
                 )  # +2 for BOS and EOS
-                print("required context tokens length", _required_len)
                 if len(context_tokens) < _required_len:
                     _pad_id = self.text_conditioning_tokenizer.pad
                     context_tokens += [_pad_id] * (_required_len - len(context_tokens))
                 else:
                     context_tokens = context_tokens[:_required_len]
-                
-                print("final context tokens", context_tokens)
 
             context_tokens = torch.tensor(context_tokens, dtype=torch.int32)
             context_text_len = context_tokens.shape[0]

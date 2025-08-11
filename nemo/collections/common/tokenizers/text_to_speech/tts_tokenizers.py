@@ -1095,7 +1095,7 @@ class AggregatedTTSTokenizer:
         Args:
             tokenizers: List of tokenizers to aggregate.
             tokenizer_names: List of names for each tokenizer (usually the language identifier).
-            limit_to_vocab_size: If True, will limit the vocabulary size of HF tokenizers to the size of each tokenizer's vocabulary.
+            limit_to_vocab_size: If True, will limit the tokens of HF tokenizers to the size of each tokenizer's vocabulary.
         """
         assert len(tokenizers) == len(tokenizer_names), "Number of tokenizers and tokenizer names must be the same."
         tokens = []
