@@ -117,7 +117,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     """
     Configuration for Multi Task Transcription
 
-    enable_chunking: bool = False
+    enable_chunking: bool = True
             Whether to enable parallel processing of audio chunks for long-form audio.
             If enabled, batch_size should be set to 1 or single audio be passed.
     """
