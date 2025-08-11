@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import torch.nn as nn
