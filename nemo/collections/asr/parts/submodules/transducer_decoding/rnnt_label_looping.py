@@ -195,7 +195,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
         joint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
-        window_size: int = 1,
+        window_size: Optional[int] = None,
         preserve_alignments=False,
         preserve_frame_confidence=False,
         confidence_method_cfg: Optional[DictConfig] = None,
@@ -210,7 +210,8 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
             joint: Joint module from RNN-T
             blank_index: index of blank symbol
             max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
-            window_size: optional lookahead window size for non-blank label finding (WIND algorithm)
+            window_size: optional lookahead window size for non-blank label finding (WIND algorithm);
+                None means "auto": 8 (optimal value for offline decoding) if possible
             preserve_alignments: if alignments are needed
             preserve_frame_confidence: if frame confidence is needed
             confidence_method_cfg: config for the confidence
@@ -222,7 +223,13 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
         self.joint = joint
         self._blank_index = blank_index
         self.max_symbols = max_symbols_per_step
-        self.window_size = window_size if window_size >= 1 else 1
+        if window_size is None:
+            self.window_size = 1 if preserve_alignments else 8
+        else:
+            if window_size > 1 and preserve_alignments:
+                raise NotImplementedError("preserve_alignments not supported yet with window_size > 1")
+            self.window_size = window_size
+        assert self.window_size >= 1
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
         self.allow_cuda_graphs = allow_cuda_graphs
@@ -239,11 +246,6 @@ class GreedyBatchedRNNTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBas
 
         self.fusion_models = fusion_models
         self.fusion_models_alpha = fusion_models_alpha
-        if self.window_size > 1 and self.preserve_alignments:
-            logging.warning(
-                "preserve_alignments not supported with window_size > 1; turning off WIND algorithm, decoding could be slower"
-            )
-            self.window_size = 1
 
     def reset_cuda_graphs_state(self):
         """Reset state to release memory (for CUDA graphs implementations)"""
