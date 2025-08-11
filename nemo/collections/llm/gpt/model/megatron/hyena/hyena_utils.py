@@ -449,8 +449,8 @@ def fftconv_func(u, k, D, dropout_mask, gelu=True, k_rev=None, bidirectional=Fal
     seqlen = u.shape[-1]
     fft_size = 2 * seqlen
 
-    # check if k is less than seqlen
-    if k.shape[-1] < seqlen:
+    # check if k is less than seqlen -- cuHyena input does not need padding
+    if not use_cuhyena and k.shape[-1] < seqlen:
         # Pad the filter k to the length of the input sequence u
         k = torch.nn.functional.pad(k, (0, seqlen - k.shape[-1]))
 
