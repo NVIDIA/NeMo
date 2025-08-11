@@ -44,14 +44,14 @@ class TestLoad:
         # Mock the OneLogger callback update to prevent it from adding callbacks to the trainer
         # This avoids serialization issues with the trainer during checkpoint saving
         mock_update_one_logger.return_value = None
-        
+
         trainer = nl.Trainer(
             devices=1,
             accelerator="cpu",
             strategy=nl.MegatronStrategy(),
             logger=TensorBoardLogger("tb_logs", name="my_model"),
         )
-        
+
         # Create a model without a tokenizer to avoid serialization issues
         model = llm.GPTModel(
             llm.GPTConfig(
@@ -68,10 +68,10 @@ class TestLoad:
         loaded = io.load_context(tmpdir)
 
         assert loaded.model.config.seq_length == ckpt.model.config.seq_length
-        
+
         # Since we don't have a tokenizer, we can't test tokenizer-related assertions
         # The test focuses on testing the TrainerContext functionality
-        
+
         loaded_func = loaded.extra["dummy"]
         assert loaded_func(b=2) == partial_function_with_pos_and_key_args(b=2)
 

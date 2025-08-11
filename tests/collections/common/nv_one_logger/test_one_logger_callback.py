@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import time
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -207,7 +207,9 @@ class TestOneLoggerCallback:
                     with patch('nemo.lightning.one_logger_callback.get_onelogger_init_config') as mock_get_config:
                         with patch('nemo.lightning.one_logger_callback.OneLoggerConfig') as mock_config_class:
                             with patch('nemo.lightning.one_logger_callback.V1CompatibleExporter') as mock_exporter:
-                                with patch('nemo.lightning.one_logger_callback.OneLoggerNeMoCallback') as mock_callback_class:
+                                with patch(
+                                    'nemo.lightning.one_logger_callback.OneLoggerNeMoCallback'
+                                ) as mock_callback_class:
                                     mock_instance = MagicMock()
                                     mock_instance.one_logger_ready = False
                                     mock_provider.instance.return_value = mock_instance
@@ -293,7 +295,9 @@ class TestOneLoggerCallback:
                             mock_callback_class.return_value = mock_callback_instance
 
                             # Mock the global callback
-                            with patch('nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', mock_callback_instance):
+                            with patch(
+                                'nemo.lightning.one_logger_callback._ONELOGGER_CALLBACK', mock_callback_instance
+                            ):
                                 update_one_logger_config("v1", trainer)
 
                                 # Verify config was generated and applied
@@ -330,9 +334,7 @@ class TestOneLoggerCallback:
                             update_one_logger_config("v2", trainer, nemo_logger_config=MagicMock(), data=MagicMock())
 
                             # Verify config was generated and applied
-                            mock_get_config.assert_called_once_with(
-                                trainer=trainer, nemo_logger_config=ANY, data=ANY
-                            )
+                            mock_get_config.assert_called_once_with(trainer=trainer, nemo_logger_config=ANY, data=ANY)
                             mock_config_class.assert_called_once_with(**mock_config)
                             mock_instance.set_training_telemetry_config.assert_called_once_with(mock_config_obj)
 
