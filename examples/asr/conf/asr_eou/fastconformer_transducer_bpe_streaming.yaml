@@ -51,7 +51,6 @@ model:
       normal_mean: 0.5  # mean of normal distribution used when pad_distribution='normal'
       normal_std: 2.0  # standard deviation of normal distribution  used when pad_distribution='normal'
       
-
     augmentor:
       white_noise:
         prob: 0.9

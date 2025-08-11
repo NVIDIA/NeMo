@@ -205,6 +205,7 @@ class LhotseDataLoadingConfig:
 
     # 6. EOU related options.
     random_padding: Any | None = None
+    use_dataloader_augment: bool = False
 
 
 def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
@@ -498,8 +499,9 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
 
     # 2. Optional augmentations.
 
-    if config.get("random_padding", None) is not None:
+    if config.get("random_padding", None) is not None and config.get("use_dataloader_augment", False):
         # put this here to avoid circular import
+        logging.info("Using dataloader augmentations for EOU random padding.")
         from nemo.collections.asr.data.audio_to_eou_label_lhotse import (
             LhotseEOURandomPadding,
             lhotse_asr_eou_cut_random_pad_transform,

@@ -41,8 +41,9 @@ model:
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
     skip_augment: true
+    use_dataloader_augment: true
     random_padding:
-      prob: 1.0
+      prob: 0.99
       min_post_pad_duration: 3.0 
       min_pre_pad_duration: 0.0
       max_pad_duration: 6.0  # maximum duration of pre/post padding in seconds

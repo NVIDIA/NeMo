@@ -110,7 +110,7 @@ def drop_pnc(text: str) -> str:
     text = unicode_to_ascii(text)
     text = text.replace(":", " ")
     text = text.replace("-", " ")
-    text = ''.join([c for c in text if c in valid_chars or c.isspace() or c == "'"])
+    text = ''.join([c for c in text if c in valid_chars or c.isspace()])
     text = ' '.join(text.split()).strip()
     return text
 
@@ -222,6 +222,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         self.augmentor = None
         self.len_augmentor = None
         self.skip_augment = self.cfg.get("skip_augment", False)
+        logging.info(f"EOU dataset with skip augmentations = {self.skip_augment}")
         if self.cfg.get('augmentor', None) is not None:
             augmentor = {}
             len_augmentor = {}
