@@ -57,6 +57,7 @@ class FNMixin:
 
             if issubclass(cls, pl.LightningModule):
                 from nemo.lightning.one_logger_callback import hook_class_init_with_callbacks
+
                 hook_class_init_with_callbacks(cls, "on_model_init_start", "on_model_init_end")
         finally:
             super().__init_subclass__(**kwargs)
