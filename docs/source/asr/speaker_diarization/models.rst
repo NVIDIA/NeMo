@@ -95,18 +95,12 @@ Streaming Sortformer employs a pre-encoder layer in the Fast-Conformer to genera
         :width: 800px
         :alt: The dataflow of step-wise Streaming Sortformer inference
 
-Below are the animated heatmaps illustrating real-time speaker diarization for three and four speakers using Streaming Sortformer. Yellow and green bars dynamically move across rows labeled for each speaker, showing how speaker activity is detected and updated in the Arrival-Order Speaker Cache and FIFO queue as the conversation progresses. The animation demonstrates live tracking of who is speaking when, with chunked audio segments.
+Below is the animated heatmap illustrating real-time speaker diarization for a three-speaker conversation using Streaming Sortformer. The heatmap shows how activities of speakers are detected in the current chunk and updated in the Arrival-Order Speaker Cache and FIFO queue.
 
 .. image:: images/aosc_3spk_example.gif
         :align: center
         :width: 800px
         :alt: Streaming Sortformer Animated
-
-.. image:: images/aosc_4spk_example.gif
-        :align: center
-        :width: 800px
-        :alt: Streaming Sortformer Animated
-
 
 
 .. _Multi_Scale_Diarization_Decoder:
