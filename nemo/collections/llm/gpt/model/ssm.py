@@ -1056,7 +1056,6 @@ class NemotronNano9Bv2(NemotronHConfigBase):
     ffn_hidden_size: int = 15680
     num_attention_heads: int = 40
     mamba_head_dim: int = 80
-    use_mamba_mem_eff_path: bool = False
 
 __all__ = [
     "SSMConfig",
