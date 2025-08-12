@@ -1043,6 +1043,7 @@ class NemotronHConfig56B(NemotronHConfigBase):
     ffn_hidden_size: int = 32768
     num_attention_heads: int = 64
 
+
 @dataclass
 class NemotronNano9Bv2(NemotronHConfigBase):
     """NemotronNano9Bv2"""
@@ -1056,6 +1057,7 @@ class NemotronNano9Bv2(NemotronHConfigBase):
     ffn_hidden_size: int = 15680
     num_attention_heads: int = 40
     mamba_head_dim: int = 80
+
 
 __all__ = [
     "SSMConfig",
