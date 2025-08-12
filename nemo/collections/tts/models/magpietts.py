@@ -1015,8 +1015,6 @@ class MagpieTTSModel(ModelPT):
         return alignment_loss
 
     def pad_audio_codes(self, audio_codes: torch.Tensor, frame_stacking_factor: int = 1, pad_token: int =0):
-        ## TODO @rfejgin: should this also pad each batch element based on its actual length ? or can we count
-        ##                on the dataloader to put padding tokens after the audio tokens
         """
         Pads the time dimension of the audio codes to a multiple of the frame stacking factor.
         Args:
@@ -1026,6 +1024,8 @@ class MagpieTTSModel(ModelPT):
         Returns:
             B, C, T_padded
         """
+        # TODO @rfejgin: should this also pad each batch element based on its actual length ? or can we count
+        #                on the dataloader to put padding tokens after the audio tokens
         T = audio_codes.size(2)
         T_padded = int(np.ceil(T / frame_stacking_factor) * frame_stacking_factor)
         if T_padded > T:
@@ -1271,7 +1271,8 @@ class MagpieTTSModel(ModelPT):
             audio_codes = batch['audio_codes']
             audio_codes_lens = batch['audio_codes_lens']
         if self.frame_stacking_factor > 1:
-            # repeat the BOS token to frame_stacking_factor times
+            # repeat the BOS token to frame_stacking_factor times. This is necessary since at inference
+            # we need to start autoregressive generatino from a full frame stack indicating BOS.
             # TODO: @rfejgin: this assert might be slow due to GPU/CPU sync
             assert (audio_codes[:,:,0] == self.audio_bos_id).all(), "Audio codes do not start with BOS token"
             audio_codes = torch.cat([torch.full((audio_codes.size(0), audio_codes.size(1), self.frame_stacking_factor - 1), self.audio_bos_id, device=audio_codes.device, dtype=audio_codes.dtype), audio_codes], dim=2)
@@ -1387,16 +1388,11 @@ class MagpieTTSModel(ModelPT):
         dec_context_size = context_tensors['dec_context_size']
         logits = logits[:, dec_context_size:, :]  # Remove the context audio embeddings from the logits
 
-        with_parallel_loss = self.cfg.get('with_parallel_loss', True)
-        if with_parallel_loss:
-            codebook_loss, loss_mask = self.compute_loss(
-                logits, audio_codes_target_unstacked, audio_codes_lens_input_unstacked, frame_stacking_factor=self.frame_stacking_factor
-            )
-        else:
-            codebook_loss = torch.tensor(0.0, device=logits.device)
-            loss_mask = None
-
-        codebook_loss_scale = self.cfg.get('codebook_loss_scale', 1.0)
+        # Codebook loss (parallel)
+        codebook_loss, loss_mask = self.compute_loss(
+            logits, audio_codes_target_unstacked, audio_codes_lens_input_unstacked, frame_stacking_factor=self.frame_stacking_factor
+        )
+        # Alignment loss
         alignment_loss = None
         if self.alignment_loss_scale > 0.0 and not disable_alignment_loss:
             text_lens = context_tensors['text_lens']
@@ -1408,10 +1404,12 @@ class MagpieTTSModel(ModelPT):
         else:
             loss = self.codebook_loss_scale * codebook_loss
 
+        # Local Transformer loss
         local_transformer_loss = None
         local_transformer_logits = None
         if self.local_transformer_type != LocalTransformerType.NO_LT:
             if self.local_transformer_type == LocalTransformerType.MASKGIT:
+                ## Maskgit ##
                 # randomly replace some positions with MASK_TOKEN
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target_unstacked)
                 # TODO @rfejgin: the very last position might be padding but the local transformer might look at it as part of
@@ -1419,7 +1417,7 @@ class MagpieTTSModel(ModelPT):
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target_unstacked, audio_codes_lens_target_unstacked, mask_tokens_mask, frame_stacking_factor=self.frame_stacking_factor)
             else:
-                # autoregressive
+                ## Autoregressive ##
                 assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target_unstacked, targets_offset_by_one=False)
                 local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target_unstacked, audio_codes_lens_target_unstacked, None, frame_stacking_factor=self.frame_stacking_factor)
