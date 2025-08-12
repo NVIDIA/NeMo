@@ -167,7 +167,7 @@ def join_char_level_timestamps(
 
     Args:
         hypotheses: List of hypotheses.
-        chunk_offsets: List of raw-frame offsets (one per chunk) used for shifting. 
+        chunk_offsets: List of raw-frame offsets (one per chunk) used for shifting.
         subsampling_factor: Encoder subsampling factor (int). Number of raw
             frames per one subsampled step.
         window_stride: Time (in seconds) per raw input frame (float).
