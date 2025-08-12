@@ -516,7 +516,7 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
         if isinstance(self.decoding, AEDBeamInfer):
             self.decoding.set_decoding_type('subword')
 
-    def decode_tokens_to_str(self, tokens: List[str], lang: Optional[str]=None) -> str:
+    def decode_tokens_to_str(self, tokens: List[str], lang: Optional[str] = None) -> str:
         """
         Implemented by subclass in order to decoder a token str into a string.
 
