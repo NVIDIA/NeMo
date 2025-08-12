@@ -228,7 +228,6 @@ if __name__ == "__main__":
             )
         )
 
-
     executor = slurm_executor(
         args.gpu.lower(),
         args.account,

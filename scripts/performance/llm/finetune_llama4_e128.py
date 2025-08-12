@@ -183,7 +183,7 @@ if __name__ == "__main__":
                     nsys_gpu_metrics=args.profiling_gpu_metrics,
                 )
             )
-            
+
         executor = slurm_executor(
             args.gpu.lower(),
             args.account,
