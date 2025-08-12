@@ -237,7 +237,7 @@ def join_char_level_timestamps(
     return char_timestamps
 
 
-def merge_hypotheses_list(hypotheses_list, timestamps, subsampling_factor, chunk_duration_seconds=3600):
+def merge_all_hypotheses(hypotheses_list, timestamps, subsampling_factor, chunk_duration_seconds=3600):
     """
     Group hypotheses by ID and merge each group into a single hypothesis.
 
@@ -261,7 +261,7 @@ def merge_hypotheses_list(hypotheses_list, timestamps, subsampling_factor, chunk
             if same_audio_hypotheses:  # Only merge if we have hypotheses to merge
 
                 all_merged_hypotheses.append(
-                    merge_hypotheses_list_same_audio(
+                    merge_hypotheses_of_same_audio(
                         same_audio_hypotheses, timestamps, subsampling_factor, chunk_duration_seconds
                     )
                 )
@@ -274,14 +274,14 @@ def merge_hypotheses_list(hypotheses_list, timestamps, subsampling_factor, chunk
     # Process the final group of hypotheses
     if same_audio_hypotheses:
         all_merged_hypotheses.append(
-            merge_hypotheses_list_same_audio(
+            merge_hypotheses_of_same_audio(
                 same_audio_hypotheses, timestamps, subsampling_factor, chunk_duration_seconds
             )
         )
     return all_merged_hypotheses
 
 
-def merge_hypotheses_list_same_audio(hypotheses_list, timestamps, subsampling_factor, chunk_duration_seconds=3600):
+def merge_hypotheses_of_same_audio(hypotheses_list, timestamps, subsampling_factor, chunk_duration_seconds=3600):
     """
     Merge hypotheses from the same audio source into a single hypothesis.
     Used for combining results when long audio is split into hour-long segments

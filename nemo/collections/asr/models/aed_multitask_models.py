@@ -40,7 +40,7 @@ from nemo.collections.asr.parts.mixins.transcription import (
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
-from nemo.collections.asr.parts.utils.chunking_utils import merge_hypotheses_list, merge_parallel_chunks
+from nemo.collections.asr.parts.utils.chunking_utils import merge_all_hypotheses, merge_parallel_chunks
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import (
     get_forced_aligned_timestamps_with_external_model,
@@ -580,7 +580,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         results = super().transcribe(audio=audio, override_config=trcfg)
         if trcfg.enable_chunking:
-            results = merge_hypotheses_list(results, trcfg.timestamps, self.encoder.subsampling_factor)
+            results = merge_all_hypotheses(results, trcfg.timestamps, self.encoder.subsampling_factor)
 
         return results
 
