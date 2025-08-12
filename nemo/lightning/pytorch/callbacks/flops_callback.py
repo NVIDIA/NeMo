@@ -41,6 +41,7 @@ _model_flops_map = {
     "transformer": flops_formulas.transformer,
     "qwen3": flops_formulas.qwen3,
     "nemotronh": flops_formulas.nemotronh,
+    "llama4": flops_formulas.llama4,
 }
 
 
@@ -119,6 +120,9 @@ class FLOPsMeasurementCallback(Callback):
             config_kwargs['mamba_head_dim'] = self.model_cfg.mamba_head_dim
             config_kwargs['mamba_num_groups'] = self.model_cfg.mamba_num_groups
             config_kwargs['mamba_num_heads'] = self.model_cfg.mamba_num_heads
+        
+        config_kwargs["nope_layer_interval"] = getattr(self.model_cfg, "nope_layer_interval", None)
+        config_kwargs["attention_chunk_size"] = getattr(self.model_cfg, "attention_chunk_size", None)
 
         self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
@@ -267,6 +271,12 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
                 kwargs["query_groups"] = query_groups
             except:
                 # Multi-modal models use HF model configs which may/may not define num_query_groups
+                pass
+            try:
+                kwargs["nope_layer_interval"] = model_cfg.nope_layer_interval
+                kwargs["attention_chunk_size"] = model_cfg.attention_chunk_size
+            except:
+                # Except for llama4, other models may not define no_rope_freq and attention_chunk_size
                 pass
 
             self.flops_config_dict[model_name] = flops_formulas.FLOPSConfig(**kwargs)
