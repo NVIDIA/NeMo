@@ -112,6 +112,7 @@ def fp16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg.fp8 = 'hybrid'
     cfg.fp8_recipe = "mxfp8"
     cfg.fp8_param_gather = True
+    cfg.reuse_grad_buf_for_mxfp8_param_ag = True
     return cfg
 
 
