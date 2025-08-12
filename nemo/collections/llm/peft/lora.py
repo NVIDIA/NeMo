@@ -197,33 +197,35 @@ if HAVE_TE_FUSED_LORA:
             """Construct fused module for main branch (norm + fork + linear)"""
 
             # List of ops
-            ops = []
+            self.main_branch = te.ops.Sequential()
 
             # Norm op
             self.norm_main_branch_idx: Optional[int] = None
             if norm_type is not None:
-                self.norm_main_branch_idx = len(ops)
+                self.norm_main_branch_idx = len(self.main_branch)
                 norm_kwargs = {
                     "eps": norm_eps,
                     "device": device,
                     "dtype": dtype,
                     "zero_centered_gamma": norm_zero_centered_gamma,
                 }
+                norm_op = None
                 if norm_type == "LayerNorm":
-                    ops.append(te.ops.LayerNorm(in_features, **norm_kwargs))
+                    norm_op = te.ops.LayerNorm(in_features, **norm_kwargs)
                 elif norm_type == "RMSNorm":
-                    ops.append(te.ops.RMSNorm(in_features, **norm_kwargs))
+                    norm_op = te.ops.RMSNorm(in_features, **norm_kwargs)
                 else:
                     raise ValueError(f"Unsupported normalization ({norm_type})")
-                ops.append(te.ops.Quantize(forward=True, backward=False))
+                self.main_branch.append(norm_op)
+                self.main_branch.append(te.ops.Quantize(forward=True, backward=False))
 
             # Fork to LoRA branch
             # Note: GEMM with beta=1 in backward pass
-            ops.append(te.ops.MakeExtraOutput(in_place=True))
+            self.main_branch.append(te.ops.MakeExtraOutput(in_place=True))
 
             # Main branch linear op
-            self.linear_main_branch_idx: int = len(ops)
-            ops.append(
+            self.linear_main_branch_idx: int = len(self.main_branch)
+            self.main_branch.append(
                 te.ops.Linear(
                     in_features,
                     out_features,
@@ -235,9 +237,6 @@ if HAVE_TE_FUSED_LORA:
                     sequence_parallel=sequence_parallel,
                 )
             )
-
-            # Fuse ops
-            self.main_branch = te.ops.Sequential(*ops)
 
         def _make_lora_branch(
             self,
@@ -257,15 +256,15 @@ if HAVE_TE_FUSED_LORA:
             """Construct fused module for LoRA branch (lora_a + lora_b + add)"""
 
             # List of ops
-            ops = []
+            self.lora_branch = te.ops.Sequential()
 
             # LoRA pre-processing
             if lora_dropout > 0 and lora_dropout_position == "pre":
-                ops.append(te.ops.Dropout(lora_dropout))
+                self.lora_branch.append(te.ops.Dropout(lora_dropout))
 
             # LoRA A linear op
-            self.lora_a_lora_branch_idx: int = len(ops)
-            ops.append(
+            self.lora_a_lora_branch_idx: int = len(self.lora_branch)
+            self.lora_branch.append(
                 te.ops.Linear(
                     in_features,
                     lora_dim,
@@ -282,8 +281,8 @@ if HAVE_TE_FUSED_LORA:
             if tensor_parallel_mode == "column":
                 # All-gather along dim -1
                 raise NotImplementedError("Column tensor parallelism is not yet supported")
-            self.lora_b_lora_branch_idx: int = len(ops)
-            ops.append(
+            self.lora_b_lora_branch_idx: int = len(self.lora_branch)
+            self.lora_branch.append(
                 te.ops.Linear(
                     lora_dim,
                     out_features,
@@ -298,19 +297,16 @@ if HAVE_TE_FUSED_LORA:
 
             # LoRA post-processing
             if lora_scale != 1:
-                ops.append(te.ops.ConstantScale(lora_scale))
+                self.lora_branch.append(te.ops.ConstantScale(lora_scale))
             if lora_dropout > 0 and lora_dropout_position == "post":
-                ops.append(te.ops.Dropout(lora_dropout))
+                self.lora_branch.append(te.ops.Dropout(lora_dropout))
             if tensor_parallel_mode == "row":
                 # All-gather along dim -1
                 raise NotImplementedError("Row tensor parallelism is not yet supported")
 
             # Add with main branch
             # Note: GEMM with beta=1 in forward pass
-            ops.append(te.ops.AddExtraInput(in_place=True))
-
-            # Fuse ops
-            self.lora_branch = te.ops.Sequential(*ops)
+            self.lora_branch.append(te.ops.AddExtraInput(in_place=True))
 
         def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, Optional[torch.Tensor]]:
             # pylint: disable=C0115,C0116
