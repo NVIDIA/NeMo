@@ -649,7 +649,7 @@ class FlowMatchingAudioToAudioModel(AudioToAudioModel):
         self.flow = self.from_config_dict(self._cfg.flow)
 
         # Sampler
-        self.sampler = hydra.utils.instantiate(self._cfg.sampler, estimator=self.estimator)
+        self.sampler = hydra.utils.instantiate(self._cfg.sampler, estimator=self.estimator, flow=self.flow)
 
         # probability that the conditional input will be feed into the
         # estimator in the training stage
