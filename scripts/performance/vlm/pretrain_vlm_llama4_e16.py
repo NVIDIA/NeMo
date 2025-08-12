@@ -19,7 +19,7 @@ import nemo_run as run
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.vlm.recipes.llama4_omni_e16 import pretrain_recipe
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor

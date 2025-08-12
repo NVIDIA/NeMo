@@ -18,11 +18,17 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
 from ..argument_parser import parse_cli_args
-
-from ..helpers import build_perf_env_plugin
+from ..executors import slurm_executor
+from ..helpers import (
+    args_sanity_check,
+    build_perf_env_plugin,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+)
 from ..utils import (
     args_sanity_check,
     get_user_configs,

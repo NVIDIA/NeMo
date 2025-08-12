@@ -18,7 +18,7 @@ import nemo_run as run
 
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.collections.vlm.recipes.qwen25vl_7b import finetune_recipe
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor

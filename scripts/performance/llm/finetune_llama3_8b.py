@@ -17,7 +17,7 @@ from os.path import basename, splitext
 import nemo_run as run
 
 from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
-from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
