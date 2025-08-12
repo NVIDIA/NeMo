@@ -33,16 +33,25 @@ from utils.make_output_manifest import write_manifest_out_line
 
 from nemo.collections.asr.models.ctc_models import EncDecCTCModel
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
-from nemo.collections.asr.parts.utils.aligner_utils import (
-    add_t_start_end_to_utt_obj,
-    get_batch_variables,
-    viterbi_decoding,
-)
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
 from nemo.collections.asr.parts.utils.transcribe_utils import setup_model
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
+try:
+    from nemo.collections.asr.parts.utils.aligner_utils import (
+        add_t_start_end_to_utt_obj,
+        get_batch_variables,
+        viterbi_decoding,
+    )
+except ImportError:
+    raise ImportError(
+        "Missing required dependency for NFA. "
+        "Install NeMo with NFA utilities support:\n"
+        "  pip install 'nemo_toolkit[all]>=2.5.0'\n"
+        "Or install the latest development version:\n"
+        "  pip install git+https://github.com/NVIDIA/NeMo.git"
+)
 """
 Align the utterances in manifest_filepath. 
 Results are saved in ctm files in output_dir.
@@ -70,7 +79,7 @@ Arguments:
     use_local_attention: boolean flag specifying whether to try to use local attention for the ASR Model (will only
         work if the ASR Model is a Conformer model). If local attention is used, we will set the local attention context 
         size to [64,64].
-    additional_segment_grouping_separator: an optional string used to separate the text into smaller segments. 
+    additional_segment_grouping_separator: an optional string or list of strings used to separate the text into smaller segments. 
         If this is not specified, then the whole text will be treated as a single segment. 
     remove_blank_tokens_from_ctm:  a boolean denoting whether to remove <blank> tokens from token-level output CTMs. 
     audio_filepath_parts_in_utt_id: int specifying how many of the 'parts' of the audio_filepath
@@ -181,6 +190,12 @@ def main(cfg: AlignmentConfig):
 
     if cfg.additional_segment_grouping_separator == "" or cfg.additional_segment_grouping_separator == " ":
         raise ValueError("cfg.additional_grouping_separator cannot be empty string or space character")
+    elif cfg.additional_segment_grouping_separator is not None and cfg.additional_segment_grouping_separator != []:
+        logging.warning(
+            f"`additional_segment_grouping_separator` is set to {cfg.additional_segment_grouping_separator}. "
+            "BEHAVIOR CHANGE: Starting in NeMo 2.5.0, separators are preserved in segment text after splitting. "
+            "In previous versions, separators were removed. This affects the behavior of NFA."
+        )
 
     if cfg.ctm_file_config.minimum_timestamp_duration < 0:
         raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
