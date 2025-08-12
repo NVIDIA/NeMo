@@ -118,8 +118,8 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     Configuration for Multi Task Transcription
 
 
-    enable_chunking: bool = True 
-            Whether to enable parallel processing of audio chunks for long-form audio. 
+    enable_chunking: bool = True
+            Whether to enable parallel processing of audio chunks for long-form audio.
             If enabled, batch_size should be set to 1 or single audio be passed.
     """
 
@@ -571,7 +571,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 )
             trcfg = override_config
             trcfg.timestamps = timestamps
-            
+
         if trcfg.enable_chunking:
             # Check if only one audio is provided with string
             is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl"))
