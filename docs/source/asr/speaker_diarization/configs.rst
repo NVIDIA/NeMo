@@ -338,7 +338,7 @@ Model name convention for Streaming Sortformer Diarizer: streaming_sortformer_di
       spkcache_len: 188 # Length of speaker cache buffer (total number of frames for all speakers)
       fifo_len: 0 # Length of FIFO buffer for streaming processing (0 = disabled)
       chunk_len: 188 # Number of frames processed in each streaming chunk
-      spkcache_update_period: 1 # Speaker cache update period in frames
+      spkcache_update_period: 188 # Speaker cache update period in frames
       chunk_left_context: 1 # Number of previous frames for each streaming chunk
       chunk_right_context: 1 # Number of future frames for each streaming chunk
       # Speaker cache update parameters
