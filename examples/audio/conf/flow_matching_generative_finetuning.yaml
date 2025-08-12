@@ -70,6 +70,7 @@ model:
     num_steps: 20
     time_min: 1e-8
     time_max: 1.0
+    estimator_target: conditional_vector_field # or data
     
   loss:
     _target_: nemo.collections.audio.losses.MSELoss
