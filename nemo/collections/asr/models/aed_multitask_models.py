@@ -247,7 +247,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
 
-        timestamps_asr_model = self.restore_timestamps_asr_model()
+        timestamps_asr_model = self.__restore_timestamps_asr_model()
         # Using object.__setattr__ to bypass PyTorch's module registration
         object.__setattr__(self, 'timestamps_asr_model', timestamps_asr_model)
 
@@ -1231,7 +1231,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             ],
         }
 
-    def restore_timestamps_asr_model(self):
+    def __restore_timestamps_asr_model(self):
+        """
+        This method is used to restore the external timestamp ASR model that will be used for forced alignment in `.transcribe()`.
+        The config and weights are expected to be in the main .nemo file and be named `timestamps_asr_model_config.yaml` and `timestamps_asr_model_weights.ckpt` respectively.
+        """
         app_state = AppState()
         model_restore_path = app_state.model_restore_path
 
