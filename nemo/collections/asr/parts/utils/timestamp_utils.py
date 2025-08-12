@@ -31,7 +31,6 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import logging, logging_mode
 
 
-
 def flatten_char_offsets(char_offsets: List[Dict[str, Union[int, float]]]) -> List[Dict[str, Union[int, float]]]:
     """
     Flatten the char offsets to contain only one char and one token per offset.
@@ -134,7 +133,7 @@ def get_words_offsets(
         # It is a sub-word token, or contains an identifier at the beginning such as _ or ## that was stripped
         # after forcing partial text conversion of the token.
         # AND it is not a supported punctuation mark, which needs to be added to the built word regardless of its identifier.
-        
+
         if condition_for_word_start(char_token, char_text, next_non_delimeter_token) and not curr_punctuation:
             # If there are any partially or fully built sub-word token ids, construct to text.
             # Note: This is "old" subword, that occurs *after* current sub-word has started.
