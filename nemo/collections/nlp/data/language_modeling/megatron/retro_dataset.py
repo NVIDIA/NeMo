@@ -100,7 +100,7 @@ class RETRODataset(Dataset):
         # note: 2x == neighbor, continuation
         neighbor_tokens = neighbor_tokens.view(-1, self.retro_config.retro_retrieved_length).long()
 
-        # Get the masks and postition ids for tokens and neighbor_tokens
+        # Get the masks and position ids for tokens and neighbor_tokens
         tokens = torch.unsqueeze(
             tokens, 0
         )  # get_ltor_masks_and_position_ids takes as input tokens arguments as a batch (2D tensor), so need to convert tokens from 1D to 2D
@@ -191,7 +191,7 @@ def build_train_valid_test_datasets(
 
         return train_ds, valid_ds, test_ds
     else:
-        logging.warn('Megatron core is not installed. Returning None')
+        logging.warning('Megatron core is not installed. Returning None')
         return
 
 
@@ -205,7 +205,7 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
 
     def is_dataset_built_on_rank():
         return (
-            mpu.is_pipeline_first_stage(ignore_virtual=False) or mpu.is_pipeline_last_stage(ignore_virtual=False)
+            mpu.is_pipeline_first_stage() or mpu.is_pipeline_last_stage()
         ) and mpu.get_tensor_model_parallel_rank() == 0
 
     data_config = MultiSplitGPTDatasetConfig(

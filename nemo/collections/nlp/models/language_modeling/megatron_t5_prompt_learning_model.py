@@ -83,7 +83,7 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         super().__init__(cfg, trainer)
-        self.model_type = ModelType.encoder_and_decoder
+        self.model_type = ModelType.encoder_or_decoder
 
     def first_stage_of_pipeline(self):
         if self.frozen_model.enc_dec_model.pre_process and parallel_state.get_pipeline_model_parallel_rank() == 0:
@@ -350,8 +350,11 @@ class MegatronT5PromptLearningModel(MegatronBasePromptLearningModel):
         prefix = "test" if self.trainer.testing else "val"
         outputs = self.validation_step_outputs if prefix == 'val' else self.test_step_outputs
 
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+            if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
                 averaged_loss = torch.stack([i['loss'] for i in outputs]).mean()
             else:

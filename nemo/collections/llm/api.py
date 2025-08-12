@@ -13,6 +13,7 @@
 # limitations under the License.
 import importlib
 import json
+import multiprocessing
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -28,7 +29,13 @@ from typing_extensions import Annotated
 
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
-from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
+from nemo.collections.llm.evaluation.api import (
+    AdapterConfig,
+    EvaluationConfig,
+    EvaluationTarget,
+    MisconfigurationError,
+)
+from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -596,6 +603,12 @@ def deploy(
     enable_flash_decode: bool = True,
     legacy_ckpt: bool = False,
 ):
+    warnings.warn(
+        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
     This deploy method is intended to be used for evaluation.
@@ -782,7 +795,14 @@ def deploy(
 def evaluate(
     target_cfg: EvaluationTarget,
     eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
+    adapter_cfg: AdapterConfig | None = None,
 ) -> dict:
+    warnings.warn(
+        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     """
     Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval
 
@@ -790,6 +810,8 @@ def evaluate(
         target_cfg (EvaluationTarget): target of the evaluation. Providing model_id and
             url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
+        adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.
+            Default: None.
     """
     from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
@@ -802,6 +824,9 @@ def evaluate(
     eval_type_components = eval_cfg.type.split(".")
     if len(eval_type_components) == 2:
         framework_name, task_name = eval_type_components
+        # evaluation package expect framework name to be hyphenated
+        framework_name = framework_name.replace("_", "-")
+        eval_cfg.type = f"{framework_name}.{task_name}"
     elif len(eval_type_components) == 1:
         framework_name, task_name = None, eval_type_components[0]
     else:
@@ -812,7 +837,7 @@ def evaluate(
     if framework_name is None:
         framework_module_name = find_framework(task_name)
     else:
-        framework_module_name = f"core_evals.{framework_name}"
+        framework_module_name = f"core_evals.{framework_name.replace('-', '_')}"
     try:
         evaluate = importlib.import_module(".evaluate", package=framework_module_name)
     except ImportError:
@@ -826,11 +851,27 @@ def evaluate(
     if not server_ready:
         raise RuntimeError("Server not ready for evaluation")
 
-    results = evaluate.evaluate_accuracy(
-        target_cfg=target_cfg,
-        eval_cfg=eval_cfg,
-    )
-    results_dict = results.model_dump()
+    # NOTE(agronskiy): START of the adapter hook
+    p: multiprocessing.Process | None = None
+    if adapter_cfg:
+        from nemo.collections.llm.evaluation.adapters.server import create_server_process
+
+        p, adapter_cfg = create_server_process(adapter_cfg)
+        # This will be unhooked below
+        target_cfg.api_endpoint.url = f"http://localhost:{adapter_cfg.local_port}"
+
+    try:
+        results = evaluate.evaluate_accuracy(
+            target_cfg=target_cfg,
+            eval_cfg=eval_cfg,
+        )
+        results_dict = results.model_dump()
+    finally:
+        if adapter_cfg and p is not None and p.is_alive():
+            # TODO(agronskiy): if the url is logged in results_dict, get it back to the adapter.api_url
+            target_cfg.api_endpoint.url = adapter_cfg.api_url
+            p.terminate()
+    # NOTE(agronskiy): END of the adapter hook
 
     logging.info("========== RESULTS ==========")
     logging.info(yaml.dump(results_dict))
@@ -856,13 +897,13 @@ def import_ckpt(
     CLI Usage:
     ```bash
     # Import Llama 3 8B from HuggingFace (saves to $NEMO_MODELS_CACHE)
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B"
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B"
 
     # Import with custom output path
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B" output_path="/path/to/save"
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B" output_path="/path/to/save"
 
     # Force overwrite existing checkpoint
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B" overwrite=true
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B" overwrite=true
     ```
 
     Python Usage:
@@ -937,6 +978,7 @@ def export_ckpt(
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
+    modelopt_export_kwargs: dict[str, Any] = None,
     **kwargs,
 ) -> Path:
     """
@@ -948,13 +990,13 @@ def export_ckpt(
     CLI Usage:
     ```bash
     # Export model to HuggingFace format (saves to {checkpoint_path}/hf/)
-    nemo llm export /path/to/model.nemo target="hf"
+    nemo llm export path=/path/to/model.nemo target="hf"
 
     # Export with custom output path
-    nemo llm export /path/to/model.nemo target="hf" output_path="/path/to/save"
+    nemo llm export path=/path/to/model.nemo target="hf" output_path="/path/to/save"
 
     # Force overwrite existing export
-    nemo llm export /path/to/model.nemo target="hf" overwrite=true
+    nemo llm export path=/path/to/model.nemo target="hf" overwrite=true
     ```
 
     Python Usage:
@@ -978,6 +1020,7 @@ def export_ckpt(
             This is useful for model updates where retaining old checkpoint files is not required.
         load_connector (Callable[[Path, str], ModelConnector]): A function to load the appropriate
             exporter based on the model and target format. Defaults to `load_connector_from_trainer_ckpt`.
+        modelopt_export_kwargs (Dict[str, Any]): Additional keyword arguments for ModelOpt export to HuggingFace.
 
     Returns:
         Path: The path where the checkpoint has been saved after export.
@@ -995,7 +1038,7 @@ def export_ckpt(
         if output_path.exists() and not overwrite:
             raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
 
-    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
+    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, modelopt_export_kwargs, **kwargs)
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
@@ -1019,6 +1062,7 @@ def generate(
     text_only: bool = False,
     output_path: Optional[AnyPath] = None,
     enable_flash_decode: bool = True,
+    **kwargs,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -1086,6 +1130,7 @@ def generate(
         output_path (Optional[Union[Path, str]], optional): The path to save the generated text or test dataset
             predictions. Defaults to None.
         enable_flash_decode (bool, optional): Whether to enable flash decode. Defaults to True.
+        **kwargs: Additional keyword arguments passed to setup_model_and_tokenizer.
 
     Returns:
         list[Union["InferenceRequest", str]]: A list of generated text,
@@ -1109,6 +1154,7 @@ def generate(
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
         enable_flash_decode=enable_flash_decode,
+        **kwargs,
     )
 
     max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)
@@ -1116,12 +1162,15 @@ def generate(
     inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max_seq_length
     inference_wrapped_model.inference_context.max_sequence_length = max_seq_length
 
-    dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
-    dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
-    chunk_size = (len(inputs) + dp_size - 1) // dp_size
-    start_idx = dp_rank * chunk_size
-    end_idx = min(start_idx + chunk_size, len(inputs))
-    inputs_on_this_dp_rank = inputs[start_idx:end_idx]
+    if trainer.strategy.expert_model_parallel_size > 1:
+        inputs_on_this_dp_rank = inputs
+    else:
+        dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
+        dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
+        chunk_size = (len(inputs) + dp_size - 1) // dp_size
+        start_idx = dp_rank * chunk_size
+        end_idx = min(start_idx + chunk_size, len(inputs))
+        inputs_on_this_dp_rank = inputs[start_idx:end_idx]
 
     results_on_this_dp_rank = inference.generate(
         model=inference_wrapped_model,
@@ -1133,16 +1182,20 @@ def generate(
         random_seed=random_seed,
         inference_params=inference_params,
     )
-    gathered_results = [None] * dp_size
 
-    all_gather_object(
-        gathered_results,
-        [r.generated_text if text_only else r for r in results_on_this_dp_rank],
-        group=parallel_state.get_data_parallel_group(),
-    )
-    gathered_results = [result for sublist in gathered_results for result in sublist]
+    if trainer.strategy.expert_model_parallel_size > 1:
+        gathered_results = results_on_this_dp_rank
+    else:
+        gathered_results = [None] * dp_size
 
-    assert len(gathered_results) == len(inputs)
+        all_gather_object(
+            gathered_results,
+            [r.generated_text if text_only else r for r in results_on_this_dp_rank],
+            group=parallel_state.get_data_parallel_group(),
+        )
+        gathered_results = [result for sublist in gathered_results for result in sublist]
+
+        assert len(gathered_results) == len(inputs)
 
     if output_path is not None and is_global_rank_zero():
         with open(output_path, "w") as f:
@@ -1322,6 +1375,17 @@ def _validate_config(
                     assert (
                         model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
                     ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+                if isinstance(data, FineTuningDataModule):
+                    # check calculate_per_token_loss to be True
+                    # check average_in_collective to be False
+                    # for context parallel to solve the issue of nan loss on ranks with all tokens masked
+                    # (only happens in SFT)
+                    assert (
+                        model.config.calculate_per_token_loss
+                    ), "When finetuning with CP>1, model.config.calculate_per_token_loss must be True"
+                    assert (
+                        not trainer.strategy.ddp_config.average_in_collective
+                    ), "When finetuning with CP>1, average_in_collective must be False"
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:

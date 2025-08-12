@@ -14,24 +14,15 @@
 
 import lightning.pytorch as pl
 import nemo_run as run
-import torch
-from megatron.core.distributed import DistributedDataParallelConfig
-from megatron.core.optimizer import OptimizerConfig
+from scripts.flux.flux_controlnet_training import unit_test as flux_control_training_unit_test
+from scripts.flux.flux_training import unit_test as flux_training_unit_test
 
-import nemo.collections.diffusion
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.diffusion.data.diffusion_mock_datamodule import MockDataModule
-from nemo.collections.diffusion.models.flux.model import (
-    ClipConfig,
-    FluxConfig,
-    FluxModelParams,
-    MegatronFluxModel,
-    T5Config,
-)
+from nemo.collections.diffusion.models.flux.model import FluxConfig, FluxModelParams, MegatronFluxModel, T5Config
 from nemo.collections.diffusion.models.flux_controlnet.model import FluxControlNetConfig, MegatronFluxControlNetModel
-from nemo.collections.diffusion.vae.autoencoder import AutoEncoderConfig
-from nemo.collections.llm.recipes.log.default import default_resume, tensorboard_logger
+from nemo.collections.llm.recipes.log.default import tensorboard_logger
 
 
 @run.cli.factory
@@ -49,161 +40,136 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
     return data_module
 
 
-@run.cli.factory(target=llm.train, name='flux_controlnet_training_test')
-def flux_controlnet_training(
+@run.cli.factory(target=llm.train, name='flux_controlnet_training_fsdp_test')
+def flux_controlnet_training_fsdp() -> run.Partial:
+    """Flux Controlnet Training Config with FSDP"""
+    recipe = flux_control_training_unit_test(custom_fsdp=True)
+    recipe.trainer.num_sanity_val_steps = 0
+    recipe.trainer.limit_val_batches = 0
+    recipe.trainer.max_steps = 10
+    recipe.trainer.callbacks = [
+        run.Config(
+            nl.ModelCheckpoint,
+            save_last=False,
+        )
+    ]
+    recipe.log = run.Config(
+        nl.NeMoLogger,
+        ckpt=None,
+        name='flux_controlnet_training_test',
+        tensorboard=tensorboard_logger(name='flux_controlnet_training'),
+        log_dir='/tmp/flux_controlnet_training',
+    )
+    return recipe
+
+
+@run.cli.factory(target=llm.train, name='flux_controlnet_training_ddp_test')
+def flux_controlnet_training_ddp(
     flux_num_joint_layers=1,
     flux_num_single_layers=1,
     flux_controlnet_num_joint_layers=1,
     flux_controlnet_num_single_layers=1,
 ) -> run.Partial:
-    """Flux Controlnet Training Config"""
-    return run.Partial(
-        llm.train,
-        model=run.Config(
-            MegatronFluxControlNetModel,
-            flux_params=run.Config(
-                FluxModelParams,
-                flux_config=run.Config(
-                    FluxConfig,
-                    num_joint_layers=flux_num_joint_layers,
-                    num_single_layers=flux_num_single_layers,
-                ),
-                t5_params=run.Config(T5Config, load_config_only=True),
+    """Flux Controlnet Training Config with DDP"""
+    recipe = flux_control_training_unit_test(custom_fsdp=False)
+    recipe.model = run.Config(
+        MegatronFluxControlNetModel,
+        flux_params=run.Config(
+            FluxModelParams,
+            flux_config=run.Config(
+                FluxConfig,
+                num_joint_layers=flux_num_joint_layers,
+                num_single_layers=flux_num_single_layers,
             ),
-            flux_controlnet_config=run.Config(
-                FluxControlNetConfig,
-                num_joint_layers=flux_controlnet_num_joint_layers,
-                num_single_layers=flux_controlnet_num_single_layers,
-            ),
+            t5_params=run.Config(T5Config, load_config_only=True),
         ),
-        data=flux_mock_datamodule(),
-        trainer=run.Config(
-            nl.Trainer,
-            devices=1,
-            num_nodes=1,
-            accelerator="gpu",
-            strategy=run.Config(
-                nl.MegatronStrategy,
-                tensor_model_parallel_size=1,
-                pipeline_model_parallel_size=1,
-                context_parallel_size=1,
-                sequence_parallel=False,
-                pipeline_dtype=torch.bfloat16,
-                ddp=run.Config(
-                    DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,
-                ),
-            ),
-            plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-            num_sanity_val_steps=0,
-            val_check_interval=10,
-            limit_val_batches=1,
-            max_steps=15,
-            log_every_n_steps=1,
-            callbacks=[
-                run.Config(
-                    nl.ModelCheckpoint,
-                    save_last=False,
-                )
-            ],
+        flux_controlnet_config=run.Config(
+            FluxControlNetConfig,
+            num_joint_layers=flux_controlnet_num_joint_layers,
+            num_single_layers=flux_controlnet_num_single_layers,
         ),
-        log=run.Config(
-            nl.NeMoLogger,
-            ckpt=None,
-            name='flux_controlnet_training_test',
-            tensorboard=tensorboard_logger(name='flux_controlnet_training'),
-            log_dir='/tmp/flux_controlnet_training',
-        ),
-        optim=run.Config(
-            nl.MegatronOptimizerModule,
-            config=run.Config(
-                OptimizerConfig,
-                lr=1e-4,
-                adam_beta1=0.9,
-                adam_beta2=0.999,
-                use_distributed_optimizer=True,
-                bf16=True,
-            ),
-        ),
-        resume=default_resume(),
     )
+    recipe.trainer.num_sanity_val_steps = 0
+    recipe.trainer.limit_val_batches = 0
+    recipe.trainer.max_steps = 10
+    recipe.trainer.callbacks = [
+        run.Config(
+            nl.ModelCheckpoint,
+            save_last=False,
+        )
+    ]
+    recipe.data = flux_mock_datamodule()
+    recipe.log = run.Config(
+        nl.NeMoLogger,
+        ckpt=None,
+        name='flux_controlnet_training_test',
+        tensorboard=tensorboard_logger(name='flux_controlnet_training'),
+        log_dir='/tmp/flux_controlnet_training',
+    )
+    return recipe
 
 
-@run.cli.factory(target=llm.train, name='flux_training_test')
-def flux_training(
+@run.cli.factory(target=llm.train, name='flux_training_ddp_test')
+def flux_training_ddp(
     flux_num_joint_layers=1,
     flux_num_single_layers=1,
 ) -> run.Partial:
-    """Flux Controlnet Training Config"""
-    return run.Partial(
-        llm.train,
-        model=run.Config(
-            MegatronFluxModel,
-            flux_params=run.Config(
-                FluxModelParams,
-                flux_config=run.Config(
-                    FluxConfig,
-                    num_joint_layers=flux_num_joint_layers,
-                    num_single_layers=flux_num_single_layers,
-                ),
-                t5_params=run.Config(T5Config, load_config_only=True),
+    """Flux Training Config with DDP"""
+    recipe = flux_training_unit_test(custom_fsdp=False)
+    recipe.data = flux_mock_datamodule()
+    recipe.model = run.Config(
+        MegatronFluxModel,
+        flux_params=run.Config(
+            FluxModelParams,
+            flux_config=run.Config(
+                FluxConfig,
+                num_joint_layers=flux_num_joint_layers,
+                num_single_layers=flux_num_single_layers,
             ),
+            t5_params=run.Config(T5Config, load_config_only=True),
         ),
-        data=flux_mock_datamodule(),
-        trainer=run.Config(
-            nl.Trainer,
-            devices=1,
-            num_nodes=1,
-            accelerator="gpu",
-            strategy=run.Config(
-                nl.MegatronStrategy,
-                tensor_model_parallel_size=1,
-                pipeline_model_parallel_size=1,
-                context_parallel_size=1,
-                sequence_parallel=False,
-                pipeline_dtype=torch.bfloat16,
-                ddp=run.Config(
-                    DistributedDataParallelConfig,
-                    check_for_nan_in_grad=True,
-                    grad_reduce_in_fp32=True,
-                ),
-            ),
-            plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-            num_sanity_val_steps=0,
-            limit_val_batches=0,
-            max_steps=10,
-            log_every_n_steps=1,
-            callbacks=[
-                run.Config(
-                    nl.ModelCheckpoint,
-                    save_last=False,
-                )
-            ],
-        ),
-        log=run.Config(
-            nl.NeMoLogger,
-            ckpt=None,
-            name='flux_training_test',
-            tensorboard=tensorboard_logger(name='flux_training'),
-            log_dir='/tmp/flux_training',
-        ),
-        optim=run.Config(
-            nl.MegatronOptimizerModule,
-            config=run.Config(
-                OptimizerConfig,
-                lr=1e-4,
-                adam_beta1=0.9,
-                adam_beta2=0.999,
-                use_distributed_optimizer=True,
-                bf16=True,
-            ),
-        ),
-        resume=default_resume(),
     )
+    recipe.trainer.num_sanity_val_steps = 0
+    recipe.trainer.limit_val_batches = 0
+    recipe.trainer.max_steps = 10
+    recipe.trainer.callbacks = [
+        run.Config(
+            nl.ModelCheckpoint,
+            save_last=False,
+        )
+    ]
+    recipe.log = run.Config(
+        nl.NeMoLogger,
+        ckpt=None,
+        name='flux_training_test',
+        tensorboard=tensorboard_logger(name='flux_training'),
+        log_dir='/tmp/flux_training',
+    )
+    return recipe
+
+
+@run.cli.factory(target=llm.train, name='flux_training_fsdp_test')
+def flux_training_fsdp() -> run.Partial:
+    """Flux Training Config with custom FSDP"""
+    recipe = flux_training_unit_test(custom_fsdp=True)
+    recipe.trainer.num_sanity_val_steps = 0
+    recipe.trainer.limit_val_batches = 0
+    recipe.trainer.max_steps = 10
+    recipe.trainer.callbacks = [
+        run.Config(
+            nl.ModelCheckpoint,
+            save_last=False,
+        )
+    ]
+    recipe.log = run.Config(
+        nl.NeMoLogger,
+        ckpt=None,
+        name='flux_training_test',
+        tensorboard=tensorboard_logger(name='flux_training'),
+        log_dir='/tmp/flux_training',
+    )
+    return recipe
 
 
 if __name__ == "__main__":
-    recipe = flux_controlnet_training()
-
-    run.cli.main(llm.train, default_factory=flux_controlnet_training)
+    run.cli.main(llm.train, default_factory=flux_controlnet_training_ddp)

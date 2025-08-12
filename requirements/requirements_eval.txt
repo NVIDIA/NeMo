@@ -1,1 +1,2 @@
-nvidia-lm-eval
+flask
+nvidia-lm-eval==25.6.1

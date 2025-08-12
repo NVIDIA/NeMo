@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -23,14 +24,17 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.modules import RNNTDecoder, RNNTJoint
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig, GPUBoostingTreeModel
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules import rnnt_beam_decoding
 from nemo.collections.asr.parts.submodules import rnnt_greedy_decoding as greedy_decode
 from nemo.collections.asr.parts.submodules import tdt_beam_decoding
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTDecoding, RNNTDecodingConfig
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
+from tests.collections.asr.decoding.test_timestamps import BaseTimestampsTest
 
 NUMBA_RNNT_LOSS_AVAILABLE = numba_utils.numba_cpu_is_supported(
     __NUMBA_MINIMUM_VERSION__
@@ -121,55 +125,6 @@ def decode_text_from_nbest_hypotheses(hyps, decoding):
     return hypotheses, all_hypotheses
 
 
-def check_char_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTDecoding):
-    assert hyp.timestamp is not None
-    assert isinstance(hyp.timestamp, dict)
-    assert 'timestep' in hyp.timestamp
-    assert 'char' in hyp.timestamp
-    assert 'word' in hyp.timestamp
-    assert 'segment' in hyp.timestamp
-
-    words = hyp.text.split(decoding.word_seperator)
-    words = list(filter(lambda x: x != '', words))
-    assert len(hyp.timestamp['word']) == len(words)
-
-    segments = []
-    segment = []
-
-    for word in words:
-        segment.append(word)
-        if word[-1] in decoding.segment_seperators:
-            segments.append(' '.join(segment))
-            segment = []
-
-    if segment:
-        segments.append(' '.join(segment))
-
-    assert len(hyp.timestamp['segment']) == len(segments)
-
-
-def check_subword_timestamps(hyp: rnnt_utils.Hypothesis, decoding: RNNTBPEDecoding):
-    assert hyp.timestamp is not None
-    assert isinstance(hyp.timestamp, dict)
-    assert 'timestep' in hyp.timestamp
-    assert 'char' in hyp.timestamp
-    assert 'word' in hyp.timestamp
-    assert 'segment' in hyp.timestamp
-
-    chars = list(hyp.text)
-    chars = list(filter(lambda x: x not in ['', ' ', '#'], chars))
-    all_chars = [list(decoding.tokenizer.tokens_to_text(data['char'])) for data in hyp.timestamp['char']]
-    all_chars = [char for subword in all_chars for char in subword]
-    all_chars = list(filter(lambda x: x not in ['', ' ', '#'], all_chars))
-    assert len(chars) == len(all_chars)
-
-    segments_count = sum([hyp.text.count(seperator) for seperator in decoding.segment_seperators])
-    if not hyp.text or hyp.text[-1] not in decoding.segment_seperators:
-        segments_count += 1
-
-    assert len(hyp.timestamp['segment']) == segments_count
-
-
 def check_beam_decoding(test_data_dir, beam_config):
     beam_size = beam_config.pop("beam_size", 1)
     model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
@@ -203,10 +158,27 @@ def check_beam_decoding(test_data_dir, beam_config):
             print()
 
 
-def check_tdt_greedy_decoding(test_data_dir, use_cuda_graph_decoder: bool, lm_path: Optional[str | Path] = None):
+def check_tdt_greedy_decoding(
+    test_data_dir,
+    use_cuda_graph_decoder: bool,
+    lm_path: Optional[str | Path] = None,
+    boosting_tree: Optional[BoostingTreeModelConfig] = None,
+):
     model, encoded, encoded_len = get_model_encoder_output(test_data_dir, 'nvidia/parakeet-tdt_ctc-110m')
 
     model_config = model.to_config_dict()
+
+    fusion_models, fusion_models_alpha = None, None
+    if lm_path or boosting_tree:
+        fusion_models = []
+        fusion_models_alpha = []
+
+    if lm_path:
+        fusion_models.append(NGramGPULanguageModel.from_file(lm_path=lm_path, vocab_size=model.decoder.blank_idx))
+        fusion_models_alpha.append(0.5)
+    if boosting_tree:
+        fusion_models.append(GPUBoostingTreeModel.from_config(boosting_tree, tokenizer=model.tokenizer))
+        fusion_models_alpha.append(0.5)
 
     decoding_algo = greedy_decode.GreedyBatchedTDTInfer(
         model.decoder,
@@ -217,8 +189,8 @@ def check_tdt_greedy_decoding(test_data_dir, use_cuda_graph_decoder: bool, lm_pa
         preserve_alignments=False,
         preserve_frame_confidence=False,
         use_cuda_graph_decoder=use_cuda_graph_decoder,
-        ngram_lm_model=str(lm_path) if lm_path else None,
-        ngram_lm_alpha=0.5 if lm_path else 0.0,
+        fusion_models=fusion_models,
+        fusion_models_alpha=fusion_models_alpha,
     )
 
     enc_out = encoded
@@ -476,9 +448,9 @@ class TestRNNTDecoding:
 
         hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
         if isinstance(hyps[0], list):
-            check_subword_timestamps(hyps[0][0], decoding)
+            BaseTimestampsTest.check_subword_timestamps(hyps[0][0], decoding)
         else:
-            check_subword_timestamps(hyps[0], decoding)
+            BaseTimestampsTest.check_subword_timestamps(hyps[0], decoding)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -514,9 +486,9 @@ class TestRNNTDecoding:
         hyps = decoding.rnnt_decoder_predictions_tensor(encoded, encoded_len, return_hypotheses=True)
 
         if isinstance(hyps[0], list):
-            check_char_timestamps(hyps[0][0], decoding)
+            BaseTimestampsTest.check_char_timestamps(hyps[0][0], decoding)
         else:
-            check_char_timestamps(hyps[0], decoding)
+            BaseTimestampsTest.check_char_timestamps(hyps[0], decoding)
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
@@ -526,10 +498,17 @@ class TestRNNTDecoding:
     @pytest.mark.unit
     @pytest.mark.parametrize("use_cuda_graph_decoder", [True, False])
     @pytest.mark.parametrize("use_lm", [True, False])
-    def test_tdt_greedy_decoding(self, test_data_dir, use_cuda_graph_decoder: bool, use_lm: bool):
+    @pytest.mark.parametrize("use_boosting_tree", [True, False])
+    def test_tdt_greedy_decoding(
+        self, test_data_dir, use_cuda_graph_decoder: bool, use_lm: bool, use_boosting_tree: bool
+    ):
         kenlm_model_path = Path(test_data_dir) / "asr/kenlm_ngram_lm/parakeet-tdt_ctc-110m-libri-1024.kenlm.tmp.arpa"
+        boosting_tree = BoostingTreeModelConfig(key_phrases_list=["hello", "nvidia"]) if use_boosting_tree else None
         check_tdt_greedy_decoding(
-            test_data_dir, use_cuda_graph_decoder=use_cuda_graph_decoder, lm_path=kenlm_model_path if use_lm else None
+            test_data_dir,
+            use_cuda_graph_decoder=use_cuda_graph_decoder,
+            lm_path=kenlm_model_path if use_lm else None,
+            boosting_tree=boosting_tree,
         )
 
     @pytest.mark.skipif(
@@ -579,3 +558,62 @@ class TestRNNTDecoding:
         )
         beam_config["ngram_lm_model"] = kenlm_model_path
         check_beam_decoding(test_data_dir, beam_config)
+
+
+class TestRNNTTimestamps(BaseTimestampsTest):
+    """RNNT-specific timestamp tests that inherit from BaseTimestampsTest"""
+
+    def _convert_offsets(self, offsets):
+        result = copy.deepcopy(offsets)
+        for offset in result:
+            offset['char'] = [offset['char']]
+        return result
+
+    @property
+    def char_offsets_chars(self):
+        return self._convert_offsets(super().char_offsets_chars)
+
+    @property
+    def char_offsets_wpe(self):
+        return self._convert_offsets(super().char_offsets_wpe)
+
+    @property
+    def char_offsets_bpe(self):
+        return self._convert_offsets(super().char_offsets_bpe)
+
+    @cached_property
+    def decoding_char(self):
+        cfg = RNNTDecodingConfig()
+        vocab = char_vocabulary()
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab))
+        decoding = RNNTDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, vocabulary=vocab)
+        return decoding
+
+    @cached_property
+    def decoding_subword_wpe(self):
+        cfg = RNNTDecodingConfig()
+        vocab = self.tmp_tokenizer.vocab
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab))
+        decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, tokenizer=self.tmp_tokenizer)
+        return decoding
+
+    @cached_property
+    def decoding_subword_bpe(self):
+        vocab = self.bpe_tokenizer.vocab
+        cfg = RNNTDecodingConfig()
+        decoder = get_rnnt_decoder(vocab_size=len(vocab))
+        joint = get_rnnt_joint(vocab_size=len(vocab))
+        decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, tokenizer=self.bpe_tokenizer)
+        return decoding
+
+    @pytest.mark.unit
+    def test_word_offsets_subword_wpe(self, tmp_tokenizer):
+        self.tmp_tokenizer = tmp_tokenizer
+        super().test_word_offsets_subword_wpe()
+
+    @pytest.mark.unit
+    def test_word_offsets_subword_wpe_other_delimiter(self, tmp_tokenizer):
+        self.tmp_tokenizer = tmp_tokenizer
+        super().test_word_offsets_subword_wpe_other_delimiter()

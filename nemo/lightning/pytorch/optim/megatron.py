@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import inspect
 from typing import Callable, List, Optional
 
 import lightning.pytorch as pl
@@ -109,4 +108,5 @@ class MegatronOptimizerModule(OptimizerModule):
         return [optimizer]
 
     def finalize_model_grads(self, *args, **kwargs):
+        """Return function to finalize the model gradients."""
         return finalize_model_grads(*args, **kwargs)
