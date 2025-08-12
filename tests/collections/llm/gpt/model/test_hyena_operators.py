@@ -219,6 +219,7 @@ class TestParallelShortHyenaOperator:
         assert output.shape[1] == operator.hidden_size
         assert output.shape[2] == seq_len
 
+    @pytest.mark.run_only_on('GPU')
     def test_fast_causal_conv_short_conv_len_validation(self, test_config: HyenaTestConfig, hyena_config: HyenaConfig):
         """
         Test that ParallelShortHyenaOperator raises an assertion error when use_fast_causal_conv=True
