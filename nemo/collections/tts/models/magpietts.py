@@ -107,9 +107,9 @@ class MagpieTTSModel(ModelPT):
 
         # The frame stacking factor controls how many consecutive frames are processed together by the
         # base decoder (and then refined into individual frames by the local transformer).
-        # We have a separate embedding table for each of the stacked frames, e.g. for frame stacking
-        # factor of 3, the codes of codebook 0 appears 3 times in the embedding table.
         # A frame stacking factor of 1 means no frame stacking.
+        # We have a separate embedding table for each of the stacked frames, e.g. for frame stacking
+        # factor of 3, the entries for of codebook 0 appears 3 times in the embedding table.
         self.frame_stacking_factor = cfg.get('frame_stacking_factor', 1)
         assert not 'downsample_factor' in cfg, '`downsample_factor` is deprecated, use `frame_stacking_factor` instead'
         # Setup tokenizer
@@ -599,7 +599,7 @@ class MagpieTTSModel(ModelPT):
                 all_preds[fs_index].append(codebook_preds)
         all_preds = [torch.stack(p, dim=1) for p in all_preds] # list of `frame_stacking_factor`` elements of shape (B,C,T) each
         all_preds = torch.stack(all_preds, dim=-1) # B, C, T, frame_stacking_factor
-        # interleave the time dimension, undoing the frame stacking
+        # undo the frame stacking
         all_preds = all_preds.reshape(all_preds.size(0), all_preds.size(1), -1) # B, C, T*frame_stacking_factor
         pred_max_len = all_preds.size(2)
         real_max_len = audio_codes_lens.max()
@@ -616,7 +616,7 @@ class MagpieTTSModel(ModelPT):
         Visualize codes for debug purposes
         codes: (B, C)
         """
-        def vis(code):
+        def code_to_str(code):
             if code==mask_id:
                 return "M    "
             else:
@@ -626,31 +626,12 @@ class MagpieTTSModel(ModelPT):
         if B > 1:
             print("Warning: visualizing only first batch element")
         codes = codes.clone().detach().cpu().numpy()[0]
-        codes = [vis(c) for c in codes]
+        codes = [code_to_str(c) for c in codes]
         for i, c in enumerate(codes):
             if (i) % (C/frame_stacking_rate) == 0:
                 print("  |timestep| ", end="")
             print(c, end="")
         print()
-
-    def debug_check_for_forbidden_logits(self, logits):
-        """Debug function to check for logits whose values should be 
-        small because we don't expect to sample those tokens (like `context_audio_bos_id`)
-        """
-        logit_thresh = 0
-        for cb in range(logits.size(1)):
-            has_mask = (logits[:,cb,self.mask_token_id] > logit_thresh).any()
-            has_bos = (logits[:,cb,self.audio_bos_id] > logit_thresh).any()
-            has_audio_bos = (logits[:,cb,self.context_audio_bos_id] > logit_thresh).any()
-            has_audio_eos = (logits[:,cb,self.context_audio_eos_id] > logit_thresh).any()
-            if has_mask or has_bos or has_audio_bos or has_audio_eos:
-                print()
-                print(f"Has likely forbidden tokens: {has_mask} {has_bos} {has_audio_bos} {has_audio_eos}")
-                print(f"special logits: {logits[:,cb,-8:]}")
-                print(f"max logits: {logits[:,cb].max()}")
-                print(f"max special logits (excluding audio bos): {logits[:,cb,self.context_audio_bos_id:self.mask_token_id].max()}")
-                print(f"max special logits (audio bos): {logits[:,cb,self.audio_bos_id].max()}")
-                print()
 
     def get_forbidden_tokens(self) -> list[int]:
         """
@@ -705,16 +686,7 @@ class MagpieTTSModel(ModelPT):
             if sampling_type == "causal" or sampling_type == "purity_causal":# and n_unmasked <= self.num_audio_codebooks:
                 # force second frame not to be unmasked
                 n_frames_to_allow = int(np.floor(progress*self.frame_stacking_factor+1))
-                confidences[:,n_frames_to_allow*self.num_audio_codebooks:] = min_confidence-1 # only works for frame_stacking_factor=2
-            elif sampling_type == "alternate":
-                # TODO: preserve already-unmasked codebooks
-                if step % 2 == 1:
-                    confidences[:,self.num_audio_codebooks:] = min_confidence-1
-                else:
-                    confidences[:,:self.num_audio_codebooks] = min_confidence-1
-                # for unmasked codebooks, set confidence to max so that they will remain unmasked
-                if topk_indices is not None:
-                    confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+                confidences[:,n_frames_to_allow*self.num_audio_codebooks:] = min_confidence-1 # only tested for frame_stacking_factor=2
 
             # pick top-confidence codebooks up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
@@ -774,9 +746,7 @@ class MagpieTTSModel(ModelPT):
                 logits[item_idx, :, :] = float('-inf')
                 logits[item_idx, :, self.audio_eos_id] = 0.0
 
-            if debug_print:
-                self.debug_check_for_forbidden_logits(logits)
-            # Disallow generation of MASK (and other special) tokens. (But why does this happen?)
+            # Disallow generation of MASK (and other special) tokens
             logits[:,:,self.get_forbidden_tokens()] = float('-inf')
 
             # sample with top-k

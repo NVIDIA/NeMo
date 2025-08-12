@@ -508,7 +508,7 @@ def main():
     parser.add_argument('--maskgit_n_steps', type=int, default=3)
     parser.add_argument('--maskgit_noise_scale', type=float, default=0.0)
     parser.add_argument('--maskgit_fixed_schedule', type=int, nargs='+', default=None)
-    parser.add_argument('--maskgit_sampling_type', default=None, choices=["default", "alternate", "causal", "purity_causal", "purity_default"])    
+    parser.add_argument('--maskgit_sampling_type', default=None, choices=["default", "causal", "purity_causal", "purity_default"])    
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
     parser.add_argument('--attention_prior_epsilon', type=float, default=1e-3)

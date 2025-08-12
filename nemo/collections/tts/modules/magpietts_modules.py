@@ -35,7 +35,9 @@ class SpecialAudioToken(Enum):
     """
     Enum for the special tokens to use in the MagpieTTS model.
     The special tokens are appended at the end of the codebook after the actual audio codec tokens.
-    The actual codeco index is this value below plus the number of codec tokens - do not use the Enum directly.
+    The actual codec index is the value below plus the number of codec tokens - do not use the Enum directly.
+
+    NOTE: When adding new special tokens remember to also update `get_forbidden_tokens()` in `magpietts.py`
     """
 
     AUDIO_BOS = 0
