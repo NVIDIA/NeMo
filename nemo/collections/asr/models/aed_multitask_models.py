@@ -1247,21 +1247,22 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         filter_fn = lambda name: "timestamps_asr_model" in name
         members = save_restore_connector._filtered_tar_info(model_restore_path, filter_fn=filter_fn)
 
+        if not members:
+            return None
+
         try:
-            if members:
-                save_restore_connector.model_config_yaml = "timestamps_asr_model_config.yaml"
-                save_restore_connector.model_weights_ckpt = "timestamps_asr_model_weights.ckpt"
-                external_timestamps_model = ASRModel.restore_from(
-                    model_restore_path, save_restore_connector=save_restore_connector
-                )
-                external_timestamps_model.eval()
-                return external_timestamps_model
+            save_restore_connector.model_config_yaml = "timestamps_asr_model_config.yaml"
+            save_restore_connector.model_weights_ckpt = "timestamps_asr_model_weights.ckpt"
+            external_timestamps_model = ASRModel.restore_from(
+                model_restore_path, save_restore_connector=save_restore_connector
+            )
+            external_timestamps_model.eval()
         except Exception as e:
             raise RuntimeError(
                 f"Error restoring external timestamps ASR model with timestamps_asr_model_config.yaml and timestamps_asr_model_weights.ckpt: {e}"
             )
-
-        return None
+            
+        return external_timestamps_model
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
