@@ -120,7 +120,7 @@ class FLOPsMeasurementCallback(Callback):
             config_kwargs['mamba_head_dim'] = self.model_cfg.mamba_head_dim
             config_kwargs['mamba_num_groups'] = self.model_cfg.mamba_num_groups
             config_kwargs['mamba_num_heads'] = self.model_cfg.mamba_num_heads
-        
+
         config_kwargs["nope_layer_interval"] = getattr(self.model_cfg, "nope_layer_interval", None)
         config_kwargs["attention_chunk_size"] = getattr(self.model_cfg, "attention_chunk_size", None)
 

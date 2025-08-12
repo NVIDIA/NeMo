@@ -114,6 +114,7 @@ def llama3(config: FLOPSConfig):
         )
     )
 
+
 def llama4(config: FLOPSConfig):
     """Model FLOPs for llama4 pure LLM family"""
     vocab_size = LLM_VOCAB_SIZE_MAP["llama4"]
@@ -177,7 +178,6 @@ def llama4(config: FLOPSConfig):
 
     # vocab flops
     vocab_flops = 3 * 2 * config.gbs * seq_len * hidden_size * vocab_size
-
 
     return attention_flops + mlp_flops + vocab_flops
 
