@@ -17,6 +17,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Optional
+
 import librosa
 import numpy as np
 import torch
@@ -30,8 +31,8 @@ from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch
 from nemo.collections.asr.parts.preprocessing.segment import get_samples
 from nemo.collections.asr.parts.utils import rnnt_utils
-from nemo.collections.common.tokenizers.canary_tokenizer import CanaryBPETokenizer
 from nemo.collections.asr.parts.utils.timestamp_utils import get_forced_aligned_timestamps_with_external_model
+from nemo.collections.common.tokenizers.canary_tokenizer import CanaryBPETokenizer
 from nemo.core.classes import IterableDataset
 from nemo.core.neural_types import LengthsType, MelSpectrogramType, NeuralType
 
