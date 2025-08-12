@@ -23,7 +23,13 @@ from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, build_perf_env_plugin
+from ..helpers import (
+    args_sanity_check,
+    build_perf_env_plugin,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+)
 
 
 def override_recipe_configs(
@@ -139,7 +145,7 @@ if __name__ == "__main__":
         del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
 
     plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
-    
+
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6, gen_shape=True))
 
