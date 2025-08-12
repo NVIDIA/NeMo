@@ -38,7 +38,7 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
     # we take the overlap to be 1 second, and count number of tokens in it
     delay = int(1 / (subsampling_factor / 100))
     # Merge tokens from character level timestamps if timestamps are enabled
-    if timestamps == 'yes':
+    if timestamps:
         merged_tokens = [char['token_id'] for char in hypotheses[0].timestamp['char']]
     else:
         merged_tokens = hypotheses[0].y_sequence.tolist()
@@ -46,7 +46,7 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
     from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
 
     for i in range(1, len(hypotheses)):
-        if timestamps == 'yes':
+        if timestamps:
             data = [char['token_id'] for char in hypotheses[i].timestamp['char']]
         else:
             data = hypotheses[i].y_sequence.tolist()
