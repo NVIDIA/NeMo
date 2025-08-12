@@ -218,7 +218,8 @@ if HAVE_TE_FUSED_LORA:
                 ops.append(te.ops.Quantize(forward=True, backward=False))
 
             # Fork to LoRA branch
-            ops.append(te.ops.MakeExtraOutput())
+            # Note: GEMM with beta=1 in backward pass
+            ops.append(te.ops.MakeExtraOutput(in_place=True))
 
             # Main branch linear op
             self.linear_main_branch_idx: int = len(ops)
@@ -305,7 +306,8 @@ if HAVE_TE_FUSED_LORA:
                 raise NotImplementedError("Row tensor parallelism is not yet supported")
 
             # Add with main branch
-            ops.append(te.ops.AddExtraInput())
+            # Note: GEMM with beta=1 in forward pass
+            ops.append(te.ops.AddExtraInput(in_place=True))
 
             # Fuse ops
             self.lora_branch = te.ops.Sequential(*ops)
