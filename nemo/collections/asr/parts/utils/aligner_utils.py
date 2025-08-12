@@ -112,9 +112,6 @@ def restore_token_case(word: str, word_tokens: List[str]) -> List[str]:
     while "__" in word:
         word = word.replace("__", "_")
 
-    #    while " " in word:
-    #        word = word.replace(" ", "")
-
     word_tokens_cased = []
     word_char_pointer = 0
 

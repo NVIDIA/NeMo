@@ -44,8 +44,6 @@ from nemo.collections.asr.parts.utils.chunking_utils import merge_hypotheses_lis
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import (
     get_forced_aligned_timestamps_with_external_model,
-    get_segment_offsets,
-    get_words_offsets,
     process_aed_timestamp_outputs,
 )
 from nemo.collections.common import tokenizers
@@ -113,7 +111,6 @@ class MultiTaskTranscriptionInternalConfig(InternalTranscribeConfig):
 class MultiTaskTranscriptionConfig(TranscribeConfig):
     """
     Configuration for Multi Task Transcription
-
 
     enable_chunking: bool = True
             Whether to enable parallel processing of audio chunks for long-form audio.
@@ -583,7 +580,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         results = super().transcribe(audio=audio, override_config=trcfg)
         if trcfg.enable_chunking:
-            results = merge_hypotheses_list(results, trcfg, self.encoder.subsampling_factor)
+            results = merge_hypotheses_list(results, trcfg.timestamps, self.encoder.subsampling_factor)
 
         return results
 
