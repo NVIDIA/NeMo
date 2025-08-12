@@ -20,7 +20,7 @@ import nemo_run as run
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
@@ -183,13 +183,7 @@ if __name__ == "__main__":
                     nsys_gpu_metrics=args.profiling_gpu_metrics,
                 )
             )
-            # nsys takes precedent over ncclttrace
-        elif args.enable_nccltrace:
-            exp_name = exp_name + "_nccltrace"
-            custom_env_vars |= {
-                "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
-                "NCCL_DEBUG": "INFO",
-            }
+            
         executor = slurm_executor(
             args.gpu.lower(),
             args.account,

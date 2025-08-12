@@ -26,7 +26,7 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
@@ -227,13 +227,7 @@ if __name__ == "__main__":
                 nsys_gpu_metrics=args.profiling_gpu_metrics,
             )
         )
-        # nsys takes precedent over ncclttrace
-    elif args.enable_nccltrace:
-        exp_name = exp_name + "_nccltrace"
-        env_vars |= {
-            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
-            "NCCL_DEBUG": "INFO",
-        }
+
 
     executor = slurm_executor(
         args.gpu.lower(),

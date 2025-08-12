@@ -21,7 +21,7 @@ from nemo.collections.llm.recipes.deepseek_v3 import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.pytorch.callbacks.megatron_enable_experimental_callback import MegatronEnableExperimentalCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
-from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
@@ -241,13 +241,7 @@ if __name__ == "__main__":
                 nsys_gpu_metrics=args.profiling_gpu_metrics,
             )
         )
-        # nsys takes precedent over ncclttrace
-    elif args.enable_nccltrace:
-        exp_name = exp_name + "_nccltrace"
-        custom_env_vars |= {
-            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
-            "NCCL_DEBUG": "INFO",
-        }
+
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
