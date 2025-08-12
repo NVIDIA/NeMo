@@ -894,6 +894,7 @@ def test_aed_timestamp_processing():
     assert processed[0].timestamp['word'] == []
     assert processed[0].timestamp['segment'] == []
 
+
 @pytest.mark.unit
 def test_aed_forced_aligned_timestamps(canary_1b_v2):
 
@@ -942,4 +943,3 @@ def test_aed_forced_aligned_timestamps(canary_1b_v2):
     assert (
         ts_hypotheses[0].timestamp['segment'][-1]['end_offset'] == ts_hypotheses[0].timestamp['word'][-1]['end_offset']
     )
-

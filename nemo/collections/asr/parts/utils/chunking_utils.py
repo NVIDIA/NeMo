@@ -59,7 +59,7 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
             min_lcs_length=1,
             parallel_chunking=True,
         )
-        merged_tokens += data[int(delay * 0.6):]
+        merged_tokens += data[int(delay * 0.6) :]
 
     # Convert merged tokens to text
     final_text = tokenizer.ids_to_text(merged_tokens)
