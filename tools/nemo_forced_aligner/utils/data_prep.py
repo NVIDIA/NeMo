@@ -13,16 +13,7 @@
 # limitations under the License.
 
 import json
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Union
-
-import soundfile as sf
-import torch
-from tqdm.auto import tqdm
-
-from nemo.utils import logging
-from tools.nemo_forced_aligner.utils.constants import BLANK_TOKEN, SPACE_TOKEN
 
 
 def get_batch_starts_ends(manifest_filepath, batch_size):

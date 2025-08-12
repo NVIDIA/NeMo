@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import tempfile
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -32,8 +31,6 @@ from nemo.collections.asr.data.audio_to_text_lhotse_prompted import (
 )
 from nemo.collections.asr.metrics import MultiTaskMetric
 from nemo.collections.asr.models.asr_model import ASRModel, ExportableEncDecModel
-from nemo.collections.asr.models.ctc_models import EncDecCTCModel
-from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRModuleMixin, ASRTranscriptionMixin
 from nemo.collections.asr.parts.mixins.transcription import (
     GenericTranscriptionType,
@@ -541,7 +538,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             as paths2audio_files 
         """
         if timestamps is not None:
-            if self.cfg.get('timestamps_asr_model', None) is None:
+            if self.timestamps_asr_model is None:
                 # TODO: Handle this key gracefully later
                 if timestamps is True:
                     timestamps = 'yes'
@@ -551,6 +548,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                     timestamps = str(timestamps)
                     assert timestamps in ('yes', 'no', 'timestamp', 'notimestamp', '1', '0')
                 prompt['timestamp'] = timestamps
+            else:
+                prompt['timestamp'] = 'no'
 
         if override_config is None:
             trcfg = MultiTaskTranscriptionConfig(
@@ -1057,7 +1056,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 timestamp_type='char' if merge_to_be_done else ['word', 'segment'],
                 viterbi_device=trcfg._internal.device,
             )
-        else:
+        elif trcfg.timestamps:
             hypotheses = process_aed_timestamp_outputs(
                 hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
@@ -1078,7 +1077,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         if trcfg.enable_chunking and len(hypotheses) == 1:
             setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])
-
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
@@ -1151,6 +1149,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # This method is a legacy helper for Canary that checks whether prompt slot values were provided
         # in the input manifest and if not, it injects the defaults.
         out_json_items = []
+        timestamps_required = False
         for item in json_items:
             if isinstance(item, str):
                 # assume it is a path to audio file
@@ -1188,9 +1187,21 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 if k not in entry:
                     # last-chance fallback injecting legacy Canary defaults if none were provided.
                     entry[k] = default_turn.get(k, dv)
-                if k == "timestamp" and self.timestamps_asr_model is not None:
-                    entry[k] = 'notimestamp'
+                if k == "timestamp":
+                    if (
+                        str(entry[k]).lower() not in ['notimestamp', "no", "false", "0"]
+                        and self.timestamps_asr_model is not None
+                    ):
+                        timestamps_required = True
+                        entry[k] = 'notimestamp'
             out_json_items.append(entry)
+
+        if timestamps_required:
+            trcfg.timestamps = True
+            logging.warning(
+                "Timestamps are enabled for at least one of the input items. "
+                "Setting timestamps to True for all the input items, as the current model is using external ASR model for alignment."
+            )
         return out_json_items
 
     @classmethod
@@ -1204,7 +1215,12 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         return MultiTaskTranscriptionConfig()
 
     def predict_step(
-        self, batch: PromptedAudioToTextMiniBatch, batch_idx=0, dataloader_idx=0, has_processed_signal=False
+        self,
+        batch: PromptedAudioToTextMiniBatch,
+        batch_idx=0,
+        dataloader_idx=0,
+        has_processed_signal=False,
+        timestamps=False,
     ):
         if has_processed_signal:
             processed_signal = batch.audio
@@ -1231,9 +1247,10 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             return_hypotheses=False,
         )
 
-        hypotheses = process_aed_timestamp_outputs(
-            hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
-        )
+        if timestamps and self.timestamps_asr_model is None:
+            hypotheses = process_aed_timestamp_outputs(
+                hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+            )
 
         if batch.cuts:
             return list(zip(batch.cuts, hypotheses))
@@ -1274,35 +1291,32 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         }
 
     def restore_timestamps_asr_model(self):
-        if self.cfg.get('timestamps_asr_model', None) is None:
-            return None
-        external_timestamps_model_path = self.cfg.timestamps_asr_model
-
         app_state = AppState()
         model_restore_path = app_state.model_restore_path
 
+        if not model_restore_path:
+            return None
+
         save_restore_connector = SaveRestoreConnector()
 
-        filter_fn = lambda name: external_timestamps_model_path in name
+        filter_fn = lambda name: "timestamps_asr_model" in name
         members = save_restore_connector._filtered_tar_info(model_restore_path, filter_fn=filter_fn)
 
         try:
-            if not members:
-                external_timestamps_model = ASRModel.from_pretrained(external_timestamps_model_path)
-            else:
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    save_restore_connector._unpack_nemo_file(
-                        path2file=model_restore_path, out_folder=tmpdir, members=members
-                    )
-                    external_timestamps_model_path = os.path.join(tmpdir, external_timestamps_model_path)
-                    external_timestamps_model = ASRModel.restore_from(external_timestamps_model_path)
-
-            external_timestamps_model.eval()
-            return external_timestamps_model
+            if members:
+                save_restore_connector.model_config_yaml = "timestamps_asr_model_config.yaml"
+                save_restore_connector.model_weights_ckpt = "timestamps_asr_model_weights.ckpt"
+                external_timestamps_model = ASRModel.restore_from(
+                    model_restore_path, save_restore_connector=save_restore_connector
+                )
+                external_timestamps_model.eval()
+                return external_timestamps_model
         except Exception as e:
             raise RuntimeError(
-                f"Error restoring external timestamps ASR model from {external_timestamps_model_path}: {e}"
+                f"Error restoring external timestamps ASR model with timestamps_asr_model_config.yaml and timestamps_asr_model_weights.ckpt: {e}"
             )
+
+        return None
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:

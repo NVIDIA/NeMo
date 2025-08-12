@@ -319,6 +319,10 @@ class TestEncDecMultiTaskModel:
 
             assert len(new_model.tokenizer.tokenizer.get_vocab()) == 32 + 128 + 128
 
+    @pytest.mark.unit
+    def test_restore_with_timestamps_asr_model(self, canary_1b_v2):
+        assert canary_1b_v2.timestamps_asr_model is not None
+
     # @pytest.mark.with_downloads()
     # @pytest.mark.unit
     # def test_save_restore_artifact_change_vocab(self, asr_model, test_data_dir):
@@ -561,6 +565,7 @@ class TestEncDecMultiTaskModel:
         )
 
         audio_file = "/home/TestData/asr/longform/earnings22/sample_4469669.wav"
+
         meta = {
             'audio_filepath': audio_file,
             'duration': 100000,
@@ -573,7 +578,7 @@ class TestEncDecMultiTaskModel:
         }
         model_stride_in_secs = 0.01 * 8  # feature_stride in sec * model_stride
         model.read_audio_file(audio_file, delay=0.0, model_stride_in_secs=model_stride_in_secs, meta_data=meta)
-        outputs = model.transcribe()
+        outputs = model.transcribe(timestamps=True)
 
         # check hypothesis object
         assert isinstance(outputs, Hypothesis)
