@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
 from dataclasses import dataclass
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import torch.utils.data
 from lhotse import CutSet
@@ -22,7 +21,7 @@ from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
 from nemo.collections.common.data import apply_prompt_format_fn
-from nemo.collections.common.prompts import CanaryPromptFormatter, PromptFormatter
+from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import TokenizerSpec
 
 
