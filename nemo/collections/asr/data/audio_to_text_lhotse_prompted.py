@@ -214,7 +214,6 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             chunks.append(chunk)
             chunk_lens.append(length)
             start += step_size
-
         return chunks, chunk_lens
 
 

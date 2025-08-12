@@ -18,7 +18,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets, get_words_offsets
 
 
-def merge_parallel_chunks(hypotheses, encoded_len, model, subsampling_factor, window_stride, tokenizer):
+def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsampling_factor, window_stride, tokenizer):
     """
     Merges hypotheses from parallel chunks into a single hypothesis with proper text,
     token sequences, and timestamps.
@@ -37,24 +37,29 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, subsampling_factor, wi
 
     # we take the overlap to be 1 second, and count number of tokens in it
     delay = int(1 / (subsampling_factor / 100))
-
-    merged_tokens = hypotheses[0].y_sequence.tolist()
+    # Merge tokens from character level timestamps if timestamps are enabled
+    if timestamps == 'yes':
+        merged_tokens = [char['token_id'] for char in hypotheses[0].timestamp['char']]
+    else:
+        merged_tokens = hypotheses[0].y_sequence.tolist()
     # avoid circular import
     from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
 
     for i in range(1, len(hypotheses)):
+        if timestamps == 'yes':
+            data = [char['token_id'] for char in hypotheses[i].timestamp['char']]
+        else:
+            data = hypotheses[i].y_sequence.tolist()
         merged_tokens = lcs_alignment_merge_buffer(
             buffer=merged_tokens,
-            data=hypotheses[i].y_sequence.tolist()[
-                : int(delay * 0.6)
-            ],  # only approximately 60% of the tokens are non blank
+            data=data[: int(delay * 0.6)],  # only approximately 60% of the tokens are non blank
             delay=delay,
             model=model,
             max_steps_per_timestep=1,
             min_lcs_length=1,
             parallel_chunking=True,
         )
-        merged_tokens += hypotheses[i].y_sequence.tolist()[int(delay * 0.6) :]
+        merged_tokens += data[int(delay * 0.6):]
 
     # Convert merged tokens to text
     final_text = tokenizer.ids_to_text(merged_tokens)
