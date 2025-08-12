@@ -51,7 +51,7 @@ except ImportError:
         "  pip install 'nemo_toolkit[all]>=2.5.0'\n"
         "Or install the latest development version:\n"
         "  pip install git+https://github.com/NVIDIA/NeMo.git"
-)
+    )
 """
 Align the utterances in manifest_filepath. 
 Results are saved in ctm files in output_dir.
