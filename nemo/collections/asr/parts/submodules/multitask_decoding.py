@@ -204,6 +204,8 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
                 preserve_alignments=self.preserve_alignments,
                 ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
                 ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                boosting_tree=self.cfg.beam.get('boosting_tree', None),
+                boosting_tree_alpha=self.cfg.beam.get('boosting_tree_alpha', 0.0),
             )
 
         else:
@@ -300,7 +302,7 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
             if type(prediction) != list:
                 prediction = prediction.tolist()
 
-            hypothesis = self.decode_tokens_to_str(prediction)
+            hypothesis = self.decode_ids_to_str(prediction)
 
             if self.compute_hypothesis_token_set:
                 hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)

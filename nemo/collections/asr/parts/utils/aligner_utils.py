@@ -1,4 +1,4 @@
-# Copyright (c) 2023, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,18 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
-import soundfile as sf
 import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from nemo.collections.asr.models.asr_model import ASRModel
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.utils import logging
 
 BLANK_TOKEN = "<b>"
@@ -869,7 +868,7 @@ def viterbi_decoding(
 
 
 def get_batch_variables(
-    audio: Union[str, List[str], np.ndarray, DataLoader],
+    audio: Union[str, List[str], np.ndarray, DataLoader, Hypothesis],
     model: ASRModel,
     segment_separators: Union[str, List[str]] = ['.', '?', '!', '...'],
     word_separator: Optional[str] = " ",
@@ -881,6 +880,7 @@ def get_batch_variables(
     use_buffered_chunked_streaming: bool = False,
     buffered_chunk_params: dict = {},
     padding_value: float = -3.4e38,
+    has_hypotheses: bool = False,
 ):
     """
     Args:
@@ -896,6 +896,7 @@ def get_batch_variables(
         use_buffered_chunked_streaming: a boolean, if True, the buffered chunked streaming will be used.
         buffered_chunk_params: a dictionary, containing the parameters for the buffered chunked streaming.
         padding_value: a float, the value to use for padding the log_probs tensor.
+        has_hypotheses: a boolean, if True, the audio has already been processed and hypotheses are provided.
 
     Returns:
         log_probs_batch: a tensor of shape (B, T_max, V) - contains the log probabilities of the tokens for each utterance in the batch.
@@ -925,6 +926,9 @@ def get_batch_variables(
         ):
             raise ValueError("Audio must be a list of audio files or a single audio file when using streaming mode.")
 
+        if isinstance(audio, str):
+            audio = [audio]
+
     if gt_text_batch is not None:
         if isinstance(gt_text_batch, str):
             gt_text_batch = [gt_text_batch]
@@ -943,7 +947,10 @@ def get_batch_variables(
     if not use_buffered_chunked_streaming:
         if not simulate_cache_aware_streaming:
             with torch.no_grad():
-                hypotheses = model.transcribe(audio, return_hypotheses=True, batch_size=batch_size)
+                if has_hypotheses:
+                    hypotheses = audio
+                else:
+                    hypotheses = model.transcribe(audio, return_hypotheses=True, batch_size=batch_size)
         else:
             assert isinstance(audio, list) or isinstance(
                 audio, str
@@ -965,9 +972,9 @@ def get_batch_variables(
         delay = buffered_chunk_params["delay"]
         model_stride_in_secs = buffered_chunk_params["model_stride_in_secs"]
         tokens_per_chunk = buffered_chunk_params["tokens_per_chunk"]
-        for l in tqdm(audio, desc="Sample:"):
+        for audio_sample in tqdm(audio, desc="Sample:"):
             model.reset()
-            model.read_audio_file(l, delay, model_stride_in_secs)
+            model.read_audio_file(audio_sample, delay, model_stride_in_secs)
             hyp, logits = model.transcribe(tokens_per_chunk, delay, keep_logits=True)
             log_probs_list_batch.append(logits)
             T_list_batch.append(logits.shape[0])
