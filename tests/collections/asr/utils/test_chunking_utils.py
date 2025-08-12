@@ -1,11 +1,12 @@
 import pytest
 import torch
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
+
 from nemo.collections.asr.parts.utils.chunking_utils import (
     join_char_level_timestamps,
     merge_all_hypotheses,
     merge_hypotheses_of_same_audio,
 )
+from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import lcs_alignment_merge_buffer
 
 
@@ -26,18 +27,26 @@ def test_join_char_level_timestamps_without_filter():
     window_stride = 0.01
     chunk_offsets = [0, 32]
 
-    h0 = Hypothesis(score=0.0, y_sequence=torch.tensor([]), timestamp={
-        "char": [
-            _make_char("a", 10, 0, 1),
-            _make_char("b", 11, 2, 3),
-        ]
-    })
-    h1 = Hypothesis(score=0.0, y_sequence=torch.tensor([]), timestamp={
-        "char": [
-            _make_char("b", 12, 0, 1),
-            _make_char("c", 13, 2, 3),
-        ]
-    })
+    h0 = Hypothesis(
+        score=0.0,
+        y_sequence=torch.tensor([]),
+        timestamp={
+            "char": [
+                _make_char("a", 10, 0, 1),
+                _make_char("b", 11, 2, 3),
+            ]
+        },
+    )
+    h1 = Hypothesis(
+        score=0.0,
+        y_sequence=torch.tensor([]),
+        timestamp={
+            "char": [
+                _make_char("b", 12, 0, 1),
+                _make_char("c", 13, 2, 3),
+            ]
+        },
+    )
 
     out = join_char_level_timestamps(
         hypotheses=[h0, h1],
@@ -48,7 +57,7 @@ def test_join_char_level_timestamps_without_filter():
     )
 
     assert len(out) == 4
-    shift = chunk_offsets[1] // subsampling_factor  
+    shift = chunk_offsets[1] // subsampling_factor
 
     assert out[0]["start_offset"] == 0 and out[0]["end_offset"] == 1
     assert out[1]["start_offset"] == 2 and out[1]["end_offset"] == 3
@@ -69,25 +78,33 @@ def test_join_char_level_timestamps_with_filter():
     chunk_offsets = [0, 32]
 
     # Chunk0: tokens 1..4
-    h0 = Hypothesis(score=0.0, y_sequence=torch.tensor([]), timestamp={
-        "char": [
-            _make_char("a", 1, 0, 0),
-            _make_char("b", 2, 1, 1),
-            _make_char("c", 3, 2, 2),
-            _make_char("d", 4, 3, 3),
-        ]
-    })
+    h0 = Hypothesis(
+        score=0.0,
+        y_sequence=torch.tensor([]),
+        timestamp={
+            "char": [
+                _make_char("a", 1, 0, 0),
+                _make_char("b", 2, 1, 1),
+                _make_char("c", 3, 2, 2),
+                _make_char("d", 4, 3, 3),
+            ]
+        },
+    )
     # Chunk1: overlaps and -1 offsets as provided
-    h1 = Hypothesis(score=0.0, y_sequence=torch.tensor([]), timestamp={
-        "char": [
-            _make_char("a", 1, 0, 0),
-            _make_char("c", 3, 1, 1),
-            _make_char("d", 4, 2, 2),
-            _make_char("e", 5, -1, 3),
-            _make_char("f", 6, 4, 4),
-            _make_char("g", 7, -1, -1),
-        ]
-    })
+    h1 = Hypothesis(
+        score=0.0,
+        y_sequence=torch.tensor([]),
+        timestamp={
+            "char": [
+                _make_char("a", 1, 0, 0),
+                _make_char("c", 3, 1, 1),
+                _make_char("d", 4, 2, 2),
+                _make_char("e", 5, -1, 3),
+                _make_char("f", 6, 4, 4),
+                _make_char("g", 7, -1, -1),
+            ]
+        },
+    )
 
     merged_tokens = [1, 2, 3, 4, 5, 6, 7]
 
@@ -104,13 +121,13 @@ def test_join_char_level_timestamps_with_filter():
 
     # Expected global offsets (from your provided output)
     expected_start_offsets = [0, 1, 2, 3, -1, 5, -1]
-    expected_end_offsets =   [0, 1, 2, 3,  4, 5, -1]
+    expected_end_offsets = [0, 1, 2, 3, 4, 5, -1]
     assert [d["start_offset"] for d in out] == expected_start_offsets
     assert [d["end_offset"] for d in out] == expected_end_offsets
 
     # Expected times
     expected_starts = [0.0, 0.08, 0.16, 0.24, -1, 0.40, -1]
-    expected_ends   = [0.0, 0.08, 0.16, 0.24, 0.32, 0.40, -1]
+    expected_ends = [0.0, 0.08, 0.16, 0.24, 0.32, 0.40, -1]
 
     assert [d["start"] for d in out] == pytest.approx(expected_starts)
     assert [d["end"] for d in out] == pytest.approx(expected_ends)
@@ -123,18 +140,30 @@ def test_merge_hypotheses_of_same_audio():
     chunk_duration_seconds = 10
     frame_offset = int(chunk_duration_seconds * 1000 / subsampling_factor)
 
-    h0 = Hypothesis(score=0.0, y_sequence=torch.tensor([1]), timestamp={
-        "word": [{"word": "a", "start": 0.0, "end": 0.1, "start_offset": 0, "end_offset": 2}],
-        "segment": [{"segment": "a", "start": 0.0, "end": 0.1, "start_offset": 0, "end_offset": 2}],
-    })
-    h1 = Hypothesis(score=0.0, y_sequence=torch.tensor([2]), timestamp={
-        "word": [{"word": "b", "start": 0.2, "end": 0.3, "start_offset": 0, "end_offset": 3}],
-        "segment": [{"segment": "b", "start": 0.2, "end": 0.3, "start_offset": 0, "end_offset": 3}],
-    })
-    h2 = Hypothesis(score=0.0, y_sequence=torch.tensor([3]), timestamp={
-        "word": [],
-        "segment": [],
-    })
+    h0 = Hypothesis(
+        score=0.0,
+        y_sequence=torch.tensor([1]),
+        timestamp={
+            "word": [{"word": "a", "start": 0.0, "end": 0.1, "start_offset": 0, "end_offset": 2}],
+            "segment": [{"segment": "a", "start": 0.0, "end": 0.1, "start_offset": 0, "end_offset": 2}],
+        },
+    )
+    h1 = Hypothesis(
+        score=0.0,
+        y_sequence=torch.tensor([2]),
+        timestamp={
+            "word": [{"word": "b", "start": 0.2, "end": 0.3, "start_offset": 0, "end_offset": 3}],
+            "segment": [{"segment": "b", "start": 0.2, "end": 0.3, "start_offset": 0, "end_offset": 3}],
+        },
+    )
+    h2 = Hypothesis(
+        score=0.0,
+        y_sequence=torch.tensor([3]),
+        timestamp={
+            "word": [],
+            "segment": [],
+        },
+    )
 
     merged = merge_hypotheses_of_same_audio(
         hypotheses_list=[h0, h1, h2],
@@ -178,4 +207,3 @@ def test_merge_all_hypotheses():
     assert len(merged_list) == 2
     texts = {m.text for m in merged_list}
     assert texts == {"a b", "c d"}
-
