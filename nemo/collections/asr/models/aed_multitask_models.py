@@ -43,6 +43,7 @@ from nemo.collections.asr.parts.mixins.transcription import (
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecoding, MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
+from nemo.collections.asr.parts.utils.chunking_utils import merge_hypotheses_list, merge_parallel_chunks
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import (
     get_forced_aligned_timestamps_with_external_model,
@@ -70,10 +71,7 @@ from nemo.core.neural_types import (
 )
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
-from nemo.collections.asr.parts.utils.chunking_utils import (
-    merge_parallel_chunks,
-    merge_hypotheses_list
-)
+
 __all__ = ['EncDecMultiTaskModel']
 
 
@@ -119,8 +117,8 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     """
     Configuration for Multi Task Transcription
 
-    enable_chunking: bool = False 
-            Whether to enable parallel processing of audio chunks for long-form audio. 
+    enable_chunking: bool = False
+            Whether to enable parallel processing of audio chunks for long-form audio.
             If enabled, batch_size should be set to 1 or single audio be passed.
     """
 
@@ -131,7 +129,7 @@ class MultiTaskTranscriptionConfig(TranscribeConfig):
     _internal: Optional[MultiTaskTranscriptionInternalConfig] = field(
         default_factory=lambda: MultiTaskTranscriptionInternalConfig()
     )
-    enable_chunking: bool = True 
+    enable_chunking: bool = True
 
     def __post_init__(self):
         self.prompt = parse_multitask_prompt(self.prompt)
@@ -572,13 +570,13 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
                 )
             trcfg = override_config
             trcfg.timestamps = timestamps
-        
+
         if trcfg.enable_chunking:
-            # Check if only one audio is provided with string 
+            # Check if only one audio is provided with string
             is_one_audio = isinstance(audio, str) and not (audio.endswith("json") or audio.endswith("jsonl"))
             # Check if it is provided as a list of strings
             is_one_audio = is_one_audio or (isinstance(audio, list) and len(audio) == 1)
-            #Check if chunking will be enabled
+            # Check if chunking will be enabled
             trcfg.enable_chunking = is_one_audio or (override_config.batch_size == 1)
             if not trcfg.enable_chunking:
                 logging.warning("Chunking is disabled. Please pass a single audio file or set batch_size to 1")
@@ -1010,8 +1008,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             batch=batch,
         )
 
-    
-
     def _transcribe_output_processing(self, outputs, trcfg: MultiTaskTranscriptionConfig) -> GenericTranscriptionType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
@@ -1064,23 +1060,23 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             hypotheses = process_aed_timestamp_outputs(
                 hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
-            
-        if merge_to_be_done:            
+
+        if merge_to_be_done:
             merged_hypotheses = merge_parallel_chunks(
                 hypotheses=hypotheses,
                 encoded_len=encoded_len,
                 model=self,
                 subsampling_factor=self.encoder.subsampling_factor,
                 window_stride=self.cfg['preprocessor']['window_stride'],
-                tokenizer=self.tokenizer
+                tokenizer=self.tokenizer,
             )
-            #Inject the id of the cut to hypothese to later be used for separate batches
+            # Inject the id of the cut to hypothese to later be used for separate batches
             setattr(merged_hypotheses, 'id', batch.cuts[0].id.split("-", 1)[0])
             return [merged_hypotheses]
-        
-        if  trcfg.enable_chunking and  len(hypotheses) == 1:
-            setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])            
-        
+
+        if trcfg.enable_chunking and len(hypotheses) == 1:
+            setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])
+
         return hypotheses
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
