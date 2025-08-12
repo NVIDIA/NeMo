@@ -1305,16 +1305,18 @@ class MagpieTTSModel(ModelPT):
             # TODO: @rfejgin: this assert might be slow due to GPU/CPU sync
             assert (audio_codes[:,:,0] == self.audio_bos_id).all(), "Audio codes do not start with BOS token"
             audio_codes = torch.cat([torch.full((audio_codes.size(0), audio_codes.size(1), self.frame_stacking_factor - 1), self.audio_bos_id, device=audio_codes.device, dtype=audio_codes.dtype), audio_codes], dim=2)
-            audio_codes_lens += self.frame_stacking_factor - 1
+            audio_codes_lens += self.frame_stacking_factor - 1 # account for BOS repeat
             audio_codes = self.pad_audio_codes(audio_codes, self.frame_stacking_factor, pad_token=0)
-        audio_codes_input = audio_codes[:, :, :-self.frame_stacking_factor]  # B, C, T'
-        audio_codes_target = audio_codes[:, :, self.frame_stacking_factor:] # drop BOS
+        # Note: if a tensor lacks the `_unstacked` suffix, it can be assumed to to be in the frame-stacked domain
+        audio_codes_input_unstacked = audio_codes[:, :, :-self.frame_stacking_factor]  # B, C, T'
+        audio_codes_target_unstacked = audio_codes[:, :, self.frame_stacking_factor:] # drop BOS
         audio_codes_lens_input_unstacked =  audio_codes_lens - self.frame_stacking_factor
-        audio_codes_lens_input_stacked = torch.ceil(audio_codes_lens_input_unstacked / self.frame_stacking_factor).long()
+        audio_codes_lens_target_unstacked = audio_codes_lens_input_unstacked
+        audio_codes_lens_input = torch.ceil(audio_codes_lens_input_unstacked / self.frame_stacking_factor).long()
         audio_codes_embedded_all = self.embed_audio_tokens(audio_codes, frame_stacking_factor=self.frame_stacking_factor) # (B, T, E) # Computing this to be use in the alignment encoder
         audio_codes_embedded = audio_codes_embedded_all[:, :-1, :] # (B, T', E) Input to the decoder; this is already in the frame-stacked domain, hence the -1 (not `frame_stacking_factor`)
 
-        audio_codes_mask = get_mask_from_lengths(audio_codes_lens_input_stacked)
+        audio_codes_mask = get_mask_from_lengths(audio_codes_lens_input)
         use_cfg = (
             (self.cfg_unconditional_prob > 0.0)
             and (mode == "train")
@@ -1348,16 +1350,16 @@ class MagpieTTSModel(ModelPT):
                 # which can cause errors when doing codes_to_audio for audio_codes_input. We are not currently calling codes_to_audio on
                 # audio_codes_input so should not matter if we don't supply dec_random_input_max.
                 random_audio_tokens = torch.randint(
-                    0, max_codebook_val, audio_codes_input.size(), device=audio_codes_input.device
+                    0, max_codebook_val, audio_codes_input_unstacked.size(), device=audio_codes_input_unstacked.device
                 )
                 random_audio_tokens = random_audio_tokens * audio_codes_mask.unsqueeze(1)
                 dec_dropout_mask = (
-                    torch.rand((1, 1, audio_codes_input.size(2)), device=audio_codes_input.device)
+                    torch.rand((1, 1, audio_codes_input_unstacked.size(2)), device=audio_codes_input_unstacked.device)
                     > self.decoder_input_dropout_prob
                 )
                 # timestep_mask is True for timesteps to be kept
-                audio_codes_input = audio_codes_input * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
-                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input, frame_stacking_factor=self.frame_stacking_factor) # (B, T', E)
+                audio_codes_input_unstacked = audio_codes_input_unstacked * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
+                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input_unstacked, frame_stacking_factor=self.frame_stacking_factor) # (B, T', E)
 
         if context_tensors['additional_decoder_input'] is not None:
             dec_input_embedded = torch.cat([additional_decoder_input, audio_codes_embedded], dim=1)
@@ -1383,7 +1385,7 @@ class MagpieTTSModel(ModelPT):
                 )
 
                 aligner_encoder_loss = self.alignment_encoder_loss(
-                    attn_logprob=aligner_attn_logprobs, in_lens=context_tensors['text_lens'], out_lens=audio_codes_lens_input_stacked # is this right?
+                    attn_logprob=aligner_attn_logprobs, in_lens=context_tensors['text_lens'], out_lens=audio_codes_lens_input # is this right?
                 )
             else:
                 with torch.no_grad():
@@ -1397,7 +1399,7 @@ class MagpieTTSModel(ModelPT):
 
             with torch.no_grad():
                 aligner_attn_hard = self.get_binarized_prior_matrix(
-                    aligner_attn_soft, audio_codes_lens_input_stacked, context_tensors['text_lens']
+                    aligner_attn_soft, audio_codes_lens_input, context_tensors['text_lens']
                 )
                 if (self.global_step > self.binarize_prior_after_step) and context_tensors['prior_used']:
                     attn_prior = self.replace_beta_binomial_prior_with_binarized(attn_prior, aligner_attn_hard)
@@ -1418,7 +1420,7 @@ class MagpieTTSModel(ModelPT):
         with_parallel_loss = self.cfg.get('with_parallel_loss', True)
         if with_parallel_loss:
             codebook_loss, loss_mask = self.compute_loss(
-                logits, audio_codes_target, audio_codes_lens_input_unstacked, frame_stacking_factor=self.frame_stacking_factor
+                logits, audio_codes_target_unstacked, audio_codes_lens_input_unstacked, frame_stacking_factor=self.frame_stacking_factor
             )
         else:
             codebook_loss = torch.tensor(0.0, device=logits.device)
@@ -1430,7 +1432,7 @@ class MagpieTTSModel(ModelPT):
             text_lens = context_tensors['text_lens']
             cross_attention_scores = [attn['cross_attn_probabilities'][1] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.ctc_prior_layer_ids]
             alignment_loss = self.compute_alignment_loss(
-                cross_attention_scores, text_lens, audio_codes_lens_input_stacked, dec_context_size
+                cross_attention_scores, text_lens, audio_codes_lens_input, dec_context_size
             )
             loss = self.codebook_loss_scale * codebook_loss + alignment_loss
         else:
@@ -1441,16 +1443,16 @@ class MagpieTTSModel(ModelPT):
         if self.local_transformer_type != LocalTransformerType.NO_LT:
             if self.local_transformer_type == LocalTransformerType.MASKGIT:
                 # randomly replace some positions with MASK_TOKEN
-                audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
+                audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target_unstacked)
                 # TODO @rfejgin: the very last position might be padding but the local transformer might look at it as part of
                 #                of a pair where the first position is valid. Is this an issue?
                 local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
-                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target_full_rate, mask_tokens_mask, frame_stacking_factor=self.frame_stacking_factor)
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target_unstacked, audio_codes_lens_target_unstacked, mask_tokens_mask, frame_stacking_factor=self.frame_stacking_factor)
             else:
                 # autoregressive
                 assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
-                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target, targets_offset_by_one=False)
-                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target_full_rate, None, frame_stacking_factor=self.frame_stacking_factor)
+                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target_unstacked, targets_offset_by_one=False)
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target_unstacked, audio_codes_lens_target_unstacked, None, frame_stacking_factor=self.frame_stacking_factor)
             loss = loss + self.local_transformer_loss_scale * local_transformer_loss
 
         if aligner_encoder_loss is not None:
@@ -1466,8 +1468,8 @@ class MagpieTTSModel(ModelPT):
             'loss_mask': loss_mask,
             'alignment_loss': alignment_loss,
             'aligner_encoder_loss': aligner_encoder_loss,
-            'audio_codes_target': audio_codes_target,
-            'audio_codes_lens_target': audio_codes_lens_target_full_rate,
+            'audio_codes_target': audio_codes_target_unstacked,
+            'audio_codes_lens_target': audio_codes_lens_target_unstacked,
             'text': context_tensors['text'],
             'text_lens': context_tensors['text_lens'],
             'context_audio_codes': context_tensors['context_audio_codes'],
