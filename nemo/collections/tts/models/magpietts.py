@@ -797,9 +797,9 @@ class MagpieTTSModel(ModelPT):
             codes = codes[:actual_batch_size]
         return codes
 
-    def local_transformer_sample_autoregressive(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0):
+    def local_transformer_sample_autoregressive(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, use_kv_cache=True):
         # dec_output: (B, E)
-        self.local_transformer.reset_cache(use_cache=True)
+        self.local_transformer.reset_cache(use_cache=use_kv_cache)
         dec_output = dec_output.unsqueeze(1) # (B, 1, E)
         local_transformer_input = self.local_transformer_in_projection(dec_output) # (B, 1, 128)
         all_preds = []
@@ -1720,6 +1720,7 @@ class MagpieTTSModel(ModelPT):
             start_prior_after_n_audio_steps=10,
             compute_all_heads_attn_maps=False,
             use_local_transformer_for_inference=False,
+            use_LT_kv_cache=True,
             maskgit_n_steps=3,
             maskgit_noise_scale=0.0,
             maskgit_fixed_schedule=None,
@@ -1883,7 +1884,8 @@ class MagpieTTSModel(ModelPT):
                             unfinished_items=unfinished_items,
                             finished_items=finished_items,
                             use_cfg=use_cfg,
-                            cfg_scale=cfg_scale
+                            cfg_scale=cfg_scale,
+                            use_kv_cache=use_LT_kv_cache,
                         )
                     elif self.local_transformer_type == LocalTransformerType.MASKGIT:
                         audio_codes_next = self.local_transformer_sample_maskgit(

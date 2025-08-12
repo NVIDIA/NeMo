@@ -432,7 +432,6 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
 
         use_pesq = self.cfg.get('use_pesq', False)
         if use_pesq:
-            # import ipdb; ipdb.set_trace()
             assert HAVE_TORCHAUDIO, "torchaudio is required for PESQ reward"
             self.squim_objective_model = SQUIM_OBJECTIVE.get_model()
         
@@ -441,6 +440,13 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             raise ValueError(f"Received loss_type of {self.loss_type}, but the model only accepts one of ['grpo', 'dr_grpo']")
         self.scale_rewards = self.cfg.get('scale_rewards', True)
         self.max_decoder_steps = self.cfg.get('max_decoder_steps', 430)
+        # If the best record in the group is above this threshold, we will not use that group for training
+        # Setting this to 1.0, because we clamp the ASR rewards to be in [0, 1] for OnlinePO
+        self.best_cer_threshold = self.cfg.get('best_cer_threshold', 1.0)
+        # If the worst record in the group exceeds this threshold, we will not use that group for training
+        # Setting this to 1.0, because we clamp the ASR rewards to be in [0, 1] for OnlinePO
+        self.worst_cer_threshold = self.cfg.get('worst_cer_threshold', 1.0)
+        
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         state_dict = super().state_dict(destination, prefix, keep_vars)
@@ -476,7 +482,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             repeated_batch[key] = repeated_value
         return repeated_batch
 
-    def generate_and_reward(self, batch, num_generations_per_item, mode='train'):
+    def generate_and_reward(self, batch, num_generations_per_item, mode='train', use_local_transformer_for_inference=False):
         batch_repeated = self.repeat_items_in_batch(batch, num_generations_per_item)
         temperature = self.cfg.get('inference_temperature', 0.7)
         topk = self.cfg.get('inference_topk', 80)
@@ -488,14 +494,16 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             # Randomly set use_cfg based on the given probability
             use_cfg = random.random() < self.cfg.inference_cfg_prob
             cfg_scale = self.cfg.get('inference_cfg_scale', 1.0)
-        print("use_cfg", use_cfg)
+        
         predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, _ = self.infer_batch(
             batch_repeated,
             max_decoder_steps=self.max_decoder_steps,
             temperature=temperature,
             topk=topk,
             use_cfg=use_cfg,
-            cfg_scale=cfg_scale
+            cfg_scale=cfg_scale,
+            use_local_transformer_for_inference=use_local_transformer_for_inference,
+            use_LT_kv_cache=False, # We don't use KV caching for local transformer in GRPO due to issues.
         )
         predicted_audio_paths = []
         audio_durations = []
@@ -583,11 +591,15 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         mean_ssim_dataset = self.cfg.get("mean_ssim_dataset", 0.6) # SSIM equal to this value will have reward of 0.5
         all_groups_mean_reward = 0.0
         all_groups_std_reward = 0.0
+        group_validities = []
         for group_idx in range(num_groups):
             group_start_idx = group_idx * num_generations_per_item
             group_end_idx = group_start_idx + num_generations_per_item
             group_rewards = []
             mean_reward = 0
+            is_group_valid = True
+            group_best_cer = 1.0
+            group_worst_cer = 0.0
             for idx in range(group_start_idx, group_end_idx):
                 # Lower CER and higher speaker similarity is better, means high reward
                 # Higher pesq is better, means high reward
@@ -597,6 +609,9 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 item_cer = min( max(item_cer, 0.0), 1.0)
                 item_ssim = max( min(item_ssim, best_ssim_achievable), 0.0)
                 item_pesq = batch_metrics[idx]['pesq']
+                group_best_cer = min(group_best_cer, item_cer)
+                group_worst_cer = max(group_worst_cer, item_cer)
+                    
                 if item_cer <= mean_cer_dataset:
                     cer_reward = 0.5 + 0.5 * (mean_cer_dataset - item_cer) / mean_cer_dataset # 0.5 to 1
                 else:
@@ -621,6 +636,17 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 batch_metrics[idx]['pesq_reward'] = pesq_reward
                 mean_reward += batch_metrics[idx]['reward']
                 group_rewards.append(batch_metrics[idx]['reward'])
+            
+            if (group_best_cer > self.best_cer_threshold):
+                is_group_valid = False
+                print(f"Group {group_idx} has best CER {group_best_cer} which is above the threshold {self.best_cer_threshold}. Group is invalid.")
+            
+            if (group_worst_cer > self.worst_cer_threshold):
+                is_group_valid = False
+                print(f"Group {group_idx} has worst CER {group_worst_cer} which is above the threshold {self.worst_cer_threshold}. Group is invalid.")
+            
+            for _ in range(num_generations_per_item):
+                group_validities.append(is_group_valid)
 
             mean_reward /= num_generations_per_item
             std_reward = np.std(group_rewards)
@@ -636,6 +662,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         advantages = [x['advantage'] for x in batch_metrics]
         advantages = torch.tensor(advantages, device=self.device)
         print("Mean reward: ", all_groups_mean_reward)
+        
+        group_validities = torch.tensor(group_validities, device=self.device)
         return {
             'mean_reward': torch.tensor(all_groups_mean_reward, device=self.device),
             'std_reward': torch.tensor(all_groups_std_reward, device=self.device),
@@ -644,7 +672,9 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             'predicted_codes': predicted_codes,
             'predicted_codes_lens': predicted_codes_lens,
             'advantages': advantages,
+            'group_validities': group_validities,
         }
+
 
     def process_batch_online_po(self, batch, n_generations_per_item, mode='train'):
         use_kv_cache_during_online_po = self.cfg.get("use_kv_cache_during_online_po", False)
@@ -652,8 +682,22 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             self.use_kv_cache_for_inference = True
             self.decoder.reset_cache(use_cache=True)
 
+        use_local_transformer_for_inference = False
+        logits_key = 'logits'
+        use_local_transformer_prob = self.cfg.get('use_local_transformer_prob', 0.0)
+        if use_local_transformer_prob > 0.0 and mode == 'train':
+            use_local_transformer_for_inference = random.random() < use_local_transformer_prob
+            logits_key = 'local_transformer_logits'
+            
         with torch.no_grad():
-            generated_codes_and_metrics = self.generate_and_reward(batch, n_generations_per_item, mode)
+            self.eval()
+            generated_codes_and_metrics = self.generate_and_reward(
+                batch,
+                n_generations_per_item,
+                mode,
+                use_local_transformer_for_inference=use_local_transformer_for_inference
+            )
+            self.train()
 
         if use_kv_cache_during_online_po:
             self.use_kv_cache_for_inference = False
@@ -691,16 +735,18 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             reference_codebook_loss_mask = reference_model_output['loss_mask'][:,codebook_idx,:] if not self.reference_free else None
             si = codebook_idx * self.num_all_tokens_per_codebook
             ei = si + self.num_all_tokens_per_codebook
-            codebook_logits = policy_model_outputs['logits'][:, :, si:ei] # B, T, C
+            
+            codebook_logits = policy_model_outputs[logits_key][:, :, si:ei] # B, T, C
             codebook_labels = batch_repeated['audio_codes'][:,codebook_idx,1:]
             
             per_token_codebook_log_probs = self._get_per_token_logps(codebook_logits, codebook_labels, policy_codebook_loss_mask)
             per_token_loss = -(torch.exp(per_token_codebook_log_probs - per_token_codebook_log_probs.detach()) * advantages.unsqueeze(1))
-
+            group_validities = generated_codes_and_metrics['group_validities'] # B * n_generations_per_item
+            per_token_loss = per_token_loss * group_validities.unsqueeze(1) # B, T
 
             if not self.reference_free:
                 with torch.no_grad():
-                    ref_codebook_logits = reference_model_output['logits'][:, :, si:ei]
+                    ref_codebook_logits = reference_model_output[logits_key][:, :, si:ei]
                     per_token_ref_codebook_log_probs = self._get_per_token_logps(ref_codebook_logits, codebook_labels, reference_codebook_loss_mask)
                     # https://github.com/huggingface/trl/blob/ffcb9f4aee725a2bd072d0387afe68a4b1c7967c/trl/trainer/grpo_trainer.py#L703
                 per_token_codebook_kl = torch.exp(per_token_ref_codebook_log_probs - per_token_codebook_log_probs) - (per_token_ref_codebook_log_probs - per_token_codebook_log_probs) - 1
