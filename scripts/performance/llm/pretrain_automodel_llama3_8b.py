@@ -23,7 +23,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, build_perf_env_plugin
+from ..helpers import args_sanity_check, build_perf_env_plugin, get_user_configs
 
 SEQ_LENGTH = 2048
 NUM_GPUS_PER_NODE = 8
