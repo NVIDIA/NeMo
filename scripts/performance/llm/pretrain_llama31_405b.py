@@ -30,7 +30,13 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs, build_perf_env_plugin
+from ..helpers import (
+    args_sanity_check,
+    build_perf_env_plugin,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+)
 from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
 
 
@@ -138,6 +144,9 @@ def override_recipe_configs(
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
+
+    if (gpu_type == 'gb200') and (num_nodes * args.gpus_per_node > 128):
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
     # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
