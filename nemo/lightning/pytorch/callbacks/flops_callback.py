@@ -272,12 +272,6 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
             except:
                 # Multi-modal models use HF model configs which may/may not define num_query_groups
                 pass
-            try:
-                kwargs["nope_layer_interval"] = model_cfg.nope_layer_interval
-                kwargs["attention_chunk_size"] = model_cfg.attention_chunk_size
-            except:
-                # Except for llama4, other models may not define no_rope_freq and attention_chunk_size
-                pass
 
             self.flops_config_dict[model_name] = flops_formulas.FLOPSConfig(**kwargs)
 

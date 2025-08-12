@@ -125,6 +125,7 @@ def llama4(config: FLOPSConfig):
     ffn_hidden_size = config.ffn_hs
     gated_linear_multiplier = 2
 
+    global_attention_ratio, moe_layer_ratio = 1, 1
     if isinstance(config.nope_layer_interval, int):
         global_attention_ratio = 1 / config.nope_layer_interval
     elif isinstance(config.nope_layer_interval, list):
