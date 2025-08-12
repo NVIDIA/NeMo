@@ -17,7 +17,7 @@ import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from math import ceil
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
