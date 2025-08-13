@@ -17,6 +17,7 @@ import logging
 from typing import List, Literal, Optional
 
 import lightning.pytorch as pl
+import torch
 from torch.utils.data import DataLoader
 
 from nemo.lightning.megatron_parallel import MegatronStep
@@ -144,6 +145,11 @@ class MegatronDataSampler(DataSampler):
             consumed_samples = self.compute_consumed_samples(step.step_i + 1 - self.init_global_step)
             if self.output_log and trainer and getattr(trainer, "training", False):
                 # You may need to turn off logging, for example when doing trainer.predict(model, data)
+                # pl_module.log () will trigger pageable H2D Memcpy which stalls CPU. Use pin_memory=True to avoid it
+                consumed_samples = (
+                    consumed_samples if (torch.is_tensor(consumed_samples) and consumed_samples.is_cuda)
+                    else torch.tensor(consumed_samples, pin_memory=True).to("cuda", non_blocking=True)
+                )
                 pl_module.log(
                     'consumed_samples',
                     consumed_samples,
@@ -159,9 +165,14 @@ class MegatronDataSampler(DataSampler):
             )
         if self.output_log and trainer:
             # You may need to turn off logging, for example when doing trainer.predict(model, data)
+            current_global_batch_size = (
+                self.current_global_batch_size
+                if (torch.is_tensor(self.current_global_batch_size) and self.current_global_batch_size.is_cuda)
+                else torch.tensor(self.current_global_batch_size, pin_memory=True).to("cuda", non_blocking=True)
+            )
             pl_module.log(
                 "global_batch_size",
-                self.current_global_batch_size,
+                current_global_batch_size,
                 prog_bar=True,
                 batch_size=1,
             )
