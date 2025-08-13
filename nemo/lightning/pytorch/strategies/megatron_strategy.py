@@ -179,7 +179,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         save_ckpt_format (str): Distributed checkpoint format to use for checkpoint saving. Should be one of
             'torch_dist' or 'zarr'. Defaults to 'torch_dist'.
         ckpt_async_save (bool): Whether to save checkpoints asynchronously to reduce checkpointing overhead.
-            Defaults to True.
+            Defaults to False.
         ckpt_torch_dist_multiproc (int): Number of extra processes per rank used during ckpt save
             with PyTorch distributed format. Defaults to None.
         ckpt_assume_constant_structure (bool): Allows caching some computation across checkpoint saves.
@@ -266,7 +266,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         use_te_rng_tracker: bool = False,
         use_sharp: bool = False,
         save_ckpt_format: str = "torch_dist",
-        ckpt_async_save: bool = True,
+        ckpt_async_save: bool = False,
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
         ckpt_assume_constant_structure: bool = False,
         ckpt_parallel_save: bool = True,
