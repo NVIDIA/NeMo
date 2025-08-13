@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+import os
 
 import nemo_run as run
 
@@ -52,7 +53,12 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    enable_tp_comm = os.environ["TP_COMM_OVERLAP"]
+    if enable_tp_comm is not None:
+        recipe = pretrain_recipe(performance_mode=enable_tp_comm)
+    else:
+        recipe = pretrain_recipe(performance_mode=True)
+
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
