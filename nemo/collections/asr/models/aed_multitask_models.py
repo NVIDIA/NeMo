@@ -1057,7 +1057,6 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             hypotheses = process_aed_timestamp_outputs(
                 hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
             )
-
         if merge_to_be_done:
             merged_hypotheses = merge_parallel_chunks(
                 hypotheses=hypotheses,
@@ -1070,8 +1069,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             )
             # Inject the id of the cut to hypothese to later be used for separate batches
             setattr(merged_hypotheses, 'id', batch.cuts[0].id.split("-", 1)[0])
-            return [merged_hypotheses]
-
+            return [merged_hypotheses]  
+        
         if trcfg.enable_chunking and len(hypotheses) == 1:
             setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])
         return hypotheses

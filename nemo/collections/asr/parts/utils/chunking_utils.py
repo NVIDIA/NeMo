@@ -35,7 +35,6 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
     Returns:
         Hypothesis: A single merged hypothesis with combined text, tokens, and timestamps
     """
-
     # we take the overlap to be 1 second, and count number of tokens in it
     delay = int(1 / (subsampling_factor / 100))
     # Merge tokens from character level timestamps if timestamps are enabled
@@ -56,11 +55,11 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
             data=data[: int(delay * 0.6)],  # only approximately 60% of the tokens are non blank
             delay=delay,
             model=model,
-            max_steps_per_timestep=1,
+            max_steps_per_timestep=2,
             min_lcs_length=1,
             parallel_chunking=True,
         )
-        merged_tokens += data[int(delay * 0.6) :]
+        merged_tokens += data[int(delay * 0.6):]
 
     # Convert merged tokens to text
     final_text = decoding.decode_tokens_to_str(merged_tokens)
@@ -68,20 +67,16 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
     merged_hypotheses = Hypothesis(
         score=0.0,
         y_sequence=torch.tensor([]),
-        timestamp={
-            'word': [],
-            'segment': [],
-        },
+        timestamp=([] if not timestamps else {'word': [], 'segment': []}),
     )
-    chunk_offsets = [0] + [
-        (x * subsampling_factor - 100) if i >= 1 else (x * subsampling_factor)
-        for i, x in enumerate(encoded_len.tolist(), start=1)
-    ]
     merged_hypotheses = join_y_sequence(merged_hypotheses, hypotheses)
     merged_hypotheses.text = final_text
-
     # Merge timestamps and add word and segment level timestamps
     if timestamps:
+        chunk_offsets = [0] + [
+        (x * subsampling_factor - 100) if i >= 1 else (x * subsampling_factor)
+            for i, x in enumerate(encoded_len.tolist(), start=1)
+        ]
         merged_hypotheses = join_timestamp_and_add_word_and_segment_level_timestamps(
             merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, decoding, merged_tokens
         )
@@ -198,14 +193,16 @@ def join_char_level_timestamps(
             if not keep:
                 continue
             # adjust offsets: chunk start + global chunk shift − total removed
-            start_off = char['start_offset']
-            end_off = char['end_offset']
-
             upd = dict(char)
-            if start_off != -1:
-                upd['start_offset'] = start_off + cumulative_offset  # place chunk globally
-            if end_off != -1:
-                upd['end_offset'] = end_off + cumulative_offset
+            if char['start_offset'] != -1:
+                upd['start_offset'] = char['start_offset'] + cumulative_offset  # place chunk globally
+            if char['end_offset'] != -1:
+                upd['end_offset'] = char['end_offset'] + cumulative_offset
+
+            if char_timestamps:
+                if upd['start_offset'] != -1 and upd['start_offset'] < char_timestamps[-1]['end_offset']:
+                    upd['start_offset'] = char_timestamps[-1]['end_offset']
+                    upd['end_offset'] = char_timestamps[-1]['end_offset']
             # convert to seconds
             upd['start'] = -1 if upd['start_offset'] == -1 else upd['start_offset'] * stride * subsamp
             upd['end'] = -1 if upd['end_offset'] == -1 else upd['end_offset'] * stride * subsamp
@@ -280,10 +277,7 @@ def merge_hypotheses_of_same_audio(hypotheses_list, timestamps, subsampling_fact
     merged_hypothesis = Hypothesis(
         score=0.0,
         y_sequence=torch.tensor([]),
-        timestamp={
-            'word': [],
-            'segment': [],
-        },
+        timestamp=([] if not timestamps else {'word': [], 'segment': []}),
     )
 
     merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses_list])
@@ -298,7 +292,6 @@ def merge_hypotheses_of_same_audio(hypotheses_list, timestamps, subsampling_fact
     # Handle timestamps with proper time offsets (word and segment only)
     if timestamps and len(hypotheses_list) > 0 and getattr(hypotheses_list[0], "timestamp", {}):
         # Calculate time offsets for each chunk (in seconds)
-
         merged_word_timestamps = []
         merged_segment_timestamps = []
 
@@ -382,7 +375,7 @@ def merge_hypotheses_of_same_audio(hypotheses_list, timestamps, subsampling_fact
             'word': merged_word_timestamps,
             'segment': merged_segment_timestamps,
         }
-    elif len(hypotheses_list) == 1:
+    elif len(hypotheses_list) == 1 and timestamps:
         merged_hypothesis.timestamp = {
             'word': hypotheses_list[0].timestamp['word'],
             'segment': hypotheses_list[0].timestamp['segment'],
