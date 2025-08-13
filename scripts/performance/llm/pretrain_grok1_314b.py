@@ -48,7 +48,7 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 from nemo.utils.exp_manager import TimingCallback
 
 from ..argument_parser import parse_cli_args
@@ -426,13 +426,6 @@ if __name__ == "__main__":
                 nsys_gpu_metrics=args.profiling_gpu_metrics,
             )
         )
-    # nsys takes precedent over ncclttrace
-    elif args.enable_nccltrace:
-        exp_name = exp_name + "_nccltrace"
-        env_vars |= {
-            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
-            "NCCL_DEBUG": "INFO",
-        }
 
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None

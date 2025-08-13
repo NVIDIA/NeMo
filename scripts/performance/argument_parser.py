@@ -160,12 +160,6 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
-        "-nt",
-        "--enable_nccltrace",
-        help="Enable NCCL tracing. Disabled by default",
-        action="store_true",
-    )
-    parser.add_argument(
         "-tb",
         "--tensorboard",
         help="Enable tensorboard logging. Disabled by default",
@@ -523,7 +517,7 @@ def parse_cli_args():
         help="Enable VBoost which steers more power towards tensor cores. Disabled by default",
         type=bool_arg,
         required=False,
-        default=None,  
+        default=None,
     )
 
     return parser
