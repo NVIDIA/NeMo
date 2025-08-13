@@ -253,7 +253,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
 
-        timestamps_asr_model = self.restore_timestamps_asr_model()
+        timestamps_asr_model = self.__restore_timestamps_asr_model()
         # Using object.__setattr__ to bypass PyTorch's module registration
         object.__setattr__(self, 'timestamps_asr_model', timestamps_asr_model)
 
@@ -1287,7 +1287,11 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             ],
         }
 
-    def restore_timestamps_asr_model(self):
+    def __restore_timestamps_asr_model(self):
+        """
+        This method is used to restore the external timestamp ASR model that will be used for forced alignment in `.transcribe()`.
+        The config and weights are expected to be in the main .nemo file and be named `timestamps_asr_model_config.yaml` and `timestamps_asr_model_weights.ckpt` respectively.
+        """
         app_state = AppState()
         model_restore_path = app_state.model_restore_path
 
@@ -1299,21 +1303,22 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         filter_fn = lambda name: "timestamps_asr_model" in name
         members = save_restore_connector._filtered_tar_info(model_restore_path, filter_fn=filter_fn)
 
+        if not members:
+            return None
+
         try:
-            if members:
-                save_restore_connector.model_config_yaml = "timestamps_asr_model_config.yaml"
-                save_restore_connector.model_weights_ckpt = "timestamps_asr_model_weights.ckpt"
-                external_timestamps_model = ASRModel.restore_from(
-                    model_restore_path, save_restore_connector=save_restore_connector
-                )
-                external_timestamps_model.eval()
-                return external_timestamps_model
+            save_restore_connector.model_config_yaml = "timestamps_asr_model_config.yaml"
+            save_restore_connector.model_weights_ckpt = "timestamps_asr_model_weights.ckpt"
+            external_timestamps_model = ASRModel.restore_from(
+                model_restore_path, save_restore_connector=save_restore_connector
+            )
+            external_timestamps_model.eval()
         except Exception as e:
             raise RuntimeError(
                 f"Error restoring external timestamps ASR model with timestamps_asr_model_config.yaml and timestamps_asr_model_weights.ckpt: {e}"
             )
 
-        return None
+        return external_timestamps_model
 
 
 def parse_multitask_prompt(prompt: dict | None) -> list[dict]:
