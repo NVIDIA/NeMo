@@ -73,9 +73,9 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
             'segment': [],
         },
     )
-
-    chunk_offsets = [0] + [x * subsampling_factor for x in encoded_len.tolist()]
-
+    chunk_offsets = [0] + [ (x * subsampling_factor - 100) if i >= 2 else (x * subsampling_factor)
+                        for i, x in enumerate(encoded_len.tolist(), start=1) ]
+   
     merged_hypotheses = join_y_sequence(merged_hypotheses, hypotheses)
     merged_hypotheses.text = final_text
 
@@ -126,7 +126,6 @@ def join_timestamp_and_add_word_and_segment_level_timestamps(
     char_timestamps = join_char_level_timestamps(
         hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens
     )
-
     # Create encoded_char_offsets for word/segment generation
     encoded_char_offsets = []
     for char_offset in char_timestamps:
@@ -180,7 +179,6 @@ def join_char_level_timestamps(
     """
     char_timestamps = []
     cumulative_offset = 0  # raw (pre-subsampling) frames already emitted
-    overall_removed_offset = 0  # subsampled frames trimmed so far
     j_token = 0  # cursor in merged_tokens
 
     subsamp = subsampling_factor
@@ -188,18 +186,7 @@ def join_char_level_timestamps(
     for i, h in enumerate(hypotheses):
         cumulative_offset += chunk_offsets[i]  # raw frames
         chunk_frame_offset = cumulative_offset // subsamp
-
         # 1) figure out how much of the *front* of this chunk we will drop
-        removed_in_chunk = 0
-        for char in h.timestamp['char']:
-            keep = merged_tokens is None or (
-                j_token < len(merged_tokens) and char and char['token_id'] == merged_tokens[j_token]
-            )
-            if keep:
-                break
-            if char and char['end_offset'] != -1:
-                removed_in_chunk = char['end_offset'] + 1
-
         for char in h.timestamp['char']:
             if not char:
                 continue
@@ -218,11 +205,9 @@ def join_char_level_timestamps(
                 upd['start_offset'] = (
                     start_off
                     + chunk_frame_offset  # place chunk globally
-                    - overall_removed_offset  # past trims
-                    - removed_in_chunk  # trims in this chunk
                 )
             if end_off != -1:
-                upd['end_offset'] = end_off + chunk_frame_offset - overall_removed_offset - removed_in_chunk
+                upd['end_offset'] = end_off + chunk_frame_offset #- overall_removed_offset - removed_in_chunk
 
             # convert to seconds
             upd['start'] = -1 if upd['start_offset'] == -1 else upd['start_offset'] * stride * subsamp
@@ -231,8 +216,6 @@ def join_char_level_timestamps(
             char_timestamps.append(upd)
             j_token += 1
 
-        # 3) make the trim visible to later chunks
-        overall_removed_offset += removed_in_chunk
 
     return char_timestamps
 
