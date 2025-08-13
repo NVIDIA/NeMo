@@ -62,7 +62,7 @@ def finetune_recipe(
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
     The recipe uses LoRA (Low-Rank Adaptation) for efficient fine-tuning, unless peft_scheme is set to None.
-    This model uses Mixture of Experts (MoE) architecture with 128 experts.
+    This model uses Mixture of Experts (MoE) architecture with 32 experts.
 
     Args:
         dir (Optional[str]): Directory for saving logs and checkpoints.
@@ -90,7 +90,6 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning.
     """
     recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
-    # recipe.data.dataset_kwargs = {'add_bos': True, "get_attention_mask_from_fusion": True}
     recipe.trainer.strategy.expert_tensor_parallel_size = 1
     if peft_scheme is None or peft_scheme.lower() == 'none':
         recipe.trainer.strategy.tensor_model_parallel_size = 1

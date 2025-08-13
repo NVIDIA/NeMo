@@ -79,7 +79,7 @@ class GPTOSSConfig(GPTConfig):
     glu_linear_offset: float = 1.0
     bias_activation_fusion: bool = True
     window_attn_skip_freq: Optional[Union[int, List[int]]] = 2  # alternative SWA/full
-    attention_backend: AttnBackend = AttnBackend.local  # supports "local" and "fused"
+    attention_backend: AttnBackend = AttnBackend.local  # currently only "local" is supported
     activation_func_clamp_value: Optional[float] = 7.0
 
 
@@ -228,7 +228,6 @@ class HFGPTOSSImporter(_BaseGPTOSSImporter):
         logging.setLevel(logging.DEBUG)
         source_state = self.hf_ckpt_load()
         source = _ModelState(source_state)
-        # source = AutoModelForCausalLM.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)

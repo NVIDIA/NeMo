@@ -82,6 +82,12 @@ def get_args():
         help="""Expert parallel size""",
     )
     parser.add_argument(
+        "--etp",
+        type=int,
+        default=None,
+        help="""Expert tensor parallel size""",
+    )
+    parser.add_argument(
         "--devices",
         type=int,
         default=1,
@@ -164,12 +170,15 @@ if __name__ == "__main__":
 
     if args.fp8:
         assert len(args.prompts) % 8 == 0, "Batch size should be divisible by 8 for FP8 inference"
+    if args.etp is None and args.ep > 1:
+        # Unless ETP is explicitly given, disable ETP if using EP. Otherwise ETP = TP.
+        args.etp = 1
 
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp,
         pipeline_model_parallel_size=args.pp,
         expert_model_parallel_size=args.ep,
-        expert_tensor_parallel_size=1,
+        expert_tensor_parallel_size=args.etp,
         context_parallel_size=1,
         sequence_parallel=False,
         setup_optimizers=False,
