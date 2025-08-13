@@ -232,9 +232,9 @@ class AutoResume:
         if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
             if self.resume_ignore_no_checkpoint:
                 message = (
-                        f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir "
-                        f":{checkpoint_dir}. "
-                    )
+                    f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir "
+                    f":{checkpoint_dir}. "
+                )
                 if not self.restore_config:
                     logging.warning(message + "Training from scratch.")
                 else:
