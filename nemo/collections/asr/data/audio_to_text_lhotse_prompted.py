@@ -150,7 +150,8 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         """
         best_chunk_size = min_sec * sample_rate
         best_last_chunk_len = 0
-
+        if total_len < max_sec * sample_rate:
+            return total_len
         # Try each possible chunk duration in the range
         for sec in range(min_sec, max_sec + 1):
             chunk_size = sec * sample_rate
@@ -203,7 +204,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         chunks = []
         chunk_lens = []
         start = 0
-        while start < total_len:
+        while start + overlap_size < total_len:
             end = min(start + chunk_size, total_len)
             chunk = waveform[start:end]
             length = chunk.shape[0]
@@ -213,6 +214,7 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             chunks.append(chunk)
             chunk_lens.append(length)
             start += step_size
+
         return chunks, chunk_lens
 
 

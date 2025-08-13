@@ -73,9 +73,9 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
             'segment': [],
         },
     )
-    chunk_offsets = [0] + [ (x * subsampling_factor - 100) if i >= 2 else (x * subsampling_factor)
+    chunk_offsets = [0] + [ (x * subsampling_factor - 100) if i >= 1 else (x * subsampling_factor)
                         for i, x in enumerate(encoded_len.tolist(), start=1) ]
-   
+    #chunk_offsets[2:] = [x - 100 for x in chunk_offsets[2:]]
     merged_hypotheses = join_y_sequence(merged_hypotheses, hypotheses)
     merged_hypotheses.text = final_text
 
@@ -184,8 +184,9 @@ def join_char_level_timestamps(
     subsamp = subsampling_factor
     stride = window_stride  # sec per raw frame
     for i, h in enumerate(hypotheses):
-        cumulative_offset += chunk_offsets[i]  # raw frames
-        chunk_frame_offset = cumulative_offset // subsamp
+        chunk_frame_offset = chunk_offsets[i] // subsamp
+        cumulative_offset += chunk_frame_offset
+        
         # 1) figure out how much of the *front* of this chunk we will drop
         for char in h.timestamp['char']:
             if not char:
@@ -195,7 +196,6 @@ def join_char_level_timestamps(
             )
             if not keep:
                 continue
-
             # adjust offsets: chunk start + global chunk shift − total removed
             start_off = char['start_offset']
             end_off = char['end_offset']
@@ -204,10 +204,10 @@ def join_char_level_timestamps(
             if start_off != -1:
                 upd['start_offset'] = (
                     start_off
-                    + chunk_frame_offset  # place chunk globally
+                    + cumulative_offset  # place chunk globally
                 )
             if end_off != -1:
-                upd['end_offset'] = end_off + chunk_frame_offset #- overall_removed_offset - removed_in_chunk
+                upd['end_offset'] = end_off + cumulative_offset #- overall_removed_offset - removed_in_chunk
 
             # convert to seconds
             upd['start'] = -1 if upd['start_offset'] == -1 else upd['start_offset'] * stride * subsamp
