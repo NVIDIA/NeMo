@@ -16,8 +16,8 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.llm.recipes.nemotronh_47b import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.vlm.recipes.qwen25vl_7b import finetune_recipe
 from nemo.lightning.run.plugins import NsysPlugin
 
 from ..argument_parser import parse_cli_args
@@ -29,7 +29,6 @@ from ..helpers import (
     set_exp_logging_configs,
     set_primary_perf_configs,
 )
-from ..utils import dump_config_diff_from_base_recipe, hf_tokenizer
 
 
 def override_recipe_configs(
@@ -43,19 +42,17 @@ def override_recipe_configs(
     vp_size: int,
     ep_size: int,
     enable_cuda_graphs: bool,
-    use_mcore_fsdp: bool,
-    recompute_layers: int,
-    activation_offload_layers: int,
 ):
     """
-    NemotronH 47b pre-train recipe aimed at achieving best possible performance.
+    Qwen25VL-7B finetune recipe aimed at achieving best possible performance.
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    recipe = finetune_recipe(num_nodes=num_nodes, num_gpus_per_node=args.gpus_per_node)
+
     recipe = set_primary_perf_configs(
         recipe,
-        "pre_train",
+        "finetune",
         num_nodes,
         args.gpus_per_node,
         mbs,
@@ -67,27 +64,27 @@ def override_recipe_configs(
         vp_size,
         ep_size,
         enable_cuda_graphs=enable_cuda_graphs,
-        use_mcore_fsdp=use_mcore_fsdp,
-        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
-        use_user_buffer_registration=args.use_user_buffer_registration,
-        recompute_layers=recompute_layers,
-        activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
-        nccl_communicator_config_path=args.nccl_communicator_config_path,
-    )
-    recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "nemotronh", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        use_mcore_fsdp=args.use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_user_buffer_registration=args.use_user_buffer_registration,
     )
 
-    # data module configs
-    if args.use_hf_tokenizer:
-        recipe.data.tokenizer = hf_tokenizer("nvidia/Nemotron-H-8B-Base-8K")
-    else:
-        recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=131072
-        )
-        recipe.model.tokenizer = recipe.data.tokenizer
+    recipe = set_exp_logging_configs(
+        recipe,
+        "finetune",
+        "vlm",
+        "qwen25vl",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
+    )
+
+    recipe.data.tokenizer = run.Config(
+        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=152064
+    )
 
     return recipe
 
@@ -96,41 +93,15 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "nemotronh", "47b", args)
-    (
-        num_nodes,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-        _,
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
-    ) = kwargs[:13]
+    kwargs = get_user_configs(args.gpu.lower(), "finetune", "qwen25vl", "7b", args)
+    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs[:10]
 
     recipe = override_recipe_configs(
-        args,
-        num_nodes,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
+        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
-    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+    exp_name = f"qwen25vl_7b_finetune_{args.compute_dtype}_{exp_config}"
 
     executor = slurm_executor(
         args.gpu.lower(),
@@ -149,6 +120,7 @@ if __name__ == "__main__":
     )
 
     plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
+
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
@@ -164,14 +136,3 @@ if __name__ == "__main__":
             exp.run(sequential=True, detach=True)
         else:
             exp.dryrun()
-
-    if args.dump_config_diff_from_base_recipe:
-        output_dir = exp.jobs[0].executor.job_dir
-        # dump difference from base recipe
-        base_recipe = pretrain_recipe(performance_mode=False)
-        file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
-        dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)
-        # dump difference from default perf recipe
-        default_perf_recipe = pretrain_recipe(performance_mode=True)
-        file_name = f"diff_from_default_perf_recipe_{args.compute_dtype}.diff"
-        dump_config_diff_from_base_recipe(default_perf_recipe, recipe, output_dir, file_name=file_name)
