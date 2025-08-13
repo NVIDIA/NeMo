@@ -764,7 +764,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 prog_bar=True,
                 batch_size=1,
             )
-            
+
             self.lightning_module.log(
                 "step",
                 global_step,
