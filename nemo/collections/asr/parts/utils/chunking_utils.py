@@ -75,7 +75,6 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
     )
     chunk_offsets = [0] + [ (x * subsampling_factor - 100) if i >= 1 else (x * subsampling_factor)
                         for i, x in enumerate(encoded_len.tolist(), start=1) ]
-    #chunk_offsets[2:] = [x - 100 for x in chunk_offsets[2:]]
     merged_hypotheses = join_y_sequence(merged_hypotheses, hypotheses)
     merged_hypotheses.text = final_text
 
@@ -207,15 +206,13 @@ def join_char_level_timestamps(
                     + cumulative_offset  # place chunk globally
                 )
             if end_off != -1:
-                upd['end_offset'] = end_off + cumulative_offset #- overall_removed_offset - removed_in_chunk
-
+                upd['end_offset'] = end_off + cumulative_offset 
             # convert to seconds
             upd['start'] = -1 if upd['start_offset'] == -1 else upd['start_offset'] * stride * subsamp
             upd['end'] = -1 if upd['end_offset'] == -1 else upd['end_offset'] * stride * subsamp
 
             char_timestamps.append(upd)
             j_token += 1
-
 
     return char_timestamps
 
