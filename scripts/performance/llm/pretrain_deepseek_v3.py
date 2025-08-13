@@ -171,6 +171,12 @@ def override_recipe_configs(
         )
     recipe.model.tokenizer = recipe.data.tokenizer
 
+    # Workaround for MXFP8 functionality issue
+    if args.compute_dtype == "fp8" and recipe.trainer.plugins.fp8_recipe == "mxfp8":
+        recipe.trainer.plugins.fp8_param_gather = False
+        recipe.trainer.strategy.ddp.reuse_grad_buf_for_mxfp8_param_ag = False
+        recipe.optim.config.reuse_grad_buf_for_mxfp8_param_ag = False
+
     return recipe
 
 
