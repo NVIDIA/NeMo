@@ -166,7 +166,6 @@ def get_words_offsets(
             if last_built_word['word'][-1] == ' ':
                 last_built_word['word'] = last_built_word['word'][:-1]
             last_built_word['word'] += char_text
-
         # If the token is a punctuation mark and there is a built word,
         # then we need to add the punctuation mark to the built word and remove preceding space.
         elif curr_punctuation and built_tokens:
