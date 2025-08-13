@@ -1069,8 +1069,8 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             )
             # Inject the id of the cut to hypothese to later be used for separate batches
             setattr(merged_hypotheses, 'id', batch.cuts[0].id.split("-", 1)[0])
-            return [merged_hypotheses]  
-        
+            return [merged_hypotheses]
+
         if trcfg.enable_chunking and len(hypotheses) == 1:
             setattr(hypotheses[0], 'id', batch.cuts[0].id.split("-", 1)[0])
         return hypotheses

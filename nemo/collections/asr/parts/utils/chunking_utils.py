@@ -59,7 +59,7 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
             min_lcs_length=1,
             parallel_chunking=True,
         )
-        merged_tokens += data[int(delay * 0.6):]
+        merged_tokens += data[int(delay * 0.6) :]
 
     # Convert merged tokens to text
     final_text = decoding.decode_tokens_to_str(merged_tokens)
@@ -74,7 +74,7 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
     # Merge timestamps and add word and segment level timestamps
     if timestamps:
         chunk_offsets = [0] + [
-        (x * subsampling_factor - 100) if i >= 1 else (x * subsampling_factor)
+            (x * subsampling_factor - 100) if i >= 1 else (x * subsampling_factor)
             for i, x in enumerate(encoded_len.tolist(), start=1)
         ]
         merged_hypotheses = join_timestamp_and_add_word_and_segment_level_timestamps(
