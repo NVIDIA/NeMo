@@ -85,11 +85,11 @@ def get_words_offsets(
                 return (
                     lambda token, token_text, next_non_delimeter_token: token_text
                     and not token_text.startswith("##")
-                    and next_non_delimeter_token not in supported_punctuation
+                    or (token_text == word_delimiter_char and next_non_delimeter_token not in supported_punctuation)
                 )
             return (
                 lambda token, token_text, next_non_delimeter_token: token != token_text
-                and next_non_delimeter_token not in supported_punctuation
+                or (token_text == word_delimiter_char and next_non_delimeter_token not in supported_punctuation)
             )
         elif word_delimiter_char == " ":
             return (
