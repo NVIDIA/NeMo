@@ -36,6 +36,9 @@ def get_onelogger_init_config() -> Dict[str, Any]:
         session_tag = os.environ.get("EXP_NAME")  # For NeMo v1
     else:
         session_tag = os.environ.get("SLURM_JOB_NAME", "nemo-run")
+    
+    world_size = int(os.environ.get('WORLD_SIZE', 1))
+    
     # Minimal configuration - required fields only
     init_config = {
         # Required fields (from OneLoggerConfig) - no defaults
@@ -43,6 +46,7 @@ def get_onelogger_init_config() -> Dict[str, Any]:
         "session_tag_or_fn": session_tag,
         # Important fields with defaults - provide if available from config
         "enable_for_current_rank": _should_enable_for_current_rank(),
+        "world_size_or_fn": world_size,
         # Error handling strategy - use DISABLE_QUIETLY_AND_REPORT_METRIC_ERROR to prevent
         # telemetry errors from crashing the training application
         "error_handling_strategy": "propagate_exceptions",
@@ -120,8 +124,7 @@ def _get_base_callback_config(
     base_config = {
         # Performance tag (REQUIRED in TrainingTelemetryConfig)
         "perf_tag_or_fn": perf_tag,
-        # World size and batch information (REQUIRED in TrainingTelemetryConfig)
-        "world_size_or_fn": world_size,
+        # Batch information (REQUIRED in TrainingTelemetryConfig)
         "global_batch_size_or_fn": global_batch_size,
         "micro_batch_size_or_fn": micro_batch_size,
         "seq_length_or_fn": seq_length,

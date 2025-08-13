@@ -210,7 +210,8 @@ def update_one_logger_config(
     elif nemo_version == 'v2':
         config = get_nemo_v2_callback_config(trainer=trainer, **kwargs)
     else:
-        raise ValueError(f"Invalid NeMo version: {nemo_version}")
+        # Fall back to v1 for unknown versions
+        config = get_nemo_v1_callback_config(trainer=trainer, **kwargs)
 
     # Convert dict to TrainingTelemetryConfig
     training_telemetry_config = TrainingTelemetryConfig(**config)
