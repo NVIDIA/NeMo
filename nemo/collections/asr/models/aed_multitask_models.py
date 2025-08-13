@@ -574,7 +574,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             # Check if it is provided as a list of strings
             is_one_audio = is_one_audio or (isinstance(audio, list) and len(audio) == 1)
             # Check if chunking will be enabled
-            trcfg.enable_chunking = is_one_audio or (override_config.batch_size == 1)
+            trcfg.enable_chunking = is_one_audio or (override_config is not None and override_config.batch_size == 1)
             if not trcfg.enable_chunking:
                 logging.warning("Chunking is disabled. Please pass a single audio file or set batch_size to 1")
 
