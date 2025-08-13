@@ -73,8 +73,10 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
             'segment': [],
         },
     )
-    chunk_offsets = [0] + [ (x * subsampling_factor - 100) if i >= 1 else (x * subsampling_factor)
-                        for i, x in enumerate(encoded_len.tolist(), start=1) ]
+    chunk_offsets = [0] + [
+        (x * subsampling_factor - 100) if i >= 1 else (x * subsampling_factor)
+        for i, x in enumerate(encoded_len.tolist(), start=1)
+    ]
     merged_hypotheses = join_y_sequence(merged_hypotheses, hypotheses)
     merged_hypotheses.text = final_text
 
@@ -185,7 +187,7 @@ def join_char_level_timestamps(
     for i, h in enumerate(hypotheses):
         chunk_frame_offset = chunk_offsets[i] // subsamp
         cumulative_offset += chunk_frame_offset
-        
+
         # 1) figure out how much of the *front* of this chunk we will drop
         for char in h.timestamp['char']:
             if not char:
@@ -201,12 +203,9 @@ def join_char_level_timestamps(
 
             upd = dict(char)
             if start_off != -1:
-                upd['start_offset'] = (
-                    start_off
-                    + cumulative_offset  # place chunk globally
-                )
+                upd['start_offset'] = start_off + cumulative_offset  # place chunk globally
             if end_off != -1:
-                upd['end_offset'] = end_off + cumulative_offset 
+                upd['end_offset'] = end_off + cumulative_offset
             # convert to seconds
             upd['start'] = -1 if upd['start_offset'] == -1 else upd['start_offset'] * stride * subsamp
             upd['end'] = -1 if upd['end_offset'] == -1 else upd['end_offset'] * stride * subsamp
