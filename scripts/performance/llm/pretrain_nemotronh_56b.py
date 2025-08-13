@@ -54,7 +54,11 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    if args.gpu.lower() == 'gb200' and args.num_gpus == 512:
+        recipe = pretrain_recipe(performance_mode=False)
+    else:
+        recipe = pretrain_recipe(performance_mode=True)
+
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
