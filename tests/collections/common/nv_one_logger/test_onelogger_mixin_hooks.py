@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 import torch.nn as nn
-from lightning.pytorch import LightningModule, LightningDataModule
+from lightning.pytorch import LightningDataModule, LightningModule
 
 from nemo.collections.llm.fn.mixin import FNMixin
 from nemo.lightning.io.mixin import IOMixin
@@ -79,13 +79,13 @@ class TestOneLoggerMixinHooks:
             with patch('nemo.lightning.one_logger_callback.hook_class_init_with_callbacks') as mock_hook:
                 # Mock the hook function to raise an import error
                 mock_hook.side_effect = ImportError("Failed to import hook function")
-                
+
                 # Create a test class that inherits from FNMixin
                 class FakeModelWithImportError(FNMixin, LightningModule):
                     def __init__(self, value=0):
                         super().__init__()
                         self.value = value
-                
+
                 # Should not raise any exceptions - the error should be handled gracefully
                 # Verify that the __init__ method was NOT wrapped due to import error
                 assert not hasattr(FakeModelWithImportError.__init__, '_one_logger_wrapped')
@@ -98,13 +98,13 @@ class TestOneLoggerMixinHooks:
             with patch('nemo.lightning.one_logger_callback.hook_class_init_with_callbacks') as mock_hook:
                 # Mock the hook function to raise an import error
                 mock_hook.side_effect = ImportError("Failed to import hook function")
-                
+
                 # Create a test class that inherits from FNMixin
                 class FakeModelWithHookImportError(FNMixin, LightningModule):
                     def __init__(self, value=0):
                         super().__init__()
                         self.value = value
-                
+
                 # Should not raise any exceptions - the error should be handled gracefully
                 # Verify that the __init__ method was NOT wrapped due to import error
                 assert not hasattr(FakeModelWithHookImportError.__init__, '_one_logger_wrapped')
@@ -263,13 +263,13 @@ class TestOneLoggerMixinHooks:
             with patch('nemo.lightning.one_logger_callback.hook_class_init_with_callbacks') as mock_hook:
                 # Mock the hook function to raise an import error
                 mock_hook.side_effect = ImportError("Failed to import hook function")
-                
+
                 # Create a test class that inherits from IOMixin
                 class FakeDataModuleWithImportError(IOMixin, LightningDataModule):
                     def __init__(self, value=0):
                         super().__init__()
                         self.value = value
-                
+
                 # Should not raise any exceptions - the error should be handled gracefully
                 # Verify that the __init__ method was NOT wrapped due to import error
                 assert not hasattr(FakeDataModuleWithImportError.__init__, '_one_logger_wrapped')
@@ -282,13 +282,13 @@ class TestOneLoggerMixinHooks:
             with patch('nemo.lightning.one_logger_callback.hook_class_init_with_callbacks') as mock_hook:
                 # Mock the hook function to raise an import error
                 mock_hook.side_effect = ImportError("Failed to import hook function")
-                
+
                 # Create a test class that inherits from IOMixin
                 class FakeDataModuleWithHookImportError(IOMixin, LightningDataModule):
                     def __init__(self, value=0):
                         super().__init__()
                         self.value = value
-                
+
                 # Should not raise any exceptions - the error should be handled gracefully
                 # Verify that the __init__ method was NOT wrapped due to import error
                 assert not hasattr(FakeDataModuleWithHookImportError.__init__, '_one_logger_wrapped')

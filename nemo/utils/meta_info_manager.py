@@ -36,9 +36,9 @@ def get_onelogger_init_config() -> Dict[str, Any]:
         session_tag = os.environ.get("EXP_NAME")  # For NeMo v1
     else:
         session_tag = os.environ.get("SLURM_JOB_NAME", "nemo-run")
-    
+
     world_size = int(os.environ.get('WORLD_SIZE', 1))
-    
+
     # Minimal configuration - required fields only
     init_config = {
         # Required fields (from OneLoggerConfig) - no defaults
