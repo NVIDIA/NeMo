@@ -344,33 +344,14 @@ class GreedyBatchedStreamingAEDComputer(ABC):
 
                 self.state.decoding_step += input_ids.size(-1)
 
-                # check for hallucinations
-                # TODO add more consequtive tokens? Now we are checking only 3 same tokens
-                hallucination_mask_1 = torch.logical_and(
-                    self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths]
-                    == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 1],
-                    self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 1]
-                    == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 2],
-                )
-
-                hallucination_mask_2 = torch.logical_and(
-                    self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths]
-                    == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 2],
-                    self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 1]
-                    == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 3],
-                )
-
-                hallucination_mask_3 = \
-                    (self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths] == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 3]) * \
-                    (self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 1] == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 4]) * \
-                    (self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 2] == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 5])
-
-                hallucination_mask = hallucination_mask_1 + hallucination_mask_2 + hallucination_mask_3
-
-                if torch.any(hallucination_mask):
-                    logging.info(f"!!! hallucination detected !!!")
-                    self.state.active_samples *= torch.logical_not(hallucination_mask)
-                    self.state.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
+                # # check for hallucinations
+                # # TODO add more consequtive tokens? Now we are checking only 3 same tokens
+                if self.decoding_cfg.hallucinations_detector:
+                    hallucination_mask = self.detect_hallucinations(self.state.tgt, self.state.batch_idxs, self.state.current_context_lengths)
+                    if torch.any(hallucination_mask):
+                        logging.info(f"!!! hallucination detected !!!")
+                        self.state.active_samples *= torch.logical_not(hallucination_mask)
+                        self.state.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
 
                 # disable samples with maximum context length
                 samples_with_max_context_length = (
@@ -431,6 +412,16 @@ class GreedyBatchedStreamingAEDComputer(ABC):
         
         return self.state
 
+    def detect_hallucinations(self, tgt, batch_idxs, current_context_lengths):
+
+        ccl = current_context_lengths
+        hallucination_mask_1 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-1]) * (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-2]) * (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-3])
+        hallucination_mask_2 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-2]) * (tgt[batch_idxs, ccl-1] == tgt[batch_idxs, ccl-3])
+        hallucination_mask_3 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-3]) * (tgt[batch_idxs, ccl-1] == tgt[batch_idxs, ccl-4]) * (tgt[batch_idxs, ccl-2] == tgt[batch_idxs, ccl-5])
+
+        hallucination_mask = hallucination_mask_1 + hallucination_mask_2 + hallucination_mask_3
+        return hallucination_mask
+
 
     def compute_laal(
             self,
@@ -458,6 +449,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
             predicted_token_ids,
             tokens_frame_alignment,
             context_encoder_frames,
+            audio_encoder_fs,
             BOW_PREFIX="\u2581"
         ):
         # import ipdb; ipdb.set_trace()
@@ -472,7 +464,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
             if len(tokens) == 0:
                 laal_list.append(5000)
                 continue
-            audio_encoder_fs = 80
             audio_signal_length = audio_signal_lengths[i]
             # obtain lagging for alignatt
             lagging = []
@@ -498,6 +489,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
             records,
             predicted_token_ids,
             context_encoder_frames,
+            audio_encoder_fs,
             BOW_PREFIX="\u2581"
         ):
         waitk_lagging = self.decoding_cfg.waitk_lagging
@@ -508,11 +500,10 @@ class GreedyBatchedStreamingAEDComputer(ABC):
         laal_list = []
         for i, tokens in enumerate(predicted_token_ids):
             lagging = []
-            audio_encoder_fs = 80
             audio_signal_length = audio_signal_lengths[i]
             for j, cur_t in enumerate(tokens):
                 cur_src_len = (j + waitk_lagging) * pre_decision_ratio + context_encoder_frames.right
-                cur_src_len *= audio_encoder_fs  # to ms
+                cur_src_len *= audio_encoder_fs # to ms
                 cur_src_len = min(audio_signal_length, cur_src_len)
                 spm = tokenizer_vocab[cur_t.item()]
                 # reach word boundary

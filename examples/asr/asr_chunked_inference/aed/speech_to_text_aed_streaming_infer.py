@@ -393,7 +393,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         drop_last=False,
         in_order=True,
     )
-
+    
     decoding_computer = GreedyBatchedStreamingAEDComputer(
         asr_model,
         frame_chunk_size=context_encoder_frames.chunk,
@@ -581,13 +581,14 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # compute decoding latency (LAAL)
     if cfg.calculate_latency:
+        audio_encoder_fs = encoder_subsampling_factor * feature_stride_sec * 1000 # to ms
         if cfg.decoding.streaming_policy == "waitk":
             laal_list = decoding_computer.compute_waitk_lagging(
-                records, predicted_token_ids, context_encoder_frames, BOW_PREFIX="\u2581"
+                records, predicted_token_ids, context_encoder_frames, audio_encoder_fs, BOW_PREFIX="\u2581"
             )
         elif cfg.decoding.streaming_policy == "alignatt":
             laal_list = decoding_computer.compute_alignatt_lagging(
-                records, predicted_token_ids, tokens_frame_alignment, context_encoder_frames, BOW_PREFIX="\u2581"
+                records, predicted_token_ids, tokens_frame_alignment, context_encoder_frames, audio_encoder_fs, BOW_PREFIX="\u2581"
             ) 
         laal = sum(laal_list) / len(laal_list)
         logging.info(f"Decoding latency (LAAL): {laal:.2f} ms")
