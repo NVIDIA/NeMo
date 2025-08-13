@@ -25,6 +25,7 @@ from nemo.collections.asr.data.audio_to_text import _AudioTextDataset
 from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset
 from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
 from nemo.collections.asr.losses.rnnt import RNNTLoss
+from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.rnnt_models import EncDecRNNTModel
 from nemo.collections.asr.parts.mixins import ASRBPEMixin
@@ -332,6 +333,14 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             log_prediction=self._cfg.get('log_prediction', True),
             dist_sync_on_step=False,
         )
+        
+        self.bleu = BLEU(
+            decoding=self.decoding,
+            tokenize=self.cfg.get('bleu_tokenizer', "13a"),
+            log_prediction=True,
+            dist_sync_on_step=False,
+            sync_on_compute=True,
+        )
 
         # Setup fused Joint step if flag is set
         if self.joint.fuse_loss_wer:
@@ -436,6 +445,14 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             log_prediction=self.wer.log_prediction,
             dist_sync_on_step=False,
         )
+        
+        self.bleu = BLEU(
+            decoding=self.decoding,
+            tokenize=self.cfg.get('bleu_tokenizer', "13a"),
+            log_prediction=True,
+            dist_sync_on_step=False,
+            sync_on_compute=True,
+        )
 
         # Setup fused Joint step
         if self.joint.fuse_loss_wer or (
@@ -490,6 +507,14 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             use_cer=self.wer.use_cer,
             log_prediction=self.wer.log_prediction,
             dist_sync_on_step=False,
+        )
+        
+        self.bleu = BLEU(
+            decoding=self.decoding,
+            tokenize=self.cfg.get('bleu_tokenizer', "13a"),
+            log_prediction=True,
+            dist_sync_on_step=False,
+            sync_on_compute=True,
         )
 
         # Setup fused Joint step

@@ -116,12 +116,15 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             use_cer=self._cfg.get('use_cer', False),
             log_prediction=self._cfg.get('log_prediction', True),
             dist_sync_on_step=False,
+            sync_on_compute=True,
         )
         
         self.bleu = BLEU(
             decoding=self.decoding,
             tokenize=self.cfg.get('bleu_tokenizer', "13a"),
-            log_prediction=True
+            log_prediction=True,
+            dist_sync_on_step=False,
+            sync_on_compute=True,
         )
 
         # Whether to compute loss during evaluation
@@ -394,6 +397,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
                 log_prediction=self.wer.log_prediction,
                 dist_sync_on_step=False,
             )
+            
+            self.bleu = BLEU(
+                decoding=self.decoding,
+                tokenize=self.cfg.get('bleu_tokenizer', "13a"),
+                log_prediction=True,
+                dist_sync_on_step=False,
+                sync_on_compute=True,
+            )
 
             # Setup fused Joint step
             if self.joint.fuse_loss_wer or (
@@ -454,6 +465,14 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             use_cer=self.wer.use_cer,
             log_prediction=self.wer.log_prediction,
             dist_sync_on_step=False,
+        )
+        
+        self.bleu = BLEU(
+            decoding=self.decoding,
+            tokenize=self.cfg.get('bleu_tokenizer', "13a"),
+            log_prediction=True,
+            dist_sync_on_step=False,
+            sync_on_compute=True,
         )
 
         # Setup fused Joint step
@@ -909,6 +928,11 @@ class EncDecRNNTModel(ASRModel, ASRModuleMixin, ExportableEncDecModel, ASRTransc
             tensorboard_logs['val_wer_denom'] = wer_denom
             tensorboard_logs['val_wer'] = wer
 
+        logging.info(f"encoded: {encoded}")
+        logging.info(f"encoded_len: {encoded_len}")
+        logging.info(f"transcript: {transcript}")
+        logging.info(f"transcript_len: {transcript_len}")
+        
         # BLEU score calculation
         self.bleu.update(
             predictions=encoded, predictions_lengths=encoded_len, targets=transcript, targets_lengths=transcript_len
