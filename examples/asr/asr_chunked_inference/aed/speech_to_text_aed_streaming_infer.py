@@ -178,6 +178,8 @@ def obtain_data_prompt(cfg, asr_model) -> torch.Tensor:
 
     asr_model._transcribe_on_begin(filepaths, transcribe_cfg)
 
+    # import ipdb; ipdb.set_trace()
+
     with tempfile.TemporaryDirectory() as tmpdir:
         transcribe_cfg._internal.temp_dir = tmpdir
         dataloader = asr_model._transcribe_input_processing(filepaths, transcribe_cfg)
@@ -320,6 +322,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.freeze()
     asr_model = asr_model.to(asr_model.device)
     asr_model.to(compute_dtype)
+
+    # import ipdb; ipdb.set_trace()
 
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):

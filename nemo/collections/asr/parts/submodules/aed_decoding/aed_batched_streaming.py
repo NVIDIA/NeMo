@@ -1,10 +1,22 @@
 
-from abc import ABC, abstractmethod
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from abc import ABC
 from dataclasses import dataclass
 import torch
 
-from typing import Optional
-from omegaconf import DictConfig
 from nemo.collections.asr.models.aed_multitask_models import lens_to_mask
 from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskModel
 from nemo.collections.asr.parts.submodules.multitask_decoding import AEDStreamingDecodingConfig
@@ -415,9 +427,20 @@ class GreedyBatchedStreamingAEDComputer(ABC):
     def detect_hallucinations(self, tgt, batch_idxs, current_context_lengths):
 
         ccl = current_context_lengths
-        hallucination_mask_1 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-1]) * (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-2]) * (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-3])
-        hallucination_mask_2 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-2]) * (tgt[batch_idxs, ccl-1] == tgt[batch_idxs, ccl-3])
-        hallucination_mask_3 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-3]) * (tgt[batch_idxs, ccl-1] == tgt[batch_idxs, ccl-4]) * (tgt[batch_idxs, ccl-2] == tgt[batch_idxs, ccl-5])
+        # pattern 1: four consequtive tokens are the same: "a a a a"
+        hallucination_mask_1 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-1]) * \
+            (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-2]) * \
+            (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-3]) * \
+            (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-4])
+        # pattern 2: "a b a b a b"
+        hallucination_mask_2 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-2]) * \
+            (tgt[batch_idxs, ccl-1] == tgt[batch_idxs, ccl-3]) * \
+            (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-4]) * \
+            (tgt[batch_idxs, ccl-1] == tgt[batch_idxs, ccl-5])
+        # pattern 3: "a b c a b c"
+        hallucination_mask_3 = (tgt[batch_idxs, ccl] == tgt[batch_idxs, ccl-3]) * \
+            (tgt[batch_idxs, ccl-1] == tgt[batch_idxs, ccl-4]) * \
+            (tgt[batch_idxs, ccl-2] == tgt[batch_idxs, ccl-5])
 
         hallucination_mask = hallucination_mask_1 + hallucination_mask_2 + hallucination_mask_3
         return hallucination_mask
