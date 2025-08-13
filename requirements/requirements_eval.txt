@@ -1,1 +1,1 @@
-nvidia-lm-eval==25.6.1
+nvidia-lm-eval==25.5
