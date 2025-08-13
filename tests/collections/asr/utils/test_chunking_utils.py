@@ -88,7 +88,7 @@ def test_join_char_level_timestamps_with_filter():
     # Merging char level timestamps within same audio segment.
     subsampling_factor = 8
     window_stride = 0.01
-    chunk_offsets = [0, 32]
+    chunk_offsets = [0, 200]
 
     # Chunk0: tokens 1..4
     h0 = Hypothesis(
@@ -131,16 +131,15 @@ def test_join_char_level_timestamps_with_filter():
 
     # Token IDs in order
     assert [d["token_id"] for d in out] == merged_tokens
-
     # Expected global offsets (from your provided output)
-    expected_start_offsets = [0, 1, 2, 3, -1, 5, -1]
-    expected_end_offsets = [0, 1, 2, 3, 4, 5, -1]
+    expected_start_offsets = [0, 1, 2, 3, -1, 29, -1]
+    expected_end_offsets = [0, 1, 2, 3, 28, 29, -1]
     assert [d["start_offset"] for d in out] == expected_start_offsets
     assert [d["end_offset"] for d in out] == expected_end_offsets
 
     # Expected times
-    expected_starts = [0.0, 0.08, 0.16, 0.24, -1, 0.40, -1]
-    expected_ends = [0.0, 0.08, 0.16, 0.24, 0.32, 0.40, -1]
+    expected_starts = [0.0, 0.08, 0.16, 0.24, -1, 2.32, -1]
+    expected_ends = [0.0, 0.08, 0.16, 0.24, 2.24, 2.32, -1]
 
     assert [d["start"] for d in out] == pytest.approx(expected_starts)
     assert [d["end"] for d in out] == pytest.approx(expected_ends)
