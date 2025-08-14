@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+import os
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
@@ -145,8 +146,8 @@ def override_recipe_configs(
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
-    if (gpu_type == 'gb200') and (num_nodes * args.gpus_per_node > 128):
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+    enable_tp_comm_overlap = os.environ.get("TP_COMM_OVERLAP", "True").lower() in ("1", "true", "yes")
+    recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = enable_tp_comm_overlap
 
     tp_comm_overlap_cfg = ub_cfg[gpu_type][args.compute_dtype]
     # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable

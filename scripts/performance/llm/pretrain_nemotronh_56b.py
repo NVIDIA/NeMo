@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from os.path import basename, splitext
+import os
 
 import nemo_run as run
 
@@ -54,10 +55,8 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    if args.gpu.lower() == 'gb200' and args.num_gpus == 512:
-        recipe = pretrain_recipe(performance_mode=False)
-    else:
-        recipe = pretrain_recipe(performance_mode=True)
+    enable_tp_comm_overlap = os.environ.get("TP_COMM_OVERLAP", "True").lower() in ("1", "true", "yes")
+    recipe = pretrain_recipe(performance_mode=enable_tp_comm_overlap)
 
     recipe = set_primary_perf_configs(
         recipe,
