@@ -53,11 +53,8 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    enable_tp_comm = os.environ["TP_COMM_OVERLAP"]
-    if enable_tp_comm is not None:
-        recipe = pretrain_recipe(performance_mode=enable_tp_comm)
-    else:
-        recipe = pretrain_recipe(performance_mode=True)
+    enable_tp_comm_overlap = os.environ.get("TP_COMM_OVERLAP", "True").lower() in ("1", "true", "yes")
+    recipe = pretrain_recipe(performance_mode = enable_tp_comm_overlap)
 
     recipe = set_primary_perf_configs(
         recipe,
