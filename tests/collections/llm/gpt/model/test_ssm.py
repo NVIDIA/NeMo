@@ -288,6 +288,7 @@ def test_nemotron_nano_9b_v2():
     assert config.first_last_layers_bf16 is True
     assert config.is_hybrid_model is True
 
+
 def test_nemotron_nano_12b_v2():
     config = NemotronNano12Bv2()
     assert config.hybrid_override_pattern == "M-M-M-M*-M-M-M-M*-M-M-M-M*-M-M-M-M*-M-M-M-M*-M-M-M-M*-M-M-M-M-"
