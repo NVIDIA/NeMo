@@ -47,4 +47,10 @@ dataset_meta_info = {
         'audio_dir' : '/Data/LibriTTS',
         'feature_dir' : '/Data/LibriTTS',
     },
+    # We need an4_val_ci just for CI tests
+    'an4_val_ci': {
+        'manifest_path' : '/home/TestData/an4_dataset/an4_val_context_v1.json',
+        'audio_dir' : '/',
+        'feature_dir' : None,
+    },
 }
