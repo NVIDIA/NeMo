@@ -118,7 +118,9 @@ def operator_type(request):
 
 
 class MixerModuleWrapper(torch.nn.Module):
-    def __init__(self, hyena_config, hyena_test_config, seq_len, use_subquadratic_ops=False, operator_type="hyena_medium_conv"):
+    def __init__(
+        self, hyena_config, hyena_test_config, seq_len, use_subquadratic_ops=False, operator_type="hyena_medium_conv"
+    ):
         super().__init__()
 
         # Create necessary submodules - use the mixer submodules like in the regular mixer fixture
@@ -174,7 +176,9 @@ def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operat
 
 
 @pytest.mark.skipif(importlib.util.find_spec("subquadratic_ops") is None, reason="subquadratic_ops is not installed")
-def test_subquadratic_ops_kernel(mixer: MixerModuleWrapper, mixer_kernel: MixerModuleWrapper, config_type, operator_type):
+def test_subquadratic_ops_kernel(
+    mixer: MixerModuleWrapper, mixer_kernel: MixerModuleWrapper, config_type, operator_type
+):
     # Skip bf16 with short convolution due to numerical instability
     if mixer.mixer.transformer_config.params_dtype == torch.bfloat16 and operator_type == "hyena_short_conv":
         pytest.skip("bf16 with short convolution is skipped due to numerical instability")

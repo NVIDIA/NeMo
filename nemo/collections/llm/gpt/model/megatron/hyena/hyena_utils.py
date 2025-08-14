@@ -1194,7 +1194,9 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         if self.use_fast_causal_conv and not self.use_subquadratic_ops:
             assert causal_conv1d_fn is not None, "custom causal conv not installed"
             weight_shape = [self.num_groups, kernel_size]
-        elif self.use_fast_causal_conv and self.use_subquadratic_ops:  # hyena_proj_conv of LI layer when subquadratic_ops is enabled
+        elif (
+            self.use_fast_causal_conv and self.use_subquadratic_ops
+        ):  # hyena_proj_conv of LI layer when subquadratic_ops is enabled
             weight_shape = [self.num_groups, kernel_size]
         # use torch
         else:
@@ -1267,7 +1269,9 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         if self.use_fast_causal_conv:  # hyena_proj_conv case
             if self.use_subquadratic_ops and _use_cp:  # hyena_proj_conv of LI layer when subquadratic_ops is enabled
                 y = causal_conv1d(x, weight)[..., pad_size:]
-            elif self.use_subquadratic_ops and not _use_cp:  # hyena_proj_conv of LI layer when subquadratic_ops is enabled
+            elif (
+                self.use_subquadratic_ops and not _use_cp
+            ):  # hyena_proj_conv of LI layer when subquadratic_ops is enabled
                 y = causal_conv1d(x[..., pad_size:], weight)  # drop padding handling for subquadratic_ops with no CP
             else:
                 y = causal_conv1d_fn(x, weight, bias=None, activation=None)[..., pad_size:]

@@ -443,7 +443,9 @@ def test_fftconv_func_use_subquadratic_ops_not_supported(mock_is_fused_supported
     D = torch.randn(hidden_size)
     dropout_mask = torch.ones(batch_size, hidden_size)
 
-    with pytest.raises(ValueError, match="subquadratic_ops FFT causal convolution is not supported for this filter length."):
+    with pytest.raises(
+        ValueError, match="subquadratic_ops FFT causal convolution is not supported for this filter length."
+    ):
         fftconv_func(u, k, D, dropout_mask, gelu=True, bidirectional=False, use_subquadratic_ops=True)
 
 
@@ -463,7 +465,9 @@ class TestFallbackFunctions:
     def test_b2b_causal_conv1d_fallback(self, mock_b2b_causal_conv1d):
         """Test that the fallback b2b_causal_conv1d function raises ImportError."""
         # Mock the function to raise ImportError
-        mock_b2b_causal_conv1d.side_effect = ImportError("subquadratic_ops not installed. b2b_causal_conv1d is not available.")
+        mock_b2b_causal_conv1d.side_effect = ImportError(
+            "subquadratic_ops not installed. b2b_causal_conv1d is not available."
+        )
 
         with pytest.raises(ImportError, match="subquadratic_ops not installed. b2b_causal_conv1d is not available."):
             mock_b2b_causal_conv1d(torch.randn(1, 1, 1), torch.randn(1, 1), torch.randn(1, 1), torch.randn(1))
@@ -472,7 +476,9 @@ class TestFallbackFunctions:
     def test_fft_causal_conv1d_fallback(self, mock_fft_causal_conv1d):
         """Test that the fallback fft_causal_conv1d function raises ImportError."""
         # Mock the function to raise ImportError
-        mock_fft_causal_conv1d.side_effect = ImportError("subquadratic_ops not installed. fft_causal_conv1d is not available.")
+        mock_fft_causal_conv1d.side_effect = ImportError(
+            "subquadratic_ops not installed. fft_causal_conv1d is not available."
+        )
 
         with pytest.raises(ImportError, match="subquadratic_ops not installed. fft_causal_conv1d is not available."):
             mock_fft_causal_conv1d(torch.randn(1, 1, 1), torch.randn(1, 1))
