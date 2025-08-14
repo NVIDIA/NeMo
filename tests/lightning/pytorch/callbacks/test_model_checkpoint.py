@@ -124,6 +124,7 @@ class ExampleModel(pl.LightningModule, IOMixin):
                 class DummyConfig(ModelParallelConfig):
                     calculate_per_token_loss: bool = False
                     fp8: bool = False
+                    enable_cuda_graph: bool = False
 
                 self.config = DummyConfig()
 
