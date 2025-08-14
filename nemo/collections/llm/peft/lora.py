@@ -51,7 +51,8 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
-    def forward(self,
+    def forward(
+        self,
         x: torch.Tensor,
         *args,
         **kwargs,
@@ -116,9 +117,7 @@ if HAVE_TE_FUSED_LORA:
 
             # Check wrapped linear class
             if not isinstance(self.to_wrap, (te.Linear, te.LayerNormLinear, torch.nn.Linear)):
-                raise ValueError(
-                    f"Unsupported class for wrapped linear ({self.to_wrap.__class__.__name__})"
-                )
+                raise ValueError(f"Unsupported class for wrapped linear ({self.to_wrap.__class__.__name__})")
 
             # Ops in main branch
             main_branch = te.ops.Sequential()
@@ -205,9 +204,7 @@ if HAVE_TE_FUSED_LORA:
                 dropout_position = self.adapter.dropout_position
                 scale = self.adapter.alpha / self.adapter.dim
             else:
-                raise ValueError(
-                    f"Unsupported class for LoRA adapter ({self.adapter.__class__.__name__})"
-                )
+                raise ValueError(f"Unsupported class for LoRA adapter ({self.adapter.__class__.__name__})")
 
             # Ops in LoRA branch
             lora_branch = te.ops.Sequential()
