@@ -20,6 +20,7 @@ import collections.abc
 import functools
 import inspect
 import itertools
+import operator
 import queue
 import types
 from collections import defaultdict
@@ -52,7 +53,17 @@ from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
-from megatron.core.full_cuda_graph import FullCudaGraphWrapper
+
+from nemo.utils.model_utils import check_lib_version
+
+result, msg = check_lib_version("megatron.core", "0.14.0", operator.ge)
+if result:
+    from megatron.core.full_cuda_graph import FullCudaGraphWrapper
+
+    HAVE_FULL_CUDA_GRAPH = True
+else:
+    HAVE_FULL_CUDA_GRAPH = False
+
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
@@ -1392,7 +1403,13 @@ class MegatronStep(Generic[ModelT, DataT]):
             and config.enable_cuda_graph
             and config.cuda_graph_scope == "full_iteration"
         ):
-            return FullCudaGraphWrapper(get_forward_backward_func())
+            if HAVE_FULL_CUDA_GRAPH:
+                return FullCudaGraphWrapper(get_forward_backward_func())
+            else:
+                raise ImportError(
+                    f"FullCudaGraphWrapper is not available in this version of megatron.core ({msg}). "
+                    "Please upgrade megatron.core to >= 0.14.0 to use full iteration CUDA graphs."
+                )
         return get_forward_backward_func()
 
     @property
