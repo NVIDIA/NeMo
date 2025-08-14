@@ -78,6 +78,8 @@ class AutoConfigurator:
                 or a list, such as [1, 2, 4, 8].
             pipeline_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
                 or a list, such as [1, 2, 4, 8].
+            virtual_pipeline_model_parallel_sizes (Optional[List[int]]): virtual pipeline parallelism sizes to test.
+                A list, such as [1, 2, 4, 8], or None to disable virtual pipeline parallelism.
             micro_batch_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
                 or a list, such as [1, 2, 4, 8].
             global_batch_sizes (Optional[List[int]]): A list, such as [512]
