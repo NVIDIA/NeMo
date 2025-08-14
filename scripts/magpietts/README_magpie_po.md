@@ -150,6 +150,7 @@ To train with GRPO, we use a similar training command as the base model training
 +model.num_generations_per_item=12 \ # 12 samples generated for each item and we compute reward for each
 +model.reference_free=true \ # Reference free means we dont use KL loss term. Only optimize for rewards
 +model.inference_cfg_prob=0.0 \ # fraction of generations generated using CFG. Can set > 0.0 if we want to optimize for both CFG and non CFG modes of generation
++model.use_local_transformer_prob=0.5 \ # fraction of generations generated using Local Transformer. Set it between 0.0 and 1.0 to improve both LT outputs and non LT outputs for models with an LT
 +model.inference_cfg_scale=2.5 \ # CFG scale for samples generated using CFG
 +model.cer_reward_weight=0.33 \ # weightage of CER reward in the overall reward
 +model.ssim_reward_weight=0.33 \ # weightage of SSIM reward in the overall reward

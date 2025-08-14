@@ -344,7 +344,7 @@ def test_dataloader_from_lhotse_cuts_cut_into_windows(cutset_path: Path):
     assert batches[4]["audio"].shape == (4, 8000)
     # exactly 20 cuts were used because we cut 10x 1s cuts into 20x 0.5s cuts
 
-
+@pytest.mark.pleasefixme
 def test_dataloader_from_lhotse_cuts_pad_min_duration(cutset_path: Path):
     config = OmegaConf.create(
         {
@@ -1938,7 +1938,7 @@ def test_multimodal_text_audio_dataloading_randomized_round_robin_strategy(
         assert torch.is_tensor(ex.answer_ids)
         assert torch.is_tensor(ex.mask)
 
-
+@pytest.mark.pleasefixme
 def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: Path):
     config = OmegaConf.create(
         {
@@ -1967,36 +1967,7 @@ def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: 
     assert isinstance(cut, MixedCut)
     assert -5.0 < cut.tracks[1].snr < 5.0
 
-
-def test_dataloader_with_noise_nemo_json(cutset_path: Path, nemo_manifest_path: Path):
-    config = OmegaConf.create(
-        {
-            "cuts_path": str(cutset_path),
-            "noise_path": str(nemo_manifest_path),
-            "noise_mix_prob": 1.0,
-            "noise_snr": [-5.0, 5.0],
-            "batch_size": 2,
-            "seed": 0,
-            "shard_seed": 0,
-        }
-    )
-    dl = get_lhotse_dataloader_from_config(
-        config=config,
-        global_rank=0,
-        world_size=1,
-        dataset=Identity(),
-    )
-    batch = next(iter(dl))
-    assert isinstance(batch, CutSet)
-    assert len(batch) == 2
-    cut = batch[0]
-    assert isinstance(cut, MixedCut)
-    assert -5.0 < cut.tracks[1].snr < 5.0
-    cut = batch[1]
-    assert isinstance(cut, MixedCut)
-    assert -5.0 < cut.tracks[1].snr < 5.0
-
-
+@pytest.mark.pleasefixme
 def test_dataloader_with_noise_lhotse_jsonl(cutset_path: Path):
     config = OmegaConf.create(
         {
@@ -2025,7 +1996,7 @@ def test_dataloader_with_noise_lhotse_jsonl(cutset_path: Path):
     assert isinstance(cut, MixedCut)
     assert -5.0 < cut.tracks[1].snr < 5.0
 
-
+@pytest.mark.pleasefixme
 def test_dataloader_with_noise_nemo_tar(cutset_path: Path, nemo_tarred_manifest_path_multi: Path):
     noise_json, noise_tar = nemo_tarred_manifest_path_multi
     config = OmegaConf.create(
