@@ -197,7 +197,7 @@ class IOMixin:
                 from nemo.lightning.one_logger_callback import hook_class_init_with_callbacks
 
                 hook_class_init_with_callbacks(cls, "on_dataloader_init_start", "on_dataloader_init_end")
-        except (ImportError, AttributeError, Exception) as e:
+        except (ImportError, AttributeError, Exception):
             # Continue gracefully if OneLogger hooks cannot be applied
             pass
         finally:
