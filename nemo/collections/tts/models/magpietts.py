@@ -49,7 +49,9 @@ def worker_init_fn(worker_id):
     worker_info = get_worker_info()
     dataset = worker_info.dataset  # Get the dataset instance in this worker
     tokenizer, text_conditioning_tokenizer = setup_tokenizers(
-        dataset.tokenizer_config, dataset.use_text_conditioning_tokenizer, mode=dataset.dataset_type
+        dataset.tokenizer_config, dataset.use_text_conditioning_tokenizer, 
+        text_conditioning_tokenizer_name=dataset.text_conditioning_tokenizer_name,
+        mode=dataset.dataset_type
     )
     dataset.text_tokenizer = tokenizer
     dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
@@ -112,12 +114,16 @@ class MagpieTTSModel(ModelPT):
                 del cfg['text_tokenizer']
 
         self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
+        # Using google-t5/t5-small as default text conditioning tokenizer for backward compatibility.
+        self.text_conditioning_tokenizer_name = cfg.get('text_conditioning_tokenizer_name', "google-t5/t5-small")
+        
         # TODO @xueyang: both tokenizers are only used to get some token ids. We
         # should kill them to save a small amount of mem resources since dataloader will initialize them
         # again after the worker processes are spawned.
         self.tokenizer, self.text_conditioning_tokenizer = setup_tokenizers(
             all_tokenizers_config=cfg.text_tokenizers,
             use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
+            text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
             mode='train',
         )
 
@@ -1506,8 +1512,8 @@ class MagpieTTSModel(ModelPT):
 
         for bidx in finished_texts_counter:
             finished_texts_counter[bidx] += 1
-            if finished_texts_counter[bidx] > 10:
-                # This means we have been within the text EOS window for atleast 10 timesteps
+            if finished_texts_counter[bidx] > 5:
+                # This means we have been within the text EOS window for atleast 5 timesteps
                 # We should allow EOS to be predicted now.
                 unfinished_texts[bidx] = False
 
@@ -1871,6 +1877,7 @@ class MagpieTTSModel(ModelPT):
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=dataset_type,  # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
             use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
+            text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
             pad_context_text_to_max_duration=self.pad_context_text_to_max_duration,
             context_duration_min=self.cfg.context_duration_min,
             context_duration_max=self.cfg.context_duration_max,
@@ -1901,6 +1908,7 @@ class MagpieTTSModel(ModelPT):
             context_duration_min=self.cfg.context_duration_min,
             context_duration_max=self.cfg.context_duration_max,
             use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
+            text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
             tokenizer_config=self.cfg.text_tokenizers,
         )
         data_loader = get_lhotse_dataloader_from_config(
@@ -1934,6 +1942,7 @@ class MagpieTTSModel(ModelPT):
                 dataset.text_tokenizer, dataset.text_conditioning_tokenizer = setup_tokenizers(
                     all_tokenizers_config=self.cfg.text_tokenizers,
                     use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
+                    text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
                     mode='train',
                 )
             self._train_dl = torch.utils.data.DataLoader(
@@ -1963,6 +1972,7 @@ class MagpieTTSModel(ModelPT):
                 dataset.text_tokenizer, dataset.text_conditioning_tokenizer = setup_tokenizers(
                     all_tokenizers_config=self.cfg.text_tokenizers,
                     use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
+                    text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
                     mode='test'
                 )
 

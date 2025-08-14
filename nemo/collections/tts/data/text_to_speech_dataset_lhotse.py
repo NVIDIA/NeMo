@@ -33,7 +33,7 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
 from nemo.utils import logging
 
 
-def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, mode='train'):
+def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, text_conditioning_tokenizer_name, mode='train'):
     # Being used in both model and worker_init_fn, so it is defined here
     # Returns two tokenizers: one for TTS transcript and one for conditioning text (if needed)
     tokenizers = []
@@ -57,9 +57,23 @@ def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, mod
     text_conditioning_tokenizer = None
 
     if use_text_conditioning_tokenizer:
-        # TODO: make this configurable
         # Conditioning text tokenizer
-        text_conditioning_tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-small")
+        if text_conditioning_tokenizer_name is None:
+            # If no specific tokenizer is provided, use the first one as default
+            text_conditioning_tokenizer = tokenizers[0]  # Use the first tokenizer as default
+        elif text_conditioning_tokenizer_name == 'google-t5/t5-small':
+            # For backward compatibility with T5Tokenizer
+            text_conditioning_tokenizer = T5Tokenizer.from_pretrained(text_conditioning_tokenizer_name)
+        else:
+            # For any other tokenizer, use AutoTokenizer
+            text_conditioning_tokenizer = AutoTokenizer.from_pretrained(text_conditioning_tokenizer_name)
+        
+        # Make text_conditioning_tokenizer an AggregatedTTSTokenizer to use the same interface as text_tokenizer
+        text_conditioning_tokenizer = AggregatedTTSTokenizer(
+            [text_conditioning_tokenizer],
+            ["tc_tokenizer"],
+            limit_to_vocab_size=True,  # Limit to the HF tokenizer's vocab size
+        )
 
     return aggregated_tokenizer, text_conditioning_tokenizer
 
@@ -149,6 +163,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         context_duration_min: float = 3.0,
         context_duration_max: float = 10.0,
         use_text_conditioning_tokenizer: bool = False,
+        text_conditioning_tokenizer_name: str = None,
         tokenizer_config: DictConfig = None,
     ):
         super().__init__()
@@ -168,6 +183,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         self.dataset_type = dataset_type  # 'train' or 'test'
         self.load_16khz_audio = load_16khz_audio
         self.use_text_conditioning_tokenizer = use_text_conditioning_tokenizer
+        self.text_conditioning_tokenizer_name = text_conditioning_tokenizer_name
         self.pad_context_text_to_max_duration = pad_context_text_to_max_duration
         self.context_duration_min = context_duration_min
         self.context_duration_max = context_duration_max
@@ -195,6 +211,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
             self.text_tokenizer, self.text_conditioning_tokenizer = setup_tokenizers(
                 all_tokenizers_config=self.tokenizer_config,
                 use_text_conditioning_tokenizer=self.use_text_conditioning_tokenizer,
+                text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
                 mode=self.dataset_type,
             )
             self.bos_id = len(self.text_tokenizer.tokens)
@@ -368,17 +385,17 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
 
             if self.use_text_conditioning_tokenizer:
                 if cut.supervisions[0].has_custom("context_text"):
-                    context_text_tokens = self.text_conditioning_tokenizer(cut.supervisions[0].context_text)['input_ids']
+                    context_text_tokens = self.text_conditioning_tokenizer.encode(cut.supervisions[0].context_text)
                     has_text_context = True
                 else:
-                    context_text_tokens = self.text_conditioning_tokenizer("[NO TEXT CONTEXT]")['input_ids']
+                    context_text_tokens = self.text_conditioning_tokenizer.encode("[NO TEXT CONTEXT]")
                     has_text_context = False
                 if self.pad_context_text_to_max_duration:
                     _required_len = (
                         int(self.context_duration_max * self.sample_rate / self.codec_model_samples_per_frame) + 2
                     )  # +2 for BOS and EOS
                     if len(context_text_tokens) < _required_len:
-                        _pad_id = self.text_conditioning_tokenizer.pad_token_id
+                        _pad_id = self.text_conditioning_tokenizer.pad
                         context_text_tokens += [_pad_id] * (_required_len - len(context_text_tokens))
                     else:
                         # TODO @xueyang: It seems counter intuition if trimming the text context tokens to the required
@@ -454,7 +471,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
 
         if self.use_text_conditioning_tokenizer:
             batch_dict['context_text_tokens'] = collate_vectors(
-                tensors=context_text_tokens_list, padding_value=self.text_conditioning_tokenizer.pad_token_id
+                tensors=context_text_tokens_list, padding_value=self.text_conditioning_tokenizer.pad
             )
             batch_dict['context_text_tokens_lens'] = torch.IntTensor(context_text_tokens_len_list)
             batch_dict['has_text_context'] = torch.BoolTensor(context_has_text_context_list)
