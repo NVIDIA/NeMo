@@ -62,7 +62,7 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
     pp_size = getattr(recipe.trainer.strategy, 'pipeline_model_parallel_size', 1)
     cp_size = getattr(recipe.trainer.strategy, 'context_parallel_size', 1)
     vp_size = getattr(recipe.trainer.strategy, 'virtual_pipeline_model_parallel_size', 1)
-    ep_size = getattr(recipe.trainer.strategy, 'expert_model_parallel_size', 1),
+    ep_size = (getattr(recipe.trainer.strategy, 'expert_model_parallel_size', 1),)
     if vp_size is None:
         vp_size = 1
 
