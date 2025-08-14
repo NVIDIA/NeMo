@@ -158,6 +158,7 @@ def nemotron_h_bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixed
     cfg.fp8_param_gather = True
     return cfg
 
+
 def nanov2_bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     """Create a MegatronMixedPrecision plugin configuration for mixed precision training using BF16 with FP8
     per-tensor current scaling.
@@ -177,6 +178,7 @@ def nanov2_bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrec
     cfg.num_layers_at_end_in_bf16 = 2
     cfg.fp8_param_gather = True
     return cfg
+
 
 def fp16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     """Create a MegatronMixedPrecision plugin configuration for mixed precision training using FP16 with FP8
