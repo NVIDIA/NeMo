@@ -178,7 +178,7 @@ def get_results(
                 mbs=mbs,
                 vp=vp,
                 seq_length=seq_length,
-                global_batch_size=gbs,
+                gbs=gbs,
             )
 
             result.append(
@@ -409,7 +409,7 @@ def create_descriptive_model_name(
     mbs: int,
     vp: str,
     seq_length: int,
-    global_batch_size: int,
+    gbs: int,
 ) -> str:
     """
     Create a descriptive model name from configuration parameters.
@@ -421,7 +421,7 @@ def create_descriptive_model_name(
         tp, pp, cp, ep, mbs: Parallelism parameters (integers)
         vp: Virtual pipeline parameter (string)
         seq_length: Sequence length
-        global_batch_size: Global batch size
+        gbs: Global batch size
 
     Returns:
         str: Descriptive model name
@@ -440,7 +440,7 @@ def create_descriptive_model_name(
         f"mbs_{mbs}_"
         f"vp_{vp_str}_"
         f"seq_{seq_length}_"
-        f"gbs_{global_batch_size}"
+        f"gbs_{gbs}"
     )
 
     return descriptive_name
