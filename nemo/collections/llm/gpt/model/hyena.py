@@ -239,7 +239,8 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     # Use this if you want to turn FP8 on for the linear layer in the mixer only. When using this, do not set
     #  Fp8 in the mixed precision plugin.
     vortex_style_fp8: bool = False
-    use_b2b_causal_conv1d: bool = False
+    use_cuhyena: bool = False
+    share_embeddings_and_output_weights: bool = True
 
     def __post_init__(self):
         """
@@ -280,7 +281,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
-            share_embeddings_and_output_weights=True,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
             hyena_init_method=self.hyena_init_method,
             hyena_output_layer_init_method=self.hyena_output_layer_init_method,
             remove_activation_post_first_layer=self.remove_activation_post_first_layer,
@@ -321,7 +322,7 @@ class HyenaTestConfig(HyenaConfig):
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
     use_short_conv_bias: bool = False
-    use_b2b_causal_conv1d: bool = False
+    use_cuhyena: bool = False
 
 
 @dataclass

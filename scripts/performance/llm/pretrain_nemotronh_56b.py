@@ -18,12 +18,18 @@ import nemo_run as run
 
 from nemo.collections.llm.recipes.nemotronh_56b import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
-from ..utils import hf_tokenizer
+from ..helpers import (
+    args_sanity_check,
+    build_perf_env_plugin,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+)
+from ..utils import dump_config_diff_from_base_recipe, hf_tokenizer
 
 
 def override_recipe_configs(
@@ -142,13 +148,8 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        )
-    ]
+    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
+
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
 
@@ -164,3 +165,14 @@ if __name__ == "__main__":
             exp.run(sequential=True, detach=True)
         else:
             exp.dryrun()
+
+    if args.dump_config_diff_from_base_recipe:
+        output_dir = exp.jobs[0].executor.job_dir
+        # dump difference from base recipe
+        base_recipe = pretrain_recipe(performance_mode=False)
+        file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)
+        # dump difference from default perf recipe
+        default_perf_recipe = pretrain_recipe(performance_mode=True)
+        file_name = f"diff_from_default_perf_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(default_perf_recipe, recipe, output_dir, file_name=file_name)
