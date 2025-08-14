@@ -30,10 +30,9 @@ class AEDStreamingState:
     decoding_step: int = -1  # current decoding step
     decoder_mems_list: list = None  # decoder caches, helps to reduce the memory usage
     is_last_chunk_batch: torch.Tensor = False  # whether the current chunk is the last speech chunk in the audio
-    max_generation_length: int = 512  # maximum number of tokens to be generated for each sample
-    max_tokens_per_alignatt_step: int = (
-        30  # maximum number of tokens to be generated for each step of alignatt decoding policy (before the last speech chunk)
-    )
+    max_generation_length: int = 512  # maximum number of tokens to be generated for each sample (can be bigger for long audio)
+    max_tokens_per_one_second: int = 10 # maximum number of tokens to be generated per one second of audio
+    max_tokens_per_alignatt_step: int = None # maximum number of tokens to be generated for each step of alignatt decoding policy
     use_avgpool_for_alignatt: bool = True # use avgpooling for alignatt decoding policy
     tokens_frame_alignment: torch.Tensor = None  # frame alignment of the predicted tokens (used for LAAL calculation in alignatt)
     prev_encoder_shift: int = 0  # previous encoder shift (used for LAAL calculation in alignatt)
@@ -89,7 +88,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
         # if encoded_speech.size(-2) // self.frame_chunk_size < self.decoding_cfg.waitk_lagging and torch.any(
         #     torch.logical_not(self.state.is_last_chunk_batch)
         # ):
-        if encoder_output_len.min() // self.frame_chunk_size < self.decoding_cfg.waitk_lagging and torch.any(
+        if encoder_output_len.max() // self.frame_chunk_size < self.decoding_cfg.waitk_lagging and torch.any(
             torch.logical_not(self.state.is_last_chunk_batch)
         ):
             # need to wait for more speech
@@ -387,11 +386,12 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     self.state.batch_idxs, self.state.current_context_lengths - 1
                 ].unsqueeze(-1)
 
-                # limit number of steps per inner loop if not end of speech
-                self.state.steps_per_inner_loop += self.state.active_samples_inner_loop
-                disable_samples_mask = self.state.steps_per_inner_loop == self.state.max_tokens_per_alignatt_step
-                disable_samples_mask *= torch.logical_not(self.state.is_last_chunk_batch)
-                self.state.active_samples_inner_loop *= torch.logical_not(disable_samples_mask)
+                # # limit number of steps per inner loop if not end of speech
+                # if self.state.max_tokens_per_alignatt_step is not None:
+                #     self.state.steps_per_inner_loop += self.state.active_samples_inner_loop
+                #     disable_samples_mask = self.state.steps_per_inner_loop >= self.state.max_tokens_per_alignatt_step
+                #     disable_samples_mask *= torch.logical_not(self.state.is_last_chunk_batch)
+                #     self.state.active_samples_inner_loop *= torch.logical_not(disable_samples_mask)
 
                 if self.debug_mode:
                     logging.info(f"-------------" * 5)

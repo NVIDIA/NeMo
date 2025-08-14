@@ -13,24 +13,20 @@
 # limitations under the License.
 
 """
-Script to perform buffered and streaming inference using AED (Canary) models.
+Script to perform streaming inference using AED (Canary) models.
+The current solution supports Wait-k and AlignAtt streaming decoding policies. 
 
-Long audio recognition is supported only for alignatt streaming decoding policy.
+Wait-k policy predicts only one token per each new speech chunk that increases the overall latency.
+In this case, it is unclear at what point you can forget part of the left context when recognizing with a limited buffer size.
+It is recommended to set the left context to the maximum possible value (infinite left context) for the Wait-k policy.
 
-Buffered inference is the primary form of audio transcription when the audio segment is longer than 20-30 seconds.
-Also, this is a demonstration of the algorithm that can be used for streaming inference with low latency.
-This is especially useful for models such as Conformers, which have quadratic time and memory scaling with
-audio duration.
+AlignAtt policy predicts tokens according to the cross-attention condition.
+If the condition is met, then the audio size does not need to be increased, and the prediction of the next token continues.
+Otherwise, the audio buffer size needs to be increased. This policy shows lower latency in comparison with Wait-k.
+This policy is also suitable for window recognition (left context is fixed and not infinite), but you can lose accuracy in this case.
 
-The difference between streaming and buffered inference is the chunk size (or the latency of inference).
-Buffered inference will use large chunk sizes (5-10 seconds) + some additional right for context.
-Streaming inference will use small chunk sizes (0.1 to 0.25 seconds) + some additional right buffer for context.
-Theoretical latency (latency without model inference time) is the sum of the chunk size and the right context.
-Keeping large left context (~10s) is not required, but can improve the quality of transcriptions.
-
-Recommended settings:
-- long file transcription: in most cases 10-10-5 (10s left, 10s chunk, 5s right) will give results similar to offline
-- streaming with 4s latency: 10-2-2 is usually similar or better than 10-0.16-3.84 and significantly faster
+Recommended settings for audio buffer:
+- streaming with 3s latency: 10-2-1 (10s left, 2s chunk, 1s right)
 
 Example usage:
 
@@ -42,8 +38,8 @@ python speech_to_text_aed_streaming_infer.py \
     audio_dir="<optional path to folder of audio files>" \
     dataset_manifest="<optional path to manifest>" \
     output_filename="<optional output filename>" \
-    right_context_secs=2.0 \
-    chunk_secs=2 \
+    right_context_secs=1.0 \
+    chunk_secs=2.0 \
     left_context_secs=10.0 \
     batch_size=32 \
     clean_groundtruth_text=False \
@@ -61,7 +57,7 @@ from typing import Optional
 
 import lightning.pytorch as pl
 import torch
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 import tempfile
@@ -189,6 +185,7 @@ def obtain_data_prompt(cfg, asr_model) -> torch.Tensor:
 
 
 def initialize_aed_model_state(
+    cfg,
     asr_model,
     decoder_input_ids: torch.Tensor,
     batch_size: int,
@@ -230,6 +227,8 @@ def initialize_aed_model_state(
     )
     model_state.avgpool2d = torch.nn.AvgPool2d(5, stride=1, padding=2, count_include_pad=False)
     model_state.batch_size = batch_size
+    model_state.max_tokens_per_alignatt_step = model_state.max_tokens_per_one_second * int(cfg.chunk_secs + cfg.right_context_secs)
+    # import ipdb; ipdb.set_trace()
     
     return model_state
 
@@ -352,6 +351,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.preprocessor.featurizer.pad_to = 0
     asr_model.eval()
 
+    # import ipdb; ipdb.set_trace()
+
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
 
     feature_stride_sec = model_cfg.preprocessor['window_stride']
@@ -420,6 +421,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
             # initialize aed model state
             model_state = initialize_aed_model_state(
+                cfg=cfg,
                 asr_model=asr_model,
                 decoder_input_ids=decoder_input_ids,
                 batch_size=batch_size,
