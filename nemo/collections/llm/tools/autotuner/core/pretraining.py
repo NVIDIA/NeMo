@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
 import nemo_run as run
@@ -31,7 +29,7 @@ def lepton_executor(
     nodes: int,
     devices: int,
     resource_shape: str = "gpu.8xh200",
-    container_image: str = "nvcr.io/nvidia/nemo:25.02",
+    container_image: str = "nvcr.io/nvidia/nemo:25.04",
     nemo_run_dir: str = "/nemo-workspace/nemo-run",
     mount_path: str = "/nemo-workspace",
     mount_from: str = "node-nfs:shared",

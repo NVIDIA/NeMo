@@ -69,7 +69,9 @@ def configure_tp_comm_overlap_intelligently(
 
     if compute_dtype.lower() == "fp8" and fp8_recipe and fp8_recipe.lower() == "mxfp8":
         logger.debug("Disabling TP overlap: FP8 with MXFP8 recipe")
-        return False, None
+        enable_tp_overlap = False
+        tp_comm_overlap_cfg = None
+        return enable_tp_overlap, tp_comm_overlap_cfg
 
     if all([gpu_type, hidden_size, seq_length, micro_batch_size]):
         logger.debug("Attempting to find exact user buffer match")
@@ -78,7 +80,9 @@ def configure_tp_comm_overlap_intelligently(
         )
         if user_buffer_cfg:
             logger.debug("Found exact user buffer match")
-            return True, user_buffer_cfg
+            enable_tp_overlap = True
+            tp_comm_overlap_cfg = user_buffer_cfg
+            return enable_tp_overlap, tp_comm_overlap_cfg
         else:
             logger.debug("No exact user buffer match found")
     else:
@@ -88,7 +92,9 @@ def configure_tp_comm_overlap_intelligently(
             f"seq_length={seq_length}, micro_batch_size={micro_batch_size}"
         )
     logger.debug("Using safe default: TP overlap enabled, no user buffers")
-    return True, None
+    enable_tp_overlap = True
+    tp_comm_overlap_cfg = None
+    return enable_tp_overlap, tp_comm_overlap_cfg
 
 
 def _find_exact_user_buffer_match(

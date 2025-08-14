@@ -15,23 +15,17 @@
 import json
 import logging
 import os
-import sys
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
 import nemo_run as run
 from rich.table import Table
-from scripts.performance.helpers import set_perf_optimization_configs, set_primary_perf_configs
-from scripts.performance.utils import get_comm_overlap_callback_idx
+from scripts.performance.helpers import set_primary_perf_configs
 
 from nemo.collections import llm
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs, get_results
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
-from nemo.collections.llm.tools.autotuner.core.display import (
-    _display_configs_table,
-    _display_memory_analysis,
-    display_performance_analysis,
-)
+from nemo.collections.llm.tools.autotuner.core.display import _display_configs_table
 from nemo.collections.llm.tools.autotuner.core.utils import (
     _load_args_from_config_dir,
     check_config_matches,
@@ -45,7 +39,6 @@ from nemo.collections.llm.tools.autotuner.core.utils import (
     update_args_with_generation_metadata,
     validate_all_configs,
 )
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.resume import AutoResume
 
 logger.setLevel(logging.INFO)
@@ -69,6 +62,7 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
     pp_size = getattr(recipe.trainer.strategy, 'pipeline_model_parallel_size', 1)
     cp_size = getattr(recipe.trainer.strategy, 'context_parallel_size', 1)
     vp_size = getattr(recipe.trainer.strategy, 'virtual_pipeline_model_parallel_size', 1)
+    ep_size = getattr(recipe.trainer.strategy, 'expert_model_parallel_size', 1),
     if vp_size is None:
         vp_size = 1
 
@@ -96,7 +90,7 @@ def set_performance_optimizations_aligned_with_nemo(recipe, args):
         pp_size=pp_size,
         cp_size=cp_size,
         vp_size=vp_size,
-        ep_size=getattr(recipe.trainer.strategy, 'expert_model_parallel_size', 1),
+        ep_size=ep_size,
         etp_size=getattr(recipe.trainer.strategy, 'expert_tensor_parallel_size', None),
         enable_cuda_graphs=False,  # Disabled for FSDP compatibility
         use_mcore_fsdp=False,  # Disabled for compatibility with NeMo
@@ -221,7 +215,6 @@ def estimate_model_memory_usage(
     num_layers = safe_getattr(model_config, 'num_layers', 32)
     hidden_size = safe_getattr(model_config, 'hidden_size', 4096)
     num_attention_heads = safe_getattr(model_config, 'num_attention_heads', 32)
-    num_query_groups = safe_getattr(model_config, 'num_query_groups', num_attention_heads)
     vocab_size = safe_getattr(model_config, 'vocab_size', 32000)
     ffn_hidden_size = safe_getattr(model_config, 'ffn_hidden_size', hidden_size * 4)
     num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
@@ -483,7 +476,6 @@ def check_cuda_oom_risk(
     ep_size = config_values.get('ep')
     micro_batch_size = config_values.get('mbs')
     seq_length = config_values.get('seq_length')
-    precision = config_values.get('precision')
     vp_size = config_values.get('vp')
     if vp_size is None or vp_size == 'None':
         vp_size = 1
