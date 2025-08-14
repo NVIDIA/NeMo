@@ -366,7 +366,9 @@ class MagpieTTSModel(ModelPT):
             # Add a timestep to begining and end of codes tensor
             bos_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), audio_bos_id, dtype=codes.dtype, device=codes.device
-            ) # TODO @rfejgin: not tested with frame stacking factor > 1
+            )
+            # pad at the end to make room for the EOS token; the EOS token's actual position 
+            # varies per batch element depending on each element's length.
             pad_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), 0, dtype=codes.dtype, device=codes.device
             )  # 0 is the padding token in the audio codebook
@@ -1272,18 +1274,21 @@ class MagpieTTSModel(ModelPT):
             audio_codes_lens = batch['audio_codes_lens']
         if self.frame_stacking_factor > 1:
             # repeat the BOS token to frame_stacking_factor times. This is necessary since at inference
-            # we need to start autoregressive generatino from a full frame stack indicating BOS.
+            # we need to start autoregressive generation from a full stack indicating BOS.
             # TODO: @rfejgin: this assert might be slow due to GPU/CPU sync
             assert (audio_codes[:,:,0] == self.audio_bos_id).all(), "Audio codes do not start with BOS token"
             audio_codes = torch.cat([torch.full((audio_codes.size(0), audio_codes.size(1), self.frame_stacking_factor - 1), self.audio_bos_id, device=audio_codes.device, dtype=audio_codes.dtype), audio_codes], dim=2)
             audio_codes_lens += self.frame_stacking_factor - 1 # account for BOS repeat
             audio_codes = self.pad_audio_codes(audio_codes, self.frame_stacking_factor, pad_token=0)
         # Note: if a tensor lacks the `_unstacked` suffix, it can be assumed to to be in the frame-stacked domain
+        
+        # drop last (stacked) frame since it is not part of *input*
         audio_codes_input_unstacked = audio_codes[:, :, :-self.frame_stacking_factor]  # B, C, T'
-        audio_codes_target_unstacked = audio_codes[:, :, self.frame_stacking_factor:] # drop BOS
-        audio_codes_lens_input_unstacked =  audio_codes_lens - self.frame_stacking_factor
-        audio_codes_lens_target_unstacked = audio_codes_lens_input_unstacked
-        audio_codes_lens_input = torch.ceil(audio_codes_lens_input_unstacked / self.frame_stacking_factor).long()
+        # drop first (stacked) frame which contains BOS token(s) which are not part of *target*
+        audio_codes_target_unstacked = audio_codes[:, :, self.frame_stacking_factor:] 
+        audio_codes_lens_input_unstacked =  audio_codes_lens - 1  # don't count EOS for input
+        audio_codes_lens_target_unstacked = audio_codes_lens - self.frame_stacking_factor # don't count BOS for target
+        audio_codes_lens_input = torch.floor(audio_codes_lens_input_unstacked / self.frame_stacking_factor).long()
         audio_codes_embedded_all = self.embed_audio_tokens(audio_codes, frame_stacking_factor=self.frame_stacking_factor) # (B, T, E) # Computing this to be use in the alignment encoder
         audio_codes_embedded = audio_codes_embedded_all[:, :-1, :] # (B, T', E) Input to the decoder; this is already in the frame-stacked domain, hence the -1 (not `frame_stacking_factor`)
 
@@ -1390,7 +1395,9 @@ class MagpieTTSModel(ModelPT):
 
         # Codebook loss (parallel)
         codebook_loss, loss_mask = self.compute_loss(
-            logits, audio_codes_target_unstacked, audio_codes_lens_input_unstacked, frame_stacking_factor=self.frame_stacking_factor
+            logits, audio_codes_target_unstacked,
+            audio_codes_lens_target_unstacked,
+            frame_stacking_factor=self.frame_stacking_factor
         )
         # Alignment loss
         alignment_loss = None
