@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os.path import basename, splitext
 import os
+from os.path import basename, splitext
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
