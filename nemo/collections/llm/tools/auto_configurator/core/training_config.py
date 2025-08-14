@@ -14,13 +14,10 @@
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
-from nemo.collections.llm.tools.auto_configurator.core.performance_utils import (
-    apply_per_config_tp_comm_overlap_optimization,
-    configure_tp_comm_overlap_intelligently,
-)
+from nemo.collections.llm.tools.auto_configurator.core.performance_utils import apply_per_config_tp_comm_overlap_optimization
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -81,7 +78,6 @@ def generate_grid_search_configs(base_cfg: dict, train_cfg: dict, resource_shape
         for pp in params.pp:
             for cp in params.cp:
                 for ep in params.ep:
-                    num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
                     att_heads = base_cfg.model.config.num_attention_heads
                     num_layers = base_cfg.model.config.num_layers
                     model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
