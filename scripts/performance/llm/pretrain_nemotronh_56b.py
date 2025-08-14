@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os.path import basename, splitext
 import os
+from os.path import basename, splitext
 
 import nemo_run as run
 
