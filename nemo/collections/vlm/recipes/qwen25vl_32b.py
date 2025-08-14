@@ -49,7 +49,7 @@ def model() -> run.Config[pl.LightningModule]:
             $ nemo llm finetune model=qwen25vl_32b ...
 
         Python API usage:
-            >>> model_config = model() 
+            >>> model_config = model()
             >>> print(model_config)
     """
 
