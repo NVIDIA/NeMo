@@ -707,10 +707,10 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
             model_path = local_model_path if local_model_path else "nvidia/Nemotron-H-56B-Base-8K"
             hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
         elif type(source) == NemotronNano9Bv2:
-            model_path = local_model_path if local_model_path else "nvidia/NVIDIA-Nemotron-Nano-9B-v2"
+            model_path = local_model_path if local_model_path else "nvidia/NVIDIA-Nemotron-Nano-9B-v2-Base"
             hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
         elif type(source) == NemotronNano12Bv2:
-            model_path = local_model_path if local_model_path else "nvidia/NVIDIA-Nemotron-Nano-12B-v2-Base-BF16"
+            model_path = local_model_path if local_model_path else "nvidia/NVIDIA-Nemotron-Nano-12B-v2-Base"
             hf_config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
         else:
             raise ValueError(f"Unsupported model size: {source}")
