@@ -326,11 +326,11 @@ def set_full_iteration_cuda_graph_configs(recipe, pp_size: int | None, vp_size: 
                 logging.warning("For full iteration CUDA graphs, disabling batch_p2p_comm would improve memory usage")
 
         if vp_size and vp_size > 1:
-            if callback.overlap_param_gather != False:
-                callback.overlap_param_gather = False
-                cuda_graph_configs.append("overlap_param_gather=False")
+            if callback.overlap_param_gather_with_optimizer_step != False:
+                callback.overlap_param_gather_with_optimizer_step = False
+                cuda_graph_configs.append("overlap_param_gather_with_optimizer_step=False")
                 logging.warning(
-                    "For full iteration CUDA graphs, disabling overlap_param_gather would improve memory usage"
+                    "For full iteration CUDA graphs, we need to disable overlap_param_gather_with_optimizer_step"
                 )
     else:
         logging.warning("MegatronCommOverlapCallback not found in recipe.trainer.callbacks")
