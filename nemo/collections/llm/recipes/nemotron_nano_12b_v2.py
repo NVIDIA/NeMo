@@ -84,7 +84,7 @@ def model(vocab_file: str = None) -> run.Config[pl.LightningModule]:
 @run.cli.factory(target=finetune, name=NAME)
 def trainer(
     dir: str = None,
-    tensor_parallelism: int = 2,
+    tensor_parallelism: int = 4,
     pipeline_parallelism: int = 1,
     pipeline_parallelism_type: torch.dtype = torch.bfloat16,
     virtual_pipeline_parallelism: Optional[int] = None,
@@ -151,11 +151,6 @@ def trainer(
     callbacks = [
         run.Config(TimingCallback),
         run.Config(
-            MegatronCommOverlapCallback,
-            tp_comm_bootstrap_backend="nccl",
-            tp_comm_overlap=True,
-        ),
-        run.Config(
             ModelCheckpoint,
             every_n_train_steps=val_check_interval,
             dirpath=dir,
@@ -192,7 +187,7 @@ def pretrain_recipe(
     vocab_file: str = None,
     num_nodes: int = 8,
     num_gpus_per_node: int = 8,
-    tensor_parallelism: int = 2,
+    tensor_parallelism: int = 4,
     sequence_parallelism: bool = True,
     pipeline_parallelism: int = 1,
     max_steps: int = 10,
@@ -268,7 +263,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 8,
     num_gpus_per_node: int = 8,
-    tensor_parallelism: int = 2,
+    tensor_parallelism: int = 4,
     sequence_parallelism: bool = True,
     pipeline_parallelism: int = 1,
     seq_length: int = 8192,
