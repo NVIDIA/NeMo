@@ -386,12 +386,12 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     self.state.batch_idxs, self.state.current_context_lengths - 1
                 ].unsqueeze(-1)
 
-                # # limit number of steps per inner loop if not end of speech
-                # if self.state.max_tokens_per_alignatt_step is not None:
-                #     self.state.steps_per_inner_loop += self.state.active_samples_inner_loop
-                #     disable_samples_mask = self.state.steps_per_inner_loop >= self.state.max_tokens_per_alignatt_step
-                #     disable_samples_mask *= torch.logical_not(self.state.is_last_chunk_batch)
-                #     self.state.active_samples_inner_loop *= torch.logical_not(disable_samples_mask)
+                # limit number of steps per inner loop if not end of speech
+                if self.state.max_tokens_per_alignatt_step is not None:
+                    self.state.steps_per_inner_loop += self.state.active_samples_inner_loop
+                    disable_samples_mask = self.state.steps_per_inner_loop >= self.state.max_tokens_per_alignatt_step
+                    disable_samples_mask *= torch.logical_not(self.state.is_last_chunk_batch)
+                    self.state.active_samples_inner_loop *= torch.logical_not(disable_samples_mask)
 
                 if self.debug_mode:
                     logging.info(f"-------------" * 5)
