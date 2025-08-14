@@ -313,4 +313,3 @@ def test_nemotron_nano_12b_v2():
     assert config.vocab_size == 131072
     assert config.first_last_layers_bf16 is True
     assert config.is_hybrid_model is True
-
