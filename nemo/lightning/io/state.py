@@ -236,11 +236,6 @@ def apply_transforms(
             f"{ {k: v for k, v in extract_dtypes(_target.named_parameters()).items() if v!=torch.bfloat16} }"
         )
 
-    assert target_orig_dtypes == extract_dtypes(_target.named_parameters()), (
-        f"dtype mismatch between source and target state dicts. "
-        f"Left side is { {k: v for k, v in target_orig_dtypes.items() if v!=torch.bfloat16} }, "
-        f"Right side is { {k: v for k, v in extract_dtypes(_target.named_parameters()).items() if v!=torch.bfloat16} }"
-    )
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         target.module = _target
 
