@@ -72,7 +72,7 @@ try:
 
     HAVE_FULL_CUDA_GRAPH = True
 except ImportError:
-    result, msg = check_lib_version("megatron.core", "0.14.0", operator.ge)
+    _, mcore_import_msg = check_lib_version("megatron.core", "0.14.0", operator.ge)
     HAVE_FULL_CUDA_GRAPH = False
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
@@ -1406,7 +1406,7 @@ class MegatronStep(Generic[ModelT, DataT]):
                 return FullCudaGraphWrapper(get_forward_backward_func())
             else:
                 raise ImportError(
-                    f"FullCudaGraphWrapper is not available in this version of megatron.core ({msg}). "
+                    f"FullCudaGraphWrapper is not available in this version of megatron.core ({mcore_import_msg}). "
                     "Please upgrade megatron.core to >= 0.14.0 to use full iteration CUDA graphs."
                 )
         return get_forward_backward_func()
