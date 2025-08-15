@@ -15,6 +15,7 @@ import os
 import random
 import time
 from typing import List
+from functools import partial
 import soundfile as sf
 import torch
 import wandb
@@ -33,7 +34,12 @@ from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
-from nemo.collections.tts.modules.magpietts_modules import CharAwareSubwordEncoder, SpecialAudioToken, LocalTransformerType, cosine_schedule
+from nemo.collections.tts.modules.magpietts_modules import (
+    CharAwareSubwordEncoder,
+    SpecialAudioToken,
+    LocalTransformerType,
+    cosine_schedule,
+)
 from nemo.collections.tts.parts.utils.helpers import (
     binarize_attention_parallel,
     get_mask_from_lengths,
@@ -97,12 +103,13 @@ class MagpieTTSModel(ModelPT):
         # Our codebooks start with actual audio codec tokens, followed by special tokens.
         # The `forced_*` options are for backward compatibility for models trained with older code.
         num_audio_tokens = codec_model.codebook_size
-        self.audio_bos_id = cfg.get('forced_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_BOS.value)
-        self.audio_eos_id = cfg.get('forced_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_EOS.value)
-        self.context_audio_bos_id = cfg.get('forced_context_audio_bos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_BOS.value)
-        self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_EOS.value)
-        self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook',num_audio_tokens + len(SpecialAudioToken))
-        self.mask_token_id = cfg.get('forced_mask_token_id', num_audio_tokens + SpecialAudioToken.MASK_TOKEN.value)
+        get_token_index = partial(SpecialAudioToken.get_index, base_codebook_size=num_audio_tokens)
+        self.audio_bos_id = cfg.get('forced_audio_bos_id', get_token_index(SpecialAudioToken.AUDIO_BOS))
+        self.audio_eos_id = cfg.get('forced_audio_eos_id', get_token_index(SpecialAudioToken.AUDIO_EOS))
+        self.context_audio_bos_id = cfg.get('forced_context_audio_bos_id', get_token_index(SpecialAudioToken.AUDIO_CONTEXT_BOS))
+        self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', get_token_index(SpecialAudioToken.AUDIO_CONTEXT_EOS))
+        self.mask_token_id = cfg.get('forced_mask_token_id', get_token_index(SpecialAudioToken.MASK_TOKEN))
+        self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook', num_audio_tokens + len(SpecialAudioToken))
         self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
 
         # The frame stacking factor controls how many consecutive frames are processed together by the
@@ -444,7 +451,7 @@ class MagpieTTSModel(ModelPT):
         targets_offset_by_one: bool, if False, the target for index 0 is codebook 0, for index 1 is codebook 1, etc. (autoregressive)
                                      if True,  the target for index 1 is codebook 0, for index 2 is codebook 1, etc. (MaskGit)
         """
-        C = audio_codes_target.size(1)
+        C = self.num_audio_codebooks
         dec_out_all = dec_out.reshape(-1, dec_out.size(-1)) # (B*T', E)
         local_transformer_input = [dec_out_all]
         for fs_index in range(self.frame_stacking_factor):
@@ -635,13 +642,6 @@ class MagpieTTSModel(ModelPT):
             print(c, end="")
         print()
 
-    def get_forbidden_tokens(self) -> list[int]:
-        """
-        Returns a list of tokens that should not be sampled.
-        """
-        # Note that audio EOS is not included because we *do* need to sample it at the end of the utterance.
-        return [self.mask_token_id, self.audio_bos_id, self.context_audio_bos_id, self.context_audio_eos_id]
-
     def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule=None, dynamic_cfg_scale=False, sampling_type=None):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
@@ -748,8 +748,8 @@ class MagpieTTSModel(ModelPT):
                 logits[item_idx, :, :] = float('-inf')
                 logits[item_idx, :, self.audio_eos_id] = 0.0
 
-            # Disallow generation of MASK (and other special) tokens
-            logits[:,:,self.get_forbidden_tokens()] = float('-inf')
+            # Disallow generation of special tokens (except audio EOS)
+            logits[:,:, SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, permit_audio_eos=True)] = float('-inf')
 
             # sample with top-k
             logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)

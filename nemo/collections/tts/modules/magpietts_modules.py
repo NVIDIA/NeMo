@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
 from enum import Enum
 from nemo.utils.enum import PrettyStrEnum
 import torch
@@ -19,6 +20,7 @@ from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
 from torch import Tensor
 from nemo.core.classes.module import NeuralModule
+
 
 class LocalTransformerType(PrettyStrEnum):
     """
@@ -36,8 +38,6 @@ class SpecialAudioToken(Enum):
     Enum for the special tokens to use in the MagpieTTS model.
     The special tokens are appended at the end of the codebook after the actual audio codec tokens.
     The actual codec index is the value below plus the number of codec tokens - do not use the Enum directly.
-
-    NOTE: When adding new special tokens remember to also update `get_forbidden_tokens()` in `magpietts.py`
     """
 
     AUDIO_BOS = 0
@@ -50,6 +50,28 @@ class SpecialAudioToken(Enum):
     RESERVED_2 = 6
     RESERVED_3 = 7
 
+    @staticmethod
+    def get_index(token: SpecialAudioToken, base_codebook_size: int):
+        """
+        Returns the index of the special token in the embedding table.
+        """
+        return base_codebook_size + token.value
+
+    @staticmethod
+    def get_forbidden_tokens(base_codebook_size: int, permit_audio_eos: bool = True) -> list[int]:
+        """
+        Returns a list of token indices that should not be sampled or returned to user.
+        Args:
+            base_codebook_size (int): The size of the codec codebook (which is the first part of the embedding table).
+            permit_audio_eos (bool): Whether to allow the AUDIO_EOS token to be sampled.
+                                    * Set to `True` when internally generating tokens in MagpieTTS sampling
+                                    * Set to `False` when checking validity of tokens to be returned to user
+                                      or given to the codec for decoding
+        """        
+        all_special_tokens = list(SpecialAudioToken)
+        if permit_audio_eos:
+            all_special_tokens.remove(SpecialAudioToken.AUDIO_EOS)
+        return [SpecialAudioToken.get_index(token, base_codebook_size) for token in all_special_tokens]
 
 def cosine_schedule(x: torch.Tensor):
     """
