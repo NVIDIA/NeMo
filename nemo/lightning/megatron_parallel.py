@@ -53,12 +53,12 @@ from lightning.pytorch.utilities import move_data_to_device
 from megatron.core import parallel_state
 from megatron.core.distributed import DistributedDataParallel as McoreDDP
 from megatron.core.distributed import DistributedDataParallelConfig
-
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
-from nemo.utils.model_utils import check_lib_version
 from torch import Tensor, nn
 from typing_extensions import override
+
+from nemo.utils.model_utils import check_lib_version
 
 try:
     from megatron.core.distributed.custom_fsdp import FullyShardedDataParallel
