@@ -642,6 +642,16 @@ class MagpieTTSModel(ModelPT):
             print(c, end="")
         print()
 
+    def clear_forbidden_logits(self, logits, clear_audio_eos=False):
+        """
+        Sets logits for forbidden tokens to `-inf`.
+        Args:
+            logits: (B, C, num_audio_tokens_per_codebook)
+            clear_audio_eos: bool, whether to clear the audio EOS token
+        """
+        logits[:,:, SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, forbid_audio_eos=clear_audio_eos)] = float('-inf')
+        return logits
+
     def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule=None, dynamic_cfg_scale=False, sampling_type=None):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
@@ -741,15 +751,15 @@ class MagpieTTSModel(ModelPT):
                 cfg_logits = current_cfg_scale * conditional_logits +  (1.0 - current_cfg_scale) * unconditional_logits                                    
                 logits[:actual_batch_size] = cfg_logits
 
+            # Disallow generation of special tokens (except audio EOS which is handled separately)
+            logits = self.clear_forbidden_logits(logits, clear_audio_eos=False)
+
             # handle unfinished and finished items
             for item_idx in unfinished_items:
                 logits[item_idx, self.audio_eos_id] = float('-inf')
             for item_idx in finished_items:
                 logits[item_idx, :, :] = float('-inf')
                 logits[item_idx, :, self.audio_eos_id] = 0.0
-
-            # Disallow generation of special tokens (except audio EOS)
-            logits[:,:, SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, permit_audio_eos=True)] = float('-inf')
 
             # sample with top-k
             logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)
