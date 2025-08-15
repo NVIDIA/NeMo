@@ -33,22 +33,24 @@ class TestMetaInfoManager:
     @pytest.mark.unit
     def test_get_onelogger_init_config(self):
         """Test get_onelogger_init_config returns correct minimal configuration."""
-        with patch.dict(os.environ, {"SLURM_JOB_NAME": "test_job"}):
+        with patch.dict(os.environ, {"SLURM_JOB_NAME": "test_job", "WORLD_SIZE": "4"}):
             config = get_onelogger_init_config()
 
             assert isinstance(config, dict)
             assert config["application_name"] == "nemo-application"
             assert config["session_tag_or_fn"] == "test_job"
             assert "enable_for_current_rank" in config
+            assert config["world_size_or_fn"] == 4
             assert config["error_handling_strategy"] == "propagate_exceptions"
 
     @pytest.mark.unit
     def test_get_onelogger_init_config_no_slurm(self):
         """Test get_onelogger_init_config when SLURM_JOB_NAME is not set."""
-        with patch.dict(os.environ, {}, clear=True):
+        with patch.dict(os.environ, {"WORLD_SIZE": "1"}, clear=True):
             config = get_onelogger_init_config()
 
             assert config["session_tag_or_fn"] == "nemo-run"
+            assert config["world_size_or_fn"] == 1
 
     @pytest.mark.unit
     def test_get_base_callback_config(self):
@@ -64,7 +66,6 @@ class TestMetaInfoManager:
             config = _get_base_callback_config(trainer=trainer, global_batch_size=32, seq_length=512)
 
             assert config["perf_tag_or_fn"] == "test_job_1.0.0_bf32_se512_ws4"
-            assert config["world_size_or_fn"] == 4
             assert config["global_batch_size_or_fn"] == 32
             assert config["micro_batch_size_or_fn"] == 8
             assert config["seq_length_or_fn"] == 512
