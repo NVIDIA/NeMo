@@ -87,7 +87,6 @@ def results(
     analysis_data = None
     if performance_dict:
         total_tokens = args.num_tokens_in_b * 1_000_000_000
-        # total_tokens =  15000 * 1_000_000_000
         analysis_data = calculate_performance_analysis(performance_dict, args, total_tokens, cost_per_gpu_hour)
         display_performance_analysis(analysis_data)
 
