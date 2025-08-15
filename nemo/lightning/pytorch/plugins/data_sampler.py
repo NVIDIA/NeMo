@@ -147,8 +147,7 @@ class MegatronDataSampler(DataSampler):
                 # You may need to turn off logging, for example when doing trainer.predict(model, data)
                 # pl_module.log () will trigger pageable H2D Memcpy which stalls CPU. Use pin_memory=True to avoid it
                 consumed_samples = (
-                    consumed_samples
-                    if (torch.is_tensor(consumed_samples) and consumed_samples.is_cuda)
+                    consumed_samples if (torch.is_tensor(consumed_samples) and consumed_samples.is_cuda)
                     else torch.tensor(consumed_samples, pin_memory=True).to("cuda", non_blocking=True)
                 )
                 pl_module.log(
