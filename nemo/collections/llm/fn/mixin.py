@@ -50,6 +50,21 @@ class FNMixin:
         True
     """
 
+    def __init_subclass__(cls, **kwargs):
+        # Add OneLogger timing hooks for LightningModule subclasses
+        try:
+            import lightning.pytorch as pl
+
+            if issubclass(cls, pl.LightningModule):
+                from nemo.lightning.one_logger_callback import hook_class_init_with_callbacks
+
+                hook_class_init_with_callbacks(cls, "on_model_init_start", "on_model_init_end")
+        except (ImportError, AttributeError, Exception):
+            # Continue gracefully if OneLogger hooks cannot be applied
+            pass
+        finally:
+            super().__init_subclass__(**kwargs)
+
     def forall(self, func: fn.ModulePredicate, recurse: bool = False) -> bool:
         """
         Evaluates a predicate for all modules in the container, optionally recursively.

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import functools
 import os
 import sys
@@ -103,7 +102,7 @@ def hydra_runner(
                         # Make sure the path is not set - as this will disable validation scheme.
                         if path != '':
                             sys.stderr.write(
-                                f"ERROR Cannot set config file path using `--config-name` when "
+                                "ERROR Cannot set config file path using `--config-name` when "
                                 "using schema. Please set path using `--config-path` and file name using "
                                 "`--config-name` separately.\n"
                             )
@@ -133,6 +132,10 @@ def hydra_runner(
                     config_path=config_path,
                     config_name=config_name,
                 )
+                # Import here to avoid circular import
+                from nemo.lightning.one_logger_callback import get_one_logger_callbacks
+
+                get_one_logger_callbacks('on_app_end')
 
         return wrapper
 
