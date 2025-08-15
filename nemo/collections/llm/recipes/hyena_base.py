@@ -81,6 +81,8 @@ def model_recipe(model_size: str, tp_comm_overlap: bool, seq_length: int) -> run
         cfg_cls = llm.HyenaTestConfig
     elif model_size == '1b':
         cfg_cls = llm.Hyena1bConfig
+    elif model_size == '1b_arc_longcontext':
+        cfg_cls = llm.Hyena1bARCLongContextConfig
     elif model_size == '7b':
         cfg_cls = llm.Hyena7bConfig
     elif model_size == 'nv-7b':
