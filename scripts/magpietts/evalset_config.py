@@ -12,348 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 dataset_meta_info = {
+    'riva_hard_digits': {
+        'manifest_path' : '/Data/evaluation_manifests/hard-digits-path-corrected.ndjson',
+        'audio_dir' : '/Data/RIVA-TTS',
+        'feature_dir' : '/Data/RIVA-TTS',
+    },
+    'riva_hard_letters': {
+        'manifest_path' : '/Data/evaluation_manifests/hard-letters-path-corrected.ndjson',
+        'audio_dir' : '/Data/RIVA-TTS',
+        'feature_dir' : '/Data/RIVA-TTS',
+    },
+    'riva_hard_money': {
+        'manifest_path' : '/Data/evaluation_manifests/hard-money-path-corrected.ndjson',
+        'audio_dir' : '/Data/RIVA-TTS',
+        'feature_dir' : '/Data/RIVA-TTS',
+    },
+    'riva_hard_short': {
+        'manifest_path' : '/Data/evaluation_manifests/hard-short-path-corrected.ndjson',
+        'audio_dir' : '/Data/RIVA-TTS',
+        'feature_dir' : '/Data/RIVA-TTS',
+    },
     'vctk': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
-        'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
-        'feature_dir' : '/datap/misc/Datasets/VCTK-Corpus',
+        'manifest_path' : '/Data/evaluation_manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths_silence_trimmed.json',
+        'audio_dir' : '/Data/VCTK-Corpus-0.92',
+        'feature_dir' : '/Data/VCTK-Corpus-0.92',
     },
-    'riva_challenging': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json',
-        'audio_dir' : '/datap/misc/Datasets/riva',
-        'feature_dir' : '/datap/misc/Datasets/riva',
-    },
-    'riva_challenging_shehzeen': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/challengingLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths_v2.json',
-        'audio_dir' : '/Data/RivaData/riva',
-        'feature_dir' : '/Data/RivaData/riva',
-    },
-    'rough_qwen': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/rough.json',
-        'audio_dir' : '/Data/RivaData/riva',
-        'feature_dir' : '/Data/RivaData/riva',
-        'tokenizer_names': ['qwen'],
-        'load_cached_codes_if_available': False,
-    },
-    'riva_challenging_nozeros': {
-        # 'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_nozeros.json',
-        'manifest_path': '/home/pneekhara/2023/SimpleT5NeMo/manifests/riva_challenging_filtered.json',
-        'audio_dir' : '/datap/misc/Datasets/riva',
-        'feature_dir' : '/datap/misc/Datasets/riva',
-    },
-    'libri_dev_clean_eval_large': {
-        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_large.json',
-        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
-        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-        'load_cached_codes_if_available': False
-    },
-    'libri_dev_clean_eval_mid': {
-        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_mid.json',
-        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
-        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-    },
-    'libri_dev_clean_eval_tiny': {
-        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_tiny.json',
-        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
-        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-        'load_cached_codes_if_available': False
-    },
-    'libri_dev_clean_eval_single': {
-        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_single.json',
-        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
-        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-        'load_cached_codes_if_available': False
-    },
-    'libri_val': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    },
-    'libri_val_12.5': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'load_cached_codes_if_available': False
-    },
-    'libri_val_shehzeen': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/libri360_val.json',
+    'libritts_seen': {
+        'manifest_path' : '/Data/evaluation_manifests/LibriTTS_seen_evalset_from_testclean_v2.json',
         'audio_dir' : '/Data/LibriTTS',
         'feature_dir' : '/Data/LibriTTS',
     },
-    'libri_unseen_test': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    },
-    'libri_unseen_test_12.5': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'load_cached_codes_if_available': False
-    },
-    'libri_unseen_test_rfejgin': {
-        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/datap/misc/Datasets/LibriTTS',
-        'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-    },
-    'riva_val_text_context': {
-        'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/RivattsEnglishLindyRodney21fps_val_nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_phoneme_tts_TextContext.json',
-        'audio_dir' : "/datap/misc/Datasets/riva/RivattsEnglish",
-        'feature_dir' : '/',
-    },
-    'libri_unseen_test_shehzeen_phoneme': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/Data/LibriTTS',
-        'feature_dir' : '/Data/LibriTTS',
-        'tokenizer_names': ['english_phoneme'],
-    },
-    'libri_unseen_test_shehzeen_sep_char': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/Data/LibriTTS',
-        'feature_dir' : '/Data/LibriTTS',
-        'tokenizer_names': ['english_chartokenizer'],
-    },
-    'libri_unseen_test_shehzeen_shared_char': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/Data/LibriTTS',
-        'feature_dir' : '/Data/LibriTTS',
-        'tokenizer_names': ['chartokenizer'],
-    },
-    'libri_unseen_test_shehzeen_shared_char_ipa': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests_ipa/test_clean_withContextAudioPaths_ipa.json',
-        'audio_dir' : '/Data/LibriTTS',
-        'feature_dir' : '/Data/LibriTTS',
-        'tokenizer_names': ['chartokenizer'],
-    },
-    'grpo_valset': {
-        'manifest_path' : '/Data/DPOPairsInputDatav2/text_context_pairs_grpo_val_unseenspeakers.json',
-        'audio_dir' : '/',
-        'feature_dir' : '/',
-    },
-    'libri_unseen_test_shehzeen_sp': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/Data/LibriTTS',
-        'feature_dir' : '/Data/LibriTTS',
-        'tokenizer_names': ['multilingual_sentencepiece'],
-    },
-    'libri_unseen_test_shehzeen': {
-        'manifest_path' : '/home/shehzeenh/Code/NewT5TTS/manifests/test_clean_withContextAudioPaths.json',
+    'libritts_test_clean': {
+        'manifest_path' : '/Data/evaluation_manifests/LibriTTS_test_clean_withContextAudioPaths.json',
         'audio_dir' : '/Data/LibriTTS',
         'feature_dir' : '/Data/LibriTTS',
     },
-    'libri_seen_test_v2': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri_seen_evalset_from_testclean_v2.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    },
-    'libri_seen_test_v2_shehzeen': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri_seen_evalset_from_testclean_v2.json',
-        'audio_dir' : '/Data/LibriTTS',
-        'feature_dir' : '/Data/LibriTTS',
-    },
-    'libri_unseen_val': {
-        'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/dev_clean_withContextAudioPaths_evalset.json',
-        'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-        'feature_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
-    },
-    'spanish_cml_phoneme': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_spanish_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'tokenizer_names': ['spanish_phoneme'],
-        'whisper_language': 'es'
-    },
-    'spanish_cml_sep_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_spanish_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'tokenizer_names': ['spanish_chartokenizer'],
-        'whisper_language': 'es'
-    },
-    'spanish_cml_shared_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_spanish_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'tokenizer_names': ['chartokenizer'],
-        'whisper_language': 'es'
-    },
-    'spanish_cml_sp': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_spanish_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_spanish_v0.1',
-        'tokenizer_names': ['multilingual_sentencepiece'],
-        'whisper_language': 'es'
-    },
-    'german_cml_phoneme': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_german_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'tokenizer_names': ['german_phoneme'],
-        'whisper_language': 'de',
-        'load_cached_codes_if_available': False
-    },
-    'german_cml_sep_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_german_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'tokenizer_names': ['german_chartokenizer'],
-        'whisper_language': 'de',
-        'load_cached_codes_if_available': False
-    },
-    'german_cml_shared_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_german_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'tokenizer_names': ['chartokenizer'],
-        'whisper_language': 'de',
-        'load_cached_codes_if_available': False
-    },
-    'german_cml_sp': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_german_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_german_v0.1',
-        'tokenizer_names': ['multilingual_sentencepiece'],
-        'whisper_language': 'de',
-        'load_cached_codes_if_available': False
-    },
-    'french_cml_sep_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_french_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
-        'tokenizer_names': ['french_chartokenizer'],
-        'whisper_language': 'fr',
-        'load_cached_codes_if_available': False
-    },
-    'french_cml_shared_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_french_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
-        'tokenizer_names': ['chartokenizer'],
-        'whisper_language': 'fr',
-        'load_cached_codes_if_available': False
-    },
-    'french_cml_sp': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_french_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_french_v0.1',
-        'tokenizer_names': ['multilingual_sentencepiece'],
-        'whisper_language': 'fr',
-        'load_cached_codes_if_available': False
-    },
-    'italian_cml_sep_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_italian_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
-        'tokenizer_names': ['italian_chartokenizer'],
-        'whisper_language': 'it',
-        'load_cached_codes_if_available': False
-    },
-    'italian_cml_shared_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_italian_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
-        'tokenizer_names': ['chartokenizer'],
-        'whisper_language': 'it',
-        'load_cached_codes_if_available': False
-    },
-    'italian_cml_sp': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_italian_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_italian_v0.1',
-        'tokenizer_names': ['multilingual_sentencepiece'],
-        'whisper_language': 'it',
-        'load_cached_codes_if_available': False
-    },
-    'dutch_cml_sep_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_dutch_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
-        'tokenizer_names': ['dutch_chartokenizer'],
-        'whisper_language': 'nl',
-        'load_cached_codes_if_available': False
-    },
-    'dutch_cml_shared_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_dutch_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
-        'tokenizer_names': ['chartokenizer'],
-        'whisper_language': 'nl',
-        'load_cached_codes_if_available': False
-    },
-    'dutch_cml_sp': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_dutch_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_dutch_v0.1',
-        'tokenizer_names': ['multilingual_sentencepiece'],
-        'whisper_language': 'nl',
-        'load_cached_codes_if_available': False
-    },
-    'portuguese_cml_sep_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_portuguese_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
-        'tokenizer_names': ['portuguese_chartokenizer'],
-        'whisper_language': 'pt',
-        'load_cached_codes_if_available': False
-    },
-    'portuguese_cml_shared_char_ipa': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs_ipa3/cml_tts_dataset_portuguese_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset_ipa.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_portuguese_v0.1',
-        'tokenizer_names': ['chartokenizer'],
-        'whisper_language': 'pt',
-        'load_cached_codes_if_available': False
-    },
-    'polish_cml_sep_char': {
-        'manifest_path' : '/Data/CML/manifests_with_codecs/cml_tts_dataset_polish_v0.1/test_withAudioCodes_codec21Khz_no_eliz_filtered_100subset.json',
-        'audio_dir': '/Data/CML/cml_tts_dataset_polish_v0.1',
-        'feature_dir': '/Data/CML/cml_tts_dataset_polish_v0.1',
-        'tokenizer_names': ['polish_chartokenizer'],
-        'whisper_language': 'pl',
-        'load_cached_codes_if_available': False
-    },
-    'j_libri_unseen_test_no_codes': {
-        'manifest_path' : '/home/jasoli/data_prime/manifests/test_clean_withContextAudioPaths.json',
-        'audio_dir' : '/mnt/drive1/data/LibriTTS/',
-        'feature_dir' : None,
-    },
-    'hindi_indic_shared_char': {
-        'manifest_path' : '/Data/IndicDataset/manifests_ipa/hindi_100_test.json',
-        'audio_dir': '/',
-        'feature_dir': '/',
-        'tokenizer_names': ['chartokenizer'],
-        'whisper_language': 'hi',
-        'load_cached_codes_if_available': False
-    },
-    'bengali_indic_shared_char': {
-        'manifest_path' : '/Data/IndicDataset/manifests_ipa/bengali_100_test.json',
-        'audio_dir': '/',
-        'feature_dir': '/',
-        'tokenizer_names': ['chartokenizer'],
-        'whisper_language': 'bn',
-        'load_cached_codes_if_available': False
-    },
+    # We need an4_val_ci just for CI tests
     'an4_val_ci': {
         'manifest_path' : '/home/TestData/an4_dataset/an4_val_context_v1.json',
-        'audio_dir' : '/',
-        'feature_dir' : None,
-    },
-    'j_riva_digits': {
-        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-digits-RivaEnContext.ndjson',
-        'audio_dir' : '/',
-        'feature_dir' : None,
-    },
-    'j_riva_letters': {
-        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-letters-RivaEnContext.ndjson',
-        'audio_dir' : '/',
-        'feature_dir' : None,
-    },
-    'j_riva_money': {
-        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-digits-RivaEnContext.ndjson',
-        'audio_dir' : '/',
-        'feature_dir' : None,
-    },
-    'j_riva_short': {
-        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-short-RivaEnContext.ndjson',
         'audio_dir' : '/',
         'feature_dir' : None,
     },
