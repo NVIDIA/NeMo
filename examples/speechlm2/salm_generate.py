@@ -157,7 +157,7 @@ def strip_response_if_any(
     turns = conversation.turns
     while turns[-1].role == "assistant":
         turns = turns[:-1]
-    return fastcopy(conversation, turns=conversation.turns[:-1])
+    return fastcopy(conversation, turns=turns)
 
 
 def sort_by_length(conversations: CutSet) -> CutSet:

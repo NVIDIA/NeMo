@@ -66,6 +66,10 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
         self.tokenizer.add_special_tokens({"additional_special_tokens": [self.audio_locator_tag]})
         self.llm = load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights)
+        if not hasattr(self.llm, "model") and hasattr(self.llm, "backbone"):
+            type(self.llm).model = property(lambda self: self.backbone)
+        if not hasattr(self.llm.model, "embed_tokens") and hasattr(self.llm.model, "embeddings"):
+            self.llm.model.embed_tokens = self.llm.model.embeddings
         # Note: we have to "move out" the token embedding outside of LLM to avoid
         #       messing up FSDP/TP hooks.
         self.embed_tokens = self.llm.model.embed_tokens

@@ -408,6 +408,7 @@ def collate_conversation_audio_fault_tolerant(
 
     * ``conversations`` CutSet of NeMoMultimodalConversations that were successfully loaded.
     """
+    from lhotse.cut import MultiCut
 
     audios = []
     all_cuts = []
@@ -418,6 +419,8 @@ def collate_conversation_audio_fault_tolerant(
             conv_audios = []
             conv_cuts = []
             for cut in conversation.list_cuts():
+                if isinstance(cut, MultiCut):
+                    cut = cut.to_mono(mono_downmix=True)
                 conv_audios.append(torch.as_tensor(cut.load_audio()).squeeze())
                 conv_cuts.append(cut)
         except AudioLoadingError:
@@ -876,7 +879,12 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                     cut = cuts.popleft()
                 else:
                     # Load audio from file path
-                    cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
+                    if is_valid_url(turn["value"]):
+                        # prefetch remote data to memory to avoid doing it once for metadata read and second time for audio loading
+                        data = open_best(turn["value"], "rb").read()
+                        cut = Recording.from_bytes(data, recording_id=turn["value"]).to_cut()
+                    else:
+                        cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
 
                 turns.append(
                     AudioTurn(
