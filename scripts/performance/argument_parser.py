@@ -401,5 +401,13 @@ def parse_cli_args():
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "-ule",
+        "--use_local_executor",
+        help="Use local executor. Disabled by default",
+        required=False,
+        default=None,
+        action="store_true",
+    )
 
     return parser
