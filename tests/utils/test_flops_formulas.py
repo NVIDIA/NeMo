@@ -48,6 +48,7 @@ def test_llama3(flops_config):
     expected_flops = 163527524352.0
     assert llama3(flops_config) == expected_flops
 
+
 def test_llama4(flops_config):
     flops_config.nope_layer_interval = 4
     flops_config.moe_layer_freq = 4
