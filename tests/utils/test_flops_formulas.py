@@ -14,7 +14,7 @@
 
 import pytest
 
-from nemo.utils.flops_formulas import FLOPSConfig, bert, gpt3, llama2, llama3, mixtral, nemotron, transformer
+from nemo.utils.flops_formulas import FLOPSConfig, bert, gpt3, llama2, llama3, llama4, mixtral, nemotron, transformer
 from nemo.utils.hyena_flops_formulas import hyena
 
 
@@ -47,6 +47,16 @@ def test_llama2(flops_config):
 def test_llama3(flops_config):
     expected_flops = 163527524352.0
     assert llama3(flops_config) == expected_flops
+
+def test_llama4(flops_config):
+    flops_config.nope_layer_interval = 4
+    flops_config.moe_layer_freq = 4
+    flops_config.attention_chunk_size = 32
+    flops_config.moe_router_topk = 1
+    flops_config.moe_ffn_hidden_size = 1024
+    flops_config.moe_shared_expert_intermediate_size = 1024
+    expected_flops = 201106391040.0
+    assert llama4(flops_config) == expected_flops
 
 
 def test_nemotron(flops_config):
