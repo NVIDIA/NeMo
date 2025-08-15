@@ -33,6 +33,22 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.utils import logging
 
 
+def get_dtype_from_precision(precision):
+    """Convert precision string/int to torch dtype."""
+    precision_map = {
+        (32, "32"): torch.float32,
+        (16, "16", "16-mixed"): torch.float16,
+        ("bf16", "bf16-mixed"): torch.bfloat16,
+    }
+    
+    for precision_values, dtype in precision_map.items():
+        if precision in precision_values:
+            return dtype
+    
+    logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
+    return torch.float32
+
+
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
@@ -109,15 +125,7 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
 
     if precision is None:
         precision = model.cfg.precision
-    if precision in [32, "32"]:
-        dtype = torch.float32
-    elif precision in [16, "16", "16-mixed"]:
-        dtype = torch.float16
-    elif precision in ["bf16", "bf16-mixed"]:
-        dtype = torch.bfloat16
-    else:
-        logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
-        dtype = torch.float32  # fallback
+    dtype = get_dtype_from_precision(precision)
     param_to_weights = lambda param: param.to(dtype)
 
     state_dict = OrderedDict()
@@ -262,10 +270,11 @@ def convert(in_file, precision=None, cpu_only=True) -> None:
 
 if __name__ == '__main__':
     args = get_args()
+    dtype = get_dtype_from_precision(args.precision)
     hf_state_dict, nemo_config = convert(args.input_name_or_path, args.precision, args.cpu_only)
 
     config = load_config(args.hf_model_name, nemo_config)
-    model = AutoModelForCausalLM.from_config(config)
+    model = AutoModelForCausalLM.from_config(config, dtype=dtype)
     model.load_state_dict(hf_state_dict, strict=True)
     model.save_pretrained(args.output_path)
     hf_tokenizer = AutoTokenizer.from_pretrained('bigcode/starcoder2-tokenizer')
