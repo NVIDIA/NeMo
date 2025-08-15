@@ -77,6 +77,7 @@ class ConformerEncoderUNet(ConformerEncoder):
         self.skip_connect_scale = 2**-0.5 if skip_connect_scale is None else skip_connect_scale
 
         if not use_unet_skip_connection:
+            logging.warning('Skip connections are disabled in the ConformerEncoderUNet.')
             return
 
         # Validate that n_layers is even for symmetric U-Net skip connections
