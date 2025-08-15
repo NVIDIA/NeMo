@@ -20,6 +20,7 @@ import collections.abc
 import functools
 import inspect
 import itertools
+import operator
 import queue
 import types
 from collections import defaultdict
@@ -55,6 +56,7 @@ from megatron.core.distributed import DistributedDataParallelConfig
 
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
+from nemo.utils.model_utils import check_lib_version
 from torch import Tensor, nn
 from typing_extensions import override
 
@@ -70,6 +72,7 @@ try:
 
     HAVE_FULL_CUDA_GRAPH = True
 except ImportError:
+    result, msg = check_lib_version("megatron.core", "0.14.0", operator.ge)
     HAVE_FULL_CUDA_GRAPH = False
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
