@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from nemo.collections.llm.tools.auto_configurator.core.calculate_performance import get_results
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
 from nemo.collections.llm.tools.autotuner.core.display import display_performance_analysis
 from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate_recipe_configs
 from nemo.collections.llm.tools.autotuner.core.utils import (
-    _load_args_from_config_dir,
     extract_all_values,
     update_args_with_performance_results,
 )

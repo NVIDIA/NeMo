@@ -23,7 +23,7 @@ from rich.table import Table
 from scripts.performance.helpers import set_primary_perf_configs
 
 from nemo.collections import llm
-from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs, get_results
+from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
 from nemo.collections.llm.tools.autotuner.core.display import _display_configs_table
 from nemo.collections.llm.tools.autotuner.core.utils import (
@@ -112,7 +112,7 @@ def generate(**kwargs):
     console.print(f"Generating AutoTune configurations for model: [bold]{kwargs['model']}[/bold]")
 
     # print the received values for debugging
-    console.print(f"[blue]Received parameters:[/blue]")
+    console.print("[blue]Received parameters:[/blue]")
     console.print(f"  Global batch sizes: {kwargs['global_batch_sizes']}")
     console.print(f"  Tensor parallel sizes: {kwargs['tensor_parallel_sizes']}")
     console.print(f"  Pipeline parallel sizes: {kwargs['pipeline_parallel_sizes']}")
@@ -165,13 +165,13 @@ def generate(**kwargs):
             oom_configs = [name for name, analysis in memory_analysis.items() if analysis.get("will_oom", False)]
             safe_configs = [name for name, analysis in memory_analysis.items() if not analysis.get("will_oom", False)]
 
-            console.print(f"\n[cyan]Memory Analysis Summary:[/cyan]")
+            console.print("\n[cyan]Memory Analysis Summary:[/cyan]")
             console.print(f"Configurations that will run safely: {len(safe_configs)}")
             if oom_configs:
                 console.print(f"⚠ Configurations flagged with potential CUDA OOM: {len(oom_configs)}")
                 console.print(f"[yellow]Flagged configs: \n {', '.join(oom_configs)}[/yellow]")
-                console.print(f"[dim]These will be SKIPPED during 'lep autotune run' (use --run-all to force)[/dim]")
-            console.print(f"[blue]Use 'lep autotune list-configs' to see detailed memory analysis[/blue]")
+                console.print("[dim]These will be SKIPPED during 'lep autotune run' (use --run-all to force)[/dim]")
+            console.print("[blue]Use 'lep autotune list-configs' to see detailed memory analysis[/blue]")
 
         if result['base_config_matches']:
             console.print(
@@ -606,7 +606,6 @@ def generate_recipe_configs(args):
     recipe = set_performance_optimizations_aligned_with_nemo(recipe, args)
 
     seq_length = getattr(args, 'seq_length', 8192)
-    val_check_interval = getattr(args, 'val_check_interval', 50)
     max_steps = getattr(args, 'max_steps', 10)
 
     recipe.model.config.seq_length = recipe.data.seq_length = seq_length
@@ -673,7 +672,7 @@ def generate_recipe_configs(args):
     oom_configs = [name for name, analysis in memory_analysis.items() if analysis["will_oom"]]
     safe_configs = [name for name, analysis in memory_analysis.items() if not analysis["will_oom"]]
 
-    logger.info(f"Memory Analysis Summary:")
+    logger.info("Memory Analysis Summary:")
     logger.info(f"  Total configurations: {len(memory_analysis)}")
     logger.info(f"  Safe configurations: {len(safe_configs)}")
     logger.info(f"  Potential OOM configurations: {len(oom_configs)}")
@@ -689,7 +688,7 @@ def generate_recipe_configs(args):
         'base_config': base_config,
         'configs': configs,
         'runner': runner,
-        'num_configs_generated': len(configs),
+        'num_configs_generated': num_configs_generated,
         'base_config_matches': [],
         'memory_analysis': {},
         'config_names': list(configs.keys()),
@@ -763,9 +762,9 @@ def list_configs(config_dir, model):
         console.print(f"Location: {model_config_dir}")
         _display_configs_table(model_config_dir, args.model)
 
-    except Exception as e:
+    except Exception:
         console.print(
-            "[link]Please check: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/__init__.py[/link]"
+            "[link]Please check: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/__init__.py[/link]\n"
         )
         raise
 

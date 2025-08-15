@@ -148,7 +148,7 @@ def extract_value_with_patterns(text: str, patterns: List[str], convert_type: ty
                     return float(value)
                 else:
                     return value
-            except (ValueError, IndexError) as e:
+            except (ValueError, IndexError):
                 continue
     return default
 
@@ -471,7 +471,7 @@ def _extract_trainer_values(trainer_obj: Union[str, object]) -> Dict[str, Any]:
                     result['vp'] = strategy.virtual_pipeline_model_parallel_size
 
             return result
-        except Exception as e:
+        except Exception:
             pass
 
     trainer_str = str(trainer_obj) if not isinstance(trainer_obj, str) else trainer_obj
@@ -508,7 +508,7 @@ def _extract_data_values(data_obj: Union[str, object]) -> Dict[str, Any]:
                 result['seq_length'] = data_obj.seq_length
 
             return result
-        except Exception as e:
+        except Exception:
             pass
 
     data_str = str(data_obj) if not isinstance(data_obj, str) else data_obj
@@ -825,6 +825,6 @@ def update_args_with_performance_results(model_name, performance_dict, config_di
             logger.info(f"Performance results saved to {args_file_path}")
         else:
             logger.warning(f"Args file not found: {args_file_path}")
-    except Exception as e:
-        logger.error(f"Failed to update performance results: {e}")
+    except Exception:
+        logger.error("Failed to update performance results")
         raise

@@ -16,9 +16,6 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import nemo_run as run
-
-from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
-from nemo.collections.llm.tools.autotuner.core.utils import _load_args_from_config_dir, validate_all_configs
 from nemo.lightning.run.plugins import PerfEnvPlugin
 
 logger = logging.getLogger(__name__)
@@ -122,7 +119,7 @@ def run_pretraining(
     configs_to_run_count = len(configs_to_run) + (1 if base_config_will_run and not base_config_matches else 0)
     skipped_count = len(skipped_configs)
 
-    logger.info(f"Configuration filtering summary:")
+    logger.info("Configuration filtering summary:")
     logger.info(f"  Total configurations: {total_configs}")
     logger.info(f"  Configurations to run: {configs_to_run_count}")
     logger.info(f"  Skipped configurations: {skipped_count}")
@@ -189,7 +186,7 @@ def run_pretraining(
                 )
             ]
             if config_name in base_config_matches:
-                exp.add(recipe, executor=executor, name=f'base-config', plugins=plugins)
+                exp.add(recipe, executor=executor, name='base-config', plugins=plugins)
                 logger.info(f"Added {config_name} as base_config_equivalent (matches base config)")
             else:
                 exp.add(recipe, executor=executor, name=f'config-{idx}', plugins=plugins)

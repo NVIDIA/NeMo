@@ -224,12 +224,6 @@ def get_results(
             if i + 1 == output_top_n:
                 break
 
-        top_config = (
-            f"{model_name}_{model_size}b_{num_nodes}nodes_tp_"
-            f"{result[0][3]}_pp_{result[0][4]}_cp_"
-            f"{result[0][5]}_ep_{result[0][6]}_mbs_"
-            f"{result[0][7]}_vp_{result[0][8]}"
-        )
         print("\n==================================================")
         print(f"Optimal config: {result[0][-1]} with {result[0][15]:.4f}s per global step.")
         print("==================================================\n")

@@ -20,11 +20,9 @@ Uses run.Experiment with run.LeptonExecutor and run.Partial/run.Script for clean
 import argparse
 import logging
 import os
-import sys
 from typing import Any, Dict, Optional
 
 import nemo_run as run
-from nemo_run.config import Script
 
 logger = logging.getLogger(__name__)
 

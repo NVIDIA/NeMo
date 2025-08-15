@@ -28,7 +28,7 @@ def _display_memory_analysis(memory_analysis):
     if not memory_analysis:
         console.print("[yellow]No memory analysis available[/yellow]")
         return
-    console.print(f"\n[cyan] CUDA Memory Analysis & Run Status[/cyan]")
+    console.print("\n[cyan] CUDA Memory Analysis & Run Status[/cyan]")
     table = Table(show_header=True, show_lines=True, title="Memory Usage Analysis & Execution Status")
     table.add_column("Configuration", style="cyan", width=40)
     table.add_column("Memory Status", style="white", width=12)
@@ -57,7 +57,7 @@ def _display_memory_analysis(memory_analysis):
             config_values = extract_all_values(config_name)
         table.add_row(config_name, memory_status, run_status, f"{usage_gb:.1f}", f"{total_gb:.0f}")
     console.print(table)
-    console.print(f"\n[cyan]Memory Analysis Summary:[/cyan]")
+    console.print("\n[cyan]Memory Analysis Summary:[/cyan]")
     console.print(f"Safe configurations (will run): {safe_count}")
     console.print(f"Potential OOM configurations (will be skipped): {oom_count}")
     if oom_count > 0:
@@ -125,7 +125,7 @@ def _display_configs_table(config_dir, model_name=None):
                 status = "[green]Generated[/green]"
         table.add_row(filename, status, size)
     console.print(table)
-    console.print(f"\n[cyan]Summary:[/cyan]")
+    console.print("\n[cyan]Summary:[/cyan]")
     if has_metadata:
         console.print(f"Model: {model_name}")
         console.print(f"Total GPUs: {total_gpus}")
@@ -143,11 +143,11 @@ def _display_configs_table(config_dir, model_name=None):
             _display_memory_analysis(memory_analysis)
             oom_configs = [name for name, analysis in memory_analysis.items() if analysis.get("will_oom", False)]
             if oom_configs:
-                console.print(f"\n[yellow]Run Behavior Notes:[/yellow]")
+                console.print("\n[yellow]Run Behavior Notes:[/yellow]")
                 console.print(
                     f"  • By default, autotune run will SKIP the {len(oom_configs)} flagged configuration(s)"
                 )
-                console.print(f"  • Use run_all=True to run ALL configurations including potential OOM ones")
+                console.print("  • Use run_all=True to run ALL configurations including potential OOM ones")
         if args and hasattr(args, 'has_performance_results') and args.has_performance_results():
             results_timestamp = metadata.get('results_timestamp', 'Unknown')
             performance_dict = args.get_performance_dict()
@@ -208,7 +208,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         )
         cost_savings = base_config.get('total_cost', 0) - best_config.get('total_cost', 0)
         cost_savings_percent = (cost_savings / base_config.get('total_cost', 1)) * 100
-        console.print(f"\n[yellow]Best vs Base Performance & Cost Savings:[/yellow]")
+        console.print("\n[yellow]Best vs Base Performance & Cost Savings:[/yellow]")
         console.print(f"  M-TFLOPs/GPU improvement: {tflops_improvement:+.1f}%")
         console.print(f"  Training time savings: {time_savings:.1f} hours ({time_savings/24:.1f} days)")
         console.print(f"  Cost savings: ${cost_savings:,.2f} ({cost_savings_percent:+.1f}%)")
@@ -228,12 +228,12 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
             (best_config.get('m_tflops_gpu', 0) - worst_config.get('m_tflops_gpu', 0))
             / worst_config.get('m_tflops_gpu', 1)
         ) * 100
-        console.print(f"\n[yellow] Best vs Worst Performance & Cost Difference:[/yellow]")
+        console.print("\n[yellow] Best vs Worst Performance & Cost Difference:[/yellow]")
         console.print(f"  M-TFLOPs/GPU difference: {tflops_diff:+.1f}%")
         console.print(f"  Training time difference: {time_diff:.1f} hours ({time_diff/24:.1f} days)")
         console.print(f"  Cost difference: ${cost_diff:,.2f}")
         console.print(f"  [red]Potential waste with worst config: ${cost_diff:,.2f}[/red]")
-    console.print(f"\n[cyan] Top 5 Configurations - Performance & Cost Analysis[/cyan]")
+    console.print("\n[cyan] Top 5 Configurations - Performance & Cost Analysis[/cyan]")
     table = Table(show_header=True, show_lines=True, title="Performance & Cost Ranking")
     table.add_column("Rank", style="yellow", width=6)
     table.add_column("Configuration", style="cyan", width=120)
@@ -256,14 +256,14 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
             status,
         )
     console.print(table)
-    console.print(f"\n[cyan] Cost Efficiency Analysis[/cyan]")
+    console.print("\n[cyan] Cost Efficiency Analysis[/cyan]")
     console.print("=" * 50)
     most_efficient = min(config_analysis.items(), key=lambda x: x[1].get('cost_per_tflop', float('inf')))
     most_efficient_name, most_efficient_data = most_efficient
     console.print(f"Most Cost-Efficient: {most_efficient_name}")
     console.print(f"  Total Cost: ${most_efficient_data.get('total_cost', 'N/A'):,.2f}")
     console.print(f"  M-TFLOPs/GPU: {most_efficient_data.get('m_tflops_gpu', 'N/A'):.2f}")
-    console.print(f"\n[cyan] Recommendations[/cyan]")
+    console.print("\n[cyan] Recommendations[/cyan]")
     console.print("=" * 40)
     console.print(f"Best Performance: '{best_config_name}'")
     console.print(f"Most Cost-Efficient: '{most_efficient_name}'")
@@ -272,5 +272,5 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
             savings = base_config.get('total_cost', 0) - best_config.get('total_cost', 0)
             console.print(f"Switch from base config to save: ${savings:,.2f}")
         else:
-            console.print(f"Base config is already optimal!")
+            console.print("Base config is already optimal!")
     console.print("\n[green]Cost analysis completed successfully![/green]")
