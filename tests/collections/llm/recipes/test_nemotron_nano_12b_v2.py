@@ -49,7 +49,7 @@ class TestNemotronNano12Bv2:
         # Check strategy configuration
         assert isinstance(trainer_config.strategy, run.Config)
         assert trainer_config.strategy.__fn_or_cls__.__name__ == "MegatronStrategy"
-        assert trainer_config.strategy.tensor_model_parallel_size == 2
+        assert trainer_config.strategy.tensor_model_parallel_size == 4
         assert trainer_config.strategy.pipeline_model_parallel_size == 1
         assert trainer_config.strategy.sequence_parallel is True
 
