@@ -57,6 +57,7 @@ try:
     from subquadratic_ops.b2b_causal_conv1d import b2b_causal_conv1d
     from subquadratic_ops.causal_conv1d import causal_conv1d
     from subquadratic_ops.fft_causal_conv1d import fft_causal_conv1d
+    from subquadratic_ops.implicit_filter import implicit_filter
     from subquadratic_ops.fft_causal_conv1d import short_fft_is_available as is_fused_supported
 except ImportError:
 
@@ -75,6 +76,10 @@ except ImportError:
     def is_fused_supported(*args, **kwargs):
         """Not imported: is_fused_supported. An error will be raised if this is called."""
         raise ImportError("subquadratic_ops not installed. is_fused_supported is not available.")
+
+    def implicit_filter(*args, **kwargs):
+        """Not imported: implicit_filter. An error will be raised if this is called."""
+        raise ImportError("subquadratic_ops not installed. implicit_filter is not available.")
 
 
 def _get_zigzag_indices(N, device=None):
@@ -513,22 +518,32 @@ class ImplicitModalFilter(nn.Module):
         gamma_min=0.01,
         gamma_max=0.1,
         lr=None,
+        device=None,
     ):
         super().__init__()
         self.order = order
         self.d_model = d_model
+
+        # Determine device safely
+        if device is None:
+            if torch.cuda.is_available():
+                device = torch.cuda.current_device()
+            else:
+                device = torch.device('cpu')
+
+        self.device = device
         # Do not register into buffer, so it doesn't cast to BF16!
-        self.t = torch.arange(L_cache, dtype=torch.float32, device=torch.cuda.current_device()).view(
+        self.t = torch.arange(L_cache, dtype=torch.float32, device=self.device).view(
             1, 1, -1
         )  # 1, 1, L_cache
         with get_cuda_rng_tracker().fork():
-            gamma = torch.rand(self.d_model, order, dtype=torch.float32) * (gamma_max - gamma_min) + gamma_min
-            gamma = gamma.cuda().log()
+            gamma = torch.rand(self.d_model, order, dtype=torch.float32, device=self.device) * (gamma_max - gamma_min) + gamma_min
+            gamma = gamma.log()
             self.gamma = nn.Parameter(gamma)
 
-            R = 1e-1 * torch.randn(d_model, order, dtype=torch.float32, device=self.t.device) / math.sqrt(order)
+            R = 1e-1 * torch.randn(d_model, order, dtype=torch.float32, device=self.device) / math.sqrt(order)
             self.R = nn.Parameter(R)
-            self.p = nn.Parameter(-torch.ones(d_model, order, dtype=torch.float32, device=self.t.device))
+            self.p = nn.Parameter(-torch.ones(d_model, order, dtype=torch.float32, device=self.device))
             setattr(self.gamma, 'tensor_model_parallel', True)
             setattr(self.R, 'tensor_model_parallel', True)
             setattr(self.p, 'tensor_model_parallel', True)
@@ -540,7 +555,7 @@ class ImplicitModalFilter(nn.Module):
             return self.t[..., :L]
         else:
             # We are requesting an L that is longer than the cached t, grow t to the requested length.
-            t = torch.arange(L, dtype=torch.float32, device=self.t.device).view(1, 1, -1)  # 1, 1, L
+            t = torch.arange(L, dtype=torch.float32, device=self.device).view(1, 1, -1)  # 1, 1, L
             self.t = t
             return self.t
 
@@ -604,10 +619,20 @@ class ExplicitSingleDecayFilter(nn.Module):
         decay_preset="strong",
         small_init=True,
         num_decay_repeats=1,
+        device=None,
     ):
         super().__init__()
+
+        # Determine device safely
+        if device is None:
+            if torch.cuda.is_available():
+                device = torch.cuda.current_device()
+            else:
+                device = torch.device('cpu')
+
+        self.device = device
         with get_cuda_rng_tracker().fork():
-            h = torch.randn(d_model, L_cache, device=torch.cuda.current_device()) / math.sqrt(L_cache)
+            h = torch.randn(d_model, L_cache, device=self.device) / math.sqrt(L_cache)
         assert decay_preset in ["strong", "normal", "weak"]
         if decay_preset == "strong":
             log_r_min = 0
@@ -625,13 +650,13 @@ class ExplicitSingleDecayFilter(nn.Module):
             h[:, :1] = 1.0
         self.num_decay_repeats = num_decay_repeats
         self.h = nn.Parameter(h)
-        t = torch.linspace(0, 1, L_cache, device=self.h.device)[None]
+        t = torch.linspace(0, 1, L_cache, device=self.device)[None]
         self.log_r_min = log_r_min
         self.log_r_max = log_r_max
         self.model_parallel_rank = get_tensor_model_parallel_rank()
         self.model_parallel_size = get_tensor_model_parallel_world_size()
         global_d_model = d_model * self.model_parallel_size // self.num_decay_repeats
-        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model, device=self.h.device)[:, None].repeat(
+        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model, device=self.device)[:, None].repeat(
             self.num_decay_repeats, 1
         )
         decay_domain = decay_domain[self.model_parallel_rank * d_model : (self.model_parallel_rank + 1) * d_model, :]
@@ -745,6 +770,12 @@ class ParallelHyenaOperator(nn.Module):
     ):
         super().__init__()
 
+        # Determine device safely
+        if torch.cuda.is_available():
+            self.device = torch.cuda.current_device()
+        else:
+            self.device = torch.device('cpu')
+
         self.hidden_size = hidden_size
         self.transformer_config = transformer_config
         self.hyena_config = hyena_config
@@ -805,6 +836,7 @@ class ParallelHyenaOperator(nn.Module):
                 d_model=self.num_groups,
                 L_cache=self.hyena_medium_conv_len,
                 decay_preset=hyena_config.explicit_filter_decay_preset,
+                device=self.device,
             )
             self.kernel_size = self.hyena_medium_conv_len
         elif self.hyena_filter_cls == "implicit_modal":
@@ -814,6 +846,7 @@ class ParallelHyenaOperator(nn.Module):
                 order=hyena_config.hyena_filter_order,
                 gamma_min=hyena_config.modal_gamma_min,
                 gamma_max=hyena_config.modal_gamma_max,
+                device=self.device,
             )
             self.kernel_size = self.L
         else:
@@ -823,7 +856,7 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias = nn.Parameter(
                 torch.empty(
                     self.width_per_tp_group,
-                    device=torch.cuda.current_device(),
+                    device=self.device,
                     dtype=transformer_config.params_dtype,
                 )
             )
