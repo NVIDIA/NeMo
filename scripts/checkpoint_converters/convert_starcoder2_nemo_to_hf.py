@@ -40,11 +40,11 @@ def get_dtype_from_precision(precision):
         (16, "16", "16-mixed"): torch.float16,
         ("bf16", "bf16-mixed"): torch.bfloat16,
     }
-    
+
     for precision_values, dtype in precision_map.items():
         if precision in precision_values:
             return dtype
-    
+
     logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
     return torch.float32
 
