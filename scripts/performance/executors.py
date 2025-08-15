@@ -138,6 +138,7 @@ def slurm_executor(
 
     return executor
 
+
 def local_executor(
     gpu: str,
     num_gpus: int,
@@ -165,7 +166,7 @@ def local_executor(
         # TODO: we currently disable PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
         # on B200 as it causes an unexpected error. Add back when issue is debugged and fixed.
         PERF_ENV_VARS["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-    
+
     if gpu.lower() == 'gb200':
         PERF_ENV_VARS["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
         PERF_ENV_VARS["NCCL_NET_GDR_C2C"] = "1"  # For NCCL 2.26
