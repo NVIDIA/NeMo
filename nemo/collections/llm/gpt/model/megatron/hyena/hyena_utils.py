@@ -519,10 +519,12 @@ class ImplicitModalFilter(nn.Module):
         gamma_max=0.1,
         lr=None,
         device=None,
+        use_subquadratic_ops=False,
     ):
         super().__init__()
         self.order = order
         self.d_model = d_model
+        self.use_subquadratic_ops = use_subquadratic_ops
 
         # Determine device safely
         if device is None:
@@ -532,10 +534,16 @@ class ImplicitModalFilter(nn.Module):
                 device = torch.device('cpu')
 
         self.device = device
-        # Do not register into buffer, so it doesn't cast to BF16!
-        self.t = torch.arange(L_cache, dtype=torch.float32, device=self.device).view(
-            1, 1, -1
-        )  # 1, 1, L_cache
+
+        if self.use_subquadratic_ops:
+            self.implicit_filter = implicit_filter
+            self.t = None
+        else:
+            # Do not register into buffer, so it doesn't cast to BF16!
+            self.t = torch.arange(L_cache, dtype=torch.float32, device=self.device).view(
+                1, 1, -1
+            )  # 1, 1, L_cache
+
         with get_cuda_rng_tracker().fork():
             gamma = torch.rand(self.d_model, order, dtype=torch.float32, device=self.device) * (gamma_max - gamma_min) + gamma_min
             gamma = gamma.log()
@@ -550,7 +558,7 @@ class ImplicitModalFilter(nn.Module):
 
     def get_t(self, L: int) -> torch.Tensor:
         """Get the t tensor."""
-        if self.t.shape[-1] >= L:
+        if self.t is not None and self.t.shape[-1] >= L:
             # When L <= maximum previously requested length, we can take a subset of the cached t.
             return self.t[..., :L]
         else:
@@ -592,8 +600,12 @@ class ImplicitModalFilter(nn.Module):
 
     def filter(self, L, *args, **kwargs):
         """Get t and the convolution filter for t and the requested sequence length."""
-        t = self.get_t(L)
-        h = self.compute_filter(L, t)
+        if self.use_subquadratic_ops:
+            h = self.implicit_filter(self.get_logp(), self.R.to(torch.float32), L)
+            h = h.unsqueeze(0)  # TODO: Remove this once we have a proper kernel implementation
+        else:
+            t = self.get_t(L)
+            h = self.compute_filter(L, t)
         return h
 
     def forward(self, L, **kwargs):
@@ -846,6 +858,7 @@ class ParallelHyenaOperator(nn.Module):
                 order=hyena_config.hyena_filter_order,
                 gamma_min=hyena_config.modal_gamma_min,
                 gamma_max=hyena_config.modal_gamma_max,
+                use_subquadratic_ops=self.use_subquadratic_ops,
                 device=self.device,
             )
             self.kernel_size = self.L
