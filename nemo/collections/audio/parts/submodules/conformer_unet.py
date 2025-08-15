@@ -104,6 +104,15 @@ class ConformerEncoderUNet(ConformerEncoder):
         cache_last_channel_len=None,
         bypass_pre_encode=None,
     ):
+        """
+        Forward pass for the ConformerEncoderUNet model with U-Net-style skip connections.
+
+        This method processes the input audio signal through the Conformer layers with optional
+        caching and U-Net-style skip connections.
+
+        Main Changes Compared to Original Conformer:
+        - Incorporates U-Net-style skip connections between encoder layers.
+        """
         if length is None:
             length = audio_signal.new_full(
                 (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int64, device=audio_signal.device
