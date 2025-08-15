@@ -274,7 +274,7 @@ if __name__ == '__main__':
     hf_state_dict, nemo_config = convert(args.input_name_or_path, args.precision, args.cpu_only)
 
     config = load_config(args.hf_model_name, nemo_config)
-    model = AutoModelForCausalLM.from_config(config, dtype=dtype)
+    model = AutoModelForCausalLM.from_config(config, torch_dtype=dtype)
     model.load_state_dict(hf_state_dict, strict=True)
     model.save_pretrained(args.output_path)
     hf_tokenizer = AutoTokenizer.from_pretrained('bigcode/starcoder2-tokenizer')
