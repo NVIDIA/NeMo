@@ -56,14 +56,6 @@ from megatron.core.distributed import DistributedDataParallelConfig
 
 from nemo.utils.model_utils import check_lib_version
 
-result, msg = check_lib_version("megatron.core", "0.14.0", operator.ge)
-if result:
-    from megatron.core.full_cuda_graph import FullCudaGraphWrapper
-
-    HAVE_FULL_CUDA_GRAPH = True
-else:
-    HAVE_FULL_CUDA_GRAPH = False
-
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
@@ -75,6 +67,13 @@ try:
     HAVE_CUSTOM_FSDP = True
 except ImportError:
     HAVE_CUSTOM_FSDP = False
+
+try:
+    from megatron.core.full_cuda_graph import FullCudaGraphWrapper
+
+    HAVE_FULL_CUDA_GRAPH = True
+except ImportError:
+    HAVE_FULL_CUDA_GRAPH = False
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
