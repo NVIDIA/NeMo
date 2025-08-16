@@ -14,7 +14,7 @@
 import os
 import random
 import time
-from typing import List
+from typing import List, Optional
 from functools import partial
 import soundfile as sf
 import torch
@@ -1717,6 +1717,23 @@ class MagpieTTSModel(ModelPT):
 
         return cross_attention_maps, headwise_cross_attention_maps
 
+    def find_eos_frame_index(self, codes) -> Optional[int]:
+        """
+        Checks for EOS in the predicted codes. Returns the index of the first frame within the frame stack
+        that contains an EOS token across any codebook, or `None` if no EOS is found.
+        Args:
+            codes: (num_codebooks, frame_stacking_factor)
+        Returns:
+            index (within the frame stack) of the first frame with EOS, or `None` if no EOS is found
+        """
+        eos_mask = (codes == self.audio_eos_id)  # (codebooks, frame_stacking_factor)
+        eos_per_frame = eos_mask.any(dim=0)  # (frame_stacking_factor,) - True if any codebook has EOS in this frame
+        # find first frame with EOS
+        if eos_per_frame.any():
+            # return index of the first frame with EOS
+            return eos_per_frame.nonzero()[0].item()
+        return None
+
     def infer_batch(
             self,
             batch,
@@ -1919,8 +1936,6 @@ class MagpieTTSModel(ModelPT):
                         )
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
-                    # TODO @rfejgin: should we add argmax sampling for EOS here too?
-                    # all_codes_next_argmax = audio_codes_next
                 else:
                     # Parallel sampling from all codebooks
                     audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks, frame_stacking_factor)
@@ -1928,11 +1943,17 @@ class MagpieTTSModel(ModelPT):
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
-                        eos_in_pred_tokens_argmax = (all_codes_next_argmax[item_idx] == self.audio_eos_id).any().item()
-                        eos_in_pred_tokens_multinomial = (audio_codes_next[item_idx] == self.audio_eos_id).any().item()
-                        if eos_in_pred_tokens_argmax or eos_in_pred_tokens_multinomial:
-                            print("End detected for item {} at timestep {}".format(item_idx, idx))
-                            end_indices[item_idx] = idx
+                        # check for EOS (including within the frame stack)
+                        eos_frame_multinomial = self.find_eos_frame_index(audio_codes_next[item_idx])
+                        eos_frame_argmax = self.find_eos_frame_index(all_codes_next_argmax[item_idx])                        
+                        eos_frame_multinomial = eos_frame_multinomial if eos_frame_multinomial is not None else float('inf')
+                        eos_frame_argmax = eos_frame_argmax if eos_frame_argmax is not None else float('inf')
+                        # pick minimum of the two
+                        frame_index = min(eos_frame_multinomial, eos_frame_argmax)
+                        if frame_index != float('inf'):
+                            global_index = idx * self.frame_stacking_factor +  frame_index 
+                            end_indices[item_idx] = global_index
+                            print(f"End detected for item {item_idx} at decoder timestep: {idx}", end="")
 
                 all_predictions.append(audio_codes_next)
                 audio_codes_input = torch.cat(
@@ -1945,13 +1966,13 @@ class MagpieTTSModel(ModelPT):
                     print("All ends reached")
                     break
             tts_generation_time = time.time() - start_time
-            tts_generation_time_per_frame = tts_generation_time / len(all_predictions)
+            tts_generation_time_per_frame = tts_generation_time / (len(all_predictions)*self.frame_stacking_factor)
 
             # Concatenate the list of predictions along the time dimension. Note that when frame stacking is on,
             # this also undoes the stacking.
             predicted_codes = torch.cat(all_predictions, dim=-1)  # (B, num_codebooks, T')
             # TODO @rfejgin when frame stacking is on, the next line could trim too coarsely; we need to also check within the stack. Could be the cause of partial last word cutoff observed when stacking is on.
-            predicted_lens = [end_indices.get(idx, max_decoder_steps) * self.frame_stacking_factor for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
+            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
             predicted_codes_lens = torch.tensor(predicted_lens, device=text.device).long()
 
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
