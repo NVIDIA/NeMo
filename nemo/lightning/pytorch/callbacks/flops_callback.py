@@ -41,6 +41,7 @@ _model_flops_map = {
     "transformer": flops_formulas.transformer,
     "qwen3": flops_formulas.qwen3,
     "nemotronh": flops_formulas.nemotronh,
+    "llama4": flops_formulas.llama4,
 }
 
 
@@ -119,6 +120,9 @@ class FLOPsMeasurementCallback(Callback):
             config_kwargs['mamba_head_dim'] = self.model_cfg.mamba_head_dim
             config_kwargs['mamba_num_groups'] = self.model_cfg.mamba_num_groups
             config_kwargs['mamba_num_heads'] = self.model_cfg.mamba_num_heads
+
+        config_kwargs["nope_layer_interval"] = getattr(self.model_cfg, "nope_layer_interval", None)
+        config_kwargs["attention_chunk_size"] = getattr(self.model_cfg, "attention_chunk_size", None)
 
         self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
