@@ -71,7 +71,9 @@ def _set_gpt_mamba_modelopt_spec(
     logging.info("Setting model layer specification to the modelopt layer spec")
 
     if isinstance(model_cfg, llm.GPTConfig):
-        model_cfg.transformer_layer_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
+        model_cfg.transformer_layer_spec = partial(
+            get_gpt_modelopt_spec, remap_te_layernorm=True, local_core_attention=model_cfg.softmax_offset != "vanilla"
+        )
     elif isinstance(model_cfg, llm.SSMConfig):
         model_cfg.mamba_stack_spec = partial(get_mamba_stack_modelopt_spec, remap_te_layernorm=True)
     else:
