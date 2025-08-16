@@ -332,7 +332,7 @@ def run_inference(
 
     # Build checkpoint name
     checkpoint_name = (
-        "{exp_name}{checkpoint_name}_Temp{temperature}_Topk{topk}_Cfg_{use_cfg}_{cfg_scale}_"
+        f"{exp_name}{checkpoint_name}_Temp{temperature}_Topk{topk}_Cfg_{use_cfg}_{cfg_scale}_"
         f"Prior_{apply_attention_prior}_"
     )
     if apply_attention_prior:
