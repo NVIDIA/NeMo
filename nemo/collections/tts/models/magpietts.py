@@ -1953,7 +1953,7 @@ class MagpieTTSModel(ModelPT):
                         if frame_index != float('inf'):
                             global_index = idx * self.frame_stacking_factor +  frame_index 
                             end_indices[item_idx] = global_index
-                            print(f"End detected for item {item_idx} at decoder timestep: {idx}", end="")
+                            print(f"End detected for item {item_idx} at decoder timestep: {idx}")
 
                 all_predictions.append(audio_codes_next)
                 audio_codes_input = torch.cat(
