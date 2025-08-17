@@ -18,9 +18,6 @@ from nemo.collections.vlm.clip.model.clip import (
     CLIPConfigL14,
     CLIPTextModelL_14_224_Config,
     CLIPViTL_14_224_Config,
-    CLIPConfigL14_336,
-    CLIPTextModelL_14_336_Config,
-    CLIPViTL_14_336_Config,
 )
 
 __all__ = [
@@ -32,7 +29,4 @@ __all__ = [
     "CLIPConfigL14",
     "CLIPConfigB32",
     "CLIPModel",
-    "CLIPConfigL14_336",
-    "CLIPTextModelL_14_336_Config",
-    "CLIPViTL_14_336_Config",
 ]
