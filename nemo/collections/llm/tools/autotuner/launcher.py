@@ -248,23 +248,27 @@ def launch_generate_remote(
     """Launch generate step using remote executor."""
 
     # Convert string arguments to proper types and update args_dict
-    args_dict.update({
-        'nodes': int(nodes),
-        'gpus_per_node': int(gpus_per_node),
-        'resource_shape': resource_shape,
-        'seq_length': int(seq_length),
-        'num_tokens_in_b': int(num_tokens_in_b),
-        'global_batch_sizes': parse_comma_separated_values(global_batch_sizes),
-        'tensor_parallel_sizes': parse_comma_separated_values(tensor_parallel_sizes),
-        'pipeline_parallel_sizes': parse_comma_separated_values(pipeline_parallel_sizes),
-        'virtual_pipeline_model_parallel_sizes': parse_virtual_pipeline_values(virtual_pipeline_model_parallel_sizes),
-        'max_model_parallel_size': int(max_model_parallel_size),
-        'context_parallel_sizes': parse_comma_separated_values(context_parallel_sizes),
-        'micro_batch_sizes': parse_comma_separated_values(micro_batch_sizes),
-        'max_steps_per_run': int(max_steps_per_run),
-        'max_steps': int(max_steps),
-        'logs_subdir': logs_subdir,
-    })
+    args_dict.update(
+        {
+            'nodes': int(nodes),
+            'gpus_per_node': int(gpus_per_node),
+            'resource_shape': resource_shape,
+            'seq_length': int(seq_length),
+            'num_tokens_in_b': int(num_tokens_in_b),
+            'global_batch_sizes': parse_comma_separated_values(global_batch_sizes),
+            'tensor_parallel_sizes': parse_comma_separated_values(tensor_parallel_sizes),
+            'pipeline_parallel_sizes': parse_comma_separated_values(pipeline_parallel_sizes),
+            'virtual_pipeline_model_parallel_sizes': parse_virtual_pipeline_values(
+                virtual_pipeline_model_parallel_sizes
+            ),
+            'max_model_parallel_size': int(max_model_parallel_size),
+            'context_parallel_sizes': parse_comma_separated_values(context_parallel_sizes),
+            'micro_batch_sizes': parse_comma_separated_values(micro_batch_sizes),
+            'max_steps_per_run': int(max_steps_per_run),
+            'max_steps': int(max_steps),
+            'logs_subdir': logs_subdir,
+        }
+    )
 
     mounts = [{"path": mount_source_path, "mount_path": mount_path, "from": mount_from}]
 
@@ -417,15 +421,27 @@ def create_parser():
     generate_parser.add_argument('--seq-length', type=int, default=8192, help='Sequence length')
     generate_parser.add_argument('--num-tokens-in-b', type=int, default=1000, help='Number of tokens in billions')
     generate_parser.add_argument('--global-batch-sizes', default='256', help='Global batch sizes (comma-separated)')
-    generate_parser.add_argument('--tensor-parallel-sizes', default='2', help='Tensor parallel sizes (comma-separated)')
-    generate_parser.add_argument('--pipeline-parallel-sizes', default='2', help='Pipeline parallel sizes (comma-separated)')
-    generate_parser.add_argument('--virtual-pipeline-model-parallel-sizes', default='None', help='Virtual pipeline parallel sizes (comma-separated or None)')
+    generate_parser.add_argument(
+        '--tensor-parallel-sizes', default='2', help='Tensor parallel sizes (comma-separated)'
+    )
+    generate_parser.add_argument(
+        '--pipeline-parallel-sizes', default='2', help='Pipeline parallel sizes (comma-separated)'
+    )
+    generate_parser.add_argument(
+        '--virtual-pipeline-model-parallel-sizes',
+        default='None',
+        help='Virtual pipeline parallel sizes (comma-separated or None)',
+    )
     generate_parser.add_argument('--max-model-parallel-size', type=int, default=64, help='Maximum model parallel size')
-    generate_parser.add_argument('--context-parallel-sizes', default='1', help='Context parallel sizes (comma-separated)')
+    generate_parser.add_argument(
+        '--context-parallel-sizes', default='1', help='Context parallel sizes (comma-separated)'
+    )
     generate_parser.add_argument('--micro-batch-sizes', default='1', help='Micro batch sizes (comma-separated)')
     generate_parser.add_argument('--max-steps-per-run', type=int, default=50, help='Maximum steps per run')
     generate_parser.add_argument('--max-steps', type=int, default=50, help='Maximum steps')
-    generate_parser.add_argument('--logs-subdir', default='/nemo-workspace/autotuner/new/logs', help='Logs subdirectory')
+    generate_parser.add_argument(
+        '--logs-subdir', default='/nemo-workspace/autotuner/new/logs', help='Logs subdirectory'
+    )
 
     # Run command
     run_parser = subparsers.add_parser('run', help='Run AutoTune pretraining')
