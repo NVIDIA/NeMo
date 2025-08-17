@@ -20,11 +20,25 @@ Uses run.Experiment with run.LeptonExecutor and run.Partial/run.Script for clean
 import argparse
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import nemo_run as run
 
 logger = logging.getLogger(__name__)
+
+
+def parse_comma_separated_values(value: str) -> List[int]:
+    """Parse comma-separated string values into a list of integers."""
+    if not value or value.lower() == 'none':
+        return []
+    return [int(x.strip()) for x in value.split(',') if x.strip()]
+
+
+def parse_virtual_pipeline_values(value: str) -> Optional[List[int]]:
+    """Parse virtual pipeline values, handling 'None' specially."""
+    if not value or value.lower() == 'none':
+        return None
+    return [int(x.strip()) for x in value.split(',') if x.strip()]
 
 
 def create_lepton_executor(
@@ -201,15 +215,50 @@ def launch_generate_remote(
     mount_from: str,
     mount_source_path: str,
     mount_path: str,
+    resource_shape: str = "gpu.8xh200",
+    container_image: str = "nvcr.io/nvidia/nemo:25.04",
+    nodes: int = 8,
+    gpus_per_node: int = 8,
+    seq_length: int = 8192,
+    num_tokens_in_b: int = 1000,
+    global_batch_sizes: str = "256",
+    tensor_parallel_sizes: str = "2",
+    pipeline_parallel_sizes: str = "2",
+    virtual_pipeline_model_parallel_sizes: Optional[str] = "None",
+    max_model_parallel_size: int = 64,
+    context_parallel_sizes: str = "1",
+    micro_batch_sizes: str = "1",
+    max_steps_per_run: int = 50,
+    max_steps: int = 50,
+    logs_subdir: str = "/nemo-workspace/autotuner/new/logs",
 ):
     """Launch generate step using remote executor."""
+
+    # Convert string arguments to proper types and update args_dict
+    args_dict.update({
+        'nodes': int(nodes),
+        'gpus_per_node': int(gpus_per_node),
+        'resource_shape': resource_shape,
+        'seq_length': int(seq_length),
+        'num_tokens_in_b': int(num_tokens_in_b),
+        'global_batch_sizes': parse_comma_separated_values(global_batch_sizes),
+        'tensor_parallel_sizes': parse_comma_separated_values(tensor_parallel_sizes),
+        'pipeline_parallel_sizes': parse_comma_separated_values(pipeline_parallel_sizes),
+        'virtual_pipeline_model_parallel_sizes': parse_virtual_pipeline_values(virtual_pipeline_model_parallel_sizes),
+        'max_model_parallel_size': int(max_model_parallel_size),
+        'context_parallel_sizes': parse_comma_separated_values(context_parallel_sizes),
+        'micro_batch_sizes': parse_comma_separated_values(micro_batch_sizes),
+        'max_steps_per_run': int(max_steps_per_run),
+        'max_steps': int(max_steps),
+        'logs_subdir': logs_subdir,
+    })
 
     mounts = [{"path": mount_source_path, "mount_path": mount_path, "from": mount_from}]
 
     # Create executor for remote execution
     executor = create_lepton_executor(
         resource_shape="cpu.small",
-        container_image="nvcr.io/nvidia/nemo:25.07",
+        container_image=container_image,
         node_group=launcher_node_group,
         mounts=mounts,
     )
@@ -348,7 +397,22 @@ def create_parser():
     generate_parser.add_argument('--mount-from', required=True, help='Mount source')
     generate_parser.add_argument('--mount-source-path', required=True, help='Mount source path')
     generate_parser.add_argument('--mount-path', required=True, help='Mount destination path')
-    # Add other generate arguments as needed
+    generate_parser.add_argument('--resource-shape', default='gpu.8xh200', help='Resource shape (e.g., gpu.8xh200)')
+    generate_parser.add_argument('--container-image', default='nvcr.io/nvidia/nemo:25.07', help='Container image')
+    generate_parser.add_argument('--nodes', type=int, default=8, help='Number of nodes')
+    generate_parser.add_argument('--gpus-per-node', type=int, default=8, help='GPUs per node')
+    generate_parser.add_argument('--seq-length', type=int, default=8192, help='Sequence length')
+    generate_parser.add_argument('--num-tokens-in-b', type=int, default=1000, help='Number of tokens in billions')
+    generate_parser.add_argument('--global-batch-sizes', default='256', help='Global batch sizes (comma-separated)')
+    generate_parser.add_argument('--tensor-parallel-sizes', default='2', help='Tensor parallel sizes (comma-separated)')
+    generate_parser.add_argument('--pipeline-parallel-sizes', default='2', help='Pipeline parallel sizes (comma-separated)')
+    generate_parser.add_argument('--virtual-pipeline-model-parallel-sizes', default='None', help='Virtual pipeline parallel sizes (comma-separated or None)')
+    generate_parser.add_argument('--max-model-parallel-size', type=int, default=64, help='Maximum model parallel size')
+    generate_parser.add_argument('--context-parallel-sizes', default='1', help='Context parallel sizes (comma-separated)')
+    generate_parser.add_argument('--micro-batch-sizes', default='1', help='Micro batch sizes (comma-separated)')
+    generate_parser.add_argument('--max-steps-per-run', type=int, default=50, help='Maximum steps per run')
+    generate_parser.add_argument('--max-steps', type=int, default=50, help='Maximum steps')
+    generate_parser.add_argument('--logs-subdir', default='/nemo-workspace/autotuner/new/logs', help='Logs subdirectory')
 
     # Run command
     run_parser = subparsers.add_parser('run', help='Run AutoTune pretraining')
@@ -417,6 +481,22 @@ def main():
                 args.mount_from,
                 args.mount_source_path,
                 args.mount_path,
+                resource_shape=args.resource_shape,
+                container_image=args.container_image,
+                nodes=args.nodes,
+                gpus_per_node=args.gpus_per_node,
+                seq_length=args.seq_length,
+                num_tokens_in_b=args.num_tokens_in_b,
+                global_batch_sizes=args.global_batch_sizes,
+                tensor_parallel_sizes=args.tensor_parallel_sizes,
+                pipeline_parallel_sizes=args.pipeline_parallel_sizes,
+                virtual_pipeline_model_parallel_sizes=args.virtual_pipeline_model_parallel_sizes,
+                max_model_parallel_size=args.max_model_parallel_size,
+                context_parallel_sizes=args.context_parallel_sizes,
+                micro_batch_sizes=args.micro_batch_sizes,
+                max_steps_per_run=args.max_steps_per_run,
+                max_steps=args.max_steps,
+                logs_subdir=args.logs_subdir,
             )
         elif args.command == 'run':
             launch_run_remote(
