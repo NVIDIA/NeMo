@@ -130,6 +130,29 @@ def setup_nemo_environment():
     subprocess.run([
         sys.executable, "-m", "pip", "install", "-e", nemo_repo_path
     ], check=True, capture_output=False)
+    
+    # Set Lepton environment variables for authentication
+    print("Setting Lepton environment variables...")
+    lepton_env_vars = [
+        "LEPTON_WORKSPACE_ID",
+        "LEPTON_WORKSPACE_URL", 
+        "LEPTON_TOKEN"
+    ]
+    
+    for var in lepton_env_vars:
+        if var in os.environ:
+            print(f"Setting {var} from environment")
+        else:
+            print(f"Warning: {var} not found in environment")
+    
+    # Verify Lepton authentication can work
+    try:
+        from leptonai.api.v2.client import APIClient
+        print("Lepton API client import successful")
+    except ImportError as e:
+        print(f"Warning: Could not import Lepton API client: {e}")
+    except Exception as e:
+        print(f"Warning: Error with Lepton setup: {e}")
 
 if __name__ == "__main__":
     setup_nemo_environment()
