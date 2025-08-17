@@ -183,10 +183,13 @@ def apply_per_config_tp_comm_overlap_optimization(new_cfg, base_cfg, resource_sh
     num_nodes = base_cfg.trainer.num_nodes
     num_gpus_per_node = base_cfg.trainer.devices
 
+    if vp_size is None:
+        vp_size = 1
+
     # Calculate DP size
     dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
     overlap_param_gather_with_optimizer_step = bool(dp_size > 1 and pp_size > 1 and vp_size > 1)
-    wgrad_deferral_limit = 50  # Fixed value as per user request
+    wgrad_deferral_limit = 50
 
     try:
         hidden_size = base_cfg.model.config.hidden_size
