@@ -17,9 +17,9 @@ from typing import Callable, Dict
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from .argument_parser import parse_cli_args
-from .helpers import get_user_configs, build_perf_env_plugin, args_sanity_check
 from .executors import local_executor, slurm_executor
-from .helpers import build_perf_env_plugin, get_user_configs
+from .helpers import args_sanity_check, build_perf_env_plugin, get_user_configs
+
 
 def run_performance_experiment(
     task: str,
@@ -116,7 +116,9 @@ def run_performance_experiment(
             assert hf_model_url is not None, "HF model URL is required for importing checkpoint from HuggingFace"
             run.run(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}"))
         if task != "pretrain" and (not skip_dataset_download):
-            run.run(*prepare_squad_dataset_experiment(executor, hf_model_url, seq_length=4096, nemo_home=args.nemo_home))
+            run.run(
+                *prepare_squad_dataset_experiment(executor, hf_model_url, seq_length=4096, nemo_home=args.nemo_home)
+            )
         run.run(recipe, executor=executor, plugins=plugins)
     else:
         with run.Experiment(exp_name) as exp:

@@ -19,8 +19,8 @@ import nemo_run as run
 from nemo.collections.llm.recipes.llama3_8b import finetune_recipe, model
 
 from ..helpers import set_exp_logging_configs, set_primary_perf_configs
-from ..utils import hf_tokenizer
 from ..main import run_performance_experiment
+from ..utils import hf_tokenizer
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
 

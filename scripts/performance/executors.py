@@ -35,6 +35,7 @@ set -euo pipefail
 bash -c '{{ pre_cmds }} {{ command }}'
 """
 
+
 def _get_default_env_vars(
     gpu: str,
     wandb_key: Optional[str],
@@ -68,7 +69,7 @@ def _get_default_env_vars(
     # wandb key
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
-    
+
     # nemo home
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars["NEMO_HOME"] = nemo_home
