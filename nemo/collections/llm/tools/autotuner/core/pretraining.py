@@ -58,11 +58,11 @@ def lepton_executor(
         "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
     }
-    
+
     # Merge with env_vars from executor_config if provided
     if env_vars:
         default_env_vars.update(env_vars)
-    
+
     # Add HF token and WANDB API key if provided
     if hf_token:
         default_env_vars["HF_TOKEN"] = hf_token
