@@ -195,12 +195,14 @@ class CLIPConfigL14(CLIPConfig):
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelL_14_224_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTL_14_224_Config())
 
+
 @dataclass
 class CLIPConfigL14_336(CLIPConfig):
     """Main Clip config for Large model 336"""
 
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelL_14_336_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTL_14_336_Config())
+
 
 @dataclass
 class CLIPConfigB32(CLIPConfig):
