@@ -28,6 +28,7 @@ from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, build_perf_env_plugin, get_user_configs, set_primary_perf_configs
 from ..utils import hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata
+from ..main import run_performance_experiment
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
 
@@ -137,55 +138,12 @@ def override_recipe_configs(
 
 
 if __name__ == "__main__":
-    args = parse_cli_args().parse_args()
-    args_sanity_check(args)
-
-    kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "deepseek", "v3", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs[:10]
-
-    recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+    run_performance_experiment(
+        task="finetune",
+        model="deepseek",
+        model_size="v3",
+        override_recipe_configs=override_recipe_configs,
+        hf_model_url=HF_MODEL_URI,
+        base_recipe=finetune_recipe(performance_mode=False),
+        default_perf_recipe=finetune_recipe(performance_mode=True),
     )
-
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
-    exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-
-    executor = slurm_executor(
-        args.gpu.lower(),
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars={},
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-        network='sharp' if args.use_sharp else None,
-    )
-
-    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=10, end_step=12, gen_shape=True))
-    if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not None
-        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-
-    with run.Experiment(exp_name) as exp:
-        if not SKIP_IMPORT:
-            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
-            exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
-        exp.add(
-            recipe,
-            executor=executor,
-            name=exp_name,
-            plugins=plugins,
-        )
-
-        if not args.dryrun:
-            exp.run(sequential=True, detach=True)
-        else:
-            exp.dryrun()

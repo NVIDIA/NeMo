@@ -14,7 +14,7 @@
 
 import os
 import sys
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import nemo_run as run
 from nemo_run.config import get_nemorun_home
@@ -34,6 +34,50 @@ set -euo pipefail
 # NOTE: DO NOT change the single quotes to double quotes.
 bash -c '{{ pre_cmds }} {{ command }}'
 """
+
+def _get_default_env_vars(
+    gpu: str,
+    wandb_key: Optional[str],
+    nemo_home: str,
+    hf_token: Optional[str],
+) -> Dict[str, str]:
+    """
+    Get default environment variables for the executor
+    """
+    # default for all experiments
+    env_vars = {
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
+        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
+        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
+        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
+        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
+    }
+
+    # default envvars based on gpu type
+    if gpu.lower() not in ['b200']:
+        # TODO: we currently disable PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+        # on B200 as it causes an unexpected error. Add back when issue is debugged and fixed.
+        env_vars["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+    if gpu.lower() == 'gb200':
+        env_vars["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
+        env_vars["NCCL_NET_GDR_C2C"] = "1"  # For NCCL 2.26
+
+    # wandb key
+    if wandb_key is not None:
+        env_vars["WANDB_API_KEY"] = wandb_key
+    
+    # nemo home
+    if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
+        env_vars["NEMO_HOME"] = nemo_home
+
+    # hf token
+    if hf_token is not None:
+        env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
+
+    return env_vars
 
 
 def slurm_executor(
@@ -58,16 +102,8 @@ def slurm_executor(
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
     and fine-tuning experiments
     """
-    PERF_ENV_VARS = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
-        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
-        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
-        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
-        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
-        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
-        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
-    }
 
+    # custom bash commands
     custom_bash_cmds = [] if custom_bash_cmds is None else custom_bash_cmds
     err_msgs = []
     mounts = []
@@ -79,25 +115,11 @@ def slurm_executor(
         logging.error("\n".join(err_msgs))
         sys.exit(1)
 
-    if gpu.lower() not in ['b200']:
-        # TODO: we currently disable PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
-        # on B200 as it causes an unexpected error. Add back when issue is debugged and fixed.
-        PERF_ENV_VARS["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-    PERF_ENV_VARS["NEMORUN_HOME"] = log_dir
-    if wandb_key is not None:
-        PERF_ENV_VARS["WANDB_API_KEY"] = wandb_key
-
-    if gpu.lower() == 'gb200':
-        PERF_ENV_VARS["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
-        PERF_ENV_VARS["NCCL_NET_GDR_C2C"] = "1"  # For NCCL 2.26
-
-    if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
-        PERF_ENV_VARS["NEMO_HOME"] = nemo_home
-        mounts.extend([f"{nemo_home}:{nemo_home}"])
-    if hf_token is not None:
-        PERF_ENV_VARS.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
-
+    # env vars
+    PERF_ENV_VARS = _get_default_env_vars(gpu, wandb_key, nemo_home, hf_token)
     PERF_ENV_VARS |= custom_env_vars
+
+    # custom mounts
     mounts.extend(custom_mounts)
 
     # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
@@ -138,45 +160,28 @@ def slurm_executor(
 
     return executor
 
+
 def local_executor(
     gpu: str,
+    log_dir: str,
     num_gpus: int,
     custom_env_vars: Dict[str, str] = {},
     wandb_key: str = None,
+    nemo_home: str = DEFAULT_NEMO_HOME,
+    hf_token: str = None,
     launcher: str = "torchrun",
 ) -> run.LocalExecutor:
     """
     Local executor definition with appropriate environment variables and launcher
     """
-    PERF_ENV_VARS = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
-        "TRANSFORMERS_OFFLINE": "1",  # Enable online downloads from HuggingFace
-        "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
-        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
-        "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
-        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
-        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
-    }
-
-    if wandb_key is not None:
-        PERF_ENV_VARS["WANDB_API_KEY"] = wandb_key
-
-    if gpu.lower() not in ['b200']:
-        # TODO: we currently disable PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
-        # on B200 as it causes an unexpected error. Add back when issue is debugged and fixed.
-        PERF_ENV_VARS["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-    
-    if gpu.lower() == 'gb200':
-        PERF_ENV_VARS["NCCL_NET_GDR_LEVEL"] = "PHB"  # For NCCL 2.25
-        PERF_ENV_VARS["NCCL_NET_GDR_C2C"] = "1"  # For NCCL 2.26
-
-    if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
-        PERF_ENV_VARS["NEMO_HOME"] = nemo_home
-        mounts.extend([f"{nemo_home}:{nemo_home}"])
-    if hf_token is not None:
-        PERF_ENV_VARS.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
-
+    PERF_ENV_VARS = _get_default_env_vars(gpu, wandb_key, nemo_home, hf_token)
     PERF_ENV_VARS |= custom_env_vars
+
+    if log_dir != get_nemorun_home():
+        err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
+    if len(err_msgs) > 0:
+        logging.error("\n".join(err_msgs))
+        sys.exit(1)
 
     executor = run.LocalExecutor(
         ntasks_per_node=num_gpus,

@@ -31,14 +31,14 @@ def parse_cli_args():
         "--account",
         type=str,
         help="Slurm account to use for experiment",
-        required=True,
+        default=None,
     )
     parser.add_argument(
         "-p",
         "--partition",
         type=str,
         help="Slurm partition to use for experiment",
-        required=True,
+        default=None,
     )
     parser.add_argument(
         "-g",

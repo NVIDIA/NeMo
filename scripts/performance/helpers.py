@@ -477,6 +477,10 @@ def args_sanity_check(args: dict) -> None:
     """
     Check the sanity of argument settings
     """
+    if not args.use_local_executor:
+        assert args.account is not None, "Slurm account is required when using slurm executor"
+        assert args.partition is not None, "Slurm partition is required when using slurm executor"
+
     if args.wandb:
         assert args.wandb_key is not None, "wandb logger needs \"wandb_key\""
         assert args.wandb_prj_name is not None, "wandb logger needs \"wandb_prj_name\""

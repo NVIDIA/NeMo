@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Callable, Dict
+
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from .argument_parser import parse_cli_args
-from .helpers import get_user_configs, build_perf_env_plugin
+from .helpers import get_user_configs, build_perf_env_plugin, args_sanity_check
 from .executors import local_executor, slurm_executor
 
 def run_performance_experiment(
@@ -23,7 +25,12 @@ def run_performance_experiment(
     model: str,
     model_size: str,
     override_recipe_configs: Callable,
-    **kwargs
+    finetuning_skip_import: bool = False,
+    hf_model_url: Optional[str] = None,
+    custom_env_vars: Dict[str, str] = {},
+    nsys_kwargs: Dict[str, Any] = {},
+    base_recipe: Optional[Any] = None,
+    default_perf_recipe: Optional[Any] = None,
 ):
     """Run performance experiment. It launches nemo experiment."""
 
@@ -60,9 +67,12 @@ def run_performance_experiment(
 
         executor = local_executor(
             args.gpu.lower(),
+            args.log_dir,
             args.num_gpus,
-            custom_env_vars=kwargs.pop('custom_env_vars', {}),
+            custom_env_vars=custom_env_vars,
             wandb_key=args.wandb_key,
+            nemo_home=args.nemo_home,
+            hf_token=args.hf_token,
             launcher="torchrun",
         )
     else:
@@ -76,7 +86,7 @@ def run_performance_experiment(
             args.time_limit,
             args.container_image,
             custom_mounts=args.custom_mounts,
-            custom_env_vars=kwargs.pop('custom_env_vars', {}),
+            custom_env_vars=custom_env_vars,
             hf_token=args.hf_token,
             nemo_home=args.nemo_home,
             wandb_key=args.wandb_key,
@@ -88,10 +98,10 @@ def run_performance_experiment(
     if args.enable_nsys:
         plugins.append(
             NsysPlugin(
-                start_step=kwargs.pop('nsys_start_step', 5),
-                end_step=kwargs.pop('nsys_end_step', 6),
-                ranks=kwargs.pop('nsys_ranks', [0]),
-                gen_shape=kwargs.pop('nsys_gen_shape', False),
+                start_step=nsys_kwargs.pop('nsys_start_step', 5),
+                end_step=nsys_kwargs.pop('nsys_end_step', 6),
+                ranks=nsys_kwargs.pop('nsys_ranks', [0]),
+                gen_shape=nsys_kwargs.pop('nsys_gen_shape', False),
             )
         )
     if args.enable_memory_profile:
@@ -100,17 +110,19 @@ def run_performance_experiment(
 
     # run experiment
     if args.use_local_executor:
-        if task != "pretrain" and (not kwargs.pop('finetuning_skip_import', True)):
+        if task != "pretrain" and (not finetuning_skip_import):
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
-            assert 'hf_model_url' in kwargs, "HF model URL is required for importing checkpoint from HuggingFace"
-            run.run(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{kwargs['hf_model_url']}"))
+            assert hf_model_url is not None, "HF model URL is required for importing checkpoint from HuggingFace"
+            run.run(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}"))
+        if task != "pretrain" and (not skip_dataset_download):
+            run.run(*prepare_squad_dataset_experiment(executor, hf_model_url, seq_length=4096, nemo_home=args.nemo_home))
         run.run(recipe, executor=executor, plugins=plugins)
     else:
         with run.Experiment(exp_name) as exp:
-            if task != "pretrain" and (not kwargs.pop('finetuning_skip_import', True)):
+            if task != "pretrain" and (not finetuning_skip_import):
                 assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
-                assert 'hf_model_url' in kwargs, "HF model URL is required for importing checkpoint from HuggingFace"
-                exp.add(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{kwargs['hf_model_url']}"))
+                assert hf_model_url is not None, "HF model URL is required for importing checkpoint from HuggingFace"
+                exp.add(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}"))
 
             exp.add(
                 recipe,
@@ -128,12 +140,10 @@ def run_performance_experiment(
         if args.dump_config_diff_from_base_recipe:
             output_dir = exp.jobs[-1].executor.job_dir
             # dump difference from base recipe
-            base_recipe = kwargs.pop('base_recipe', None)
             if base_recipe is not None:
                 file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
                 dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)
             # dump difference from default perf recipe
-            default_perf_recipe = kwargs.pop('default_perf_recipe', None)
             if default_perf_recipe is not None:
                 file_name = f"diff_from_default_perf_recipe_{args.compute_dtype}.diff"
                 dump_config_diff_from_base_recipe(default_perf_recipe, recipe, output_dir, file_name=file_name)

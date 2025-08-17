@@ -23,6 +23,7 @@ from ..helpers import (
     set_primary_perf_configs,
 )
 from ..utils import hf_tokenizer
+from ..main import run_performance_experiment
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-8B"
 
@@ -105,12 +106,13 @@ def override_recipe_configs(
 
 
 if __name__ == "__main__":
-    from .main import run_performance_experiment
     run_performance_experiment(
         task="finetune",
         model="llama3",
         model_size="8b",
         override_recipe_configs=override_recipe_configs,
+        finetuning_skip_import=SKIP_IMPORT,
+        hf_model_url=HF_MODEL_URI,
         base_recipe=finetune_recipe(performance_mode=False),
         default_perf_recipe=finetune_recipe(performance_mode=True),
     )
