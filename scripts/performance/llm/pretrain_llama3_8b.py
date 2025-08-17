@@ -17,10 +17,7 @@ import nemo_run as run
 from nemo.collections.llm.recipes.llama3_8b import pretrain_recipe
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 
-from ..helpers import (
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-)
+from ..helpers import set_exp_logging_configs, set_primary_perf_configs
 from ..utils import hf_tokenizer
 
 
@@ -91,6 +88,7 @@ def override_recipe_configs(
 
 if __name__ == "__main__":
     from .main import run_performance_experiment
+
     run_performance_experiment(
         task="pre_train",
         model="llama3",

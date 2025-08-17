@@ -19,6 +19,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvP
 from .argument_parser import parse_cli_args
 from .helpers import get_user_configs, build_perf_env_plugin, args_sanity_check
 from .executors import local_executor, slurm_executor
+from .helpers import build_perf_env_plugin, get_user_configs
 
 def run_performance_experiment(
     task: str,
@@ -135,7 +136,7 @@ def run_performance_experiment(
                 exp.run(sequential=True, detach=True)
             else:
                 exp.dryrun()
-    
+
         # dump config diff from base recipe
         if args.dump_config_diff_from_base_recipe:
             output_dir = exp.jobs[-1].executor.job_dir
