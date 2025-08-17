@@ -46,7 +46,7 @@ def lepton_executor(
     - Tokenizer parallelism control
     """
     mounts = [{"path": "/", "mount_path": mount_path, "from": mount_from}]
-    env_vars = {
+    default_env_vars = {
         "PYTHONPATH": pythonpath,
         "TORCH_HOME": torch_home,
         # Performance optimization environment variables (from llama31_utils.py)
@@ -58,11 +58,17 @@ def lepton_executor(
         "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
     }
+    
+    # Merge with env_vars from executor_config if provided
+    if env_vars:
+        default_env_vars.update(env_vars)
+    
+    # Add HF token and WANDB API key if provided
     if hf_token:
-        env_vars["HF_TOKEN"] = hf_token
-        env_vars["TRANSFORMERS_OFFLINE"] = "0"  # Enable online downloads when HF token is provided
+        default_env_vars["HF_TOKEN"] = hf_token
+        default_env_vars["TRANSFORMERS_OFFLINE"] = "0"
     if wandb_api_key:
-        env_vars["WANDB_API_KEY"] = wandb_api_key
+        default_env_vars["WANDB_API_KEY"] = wandb_api_key
 
     return run.LeptonExecutor(
         resource_shape=resource_shape,
@@ -72,7 +78,7 @@ def lepton_executor(
         node_group=node_group,
         nodes=nodes,
         nprocs_per_node=devices,
-        env_vars=env_vars,
+        env_vars=default_env_vars,
         launcher="torchrun",
     )
 
