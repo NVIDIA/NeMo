@@ -35,6 +35,7 @@ def lepton_executor(
     wandb_api_key: Optional[str] = None,
     torch_home: str = "/nemo-workspace/.cache",
     pythonpath: str = "/nemo-workspace/nemo-run:$PYTHONPATH",
+    env_vars: Dict[str, str] = None,
 ) -> run.LeptonExecutor:
     """Create a Lepton executor for training with dynamic configuration.
 
