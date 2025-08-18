@@ -435,7 +435,7 @@ def set_primary_perf_configs(
         use_fsdp_double_buffer=use_fsdp_double_buffer,
         use_user_buffer_registration=use_user_buffer_registration,
         use_sharp=use_sharp,
-        keep_fsdp_fp8_transpose_cache=zd,
+        keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
     )
 
     return recipe
