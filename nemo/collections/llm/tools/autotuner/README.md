@@ -19,9 +19,9 @@ AutoTuner is designed to iterate over different model configurations quickly and
 - **Rich Visualization**: Descriptive tables and charts for easy decision making and result interpretation.
 - **Production Deployment**: Runs directly on customer GPU infrastructure, ready for enterprise use.
 
-# NeMo Autotuner Launcher
+# NeMo AutoTuner Launcher
 
-A tool for orchestrating NeMo autotuner workflows on remote clusters using Lepton. This launcher handles packaging local code and data, then executes autotuner steps remotely.
+A tool for orchestrating NeMo AutoTuner workflows on remote clusters using DGX Cloud Lepton. This launcher handles packaging local code and data, then executes AutoTuner steps remotely.
 
 ## Quick Start
 
@@ -30,10 +30,12 @@ A tool for orchestrating NeMo autotuner workflows on remote clusters using Lepto
 
    ```bash
    # Ensure you have NeMo, nemo_run and rich installed
-   pip install nemo nemo_run rich
+   pip install nemo_toolkit[nlp]
+   pip install git+https://github.com/NVIDIA-NeMo/Run.git
+   pip install rich
    ```
 - NeMo workspace mounted at `/nemo-workspace`
-- Access to GPU resources on Lepton
+- Access to GPU resources on DGX Cloud Lepton.
 
 ## Basic Usage
 
@@ -43,17 +45,17 @@ Creates optimized training configurations for your model and infrastructure.
 
 ```bash
 python launcher.py generate \
-  --model gemma2_9b \
-  --nodes 8 \
-  --gpus-per-node 8 \
-  --mount-path /nemo-workspace \
-  --logs-subdir /nemo-workspace/autotuner/new/logs \
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
-  --mount-from node-nfs:lepton-shared-fs \
-  --mount-source-path / \
+  --model gemma2_9b \
   --launcher-node-group tme-nebius-h200-01 \
   --training-node-group tme-nebius-h200-01 \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-source-path / \
+  --mount-path /nemo-workspace \
   --resource-shape gpu.8xh200 \
+  --container-image nvcr.io/nvidia/nemo:25.07 \
+  --nodes 8 \
+  --gpus-per-node 8 \
   --seq-length 8192 \
   --num-tokens-in-b 1000 \
   --global-batch-sizes 256 \
@@ -66,7 +68,7 @@ python launcher.py generate \
   --micro-batch-sizes 1,2 \
   --max-steps-per-run 50 \
   --max-steps 50 \
-  --container-image nvidia/pytorch:25.07
+  --logs-subdir /nemo-workspace/autotuner/new/logs
 ```
 
 **Expected output:**
@@ -146,8 +148,8 @@ python launcher.py list-configs \
   --model llama31_70b \
   --launcher-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
-  --mount-path /nemo-workspace \
-  --mount-source-path /
+  --mount-source-path / \
+  --mount-path /nemo-workspace
 ```
 
 ### 4. Analyze Results (`results`)
@@ -161,11 +163,11 @@ python launcher.py results \
   --logs-path /nemo-workspace/autotuner/new/logs/llama31_8b \
   --log-prefix nemo \
   --launcher-node-group tme-nebius-h200-01 \
+  --top-n 10 \
+  --cost-per-gpu-hour 3.0 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
-  --mount-path /nemo-workspace \
-  --top-n 10 \
-  --cost-per-gpu-hour 3.0
+  --mount-path /nemo-workspace
 ```
 
 **Expected output:**
@@ -249,16 +251,16 @@ Here's a complete workflow for optimizing a Gemma2 9B model on an 8-node H200 cl
 ### Step 1: Generate Configurations
 ```bash
 python launcher.py generate \
-  --model gemma2_9b \
-  --nodes 8 \
-  --gpus-per-node 8 \
-  --resource-shape gpu.8xh200 \
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --model gemma2_9b \
   --launcher-node-group tme-nebius-h200-01 \
   --training-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
   --mount-path /nemo-workspace \
+  --resource-shape gpu.8xh200 \
+  --nodes 8 \
+  --gpus-per-node 8 \
   --logs-subdir /nemo-workspace/autotuner/new/logs
 ```
 
@@ -282,30 +284,40 @@ python launcher.py results \
   --logs-path /nemo-workspace/autotuner/new/logs/gemma2_9b \
   --log-prefix nemo \
   --launcher-node-group tme-nebius-h200-01 \
+  --top-n 10 \
+  --cost-per-gpu-hour 3.0 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
-  --mount-path /nemo-workspace \
-  --top-n 10 \
-  --cost-per-gpu-hour 3.0
+  --mount-path /nemo-workspace
 ```
 
 ## Remote Execution
 
-All operations are executed remotely on Lepton clusters:
+All operations are executed remotely on DGX Cloud Lepton clusters using NeMo Run:
 
-1. **Code Packaging**: Local scripts are packaged and uploaded
-2. **Job Creation**: Lepton jobs are created with appropriate resources
-3. **Log Streaming**: Real-time logs are streamed to your terminal
-4. **Result Retrieval**: Results are available in the mounted workspace
+1. **Script Generation**: Python scripts are dynamically generated and embedded in remote jobs
+2. **Remote Execution**: Jobs are launched on Lepton using LeptonExecutor by NeMo Run
+3. **Environment Setup**: NeMo is automatically cloned and installed from source in remote containers
+4. **Authentication**: Lepton authentication is handled automatically via `lep login` in remote jobs
+5. **Log Streaming**: Real-time logs are streamed to your terminal via NeMo Run
+6. **Result Retrieval**: Results are available in the mounted workspace
+
+### How It Works
+
+The launcher uses NeMo Run's `Experiment` framework:
+
+- **`run.LeptonExecutor`**: Manages remote container execution and resource allocation
+- **`run.Script`**: Embeds Python code directly in remote jobs (no file uploads needed)
+- **`run.run()`**: Executes the remote job and streams logs back to your terminal
 
 ### One-time Setup
 
-The launcher automatically handles one-time setup tasks:
+The launcher automatically handles setup tasks in each remote job:
 
-- **NeMo Installation**: Local NeMo changes are installed once per workspace
-- **Environment Setup**: Python paths and cache directories are configured
-- **Dependency Management**: All required packages are available in the base image
-- **Lepton Authentication**: Automatic authentication for pretraining jobs
+- **NeMo Installation**: Clones your NeMo fork to `/tmp/nemo-source` and installs in editable mode
+- **Environment Setup**: Configures Python paths and sets up required environment variables
+- **Lepton Authentication**: Runs `lep login -c {workspace_id}:{token}` in remote container
+- **Dependency Management**: Installs NeMo from source with all required components
 
 ## Configuration Parameters
 
@@ -317,7 +329,7 @@ The launcher automatically handles one-time setup tasks:
 | `nodes` | int | Number of compute nodes |
 | `gpus_per_node` | int | GPUs per node |
 | `resource_shape` | str | GPU type and count (e.g., "gpu.8xh200") |
-| `config_dir` | str | Directory to save configurations |
+| `config_dir` | str | Directory to save configurations (required) |
 | `logs_subdir` | str | Directory to save training logs |
 | `launcher_node_group` | str | Node group for launcher jobs |
 | `training_node_group` | str | Node group for training jobs |
@@ -350,7 +362,7 @@ The launcher automatically handles one-time setup tasks:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `container_image` | str | "nvidia/pytorch:25.07-py3" | Container image (public) |
+| `container_image` | str | "nvcr.io/nvidia/nemo:25.07" | Container image (NVIDIA NeMo) |
 | `max_model_parallel_size` | int | 64 | Maximum model parallel size |
 
 ## Output Files
@@ -377,8 +389,7 @@ The `results()` function displays:
 ### Common Issues
 
 1. **Job Fails Immediately**
-   - Check Lepton authentication: `lepton auth status`
-   - Verify resource availability: `lepton resource list`
+   - Check DGX Cloud Lepton authentication: `lep workspace list`
    - Check workspace mounting: Ensure `/nemo-workspace` is accessible
 
 2. **Configuration Generation Fails**
@@ -387,14 +398,13 @@ The `results()` function displays:
    - Ensure config directory is writable
 
 3. **Training Experiments Fail**
-   - Check GPU availability and compatibility
+   - Check GPU availability
    - Verify data paths and permissions
    - Review logs for specific error messages
 
 4. **Results Analysis Issues**
    - Ensure log files exist and are readable
    - Check log prefix matches actual log files
-   - Verify cost parameters are reasonable
 
 ### Getting Help
 
@@ -409,26 +419,17 @@ python launcher.py results --help
 python launcher.py list-configs --help
 ```
 
-### Log Retrieval
-
-If a job fails, you can retrieve logs manually:
-
-```bash
-# Get job logs
-lepton job logs JOB_ID
-
-# List recent jobs
-lepton job list
-
-# Get job details
-lepton job get JOB_ID
-```
-
 ## Configuration Tips
 
 ### Model Selection
 - Use exact NeMo model names: `"llama31_70b"`, `"gemma2_9b"`, `"mixtral_8x7b"`, etc.
 - Check supported models with: `python launcher.py list-models`
+
+### Implementation Details
+- **NeMo Run Integration**: Uses `nemo_run.LeptonExecutor` and `nemo_run.Script` for remote execution
+- **Script Generation**: Python code is embedded directly in remote jobs (no file uploads)
+- **NeMo Installation**: Automatically clones and installs NeMo from source in remote containers
+- **Authentication**: Handles Lepton auth via `lep login` in remote environment
 
 ### Resource Configuration
 - `resource_shape`: Use format `"gpu.countxtype"` (e.g., `"gpu.8xh200"`, `"gpu.4xa100"`)
