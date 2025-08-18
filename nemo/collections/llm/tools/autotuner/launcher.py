@@ -88,7 +88,6 @@ def create_lepton_executor(
 def create_autotune_script(script_type: str, **kwargs) -> run.Script:
     """Create a script for autotune operations."""
     lepton_workspace_id = kwargs.get('lepton_workspace_id')
-    lepton_workspace_url = kwargs.get('lepton_workspace_url')
     lepton_token = kwargs.get('lepton_token')
 
     script_content = f"""#!/usr/bin/env python3
@@ -278,7 +277,6 @@ def launch_generate_remote(
         "generate",
         args_dict=args_dict,
         lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
-        lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
         lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', ''),
     )
     run.run(script, executor=executor, name="autotune-generate")
@@ -325,7 +323,6 @@ def launch_run_remote(
         sequential=sequential,
         run_all=run_all,
         lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
-        lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
         lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', ''),
     )
     run.run(script, executor=executor, name="autotune-run")
@@ -364,7 +361,6 @@ def launch_results_remote(
         top_n=top_n,
         cost_per_gpu_hour=cost_per_gpu_hour,
         lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
-        lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
         lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', ''),
     )
     run.run(script, executor=executor, name="autotune-results")
@@ -390,7 +386,6 @@ def launch_list_configs_remote(
         config_dir=config_dir,
         model=model,
         lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
-        lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
         lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', ''),
     )
     run.run(script, executor=executor, name="autotune-list-configs")

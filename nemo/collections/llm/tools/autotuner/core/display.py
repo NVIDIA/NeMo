@@ -219,10 +219,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     table.add_column("Cost", style="red", width=10)
 
     for i, (config_name, config_data) in enumerate(sorted_configs[:5], 1):
-        # Extract key parameters for display
-        config_parts = config_name.split('_')
-        model_name = config_parts[0] if len(config_parts) > 0 else "Unknown"
-
         # Extract parameters using dictionary approach
         keys = ["tp", "pp", "cp", "ep", "mbs", "vp", "seq", "gbs"]
         parts = config_name.split("_")

@@ -193,8 +193,10 @@ def extract_model_size_unified(
                     size = extract_value_with_patterns(model_str, ExtractionPatterns.MODEL_SIZE_PATTERNS, float)
                     if size:
                         return size
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract model size from config dict: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error extracting model size from config dict: {e}")
 
     # extract from model name or config name using pattern matching only
     elif source_type in ["model_name", "config_name"] and isinstance(source, str):
@@ -226,8 +228,10 @@ def extract_model_size_unified(
                     size = extract_value_with_patterns(object_str, ExtractionPatterns.MODEL_SIZE_PATTERNS, float)
                     if size:
                         return size
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract model size from live object: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error extracting model size from live object: {e}")
     return None
 
 
@@ -255,8 +259,10 @@ def extract_precision_unified(source: Union[str, Dict[str, Any], object]) -> str
                             return 'fp16'
                         elif 'fp32' in precision.lower():
                             return 'fp32'
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract precision from config dict: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error extracting precision from config dict: {e}")
 
     elif isinstance(source, str):
         precision = extract_value_with_patterns(source, ExtractionPatterns.PRECISION_PATTERNS, str)
@@ -293,8 +299,10 @@ def extract_precision_unified(source: Union[str, Dict[str, Any], object]) -> str
                             return 'fp16'
                         elif 'fp32' in precision.lower():
                             return 'fp32'
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract precision from live object: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error extracting precision from live object: {e}")
 
     return 'bf16'
 
@@ -442,8 +450,10 @@ def _extract_from_live_object(source: object, values: Dict[str, Any]) -> Dict[st
                 if hasattr(data, attr):
                     values[key] = getattr(data, attr)
 
-    except Exception:
-        pass
+    except (AttributeError, TypeError) as e:
+        logger.debug(f"Could not extract data values from live object: {e}")
+    except Exception as e:
+        logger.warning(f"Unexpected error extracting data values from live object: {e}")
 
     return values
 
@@ -471,8 +481,10 @@ def _extract_trainer_values(trainer_obj: Union[str, object]) -> Dict[str, Any]:
                     result['vp'] = strategy.virtual_pipeline_model_parallel_size
 
             return result
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract trainer values from live object: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error extracting trainer values from live object: {e}")
 
     trainer_str = str(trainer_obj) if not isinstance(trainer_obj, str) else trainer_obj
     trainer_params = _extract_trainer_params_optimized(trainer_str)
@@ -508,8 +520,10 @@ def _extract_data_values(data_obj: Union[str, object]) -> Dict[str, Any]:
                 result['seq_length'] = data_obj.seq_length
 
             return result
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract data values from live object: {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error extracting data values from live object: {e}")
 
     data_str = str(data_obj) if not isinstance(data_obj, str) else data_obj
     data_params = _extract_data_params_optimized(data_str)
@@ -756,7 +770,11 @@ def check_config_matches(base_config_path: str, generated_configs_dir: str) -> T
 
             if compare_configs_simplified(base_config, compare_config):
                 matching_files.append(filename)
-        except Exception:
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            logger.debug(f"Could not read config file {filename}: {e}")
+            continue
+        except Exception as e:
+            logger.warning(f"Unexpected error processing config file {filename}: {e}")
             continue
 
     return len(matching_files) > 0, matching_files
@@ -825,6 +843,9 @@ def update_args_with_performance_results(model_name, performance_dict, config_di
             logger.info(f"Performance results saved to {args_file_path}")
         else:
             logger.warning(f"Args file not found: {args_file_path}")
-    except Exception:
-        logger.error("Failed to update performance results")
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error(f"Failed to read args file: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update performance results: {e}")
         raise

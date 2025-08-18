@@ -97,8 +97,6 @@ def calculate_performance_analysis(performance_dict, args, total_tokens, cost_pe
         m_tflops_gpu = config_data.get('m_tflops_gpu', 0)
         extracted_values = extract_all_values(config_name)
         gbs = extracted_values.get('gbs')
-        if gbs is None:
-            gbs = args.global_batch_sizes[0] if args.global_batch_sizes else 512
         tokens_per_step = args.seq_length * gbs
         total_steps = total_tokens / tokens_per_step
         total_training_time_seconds = time_per_step * total_steps
