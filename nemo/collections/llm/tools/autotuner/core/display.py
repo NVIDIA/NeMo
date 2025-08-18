@@ -41,7 +41,6 @@ def _display_memory_analysis(memory_analysis):
         will_oom = analysis.get('will_oom', False)
         usage_gb = analysis.get('estimated_usage_gb', 0)
         total_gb = analysis.get('total_gpu_memory_gb', 0)
-        config_values = analysis.get('config_values', {})
         if will_oom:
             memory_status = "[red]⚠ OOM Risk[/red]"
             run_status = "[red]Skip[/red]"
@@ -50,11 +49,6 @@ def _display_memory_analysis(memory_analysis):
             memory_status = "[green]Safe[/green]"
             run_status = "[green]▶ Run[/green]"
             safe_count += 1
-        if config_name != "base_config" and all(
-            v in [1, 512, 8192]
-            for v in [config_values.get('tp', 1), config_values.get('mbs', 1), config_values.get('gbs', 512)]
-        ):
-            config_values = extract_all_values(config_name)
         table.add_row(config_name, memory_status, run_status, f"{usage_gb:.1f}", f"{total_gb:.0f}")
     console.print(table)
     console.print("\n[cyan]Memory Analysis Summary:[/cyan]")
