@@ -26,6 +26,7 @@ LLM_VOCAB_SIZE_MAP = {
     "nemotron": 256000,
     "bert": 29000,
     "mixtral": 32000,
+    "llama4": 202048,
 }
 
 
@@ -45,7 +46,7 @@ def read_tb_log(path: str, summary_name: str) -> List:
     files = glob.glob(f"{path}/events*tfevents*")
     files.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)))
     if len(files) == 0 or not os.path.isfile(files[0]):
-        raise FileNotFoundError(f"Missing TensorBoard log file.")
+        raise FileNotFoundError("Missing TensorBoard log file.")
 
     events_file = files[0]
     try:
