@@ -87,18 +87,19 @@ def create_lepton_executor(
 
 def create_autotune_script(script_type: str, **kwargs) -> run.Script:
     """Create a script for autotune operations."""
+    lepton_workspace_id = kwargs.get('lepton_workspace_id')
+    lepton_workspace_url = kwargs.get('lepton_workspace_url')
+    lepton_token = kwargs.get('lepton_token')
+    
     script_content = f"""#!/usr/bin/env python3
 import sys
 import os
 import subprocess
 
-# Set Lepton environment variables from AUTOTUNER variables
-if "LEPTON_AUTOTUNER_WORKSPACE_ID" in os.environ:
-    os.environ["LEPTON_WORKSPACE_ID"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_ID"]
-if "LEPTON_AUTOTUNER_WORKSPACE_URL" in os.environ:
-    os.environ["LEPTON_WORKSPACE_URL"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_URL"]
-if "LEPTON_AUTOTUNER_TOKEN" in os.environ:
-    os.environ["LEPTON_TOKEN"] = os.environ["LEPTON_AUTOTUNER_TOKEN"]
+# Set Lepton environment variables from passed parameters
+os.environ["LEPTON_WORKSPACE_ID"] = "{lepton_workspace_id}"
+os.environ["LEPTON_WORKSPACE_URL"] = "{lepton_workspace_url}"
+os.environ["LEPTON_TOKEN"] = "{lepton_token}"
 
 def setup_nemo_environment():
     # First uninstall existing NeMo framework
@@ -147,15 +148,6 @@ def setup_nemo_environment():
         print("Setting LEPTON_TOKEN from environment")
     else:
         print("Warning: LEPTON_TOKEN not found in environment")
-    
-    # Verify Lepton authentication can work
-    try:
-        from leptonai.api.v2.client import APIClient
-        print("Lepton API client import successful")
-    except ImportError:
-        print("Warning: Could not import Lepton API client")
-    except Exception:
-        print("Warning: Error with Lepton setup")
 
 if __name__ == "__main__":
     setup_nemo_environment()
@@ -191,9 +183,9 @@ if __name__ == "__main__":
     # Add environment variables to executor config
     executor_config = args.get_executor_config()
     executor_config['env_vars'] = {{
-        'LEPTON_WORKSPACE_ID': os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
-        'LEPTON_WORKSPACE_URL': os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
-        'LEPTON_TOKEN': os.environ.get('LEPTON_AUTOTUNER_TOKEN', '')
+        'LEPTON_WORKSPACE_ID': os.environ.get('LEPTON_WORKSPACE_ID', ''),
+        'LEPTON_WORKSPACE_URL': os.environ.get('LEPTON_WORKSPACE_URL', ''),
+        'LEPTON_TOKEN': os.environ.get('LEPTON_TOKEN', '')
     }}
     
     results = run_pretraining_impl(
@@ -307,7 +299,13 @@ def launch_generate_remote(
     )
 
     # Create and run script
-    script = create_autotune_script("generate", args_dict=args_dict)
+    script = create_autotune_script(
+        "generate", 
+        args_dict=args_dict,
+        lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
+        lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
+        lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', '')
+    )
     run.run(script, executor=executor, name="autotune-generate")
 
 
@@ -345,7 +343,16 @@ def launch_run_remote(
     )
 
     # Create and run script
-    script = create_autotune_script("run", config_dir=config_dir, model=model, sequential=sequential, run_all=run_all)
+    script = create_autotune_script(
+        "run", 
+        config_dir=config_dir, 
+        model=model, 
+        sequential=sequential, 
+        run_all=run_all,
+        lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
+        lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
+        lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', '')
+    )
     run.run(script, executor=executor, name="autotune-run")
 
 
@@ -385,6 +392,9 @@ def launch_results_remote(
         force_reconstruct=force_reconstruct,
         cost_per_gpu_hour=cost_per_gpu_hour,
         quiet=quiet,
+        lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
+        lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
+        lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', '')
     )
     run.run(script, executor=executor, name="autotune-results")
 
@@ -404,7 +414,14 @@ def launch_list_configs_remote(
     )
 
     # Create and run script
-    script = create_autotune_script("list_configs", config_dir=config_dir, model=model)
+    script = create_autotune_script(
+        "list_configs", 
+        config_dir=config_dir, 
+        model=model,
+        lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
+        lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
+        lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', '')
+    )
     run.run(script, executor=executor, name="autotune-list-configs")
 
 
