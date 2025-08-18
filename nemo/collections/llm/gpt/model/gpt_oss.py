@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Annotated, Callable, List, Literal, Optional, 
 
 import torch
 from megatron.core.transformer.enums import AttnBackend
-from nemo.utils.import_utils import safe_import_from
 from safetensors import safe_open
 from torch import nn
 from transformers import AutoModelForCausalLM, GenerationConfig
@@ -33,11 +32,13 @@ from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 quick_gelu, HAVE_QUICK_GELU = safe_import_from("megatron.core.fusions.fused_bias_geglu", "quick_gelu", alt=object)
+
 
 @dataclass
 class GPTOSSConfig(GPTConfig):
