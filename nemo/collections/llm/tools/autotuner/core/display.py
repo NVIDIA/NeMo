@@ -234,9 +234,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
 
         parallelism = f"{params['tp']}/{params['pp']}/{params['cp']}/{params['ep']}/{params['vp']}"
         batch_info = f"{params['mbs']}/{params['gbs']}"
-        seq_len = params['seq']
-
-        config_id = f"Config-{i}"
 
         table.add_row(
             str(i),
@@ -251,7 +248,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     # Add legend for abbreviations
     console.print("\n[cyan] Table Legend:[/cyan]")
     console.print("  TP/PP/CP/EP/VP: Tensor/Pipeline/Context/Expert/Virtual Parallelism")
-    console.print("  Seq: Sequence Length")
     console.print("  MBS/GBS: Micro Batch Size / Global Batch Size")
     console.print("  M-TFLOPs/GPU: Millions of TFLOPS per GPU")
 
