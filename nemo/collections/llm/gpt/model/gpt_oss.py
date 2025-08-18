@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, List, Literal, Optional, Tuple, Union
 
 import torch
-from megatron.core.fusions.fused_bias_geglu import quick_gelu
 from megatron.core.transformer.enums import AttnBackend
+from nemo.utils.import_utils import safe_import_from
 from safetensors import safe_open
 from torch import nn
 from transformers import AutoModelForCausalLM, GenerationConfig
@@ -37,6 +37,7 @@ from nemo.utils import logging
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
+quick_gelu, HAVE_QUICK_GELU = safe_import_from("megatron.core.fusions.fused_bias_geglu", "quick_gelu")
 
 @dataclass
 class GPTOSSConfig(GPTConfig):
@@ -111,6 +112,7 @@ class GPTOSSModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
+        assert HAVE_QUICK_GELU, "Megatron version does not support gpt-oss model."
         super().__init__(config or GPTOSSConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
 
 
