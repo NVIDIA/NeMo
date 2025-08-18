@@ -341,7 +341,7 @@ def launch_results_remote(
     mount_path: str,
     launcher_node_group: str,
     top_n: int = 10,
-    cost_per_gpu_hour: float = 3.0
+    cost_per_gpu_hour: float = 3.0,
 ):
     """Launch results collection step using remote executor."""
     mounts = [{"path": mount_source_path, "mount_path": mount_path, "from": mount_from}]
@@ -562,7 +562,7 @@ def main():
                 args.mount_path,
                 args.launcher_node_group,
                 args.top_n,
-                args.cost_per_gpu_hour
+                args.cost_per_gpu_hour,
             )
         elif args.command == 'list-configs':
             launch_list_configs_remote(

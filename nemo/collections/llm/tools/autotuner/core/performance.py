@@ -27,11 +27,7 @@ logger.setLevel(logging.INFO)
 
 
 def results(
-    args: AutoTuneArgs,
-    logs_path: str,
-    log_prefix: str = '',
-    top_n: int = 5,
-    cost_per_gpu_hour: float = 3.0
+    args: AutoTuneArgs, logs_path: str, log_prefix: str = '', top_n: int = 5, cost_per_gpu_hour: float = 3.0
 ) -> Dict[str, Any]:
     """
     Collect, analyze, and display AutoConfigurator results in one step.
