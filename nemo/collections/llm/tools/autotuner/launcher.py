@@ -92,13 +92,13 @@ import sys
 import os
 import subprocess
 
-# Set Lepton environment variables from AUTOTUNER variables
-if "LEPTON_AUTOTUNER_WORKSPACE_ID" in os.environ:
-    os.environ["LEPTON_WORKSPACE_ID"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_ID"]
-if "LEPTON_AUTOTUNER_WORKSPACE_URL" in os.environ:
-    os.environ["LEPTON_WORKSPACE_URL"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_URL"]
-if "LEPTON_AUTOTUNER_TOKEN" in os.environ:
-    os.environ["LEPTON_TOKEN"] = os.environ["LEPTON_AUTOTUNER_TOKEN"]
+    # Set Lepton environment variables from AUTOTUNER variables
+    if "LEPTON_AUTOTUNER_WORKSPACE_ID" in os.environ:
+        os.environ["LEPTON_WORKSPACE_ID"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_ID"]
+    if "LEPTON_AUTOTUNER_WORKSPACE_URL" in os.environ:
+        os.environ["LEPTON_WORKSPACE_URL"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_URL"]
+    if "LEPTON_AUTOTUNER_TOKEN" in os.environ:
+        os.environ["LEPTON_TOKEN"] = os.environ["LEPTON_AUTOTUNER_TOKEN"]
 
 def setup_nemo_environment():
     # First uninstall existing NeMo framework
@@ -139,11 +139,11 @@ def setup_nemo_environment():
         "LEPTON_TOKEN"
     ]
     
-    for var in lepton_env_vars:
-        if var in os.environ:
-            print(f"Setting {var} from environment")
+    for env_var in lepton_env_vars:
+        if env_var in os.environ:
+            print(f"Setting {env_var} from environment")
         else:
-            print(f"Warning: {var} not found in environment")
+            print(f"Warning: {env_var} not found in environment")
     
     # Verify Lepton authentication can work
     try:
