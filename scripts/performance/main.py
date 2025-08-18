@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional, Any
 
-from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+import nemo_run as run
+
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
 from .argument_parser import parse_cli_args
 from .executors import local_executor, slurm_executor
 from .helpers import args_sanity_check, build_perf_env_plugin, get_user_configs
+from .utils import import_ckpt_experiment, prepare_squad_dataset_experiment, dump_config_diff_from_base_recipe
 
 
 def run_performance_experiment(
@@ -27,6 +30,8 @@ def run_performance_experiment(
     model_size: str,
     override_recipe_configs: Callable,
     finetuning_skip_import: bool = False,
+    finetuning_skip_dataset_download: bool = False,
+    finetuning_seq_length: int = 4096,
     hf_model_url: Optional[str] = None,
     custom_env_vars: Dict[str, str] = {},
     nsys_kwargs: Dict[str, Any] = {},
@@ -40,6 +45,8 @@ def run_performance_experiment(
     args_sanity_check(args)
 
     # get user configs
+    if task == "finetune":
+        task = args.finetuning
     config_args = get_user_configs(args.gpu.lower(), task, model, model_size, args)
 
     # override recipe configs
@@ -56,7 +63,15 @@ def run_performance_experiment(
         vp_size,
         ep_size,
         etp_size,
-    ) = config_args[:9]
+        enable_cuda_graphs,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
+        recompute_modules,
+        keep_fsdp_fp8_transpose_cache,
+        use_user_buffer_registration,
+        use_sharp,
+    ) = config_args
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"  # pylint: disable=line-too-long
     exp_name = f"{task}_{model}_{model_size}_{args.compute_dtype}_{exp_config}"
 
@@ -114,10 +129,12 @@ def run_performance_experiment(
         if task != "pretrain" and (not finetuning_skip_import):
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             assert hf_model_url is not None, "HF model URL is required for importing checkpoint from HuggingFace"
-            run.run(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}"))
-        if task != "pretrain" and (not skip_dataset_download):
             run.run(
-                *prepare_squad_dataset_experiment(executor, hf_model_url, seq_length=4096, nemo_home=args.nemo_home)
+                *import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}")
+            )
+        if task != "pretrain" and (not finetuning_skip_dataset_download):
+            run.run(
+                *prepare_squad_dataset_experiment(executor, hf_model_url, seq_length=finetuning_seq_length, nemo_home=args.nemo_home)
             )
         run.run(recipe, executor=executor, plugins=plugins)
     else:
@@ -126,6 +143,8 @@ def run_performance_experiment(
                 assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
                 assert hf_model_url is not None, "HF model URL is required for importing checkpoint from HuggingFace"
                 exp.add(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}"))
+            if task != "pretrain" and (not finetuning_skip_dataset_download):
+                exp.add(*prepare_squad_dataset_experiment(executor, hf_model_url, seq_length=finetuning_seq_length, nemo_home=args.nemo_home))
 
             exp.add(
                 recipe,

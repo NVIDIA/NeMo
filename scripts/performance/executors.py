@@ -178,6 +178,7 @@ def local_executor(
     PERF_ENV_VARS = _get_default_env_vars(gpu, wandb_key, nemo_home, hf_token)
     PERF_ENV_VARS |= custom_env_vars
 
+    err_msgs = []
     if log_dir != get_nemorun_home():
         err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
     if len(err_msgs) > 0:
