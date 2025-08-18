@@ -96,11 +96,6 @@ import sys
 import os
 import subprocess
 
-# Set Lepton environment variables from passed parameters
-os.environ["LEPTON_WORKSPACE_ID"] = "{lepton_workspace_id}"
-os.environ["LEPTON_WORKSPACE_URL"] = "{lepton_workspace_url}"
-os.environ["LEPTON_TOKEN"] = "{lepton_token}"
-
 def setup_nemo_environment():
     # First uninstall existing NeMo framework
     print("Uninstalling existing NeMo framework...")
@@ -131,23 +126,6 @@ def setup_nemo_environment():
     subprocess.run([
         sys.executable, "-m", "pip", "install", "-e", nemo_repo_path
     ], check=True, capture_output=False)
-    
-    # Set Lepton environment variables for authentication
-    print("Setting Lepton environment variables...")
-    if "LEPTON_WORKSPACE_ID" in os.environ:
-        print("Setting LEPTON_WORKSPACE_ID from environment")
-    else:
-        print("Warning: LEPTON_WORKSPACE_ID not found in environment")
-    
-    if "LEPTON_WORKSPACE_URL" in os.environ:
-        print("Setting LEPTON_WORKSPACE_URL from environment")
-    else:
-        print("Warning: LEPTON_WORKSPACE_URL not found in environment")
-    
-    if "LEPTON_TOKEN" in os.environ:
-        print("Setting LEPTON_TOKEN from environment")
-    else:
-        print("Warning: LEPTON_TOKEN not found in environment")
     
     print("Authenticating with Lepton CLI...")
     subprocess.run([
@@ -188,11 +166,6 @@ if __name__ == "__main__":
     
     # Add environment variables to executor config
     executor_config = args.get_executor_config()
-    executor_config['env_vars'] = {{
-        'LEPTON_WORKSPACE_ID': os.environ.get('LEPTON_WORKSPACE_ID', ''),
-        'LEPTON_WORKSPACE_URL': os.environ.get('LEPTON_WORKSPACE_URL', ''),
-        'LEPTON_TOKEN': os.environ.get('LEPTON_TOKEN', '')
-    }}
     
     results = run_pretraining_impl(
         base_config=args.get_base_config(),
