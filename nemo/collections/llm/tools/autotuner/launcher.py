@@ -152,10 +152,10 @@ def setup_nemo_environment():
     try:
         from leptonai.api.v2.client import APIClient
         print("Lepton API client import successful")
-    except ImportError as e:
-        print(f"Warning: Could not import Lepton API client: {e}")
-    except Exception as e:
-        print(f"Warning: Error with Lepton setup: {e}")
+    except ImportError:
+        print("Warning: Could not import Lepton API client")
+    except Exception:
+        print("Warning: Error with Lepton setup")
 
 if __name__ == "__main__":
     setup_nemo_environment()
