@@ -133,17 +133,20 @@ def setup_nemo_environment():
     
     # Set Lepton environment variables for authentication
     print("Setting Lepton environment variables...")
-    lepton_env_vars = [
-        "LEPTON_WORKSPACE_ID",
-        "LEPTON_WORKSPACE_URL", 
-        "LEPTON_TOKEN"
-    ]
+    if "LEPTON_WORKSPACE_ID" in os.environ:
+        print("Setting LEPTON_WORKSPACE_ID from environment")
+    else:
+        print("Warning: LEPTON_WORKSPACE_ID not found in environment")
     
-    for env_var in lepton_env_vars:
-        if env_var in os.environ:
-            print(f"Setting {env_var} from environment")
-        else:
-            print(f"Warning: {env_var} not found in environment")
+    if "LEPTON_WORKSPACE_URL" in os.environ:
+        print("Setting LEPTON_WORKSPACE_URL from environment")
+    else:
+        print("Warning: LEPTON_WORKSPACE_URL not found in environment")
+    
+    if "LEPTON_TOKEN" in os.environ:
+        print("Setting LEPTON_TOKEN from environment")
+    else:
+        print("Warning: LEPTON_TOKEN not found in environment")
     
     # Verify Lepton authentication can work
     try:
