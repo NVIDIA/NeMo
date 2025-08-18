@@ -106,25 +106,12 @@ def setup_nemo_environment():
     except subprocess.CalledProcessError:
         print("No existing NeMo framework found or already uninstalled")
     
-    # Clone NeMo repository to get access to scripts
-    print("Cloning NeMo repository...")
-    nemo_repo_path = "/tmp/nemo-source"
-    if os.path.exists(nemo_repo_path):
-        subprocess.run(["rm", "-rf", nemo_repo_path], check=True)
-    
+    # Install NeMo directly from GitHub repository
+    print("Installing NeMo from GitHub repository...")
     subprocess.run([
-        "git", "clone", "https://github.com/prekshivyas/NeMo.git", nemo_repo_path
+        sys.executable, "-m", "pip", "install", "git+https://github.com/prekshivyas/NeMo.git"
     ], check=True, capture_output=False)
-    
-    # Add NeMo source to Python path
-    if nemo_repo_path not in sys.path:
-        sys.path.insert(0, nemo_repo_path)
-    
-    # Install NeMo from source
-    print("Installing NeMo from source...")
-    subprocess.run([
-        sys.executable, "-m", "pip", "install", "-e", nemo_repo_path
-    ], check=True, capture_output=False)
+    print("Successfully installed NeMo from GitHub repository")
     
     print("Authenticating with Lepton CLI...")
     subprocess.run([
