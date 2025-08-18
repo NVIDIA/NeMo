@@ -20,7 +20,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import nemo_run as run
 from rich.table import Table
-from scripts.performance.helpers import set_primary_perf_configs
+
+from nemo.collections.llm.tools.autotuner.core.performance_helper import set_primary_perf_configs
 
 from nemo.collections import llm
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs

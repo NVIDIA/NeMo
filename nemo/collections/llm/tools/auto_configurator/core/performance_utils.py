@@ -107,10 +107,22 @@ def _find_exact_user_buffer_match(
     seq_length: int,
 ) -> Optional[Any]:
     """Find exact user buffer configuration match."""
-    if "h200" in gpu_type.lower():
-        gpu_type = "h100"
+    KNOWN_GPUS = {
+    "h100": "h100",
+    "h200": "h200",
+    "gb200": "gb200",
+    "a100": "a100",
+    "h20": "h20",
+    "l40s": "l40s",
+    "b200": "b200",
+}
 
     try:
+        for key, value in KNOWN_GPUS:
+            if key in gpu_type.lower():
+                gpu_type = value
+                break
+
         config_names_to_try = []
 
         if cp_size > 1:
@@ -151,6 +163,8 @@ def extract_compute_dtype_from_precision(precision):
         return 'fp16'
     elif 'fp8' in precision:
         return 'fp8'
+    elif 'fp4' in precision:
+        return 'fp4'
     return ''
 
 

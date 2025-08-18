@@ -19,7 +19,6 @@ from rich.console import Console
 from rich.table import Table
 
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
-from nemo.collections.llm.tools.autotuner.core.utils import extract_all_values
 
 console = Console()
 
