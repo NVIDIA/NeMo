@@ -237,7 +237,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     table = Table(show_header=True, show_lines=True, title="Performance & Cost Ranking")
     table.add_column("Rank", style="yellow", width=4)
     table.add_column("TP/PP/CP/EP/VP", style="green", width=15)
-    table.add_column("Seq", style="magenta", width=6)
     table.add_column("MBS/GBS", style="cyan", width=10)
     table.add_column("M-TFLOPs/GPU", style="green", width=12)
     table.add_column("Days", style="blue", width=6)
@@ -264,22 +263,13 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
 
         config_id = f"Config-{i}"
 
-        # Determine status
-        status = "Generated"
-        if config_name in base_config_matches or config_name == 'base_config':
-            status = "Base"
-        elif i == 1:
-            status = "Best"
-
         table.add_row(
             str(i),
             parallelism,
-            seq_len,
             batch_info,
             f"{config_data.get('m_tflops_gpu', 0):.2f}",
             f"{config_data.get('total_training_time_days', 0):.1f}",
             f"${config_data.get('total_cost', 0):,.0f}",
-            status,
         )
     console.print(table)
 
