@@ -87,9 +87,6 @@ def create_lepton_executor(
 
 def create_autotune_script(script_type: str, **kwargs) -> run.Script:
     """Create a script for autotune operations."""
-    lepton_workspace_id = kwargs.get('lepton_workspace_id')
-    lepton_workspace_url = kwargs.get('lepton_workspace_url')
-    lepton_token = kwargs.get('lepton_token')
 
     script_content = f"""#!/usr/bin/env python3
 import sys
@@ -126,12 +123,6 @@ def setup_nemo_environment():
     subprocess.run([
         sys.executable, "-m", "pip", "install", "-e", nemo_repo_path
     ], check=True, capture_output=False)
-    
-    print("Authenticating with Lepton CLI...")
-    subprocess.run([
-        "lep", "login", "-c", "{lepton_workspace_id}:{lepton_token}"
-    ], check=True, capture_output=False)
-    print("Successfully authenticated with Lepton workspace: {lepton_workspace_id}")
 
 if __name__ == "__main__":
     setup_nemo_environment()
@@ -159,6 +150,20 @@ if __name__ == "__main__":
     model = "{kwargs.get('model', '')}"
     sequential = {kwargs.get('sequential', False)}
     run_all = {kwargs.get('run_all', False)}
+    
+    # Authenticate with Lepton CLI for pretraining jobs
+    print("Authenticating with Lepton CLI...")
+    try:
+        subprocess.run([
+            "lep", "login", "-c", "{kwargs.get('lepton_workspace_id', '')}:{kwargs.get('lepton_token', '')}"
+        ], check=True, capture_output=False)
+        print("Successfully authenticated with Lepton workspace: {kwargs.get('lepton_workspace_id', '')}")
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: Failed to authenticate with Lepton CLI: {{e}}")
+        print("NeMo Run may fail to authenticate with Lepton")
+    except FileNotFoundError:
+        print("Warning: 'lep' command not found. Please ensure Lepton CLI is installed.")
+        print("NeMo Run may fail to authenticate with Lepton")
     
     args = AutoTuneArgs.load_from_file(f'{{config_dir}}/{{model}}/args.json')
     args.sequential = sequential
