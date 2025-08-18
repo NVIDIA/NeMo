@@ -249,25 +249,27 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         config_parts = config_name.split('_')
         model_name = config_parts[0] if len(config_parts) > 0 else "Unknown"
 
-                # Extract parameters using dictionary approach
+        # Extract parameters using dictionary approach
         keys = ["tp", "pp", "cp", "ep", "mbs", "vp", "seq", "gbs"]
         parts = config_name.split("_")
-        
+
         params = {}
         for i, p in enumerate(parts):
             if p in keys:
-                params[p] = parts[i+1]
-        
+                params[p] = parts[i + 1]
+
         parallelism = f"{params['tp']}/{params['pp']}/{params['cp']}/{params['ep']}/{params['vp']}"
         batch_info = f"{params['mbs']}/{params['gbs']}"
 
         config_id = f"Config-{i}"
+
+        # Determine status
         status = "Generated"
         if config_name in base_config_matches or config_name == 'base_config':
             status = "Base"
         elif i == 1:
             status = "Best"
-        
+
         table.add_row(
             str(i),
             parallelism,
