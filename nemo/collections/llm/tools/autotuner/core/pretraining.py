@@ -71,7 +71,7 @@ def lepton_executor(
         default_env_vars["WANDB_API_KEY"] = wandb_api_key
 
     print(default_env_vars)
-    
+
     return run.LeptonExecutor(
         resource_shape=resource_shape,
         container_image=container_image,
