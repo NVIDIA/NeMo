@@ -232,8 +232,12 @@ def _should_enable_for_current_rank() -> bool:
     Returns:
         True if OneLogger should be enabled for the current rank, False otherwise
     """
-    rank = int(os.environ.get('RANK', 0))
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
+    try:
+        rank = int(os.environ.get('RANK', 0))
+        world_size = int(os.environ.get('WORLD_SIZE', 1))
 
-    # Enable for rank 0 or the last rank (common pattern)
-    return rank == 0 or rank == world_size - 1
+        # Enable for rank 0 or the last rank (common pattern)
+        return rank == 0 or rank == world_size - 1
+    except (ValueError, TypeError):
+        # Default to True on invalid values (as expected by tests)
+        return True
