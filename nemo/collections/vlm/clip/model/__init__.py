@@ -18,7 +18,6 @@ from nemo.collections.vlm.clip.model.clip import (
     CLIPConfigL14,
     CLIPConfigL14_336,
     CLIPTextModelL_14_224_Config,
-    CLIPViTL_14_224_Config,
     CLIPTextModelL_14_336_Config,
     CLIPViTL_14_224_Config,
     CLIPViTL_14_336_Config,
