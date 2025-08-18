@@ -9,7 +9,7 @@ model:
 
 # Dataset configuration
 data:
-  dataset_name: ["/lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_mlops/soverign_ai/speaker/src/speaker/scripts/train/sample_squad_data_1.json", "/lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_mlops/soverign_ai/speaker/src/speaker/scripts/train/sample_squad_data_1.json"]
+  dataset_name: ["NeMo/tutorials/llm/automodel/Finetune/data/conversations.jsonl", "NeMo/tutorials/llm/automodel/Finetune/data/conversations.jsonl"]
   # dataset_name: "rajpurkar/squad"
   seq_length: 4096
   micro_batch_size: 1
