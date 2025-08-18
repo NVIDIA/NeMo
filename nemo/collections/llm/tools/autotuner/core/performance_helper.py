@@ -27,7 +27,7 @@ def get_comm_overlap_callback_idx(callbacks):
     """Get the index of the communication overlap callback if it exists."""
     if not callbacks:
         return None
-    
+
     for idx, callback in enumerate(callbacks):
         if hasattr(callback, '__fn_or_cls__') and 'CommOverlap' in str(callback.__fn_or_cls__):
             return idx
@@ -39,14 +39,14 @@ def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_siz
     recipe.model.config.init_model_with_meta_device = True
     recipe.trainer.strategy.fsdp = "megatron"
     recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
-    
+
     # At fp32 gradient, `recipe.trainer.strategy.ddp.gradient_reduce_div_fusion` is used for fusion
     if recipe.trainer.plugins.grad_reduce_in_fp32:
         recipe.trainer.strategy.ddp.average_in_collective = False
-    
+
     recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
     recipe.model.config.gradient_accumulation_fusion = False
-    
+
     if (
         comm_overlap_callback_idx is not None
         and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute
@@ -68,15 +68,15 @@ def set_precision_configs(recipe, compute_dtype: str, fp8_recipe: str | None = N
     if compute_dtype is not None and compute_dtype.lower() == "fp8":
         if fp8_recipe is None:
             fp8_recipe = "ds"
-        
+
         # Import precision plugins only when needed
         from nemo.collections.llm.recipes.precision.mixed_precision import (
-            bf16_with_fp8_mixed,
             bf16_with_fp8_current_scaling_mixed,
+            bf16_with_fp8_mixed,
             bf16_with_fp8_subchannel_scaling_mixed,
             bf16_with_mxfp8_mixed,
         )
-        
+
         if fp8_recipe.lower() == "ds":
             recipe.trainer.plugins = bf16_with_fp8_mixed()
         elif fp8_recipe.lower() == "cs":
@@ -139,7 +139,7 @@ def set_cuda_graph_configs(recipe, enable_cuda_graphs: bool, task: str):
     """Set CUDA graph related configs."""
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    
+
     if (
         task in ["none", "lora"]
         and hasattr(recipe.data, "packed_sequence_specs")
@@ -176,7 +176,7 @@ def set_perf_optimization_configs(
     if use_mcore_fsdp and enable_cuda_graphs:
         logger.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
         enable_cuda_graphs = False
-    
+
     recipe = set_cuda_graph_configs(recipe, enable_cuda_graphs, task)
 
     if use_mcore_fsdp:
@@ -260,10 +260,11 @@ def set_primary_perf_configs(
     # lightning.pytorch.LightningDataModule configs
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
-    
+
     # Check if MockDataModule is available before using it
     try:
         from nemo.collections.llm.gpt.data.mock import MockDataModule
+
         if recipe.data.__fn_or_cls__ == MockDataModule:
             recipe.data.num_train_samples = max_steps * gbs  # ensure only 1 epoch for whole run
     except ImportError:
@@ -278,14 +279,14 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
-    
+
     if nccl_communicator_config_path is not None:
         recipe.trainer.strategy.nccl_communicator_config_path = nccl_communicator_config_path
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
-    
+
     if comm_overlap_callback_idx is not None:
         # WARNING: If True, checkpointing (if enabled) might not work
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
