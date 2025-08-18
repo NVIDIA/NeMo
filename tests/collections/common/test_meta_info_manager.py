@@ -217,40 +217,34 @@ class TestMetaInfoManager:
     @pytest.mark.unit
     def test_should_enable_for_current_rank_single_process(self):
         """Test _should_enable_for_current_rank in single process training."""
-        with patch('torch.distributed.is_initialized', return_value=False):
+        with patch.dict(os.environ, {}, clear=True):
             result = _should_enable_for_current_rank()
             assert result is True
 
     @pytest.mark.unit
     def test_should_enable_for_current_rank_distributed_rank0(self):
         """Test _should_enable_for_current_rank for rank 0 in distributed training."""
-        with patch('torch.distributed.is_initialized', return_value=True):
-            with patch('torch.distributed.get_world_size', return_value=4):
-                with patch('torch.distributed.get_rank', return_value=0):
-                    result = _should_enable_for_current_rank()
-                    assert result is True
+        with patch.dict(os.environ, {"RANK": "0", "WORLD_SIZE": "4"}):
+            result = _should_enable_for_current_rank()
+            assert result is True
 
     @pytest.mark.unit
     def test_should_enable_for_current_rank_distributed_last_rank(self):
         """Test _should_enable_for_current_rank for last rank in distributed training."""
-        with patch('torch.distributed.is_initialized', return_value=True):
-            with patch('torch.distributed.get_world_size', return_value=4):
-                with patch('torch.distributed.get_rank', return_value=3):
-                    result = _should_enable_for_current_rank()
-                    assert result is True
+        with patch.dict(os.environ, {"RANK": "3", "WORLD_SIZE": "4"}):
+            result = _should_enable_for_current_rank()
+            assert result is True
 
     @pytest.mark.unit
     def test_should_enable_for_current_rank_distributed_middle_rank(self):
         """Test _should_enable_for_current_rank for middle rank in distributed training."""
-        with patch('torch.distributed.is_initialized', return_value=True):
-            with patch('torch.distributed.get_world_size', return_value=4):
-                with patch('torch.distributed.get_rank', return_value=1):
-                    result = _should_enable_for_current_rank()
-                    assert result is False
+        with patch.dict(os.environ, {"RANK": "1", "WORLD_SIZE": "4"}):
+            result = _should_enable_for_current_rank()
+            assert result is False
 
     @pytest.mark.unit
     def test_should_enable_for_current_rank_exception_handling(self):
         """Test _should_enable_for_current_rank handles exceptions gracefully."""
-        with patch('torch.distributed.is_initialized', side_effect=Exception("Test exception")):
+        with patch.dict(os.environ, {"RANK": "invalid", "WORLD_SIZE": "4"}):
             result = _should_enable_for_current_rank()
-            assert result is False
+            assert result is True  # Default to True on invalid values
