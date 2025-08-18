@@ -259,13 +259,9 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
                 params[p] = parts[i+1]
         
         parallelism = f"{params['tp']}/{params['pp']}/{params['cp']}/{params['ep']}/{params['vp']}"
-        batch_info = f"{mbs}/{gbs}"
+        batch_info = f"{params['mbs']}/{params['gbs']}"
 
-        # Create short config ID
         config_id = f"Config-{i}"
-
-        
-        # Determine status
         status = "Generated"
         if config_name in base_config_matches or config_name == 'base_config':
             status = "Base"
