@@ -151,7 +151,6 @@ def _display_configs_table(config_dir, model_name=None):
             console.print("[green] Use analyse_results() to analyze performance[/green]")
         else:
             console.print("[yellow]Performance Results: Not available[/yellow]")
-            console.print("[yellow]Run results() to generate performance data[/yellow]")
         if base_config_matches:
             console.print(f"\n[yellow]Note:[/yellow] Base config is equivalent to: {', '.join(base_config_matches)}")
             console.print("[yellow]These configurations will not be run separately during training.[/yellow]")
@@ -259,7 +258,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     console.print("\n[cyan] Recommendations[/cyan]")
     console.print("=" * 40)
     console.print(f"Best Performance: '{best_config_name}'")
-    console.print(f"Most Cost-Efficient: '{most_efficient_name}'")
     if base_config:
         if base_config_name != best_config_name:
             savings = base_config.get('total_cost', 0) - best_config.get('total_cost', 0)

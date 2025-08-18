@@ -52,24 +52,26 @@ python launcher.py generate \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
   --mount-path /nemo-workspace \
-  --resource-shape gpu.8xh200 \
-  --container-image nvcr.io/nvidia/nemo:25.07 \
+  --resource-shape gpu.8xh200  \
   --nodes 8 \
   --gpus-per-node 8 \
   --seq-length 8192 \
   --num-tokens-in-b 1000 \
   --global-batch-sizes 256 \
-  --tensor-parallel-sizes 2 \
-  --pipeline-parallel-sizes 2 \
-  --virtual-pipeline-model-parallel-sizes None \
+  --tensor-parallel-sizes 2,1 \
+  --pipeline-parallel-sizes 2,1 \
+  --virtual-pipeline-model-parallel-sizes 1,2 \
   --max-model-parallel-size 64 \
   --context-parallel-sizes 1 \
   --expert-parallel-sizes 1 \
   --micro-batch-sizes 1,2 \
-  --max-steps-per-run 50 \
-  --max-steps 50 \
-  --logs-subdir /nemo-workspace/autotuner/new/logs
+  --max-steps-per-run 10 \
+  --max-steps 10 \
+  --logs-subdir /nemo-workspace/autotuner/new/logs \
+  --container-image nvcr.io/nvidia/nemo:25.07
 ```
+
+
 
 **Expected output:**
 ```
@@ -79,11 +81,32 @@ Valid config: SeqLen=8192, GBS=512, MBS=1, TP=2, PP=2, CP=1, EP=1, VP=None. Addi
 Valid config: SeqLen=8192, GBS=256, MBS=2, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
 Valid config: SeqLen=8192, GBS=512, MBS=2, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
 
-All candidate configurations created correctly. Total number of configs: 4.
+Metadata and objects saved to: 
+/nemo-workspace/autotuner/new/generated_configs/gemma2_9b/args.json
+Configurations generated successfully with performance optimizations!
+Saved to: /nemo-workspace/autotuner/new/generated_configs/gemma2_9b
+Generated 12 configurations
 
-Generated configurations successfully
+Memory Analysis Summary:
+Configurations that will run safely: 13
+Use 'lep autotune list-configs' to see detailed memory analysis
+```
+
+### 2. List Configurations (`list-configs`)
+```bash
+python launcher.py list-configs \
+  --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --model gemma2_9b \
+  --launcher-node-group tme-nebius-h200-01 \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-source-path / \
+  --mount-path /nemo-workspace
+```
+**Expected output:**
+```
 Configurations for model: gemma2_9b
 Location: /nemo-workspace/autotuner/new/generated_configs/gemma2_9b
+
                                     Configuration Files - gemma2_9b                                  
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
 ┃ Filename                                                                ┃ Status      ┃ Size        ┃
@@ -116,7 +139,6 @@ Memory Analysis Summary:
 Safe configurations (will run): 67
 Potential OOM configurations (will be skipped): 0
 Performance Results: Not available
-Run results() to generate performance data
 ```
 
 ### 2. Run Training Experiments (`run`)
@@ -131,12 +153,9 @@ python launcher.py run \
   --training-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
-  --mount-path /nemo-workspace
-```
-
-**Optional flags:**
-- `--sequential`: Run experiments one at a time (vs parallel)
-- `--run-all`: Run all configs (vs CUDA safe ones only)
+  --mount-path /nemo-workspace \
+   --sequential \
+   --run-all
 
 ### 3. List Configurations (`list-configs`)
 
@@ -147,6 +166,7 @@ python launcher.py list-configs \
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
   --model llama31_70b \
   --launcher-node-group tme-nebius-h200-01 \
+  --training-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
   --mount-path /nemo-workspace
@@ -388,21 +408,25 @@ The `results()` function displays:
 
 ### Common Issues
 
-1. **Job Fails Immediately**
+1. **Launcher commands not parsing**
+   - Check for trailing spaces after backlashes in your command and remove them if any 
+   - Check for missing Arguements in any command 
+
+2. **Job Fails Immediately**
    - Check DGX Cloud Lepton authentication: `lep workspace list`
    - Check workspace mounting: Ensure `/nemo-workspace` is accessible
 
-2. **Configuration Generation Fails**
+3. **Configuration Generation Fails**
    - Verify model name is supported: `python launcher.py list-models`
    - Check resource requirements match available resources
    - Ensure config directory is writable
 
-3. **Training Experiments Fail**
+4. **Training Experiments Fail**
    - Check GPU availability
    - Verify data paths and permissions
    - Review logs for specific error messages
 
-4. **Results Analysis Issues**
+5. **Results Analysis Issues**
    - Ensure log files exist and are readable
    - Check log prefix matches actual log files
 

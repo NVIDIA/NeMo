@@ -230,6 +230,7 @@ def launch_generate_remote(
     tensor_parallel_sizes: str = "2",
     pipeline_parallel_sizes: str = "2",
     virtual_pipeline_model_parallel_sizes: Optional[str] = "None",
+    expert_parallel_sizes: Optional[str] = "1",
     max_model_parallel_size: int = 64,
     context_parallel_sizes: str = "1",
     micro_batch_sizes: str = "1",
@@ -253,6 +254,7 @@ def launch_generate_remote(
             'virtual_pipeline_model_parallel_sizes': parse_virtual_pipeline_values(
                 virtual_pipeline_model_parallel_sizes
             ),
+            'expert_parallel_sizes': parse_comma_separated_values(expert_parallel_sizes),
             'max_model_parallel_size': int(max_model_parallel_size),
             'context_parallel_sizes': parse_comma_separated_values(context_parallel_sizes),
             'micro_batch_sizes': parse_comma_separated_values(micro_batch_sizes),
@@ -445,6 +447,9 @@ def create_parser():
     generate_parser.add_argument(
         '--context-parallel-sizes', default='1', help='Context parallel sizes (comma-separated)'
     )
+    generate_parser.add_argument(
+        '--expert-parallel-sizes', default='1', help='Expert parallel sizes (comma-separated)'
+    )
     generate_parser.add_argument('--micro-batch-sizes', default='1', help='Micro batch sizes (comma-separated)')
     generate_parser.add_argument('--max-steps-per-run', type=int, default=50, help='Maximum steps per run')
     generate_parser.add_argument('--max-steps', type=int, default=50, help='Maximum steps')
@@ -527,6 +532,7 @@ def main():
                 tensor_parallel_sizes=args.tensor_parallel_sizes,
                 pipeline_parallel_sizes=args.pipeline_parallel_sizes,
                 virtual_pipeline_model_parallel_sizes=args.virtual_pipeline_model_parallel_sizes,
+                expert_parallel_sizes=args.expert_parallel_sizes,
                 max_model_parallel_size=args.max_model_parallel_size,
                 context_parallel_sizes=args.context_parallel_sizes,
                 micro_batch_sizes=args.micro_batch_sizes,
