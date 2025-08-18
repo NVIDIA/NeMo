@@ -156,6 +156,7 @@ def init_one_logger() -> None:
     - WandB configuration
     """
     global _ONELOGGER_CALLBACK
+    global HAVE_ONELOGGER
 
     if not HAVE_ONELOGGER:
         return
@@ -163,26 +164,29 @@ def init_one_logger() -> None:
     # Check if OneLogger is enabled
     if not enable_onelogger:
         return
+    
+    try:
+        # Check if OneLogger is already configured
+        if TrainingTelemetryProvider.instance().one_logger_ready:
+            return
 
-    # Check if OneLogger is already configured
-    if TrainingTelemetryProvider.instance().one_logger_ready:
-        return
+        # Get initialization configuration
+        init_config = get_onelogger_init_config()
+        one_logger_config = OneLoggerConfig(**init_config)
 
-    # Get initialization configuration
-    init_config = get_onelogger_init_config()
-    one_logger_config = OneLoggerConfig(**init_config)
+        # Get WandB configuration
+        exporter = V1CompatibleExporter(
+            one_logger_config=one_logger_config,
+            async_mode=False,
+        )
 
-    # Get WandB configuration
-    exporter = V1CompatibleExporter(
-        one_logger_config=one_logger_config,
-        async_mode=False,
-    )
-
-    # Configure the provider without exporter (this automatically calls on_app_start)
-    TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_exporter(
-        exporter.exporter
-    ).configure_provider()
-    _ONELOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
+        # Configure the provider without exporter (this automatically calls on_app_start)
+        TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_exporter(
+            exporter.exporter
+        ).configure_provider()
+        _ONELOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
+    except Exception:
+        HAVE_ONELOGGER = False
 
 
 def update_one_logger_config(
