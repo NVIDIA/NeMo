@@ -249,25 +249,28 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         config_parts = config_name.split('_')
         model_name = config_parts[0] if len(config_parts) > 0 else "Unknown"
 
-        # Extract parallelism info (TP/PP/CP/EP/VP)
-        tp = next((p.split('tp_')[1] for p in config_parts if 'tp_' in p))
-        pp = next((p.split('pp_')[1] for p in config_parts if 'pp_' in p))
-        cp = next((p.split('cp_')[1] for p in config_parts if 'cp_' in p))
-        ep = next((p.split('ep_')[1] for p in config_parts if 'ep_' in p))
-        vp = next((p.split('vp_')[1] for p in config_parts if 'vp_' in p))
-        parallelism = f"{tp}/{pp}/{cp}/{ep}/{vp}"
-
-        # Extract Sequence Length
-        seq_len = next((p.split('seq_')[1] for p in config_parts if 'seq_' in p), '8192')
-
-        # Extract batch info
-        mbs = next((p.split('mbs_')[1] for p in config_parts if 'mbs_' in p), '1')
-        gbs = next((p.split('gbs_')[1] for p in config_parts if 'gbs_' in p), '256')
+                # Extract parameters using dictionary approach
+        keys = ["tp", "pp", "cp", "ep", "mbs", "vp", "seq", "gbs"]
+        parts = config_name.split("_")
+        
+        params = {}
+        for i, p in enumerate(parts):
+            if p in keys:
+                params[p] = parts[i+1]
+        
+        parallelism = f"{params['tp']}/{params['pp']}/{params['cp']}/{params['ep']}/{params['vp']}"
         batch_info = f"{mbs}/{gbs}"
 
         # Create short config ID
         config_id = f"Config-{i}"
 
+        
+        # Determine status
+        status = "Generated"
+        if config_name in base_config_matches or config_name == 'base_config':
+            status = "Base"
+        elif i == 1:
+            status = "Best"
         
         table.add_row(
             str(i),
@@ -277,6 +280,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
             f"{config_data.get('m_tflops_gpu', 0):.2f}",
             f"{config_data.get('total_training_time_days', 0):.1f}",
             f"${config_data.get('total_cost', 0):,.0f}",
+            status,
         )
     console.print(table)
 
