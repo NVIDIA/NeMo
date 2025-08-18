@@ -123,7 +123,7 @@ class FLOPsMeasurementCallback(Callback):
 
         if self.model_cfg.window_size is not None:
             config_kwargs["window_size"] = self.model_cfg.window_size
-        if self.model_cfg.window_attn_skip_freq is not None:
+        if getattr(self.model_cfg, "window_attn_skip_freq", None) is not None:
             config_kwargs["window_attn_skip_freq"] = self.model_cfg.window_attn_skip_freq
         if self.model_cfg.kv_channels is not None:
             config_kwargs["kv_channels"] = self.model_cfg.kv_channels
