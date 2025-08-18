@@ -92,13 +92,13 @@ import sys
 import os
 import subprocess
 
-    # Set Lepton environment variables from AUTOTUNER variables
-    if "LEPTON_AUTOTUNER_WORKSPACE_ID" in os.environ:
-        os.environ["LEPTON_WORKSPACE_ID"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_ID"]
-    if "LEPTON_AUTOTUNER_WORKSPACE_URL" in os.environ:
-        os.environ["LEPTON_WORKSPACE_URL"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_URL"]
-    if "LEPTON_AUTOTUNER_TOKEN" in os.environ:
-        os.environ["LEPTON_TOKEN"] = os.environ["LEPTON_AUTOTUNER_TOKEN"]
+# Set Lepton environment variables from AUTOTUNER variables
+if "LEPTON_AUTOTUNER_WORKSPACE_ID" in os.environ:
+    os.environ["LEPTON_WORKSPACE_ID"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_ID"]
+if "LEPTON_AUTOTUNER_WORKSPACE_URL" in os.environ:
+    os.environ["LEPTON_WORKSPACE_URL"] = os.environ["LEPTON_AUTOTUNER_WORKSPACE_URL"]
+if "LEPTON_AUTOTUNER_TOKEN" in os.environ:
+    os.environ["LEPTON_TOKEN"] = os.environ["LEPTON_AUTOTUNER_TOKEN"]
 
 def setup_nemo_environment():
     # First uninstall existing NeMo framework
