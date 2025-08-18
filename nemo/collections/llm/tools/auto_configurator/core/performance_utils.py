@@ -118,7 +118,7 @@ def _find_exact_user_buffer_match(
     }
 
     try:
-        for key, value in KNOWN_GPUS:
+        for key, value in KNOWN_GPUS.items():
             if key in gpu_type.lower():
                 gpu_type = value
                 break
