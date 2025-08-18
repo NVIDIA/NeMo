@@ -31,14 +31,14 @@ def parse_cli_args():
         "--account",
         type=str,
         help="Slurm account to use for experiment",
-        required=True,
+        default=None,
     )
     parser.add_argument(
         "-p",
         "--partition",
         type=str,
         help="Slurm partition to use for experiment",
-        required=True,
+        default=None,
     )
     parser.add_argument(
         "-g",
@@ -400,6 +400,14 @@ def parse_cli_args():
         type=bool_arg,
         required=False,
         default=None,
+    )
+    parser.add_argument(
+        "-ule",
+        "--use_local_executor",
+        help="Use local executor. Disabled by default",
+        required=False,
+        default=None,
+        action="store_true",
     )
 
     return parser
