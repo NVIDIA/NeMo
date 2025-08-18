@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Callable, Dict, Optional, Any
+from typing import Any, Callable, Dict, Optional
 
 import nemo_run as run
 
@@ -21,7 +21,7 @@ from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 from .argument_parser import parse_cli_args
 from .executors import local_executor, slurm_executor
 from .helpers import args_sanity_check, build_perf_env_plugin, get_user_configs
-from .utils import import_ckpt_experiment, prepare_squad_dataset_experiment, dump_config_diff_from_base_recipe
+from .utils import dump_config_diff_from_base_recipe, import_ckpt_experiment, prepare_squad_dataset_experiment
 
 
 def run_performance_experiment(
@@ -129,12 +129,12 @@ def run_performance_experiment(
         if task != "pretrain" and (not finetuning_skip_import):
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             assert hf_model_url is not None, "HF model URL is required for importing checkpoint from HuggingFace"
-            run.run(
-                *import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}")
-            )
+            run.run(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}"))
         if task != "pretrain" and (not finetuning_skip_dataset_download):
             run.run(
-                *prepare_squad_dataset_experiment(executor, hf_model_url, seq_length=finetuning_seq_length, nemo_home=args.nemo_home)
+                *prepare_squad_dataset_experiment(
+                    executor, hf_model_url, seq_length=finetuning_seq_length, nemo_home=args.nemo_home
+                )
             )
         run.run(recipe, executor=executor, plugins=plugins)
     else:
@@ -144,7 +144,11 @@ def run_performance_experiment(
                 assert hf_model_url is not None, "HF model URL is required for importing checkpoint from HuggingFace"
                 exp.add(*import_ckpt_experiment(executor, recipe.model, source=f"hf://{hf_model_url}"))
             if task != "pretrain" and (not finetuning_skip_dataset_download):
-                exp.add(*prepare_squad_dataset_experiment(executor, hf_model_url, seq_length=finetuning_seq_length, nemo_home=args.nemo_home))
+                exp.add(
+                    *prepare_squad_dataset_experiment(
+                        executor, hf_model_url, seq_length=finetuning_seq_length, nemo_home=args.nemo_home
+                    )
+                )
 
             exp.add(
                 recipe,
