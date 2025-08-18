@@ -137,10 +137,10 @@ class TiktokenTokenizer(TokenizerSpec):
             self._sep_id = special_tokens.index("<sep>")
 
             # reload vocab
-            self.token2id = reload_mergeable_ranks(vocab_file, max_vocab=self.inner_vocab_size)
-            tokenizer_name = Path(vocab_file).parent.name
             self._vocab_size = vocab_size
             self.inner_vocab_size = self._vocab_size - num_special_tokens
+            self.token2id = reload_mergeable_ranks(vocab_file, max_vocab=self.inner_vocab_size)
+            tokenizer_name = Path(vocab_file).parent.name
 
             print(f'{self._vocab_size = }')
             self.num_special_tokens = num_special_tokens
