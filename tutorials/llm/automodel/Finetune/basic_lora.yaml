@@ -1,0 +1,66 @@
+# Basic LoRA Fine-tuning Configuration
+# This configuration is suitable for most LoRA fine-tuning scenarios
+
+# Model configuration
+model:
+  name: "mistralai/Mistral-Small-24B-Instruct-2501"
+  cache_dir: "./models/hf_cache"
+  token: null  # Will use HF_TOKEN environment variable
+
+# Dataset configuration
+data:
+  dataset_name: ["/lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_mlops/soverign_ai/speaker/src/speaker/scripts/train/sample_squad_data_1.json", "/lustre/fsw/portfolios/llmservice/projects/llmservice_nemo_mlops/soverign_ai/speaker/src/speaker/scripts/train/sample_squad_data_1.json"]
+  # dataset_name: "rajpurkar/squad"
+  seq_length: 4096
+  micro_batch_size: 1
+  split: ['train[:1]', 'validation[:1]']  # Use first 1000 examples for quick training
+  tokenizer_name: null  # Will use model name
+
+# LoRA configuration
+lora:
+  target_modules: ["o_proj"]  # Start with output projection layer
+  dim: 8                     # Moderate rank for good performance
+  dropout: 0.1               # Small dropout for regularization
+  lora_A_init_method: "xavier"
+  lora_B_init_method: "zero"
+
+# Optimizer configuration
+optimizer:
+  lr: 2.0e-4                 # Higher learning rate for LoRA
+  weight_decay: 0.01         # Light regularization
+  betas: [0.9, 0.95]        # Adam beta parameters
+  warmup_steps: 10          # Gradual warmup
+  constant_steps: 0
+  min_lr: 2.0e-5
+
+# Trainer configuration
+trainer:
+  max_steps: 1             # Short training for testing
+  num_sanity_val_steps: 0
+  val_check_interval: 1     # Validate every 25 steps
+  log_every_n_steps: 1      # Log frequently for monitoring
+  checkpoint_filename: "Basic_LoRA_Finetune_OpenAI"
+  version: 1
+  # limit_val_batches: 1
+# Compute configuration (local)
+compute:
+  nodes: 1
+  gpus_per_node: 8           # Single GPU for basic setup
+  time: "02:00:00"           # 2 hours should be enough
+  use_slurm: false           # Local execution
+  tunnel_type: "ssh"         # Options: "ssh" or "local" (not used when use_slurm: false)
+
+# Path configuration
+paths:
+  project_root: "."          # Current directory
+  checkpoint_dir: null       # Will use ./models/checkpoints
+  data_dir: null            # Will use ./data
+
+# Environment configuration
+environment:
+  transformers_offline: "0"
+  torch_nccl_avoid_record_streams: "1"
+  custom_env_vars: null
+
+# Experiment name
+experiment_name: "Basic_LoRA_Experiment" 
