@@ -1,6 +1,7 @@
 """
 Flexible data modules for various datasets with HuggingFace integration.
 """
+
 import json
 from typing import Any, Dict, List, Optional
 
@@ -16,12 +17,16 @@ class CustomHFDataModule(HFDatasetDataModule):
 
     def __init__(self, tokenizer, seq_length: int, path_or_dataset=None, **kwargs):
         # Handle loading JSON/JSONL files as HF datasets
-        if path_or_dataset and type(path_or_dataset) == list and (path_or_dataset[0].endswith('.jsonl') or path_or_dataset[0].endswith('.json')):
+        if (
+            path_or_dataset
+            and type(path_or_dataset) == list
+            and (path_or_dataset[0].endswith('.jsonl') or path_or_dataset[0].endswith('.json'))
+        ):
             dataset = load_dataset('json', data_files={'train': path_or_dataset[0], 'validation': path_or_dataset[1]})
             kwargs['path_or_dataset'] = dataset
         elif path_or_dataset:
             kwargs['path_or_dataset'] = path_or_dataset
-            
+
         super().__init__(**kwargs)
         self.tokenizer = tokenizer
         self.seq_length = seq_length
@@ -35,14 +40,16 @@ class CustomHFDataModule(HFDatasetDataModule):
         else:
             return tokenizer, getattr(tokenizer, 'eos_id', None), has_chat_template
 
-    def formatting_prompts_func_with_chat_template(self, example: Dict[str, Any], start_of_turn_token: Optional[str] = None) -> Dict[str, List[int]]:
+    def formatting_prompts_func_with_chat_template(
+        self, example: Dict[str, Any], start_of_turn_token: Optional[str] = None
+    ) -> Dict[str, List[int]]:
         """
         Format any conversation example using Mistral chat template.
-        
+
         Args:
             example: Dataset example, preferably with a 'messages' list and optional 'tools'.
             start_of_turn_token: Token marking start of assistant response
-            
+
         Returns:
             Dictionary with input_ids, labels, and loss_mask
         """
@@ -83,18 +90,15 @@ class CustomHFDataModule(HFDatasetDataModule):
                                 fn_args = json.loads(fn_args)
                             except Exception:
                                 pass
-                        normalized_calls.append({
-                            'id': call_id,
-                            'type': call_type,
-                            'function': {
-                                'name': fn_name,
-                                'arguments': fn_args
-                            }
-                        })
-                    formatted_text.append({
-                        'role': 'assistant',
-                        'content': '[TOOL_CALLS]' + json.dumps(normalized_calls, separators=(',', ':'))
-                    })
+                        normalized_calls.append(
+                            {'id': call_id, 'type': call_type, 'function': {'name': fn_name, 'arguments': fn_args}}
+                        )
+                    formatted_text.append(
+                        {
+                            'role': 'assistant',
+                            'content': '[TOOL_CALLS]' + json.dumps(normalized_calls, separators=(',', ':')),
+                        }
+                    )
                 else:
                     content = msg.get('content', '')
                     formatted_text.append({'role': role, 'content': str(content)})
@@ -102,24 +106,30 @@ class CustomHFDataModule(HFDatasetDataModule):
                 tool_call_id = msg.get('tool_call_id')
                 tool_content = msg.get('content', '')
                 result_obj = {'tool_call_id': tool_call_id, 'content': str(tool_content)}
-                formatted_text.append({
-                    'role': 'assistant',
-                    'content': '[TOOL_RESULTS]' + json.dumps(result_obj, separators=(',', ':')) + '[/TOOL_RESULTS]'
-                })
+                formatted_text.append(
+                    {
+                        'role': 'assistant',
+                        'content': '[TOOL_RESULTS]'
+                        + json.dumps(result_obj, separators=(',', ':'))
+                        + '[/TOOL_RESULTS]',
+                    }
+                )
             else:
                 continue
 
-        input_ids = self.get_chat_template(self.tokenizer)[0].apply_chat_template(formatted_text, tools=tools, add_generation_prompt=True)
-        
+        input_ids = self.get_chat_template(self.tokenizer)[0].apply_chat_template(
+            formatted_text, tools=tools, add_generation_prompt=True
+        )
+
         if isinstance(start_of_turn_token, str):
             start_of_turn_token_id = self.tokenizer(start_of_turn_token, add_special_tokens=False)['input_ids'][0]
             first_start_of_turn_token_id = input_ids.index(start_of_turn_token_id)
             response_start = input_ids.index(start_of_turn_token_id, first_start_of_turn_token_id + 1) + 1
         else:
             response_start = 0
-            
+
         loss_mask = [0] * response_start + [1] * (len(input_ids) - response_start)
-        
+
         return dict(
             input_ids=input_ids,
             labels=input_ids[1:] + [getattr(self.tokenizer, 'eos_token_id', None) or input_ids[-1]],
@@ -129,12 +139,12 @@ class CustomHFDataModule(HFDatasetDataModule):
     def setup(self, stage):
         """
         Setup the dataset with datasetspecific formatting.
-        
+
         Args:
             stage: Training stage
         """
         super().setup(stage)
-        
+
         # Determine which columns to remove based on dataset structure
         remove_columns = ["conversation_id", "messages", "tools"]
 
