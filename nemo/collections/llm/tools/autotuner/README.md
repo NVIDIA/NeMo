@@ -1,13 +1,10 @@
 # AutoTuner
 
 AutoTuner is a fully automated, cost-aware, customized and intelligent model configuration and throughput optimization for LLM pre-training workloads
-## Overview
-
-AutoTuner extends NeMo's Auto Configurator with a fully automated pipeline that searches for hyperparameters achieving maximum training throughput while automatically preventing CUDA OOM errors and providing comprehensive performance analysis for Large Language Models. Unlike research-only tools, AutoTuner runs directly on your GPU infrastructure, making it ready for production deployment and real-world training optimization.
 
 ### Note
 
-AutoTuner is supports all NeMo adapted models. 
+AutoTuner supports all NeMo adapted models. 
 
 ### AutoTuner Capabilities
 
@@ -36,6 +33,42 @@ A tool for orchestrating NeMo AutoTuner workflows on remote clusters using DGX C
    ```
 - NeMo workspace mounted at `/nemo-workspace`
 - Access to GPU resources on DGX Cloud Lepton.
+
+### Environment Setup
+
+**Required Environment Variables:**
+
+Before running any AutoTuner commands, you must authenticate to lepton and also set these environment variables:
+
+```bash
+# Login to your lep workspace
+lep login -c <workspace-id>:<workspace-token>
+```
+
+```bash
+# Set your Lepton workspace credentials
+export LEPTON_AUTOTUNER_WORKSPACE_ID="your_workspace_id_here"
+export LEPTON_AUTOTUNER_TOKEN="your_workspace_token_here"
+```
+
+**How to get these values:**
+
+1. **Get your workspace ID and token:**
+   ```bash
+   lep workspace list
+   ```
+
+3. **Verify the setup:**
+   ```bash
+   echo "Workspace ID: $LEPTON_AUTOTUNER_WORKSPACE_ID"
+   echo "Token: $LEPTON_AUTOTUNER_TOKEN"
+   ```
+
+**Important Notes:**
+- These environment variables are **required** for all AutoTuner commands
+- The launcher uses these credentials to authenticate with Lepton and launch remote jobs
+- Without these variables set, you'll get authentication errors
+- You can add these to your shell profile (`.bashrc`, `.zshrc`) for persistence
 
 ## Basic Usage
 
@@ -414,6 +447,7 @@ The `results()` function displays:
 
 2. **Job Fails Immediately**
    - Check DGX Cloud Lepton authentication: `lep workspace list`
+   - Verify environment variables are set: `echo $LEPTON_AUTOTUNER_WORKSPACE_ID $LEPTON_AUTOTUNER_TOKEN`
    - Check workspace mounting: Ensure `/nemo-workspace` is accessible
 
 3. **Configuration Generation Fails**
