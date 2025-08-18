@@ -241,7 +241,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     table.add_column("M-TFLOPs/GPU", style="green", width=12)
     table.add_column("Days", style="blue", width=6)
     table.add_column("Cost", style="red", width=10)
-    table.add_column("Status", style="white", width=12)
 
     for i, (config_name, config_data) in enumerate(sorted_configs[:5], 1):
         # Extract key parameters for display
@@ -253,9 +252,9 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         parts = config_name.split("_")
 
         params = {}
-        for i, p in enumerate(parts):
+        for j, p in enumerate(parts):
             if p in keys:
-                params[p] = parts[i + 1]
+                params[p] = parts[j + 1]
 
         parallelism = f"{params['tp']}/{params['pp']}/{params['cp']}/{params['ep']}/{params['vp']}"
         batch_info = f"{params['mbs']}/{params['gbs']}"
