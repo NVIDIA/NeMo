@@ -174,7 +174,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     sorted_configs = analysis_data['sorted_configs']
     args = analysis_data['args']
     best_config_name, best_config = sorted_configs[0]
-    worst_config_name, worst_config = sorted_configs[-1]
     base_config_generated_name = args.metadata.get('base_config_generated_name', None)
     base_config_matches = args.metadata.get('base_config_matches', [])
     base_config_name = None
@@ -216,23 +215,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
             console.print(f"  [green] Total Savings: ${cost_savings:,.2f}[/green]")
         else:
             console.print(f"  [red] Additional Cost: ${abs(cost_savings):,.2f}[/red]")
-    if worst_config_name != best_config_name:
-        console.print(f"\n[red]Worst Performing Configuration: {worst_config_name}[/red]")
-        console.print(f"  M-TFLOPs/GPU: {worst_config.get('m_tflops_gpu', 'N/A'):.2f}")
-        console.print(f"  Time per Global Step: {worst_config.get('time_per_global_step', 'N/A'):.4f}s")
-        console.print(f"  Total Training Time: {worst_config.get('total_training_time_days', 'N/A'):.1f} days")
-        console.print(f"  Total Training Cost: ${worst_config.get('total_cost', 'N/A'):,.2f}")
-        time_diff = worst_config.get('total_training_time_hours', 0) - best_config.get('total_training_time_hours', 0)
-        cost_diff = worst_config.get('total_cost', 0) - best_config.get('total_cost', 0)
-        tflops_diff = (
-            (best_config.get('m_tflops_gpu', 0) - worst_config.get('m_tflops_gpu', 0))
-            / worst_config.get('m_tflops_gpu', 1)
-        ) * 100
-        console.print("\n[yellow] Best vs Worst Performance & Cost Difference:[/yellow]")
-        console.print(f"  M-TFLOPs/GPU difference: {tflops_diff:+.1f}%")
-        console.print(f"  Training time difference: {time_diff:.1f} hours ({time_diff/24:.1f} days)")
-        console.print(f"  Cost difference: ${cost_diff:,.2f}")
-        console.print(f"  [red]Potential waste with worst config: ${cost_diff:,.2f}[/red]")
     console.print("\n[cyan] Top 5 Configurations - Performance & Cost Analysis[/cyan]")
     table = Table(show_header=True, show_lines=True, title="Performance & Cost Ranking")
     table.add_column("Rank", style="yellow", width=4)
@@ -288,14 +270,6 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         elif i == 1:
             status = "Best"
         console.print(f"[yellow]{i}.[/yellow] [{status}] {config_name}")
-
-    console.print("\n[cyan] Cost Efficiency Analysis[/cyan]")
-    console.print("=" * 50)
-    most_efficient = min(config_analysis.items(), key=lambda x: x[1].get('cost_per_tflop', float('inf')))
-    most_efficient_name, most_efficient_data = most_efficient
-    console.print(f"Most Cost-Efficient: {most_efficient_name}")
-    console.print(f"  Total Cost: ${most_efficient_data.get('total_cost', 'N/A'):,.2f}")
-    console.print(f"  M-TFLOPs/GPU: {most_efficient_data.get('m_tflops_gpu', 'N/A'):.2f}")
     console.print("\n[cyan] Recommendations[/cyan]")
     console.print("=" * 40)
     console.print(f"Best Performance: '{best_config_name}'")

@@ -185,9 +185,7 @@ if __name__ == "__main__":
     logs_path = "{kwargs.get('logs_path', '')}"
     log_prefix = "{kwargs.get('log_prefix', '')}"
     top_n = {kwargs.get('top_n', 10)}
-    force_reconstruct = {kwargs.get('force_reconstruct', False)}
     cost_per_gpu_hour = {kwargs.get('cost_per_gpu_hour', 3.0)}
-    quiet = {kwargs.get('quiet', False)}
     
     args_file_path = f'{{config_dir}}/{{model}}/args.json'
     if not os.path.exists(args_file_path):
@@ -201,9 +199,7 @@ if __name__ == "__main__":
         logs_path=logs_path,
         log_prefix=log_prefix,
         top_n=top_n,
-        force_reconstruct=force_reconstruct,
-        cost_per_gpu_hour=cost_per_gpu_hour,
-        quiet=quiet
+        cost_per_gpu_hour=cost_per_gpu_hour
     )
 """
     elif script_type == "list_configs":
@@ -345,9 +341,7 @@ def launch_results_remote(
     mount_path: str,
     launcher_node_group: str,
     top_n: int = 10,
-    force_reconstruct: bool = False,
-    cost_per_gpu_hour: float = 3.0,
-    quiet: bool = False,
+    cost_per_gpu_hour: float = 3.0
 ):
     """Launch results collection step using remote executor."""
     mounts = [{"path": mount_source_path, "mount_path": mount_path, "from": mount_from}]
@@ -368,9 +362,7 @@ def launch_results_remote(
         logs_path=logs_path,
         log_prefix=log_prefix,
         top_n=top_n,
-        force_reconstruct=force_reconstruct,
         cost_per_gpu_hour=cost_per_gpu_hour,
-        quiet=quiet,
         lepton_workspace_id=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_ID', ''),
         lepton_workspace_url=os.environ.get('LEPTON_AUTOTUNER_WORKSPACE_URL', ''),
         lepton_token=os.environ.get('LEPTON_AUTOTUNER_TOKEN', ''),
@@ -485,9 +477,7 @@ def create_parser():
     results_parser.add_argument('--launcher-node-group', required=True, help='Launcher node group')
     results_parser.add_argument('--log-prefix', default='', help='Log prefix')
     results_parser.add_argument('--top-n', type=int, default=5, help='Top N results')
-    results_parser.add_argument('--force-reconstruct', action='store_true', help='Force reconstruction')
     results_parser.add_argument('--cost-per-gpu-hour', type=float, default=3.0, help='Cost per GPU hour')
-    results_parser.add_argument('--quiet', action='store_true', help='Quiet mode')
     results_parser.add_argument('--mount-from', required=True, help='Mount source')
     results_parser.add_argument('--mount-path', required=True, help='Mount destination path')
     results_parser.add_argument('--mount-source-path', required=True, help='Mount source path')
@@ -572,9 +562,7 @@ def main():
                 args.mount_path,
                 args.launcher_node_group,
                 args.top_n,
-                args.force_reconstruct,
-                args.cost_per_gpu_hour,
-                args.quiet,
+                args.cost_per_gpu_hour
             )
         elif args.command == 'list-configs':
             launch_list_configs_remote(

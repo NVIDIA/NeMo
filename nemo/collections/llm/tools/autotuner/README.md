@@ -1,14 +1,13 @@
 # AutoTuner
 
-AutoTuner is a fully automated, predictive configuration builder and orchestrated tool that achieves maximum model throughput for LLM Training.
-
+AutoTuner is a fully automated, cost-aware, customized and intelligent model configuration and throughput optimization for LLM pre-training workloads
 ## Overview
 
-AutoTuner extends NeMo's Auto Configurator with a fully automated pipeline that searches for hyperparameters achieving maximum training throughput while automatically preventing CUDA OOM errors and providing comprehensive performance & cost analysis for Large Language Models. Unlike research-only tools, AutoTuner runs directly on your GPU infrastructure, making it ready for production deployment and real-world training optimization.
+AutoTuner extends NeMo's Auto Configurator with a fully automated pipeline that searches for hyperparameters achieving maximum training throughput while automatically preventing CUDA OOM errors and providing comprehensive performance analysis for Large Language Models. Unlike research-only tools, AutoTuner runs directly on your GPU infrastructure, making it ready for production deployment and real-world training optimization.
 
 ### Note
 
-AutoTuner is supported for all NeMo models including GPT-based models: GPT3, LLama, Mixtral, Mistral, Gemma, Nemotron, Starcoder, Qwen, and more.
+AutoTuner is supports all NeMo adapted models. 
 
 ### AutoTuner Capabilities
 
@@ -19,8 +18,6 @@ AutoTuner is designed to iterate over different model configurations quickly and
 - **Rigorous Performance Analysis**: Comprehensive metrics including TFLOPS, training time, and cost optimization.
 - **Rich Visualization**: Descriptive tables and charts for easy decision making and result interpretation.
 - **Production Deployment**: Runs directly on customer GPU infrastructure, ready for enterprise use.
-
-
 
 # NeMo Autotuner Launcher
 
@@ -43,56 +40,59 @@ A tool for orchestrating NeMo autotuner workflows on remote clusters using Lepto
 ### 1. Generate Configurations (`generate`)
 
 Creates optimized training configurations for your model and infrastructure.
-**Example**
 
 ```bash
 python launcher.py generate \
-  --model llama2_7b \                                                       # Model name to generate configs for
-  --nodes 4 \                                                               # Number of compute nodes
-  --gpus-per-node 8 \                                                       # GPUs per node
-  --config-dir nemo-workspace/autotuner-data/autotuner-configs \            # Directory to save generated configs
-  --mount-path /workspace \                                                 # Remote mount path for workspace
-  --mount-from node-nfs:shared \                                            # Mount source for shared storage
-  --node-group gpu-cluster \                                                # Node group for resource allocation
-  --logs-subdir logs \                                                      # Subdirectory for training logs
-  --resource-shape gpu.8xh200 \                                             # GPU resource shape for training
-  --tensor-parallel-sizes 1,2,4,8 \                                         # Tensor parallel sizes (comma-separated)
-  --pipeline-parallel-sizes 1,2,4 \                                         # Pipeline parallel sizes (comma-separated)
-  --context-parallel-sizes 1,2 \                                            # Context parallel sizes (comma-separated)
-  --expert-parallel-sizes 1 \                                               # Expert parallel sizes (comma-separated)
-  --virtual-pipeline-parallel-sizes 1,2 \                                   # Virtual pipeline parallel sizes (comma-separated)
-  --global-batch-sizes 256,512,1024 \                                       # Global batch sizes (comma-separated)
-  --micro-batch-sizes 1,2,4,8 \                                             # Micro batch sizes (comma-separated)
-  --max-steps-per-run 10 \                                                  # Maximum steps per training run
-  --seq-length 8192 \                                                       # Sequence length for training
-  --num-tokens-in-b 15000 \                                                 # Number of tokens in billions
-  --container-image nvcr.io/nvidia/nemo:25.04                               # Container image to use
+  --model gemma2_9b \
+  --nodes 8 \
+  --gpus-per-node 8 \
+  --mount-path /nemo-workspace \
+  --logs-subdir /nemo-workspace/autotuner/new/logs \
+  --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-source-path / \
+  --launcher-node-group tme-nebius-h200-01 \
+  --training-node-group tme-nebius-h200-01 \
+  --resource-shape gpu.8xh200 \
+  --seq-length 8192 \
+  --num-tokens-in-b 1000 \
+  --global-batch-sizes 256 \
+  --tensor-parallel-sizes 2 \
+  --pipeline-parallel-sizes 2 \
+  --virtual-pipeline-model-parallel-sizes None \
+  --max-model-parallel-size 64 \
+  --context-parallel-sizes 1 \
+  --expert-parallel-sizes 1 \
+  --micro-batch-sizes 1,2 \
+  --max-steps-per-run 50 \
+  --max-steps 50 \
+  --container-image nvidia/pytorch:25.07
 ```
 
 **Expected output:**
 ```
-You can train a 2B parameter model in 2480.16 days using 8 GPUs. This result assumes you are training to 15000B tokens, and each GPU achieves 140 TFLOPS.
-Valid config: SeqLen=8192, GBS=256, MBS=1, TP=1, PP=1, CP=1, EP=1, VP=None. Adding to directory.
-Valid config: SeqLen=8192, GBS=512, MBS=1, TP=1, PP=1, CP=1, EP=1, VP=None. Adding to directory.
-Valid config: SeqLen=8192, GBS=256, MBS=2, TP=1, PP=1, CP=1, EP=1, VP=None. Adding to directory.
-Valid config: SeqLen=8192, GBS=512, MBS=2, TP=1, PP=1, CP=1, EP=1, VP=None. Adding to directory.
+You can train a 9B parameter model in 2480.16 days using 64 GPUs. This result assumes you are training to 1000B tokens, and each GPU achieves 140 TFLOPS.
+Valid config: SeqLen=8192, GBS=256, MBS=1, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
+Valid config: SeqLen=8192, GBS=512, MBS=1, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
+Valid config: SeqLen=8192, GBS=256, MBS=2, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
+Valid config: SeqLen=8192, GBS=512, MBS=2, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
 
 All candidate configurations created correctly. Total number of configs: 4.
 
 Generated configurations successfully
-Configurations for model: gemma2_2b
-Location: /autotuner/generated_configs/gemma2_2b
-                                    Configuration Files - gemma2_2b                                  
+Configurations for model: gemma2_9b
+Location: /nemo-workspace/autotuner/new/generated_configs/gemma2_9b
+                                    Configuration Files - gemma2_9b                                  
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
 ┃ Filename                                                                ┃ Status      ┃ Size        ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
 │ base_config.json                                                        │ Base Config │ 7,669 bytes │
 ├─────────────────────────────────────────────────────────────────────────┼─────────────┼─────────────┤
-│ gemma_2b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_256.json │ Unknown     │ 7,454 bytes │
+│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_256.json │ Generated     │ 7,454 bytes │
 ├─────────────────────────────────────────────────────────────────────────┼─────────────┼─────────────┤
-│ gemma_2b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_512.json │ Unknown     │ 7,454 bytes │
+│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_512.json │ Generated     │ 7,454 bytes │
 ├─────────────────────────────────────────────────────────────────────────┼─────────────┼─────────────┤
-│ gemma_2b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_256.json │ Unknown     │ 7,454 bytes │
+│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_256.json │ Generated     │ 7,454 bytes │
 └─────────────────────────────────────────────────────────────────────────┴─────────────┴─────────────┘
 
  CUDA Memory Analysis & Run Status
@@ -103,11 +103,11 @@ Location: /autotuner/generated_configs/gemma2_2b
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
 │ base_config                              │ Safe         │ ▶ Run        │ 19.2            │ 141             │
 ├──────────────────────────────────────────┼──────────────┼──────────────┼─────────────────┼─────────────────┤
-│ gemma_2b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 21.9            │ 141             │
+│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 21.9            │ 141             │
 ├──────────────────────────────────────────┼──────────────┼──────────────┼─────────────────┼─────────────────┤
-│ gemma_2b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 21.9            │ 141             │
+│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 21.9            │ 141             │
 ├──────────────────────────────────────────┼──────────────┼──────────────┼─────────────────┼─────────────────┤
-│ gemma_2b_1nodes_tp_1_pp_1_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 27.4            │ 141             │
+│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 27.4            │ 141             │
 ├──────────────────────────────────────────┼──────────────┼──────────────┼─────────────────┼─────────────────┤
 
 Memory Analysis Summary:
@@ -115,100 +115,124 @@ Safe configurations (will run): 67
 Potential OOM configurations (will be skipped): 0
 Performance Results: Not available
 Run results() to generate performance data
-
 ```
-### 2. Run Experiments (`run`)
+
+### 2. Run Training Experiments (`run`)
 
 Executes training experiments using generated configurations.
 
-**Example:**
 ```bash
 python launcher.py run \
-  --config-dir nemo-workspace/autotuner-data/autotuner-configs \           # Directory containing generated configs
-  --model llama2_7b \                                                      # Model name to run experiments for
-  --sequential \                                                            # Run experiments one at a time (vs parallel)
-  --run-all                                                                # Run all configs (vs CUDA safe ones only)
+  --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --model gemma2_9b \
+  --launcher-node-group tme-nebius-h200-01 \
+  --training-node-group tme-nebius-h200-01 \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-source-path / \
+  --mount-path /nemo-workspace
 ```
 
-### 3. Gather and Analyze Results (`results`)
+**Optional flags:**
+- `--sequential`: Run experiments one at a time (vs parallel)
+- `--run-all`: Run all configs (vs CUDA safe ones only)
 
-Analyzes training results and generates performance reports.
-
-**Example:**
-```bash
-python launcher.py results \
-  --config-dir nemo-workspace/autotuner-data/autotuner-configs \           # Directory containing model configs
-  --model llama2_7b \                                                      # Model name for analysis
-  --path ./training_logs \                                                 # Path to training log files
-  --log-prefix nemo \                                                      # Prefix for log files to analyze
-  --top-n 5 \                                                              # Number of top configs to analyze
-  --force-reconstruct \                                                    # Force rebuild analysis from logs
-  --cost-per-node-hour 24.0 \                                              # Cost per node-hour for cost analysis
-  --quiet                                                                  # Suppress verbose output
-```
-**Expected output:**
-```
-Top 5 configs sorted from fastest to slowest:
-Config #1 - llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_256: 604.27 TFLOPS per GPU with 11.3500s per global step.
-Config #2 - llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_256: 602.68 TFLOPS per GPU with 11.3800s per global step.
-Config #3 - llama_7b_2nodes_tp_1_pp_2_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_256: 572.49 TFLOPS per GPU with 11.9800s per global step.
-Config #4 - llama_7b_2nodes_tp_1_pp_2_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_256: 558.51 TFLOPS per GPU with 12.2800s per global step.
-Config #5 - llama_7b_2nodes_tp_2_pp_1_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_256: 545.19 TFLOPS per GPU with 12.5800s per global step.
-
-==================================================
-Optimal config: llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_256 with 11.3500s per global step.
-==================================================
-
- Performance & Cost Analysis Summary
-================================================================================
-
-Best Performing Configuration: llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_512
-  M-TFLOPs/GPU: 612.91
-  Time per Global Step: 22.3800s
-  Total Training Time: 926.4 days
-  Total Training Cost: $133,395.20
-
-Best vs Base Performance & Cost Savings:
-  M-TFLOPs/GPU improvement: +14.8%
-  Training time savings: 3288.2 hours (137.0 days)
-  Cost savings: $19,729.14 (+12.9%)
-
- Top 5 Configurations - Performance & Cost Analysis
-                                              Performance & Cost Ranking                                              
-┏━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┓
-┃   ┃                                                                   ┃          ┃ Traini… ┃ Total    ┃            ┃
-┃ … ┃ Configuration                                                     ┃ M-TFLOP… ┃ Days    ┃ Cost     ┃ Status     ┃
-┡━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━┩
-│ 1 │ llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_5… │ 612.91   │ 926.4   │ $133,395 │  Best      │
-├───┼───────────────────────────────────────────────────────────────────┼──────────┼─────────┼──────────┼────────────┤
-│ 2 │ llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_2… │ 604.27   │ 939.6   │ $135,303 │ Generated  │
-├───┼───────────────────────────────────────────────────────────────────┼──────────┼─────────┼──────────┼────────────┤
-│ 3 │ llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_2… │ 602.68   │ 942.1   │ $135,660 │ Generated  │
-├───┼───────────────────────────────────────────────────────────────────┼──────────┼─────────┼──────────┼────────────┤
-│ 4 │ llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_5… │ 602.41   │ 942.5   │ $135,720 │ Generated  │
-├───┼───────────────────────────────────────────────────────────────────┼──────────┼─────────┼──────────┼────────────┤
-│ 5 │ llama_7b_2nodes_tp_1_pp_2_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_5… │ 580.00   │ 978.9   │ $140,965 │ Generated  │
-└───┴───────────────────────────────────────────────────────────────────┴──────────┴─────────┴──────────┴────────────┘
-
- Recommendations
-========================================
-Best Performance: 'llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_512'
-Most Cost-Efficient: 'llama_7b_2nodes_tp_1_pp_1_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_512'
-Switch from base config to save: $19,729.14
-
-Cost analysis completed successfully!
-```
-
-### 4. List Configurations (`list-configs`)
+### 3. List Configurations (`list-configs`)
 
 Lists available configurations for a model.
 
-**Example:**
 ```bash
 python launcher.py list-configs \
-  --config-dir nemo-workspace/autotuner-data/autotuner-configs \     # Directory containing generated configs
-  --model llama2_7b                                                    # Model name to list configs for
+  --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --model llama31_70b \
+  --launcher-node-group tme-nebius-h200-01 \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-path /nemo-workspace \
+  --mount-source-path /
 ```
+
+### 4. Analyze Results (`results`)
+
+Analyzes training results and generates performance reports.
+
+```bash
+python launcher.py results \
+  --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --model llama31_8b \
+  --logs-path /nemo-workspace/autotuner/new/logs/llama31_8b \
+  --log-prefix nemo \
+  --launcher-node-group tme-nebius-h200-01 \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-source-path / \
+  --mount-path /nemo-workspace \
+  --top-n 10 \
+  --cost-per-gpu-hour 3.0
+```
+
+**Expected output:**
+```
+Performance & Cost Analysis Summary
+================================================================================
+
+Best Performing Configuration: 
+llama_8b_8nodes_tp_4_pp_1_cp_1_ep_1_mbs_2_vp_1_seq_8192_gbs_512
+  M-TFLOPs/GPU: 1894.61
+  Time per Global Step: 1.8100s
+  Total Training Time: 74.9 days
+  Total Training Cost: $345,230.10
+
+Base Configuration: 
+llama_8b_8nodes_tp_1_pp_1_cp_2_ep_1_mbs_1_vp_None_seq_8192_gbs_512
+  M-TFLOPs/GPU: 534.98
+  Time per Global Step: 6.4100s
+  Total Training Time: 265.3 days
+  Total Training Cost: $1,222,610.47
+
+ Best vs Base Performance & Cost Savings:
+  M-TFLOPs/GPU improvement: +254.1%
+  Training time savings: 4569.7 hours (190.4 days)
+  Cost savings: $877,380.37 (+71.8%)
+   Total Savings: $877,380.37
+
+ Top 5 Configurations - Performance & Cost Analysis
+┏━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃   ┃                                                                   ┃          ┃         ┃          ┃            ┃
+┃ … ┃ TP/PP/CP/EP/VP                                                    ┃ MBS/GBS   ┃ M-TFLOPS/GPU┃ Days    ┃ Cost     ┃
+┡━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ 1 │ 4/1/1/1/1                                                         │ 2/512      │ 1894.61  │ 74.9   │ $345,230   │
+├──────┼─────────────────────────────────────────────────────────────────┼────────────┼──────────────┼────────┼────────────┤
+│ 2 │ 4/1/1/1/1                                                         │ 1/512      │ 1863.72  │ 76.2   │ $350,952   │
+├──────┼─────────────────────────────────────────────────────────────────┼────────────┼──────────────┼────────┼────────────┤
+│ 3 │ 2/4/2/1/1                                                         │ 4/512      │ 1824.06  │ 77.8   │ $358,582   │
+├──────┼─────────────────────────────────────────────────────────────────┼────────────┼──────────────┼────────┼────────────┤
+│ 4 │ 4/1/2/1/1                                                         │ 2/512      │ 1814.41  │ 78.2   │ $360,489   │
+├──────┼─────────────────────────────────────────────────────────────────┼────────────┼──────────────┼────────┼────────────┤
+│ 5 │ 4/1/2/1/1                                                         │ 1/512      │ 1758.58  │ 80.7   │ $371,933   │
+└──────┴─────────────────────────────────────────────────────────────────┴────────────┴──────────────┴────────┴────────────┘
+
+ Table Legend
+================================================================================
+TP/PP/CP/EP/VP: Tensor/Pipeline/Context/Expert/Virtual Parallelism
+Seq: Sequence Length
+MBS/GBS: Micro Batch Size / Global Batch Size
+M-TFLOPS/GPU: Millions of TFLOPS per GPU
+
+ Full Configuration Names (for reference)
+================================================================================
+1. [Best] llama_8b_8nodes_tp_4_pp_1_cp_1_ep_1_mbs_2_vp_1_seq_8192_gbs_512
+2. [Generated] llama_8b_8nodes_tp_4_pp_1_cp_1_ep_1_mbs_1_vp_1_seq_8192_gbs_512
+3. [Generated] llama_8b_8nodes_tp_2_pp_4_cp_2_ep_1_mbs_4_vp_1_seq_8192_gbs_512
+4. [Generated] llama_8b_8nodes_tp_4_pp_1_cp_2_ep_1_mbs_2_vp_1_seq_8192_gbs_512
+5. [Generated] llama_8b_8nodes_tp_4_pp_1_cp_2_ep_1_mbs_1_vp_1_seq_8192_gbs_512
+
+ Recommendations
+========================================
+Best Performance: 
+'llama_8b_8nodes_tp_4_pp_1_cp_1_ep_1_mbs_2_vp_1_seq_8192_gbs_512'
+Most Cost-Efficient: 
+'llama_8b_8nodes_tp_4_pp_1_cp_1_ep_1_mbs_2_vp_1_seq_8192_gbs_512'
+Switch from base config to save: $877,380.37
+
+Cost analysis completed successfully!
 
 ### 5. List Models (`list-models`)
 
@@ -218,7 +242,54 @@ Lists all supported models.
 python launcher.py list-models
 ```
 
-### Remote Execution
+## Complete Workflow Example
+
+Here's a complete workflow for optimizing a Gemma2 9B model on an 8-node H200 cluster:
+
+### Step 1: Generate Configurations
+```bash
+python launcher.py generate \
+  --model gemma2_9b \
+  --nodes 8 \
+  --gpus-per-node 8 \
+  --resource-shape gpu.8xh200 \
+  --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --launcher-node-group tme-nebius-h200-01 \
+  --training-node-group tme-nebius-h200-01 \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-source-path / \
+  --mount-path /nemo-workspace \
+  --logs-subdir /nemo-workspace/autotuner/new/logs
+```
+
+### Step 2: Run Training Experiments
+```bash
+python launcher.py run \
+  --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --model gemma2_9b \
+  --launcher-node-group tme-nebius-h200-01 \
+  --training-node-group tme-nebius-h200-01 \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-source-path / \
+  --mount-path /nemo-workspace
+```
+
+### Step 3: Analyze Results
+```bash
+python launcher.py results \
+  --config-dir /nemo-workspace/autotuner/new/generated_configs \
+  --model gemma2_9b \
+  --logs-path /nemo-workspace/autotuner/new/logs/gemma2_9b \
+  --log-prefix nemo \
+  --launcher-node-group tme-nebius-h200-01 \
+  --mount-from node-nfs:lepton-shared-fs \
+  --mount-source-path / \
+  --mount-path /nemo-workspace \
+  --top-n 10 \
+  --cost-per-gpu-hour 3.0
+```
+
+## Remote Execution
 
 All operations are executed remotely on Lepton clusters:
 
@@ -234,7 +305,72 @@ The launcher automatically handles one-time setup tasks:
 - **NeMo Installation**: Local NeMo changes are installed once per workspace
 - **Environment Setup**: Python paths and cache directories are configured
 - **Dependency Management**: All required packages are available in the base image
+- **Lepton Authentication**: Automatic authentication for pretraining jobs
 
+## Configuration Parameters
+
+### Required Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model` | str | NeMo model name (e.g., "llama31_70b", "gemma2_9b") |
+| `nodes` | int | Number of compute nodes |
+| `gpus_per_node` | int | GPUs per node |
+| `resource_shape` | str | GPU type and count (e.g., "gpu.8xh200") |
+| `config_dir` | str | Directory to save configurations |
+| `logs_subdir` | str | Directory to save training logs |
+| `launcher_node_group` | str | Node group for launcher jobs |
+| `training_node_group` | str | Node group for training jobs |
+| `mount_from` | str | Storage backend (e.g., "node-nfs:lepton-shared-fs") |
+| `mount_source_path` | str | Source path for mounting |
+| `mount_path` | str | Container mount path |
+
+### Parallelism Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `global_batch_sizes` | List[int] | [256] | Global batch sizes to test |
+| `tensor_parallel_sizes` | List[int] | [2] | Tensor parallelism sizes |
+| `pipeline_parallel_sizes` | List[int] | [2] | Pipeline parallelism sizes |
+| `context_parallel_sizes` | List[int] | [1] | Context parallelism sizes |
+| `expert_parallel_sizes` | List[int] | [1] | Expert parallelism sizes |
+| `virtual_pipeline_model_parallel_sizes` | List[int] or None | None | Virtual pipeline parallelism sizes |
+| `micro_batch_sizes` | List[int] | [1] | Micro batch sizes |
+
+### Training Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `max_steps_per_run` | int | 50 | Steps per experiment |
+| `max_steps` | int | 50 | Total training steps |
+| `seq_length` | int | 8192 | Sequence length |
+| `num_tokens_in_b` | int | 1000 | Tokens in billions |
+
+### Infrastructure Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `container_image` | str | "nvidia/pytorch:25.07-py3" | Container image (public) |
+| `max_model_parallel_size` | int | 64 | Maximum model parallel size |
+
+## Output Files
+
+### Generated Files
+
+- `config_dir/model_name/base_config.json` - Base configuration
+- `config_dir/model_name/config_*.json` - Generated configurations
+- `config_dir/model_name/args.json` - Arguments and metadata
+- `logs_subdir/model_name/` - Training logs for each configuration
+
+### Results Analysis
+
+The `results()` function displays:
+- **Performance Summary**: Best/worst/base configurations with detailed metrics
+- **Cost Analysis**: Training time and cost comparisons with percentage improvements
+- **Top Configurations**: Ranked by performance with compact, readable table
+- **Configuration Reference**: Full configuration names for easy identification
+- **Cost Efficiency**: Most cost-effective configuration analysis
+- **Recommendations**: Best performance vs cost efficiency with savings
 
 ## 🐛 Troubleshooting
 
@@ -270,6 +406,7 @@ python launcher.py --help
 python launcher.py generate --help
 python launcher.py run --help
 python launcher.py results --help
+python launcher.py list-configs --help
 ```
 
 ### Log Retrieval
@@ -285,22 +422,13 @@ lepton job list
 
 # Get job details
 lepton job get JOB_ID
-
-### Step 2: Run Training Experiments
-```bash
-# Edit run_experiments.py with correct paths
-python3 run_experiments.py
 ```
 
-
-## Configuration Tips for Scripts
+## Configuration Tips
 
 ### Model Selection
-- Use exact NeMo model names: `"llama2"`, `"mixtral_8x7b"`, `"gemma2_2b"`, etc.
-- Check supported models with: 
-    ```
-    from nemo.collections.llm.tools.autotuner import list_models; list_models()
-    ```
+- Use exact NeMo model names: `"llama31_70b"`, `"gemma2_9b"`, `"mixtral_8x7b"`, etc.
+- Check supported models with: `python launcher.py list-models`
 
 ### Resource Configuration
 - `resource_shape`: Use format `"gpu.countxtype"` (e.g., `"gpu.8xh200"`, `"gpu.4xa100"`)
@@ -319,103 +447,7 @@ python3 run_experiments.py
 
 ### Path Configuration
 - Update all file paths in scripts to match your directory structure
-- Ensure `config_dir` and `logs_subdir` are absolute paths or relative to script location
+- Ensure `config_dir` and `logs_subdir` are absolute paths
 - The `args.json` file will be saved in `config_dir/model_name/args.json`
 
-## Configuration Parameters
-
-### Required Parameters
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `model` | str | NeMo model name (e.g., "llama2", "mixtral_8x7b") |
-| `nodes` | int | Number of nodes |
-| `gpus_per_node` | int | GPUs per node |
-| `resource_shape` | str | GPU type and count (e.g., "gpu.8xh200") |
-| `config_dir` | str | Directory to save configurations |
-| `logs_subdir` | str | Directory to save training logs |
-
-### Parallelism Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `global_batch_sizes` | List[int] | [512] | Global batch sizes to test |
-| `tensor_parallel_sizes` | List[int] | [1, 2] | Tensor parallelism sizes |
-| `pipeline_parallel_sizes` | List[int] | [1, 2] | Pipeline parallelism sizes |
-| `context_parallel_sizes` | List[int] | [1, 2] | Context parallelism sizes |
-| `expert_parallel_sizes` | List[int] | [1] | Expert parallelism sizes |
-| `micro_batch_sizes` | List[int] | [1, 2] | Micro batch sizes |
-
-### Training Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `max_steps_per_run` | int | 10 | Steps per experiment |
-| `max_steps` | int | 10 | Total training steps |
-| `seq_length` | int | 8192 | Sequence length |
-| `num_tokens_in_b` | int | 15000 | Tokens in billions |
-
-### Infrastructure Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `mount_path` | str | "/nemo-workspace" | Container mount path |
-| `mount_from` | str | "node-nfs:shared" | Storage backend |
-| `node_group` | str | None | Node group name |
-| `container_image` | str | "nvcr.io/nvidia/nemo:25.04" | Container image |
-
-## Output Files
-
-### Generated Files
-
-- `config_dir/model_name/base_config.json` - Base configuration
-- `config_dir/model_name/config_*.json` - Generated configurations
-- `config_dir/model_name/args.json` - Arguments and metadata
-- `logs_subdir/model_name/` - Training logs for each configuration
-
-### Results Analysis
-
-The `results()` function displays:
-- **Performance Summary**: Best/worst/base configurations
-- **Cost Analysis**: Training time and cost comparisons
-- **Top Configurations**: Ranked by performance
-- **Recommendations**: Best performance vs cost efficiency
-
-## Troubleshooting
-
-### Common Issues with Scripts
-
-1. **Import Errors**: Ensure NeMo and nemo_run are properly installed
-   ```bash
-   pip install nemo nemo_run rich
-   ```
-
-2. **Path Issues**: Update all file paths in scripts to match your directory structure
-   - Ensure paths are always absolute
-
-3. **Configuration Validation Failed**: Review parallelism constraints
-   - Ensure `nodes * gpus_per_node` matches total GPU count
-   - Parallelism sizes must divide evenly into total GPU count
-
-4. **No Configurations to Run**: 
-   - All configs flagged for OOM
-   - Reduce `micro_batch_sizes` or increase parallelism
-   - Use `run_all=True` to force run all configurations (not recommended)
-
-5. **Logs Directory Not Found**: Run training experiments first
-   - Ensure `run_experiments.py` completes successfully before running `results.py`
-
-### Memory Issues
-
-- Reduce `micro_batch_sizes` or increase parallelism
-- Use `run_all=True` to run OOM-risk configurations anyway
-- Check GPU memory specifications in `resource_shape`
-
-### Performance Issues
-
-- Increase `max_steps_per_run` for more accurate timing
-- Use `force_reconstruct=True` to regenerate configurations
-- Check log files for training errors
-
-
-This README provides a comprehensive guide to using the AutoTune module step-by-step, with examples and troubleshooting tips.
+This README provides a comprehensive guide to using the AutoTune module step-by-step, with realistic examples and troubleshooting tips.

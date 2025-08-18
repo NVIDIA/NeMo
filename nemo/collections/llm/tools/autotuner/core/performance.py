@@ -31,9 +31,7 @@ def results(
     logs_path: str,
     log_prefix: str = '',
     top_n: int = 5,
-    force_reconstruct: bool = False,
-    cost_per_gpu_hour: float = 24.0,
-    quiet: bool = False,
+    cost_per_gpu_hour: float = 3.0
 ) -> Dict[str, Any]:
     """
     Collect, analyze, and display AutoConfigurator results in one step.
@@ -43,8 +41,7 @@ def results(
         logger.error(f"Logs directory not found: {logs_path}")
         raise FileNotFoundError(f"Logs directory not found: {logs_path}")
 
-    # Load or reconstruct objects
-    if not force_reconstruct and args.has_valid_objects():
+    if args.has_valid_objects():
         base_config = args.get_base_config()
         runner = args.get_runner()
         metadata = args.metadata
