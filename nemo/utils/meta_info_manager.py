@@ -17,7 +17,6 @@
 
 import os
 from typing import Any, Dict
-import torch
 
 enable_onelogger = True
 
@@ -226,22 +225,15 @@ def get_nemo_v2_callback_config(
 def _should_enable_for_current_rank() -> bool:
     """Determine if OneLogger should be enabled for the current rank.
 
+    Uses environment variables instead of torch.distributed to avoid circular imports.
     In distributed training, typically only rank 0 (or the last rank) should
     enable OneLogger to avoid duplicate telemetry data.
 
     Returns:
         True if OneLogger should be enabled for the current rank, False otherwise
     """
-    try:
-        # Check if distributed training is initialized
-        if torch.distributed.is_initialized():
-            world_size = torch.distributed.get_world_size()
-            rank = torch.distributed.get_rank()
-            # Enable for rank 0 or the last rank (common pattern)
-            return rank == 0 or rank == world_size - 1
-        else:
-            # Single process training - always enable
-            return True
-    except Exception:
-        # If there's any error checking distributed state, default to True
-        return False
+    rank = int(os.environ.get('RANK', 0))
+    world_size = int(os.environ.get('WORLD_SIZE', 1))
+    
+    # Enable for rank 0 or the last rank (common pattern)
+    return rank == 0 or rank == world_size - 1
