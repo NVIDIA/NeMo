@@ -260,6 +260,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
 
         parallelism = f"{params['tp']}/{params['pp']}/{params['cp']}/{params['ep']}/{params['vp']}"
         batch_info = f"{params['mbs']}/{params['gbs']}"
+        seq_len = params['seq']
 
         config_id = f"Config-{i}"
 
