@@ -13,8 +13,8 @@
 # limitations under the License.
 
 
-MAJOR = 3
-MINOR = 0
+MAJOR = 2
+MINOR = 6
 PATCH = 0
 PRE_RELEASE = 'rc0'
 
