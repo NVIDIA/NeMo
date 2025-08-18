@@ -108,14 +108,14 @@ def _find_exact_user_buffer_match(
 ) -> Optional[Any]:
     """Find exact user buffer configuration match."""
     KNOWN_GPUS = {
-    "h100": "h100",
-    "h200": "h200",
-    "gb200": "gb200",
-    "a100": "a100",
-    "h20": "h20",
-    "l40s": "l40s",
-    "b200": "b200",
-}
+        "h100": "h100",
+        "h200": "h200",
+        "gb200": "gb200",
+        "a100": "a100",
+        "h20": "h20",
+        "l40s": "l40s",
+        "b200": "b200",
+    }
 
     try:
         for key, value in KNOWN_GPUS:

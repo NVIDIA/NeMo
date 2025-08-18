@@ -17,7 +17,9 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
-from nemo.collections.llm.tools.auto_configurator.core.performance_utils import apply_per_config_tp_comm_overlap_optimization
+from nemo.collections.llm.tools.auto_configurator.core.performance_utils import (
+    apply_per_config_tp_comm_overlap_optimization,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
