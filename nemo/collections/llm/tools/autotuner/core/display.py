@@ -242,11 +242,13 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     table.add_column("M-TFLOPs/GPU", style="green", width=12)
     table.add_column("Days", style="blue", width=6)
     table.add_column("Cost", style="red", width=10)
+    table.add_column("Status", style="white", width=12)
     
     for i, (config_name, config_data) in enumerate(sorted_configs[:5], 1):
         # Extract key parameters for display
         config_parts = config_name.split('_')
-        
+        model_name = config_parts[0] if len(config_parts) > 0 else "Unknown"
+
         # Extract parallelism info (TP/PP/CP/EP/VP)
         tp = next((p.split('tp_')[1] for p in config_parts if 'tp_' in p))
         pp = next((p.split('pp_')[1] for p in config_parts if 'pp_' in p))
@@ -254,14 +256,18 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         ep = next((p.split('ep_')[1] for p in config_parts if 'ep_' in p))
         vp = next((p.split('vp_')[1] for p in config_parts if 'vp_' in p))
         parallelism = f"{tp}/{pp}/{cp}/{ep}/{vp}"
-        
+
         # Extract Sequence Length
         seq_len = next((p.split('seq_')[1] for p in config_parts if 'seq_' in p), '8192')
-        
+
         # Extract batch info
         mbs = next((p.split('mbs_')[1] for p in config_parts if 'mbs_' in p), '1')
         gbs = next((p.split('gbs_')[1] for p in config_parts if 'gbs_' in p), '256')
         batch_info = f"{mbs}/{gbs}"
+
+        # Create short config ID
+        config_id = f"Config-{i}"
+
         
         table.add_row(
             str(i),
@@ -273,15 +279,13 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
             f"${config_data.get('total_cost', 0):,.0f}",
         )
     console.print(table)
-    
+
     # Add legend for abbreviations
     console.print("\n[cyan] Table Legend:[/cyan]")
     console.print("  TP/PP/CP/EP/VP: Tensor/Pipeline/Context/Expert/Virtual Parallelism")
     console.print("  Seq: Sequence Length")
     console.print("  MBS/GBS: Micro Batch Size / Global Batch Size")
     console.print("  M-TFLOPs/GPU: Millions of TFLOPS per GPU")
-    console.print("  Days: Training time in days")
-    console.print("  Cost: Total training cost in USD")
     
     # Show full configuration names for reference
     console.print("\n[cyan] Full Configuration Names (for reference):[/cyan]")
@@ -291,7 +295,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
             status = "Base Config"
         elif i == 1:
             status = "Best"
-        console.print(f"[yellow]Config-{i}[/yellow] [{status}]: {config_name}")
+        console.print(f"[yellow]{i}.[/yellow] [{status}] {config_name}")
     
     console.print("\n[cyan] Cost Efficiency Analysis[/cyan]")
     console.print("=" * 50)
