@@ -1064,7 +1064,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if self.ckpt_pre_mcore_014 or force_pre_mcore_014:
             metadata['singleton_local_shards'] = False
-            metadata['unpadded_embeddings'] = False
             if use_distributed_optimizer:
                 if self.parallel_save_optim:
                     metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
@@ -1072,7 +1071,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     metadata["distrib_optim_sharding_type"] = "dp_zero_gather_scatter"
         else:
             metadata['singleton_local_shards'] = True
-            metadata['unpadded_embeddings'] = False  # TODO: revisit switching on
             if use_distributed_optimizer:
                 if self.ckpt_optim_fully_reshardable:
                     metadata['distrib_optim_sharding_type'] = 'fully_reshardable'
