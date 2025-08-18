@@ -148,6 +148,24 @@ def setup_nemo_environment():
         print("Setting LEPTON_TOKEN from environment")
     else:
         print("Warning: LEPTON_TOKEN not found in environment")
+    
+    print("Authenticating with Lepton CLI...")
+    try:
+        workspace_id = os.environ.get('LEPTON_WORKSPACE_ID')
+        token = os.environ.get('LEPTON_TOKEN')
+        if workspace_id and token:
+            subprocess.run([
+                "lep", "login", "-c", f"{workspace_id}:{token}"
+            ], check=True, capture_output=False)
+            print(f"Successfully authenticated with Lepton workspace: {workspace_id}")
+        else:
+            print("Warning: Missing Lepton credentials for CLI authentication")
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: Failed to authenticate with Lepton CLI: {e}")
+        print("NeMo Run may fail to authenticate with Lepton")
+    except FileNotFoundError:
+        print("Warning: 'lep' command not found. Please ensure Lepton CLI is installed.")
+        print("NeMo Run may fail to authenticate with Lepton")
 
 if __name__ == "__main__":
     setup_nemo_environment()

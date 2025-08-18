@@ -70,7 +70,7 @@ def lepton_executor(
     if wandb_api_key:
         default_env_vars["WANDB_API_KEY"] = wandb_api_key
 
-    print(default_env_vars)
+    print("Environment variables configured:", list(default_env_vars.keys()))
     
     return run.LeptonExecutor(
         resource_shape=resource_shape,
