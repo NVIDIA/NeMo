@@ -164,7 +164,7 @@ def init_one_logger() -> None:
     # Check if OneLogger is enabled
     if not enable_onelogger:
         return
-    
+
     try:
         # Check if OneLogger is already configured
         if TrainingTelemetryProvider.instance().one_logger_ready:
