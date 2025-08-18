@@ -243,7 +243,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     table.add_column("Days", style="blue", width=6)
     table.add_column("Cost", style="red", width=10)
     table.add_column("Status", style="white", width=12)
-    
+
     for i, (config_name, config_data) in enumerate(sorted_configs[:5], 1):
         # Extract key parameters for display
         config_parts = config_name.split('_')
@@ -290,7 +290,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
     console.print("  Seq: Sequence Length")
     console.print("  MBS/GBS: Micro Batch Size / Global Batch Size")
     console.print("  M-TFLOPs/GPU: Millions of TFLOPS per GPU")
-    
+
     # Show full configuration names for reference
     console.print("\n[cyan] Full Configuration Names (for reference):[/cyan]")
     for i, (config_name, config_data) in enumerate(sorted_configs[:5], 1):
@@ -300,7 +300,7 @@ def display_performance_analysis(analysis_data: Optional[Dict[str, Any]]) -> Non
         elif i == 1:
             status = "Best"
         console.print(f"[yellow]{i}.[/yellow] [{status}] {config_name}")
-    
+
     console.print("\n[cyan] Cost Efficiency Analysis[/cyan]")
     console.print("=" * 50)
     most_efficient = min(config_analysis.items(), key=lambda x: x[1].get('cost_per_tflop', float('inf')))
