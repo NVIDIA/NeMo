@@ -466,11 +466,13 @@ def set_primary_perf_configs(
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
-    
+
     # te activation function for MLP part
-    recipe.model.config.use_te_act_func = use_te_act_func or False
-    assert (not act_func_fp8_input_store) or use_te_act_func, "act_func_fp8_input_store requires use_te_act_func to be True"
-    recipe.model.config.act_func_fp8_input_store = act_func_fp8_input_store or False
+    recipe.model.config.use_te_activation_func = use_te_act_func or False
+    assert (
+        not act_func_fp8_input_store
+    ) or use_te_act_func, "act_func_fp8_input_store requires use_te_act_func to be True"
+    recipe.model.config.activation_func_fp8_input_store = act_func_fp8_input_store or False
 
     recipe = set_perf_optimization_configs(
         recipe=recipe,
