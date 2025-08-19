@@ -379,7 +379,7 @@ class StateDictTransform(Generic[F]):
                     logging.debug(f"Matched (single source)! {target_match=} {source_match=}")
                     matched = True
         if not matched:
-            raise ValueError(f"No matches found for source key: {source_key=} {target_key=}")
+            logging.warning(f"No matches found for source key: {source_key=} {target_key=}")
         return ctx
 
     def call_transform(self, ctx: TransformCTX, *args, **kwargs):

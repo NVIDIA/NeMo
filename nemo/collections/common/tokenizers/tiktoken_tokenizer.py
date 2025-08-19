@@ -152,7 +152,7 @@ class TiktokenTokenizer(TokenizerSpec):
                 print(f"Adding special tokens {special_filler[0]}, ..., {special_filler[-1]}")
             self.special_tokens = special_tokens + special_filler
             assert len(set(self.special_tokens)) == len(self.special_tokens) == num_special_tokens, self.special_tokens
-            encoding_special_tokens = ({},)  # special tokens are handled manually
+            encoding_special_tokens = {}  # special tokens are handled manually
             self.allowed_special = set()
         else:
             tokenizer_base = tiktoken.get_encoding(encoding_name)
