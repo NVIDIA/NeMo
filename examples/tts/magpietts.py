@@ -47,6 +47,12 @@ def main(cfg):
     trainer.callbacks.append(pl.callbacks.LearningRateMonitor(logging_interval='step', log_weight_decay=True))
     exp_manager(trainer, cfg.get("exp_manager", None))
 
+    seed = cfg.get('seed', None)
+    if seed is not None:
+        # Option to seed for debugging
+        logging.info(f"Setting seed to {seed}")
+        pl.seed_everything(seed, workers=True)
+
     mode = cfg.get('mode', 'train')
     if mode == 'train':
         model = MagpieTTSModel(cfg=cfg.model, trainer=trainer)
