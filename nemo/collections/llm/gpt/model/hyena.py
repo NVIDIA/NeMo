@@ -489,7 +489,8 @@ class Hyena7bARCLongContextConfig(Hyena7bConfig):
     seq_length: int = 1_048_576
     ###
     # Hand verification of RoPE base for 7B-1M @antonvnv
-    # >>> def inv_freq(base, dim): return 1.0 / (base ** (torch.arange(0, dim, 2, device="cuda", dtype=torch.float32) / dim))
+    # >>> def inv_freq(base, dim):
+    #     return 1.0 / (base ** (torch.arange(0, dim, 2, device="cuda", dtype=torch.float32) / dim))
     #
     # >>> pt = torch.load("evo2_7b.pt", weights_only=False, mmap=True, map_location="cpu")
     #
@@ -514,7 +515,8 @@ class Hyena40bARCLongContextConfig(Hyena40bConfig):
     seq_length: int = 1_048_576
     ####
     # For 40B-1M hand verification of RoPE base @antonvnv
-    # >>> def inv_freq(base, dim): return 1.0 / (base ** (torch.arange(0, dim, 2, device="cuda", dtype=torch.float32) / dim))
+    # >>> def inv_freq(base, dim):
+    #     return 1.0 / (base ** (torch.arange(0, dim, 2, device="cuda", dtype=torch.float32) / dim))
     #
     # >>> pt = torch.load("evo2_40b.pt", weights_only=False, mmap=True, map_location="cpu")
     #
