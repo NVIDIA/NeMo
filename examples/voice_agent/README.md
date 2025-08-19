@@ -10,7 +10,7 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 - Talk to most LLMs from HuggingFace, use different prompts to configure the agent. 
 - Streaming speech recognition.
 - FastPitch-HiFiGAN TTS.
-- Speaker diarization up to 4 speakers (checkpoint will be released very soon).
+- Speaker diarization up to 4 speakers.
 - WebSocket server for easy deployment.
 
 
@@ -125,7 +125,8 @@ We use [cache-aware streaming FastConformer](https://arxiv.org/abs/2312.17279) t
 
 ### 💬 Diarization
 
-We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the speaker for each user turn. As of now, we only support detecting 1 speaker for a single user turn, but different turns can be from different speakers, with a maximum of 4 speakers in the whole conversation.
+We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the speaker for each user turn. As of now, we only support detecting 1 speaker for a single user turn, but different turns can be from different speakers, with a maximum of 4 speakers in the whole conversation. Currently supported models are:
+ - [nvidia/diar_streaming_sortformer_4spk-v2](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2) (default)
 
 ### 🔉 TTS
 
