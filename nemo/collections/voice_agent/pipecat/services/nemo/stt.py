@@ -18,6 +18,7 @@ from typing import AsyncGenerator, List, Optional
 
 from loguru import logger
 from pipecat.frames.frames import (
+    AudioRawFrame,
     CancelFrame,
     EndFrame,
     ErrorFrame,
@@ -35,6 +36,7 @@ from pipecat.utils.tracing.service_decorators import traced_stt
 from pydantic import BaseModel
 
 from nemo.collections.voice_agent.pipecat.services.nemo.legacy_asr import NemoLegacyASRService
+from nemo.collections.voice_agent.pipecat.services.nemo.utils import get_time_range, inject_time_to_frame
 
 try:
     # disable nemo logging
@@ -90,6 +92,41 @@ class NemoSTTService(STTService):
         self._load_model()
 
         self.audio_buffer = []
+        self.audio_timestamp_buffer = []
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        if isinstance(frame, AudioRawFrame):
+            frame = inject_time_to_frame(frame)
+        await super().process_frame(frame, direction)
+
+    async def process_audio_frame(self, frame: AudioRawFrame, direction: FrameDirection):
+        """Process an audio frame for speech recognition.
+
+        If the service is muted, this method does nothing. Otherwise, it
+        processes the audio frame and runs speech-to-text on it, yielding
+        transcription results. If the frame has a user_id, it is stored
+        for later use in transcription.
+
+        Args:
+            frame: The audio frame to process.
+            direction: The direction of frame processing.
+        """
+        if self._muted:
+            return
+
+        # UserAudioRawFrame contains a user_id (e.g. Daily, Livekit)
+        if hasattr(frame, "user_id"):
+            self._user_id = frame.user_id
+        # AudioRawFrame does not have a user_id (e.g. SmallWebRTCTransport, websockets)
+        else:
+            self._user_id = ""
+
+        if not frame.audio:
+            # Ignoring in case we don't have audio to transcribe.
+            logger.warning(f"Empty audio frame received for STT service: {self.name} {frame.num_frames}")
+            return
+
+        await self.process_generator(self.run_stt(frame))
 
     def _load_model(self):
         if self._backend == "legacy":
@@ -138,7 +175,7 @@ class NemoSTTService(STTService):
         await self._queue.put(None)  # Signal to stop processing
         self._queue = asyncio.Queue()  # Reset the queue
 
-    async def run_stt(self, audio: bytes) -> AsyncGenerator[Frame, None]:
+    async def run_stt(self, frame: AudioRawFrame) -> AsyncGenerator[Frame, None]:
         """Process audio data and generate transcription frames.
 
         Args:
@@ -147,6 +184,8 @@ class NemoSTTService(STTService):
         Yields:
             Frame: Transcription frames containing the results
         """
+
+        audio = frame.audio
         await self.start_ttfb_metrics()
         await self.start_processing_metrics()
 
@@ -154,9 +193,13 @@ class NemoSTTService(STTService):
             is_final = False
             transcription = None
             self.audio_buffer.append(audio)
+            self.audio_timestamp_buffer.append(getattr(frame, "timestamp", None))
+
             if len(self.audio_buffer) >= self._params.buffer_size:
                 audio = b"".join(self.audio_buffer)
+                time_range = get_time_range(self.audio_timestamp_buffer)
                 self.audio_buffer = []
+                self.audio_timestamp_buffer = []
 
                 transcription, is_final = self._model.transcribe(audio)
                 await self.stop_ttfb_metrics()
@@ -173,13 +216,14 @@ class NemoSTTService(STTService):
                     frame_type = InterimTranscriptionFrame
                 else:
                     frame_type = TranscriptionFrame
+
                 await self.push_frame(
                     frame_type(
                         transcription,
                         "",  # No speaker ID in this implementation
                         time_now_iso8601(),
                         language,
-                        result={"text": transcription},
+                        result={"text": transcription, "time_range": time_range},
                     )
                 )
 

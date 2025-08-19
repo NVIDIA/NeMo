@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from dataclasses import dataclass
+from typing import Any, Optional
+
 import numpy as np
 from pipecat.frames.frames import DataFrame
 
@@ -24,3 +25,4 @@ class DiarResultFrame(DataFrame):
 
     diar_result: np.ndarray | int
     stream_id: str = "default"
+    result: Optional[Any] = None

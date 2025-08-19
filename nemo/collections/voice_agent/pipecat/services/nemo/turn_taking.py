@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import time
-from typing import List
+from typing import List, Optional
 
 from loguru import logger
 from pipecat.frames.frames import (
@@ -132,6 +132,7 @@ class NeMoTurnTakingService(FrameProcessor):
         max_buffer_size: int = 5,
         backchannel_phrases: List[str] = DEFAULT_BACKCHANNEL_PHRASES,
         bot_stop_delay: float = 0.5,
+        diar_collar: float = 0.1,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -144,6 +145,7 @@ class NeMoTurnTakingService(FrameProcessor):
         self.backchannel_phrases = backchannel_phrases
         self.backchannel_phrases_nopc = set([self.clean_text(phrase) for phrase in self.backchannel_phrases])
         self.bot_stop_delay = bot_stop_delay
+        self.diar_collar = diar_collar
         # internal data
         self._current_speaker_id = None
         self._prev_speaker_id = None
@@ -455,3 +457,160 @@ class NeMoTextTurnTakingService(NeMoTurnTakingService):
                 logger.debug(f"InterimTranscription Detected: `{self._user_speaking_buffer}`")
         else:
             logger.debug(f"User is not speaking, ignoring text segment: `{text_segment}`")
+
+
+class NeMoAlignedTurnTakingService(NeMoTurnTakingService):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.asr_result_buffer = []
+        self.speaker_prefix = "<speaker_"
+
+    @property
+    def full_current_transcription(self):
+        """
+        Get the full text from the ASR result buffer.
+        """
+        return "".join([text for text, _ in self.asr_result_buffer])
+
+    def _get_speaker_id_from_text(self, text: str) -> Optional[int]:
+        """
+        Get the speaker id from the text.
+        """
+        if text.startswith(self.speaker_prefix):
+            return int(text.split(self.speaker_prefix)[1].split(">")[0])
+        return None
+
+    async def _handle_transcription(
+        self, frame: TranscriptionFrame | InterimTranscriptionFrame, direction: FrameDirection
+    ):
+        text_segment = frame.text
+        time_range = frame.result["time_range"]
+        if self._vad_user_speaking:
+            self.asr_result_buffer.append((text_segment, time_range))
+            has_eou = text_segment.endswith(self.eou_string)
+            has_eob = text_segment.endswith(self.eob_string)
+            current_transcription = self.full_current_transcription
+            if has_eou:
+                # EOU detected, we assume the user is done speaking, so we push the completed text and interrupt the bot
+                logger.debug(f"<EOU> Detected: `{current_transcription}`")
+                completed_text = current_transcription[: -len(self.eou_string)].strip()
+                self.asr_result_buffer = []
+                if self._bot_speaking and self.is_backchannel(completed_text):
+                    logger.debug(f"<EOU> detected for a backchannel phrase while bot is speaking: `{completed_text}`")
+                else:
+                    await self._handle_completed_text(completed_text, direction)
+                    await self._handle_user_interruption(UserStoppedSpeakingFrame())
+                self._have_sent_user_started_speaking = False  # user is done speaking, so we reset the flag
+            elif has_eob and self._bot_speaking:
+                # ignore the backchannel string while bot is speaking
+                logger.debug(f"Ignoring backchannel string while bot is speaking: `{self._user_speaking_buffer}`")
+                # push the backchannel string upstream, not downstream
+                await self.push_frame(
+                    TranscriptionFrame(
+                        text=f"({current_transcription})",
+                        user_id="",
+                        timestamp=time_now_iso8601(),
+                        language=self.language if self.language else Language.EN_US,
+                        result={"text": f"Backchannel detected for segment: {text_segment}"},
+                    ),
+                    direction=FrameDirection.UPSTREAM,
+                )
+                self._have_sent_user_started_speaking = False  # treat it as if the user is not speaking
+                completed_text = ""
+                self._user_speaking_buffer = ""
+            else:
+                # if bot is not speaking, the backchannel string is not considered a backchannel phrase
+                # user is still speaking, so we append the text segment to the buffer
+                logger.debug(f"User is speaking: `{current_transcription}`")
+                if has_eob:
+                    logger.debug(
+                        f"{self.eob_string} detected but ignored because bot is NOT speaking: `{current_transcription}`"
+                    )
+                    current_transcription = current_transcription[: -len(self.eob_string)].strip()
+                    self.asr_result_buffer[-1] = (text_segment[: -len(self.eob_string)].strip(), time_range)
+                completed_words = current_transcription.strip().split()[:-1]  # assume the last word is not completed
+                if len(completed_words) >= self.max_buffer_size:
+                    completed_text = " ".join(completed_words)
+                    await self._handle_completed_text(completed_text, direction, is_final=False)
+        else:
+            # if vad is not detecting user speaking
+            logger.debug(
+                f"VAD is not detecting user speaking, but still received text segment from STT: `{text_segment}`"
+            )
+            is_backchannel = self.is_backchannel(text_segment)
+            if text_segment.endswith(self.eob_string):
+                is_backchannel = True
+                logger.debug(f"Dropping EOB token: `{text_segment}`")
+                text_segment = text_segment[: -len(self.eob_string)].strip()
+            elif text_segment.endswith(self.eou_string):
+                logger.debug(f"Dropping EOU token: `{text_segment}`")
+                text_segment = text_segment[: -len(self.eou_string)].strip()
+
+            if not text_segment.strip():
+                return
+
+            self.asr_result_buffer.append((text_segment, time_range))
+            current_transcription = self.full_current_transcription
+            if is_backchannel and self._bot_speaking:
+                logger.debug(f"Backchannel detected while bot is speaking: `{text_segment}`")
+                # push the backchannel string upstream, not downstream
+                self.asr_result_buffer = []
+                await self.push_frame(
+                    TranscriptionFrame(
+                        text=f"({current_transcription})",
+                        user_id="",
+                        timestamp=time_now_iso8601(),
+                        language=self.language if self.language else Language.EN_US,
+                        result={"text": f"Backchannel detected: {current_transcription}"},
+                    ),
+                    direction=FrameDirection.UPSTREAM,
+                )
+            else:
+                # if the text segment is not empty and have non-space characters, we append it to the buffer
+                if self.is_backchannel(current_transcription):
+                    logger.debug(f"Backchannel detected: `{current_transcription}`")
+                    self.asr_result_buffer = []
+                    self._have_sent_user_started_speaking = False
+                    return
+                logger.debug(f"Appending text segment to user speaking buffer: `{current_transcription}`")
+
+    async def _handle_diar_result(self, frame: DiarResultFrame, direction: FrameDirection):
+        """
+        Handle the diarization result by aligning the ASR result with the diarization result,
+        then add speaker tags to the ASR result.
+        Args:
+            frame: The diarization result frame
+            direction: The direction of frame processing
+        """
+        if not self.use_diar:
+            logger.debug("Diarization is disabled, skipping")
+            return
+
+        if frame.diar_result is None:
+            return
+
+        all_speakers = frame.result["all_speakers"]  # a list of speaker ids for each frame
+        start_time, end_time = frame.result["time_range"]  # a tuple of start and end time for the current frame
+        duration = end_time - start_time
+        diar_frame_len = duration / len(all_speakers)
+        for i in range(len(all_speakers)):
+            start_time_i = start_time + i * diar_frame_len
+            end_time_i = start_time_i + diar_frame_len
+            speaker_id = all_speakers[i]
+            if speaker_id is None:
+                continue
+
+            prev_speaker_id = None
+            for j in range(len(self.asr_result_buffer)):
+                text, text_time_range = self.asr_result_buffer[j]
+                text_speaker_id = self._get_speaker_id_from_text(text)
+                if text_speaker_id is not None:
+                    prev_speaker_id = text_speaker_id
+                if (
+                    start_time_i >= text_time_range[0]
+                    and end_time_i <= text_time_range[1]
+                    and prev_speaker_id != speaker_id
+                ):
+                    text_with_speaker_tag = f"{self.speaker_prefix}{speaker_id}> {text}"
+                    self.asr_result_buffer[j] = (text_with_speaker_tag, text_time_range)
+                    prev_speaker_id = speaker_id

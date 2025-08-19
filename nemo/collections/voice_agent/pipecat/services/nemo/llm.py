@@ -35,7 +35,7 @@ DEFAULT_GENERATION_KWARGS = {
 class HuggingFaceLLMLocalService:
     def __init__(
         self,
-        model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
+        model: str = "nvidia/Llama-3.1-Nemotron-Nano-8B-v1",
         device: str = "cuda:0",
         dtype: str = "bfloat16",
         generation_kwargs: dict = None,
@@ -110,7 +110,7 @@ class HuggingFaceLLMService(OpenAILLMService):
     def __init__(
         self,
         *,
-        model: str = "google/gemma-7b-it",
+        model: str = "nvidia/Llama-3.1-Nemotron-Nano-8B-v1",
         device: str = "cuda",
         dtype: str = "bfloat16",
         generation_kwargs: dict = None,

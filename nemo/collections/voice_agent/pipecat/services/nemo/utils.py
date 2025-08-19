@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import math
+from typing import Any, List, Tuple
 
 import numpy as np
 import torch
 from omegaconf import DictConfig
+from pipecat.frames.frames import AudioRawFrame, Frame
 
 import nemo.collections.asr as nemo_asr
 
@@ -194,3 +197,18 @@ class CacheFeatureBufferer:
             torch.Tensor: current state of the feature buffer
         """
         return self.feature_buffer.clone()
+
+
+def inject_time_to_frame(frame: Frame | AudioRawFrame) -> Frame | AudioRawFrame:
+    """
+    Inject the current time into the frame
+    """
+    frame.timestamp = datetime.datetime.now(datetime.timezone.utc)
+    return frame
+
+
+def get_time_range(timestamp_buffer: List[Any]) -> Tuple[Any, Any]:
+    """
+    Get the time range from the timestamp buffer
+    """
+    return timestamp_buffer[0], timestamp_buffer[-1]

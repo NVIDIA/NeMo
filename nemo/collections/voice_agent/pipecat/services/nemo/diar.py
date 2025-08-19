@@ -19,6 +19,7 @@ from typing import AsyncGenerator, Optional
 import numpy as np
 from loguru import logger
 from pipecat.frames.frames import (
+    AudioRawFrame,
     CancelFrame,
     EndFrame,
     ErrorFrame,
@@ -36,6 +37,7 @@ from pydantic import BaseModel
 
 from nemo.collections.voice_agent.pipecat.frames.frames import DiarResultFrame
 from nemo.collections.voice_agent.pipecat.services.nemo.legacy_diar import DiarizationConfig, NeMoLegacyDiarService
+from nemo.collections.voice_agent.pipecat.services.nemo.utils import get_time_range, inject_time_to_frame
 
 
 class NeMoDiarInputParams(BaseModel):
@@ -85,6 +87,7 @@ class NemoDiarService(STTService):
 
         self._vad_user_speaking = False
         self._audio_buffer = []
+        self._audio_timestamp_buffer = []
         self._current_speaker_id = None
         self._processing_running = False
 
@@ -159,7 +162,7 @@ class NemoDiarService(STTService):
                 try:
                     # Get audio from queue - blocking call that will be interrupted by cancellation
                     future = asyncio.run_coroutine_threadsafe(self._queue.get(), self.get_event_loop())
-                    audio = future.result()
+                    audio, time_range = future.result()
 
                     if audio is None:  # Stop signal
                         logger.debug("Received stop signal in background processor")
@@ -169,7 +172,9 @@ class NemoDiarService(STTService):
                     diar_result = self._model.diarize(audio)
 
                     # Send result back to async loop
-                    asyncio.run_coroutine_threadsafe(self._response_queue.put(diar_result), self.get_event_loop())
+                    asyncio.run_coroutine_threadsafe(
+                        self._response_queue.put((diar_result, time_range)), self.get_event_loop()
+                    )
 
                 except Exception as e:
                     logger.error(f"Error in background diarization processor: {e}")
@@ -194,17 +199,23 @@ class NemoDiarService(STTService):
         finally:
             self._processing_running = False
 
-    async def _handle_diarization_result(self, diar_result):
+    async def _handle_diarization_result(self, diar_result, time_range):
         """Handle diarization result from background processing."""
         try:
             if diar_result is None:
                 return
-            dominant_speaker_id = self._get_dominant_speaker_id(diar_result)
+            dominant_speaker_id, all_speakers = self._get_dominant_speaker_id(diar_result)
             # logger.debug(f"Dominant speaker ID: {dominant_speaker_id}")
             if dominant_speaker_id is not None and dominant_speaker_id != self._current_speaker_id:
                 self._current_speaker_id = dominant_speaker_id
                 logger.debug(f"Pushing DiarResultFrame with speaker {dominant_speaker_id}")
-                await self.push_frame(DiarResultFrame(dominant_speaker_id, stream_id="default"))
+                await self.push_frame(
+                    DiarResultFrame(
+                        dominant_speaker_id,
+                        stream_id="default",
+                        result={"time_range": time_range, "all_speakers": all_speakers},
+                    )
+                )
         except Exception as e:
             logger.error(f"Error handling diarization result: {e}")
             await self.push_frame(
@@ -234,7 +245,8 @@ class NemoDiarService(STTService):
                         )
                     else:
                         # Handle successful diarization result
-                        await self._handle_diarization_result(result)
+                        diar_result, time_range = result
+                        await self._handle_diarization_result(diar_result, time_range)
 
                 except Exception as e:
                     logger.error(f"Error in response task handler: {e}")
@@ -242,7 +254,36 @@ class NemoDiarService(STTService):
             logger.debug("Response task handler cancelled")
             raise
 
-    async def run_stt(self, audio: bytes) -> AsyncGenerator[Frame, None]:
+    async def process_audio_frame(self, frame: AudioRawFrame, direction: FrameDirection):
+        """Process an audio frame for speech recognition.
+
+        If the service is muted, this method does nothing. Otherwise, it
+        processes the audio frame and runs speech-to-text on it, yielding
+        transcription results. If the frame has a user_id, it is stored
+        for later use in transcription.
+
+        Args:
+            frame: The audio frame to process.
+            direction: The direction of frame processing.
+        """
+        if self._muted:
+            return
+
+        # UserAudioRawFrame contains a user_id (e.g. Daily, Livekit)
+        if hasattr(frame, "user_id"):
+            self._user_id = frame.user_id
+        # AudioRawFrame does not have a user_id (e.g. SmallWebRTCTransport, websockets)
+        else:
+            self._user_id = ""
+
+        if not frame.audio:
+            # Ignoring in case we don't have audio to transcribe.
+            logger.warning(f"Empty audio frame received for Diar service: {self.name} {frame.num_frames}")
+            return
+
+        await self.process_generator(self.run_stt(frame))
+
+    async def run_stt(self, frame: AudioRawFrame) -> AsyncGenerator[Frame, None]:
         """Process audio data and generate transcription frames.
 
         Args:
@@ -251,15 +292,20 @@ class NemoDiarService(STTService):
         Yields:
             Frame: Transcription frames containing the results
         """
+
+        audio = frame.audio
         if self._vad_user_speaking and self._enabled:
             self._audio_buffer.append(audio)
+            self._audio_timestamp_buffer.append(getattr(frame, "timestamp", None))
             if len(self._audio_buffer) >= self._params.buffer_size:
                 await self.start_ttfb_metrics()
                 await self.start_processing_metrics()
                 audio = b"".join(self._audio_buffer)
+                time_range = get_time_range(self._audio_timestamp_buffer)
                 self._audio_buffer = []
+                self._audio_timestamp_buffer = []
                 # Queue audio for background processing
-                await self._queue.put(audio)
+                await self._queue.put((audio, time_range))
         yield None
 
     @traced_stt
@@ -327,31 +373,30 @@ class NemoDiarService(STTService):
         self._vad_user_speaking = False
         self._model.reset_state()
 
-    def _get_dominant_speaker_id(self, spk_pred: np.ndarray):
-        spk_pred = (spk_pred > self._params.threshold).astype(int)
+    def _get_dominant_speaker_id(self, spk_prob: np.ndarray):
+        """
+        Get the dominant speaker id from the speaker probability.
+        Args:
+            spk_prob: Speaker probability, a 2D numpy array of shape [num_frames, num_speakers]
+        Returns:
+            dominant_speaker_id: The dominant speaker id
+            all_speakers: A list of speaker ids for each frame
+        """
+        spk_pred = (spk_prob > self._params.threshold).astype(int)
         dominant_speaker_id = None
-        if spk_pred.sum() > 0:
-            # get the dominant speaker id
-            # Filter to only keep frames that have any speaker probability > 0.0
-            valid_frame_mask = spk_pred.sum(axis=1) > 0
+        all_speakers = []
 
-            # Filter diar_result to only keep valid frames
-            filtered_diar_result = spk_pred[valid_frame_mask]  # ndarray of shape [num_valid_frames, num_speakers]
+        if spk_pred.sum() == 0:
+            return None, all_speakers
 
-            # Get the primary speaker for each valid frame
-            primary_spk = np.argmax(filtered_diar_result, axis=1)  # ndarray of shape [num_valid_frames]
-            # logger.debug(f"Primary speaker for valid frames: {primary_spk}")
-
-            # count the number of different speakers in the primary speaker sequence
-            num_speakers = len(np.unique(primary_spk))
-            # logger.debug(f"Number of different speakers: {num_speakers}")
-
-            # If there are multiple speakers, get the dominant one
-            if num_speakers > 1:
-                # Count occurrences of each speaker
-                speaker_counts = np.bincount(primary_spk)
-                dominant_speaker_id = np.argmax(speaker_counts)
+        for i in range(spk_pred.shape[0]):
+            if spk_pred[i].sum() > 0:
+                spk_id = np.argmax(spk_prob[i])
+                all_speakers.append(spk_id)
             else:
-                # Only one speaker, return that speaker ID
-                dominant_speaker_id = primary_spk[0]
-        return dominant_speaker_id
+                all_speakers.append(None)
+
+        speaker_counts = np.bincount([x for x in all_speakers if x is not None])
+        dominant_speaker_id = np.argmax(speaker_counts)
+
+        return dominant_speaker_id, all_speakers
