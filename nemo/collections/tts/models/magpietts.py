@@ -112,11 +112,10 @@ class MagpieTTSModel(ModelPT):
         self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook', num_audio_tokens + len(SpecialAudioToken))
         self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
 
-        # The frame stacking factor controls how many consecutive frames are processed together by the
-        # base decoder (and then refined into individual frames by the local transformer).
-        # A frame stacking factor of 1 means no frame stacking.
-        # We have a separate embedding table for each of the stacked frames, e.g. for frame stacking
-        # factor of 3, the entries for of codebook 0 appears 3 times in the embedding table.
+        # The frame stacking factor controls how many consecutive frames are processed together by the base decoder
+        # (and then refined into individual frames by the local transformer). A frame stacking factor of 1 means no
+        # frame stacking. We have a separate embedding table for each of the stacked frames, e.g. for frame stacking
+        # factor of 3, the entries of codebook 0 appear 3 times in the embedding table.
         self.frame_stacking_factor = cfg.get('frame_stacking_factor', 1)
         assert not 'downsample_factor' in cfg, '`downsample_factor` is deprecated, use `frame_stacking_factor` instead'
         # Setup tokenizer
@@ -296,6 +295,9 @@ class MagpieTTSModel(ModelPT):
         self.aligner_encoder_train_steps = self.cfg.get('aligner_encoder_train_steps', float('inf'))
         self.dec_random_input_max = self.cfg.get('dec_random_input_max', self.num_all_tokens_per_codebook)
 
+        # Configuration validity checks
+        self.check_frame_stacking_config_validity()
+
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         """
@@ -311,6 +313,27 @@ class MagpieTTSModel(ModelPT):
             if any([substring in key for substring in keys_substrings_to_exclude]):
                 del state_dict[key]
         return state_dict
+
+    def check_frame_stacking_config_validity(self):
+        """
+        Check if the configuration is compatible with frame stacking.
+        """
+        if self.frame_stacking_factor > 1:
+            # The settings below are not supported with frame stacking.
+            # Some of them may work - but they have not been tested.
+    
+            # disallow alignment encoder
+            if self.use_alignment_encoder:
+                raise ValueError("Alignment encoder is not supported for frame stacking")
+            # disallow alignment loss
+            if self.alignment_loss_scale > 0.0:
+                raise ValueError("Alignment loss is not supported for frame stacking")
+            # disallow training prior
+            if self.cfg.prior_scaling_factor is not None and self.cfg.prior_scaling_factor > 0:
+                raise ValueError("Training-time attention prior is not supported for frame stacking")
+            # disallow text conditioning
+            if self.use_text_conditioning_encoder:
+                raise ValueError("Text conditioning is not supported for frame stacking")
 
     def update_ckpt(self, state_dict):
         """
@@ -1036,8 +1059,6 @@ class MagpieTTSModel(ModelPT):
         Returns:
             B, C, T_padded
         """
-        # TODO @rfejgin: should this also pad each batch element based on its actual length ? or can we count
-        #                on the dataloader to put padding tokens after the audio tokens
         T = audio_codes.size(2)
         T_padded = int(np.ceil(T / frame_stacking_factor) * frame_stacking_factor)
         if T_padded > T:
@@ -1971,7 +1992,6 @@ class MagpieTTSModel(ModelPT):
             # Concatenate the list of predictions along the time dimension. Note that when frame stacking is on,
             # this also undoes the stacking.
             predicted_codes = torch.cat(all_predictions, dim=-1)  # (B, num_codebooks, T')
-            # TODO @rfejgin when frame stacking is on, the next line could trim too coarsely; we need to also check within the stack. Could be the cause of partial last word cutoff observed when stacking is on.
             predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
             predicted_codes_lens = torch.tensor(predicted_lens, device=text.device).long()
 
