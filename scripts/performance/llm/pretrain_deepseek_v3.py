@@ -147,6 +147,8 @@ def override_recipe_configs(
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         recompute_modules=recompute_modules,
+        use_te_act_func=args.use_te_act_func,
+        act_func_fp8_input_store=args.act_func_fp8_input_store,
     )
     recipe = set_exp_logging_configs(
         recipe,
