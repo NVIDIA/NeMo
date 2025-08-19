@@ -48,6 +48,11 @@ def get_results(
         log_file_prefix: (Optional[str]): prefix of log files.
     """
 
+    print(f"=== DEBUG: get_results called ===")
+    print(f"path_to_save: {path_to_save}")
+    print(f"log_file_prefix: {log_file_prefix}")
+    print(f"output_top_n: {output_top_n}")
+
     # Define needed variables
     model_name = train_config.model_type
     model_size = train_config.model_size_in_b
@@ -60,6 +65,13 @@ def get_results(
     layers = base_config.model.config.num_layers
     hs = base_config.model.config.hidden_size
     ffn_hs = base_config.model.config.ffn_hidden_size
+
+    print(f"=== DEBUG: Model config ===")
+    print(f"model_name: {model_name}")
+    print(f"model_size: {model_size}")
+    print(f"seq_length: {seq_length}")
+    print(f"num_nodes: {num_nodes}")
+    print(f"gpus_per_node: {gpus_per_node}")
 
     training_logs = path_to_save
     final_result_logs = path_to_save
@@ -110,19 +122,48 @@ def get_results(
     performance_dict = {}
 
     training_logs = os.path.abspath(training_logs)
+    print(f"=== DEBUG: Scanning directory ===")
+    print(f"training_logs (absolute): {training_logs}")
+    
     error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
+    
+    print(f"Found {len(error_files)} error files")
+    print(f"Found {len(tb_files)} tensorboard files")
+    print(f"Found {len(dirs)} directories")
+    
+    print(f"=== DEBUG: Directory contents ===")
+    for i, d in enumerate(dirs):
+        print(f"  Dir {i+1}: {os.path.basename(d)}")
+    
+    print(f"=== DEBUG: Error files ===")
+    for i, f in enumerate(error_files):
+        print(f"  Error file {i+1}: {os.path.basename(f)}")
+    
+    print(f"=== DEBUG: Tensorboard files ===")
+    for i, f in enumerate(tb_files):
+        print(f"  TB file {i+1}: {os.path.basename(f)}")
 
-    for error_file, tb_file, candidate_dir in zip(error_files, tb_files, dirs):
+    print(f"=== DEBUG: Processing directories ===")
+    for i, (error_file, tb_file, candidate_dir) in enumerate(zip(error_files, tb_files, dirs)):
+        print(f"\n--- Processing directory {i+1}/{len(dirs)} ---")
+        print(f"  Directory: {os.path.basename(candidate_dir)}")
+        print(f"  Error file: {os.path.basename(error_file) if error_file else 'None'}")
+        print(f"  TB file: {os.path.basename(tb_file) if tb_file else 'None'}")
+        
         try:
+            print(f"  Attempting to extract config from: {candidate_dir}")
             tp, pp, cp, ep, mbs, vp, gbs = get_config(candidate_dir)
+            print(f"  SUCCESS: tp={tp}, pp={pp}, cp={cp}, ep={ep}, mbs={mbs}, vp={vp}, gbs={gbs}")
         except Exception as e:
-            print(f"Skipping {candidate_dir}: {e}")
+            print(f"  FAILED to extract config: {e}")
+            print(f"  Skipping {candidate_dir}")
             continue
 
-        error = find_error(error_file)
+        error = find_error(error_file) if error_file else None
         if error:
+            print(f"  Found error: {error}")
             errors.append(
                 [
                     model_name,
@@ -143,16 +184,31 @@ def get_results(
                     error,
                 ]
             )
+        else:
+            print(f"  No error found")
 
+        if not tb_file:
+            print(f"  No tensorboard file found, skipping")
+            continue
+            
+        print(f"  Loading tensorboard file: {tb_file}")
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
+        
         try:
+            print(f"  Looking for 'train_step_timing in s' scalar")
             timing_list = ea.Scalars("train_step_timing in s")
+            print(f"  Found {len(timing_list)} timing entries")
+            
             if len(timing_list) < 10:
+                print(f"  Not enough timing entries ({len(timing_list)} < 10), skipping")
                 continue
+                
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
             samples_per_s = round(gbs / avg_global_step_time, 2)
+            
+            print(f"  Calculating TFLOPS...")
             m_tflops, m_tflops_gpu = calculate_tflops(
                 model_name=model_name,
                 gbs=gbs,
@@ -166,8 +222,9 @@ def get_results(
                 gpus_per_node=gpus_per_node,
                 time_per_step=avg_global_step_time,
             )
+            print(f"  TFLOPS calculated: {m_tflops_gpu} per GPU, {m_tflops} total")
 
-            vp_str = int(vp) if vp.lower() != 'none' else 'None'
+            vp_str = int(vp) if vp and str(vp).lower() != 'none' else 'None'
             descriptive_name = (
                 f"{model_name}_"
                 f"{model_size}b_"
@@ -178,6 +235,7 @@ def get_results(
                 f"seq_{seq_length}_"
                 f"gbs_{gbs}"
             )
+            print(f"  Descriptive name: {descriptive_name}")
 
             result.append(
                 [
@@ -203,6 +261,7 @@ def get_results(
                     descriptive_name,
                 ]
             )
+            print(f"  SUCCESS: Added result #{len(result)}")
 
             performance_dict[descriptive_name] = {
                 "m_tflops_gpu": m_tflops_gpu,
@@ -211,10 +270,20 @@ def get_results(
                 "m_tflops": m_tflops,
             }
 
+        except Exception as e:
+            print(f"  ERROR processing tensorboard file: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
+            print(f"  Continuing to next directory...")
             continue
 
+    print(f"\n=== DEBUG: Final results summary ===")
+    print(f"Total results collected: {len(result)}")
+    print(f"Total errors collected: {len(errors)}")
+    
     if result:
+        print(f"Processing {len(result)} results...")
         result.sort(key=lambda x: x[15])
         print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
         for i, res in enumerate(result):
@@ -235,6 +304,11 @@ def get_results(
         error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
     else:
         print("No valid results found to process.")
+        print("=== DEBUG: This means either:")
+        print("  1. No directories were found")
+        print("  2. All config extractions failed")
+        print("  3. All tensorboard files failed to process")
+        print("  4. No timing data was found")
 
     return performance_dict
 
@@ -342,14 +416,19 @@ def get_config(run_name: str) -> tuple:
         tuple: model parallelism parameters (tp, pp, cp, ep, mbs, vp, gbs).
     """
 
+    print(f"    DEBUG get_config: Processing run_name: {run_name}")
+    
     # Updated pattern to include gbs
     pattern = r'_(tp|pp|cp|ep|mbs|vp|gbs)_([^_]+)'
+    print(f"    DEBUG get_config: Using regex pattern: {pattern}")
 
     # Find all matches in the input string
     matches = re.findall(pattern, run_name)
+    print(f"    DEBUG get_config: Found matches: {matches}")
 
     # Convert matches to a dictionary
     params = {param: value for param, value in matches}
+    print(f"    DEBUG get_config: Extracted params: {params}")
 
     # Convert string values to appropriate types
     try:
@@ -360,7 +439,13 @@ def get_config(run_name: str) -> tuple:
         mbs = int(params.get("mbs"))
         vp = int(params["vp"]) if params.get("vp") not in [None, 'None'] else None
         gbs = int(params.get("gbs"))
+        
+        print(f"    DEBUG get_config: SUCCESS - tp={tp}, pp={pp}, cp={cp}, ep={ep}, mbs={mbs}, vp={vp}, gbs={gbs}")
+        
     except (ValueError, KeyError, TypeError) as e:
+        print(f"    DEBUG get_config: FAILED to convert params: {e}")
+        print(f"    DEBUG get_config: Available params: {list(params.keys())}")
+        print(f"    DEBUG get_config: Required params: ['tp', 'pp', 'cp', 'ep', 'mbs', 'vp', 'gbs']")
         raise ValueError(
             f"Missing or invalid configuration parameters in '{run_name}': {e}. Expected integer values for all parallelism settings."
         )
@@ -378,6 +463,8 @@ def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
         list: list of tensorboard files.
     """
 
+    print(f"    DEBUG find_tb_logs: Searching in {logs_dir} for files starting with '{tb_prefix}'")
+    
     tb_files = []
     # Walk through all directories and subdirectories
     for root, dirs, files in os.walk(logs_dir):
@@ -386,5 +473,7 @@ def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
             if file.startswith(tb_prefix):
                 absolute_path = os.path.abspath(os.path.join(root, file))
                 tb_files.append(absolute_path)
+                print(f"    DEBUG find_tb_logs: Found file: {file} -> {absolute_path}")
 
+    print(f"    DEBUG find_tb_logs: Total files found: {len(tb_files)}")
     return tb_files
