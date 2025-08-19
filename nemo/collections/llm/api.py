@@ -57,6 +57,7 @@ from nemo.lightning import (
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
+from nemo.lightning.one_logger_callback import get_one_logger_callbacks, update_one_logger_config
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -134,6 +135,9 @@ def train(
     )
 
     trainer.fit(model, data)
+
+    # Track app end for NeMo v2 recipe-based applications
+    get_one_logger_callbacks("on_app_end")
 
     return app_state.exp_dir
 
@@ -603,12 +607,6 @@ def deploy(
     enable_flash_decode: bool = True,
     legacy_ckpt: bool = False,
 ):
-    warnings.warn(
-        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
-        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
     This deploy method is intended to be used for evaluation.
@@ -656,6 +654,12 @@ def deploy(
             the trtllm backend).
         legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False
     """
+    warnings.warn(
+        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     import os
 
     import uvicorn
@@ -797,12 +801,6 @@ def evaluate(
     eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
     adapter_cfg: AdapterConfig | None = None,
 ) -> dict:
-    warnings.warn(
-        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
-        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     """
     Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval
 
@@ -813,6 +811,12 @@ def evaluate(
         adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.
             Default: None.
     """
+    warnings.warn(
+        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:
@@ -1250,11 +1254,19 @@ def _setup(
         resume_if_exists=getattr(resume, "resume_if_exists", False),
         task_config=getattr(train, "__io__", None),
     )
+
+    # Configure OneLogger callback
+    update_one_logger_config(nemo_version='v2', trainer=trainer, data=data)
+
     if resume is not None:
+        get_one_logger_callbacks('on_load_checkpoint_start')
         resume.setup(trainer, model)
+        get_one_logger_callbacks('on_load_checkpoint_end')
 
     if optim:
+        get_one_logger_callbacks('on_optimizer_init_start')
         optim.connect(model)
+        get_one_logger_callbacks('on_optimizer_init_end')
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
