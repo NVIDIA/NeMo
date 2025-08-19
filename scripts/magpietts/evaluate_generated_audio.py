@@ -256,25 +256,28 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
             extract_embedding_fn = partial(extract_embedding, model=speaker_verification_model, extractor=feature_extractor, device=device, sv_model_type=sv_model_type)
             extract_embedding_fn_alternate = partial(extract_embedding, model=speaker_verification_model_alternate, extractor=feature_extractor, device=device, sv_model_type=sv_model_type)
 
-            # Ground truth vs predicted
+            # Ground truth vs. predicted
             gt_speaker_embedding = extract_embedding_fn(audio_path=gt_audio_filepath)
             pred_speaker_embedding = extract_embedding_fn(audio_path=pred_audio_filepath)
             pred_gt_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, pred_speaker_embedding, dim=0).item()
 
-            # Ground truth vs predicted (alternate model)
+            # Ground truth vs. predicted (alternate model)
             gt_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=gt_audio_filepath)
             pred_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=pred_audio_filepath)
             pred_gt_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, pred_speaker_embedding_alternate, dim=0).item()
 
             if context_audio_filepath is not None:
-                # Predicted vs context
                 context_speaker_embedding = extract_embedding_fn(audio_path=context_audio_filepath)
                 context_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=context_audio_filepath)
-
+    
+                # Predicted vs. context
                 pred_context_ssim = torch.nn.functional.cosine_similarity(pred_speaker_embedding, context_speaker_embedding, dim=0).item()
+                # Ground truth vs. context
                 gt_context_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, context_speaker_embedding, dim=0).item()
 
+                # Predicted vs. context (alternate model)
                 pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
+                # Ground truth vs. context (alternate model)
                 gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
 
         filewise_metrics.append({
