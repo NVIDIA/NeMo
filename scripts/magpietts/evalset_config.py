@@ -43,7 +43,7 @@ dataset_meta_info = {
         'feature_dir' : '/Data/LibriTTS',
     },
     'libritts_test_clean': {
-        'manifest_path' : '/Data/evaluation_manifests/LibriTTS_test_clean_withContextAudioPaths.json',
+        'manifest_path' : '/Data/evaluation_manifests/LibriTTS_test_clean_withContextAudioPaths.jsonl',
         'audio_dir' : '/Data/LibriTTS',
         'feature_dir' : '/Data/LibriTTS',
     },
