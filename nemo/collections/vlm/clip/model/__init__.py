@@ -16,10 +16,10 @@ from nemo.collections.vlm.clip.model.base import CLIPConfig, CLIPModel, CLIPText
 from nemo.collections.vlm.clip.model.clip import (
     CLIPConfigB32,
     CLIPConfigL14,
-    CLIPTextModelL_14_224_Config,
-    CLIPViTL_14_224_Config,
     CLIPConfigL14_336,
+    CLIPTextModelL_14_224_Config,
     CLIPTextModelL_14_336_Config,
+    CLIPViTL_14_224_Config,
     CLIPViTL_14_336_Config,
 )
 
