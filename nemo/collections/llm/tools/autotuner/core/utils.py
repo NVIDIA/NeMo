@@ -245,7 +245,7 @@ def extract_precision_unified(source: Union[str, Dict[str, Any], object]) -> str
     Returns:
         Precision string (bf16, fp16, fp32, fp4, fp8, bf8)
     """
-    precision_list = ['bf16', 'fp16', 'fp32', 'fp4', 'fp4', 'fp8', 'bf8']
+    precision_list = ['bf16', 'fp16', 'fp32', 'fp4', 'fp8', 'bf8']
     if isinstance(source, dict):
         try:
             trainer_value = source.get('__arguments__', {}).get('trainer', '')
