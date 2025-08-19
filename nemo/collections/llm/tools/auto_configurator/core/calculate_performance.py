@@ -124,23 +124,23 @@ def get_results(
     training_logs = os.path.abspath(training_logs)
     print(f"=== DEBUG: Scanning directory ===")
     print(f"training_logs (absolute): {training_logs}")
-    
+
     error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
-    
+
     print(f"Found {len(error_files)} error files")
     print(f"Found {len(tb_files)} tensorboard files")
     print(f"Found {len(dirs)} directories")
-    
+
     print(f"=== DEBUG: Directory contents ===")
     for i, d in enumerate(dirs):
         print(f"  Dir {i+1}: {os.path.basename(d)}")
-    
+
     print(f"=== DEBUG: Error files ===")
     for i, f in enumerate(error_files):
         print(f"  Error file {i+1}: {os.path.basename(f)}")
-    
+
     print(f"=== DEBUG: Tensorboard files ===")
     for i, f in enumerate(tb_files):
         print(f"  TB file {i+1}: {os.path.basename(f)}")
@@ -151,7 +151,7 @@ def get_results(
         print(f"  Directory: {os.path.basename(candidate_dir)}")
         print(f"  Error file: {os.path.basename(error_file) if error_file else 'None'}")
         print(f"  TB file: {os.path.basename(tb_file) if tb_file else 'None'}")
-        
+
         try:
             print(f"  Attempting to extract config from: {candidate_dir}")
             tp, pp, cp, ep, mbs, vp, gbs = get_config(candidate_dir)
@@ -190,24 +190,24 @@ def get_results(
         if not tb_file:
             print(f"  No tensorboard file found, skipping")
             continue
-            
+
         print(f"  Loading tensorboard file: {tb_file}")
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
-        
+
         try:
             print(f"  Looking for 'train_step_timing in s' scalar")
             timing_list = ea.Scalars("train_step_timing in s")
             print(f"  Found {len(timing_list)} timing entries")
-            
+
             if len(timing_list) < 10:
                 print(f"  Not enough timing entries ({len(timing_list)} < 10), skipping")
                 continue
-                
+
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
             samples_per_s = round(gbs / avg_global_step_time, 2)
-            
+
             print(f"  Calculating TFLOPS...")
             m_tflops, m_tflops_gpu = calculate_tflops(
                 model_name=model_name,
@@ -273,6 +273,7 @@ def get_results(
         except Exception as e:
             print(f"  ERROR processing tensorboard file: {e}")
             import traceback
+
             traceback.print_exc()
         finally:
             print(f"  Continuing to next directory...")
@@ -281,7 +282,7 @@ def get_results(
     print(f"\n=== DEBUG: Final results summary ===")
     print(f"Total results collected: {len(result)}")
     print(f"Total errors collected: {len(errors)}")
-    
+
     if result:
         print(f"Processing {len(result)} results...")
         result.sort(key=lambda x: x[15])
@@ -417,7 +418,7 @@ def get_config(run_name: str) -> tuple:
     """
 
     print(f"    DEBUG get_config: Processing run_name: {run_name}")
-    
+
     # Updated pattern to include gbs
     pattern = r'_(tp|pp|cp|ep|mbs|vp|gbs)_([^_]+)'
     print(f"    DEBUG get_config: Using regex pattern: {pattern}")
@@ -439,9 +440,9 @@ def get_config(run_name: str) -> tuple:
         mbs = int(params.get("mbs"))
         vp = int(params["vp"]) if params.get("vp") not in [None, 'None'] else None
         gbs = int(params.get("gbs"))
-        
+
         print(f"    DEBUG get_config: SUCCESS - tp={tp}, pp={pp}, cp={cp}, ep={ep}, mbs={mbs}, vp={vp}, gbs={gbs}")
-        
+
     except (ValueError, KeyError, TypeError) as e:
         print(f"    DEBUG get_config: FAILED to convert params: {e}")
         print(f"    DEBUG get_config: Available params: {list(params.keys())}")
@@ -464,7 +465,7 @@ def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
     """
 
     print(f"    DEBUG find_tb_logs: Searching in {logs_dir} for files starting with '{tb_prefix}'")
-    
+
     tb_files = []
     # Walk through all directories and subdirectories
     for root, dirs, files in os.walk(logs_dir):
