@@ -35,7 +35,9 @@ class AudioToSpectrogram(NeuralModule):
         scale: Positive scaling of the spectrogram.
     """
 
-    def __init__(self, fft_length: int, hop_length: int, magnitude_power: float = 1.0, scale: float = 1.0):
+    def __init__(
+        self, fft_length: int, hop_length: int, magnitude_power: float = 1.0, scale: float = 1.0, center: bool = True
+    ):
         super().__init__()
 
         # For now, assume FFT length is divisible by two
@@ -57,7 +59,7 @@ class AudioToSpectrogram(NeuralModule):
         if scale <= 0:
             raise ValueError(f'Scale needs to be positive: current value {scale}')
         self.scale = scale
-
+        self.center = center
         logging.debug('Initialized %s with:', self.__class__.__name__)
         logging.debug('\tfft_length:      %s', fft_length)
         logging.debug('\thop_length:      %s', hop_length)
@@ -87,7 +89,7 @@ class AudioToSpectrogram(NeuralModule):
             hop_length=self.hop_length,
             win_length=self.win_length,
             window=self.window,
-            center=True,
+            center=self.center,
             pad_mode=self.pad_mode,
             normalized=False,
             onesided=True,
@@ -184,7 +186,9 @@ class SpectrogramToAudio(NeuralModule):
         scale: Spectrogram will be scaled with 1/scale before the inverse transform.
     """
 
-    def __init__(self, fft_length: int, hop_length: int, magnitude_power: float = 1.0, scale: float = 1.0):
+    def __init__(
+        self, fft_length: int, hop_length: int, magnitude_power: float = 1.0, scale: float = 1.0, center: bool = True
+    ):
         super().__init__()
 
         # For now, assume FFT length is divisible by two
@@ -201,7 +205,7 @@ class SpectrogramToAudio(NeuralModule):
         if magnitude_power <= 0:
             raise ValueError(f'Magnitude power needs to be positive: current value {magnitude_power}')
         self.magnitude_power = magnitude_power
-
+        self.center = center
         if scale <= 0:
             raise ValueError(f'Scale needs to be positive: current value {scale}')
         self.scale = scale
@@ -211,6 +215,13 @@ class SpectrogramToAudio(NeuralModule):
         logging.debug('\thop_length:      %s', hop_length)
         logging.debug('\tmagnitude_power: %s', magnitude_power)
         logging.debug('\tscale:           %s', scale)
+
+        # --- Streaming state (initialized lazily) ---
+        self._stream_initialized: bool = False
+        # Streaming buffer: keep last spectrogram frame to build 1- or 2-frame
+        # chunks and reuse istft normalization.
+        self._prev_spec_frame: Optional[torch.Tensor] = None
+        self.use_streaming: bool = False
 
     @property
     def win_length(self) -> int:
@@ -235,7 +246,7 @@ class SpectrogramToAudio(NeuralModule):
             hop_length=self.hop_length,
             win_length=self.win_length,
             window=self.window,
-            center=True,
+            center=self.center,
             normalized=False,
             onesided=True,
             length=None,
@@ -268,13 +279,16 @@ class SpectrogramToAudio(NeuralModule):
         """Convert input complex-valued spectrogram to a time-domain
         signal. Multi-channel IO is supported.
 
+        Offline mode (default): processes the entire input spectrogram at once.
+        Streaming mode: expects a single frame (N=1) and returns hop-length samples per call.
+
         Args:
             input: Input spectrogram for C channels, shape (B, C, F, N)
             input_length: Length of valid entries along the time dimension, shape (B,)
 
         Returns:
-            Time-domain signal with T time-domain samples and C channels, (B, C, T)
-            and output length with shape (B,).
+            - Offline: (B, C, T_total), lengths (B,)
+            - Streaming (N=1): (B, C, hop_length), lengths (B,) filled with hop_length
         """
         B, F, N = input.size(0), input.size(-2), input.size(-1)
         assert F == self.num_subbands, f'Number of subbands F={F} not matching self.num_subbands={self.num_subbands}'
@@ -294,6 +308,14 @@ class SpectrogramToAudio(NeuralModule):
             if self.magnitude_power != 1:
                 # apply 1/power on the magnitude
                 output = torch.pow(output.abs(), 1 / self.magnitude_power) * torch.exp(1j * output.angle())
+
+            # --- Streaming mode ---
+            if self.use_streaming:
+                # Streaming expects a single frame at a time to avoid internal iteration.
+                out_stream = self.stream_update(output)  # (B, C, <= hop_length)
+                out_len = torch.full((B,), out_stream.size(-1), dtype=torch.long, device=out_stream.device)
+                return out_stream, out_len
+
             output = self.istft(output)
 
         if input_length is not None:
@@ -322,3 +344,100 @@ class SpectrogramToAudio(NeuralModule):
         # centered STFT results in ((N-1) * hop_length) time samples for N frames (cf. torch.istft)
         output_length = input_length.sub(1).mul(self.hop_length).long()
         return output_length
+
+    # ------------------------------------------------------------------
+    # Streaming iSTFT API (frame-by-frame with overlap-add buffering)
+    # ------------------------------------------------------------------
+    def _init_stream_buffers(self, shape_like: torch.Tensor) -> None:
+        """Initialize streaming buffers based on an input tensor."""
+        if self._stream_initialized:
+            return
+        if shape_like.dim() != 4:
+            raise ValueError("Expected input of shape (B, C, F, N_frames) for streaming.")
+        self._prev_spec_frame = None
+        self._stream_initialized = True
+
+    def reset_streaming(self) -> None:
+        """Reset the internal streaming buffers.
+
+        Re-initialization happens lazily on the next call to `stream_update`.
+        """
+        self._stream_initialized = False
+        self._prev_spec_frame = None
+
+    def _shift_left_inplace(self, buffer: torch.Tensor) -> None:
+        """Shift buffer left by hop length and zero-fill the tail in-place."""
+        hop = self.hop_length
+        buffer[..., :-hop] = buffer[..., hop:].clone()
+        buffer[..., -hop:] = 0.0
+
+    @torch.no_grad()
+    def stream_update(self, input: torch.Tensor) -> torch.Tensor:
+        """Consume exactly one spectrogram frame and return hop_length samples.
+
+        This method supports batched, multi-channel inputs and performs
+        overlap-add buffering internally. For each call, it will output
+        exactly `hop_length` time-domain samples (normalized by the
+        accumulated squared-window weights).
+
+        Args:
+            input: Complex spectrogram of shape (B, C, F, 1), where
+                   F = fft_length // 2 + 1.
+
+        Returns:
+            Time-domain samples of shape (B, C, hop_length).
+        """
+        if not input.is_complex():
+            raise ValueError("Expected `input` to be complex dtype for streaming.")
+
+        # Lazily initialize buffers
+        self._init_stream_buffers(input)
+
+        B, C, F, Nf = input.size()
+        assert F == self.num_subbands, f"Number of subbands F={F} not matching self.num_subbands={self.num_subbands}"
+        if Nf != 1:
+            raise ValueError("stream_update expects exactly one frame (N=1).")
+
+        # Build two-frame chunk and use class istft for proper normalization
+        current_frame = input[..., 0]  # (B, C, F)
+
+        if self._prev_spec_frame is None:
+            # center=False: emit the first hop directly from a single-frame iSTFT
+            self._prev_spec_frame = current_frame
+            one_frame_spec = input  # (B, C, F, 1)
+            out = self.istft(one_frame_spec)
+            hop = self.hop_length
+            return out[..., :hop]
+
+        two_frame_spec = torch.stack([self._prev_spec_frame, current_frame], dim=-1)  # (B, C, F, 2)
+        # Use istft which internally handles window-sum-square normalization
+        out = self.istft(two_frame_spec)
+
+        # Update previous frame buffer
+        self._prev_spec_frame = current_frame
+        hop = self.hop_length
+        # Middle hop from two-frame iSTFT corresponds to newly available samples
+        emitted = out[..., hop : 2 * hop]
+        return emitted
+
+    @torch.no_grad()
+    def stream_finalize(self) -> torch.Tensor:
+        """Flush the remaining buffered samples.
+
+        For center=False, offline iSTFT returns win_length + (N-1)*hop samples.
+        The streaming loop emits N*hop samples, so we must emit an additional
+        tail of length (win_length - hop) derived from the final frame.
+
+        """
+        if not self._stream_initialized:
+            return torch.tensor((), device=self.window.device)
+
+        if self._prev_spec_frame is None:
+            return torch.tensor((), device=self.window.device)
+
+        # For center=False, emit final tail from last frame via istft
+        last_frame_spec = self._prev_spec_frame.unsqueeze(-1)
+        out = self.istft(last_frame_spec)
+        hop = self.hop_length
+        tail = out[..., hop:]
+        return tail

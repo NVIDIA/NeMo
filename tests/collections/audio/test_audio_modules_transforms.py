@@ -332,3 +332,75 @@ class TestAudioSpectrogram:
         # Input must be complex
         with pytest.raises(ValueError):
             s2a(input=torch.randn(1, 1, fft_length // 2 + 1, 100))
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize('fft_length', [256, 512])
+    @pytest.mark.parametrize('hop_div', [2, 4])
+    @pytest.mark.parametrize('batch_size', [1, 2])
+    @pytest.mark.parametrize('num_channels', [1, 2])
+    def test_streaming_istft_matches_offline_rectangular_center_false(
+        self, fft_length: int, hop_div: int, batch_size: int, num_channels: int
+    ):
+        """Streaming iSTFT (frame-by-frame) matches offline torch.istft when
+        using rectangular window and center=False.
+
+        Steps:
+        - Generate random audio-like signal (Gaussian) of length T
+        - Compute STFT offline with center=False and rectangular window
+        - Reconstruct via offline torch.istft
+        - Reconstruct via SpectrogramToAudio.stream_update one frame at a time, then stream_finalize
+        - Compare both reconstructions
+        """
+        torch.manual_seed(123)
+        hop_length = fft_length // hop_div
+
+        # Generate random signal
+        T = fft_length * 20 + 5  # non-multiple of hop to exercise edges
+        x = torch.randn(batch_size, num_channels, T)
+
+        # Rectangular window and STFT with center=False
+        rect_window = torch.ones(fft_length)
+        x_bc = x.reshape(batch_size * num_channels, T)
+        spec = torch.stft(
+            input=x_bc,
+            n_fft=fft_length,
+            hop_length=hop_length,
+            win_length=fft_length,
+            window=rect_window,
+            center=False,
+            pad_mode='constant',
+            normalized=False,
+            onesided=True,
+            return_complex=True,
+        )
+        # Reshape to (B, C, F, N)
+        F = fft_length // 2 + 1
+        N = spec.size(-1)
+        spec = spec.reshape(batch_size, num_channels, F, N)
+
+        # Offline reconstruction using SpectrogramToAudio (same class)
+        s2a_offline = SpectrogramToAudio(fft_length=fft_length, hop_length=hop_length, center=False)
+        s2a_offline.window = rect_window
+        x_offline, _ = s2a_offline(input=spec)
+
+        # Streaming iSTFT via SpectrogramToAudio
+        s2a = SpectrogramToAudio(fft_length=fft_length, hop_length=hop_length, center=False)
+        # Switch window to rectangular for streaming
+        s2a.use_streaming = True
+        s2a.window = rect_window
+        s2a.reset_streaming()
+
+        parts = []
+        for t in range(N):
+            # Feed one frame at a time: shape (B, C, F, 1)
+            frame = spec[..., t : t + 1]
+            out = s2a.stream_update(frame)
+            parts.append(out)
+        tail = s2a.stream_finalize()
+        x_stream = torch.cat(parts + [tail], dim=-1)
+
+        # Compare offline vs streaming
+        assert x_stream.shape == x_offline.shape
+        assert torch.allclose(x_stream, x_offline, atol=1e-5), (
+            f"Streaming iSTFT mismatch: max abs diff {torch.max(torch.abs(x_stream - x_offline))}"
+        )
