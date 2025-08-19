@@ -15,6 +15,7 @@
 import os
 import re
 from typing import Optional
+from dataclasses import dataclass
 
 import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
@@ -29,6 +30,76 @@ GPT_BASED_MODELS = [
     "nemotron",
     "starcoder",
 ]
+
+
+@dataclass
+class BaseConfigResult:
+    """Base class for configuration results to avoid code duplication."""
+    model_name: str
+    model_size: int
+    seq_length: int
+    tp: int
+    pp: int
+    cp: int
+    ep: int
+    mbs: int
+    vp: Optional[int]
+    num_layers: int
+    hidden_size: int
+    ffn_hidden_size: int
+    gbs: int
+    nodes: int
+    gpus_per_node: int
+
+    def to_list(self) -> list:
+        """Convert to list format for backward compatibility with DataFrame."""
+        return [
+            self.model_name,
+            self.model_size,
+            self.seq_length,
+            self.tp,
+            self.pp,
+            self.cp,
+            self.ep,
+            self.mbs,
+            self.vp,
+            self.num_layers,
+            self.hidden_size,
+            self.ffn_hidden_size,
+            self.gbs,
+            self.nodes,
+            self.gpus_per_node,
+        ]
+
+
+@dataclass
+class PerformanceResult(BaseConfigResult):
+    """Performance results extending base configuration."""
+    time_per_step: float
+    samples_per_second: float
+    model_tflops_per_gpu: float
+    model_tflops_aggregate: float
+    descriptive_name: str
+
+    def to_list(self) -> list:
+        """Convert to list format for DataFrame, including performance metrics."""
+        return super().to_list() + [
+            self.time_per_step,
+            self.samples_per_second,
+            self.model_tflops_per_gpu,
+            self.model_tflops_aggregate,
+            self.descriptive_name,
+        ]
+
+
+@dataclass
+class ErrorResult(BaseConfigResult):
+    """Error results extending base configuration."""
+    error_message: str
+
+    def to_list(self) -> list:
+        """Convert to list format for DataFrame, including error message."""
+        return super().to_list() + [self.error_message]
 
 
 def get_results(
@@ -104,8 +175,8 @@ def get_results(
         "GPUs per Node",
         "Error Message",
     ]
-    result = []
-    errors = []
+    results = []  # List of PerformanceResult objects
+    errors = []   # List of ErrorResult objects
 
     performance_dict = {}
 
@@ -123,26 +194,25 @@ def get_results(
 
         error = find_error(error_file)
         if error:
-            errors.append(
-                [
-                    model_name,
-                    model_size,
-                    seq_length,
-                    tp,
-                    pp,
-                    cp,
-                    ep,
-                    mbs,
-                    vp,
-                    layers,
-                    hs,
-                    ffn_hs,
-                    gbs,
-                    num_nodes,
-                    gpus_per_node,
-                    error,
-                ]
+            error_result = ErrorResult(
+                model_name=model_name,
+                model_size=model_size,
+                seq_length=seq_length,
+                tp=tp,
+                pp=pp,
+                cp=cp,
+                ep=ep,
+                mbs=mbs,
+                vp=vp,
+                num_layers=layers,
+                hidden_size=hs,
+                ffn_hidden_size=ffn_hs,
+                gbs=gbs,
+                nodes=num_nodes,
+                gpus_per_node=gpus_per_node,
+                error_message=error,
             )
+            errors.append(error_result)
 
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
@@ -167,44 +237,41 @@ def get_results(
                 time_per_step=avg_global_step_time,
             )
 
-            descriptive_name = create_descriptive_model_name(
+            vp_str = int(vp) if vp.lower() != 'none' else 'None'
+            descriptive_name = (
+                f"{model_name}_"
+                f"{model_size}b_"
+                f"{num_nodes}nodes_"
+                f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_"
+                f"mbs_{mbs}_"
+                f"vp_{vp_str}_"
+                f"seq_{seq_length}_"
+                f"gbs_{gbs}"
+            )
+
+            performance_result = PerformanceResult(
                 model_name=model_name,
                 model_size=model_size,
-                num_nodes=num_nodes,
+                seq_length=seq_length,
                 tp=tp,
                 pp=pp,
                 cp=cp,
                 ep=ep,
                 mbs=mbs,
                 vp=vp,
-                seq_length=seq_length,
+                num_layers=layers,
+                hidden_size=hs,
+                ffn_hidden_size=ffn_hs,
                 gbs=gbs,
+                nodes=num_nodes,
+                gpus_per_node=gpus_per_node,
+                time_per_step=avg_global_step_time,
+                samples_per_second=samples_per_s,
+                model_tflops_per_gpu=m_tflops_gpu,
+                model_tflops_aggregate=m_tflops,
+                descriptive_name=descriptive_name,
             )
-
-            result.append(
-                [
-                    model_name,
-                    model_size,
-                    seq_length,
-                    tp,
-                    pp,
-                    cp,
-                    ep,
-                    mbs,
-                    vp,
-                    layers,
-                    hs,
-                    ffn_hs,
-                    gbs,  # Use extracted GBS
-                    num_nodes,
-                    gpus_per_node,
-                    avg_global_step_time,
-                    samples_per_s,
-                    m_tflops_gpu,
-                    m_tflops,
-                    descriptive_name,
-                ]
-            )
+            results.append(performance_result)
 
             performance_dict[descriptive_name] = {
                 "m_tflops_gpu": m_tflops_gpu,
@@ -216,24 +283,31 @@ def get_results(
         finally:
             continue
 
-    if result:
-        result.sort(key=lambda x: x[15])
-        print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
-        for i, res in enumerate(result):
-            print(f"Config #{i+1} - {res[-1]}: {res[-3]} TFLOPS per GPU with {res[15]:.4f}s per global step.")
+    if results:
+        # Sort by time per step (fastest first)
+        results.sort(key=lambda x: x.time_per_step)
+        
+        print(f"Top {min(output_top_n, len(results))} configs sorted from fastest to slowest:")
+        for i, result in enumerate(results):
+            print(f"Config #{i+1} - {result.descriptive_name}: {result.model_tflops_per_gpu} TFLOPS per GPU with {result.time_per_step:.4f}s per global step.")
             if i + 1 == output_top_n:
                 break
 
         print("\n==================================================")
-        print(f"Optimal config: {result[0][-1]} with {result[0][15]:.4f}s per global step.")
+        print(f"Optimal config: {results[0].descriptive_name} with {results[0].time_per_step:.4f}s per global step.")
         print("==================================================\n")
 
         # Save results as a CSV file.
         os.makedirs(final_result_logs, exist_ok=True)
-        result_df = pd.DataFrame(result, columns=result_columns)
+        
+        # Convert PerformanceResult objects to lists for DataFrame
+        result_lists = [result.to_list() for result in results]
+        result_df = pd.DataFrame(result_lists, columns=result_columns)
         result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
 
-        error_df = pd.DataFrame(errors, columns=error_columns)
+        # Convert ErrorResult objects to lists for DataFrame
+        error_lists = [error.to_list() for error in errors]
+        error_df = pd.DataFrame(error_lists, columns=error_columns)
         error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
     else:
         print("No valid results found to process.")
@@ -390,51 +464,3 @@ def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
                 tb_files.append(absolute_path)
 
     return tb_files
-
-
-def create_descriptive_model_name(
-    model_name: str,
-    model_size: float,
-    num_nodes: int,
-    tp: int,
-    pp: int,
-    cp: int,
-    ep: int,
-    mbs: int,
-    vp: str,
-    seq_length: int,
-    gbs: int,
-) -> str:
-    """
-    Create a descriptive model name from configuration parameters.
-
-    Args:
-        model_name: Name of the model
-        model_size: Model size in billions
-        num_nodes: Number of nodes
-        tp, pp, cp, ep, mbs: Parallelism parameters (integers)
-        vp: Virtual pipeline parameter (string)
-        seq_length: Sequence length
-        gbs: Global batch size
-
-    Returns:
-        str: Descriptive model name
-    """
-    # Handle vp parameter formatting
-    try:
-        vp_str = int(vp) if vp.lower() != 'none' else 'None'
-    except (ValueError, AttributeError):
-        vp_str = vp
-
-    descriptive_name = (
-        f"{model_name}_"
-        f"{model_size}b_"
-        f"{num_nodes}nodes_"
-        f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_"
-        f"mbs_{mbs}_"
-        f"vp_{vp_str}_"
-        f"seq_{seq_length}_"
-        f"gbs_{gbs}"
-    )
-
-    return descriptive_name

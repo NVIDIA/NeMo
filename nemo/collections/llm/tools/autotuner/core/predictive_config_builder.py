@@ -192,20 +192,18 @@ def generate(**kwargs):
 # ========== SIMPLIFIED MEMORY ESTIMATION ==========
 
 
-def estimate_model_memory_usage(
+def _calculate_model_weights_memory(
     model_config: Any,
     tp_size: int,
     pp_size: int,
-    cp_size: int,
-    ep_size: int,
-    vp_size: int,
-    micro_batch_size: int,
-    seq_length: int,
-) -> float:
+    bytes_per_param: int,
+) -> Tuple[float, float, float]:
     """
-    Estimate memory usage for a model configuration using actual model architecture.
+    Calculate model weights memory for layers and embeddings.
+    
+    Returns:
+        Tuple of (layer_memory_gb, embedding_memory_gb, total_model_memory_gb)
     """
-
     # Extract model architecture from config with None handling
     def safe_getattr(obj, attr, default):
         """Get attribute value, return default if attribute doesn't exist or is None"""
@@ -220,25 +218,9 @@ def estimate_model_memory_usage(
     num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
     moe_router_topk = safe_getattr(model_config, 'moe_router_topk', 1)
     moe_ffn_hidden_size = safe_getattr(model_config, 'moe_ffn_hidden_size', ffn_hidden_size)
+    
     # Check if this is a MoE model
     is_moe_model = num_moe_experts is not None and num_moe_experts > 1
-
-    # Get precision from config
-    params_dtype = getattr(model_config, 'params_dtype', None)
-    bytes_per_param = 4 if 'float32' in str(params_dtype) else 2  # fp32=4, fp16/bf16=2
-
-    # Virtual pipeline parallelism calculations
-    # VP divides layers across virtual stages within each physical pipeline stage
-    layers_per_pp_stage = num_layers // pp_size
-    layers_per_vp_stage = layers_per_pp_stage // vp_size if vp_size > 1 else layers_per_pp_stage
-
-    # effective micro batch size (accounting for virtual pipeline)
-    # in VP, we process smaller chunks of the micro batch through each virtual stage
-    # max(1, micro_batch_size // vp_size) to ensure we don't get 0
-    effective_mbs = max(1, micro_batch_size // vp_size)
-
-    # 1. MODEL WEIGHTS MEMORY CALCULATION
-    # ===================================
 
     # Calculate parameters per layer
     if is_moe_model:
@@ -258,7 +240,7 @@ def estimate_model_memory_usage(
         )
 
         # Total FFN parameters (only active experts contribute to memory per GPU)
-        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // ep_size)
+        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // 1)  # EP division handled later
         ffn_params_per_layer = moe_ffn_params_per_expert * active_experts_per_gpu
 
         params_per_layer = attention_params_per_layer + ffn_params_per_layer
@@ -304,16 +286,61 @@ def estimate_model_memory_usage(
     layer_memory_gb /= pp_size  # Layers are distributed by PP
 
     # Recalculate total model memory correctly
-    model_memory_gb = layer_memory_gb + embedding_memory_gb
+    total_model_memory_gb = layer_memory_gb + embedding_memory_gb
 
-    # 2. OPTIMIZER MEMORY CALCULATION
-    # ===============================
+    return layer_memory_gb, embedding_memory_gb, total_model_memory_gb
+
+
+def _calculate_optimizer_memory(
+    model_config: Any,
+    tp_size: int,
+    pp_size: int,
+    bytes_per_param: int,
+) -> float:
+    """Calculate optimizer memory requirements."""
+    # Extract model architecture
+    def safe_getattr(obj, attr, default):
+        value = getattr(obj, attr, default)
+        return default if value is None else value
+
+    num_layers = safe_getattr(model_config, 'num_layers', 32)
+    hidden_size = safe_getattr(model_config, 'hidden_size', 4096)
+    ffn_hidden_size = safe_getattr(model_config, 'ffn_hidden_size', hidden_size * 4)
+    vocab_size = safe_getattr(model_config, 'vocab_size', 32000)
+    num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
+    moe_router_topk = safe_getattr(model_config, 'moe_router_topk', 1)
+    moe_ffn_hidden_size = safe_getattr(model_config, 'moe_ffn_hidden_size', ffn_hidden_size)
+    
+    is_moe_model = num_moe_experts is not None and num_moe_experts > 1
+
+    # Calculate parameters per layer
+    if is_moe_model:
+        attention_params_per_layer = (
+            hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
+        )
+        moe_ffn_params_per_expert = (
+            hidden_size * moe_ffn_hidden_size + moe_ffn_hidden_size * hidden_size + hidden_size * 2
+        )
+        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // 1)
+        ffn_params_per_layer = moe_ffn_params_per_expert * active_experts_per_gpu
+        params_per_layer = attention_params_per_layer + ffn_params_per_layer
+    else:
+        ffn_params_per_layer = (
+            hidden_size * ffn_hidden_size + ffn_hidden_size * hidden_size + hidden_size * 2
+        )
+        attention_params_per_layer = (
+            hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
+        )
+        params_per_layer = attention_params_per_layer + ffn_params_per_layer
+
+    # Add embedding parameters
+    embedding_params = vocab_size * hidden_size
 
     # AdamW optimizer: momentum + variance for each parameter
-    # Plus potential additional states for advanced optimizers
     optimizer_states_per_param = 2  # momentum + variance
 
     # Optimizer memory for layer parameters (distributed by TP and PP)
+    layer_params = params_per_layer * num_layers
     layer_optimizer_memory_gb = (layer_params * optimizer_states_per_param * bytes_per_param) / (1024**3)
     layer_optimizer_memory_gb /= tp_size
     layer_optimizer_memory_gb /= pp_size
@@ -323,13 +350,57 @@ def estimate_model_memory_usage(
     embedding_optimizer_memory_gb /= tp_size
     embedding_optimizer_memory_gb /= pp_size
 
-    optimizer_memory_gb = layer_optimizer_memory_gb + embedding_optimizer_memory_gb
+    return layer_optimizer_memory_gb + embedding_optimizer_memory_gb
 
-    # 3. GRADIENT MEMORY CALCULATION
-    # ==============================
+
+def _calculate_gradient_memory(
+    model_config: Any,
+    tp_size: int,
+    pp_size: int,
+    bytes_per_param: int,
+) -> float:
+    """Calculate gradient memory requirements."""
+    # Extract model architecture
+    def safe_getattr(obj, attr, default):
+        value = getattr(obj, attr, default)
+        return default if value is None else value
+
+    num_layers = safe_getattr(model_config, 'num_layers', 32)
+    hidden_size = safe_getattr(model_config, 'hidden_size', 4096)
+    ffn_hidden_size = safe_getattr(model_config, 'ffn_hidden_size', hidden_size * 4)
+    vocab_size = safe_getattr(model_config, 'vocab_size', 32000)
+    num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
+    moe_router_topk = safe_getattr(model_config, 'moe_router_topk', 1)
+    moe_ffn_hidden_size = safe_getattr(model_config, 'moe_ffn_hidden_size', ffn_hidden_size)
+    
+    is_moe_model = num_moe_experts is not None and num_moe_experts > 1
+
+    # Calculate parameters per layer
+    if is_moe_model:
+        attention_params_per_layer = (
+            hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
+        )
+        moe_ffn_params_per_expert = (
+            hidden_size * moe_ffn_hidden_size + moe_ffn_hidden_size * hidden_size + hidden_size * 2
+        )
+        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // 1)
+        ffn_params_per_layer = moe_ffn_params_per_expert * active_experts_per_gpu
+        params_per_layer = attention_params_per_layer + ffn_params_per_layer
+    else:
+        ffn_params_per_layer = (
+            hidden_size * ffn_hidden_size + ffn_hidden_size * hidden_size + hidden_size * 2
+        )
+        attention_params_per_layer = (
+            hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
+        )
+        params_per_layer = attention_params_per_layer + ffn_params_per_layer
+
+    # Add embedding parameters
+    embedding_params = vocab_size * hidden_size
 
     # Gradients: same size as parameters
     # Gradient memory for layer parameters (distributed by TP and PP)
+    layer_params = params_per_layer * num_layers
     layer_gradient_memory_gb = (layer_params * bytes_per_param) / (1024**3)
     layer_gradient_memory_gb /= tp_size
     layer_gradient_memory_gb /= pp_size
@@ -339,15 +410,41 @@ def estimate_model_memory_usage(
     embedding_gradient_memory_gb /= tp_size
     embedding_gradient_memory_gb /= pp_size
 
-    gradient_memory_gb = layer_gradient_memory_gb + embedding_gradient_memory_gb
+    return layer_gradient_memory_gb + embedding_gradient_memory_gb
 
-    # 4. ACTIVATION MEMORY CALCULATION (Simplified & Conservative)
-    # ============================================================
 
-    # Virtual pipeline parallelism affects activation memory in several ways:
-    # 1. Smaller effective batch size per virtual stage
-    # 2. Potential for better memory reuse between virtual stages
-    # 3. Additional overhead for virtual stage management
+def _calculate_activation_memory(
+    model_config: Any,
+    tp_size: int,
+    pp_size: int,
+    cp_size: int,
+    vp_size: int,
+    micro_batch_size: int,
+    seq_length: int,
+    bytes_per_param: int,
+) -> float:
+    """Calculate activation memory requirements."""
+    # Extract model architecture
+    def safe_getattr(obj, attr, default):
+        value = getattr(obj, attr, default)
+        return default if value is None else value
+
+    num_layers = safe_getattr(model_config, 'num_layers', 32)
+    hidden_size = safe_getattr(model_config, 'hidden_size', 4096)
+    num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
+    
+    # Check if this is a MoE model
+    is_moe_model = num_moe_experts is not None and num_moe_experts > 1
+
+    # Virtual pipeline parallelism calculations
+    # VP divides layers across virtual stages within each physical pipeline stage
+    layers_per_pp_stage = num_layers // pp_size
+    layers_per_vp_stage = layers_per_pp_stage // vp_size if vp_size > 1 else layers_per_pp_stage
+
+    # effective micro batch size (accounting for virtual pipeline)
+    # in VP, we process smaller chunks of the micro batch through each virtual stage
+    # max(1, micro_batch_size // vp_size) to ensure we don't get 0
+    effective_mbs = max(1, micro_batch_size // vp_size)
 
     # Base activation memory per layer (conservative estimates)
     if is_moe_model:
@@ -394,10 +491,14 @@ def estimate_model_memory_usage(
     if is_moe_model:
         activation_memory_gb *= 1.2  # 20% overhead for MoE routing
 
-    # 5. PIPELINE STAGE OVERHEAD (Enhanced for VP)
-    # ============================================
+    return activation_memory_gb
 
-    # Pipeline parallelism adds overhead for stage management
+
+def _calculate_pipeline_overhead(
+    pp_size: int,
+    vp_size: int,
+) -> float:
+    """Calculate pipeline parallelism overhead."""
     pipeline_overhead_gb = 0.0
     if pp_size > 1:
         # Base pipeline overhead (reduced for high-parallelism configurations)
@@ -408,33 +509,73 @@ def estimate_model_memory_usage(
             # Each virtual stage adds some overhead for stage management (reduced)
             pipeline_overhead_gb += 0.02 * vp_size  # Reduced from 0.05 to 0.02 (20MB per virtual stage)
 
-    # 6. TOTAL MEMORY
-    # ===============
+    return pipeline_overhead_gb
 
+
+def estimate_model_memory_usage(
+    model_config: Any,
+    tp_size: int,
+    pp_size: int,
+    cp_size: int,
+    ep_size: int,
+    vp_size: int,
+    micro_batch_size: int,
+    seq_length: int,
+) -> float:
+    """
+    Estimate memory usage for a model configuration using actual model architecture.
+    This function orchestrates the calculation by calling specialized helper functions.
+    """
+
+    # Get precision from config
+    params_dtype = getattr(model_config, 'params_dtype', None)
+    bytes_per_param = 4 if 'float32' in str(params_dtype) else 2  # fp32=4, fp16/bf16=2
+
+    # Extract model architecture for logging
+    def safe_getattr(obj, attr, default):
+        value = getattr(obj, attr, default)
+        return default if value is None else value
+
+    num_layers = safe_getattr(model_config, 'num_layers', 32)
+    hidden_size = safe_getattr(model_config, 'hidden_size', 4096)
+    num_attention_heads = safe_getattr(model_config, 'num_attention_heads', 32)
+    num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
+    is_moe_model = num_moe_experts is not None and num_moe_experts > 1
+
+    # Calculate memory components using specialized functions
+    layer_memory_gb, embedding_memory_gb, model_memory_gb = _calculate_model_weights_memory(
+        model_config, tp_size, pp_size, bytes_per_param
+    )
+    
+    optimizer_memory_gb = _calculate_optimizer_memory(
+        model_config, tp_size, pp_size, bytes_per_param
+    )
+    
+    gradient_memory_gb = _calculate_gradient_memory(
+        model_config, tp_size, pp_size, bytes_per_param
+    )
+    
+    activation_memory_gb = _calculate_activation_memory(
+        model_config, tp_size, pp_size, cp_size, vp_size, micro_batch_size, seq_length, bytes_per_param
+    )
+    
+    pipeline_overhead_gb = _calculate_pipeline_overhead(pp_size, vp_size)
+
+    # Calculate total memory
     total_memory_gb = (
         model_memory_gb + optimizer_memory_gb + gradient_memory_gb + activation_memory_gb + pipeline_overhead_gb
     )
 
-    # enhanced logging for transparency
+    # Enhanced logging for transparency
     parallelism_factor = min(1.0, (tp_size * pp_size * cp_size) / 16.0) if not is_moe_model else 1.0
     logger.debug(
         f"Memory estimate (VP-enhanced): Model={num_layers}L/{hidden_size}H/{num_attention_heads}A, MoE={is_moe_model}"
     )
-    logger.debug(f"  VP config: {vp_size} virtual stages, {layers_per_vp_stage} layers per VP stage")
+    logger.debug(f"  VP config: {vp_size} virtual stages")
     logger.debug(f"  Parallelism factor: {parallelism_factor:.2f} (TP={tp_size}, PP={pp_size}, CP={cp_size})")
     logger.debug(f"  Layer weights: {layer_memory_gb:.2f}GB, Embedding weights: {embedding_memory_gb:.2f}GB")
-    logger.debug(
-        f"  Layer optimizer: {layer_optimizer_memory_gb:.2f}GB, Embedding optimizer: {embedding_optimizer_memory_gb:.2f}GB"
-    )
-    logger.debug(
-        f"  Layer gradients: {layer_gradient_memory_gb:.2f}GB, Embedding gradients: {embedding_gradient_memory_gb:.2f}GB"
-    )
-    logger.debug(
-        f"  Total weights: {model_memory_gb:.2f}GB, Total optimizer: {optimizer_memory_gb:.2f}GB, Total gradients: {gradient_memory_gb:.2f}GB"
-    )
-    logger.debug(
-        f"  Activations: {activation_memory_gb:.2f}GB (effective_mbs={effective_mbs}, batch_scale={batch_scale:.1f}, seq_scale={seq_scale:.1f})"
-    )
+    logger.debug(f"  Total weights: {model_memory_gb:.2f}GB, Total optimizer: {optimizer_memory_gb:.2f}GB, Total gradients: {gradient_memory_gb:.2f}GB")
+    logger.debug(f"  Activations: {activation_memory_gb:.2f}GB")
     logger.debug(f"  Pipeline overhead: {pipeline_overhead_gb:.2f}GB")
     logger.debug(
         f"  Total: {total_memory_gb:.2f}GB, Parallelism: TP={tp_size}, PP={pp_size}, CP={cp_size}, EP={ep_size}, VP={vp_size}"

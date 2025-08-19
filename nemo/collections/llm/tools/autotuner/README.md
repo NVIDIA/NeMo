@@ -18,7 +18,7 @@ AutoTuner is designed to iterate over different model configurations quickly and
 
 # NeMo AutoTuner Launcher
 
-A tool for orchestrating NeMo AutoTuner workflows on remote clusters using DGX Cloud Lepton. This launcher handles packaging local code and data, then executes AutoTuner steps remotely.
+A tool for orchestrating and launching NeMo AutoTuner workflows on remote clusters in [DGX Cloud Lepton](https://www.nvidia.com/en-us/data-center/dgx-cloud-lepton/) - NVIDIA's cloud-native AI development platform.
 
 ## Quick Start
 
@@ -36,14 +36,20 @@ A tool for orchestrating NeMo AutoTuner workflows on remote clusters using DGX C
 
 ### Environment Setup
 
-**Required Environment Variables:**
+## **Authentication Setup**
 
-Before running any AutoTuner commands, you must authenticate to lepton and also set these environment variables:
+Before running any AutoTuner commands, you need to set up your Lepton workspace and authentication. Follow these steps:
 
-```bash
-# Login to your lep workspace
-lep login -c <workspace-id>:<workspace-token>
-```
+### **Step 1: Join a Lepton Workspace** 
+- Follow the [workspace setup guide](https://docs.nvidia.com/dgx-cloud/lepton/get-started/workspace/) to get started
+- Ensure you have access to GPU resources on DGX Cloud Lepton
+
+### **Step 2: Generate Authentication Token**
+- Once onboarded to a workspace, create your access token
+- Follow the [token creation guide](https://docs.nvidia.com/dgx-cloud/lepton/features/workspace/token/)
+- **Important**: Keep your token secure - it provides access to your workspace resources
+
+### **Step 3: Set Environment Variables**
 
 ```bash
 # Set your Lepton workspace credentials
@@ -51,24 +57,11 @@ export LEPTON_AUTOTUNER_WORKSPACE_ID="your_workspace_id_here"
 export LEPTON_AUTOTUNER_TOKEN="your_workspace_token_here"
 ```
 
-**How to get these values:**
-
-1. **Get your workspace ID and token:**
-   ```bash
-   lep workspace list
-   ```
-
-3. **Verify the setup:**
-   ```bash
-   echo "Workspace ID: $LEPTON_AUTOTUNER_WORKSPACE_ID"
-   echo "Token: $LEPTON_AUTOTUNER_TOKEN"
-   ```
-
-**Important Notes:**
-- These environment variables are **required** for all AutoTuner commands
-- The launcher uses these credentials to authenticate with Lepton and launch remote jobs
-- Without these variables set, you'll get authentication errors
-- You can add these to your shell profile (`.bashrc`, `.zshrc`) for persistence
+### **Step 4: Verify Your Setup**
+```bash
+echo "Workspace ID: $LEPTON_AUTOTUNER_WORKSPACE_ID"
+echo "Token: $LEPTON_AUTOTUNER_TOKEN"
+```
 
 ## Basic Usage
 
@@ -76,48 +69,71 @@ export LEPTON_AUTOTUNER_TOKEN="your_workspace_token_here"
 
 Creates optimized training configurations for your model and infrastructure.
 
+**Parameter Categories:**
+- **Required: Core configuration** - Essential model and resource specifications
+- **Required: Lepton infrastructure** - Node groups and mount configuration for DGX Cloud Lepton
+- **Optional: Resource configuration** - GPU resources, nodes, and container settings
+- **Optional: Training configuration** - Batch sizes, sequence length, and parallelism settings
+- **Optional: Advanced configuration** - Additional settings for fine-tuning behavior
+
+**Important Notes:**
+- **Required parameters** must be specified
+- **Optional parameters** use sensible defaults if omitted
+- **GPU Memory**: You must specify either `--resource-shape` (e.g., `gpu.8xh200`) OR `--memory-per-gpu` (e.g., `141.0`) for accurate memory estimation
+
 ```bash
 python launcher.py generate \
+  # Required: Core configuration
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
-  --model gemma2_9b \
+  --model llama31_8b \
+  
+  # Required: Lepton infrastructure
   --launcher-node-group tme-nebius-h200-01 \
   --training-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
   --mount-path /nemo-workspace \
-  --resource-shape gpu.8xh200  \
   --nodes 8 \
   --gpus-per-node 8 \
+  
+  # Optional: Resource configuration (specify either resource-shape OR memory-per-gpu)
+  --resource-shape gpu.8xh200 \
+  # --memory-per-gpu 141.0  # Alternative to resource-shape for custom GPU memory
+  --container-image nvcr.io/nvidia/nemo:25.07 \
+  
+  # Optional: Training configuration
   --seq-length 8192 \
-  --num-tokens-in-b 1000 \
-  --global-batch-sizes 256 \
-  --tensor-parallel-sizes 2,1 \
-  --pipeline-parallel-sizes 2,1 \
-  --virtual-pipeline-model-parallel-sizes 1,2 \
-  --max-model-parallel-size 64 \
+  --global-batch-sizes 256,512 \
+  --micro-batch-sizes 1,2 \
+  --tensor-parallel-sizes 2 \
+  --pipeline-parallel-sizes 2 \
   --context-parallel-sizes 1 \
   --expert-parallel-sizes 1 \
-  --micro-batch-sizes 1,2 \
-  --max-steps-per-run 10 \
-  --max-steps 10 \
-  --logs-subdir /nemo-workspace/autotuner/new/logs \
-  --container-image nvcr.io/nvidia/nemo:25.07
+  --virtual-pipeline-model-parallel-sizes 1,2 \
+  # Ideally this should equate the total number of GPUs or nodes * gpus-per-node
+  --max-model-parallel-size 64 \
+  
+  # Optional: Advanced configuration
+  --num-tokens-in-b 1000 \
+  --max-steps-per-run 50 \
+  --max-steps 50 \
+  --logs-subdir /nemo-workspace/autotuner/new/logs
 ```
 
 
 
 **Expected output:**
 ```
-You can train a 9B parameter model in 2480.16 days using 64 GPUs. This result assumes you are training to 1000B tokens, and each GPU achieves 140 TFLOPS.
+You can train a 8B parameter model in 2480.16 days using 64 GPUs. This result assumes you are training to 1000B tokens, and each GPU achieves 140 TFLOPS.
 Valid config: SeqLen=8192, GBS=256, MBS=1, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
 Valid config: SeqLen=8192, GBS=512, MBS=1, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
 Valid config: SeqLen=8192, GBS=256, MBS=2, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
 Valid config: SeqLen=8192, GBS=512, MBS=2, TP=2, PP=2, CP=1, EP=1, VP=None. Adding to directory.
 
 Metadata and objects saved to: 
-/nemo-workspace/autotuner/new/generated_configs/gemma2_9b/args.json
+/nemo-workspace/autotuner/new/generated_configs/llama31_8b/args.json
 Configurations generated successfully with performance optimizations!
-Saved to: /nemo-workspace/autotuner/new/generated_configs/gemma2_9b
+Saved to: /nemo-workspace/autotuner/new/generated_configs/llama31_8b
 Generated 12 configurations
 
 Memory Analysis Summary:
@@ -126,10 +142,16 @@ Use 'lep autotune list-configs' to see detailed memory analysis
 ```
 
 ### 2. List Configurations (`list-configs`)
+
+Lists and analyzes generated configurations with memory usage analysis.
+
 ```bash
 python launcher.py list-configs \
+  # Required: Core configuration
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
-  --model gemma2_9b \
+  --model gllama31_8b \
+  
+  # Required: Lepton infrastructure
   --launcher-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
@@ -137,20 +159,20 @@ python launcher.py list-configs \
 ```
 **Expected output:**
 ```
-Configurations for model: gemma2_9b
-Location: /nemo-workspace/autotuner/new/generated_configs/gemma2_9b
+Configurations for model: llama31_8b
+Location: /nemo-workspace/autotuner/new/generated_configs/llama31_8b
 
-                                    Configuration Files - gemma2_9b                                  
+                                    Configuration Files - llama31_8b                                 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
 ┃ Filename                                                                ┃ Status      ┃ Size        ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
 │ base_config.json                                                        │ Base Config │ 7,669 bytes │
 ├─────────────────────────────────────────────────────────────────────────┼─────────────┼─────────────┤
-│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_256.json │ Generated     │ 7,454 bytes │
+│ llama31_8b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_256.json │ Generated     │ 7,454 bytes │
 ├─────────────────────────────────────────────────────────────────────────┼─────────────┼─────────────┤
-│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_512.json │ Generated     │ 7,454 bytes │
+│ llama31_8b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_1_vp_None_seq_8192_gbs_512.json │ Generated     │ 7,454 bytes │
 ├─────────────────────────────────────────────────────────────────────────┼─────────────┼─────────────┤
-│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_256.json │ Generated     │ 7,454 bytes │
+│ llama31_8b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs_2_vp_None_seq_8192_gbs_256.json │ Generated     │ 7,454 bytes │
 └─────────────────────────────────────────────────────────────────────────┴─────────────┴─────────────┘
 
  CUDA Memory Analysis & Run Status
@@ -161,66 +183,71 @@ Location: /nemo-workspace/autotuner/new/generated_configs/gemma2_9b
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
 │ base_config                              │ Safe         │ ▶ Run        │ 19.2            │ 141             │
 ├──────────────────────────────────────────┼──────────────┼──────────────┼─────────────────┼─────────────────┤
-│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 21.9            │ 141             │
+│ llama31_8b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 21.9            │ 141             │
 ├──────────────────────────────────────────┼──────────────┼──────────────┼─────────────────┼─────────────────┤
-│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 21.9            │ 141             │
+│ llama31_8b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 21.9            │ 141             │
 ├──────────────────────────────────────────┼──────────────┼──────────────┼─────────────────┼─────────────────┤
-│ gemma2_9b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 27.4            │ 141             │
+│ llama31_8b_8nodes_tp_2_pp_2_cp_1_ep_1_mbs… │ Safe         │ ▶ Run        │ 27.4            │ 141             │
 ├──────────────────────────────────────────┼──────────────┼──────────────┼─────────────────┼─────────────────┤
 
 Memory Analysis Summary:
-Safe configurations (will run): 67
+Safe configurations (will run): 4
 Potential OOM configurations (will be skipped): 0
 Performance Results: Not available
 ```
 
-### 2. Run Training Experiments (`run`)
+### 3. Run Training Experiments (`run`)
 
 Executes training experiments using generated configurations.
 
+**Parameter Categories:**
+- **Required: Core configuration** - Configuration directory and model name
+- **Required: Lepton infrastructure** - Node groups and mount configuration
+- **Optional: Execution control** - Sequential execution and run-all flags
+
 ```bash
 python launcher.py run \
+  # Required: Core configuration
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
-  --model gemma2_9b \
+  --model llama31_8b \
+  
+  # Required: Lepton infrastructure
   --launcher-node-group tme-nebius-h200-01 \
   --training-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
   --mount-path /nemo-workspace \
-   --sequential \
-   --run-all
-
-### 3. List Configurations (`list-configs`)
-
-Lists available configurations for a model.
-
-```bash
-python launcher.py list-configs \
-  --config-dir /nemo-workspace/autotuner/new/generated_configs \
-  --model llama31_70b \
-  --launcher-node-group tme-nebius-h200-01 \
-  --training-node-group tme-nebius-h200-01 \
-  --mount-from node-nfs:lepton-shared-fs \
-  --mount-source-path / \
-  --mount-path /nemo-workspace
+  
+  # Optional: Execution control
+  --sequential \
+  --run-all
 ```
-
-### 4. Analyze Results (`results`)
+### 4. Gather and analyze Results (`results`)
 
 Analyzes training results and generates performance reports.
 
+**Parameter Categories:**
+- **Required: Core configuration** - Configuration directory, model name, and logs path
+- **Required: Lepton infrastructure** - Node group and mount configuration
+- **Optional: Analysis configuration** - Log prefix, top N results, and cost settings
+
 ```bash
 python launcher.py results \
+  # Required: Core configuration
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
   --model llama31_8b \
   --logs-path /nemo-workspace/autotuner/new/logs/llama31_8b \
-  --log-prefix nemo \
+  
+  # Required: Lepton infrastructure
   --launcher-node-group tme-nebius-h200-01 \
-  --top-n 10 \
-  --cost-per-gpu-hour 3.0 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
-  --mount-path /nemo-workspace
+  --mount-path /nemo-workspace \
+  
+  # Optional: Analysis configuration
+  --log-prefix nemo \
+  --top-n 10 \
+  --cost-per-gpu-hour 3.0
 ```
 
 **Expected output:**
@@ -299,29 +326,61 @@ python launcher.py list-models
 
 ## Complete Workflow Example
 
-Here's a complete workflow for optimizing a Gemma2 9B model on an 8-node H200 cluster:
+This example is for optimizing a **llama31_8b** model on an **8-node H200 cluster** with **64 total GPUs** (8 GPUs per node):
+
+### What to Expect from This Workflow:
+
+**Configuration Generation (Step 1):**
+- **All relevant configurations** will be generated including base configuration.
+- **Memory analysis** will list all configs that are "Safe" (no OOM risk) as well as the ones that are "Unsafe" (OOM risk)
+
+**Training Execution (Step 2):**
+- **Sequential execution** of configurations
+- **Each experiment** runs for 50 steps (configurable)
+
+**Results Analysis (Step 3):**
+- **Performance comparison** between all configurations
+- **Cost analysis** with GPU-hour pricing
+- **Best configuration** identification
+- **Time and Cost savings calculation** vs base configuration
 
 ### Step 1: Generate Configurations
 ```bash
 python launcher.py generate \
+  # Required: Core configuration
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
-  --model gemma2_9b \
+  --model llama31_8b \
+  
+  # Required: Lepton infrastructure
   --launcher-node-group tme-nebius-h200-01 \
   --training-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
   --mount-path /nemo-workspace \
+  
+  # Optional: Resource configuration
   --resource-shape gpu.8xh200 \
   --nodes 8 \
   --gpus-per-node 8 \
+  
+  # Optional: Training configuration
+  --seq-length 8192 \
+  --global-batch-sizes 256,512 \
+  --micro-batch-sizes 1,2 \
+  --tensor-parallel-sizes 2 \
+  --pipeline-parallel-sizes 2 \
+  --max-steps-per-run 50 \
   --logs-subdir /nemo-workspace/autotuner/new/logs
 ```
 
 ### Step 2: Run Training Experiments
 ```bash
 python launcher.py run \
+  # Required: Core configuration
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
-  --model gemma2_9b \
+  --model llama31_8b \
+  
+  # Required: Lepton infrastructure
   --launcher-node-group tme-nebius-h200-01 \
   --training-node-group tme-nebius-h200-01 \
   --mount-from node-nfs:lepton-shared-fs \
@@ -332,16 +391,21 @@ python launcher.py run \
 ### Step 3: Analyze Results
 ```bash
 python launcher.py results \
+  # Required: Core configuration
   --config-dir /nemo-workspace/autotuner/new/generated_configs \
-  --model gemma2_9b \
-  --logs-path /nemo-workspace/autotuner/new/logs/gemma2_9b \
-  --log-prefix nemo \
+  --model llama31_8b \
+  --logs-path /nemo-workspace/autotuner/new/logs/llama31_8b \
+  
+  # Required: Lepton infrastructure
   --launcher-node-group tme-nebius-h200-01 \
-  --top-n 10 \
-  --cost-per-gpu-hour 3.0 \
   --mount-from node-nfs:lepton-shared-fs \
   --mount-source-path / \
-  --mount-path /nemo-workspace
+  --mount-path /nemo-workspace \
+  
+  # Optional: Analysis configuration
+  --log-prefix nemo \
+  --top-n 10 \
+  --cost-per-gpu-hour 3.0
 ```
 
 ## Remote Execution
@@ -353,7 +417,6 @@ All operations are executed remotely on DGX Cloud Lepton clusters using NeMo Run
 3. **Environment Setup**: NeMo is automatically cloned and installed from source in remote containers
 4. **Authentication**: Lepton authentication is handled automatically via `lep login` in remote jobs
 5. **Log Streaming**: Real-time logs are streamed to your terminal via NeMo Run
-6. **Result Retrieval**: Results are available in the mounted workspace
 
 ### How It Works
 
@@ -437,7 +500,7 @@ The `results()` function displays:
 - **Cost Efficiency**: Most cost-effective configuration analysis
 - **Recommendations**: Best performance vs cost efficiency with savings
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -490,23 +553,16 @@ python launcher.py list-configs --help
 - **Authentication**: Handles Lepton auth via `lep login` in remote environment
 
 ### Resource Configuration
-- `resource_shape`: Use format `"gpu.countxtype"` (e.g., `"gpu.8xh200"`, `"gpu.4xa100"`)
 - Ensure `nodes * gpus_per_node` matches your total GPU count
 - Parallelism sizes must divide evenly into total GPU count
 
 ### Memory Considerations
 - AutoTuner automatically detects potential OOM configurations
 - Configurations flagged as OOM risks will be skipped during training
-- Use `run_all=True` to force run all configurations (not recommended)
-
-### Performance Optimization
-- Start with smaller parameter ranges for quick testing
-- Increase `max_steps_per_run` for more accurate performance measurement
-- Use `top_n=10` in results analysis to see more configurations
+- Use `--run-all` to force run all configurations (not recommended)
 
 ### Path Configuration
-- Update all file paths in scripts to match your directory structure
 - Ensure `config_dir` and `logs_subdir` are absolute paths
 - The `args.json` file will be saved in `config_dir/model_name/args.json`
 
-This README provides a comprehensive guide to using the AutoTune module step-by-step, with realistic examples and troubleshooting tips.
+This README provides a comprehensive guide to using the AutoTuner module step-by-step, with realistic examples and troubleshooting tips.

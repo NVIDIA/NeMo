@@ -107,20 +107,12 @@ def _find_exact_user_buffer_match(
     seq_length: int,
 ) -> Optional[Any]:
     """Find exact user buffer configuration match."""
-    KNOWN_GPUS = {
-        "h100": "h100",
-        "h200": "h200",
-        "gb200": "gb200",
-        "a100": "a100",
-        "h20": "h20",
-        "l40s": "l40s",
-        "b200": "b200",
-    }
+    KNOWN_GPUS = ["h100", "h200", "gb200", "a100", "h20", "l40s", "b200"]
 
     try:
-        for key, value in KNOWN_GPUS.items():
-            if key in gpu_type.lower():
-                gpu_type = value
+        for known_gpu in KNOWN_GPUS:
+            if known_gpu in gpu_type.lower():
+                gpu_type = known_gpu
                 break
 
         config_names_to_try = []

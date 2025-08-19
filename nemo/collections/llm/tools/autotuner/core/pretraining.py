@@ -32,7 +32,6 @@ def lepton_executor(
     mount_from: str = "node-nfs:shared",
     my_node_group: str = "nebius-h200-01",
     hf_token: Optional[str] = None,
-    wandb_api_key: Optional[str] = None,
     torch_home: str = "/nemo-workspace/.cache",
     pythonpath: str = "/nemo-workspace/nemo-run:$PYTHONPATH",
     env_vars: Dict[str, str] = None,
@@ -63,12 +62,10 @@ def lepton_executor(
     if env_vars:
         default_env_vars.update(env_vars)
 
-    # Add HF token and WANDB API key if provided
+    # Add HF token if provided
     if hf_token:
         default_env_vars["HF_TOKEN"] = hf_token
         default_env_vars["TRANSFORMERS_OFFLINE"] = "0"
-    if wandb_api_key:
-        default_env_vars["WANDB_API_KEY"] = wandb_api_key
 
     print(default_env_vars)
 

@@ -96,15 +96,13 @@ import os
 import subprocess
 
 def setup_nemo_environment():
-    # First uninstall existing NeMo framework
-    print("Uninstalling existing NeMo framework...")
-    try:
-        subprocess.run([
-            sys.executable, "-m", "pip", "uninstall", "-y", "nemo-toolkit"
-        ], check=True, capture_output=False)
-        print("Successfully uninstalled existing NeMo framework")
-    except subprocess.CalledProcessError:
-        print("No existing NeMo framework found or already uninstalled")
+    
+    # Install Lepton CLI tool
+    print("Installing Lepton CLI...")
+    subprocess.run([
+        sys.executable, "-m", "pip", "install", "-U", "leptonai"
+    ], check=True, capture_output=False)
+    print("Successfully installed Lepton CLI")
     
     # Install NeMo directly from GitHub repository
     print("Installing NeMo from GitHub repository...")
@@ -412,18 +410,19 @@ def create_parser():
     generate_parser.add_argument('--mount-from', required=True, help='Mount source')
     generate_parser.add_argument('--mount-source-path', required=True, help='Mount source path')
     generate_parser.add_argument('--mount-path', required=True, help='Mount destination path')
-    generate_parser.add_argument('--resource-shape', default='gpu.8xh200', help='Resource shape (e.g., gpu.8xh200)')
+    generate_parser.add_argument('--resource-shape', default=None, help='Resource shape (e.g., gpu.8xh200)')
+    generate_parser.add_argument('--memory-per-gpu', default=None, type=float, help='Memory per GPU in GB')
     generate_parser.add_argument('--container-image', default='nvcr.io/nvidia/nemo:25.07', help='Container image')
-    generate_parser.add_argument('--nodes', type=int, default=8, help='Number of nodes')
-    generate_parser.add_argument('--gpus-per-node', type=int, default=8, help='GPUs per node')
+    generate_parser.add_argument('--nodes', required=True, type=int, help='Number of nodes')
+    generate_parser.add_argument('--gpus-per-node', required=True, type=int, help='GPUs per node')
     generate_parser.add_argument('--seq-length', type=int, default=8192, help='Sequence length')
     generate_parser.add_argument('--num-tokens-in-b', type=int, default=1000, help='Number of tokens in billions')
-    generate_parser.add_argument('--global-batch-sizes', default='256', help='Global batch sizes (comma-separated)')
+    generate_parser.add_argument('--global-batch-sizes', default='128,256,512', help='Global batch sizes (comma-separated)')
     generate_parser.add_argument(
-        '--tensor-parallel-sizes', default='2', help='Tensor parallel sizes (comma-separated)'
+        '--tensor-parallel-sizes', default='1,2,4', help='Tensor parallel sizes (comma-separated)'
     )
     generate_parser.add_argument(
-        '--pipeline-parallel-sizes', default='2', help='Pipeline parallel sizes (comma-separated)'
+        '--pipeline-parallel-sizes', default='1,2,4', help='Pipeline parallel sizes (comma-separated)'
     )
     generate_parser.add_argument(
         '--virtual-pipeline-model-parallel-sizes',
@@ -432,12 +431,12 @@ def create_parser():
     )
     generate_parser.add_argument('--max-model-parallel-size', type=int, default=64, help='Maximum model parallel size')
     generate_parser.add_argument(
-        '--context-parallel-sizes', default='1', help='Context parallel sizes (comma-separated)'
+        '--context-parallel-sizes', default='1,2,4', help='Context parallel sizes (comma-separated)'
     )
     generate_parser.add_argument(
-        '--expert-parallel-sizes', default='1', help='Expert parallel sizes (comma-separated)'
+        '--expert-parallel-sizes', default='1,2', help='Expert parallel sizes (comma-separated)'
     )
-    generate_parser.add_argument('--micro-batch-sizes', default='1', help='Micro batch sizes (comma-separated)')
+    generate_parser.add_argument('--micro-batch-sizes', default='1,2,4', help='Micro batch sizes (comma-separated)')
     generate_parser.add_argument('--max-steps-per-run', type=int, default=50, help='Maximum steps per run')
     generate_parser.add_argument('--max-steps', type=int, default=50, help='Maximum steps')
     generate_parser.add_argument(

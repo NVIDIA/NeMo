@@ -64,7 +64,6 @@ class AutoTuneArgs:
         self.launcher_node_group = kwargs.get('launcher_node_group')
         self.training_node_group = kwargs.get('training_node_group')
         self.hf_token = kwargs.get('hf_token', None)
-        self.wandb_api_key = kwargs.get('wandb_api_key', None)
         self.torch_home = kwargs.get('torch_home', '/nemo-workspace/.cache')
         self.pythonpath = kwargs.get('pythonpath', '/nemo-workspace/nemo-run:$PYTHONPATH')
         self.memory_per_gpu = kwargs.get('memory_per_gpu')
@@ -180,7 +179,6 @@ class AutoTuneArgs:
             'launcher_node_group': self.launcher_node_group,
             'training_node_group': self.training_node_group,
             'hf_token': self.hf_token,
-            'wandb_api_key': self.wandb_api_key,
             'torch_home': self.torch_home,
             'pythonpath': self.pythonpath,
             'memory_per_gpu': self.memory_per_gpu,
@@ -300,7 +298,6 @@ class AutoTuneArgs:
             "mount_from": self.mount_from,
             "my_node_group": self.training_node_group,
             "hf_token": self.hf_token,
-            "wandb_api_key": self.wandb_api_key,
             "torch_home": self.torch_home,
             "pythonpath": self.pythonpath,
         }

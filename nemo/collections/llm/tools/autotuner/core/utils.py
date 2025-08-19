@@ -243,8 +243,9 @@ def extract_precision_unified(source: Union[str, Dict[str, Any], object]) -> str
         source: String, config dict, or live object
 
     Returns:
-        Precision string (bf16, fp16, fp32)
+        Precision string (bf16, fp16, fp32, fp4, fp8, bf8)
     """
+    precision_list = ['bf16', 'fp16', 'fp32', 'fp4', 'fp4', 'fp8', 'bf8']
     if isinstance(source, dict):
         try:
             trainer_value = source.get('__arguments__', {}).get('trainer', '')
@@ -253,12 +254,9 @@ def extract_precision_unified(source: Union[str, Dict[str, Any], object]) -> str
                 if trainer_str and trainer_str not in ['Config', '<Config>', 'None', '']:
                     precision = extract_value_with_patterns(trainer_str, ExtractionPatterns.PRECISION_PATTERNS, str)
                     if precision:
-                        if 'bf16' in precision.lower():
-                            return 'bf16'
-                        elif 'fp16' in precision.lower():
-                            return 'fp16'
-                        elif 'fp32' in precision.lower():
-                            return 'fp32'
+                        for p in precision_list:
+                            if p in precision.lower():
+                                return p
         except (AttributeError, TypeError) as e:
             logger.debug(f"Could not extract precision from config dict: {e}")
         except Exception as e:
@@ -267,13 +265,9 @@ def extract_precision_unified(source: Union[str, Dict[str, Any], object]) -> str
     elif isinstance(source, str):
         precision = extract_value_with_patterns(source, ExtractionPatterns.PRECISION_PATTERNS, str)
         if precision:
-            if 'bf16' in precision.lower():
-                return 'bf16'
-            elif 'fp16' in precision.lower():
-                return 'fp16'
-            elif 'fp32' in precision.lower():
-                return 'fp32'
-
+            for p in precision_list:
+                if p in precision.lower():
+                    return p
     # live objects (nemo_run.config.Partial, etc.)
     elif not isinstance(source, (str, dict)) and hasattr(source, '__dict__'):
         try:
