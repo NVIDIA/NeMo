@@ -168,6 +168,7 @@ from nemo.collections.llm.gpt.model.ssm import (
     NemotronHConfig56B,
     NemotronNano9Bv2,
     NemotronNano12Bv2,
+    Flextron,
     NVIDIAMambaConfig8B,
     NVIDIAMambaHybridConfig8B,
     SSMConfig,
@@ -308,6 +309,7 @@ __all__ = [
     "NemotronHConfig56B",
     "NemotronNano9Bv2",
     "NemotronNano12Bv2",
+    "Flextron"
     "MambaModel",
     "DeepSeekModel",
     "DeepSeekV2Config",
