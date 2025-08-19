@@ -417,7 +417,9 @@ def create_parser():
     generate_parser.add_argument('--gpus-per-node', required=True, type=int, help='GPUs per node')
     generate_parser.add_argument('--seq-length', type=int, default=8192, help='Sequence length')
     generate_parser.add_argument('--num-tokens-in-b', type=int, default=1000, help='Number of tokens in billions')
-    generate_parser.add_argument('--global-batch-sizes', default='128,256,512', help='Global batch sizes (comma-separated)')
+    generate_parser.add_argument(
+        '--global-batch-sizes', default='128,256,512', help='Global batch sizes (comma-separated)'
+    )
     generate_parser.add_argument(
         '--tensor-parallel-sizes', default='1,2,4', help='Tensor parallel sizes (comma-separated)'
     )

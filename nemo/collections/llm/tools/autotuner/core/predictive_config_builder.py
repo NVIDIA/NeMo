@@ -200,10 +200,11 @@ def _calculate_model_weights_memory(
 ) -> Tuple[float, float, float]:
     """
     Calculate model weights memory for layers and embeddings.
-    
+
     Returns:
         Tuple of (layer_memory_gb, embedding_memory_gb, total_model_memory_gb)
     """
+
     # Extract model architecture from config with None handling
     def safe_getattr(obj, attr, default):
         """Get attribute value, return default if attribute doesn't exist or is None"""
@@ -218,7 +219,7 @@ def _calculate_model_weights_memory(
     num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
     moe_router_topk = safe_getattr(model_config, 'moe_router_topk', 1)
     moe_ffn_hidden_size = safe_getattr(model_config, 'moe_ffn_hidden_size', ffn_hidden_size)
-    
+
     # Check if this is a MoE model
     is_moe_model = num_moe_experts is not None and num_moe_experts > 1
 
@@ -298,6 +299,7 @@ def _calculate_optimizer_memory(
     bytes_per_param: int,
 ) -> float:
     """Calculate optimizer memory requirements."""
+
     # Extract model architecture
     def safe_getattr(obj, attr, default):
         value = getattr(obj, attr, default)
@@ -310,14 +312,12 @@ def _calculate_optimizer_memory(
     num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
     moe_router_topk = safe_getattr(model_config, 'moe_router_topk', 1)
     moe_ffn_hidden_size = safe_getattr(model_config, 'moe_ffn_hidden_size', ffn_hidden_size)
-    
+
     is_moe_model = num_moe_experts is not None and num_moe_experts > 1
 
     # Calculate parameters per layer
     if is_moe_model:
-        attention_params_per_layer = (
-            hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
-        )
+        attention_params_per_layer = hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
         moe_ffn_params_per_expert = (
             hidden_size * moe_ffn_hidden_size + moe_ffn_hidden_size * hidden_size + hidden_size * 2
         )
@@ -325,12 +325,8 @@ def _calculate_optimizer_memory(
         ffn_params_per_layer = moe_ffn_params_per_expert * active_experts_per_gpu
         params_per_layer = attention_params_per_layer + ffn_params_per_layer
     else:
-        ffn_params_per_layer = (
-            hidden_size * ffn_hidden_size + ffn_hidden_size * hidden_size + hidden_size * 2
-        )
-        attention_params_per_layer = (
-            hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
-        )
+        ffn_params_per_layer = hidden_size * ffn_hidden_size + ffn_hidden_size * hidden_size + hidden_size * 2
+        attention_params_per_layer = hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
         params_per_layer = attention_params_per_layer + ffn_params_per_layer
 
     # Add embedding parameters
@@ -360,6 +356,7 @@ def _calculate_gradient_memory(
     bytes_per_param: int,
 ) -> float:
     """Calculate gradient memory requirements."""
+
     # Extract model architecture
     def safe_getattr(obj, attr, default):
         value = getattr(obj, attr, default)
@@ -372,14 +369,12 @@ def _calculate_gradient_memory(
     num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
     moe_router_topk = safe_getattr(model_config, 'moe_router_topk', 1)
     moe_ffn_hidden_size = safe_getattr(model_config, 'moe_ffn_hidden_size', ffn_hidden_size)
-    
+
     is_moe_model = num_moe_experts is not None and num_moe_experts > 1
 
     # Calculate parameters per layer
     if is_moe_model:
-        attention_params_per_layer = (
-            hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
-        )
+        attention_params_per_layer = hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
         moe_ffn_params_per_expert = (
             hidden_size * moe_ffn_hidden_size + moe_ffn_hidden_size * hidden_size + hidden_size * 2
         )
@@ -387,12 +382,8 @@ def _calculate_gradient_memory(
         ffn_params_per_layer = moe_ffn_params_per_expert * active_experts_per_gpu
         params_per_layer = attention_params_per_layer + ffn_params_per_layer
     else:
-        ffn_params_per_layer = (
-            hidden_size * ffn_hidden_size + ffn_hidden_size * hidden_size + hidden_size * 2
-        )
-        attention_params_per_layer = (
-            hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
-        )
+        ffn_params_per_layer = hidden_size * ffn_hidden_size + ffn_hidden_size * hidden_size + hidden_size * 2
+        attention_params_per_layer = hidden_size * hidden_size * 3 + hidden_size * hidden_size + hidden_size * 2
         params_per_layer = attention_params_per_layer + ffn_params_per_layer
 
     # Add embedding parameters
@@ -424,6 +415,7 @@ def _calculate_activation_memory(
     bytes_per_param: int,
 ) -> float:
     """Calculate activation memory requirements."""
+
     # Extract model architecture
     def safe_getattr(obj, attr, default):
         value = getattr(obj, attr, default)
@@ -432,7 +424,7 @@ def _calculate_activation_memory(
     num_layers = safe_getattr(model_config, 'num_layers', 32)
     hidden_size = safe_getattr(model_config, 'hidden_size', 4096)
     num_moe_experts = safe_getattr(model_config, 'num_moe_experts', None)
-    
+
     # Check if this is a MoE model
     is_moe_model = num_moe_experts is not None and num_moe_experts > 1
 
@@ -546,19 +538,15 @@ def estimate_model_memory_usage(
     layer_memory_gb, embedding_memory_gb, model_memory_gb = _calculate_model_weights_memory(
         model_config, tp_size, pp_size, bytes_per_param
     )
-    
-    optimizer_memory_gb = _calculate_optimizer_memory(
-        model_config, tp_size, pp_size, bytes_per_param
-    )
-    
-    gradient_memory_gb = _calculate_gradient_memory(
-        model_config, tp_size, pp_size, bytes_per_param
-    )
-    
+
+    optimizer_memory_gb = _calculate_optimizer_memory(model_config, tp_size, pp_size, bytes_per_param)
+
+    gradient_memory_gb = _calculate_gradient_memory(model_config, tp_size, pp_size, bytes_per_param)
+
     activation_memory_gb = _calculate_activation_memory(
         model_config, tp_size, pp_size, cp_size, vp_size, micro_batch_size, seq_length, bytes_per_param
     )
-    
+
     pipeline_overhead_gb = _calculate_pipeline_overhead(pp_size, vp_size)
 
     # Calculate total memory
@@ -574,7 +562,9 @@ def estimate_model_memory_usage(
     logger.debug(f"  VP config: {vp_size} virtual stages")
     logger.debug(f"  Parallelism factor: {parallelism_factor:.2f} (TP={tp_size}, PP={pp_size}, CP={cp_size})")
     logger.debug(f"  Layer weights: {layer_memory_gb:.2f}GB, Embedding weights: {embedding_memory_gb:.2f}GB")
-    logger.debug(f"  Total weights: {model_memory_gb:.2f}GB, Total optimizer: {optimizer_memory_gb:.2f}GB, Total gradients: {gradient_memory_gb:.2f}GB")
+    logger.debug(
+        f"  Total weights: {model_memory_gb:.2f}GB, Total optimizer: {optimizer_memory_gb:.2f}GB, Total gradients: {gradient_memory_gb:.2f}GB"
+    )
     logger.debug(f"  Activations: {activation_memory_gb:.2f}GB")
     logger.debug(f"  Pipeline overhead: {pipeline_overhead_gb:.2f}GB")
     logger.debug(

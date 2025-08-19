@@ -14,8 +14,8 @@
 
 import os
 import re
-from typing import Optional
 from dataclasses import dataclass
+from typing import Optional
 
 import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
@@ -35,6 +35,7 @@ GPT_BASED_MODELS = [
 @dataclass
 class BaseConfigResult:
     """Base class for configuration results to avoid code duplication."""
+
     model_name: str
     model_size: int
     seq_length: int
@@ -75,6 +76,7 @@ class BaseConfigResult:
 @dataclass
 class PerformanceResult(BaseConfigResult):
     """Performance results extending base configuration."""
+
     time_per_step: float
     samples_per_second: float
     model_tflops_per_gpu: float
@@ -95,6 +97,7 @@ class PerformanceResult(BaseConfigResult):
 @dataclass
 class ErrorResult(BaseConfigResult):
     """Error results extending base configuration."""
+
     error_message: str
 
     def to_list(self) -> list:
@@ -176,7 +179,7 @@ def get_results(
         "Error Message",
     ]
     results = []  # List of PerformanceResult objects
-    errors = []   # List of ErrorResult objects
+    errors = []  # List of ErrorResult objects
 
     performance_dict = {}
 
@@ -286,10 +289,12 @@ def get_results(
     if results:
         # Sort by time per step (fastest first)
         results.sort(key=lambda x: x.time_per_step)
-        
+
         print(f"Top {min(output_top_n, len(results))} configs sorted from fastest to slowest:")
         for i, result in enumerate(results):
-            print(f"Config #{i+1} - {result.descriptive_name}: {result.model_tflops_per_gpu} TFLOPS per GPU with {result.time_per_step:.4f}s per global step.")
+            print(
+                f"Config #{i+1} - {result.descriptive_name}: {result.model_tflops_per_gpu} TFLOPS per GPU with {result.time_per_step:.4f}s per global step."
+            )
             if i + 1 == output_top_n:
                 break
 
@@ -299,7 +304,7 @@ def get_results(
 
         # Save results as a CSV file.
         os.makedirs(final_result_logs, exist_ok=True)
-        
+
         # Convert PerformanceResult objects to lists for DataFrame
         result_lists = [result.to_list() for result in results]
         result_df = pd.DataFrame(result_lists, columns=result_columns)
