@@ -14,7 +14,6 @@
 
 import os
 import re
-from dataclasses import dataclass
 from typing import Optional
 
 import pandas as pd
@@ -30,79 +29,6 @@ GPT_BASED_MODELS = [
     "nemotron",
     "starcoder",
 ]
-
-
-@dataclass
-class BaseConfigResult:
-    """Base class for configuration results to avoid code duplication."""
-
-    model_name: str
-    model_size: int
-    seq_length: int
-    tp: int
-    pp: int
-    cp: int
-    ep: int
-    mbs: int
-    vp: Optional[int]
-    num_layers: int
-    hidden_size: int
-    ffn_hidden_size: int
-    gbs: int
-    nodes: int
-    gpus_per_node: int
-
-    def to_list(self) -> list:
-        """Convert to list format for backward compatibility with DataFrame."""
-        return [
-            self.model_name,
-            self.model_size,
-            self.seq_length,
-            self.tp,
-            self.pp,
-            self.cp,
-            self.ep,
-            self.mbs,
-            self.vp,
-            self.num_layers,
-            self.hidden_size,
-            self.ffn_hidden_size,
-            self.gbs,
-            self.nodes,
-            self.gpus_per_node,
-        ]
-
-
-@dataclass
-class PerformanceResult(BaseConfigResult):
-    """Performance results extending base configuration."""
-
-    time_per_step: float
-    samples_per_second: float
-    model_tflops_per_gpu: float
-    model_tflops_aggregate: float
-    descriptive_name: str
-
-    def to_list(self) -> list:
-        """Convert to list format for DataFrame, including performance metrics."""
-        return super().to_list() + [
-            self.time_per_step,
-            self.samples_per_second,
-            self.model_tflops_per_gpu,
-            self.model_tflops_aggregate,
-            self.descriptive_name,
-        ]
-
-
-@dataclass
-class ErrorResult(BaseConfigResult):
-    """Error results extending base configuration."""
-
-    error_message: str
-
-    def to_list(self) -> list:
-        """Convert to list format for DataFrame, including error message."""
-        return super().to_list() + [self.error_message]
 
 
 def get_results(
@@ -178,8 +104,8 @@ def get_results(
         "GPUs per Node",
         "Error Message",
     ]
-    results = []  # List of PerformanceResult objects
-    errors = []  # List of ErrorResult objects
+    result = []
+    errors = []
 
     performance_dict = {}
 
@@ -197,25 +123,26 @@ def get_results(
 
         error = find_error(error_file)
         if error:
-            error_result = ErrorResult(
-                model_name=model_name,
-                model_size=model_size,
-                seq_length=seq_length,
-                tp=tp,
-                pp=pp,
-                cp=cp,
-                ep=ep,
-                mbs=mbs,
-                vp=vp,
-                num_layers=layers,
-                hidden_size=hs,
-                ffn_hidden_size=ffn_hs,
-                gbs=gbs,
-                nodes=num_nodes,
-                gpus_per_node=gpus_per_node,
-                error_message=error,
+            errors.append(
+                [
+                    model_name,
+                    model_size,
+                    seq_length,
+                    tp,
+                    pp,
+                    cp,
+                    ep,
+                    mbs,
+                    vp,
+                    layers,
+                    hs,
+                    ffn_hs,
+                    gbs,
+                    num_nodes,
+                    gpus_per_node,
+                    error,
+                ]
             )
-            errors.append(error_result)
 
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
@@ -252,29 +179,30 @@ def get_results(
                 f"gbs_{gbs}"
             )
 
-            performance_result = PerformanceResult(
-                model_name=model_name,
-                model_size=model_size,
-                seq_length=seq_length,
-                tp=tp,
-                pp=pp,
-                cp=cp,
-                ep=ep,
-                mbs=mbs,
-                vp=vp,
-                num_layers=layers,
-                hidden_size=hs,
-                ffn_hidden_size=ffn_hs,
-                gbs=gbs,
-                nodes=num_nodes,
-                gpus_per_node=gpus_per_node,
-                time_per_step=avg_global_step_time,
-                samples_per_second=samples_per_s,
-                model_tflops_per_gpu=m_tflops_gpu,
-                model_tflops_aggregate=m_tflops,
-                descriptive_name=descriptive_name,
+            result.append(
+                [
+                    model_name,
+                    model_size,
+                    seq_length,
+                    tp,
+                    pp,
+                    cp,
+                    ep,
+                    mbs,
+                    vp,
+                    layers,
+                    hs,
+                    ffn_hs,
+                    gbs,  # Use extracted GBS
+                    num_nodes,
+                    gpus_per_node,
+                    avg_global_step_time,
+                    samples_per_s,
+                    m_tflops_gpu,
+                    m_tflops,
+                    descriptive_name,
+                ]
             )
-            results.append(performance_result)
 
             performance_dict[descriptive_name] = {
                 "m_tflops_gpu": m_tflops_gpu,
@@ -286,33 +214,24 @@ def get_results(
         finally:
             continue
 
-    if results:
-        # Sort by time per step (fastest first)
-        results.sort(key=lambda x: x.time_per_step)
-
-        print(f"Top {min(output_top_n, len(results))} configs sorted from fastest to slowest:")
-        for i, result in enumerate(results):
-            print(
-                f"Config #{i+1} - {result.descriptive_name}: {result.model_tflops_per_gpu} TFLOPS per GPU with {result.time_per_step:.4f}s per global step."
-            )
+    if result:
+        result.sort(key=lambda x: x[15])
+        print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
+        for i, res in enumerate(result):
+            print(f"Config #{i+1} - {res[-1]}: {res[-3]} TFLOPS per GPU with {res[15]:.4f}s per global step.")
             if i + 1 == output_top_n:
                 break
 
         print("\n==================================================")
-        print(f"Optimal config: {results[0].descriptive_name} with {results[0].time_per_step:.4f}s per global step.")
+        print(f"Optimal config: {result[0][-1]} with {result[0][15]:.4f}s per global step.")
         print("==================================================\n")
 
         # Save results as a CSV file.
         os.makedirs(final_result_logs, exist_ok=True)
-
-        # Convert PerformanceResult objects to lists for DataFrame
-        result_lists = [result.to_list() for result in results]
-        result_df = pd.DataFrame(result_lists, columns=result_columns)
+        result_df = pd.DataFrame(result, columns=result_columns)
         result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
 
-        # Convert ErrorResult objects to lists for DataFrame
-        error_lists = [error.to_list() for error in errors]
-        error_df = pd.DataFrame(error_lists, columns=error_columns)
+        error_df = pd.DataFrame(errors, columns=error_columns)
         error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
     else:
         print("No valid results found to process.")

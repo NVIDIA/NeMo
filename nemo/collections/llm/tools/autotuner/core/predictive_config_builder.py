@@ -196,6 +196,7 @@ def _calculate_model_weights_memory(
     model_config: Any,
     tp_size: int,
     pp_size: int,
+    ep_size: int,
     bytes_per_param: int,
 ) -> Tuple[float, float, float]:
     """
@@ -241,7 +242,7 @@ def _calculate_model_weights_memory(
         )
 
         # Total FFN parameters (only active experts contribute to memory per GPU)
-        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // 1)  # EP division handled later
+        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // max(ep_size, 1))
         ffn_params_per_layer = moe_ffn_params_per_expert * active_experts_per_gpu
 
         params_per_layer = attention_params_per_layer + ffn_params_per_layer
@@ -265,28 +266,19 @@ def _calculate_model_weights_memory(
     # Add embedding parameters (shared across pipeline stages)
     embedding_params = vocab_size * hidden_size
 
-    # Total model parameters
-    total_params = params_per_layer * num_layers + embedding_params
-
-    # Model weights memory (in GB)
-    model_memory_gb = (total_params * bytes_per_param) / (1024**3)
-
-    # Divide by tensor parallelism (weights are sharded)
-    model_memory_gb /= tp_size
-
-    # Embedding parameters are shared across pipeline stages, so divide by PP
-    # Only the embedding part should be divided by PP, not the layer parameters
-    embedding_memory_gb = (embedding_params * bytes_per_param) / (1024**3)
-    embedding_memory_gb /= tp_size  # Embeddings are sharded by TP
-    embedding_memory_gb /= pp_size  # Embeddings are shared across PP stages
-
-    # Layer parameters are already divided by TP, but need to be divided by PP
+    # Calculate memory for each component with proper parallelism distribution
+    # Layer parameters: distributed by both TP and PP
     layer_params = params_per_layer * num_layers
     layer_memory_gb = (layer_params * bytes_per_param) / (1024**3)
-    layer_memory_gb /= tp_size  # Layers are sharded by TP
-    layer_memory_gb /= pp_size  # Layers are distributed by PP
+    layer_memory_gb /= tp_size  # Sharded by tensor parallelism
+    layer_memory_gb /= pp_size  # Distributed by pipeline parallelism
 
-    # Recalculate total model memory correctly
+    # Embedding parameters: distributed by both TP and PP
+    embedding_memory_gb = (embedding_params * bytes_per_param) / (1024**3)
+    embedding_memory_gb /= tp_size  # Sharded by tensor parallelism
+    embedding_memory_gb /= pp_size  # Shared across pipeline stages
+
+    # Total model memory
     total_model_memory_gb = layer_memory_gb + embedding_memory_gb
 
     return layer_memory_gb, embedding_memory_gb, total_model_memory_gb
@@ -296,6 +288,7 @@ def _calculate_optimizer_memory(
     model_config: Any,
     tp_size: int,
     pp_size: int,
+    ep_size: int,
     bytes_per_param: int,
 ) -> float:
     """Calculate optimizer memory requirements."""
@@ -321,7 +314,8 @@ def _calculate_optimizer_memory(
         moe_ffn_params_per_expert = (
             hidden_size * moe_ffn_hidden_size + moe_ffn_hidden_size * hidden_size + hidden_size * 2
         )
-        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // 1)
+        # Properly handle expert parallelism
+        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // max(ep_size, 1))
         ffn_params_per_layer = moe_ffn_params_per_expert * active_experts_per_gpu
         params_per_layer = attention_params_per_layer + ffn_params_per_layer
     else:
@@ -353,6 +347,7 @@ def _calculate_gradient_memory(
     model_config: Any,
     tp_size: int,
     pp_size: int,
+    ep_size: int,
     bytes_per_param: int,
 ) -> float:
     """Calculate gradient memory requirements."""
@@ -378,7 +373,8 @@ def _calculate_gradient_memory(
         moe_ffn_params_per_expert = (
             hidden_size * moe_ffn_hidden_size + moe_ffn_hidden_size * hidden_size + hidden_size * 2
         )
-        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // 1)
+        # Properly handle expert parallelism
+        active_experts_per_gpu = min(moe_router_topk, num_moe_experts // max(ep_size, 1))
         ffn_params_per_layer = moe_ffn_params_per_expert * active_experts_per_gpu
         params_per_layer = attention_params_per_layer + ffn_params_per_layer
     else:
@@ -431,7 +427,6 @@ def _calculate_activation_memory(
     # Virtual pipeline parallelism calculations
     # VP divides layers across virtual stages within each physical pipeline stage
     layers_per_pp_stage = num_layers // pp_size
-    layers_per_vp_stage = layers_per_pp_stage // vp_size if vp_size > 1 else layers_per_pp_stage
 
     # effective micro batch size (accounting for virtual pipeline)
     # in VP, we process smaller chunks of the micro batch through each virtual stage
@@ -444,9 +439,8 @@ def _calculate_activation_memory(
         base_activation_per_layer = hidden_size * 0.1  # 10% of hidden size per layer
     else:
         # Standard transformers: conservative estimate
-        # Reduce for high-parallelism configurations (better memory distribution)
-        parallelism_factor = min(1.0, (tp_size * pp_size * cp_size) / 16.0)  # Scale down for high parallelism
-        base_activation_per_layer = hidden_size * 0.06 * parallelism_factor  # Reduced from 0.08 to 0.06
+        # Use a simpler, more predictable scaling approach
+        base_activation_per_layer = hidden_size * 0.08  # 8% of hidden size per layer
 
     # Scale with effective batch size and sequence length
     # Conservative scaling factors
@@ -454,29 +448,29 @@ def _calculate_activation_memory(
     seq_scale = min(seq_length / 8192, 2.0)  # Scale relative to 8k seq, cap at 2x
 
     # Total activation memory (conservative)
-    activation_memory_gb = (base_activation_per_layer * num_layers * batch_scale * seq_scale * bytes_per_param) / (
+    # Note: Activations are typically stored in bf16/fp16 (2 bytes) regardless of model parameter precision
+    activation_memory_gb = (base_activation_per_layer * num_layers * batch_scale * seq_scale * 2) / (
         1024**3
-    )
+    )  # Use 2 bytes (bf16/fp16) instead of bytes_per_param for activations
 
-    # Apply parallelism distribution (conservative)
-    activation_memory_gb /= max(pp_size, 1)
-    activation_memory_gb /= max(cp_size, 1)
+    # Apply parallelism distribution
+    # Activations are distributed across tensor, pipeline, and context parallelism
+    activation_memory_gb /= max(tp_size, 1)  # Sharded by tensor parallelism
+    activation_memory_gb /= max(pp_size, 1)  # Distributed by pipeline parallelism
+    activation_memory_gb /= max(cp_size, 1)  # Distributed by context parallelism
 
     # Virtual pipeline parallelism effects on activation memory:
-    # - VP can reduce peak activation memory by processing smaller chunks
-    # - But adds overhead for virtual stage management
     if vp_size > 1:
         # VP reduces peak activation memory due to smaller effective batch size
-        # But adds some overhead for virtual stage management
-        vp_activation_factor = 0.85  # 15% reduction due to smaller chunks (increased from 0.9)
-        vp_overhead_factor = 1.02  # 2% overhead for virtual stage management (reduced from 1.05)
-        activation_memory_gb = activation_memory_gb * vp_activation_factor * vp_overhead_factor
+        vp_activation_factor = 0.9  # 10% reduction due to smaller chunks
+        activation_memory_gb = activation_memory_gb * vp_activation_factor
 
-        # Additional memory for virtual pipeline buffers (reduced calculation)
-        # Each virtual stage needs some buffer space for inter-stage communication
-        vp_buffer_memory_gb = (hidden_size * effective_mbs * seq_length * bytes_per_param * vp_size * 0.02) / (
+        # Additional memory for virtual pipeline buffers
+        # Each virtual stage needs buffer space for inter-stage communication
+        # Use 2 bytes per parameter (bf16/fp16) for activations, not bytes_per_param
+        vp_buffer_memory_gb = (hidden_size * effective_mbs * seq_length * 2 * vp_size * 0.02) / (
             1024**3
-        )  # Reduced from 0.1 to 0.02 (2% of hidden size as buffer per virtual stage)
+        )  # 2% of hidden size as buffer per virtual stage
         activation_memory_gb += vp_buffer_memory_gb
 
     # Additional MoE scaling if needed
@@ -536,12 +530,12 @@ def estimate_model_memory_usage(
 
     # Calculate memory components using specialized functions
     layer_memory_gb, embedding_memory_gb, model_memory_gb = _calculate_model_weights_memory(
-        model_config, tp_size, pp_size, bytes_per_param
+        model_config, tp_size, pp_size, ep_size, bytes_per_param
     )
 
-    optimizer_memory_gb = _calculate_optimizer_memory(model_config, tp_size, pp_size, bytes_per_param)
+    optimizer_memory_gb = _calculate_optimizer_memory(model_config, tp_size, pp_size, ep_size, bytes_per_param)
 
-    gradient_memory_gb = _calculate_gradient_memory(model_config, tp_size, pp_size, bytes_per_param)
+    gradient_memory_gb = _calculate_gradient_memory(model_config, tp_size, pp_size, ep_size, bytes_per_param)
 
     activation_memory_gb = _calculate_activation_memory(
         model_config, tp_size, pp_size, cp_size, vp_size, micro_batch_size, seq_length, bytes_per_param
