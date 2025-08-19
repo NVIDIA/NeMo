@@ -51,7 +51,7 @@ def main(cfg):
     if seed is not None:
         # Option to seed for debugging
         logging.info(f"Setting seed to {seed}")
-        pl.seed_everything(seed, workers=True, verbose=True)
+        pl.seed_everything(seed, workers=True)
 
     mode = cfg.get('mode', 'train')
     if mode == 'train':
