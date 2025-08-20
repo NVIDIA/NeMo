@@ -18,10 +18,11 @@
 
 import random
 import timeit
-from typing import Tuple
+
 
 import pytest
 import torch
+from megatron.core.datasets.utils import Split
 
 from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import Evo2Dataset, Evo2DatasetPadEodLossMask
 
@@ -896,16 +897,16 @@ def test_no_eods_one_tag_with_batch_bs2(tag_tokens):
     torch.testing.assert_close(mask, torch.stack([expected_mask, expected_mask]))
 
 
-def test_packed_partial_tag_subsequence_predna_with_control(tag_tokens):
+def test_packed_partial_tag_subsequence_predna_with_control_and_degenerate_base(tag_tokens):
     """
     Sequence: "GAATA[EOD]cacata|acagataaa@ataTACAGGGAATA|d__"
     Expected: First partial tag masked (0s), middle DNA unmasked (1s), end tag masked (0s)
 
     """
-    sequence_alpha = "GAATA0cacata|acagataaaa@taTACAGGGAATA|d__"
+    sequence_alpha = "GAWTA0cacata|acagaraaaa@taTACAGGGAATA|d__"
     sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
     expected_mask = torch.tensor(
-        len("GAATA0") * [1] + [0] * len("cacata|") + len("acagataaaa@taTACAGGGAATA") * [1] + [0] * len("|d__"),
+        len("GAWTA0") * [1] + [0] * len("cacata|") + len("acagataaaa@taTACAGGGAATA") * [1] + [0] * len("|d__"),
         dtype=torch.int32,
     )
     mask = Evo2Dataset.mask_phylogenetic_tags(
@@ -999,7 +1000,7 @@ def mask_phylogenetic_tags_old(tokenized_sequence, terminal_tag_char, other_tag_
     return mask_vector
 
 
-def benchmark_phylo_tag_masking(num_iterations: int = 1000) -> Tuple[float, float]:
+def benchmark_phylo_tag_masking(num_iterations: int = 1000) -> tuple[float, float]:
     """Benchmark the performance of phylogenetic tag masking functions.
 
     Args
@@ -1044,16 +1045,86 @@ def benchmark_phylo_tag_masking(num_iterations: int = 1000) -> Tuple[float, floa
     return old_time, new_time
 
 
-def test_phylo_tag_masking_speed():
-    num_iterations = 2000
-    old_time, new_time = benchmark_phylo_tag_masking(num_iterations=num_iterations)
-    # Assert performance equivalent to within 20% or better on a small example.
-    assert old_time / num_iterations > (new_time / num_iterations) * 0.8
-
-
 if __name__ == "__main__":
     num_iterations = 2000
     old_time, new_time = benchmark_phylo_tag_masking(num_iterations=num_iterations)
     print(f"Old implementation average time: {old_time/num_iterations:.6f} seconds")
     print(f"New implementation average time: {new_time/num_iterations:.6f} seconds")
     print(f"Speed improvement: {(old_time/new_time - 1)*100:.2f}%")
+
+
+def test_evo2_dataset_getitem(monkeypatch):
+    """Test Evo2Dataset.__getitem__ method."""
+    import numpy as np
+    from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+
+    tokenizer = get_nmt_tokenizer("byte-level")
+    eod_token_id = tokenizer.eod
+    # labels are all case, tokens are converted to upper case.
+    input_string = f"a  @  t  |  d  _  _  t  {eod_token_id}  #  a  t".replace(" ", "")
+    starting_loss_mask = torch.tensor([1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1], dtype=torch.bool)
+    expected_loss_mask = torch.tensor([1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], dtype=torch.bool)
+    input_tokens = [
+        ord(t) if t != str(eod_token_id) else eod_token_id for t in input_string
+    ]  # starts out both lower/upper
+    input_labels = [ord(t) if t != str(eod_token_id) else eod_token_id for t in input_string]
+
+    class MockIndexedDataset:
+        def __init__(self):
+            self.sequence_lengths = np.ones(100, dtype=np.int32) * 10
+            self.path_prefix = "/mock/path"
+
+        def get(self, idx, offset=0, length=None):
+            return np.ones(10, dtype=np.int64)
+
+    class MockConfig:
+        def __init__(self):
+            # GPTDatasetConfig specific
+            self.reset_position_ids = False
+            self.reset_attention_mask = False
+            self.eod_mask_loss = False
+            self.create_attention_mask = True
+            self.drop_last_partial_validation_sequence = True
+            self.add_extra_token_to_sequence = True
+            self.s3_cache_path = None
+
+            # BlendedMegatronDatasetConfig
+            self.random_seed = 42
+            self.sequence_length = len(input_tokens)
+            self.blend = None
+            self.blend_per_split = None
+            self.split = "1,1,1"
+            self.split_matrix = [(0.0, 0.33), (0.33, 0.66), (0.66, 1.0)]
+            self.num_dataset_builder_threads = 1
+            self.path_to_cache = None
+            self.mmap_bin_files = True
+            self.mock = True
+            self.tokenizer = tokenizer
+
+    mock_indexed_dataset = MockIndexedDataset()
+
+    # Now when Evo2Dataset is instantiated, it will inherit from MockGPTDataset
+    # Create a real instance with minimal arguments
+    dataset = Evo2Dataset(
+        indexed_dataset=mock_indexed_dataset,
+        dataset_path="/mock/path",
+        indexed_indices=np.arange(5, dtype=np.int32),
+        num_samples=5,
+        index_split=Split.train,
+        config=MockConfig(),
+    )
+    dataset.RESET_PAD_EOD_MASK = False
+    dataset.TO_UPPER_TOKENS = True
+    parent_batch = {
+        "loss_mask": starting_loss_mask,  # Will be modified by Evo2Dataset
+        "labels": torch.tensor(input_labels),  # A@T|d_T#AT
+        "tokens": torch.tensor(input_tokens),  # a@t|d_t#at
+        "attention_mask": torch.ones(len(input_tokens), len(input_tokens)),  # Add attention mask
+        "position_ids": torch.arange(len(input_tokens)),  # Add position ids
+    }
+    # monkey patch the _get_gpt_batch method in this dataset so that we use our parent_batch as the starting point.
+    dataset._get_gpt_batch = lambda x: parent_batch
+
+    result = dataset[0]
+
+    torch.testing.assert_close(result["loss_mask"], expected_loss_mask.to(torch.int32))

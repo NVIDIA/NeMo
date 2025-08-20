@@ -27,7 +27,7 @@
 # limitations under the License.
 
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -35,6 +35,12 @@ import torch
 from tqdm import tqdm
 
 from nemo.collections.asr.modules import rnnt_abstract
+from nemo.collections.asr.parts.context_biasing import BoostingTreeModelConfig
+from nemo.collections.asr.parts.submodules.ngram_lm import DEFAULT_TOKEN_OFFSET, NGramGPULanguageModel
+from nemo.collections.asr.parts.submodules.rnnt_maes_batched_computer import ModifiedAESBatchedRNNTComputer
+from nemo.collections.asr.parts.submodules.rnnt_malsd_batched_computer import ModifiedALSDBatchedRNNTComputer
+from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
+from nemo.collections.asr.parts.utils.batched_beam_decoding_utils import BlankLMScoreMode, PruningMode
 from nemo.collections.asr.parts.utils.rnnt_utils import (
     HATJointOutput,
     Hypothesis,
@@ -42,6 +48,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import (
     is_prefix,
     select_k_expansions,
 )
+from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import AcousticEncodedRepresentation, HypothesisType, LengthsType, NeuralType
 from nemo.utils import logging
@@ -265,6 +272,10 @@ class BeamRNNTInfer(Typing):
         ngram_lm_alpha: float = 0.0,
         hat_subtract_ilm: bool = False,
         hat_ilm_weight: float = 0.0,
+        max_symbols_per_step: Optional[int] = None,
+        blank_lm_score_mode: Optional[str] = "no_score",
+        pruning_mode: Optional[str] = "early",
+        allow_cuda_graphs: bool = False,
     ):
         self.decoder = decoder_model
         self.joint = joint_model
@@ -299,6 +310,27 @@ class BeamRNNTInfer(Typing):
             raise NotImplementedError(
                 f"The search type ({search_type}) supplied is not supported!\n"
                 f"Please use one of : (default, tsd, alsd, nsc)"
+            )
+
+        if max_symbols_per_step is not None:
+            logging.warning(
+                f"Not supported parameter `max_symbols_per_step` for decoding strategy {self.search_algorithm }"
+            )
+
+        if allow_cuda_graphs:
+            logging.warning(
+                f"""Cuda Graphs are not supported for the decoding strategy {self.search_algorithm}.
+                                Decoding will proceed without Cuda Graphs."""
+            )
+
+        strategies = ["default", "tsd", "alsd", "maes", "nsc"]
+        strategies_batch = ["maes_batch", "malsd_batch"]
+        if (pruning_mode, blank_lm_score_mode) != ("early", "no_score"):
+            logging.warning(
+                f"""Decoding strategies {strategies} support early pruning and the 'no_score' blank scoring mode.
+                Please choose a strategy from {strategies_batch} for {pruning_mode} pruning 
+                and {blank_lm_score_mode} blank scoring mode." 
+                """
             )
 
         if tsd_max_sym_exp_per_step is None:
@@ -351,13 +383,8 @@ class BeamRNNTInfer(Typing):
         self.token_offset = 0
 
         if ngram_lm_model:
-            if KENLM_AVAILABLE:
-                self.ngram_lm = kenlm.Model(ngram_lm_model)
-                self.ngram_lm_alpha = ngram_lm_alpha
-            else:
-                raise ImportError(
-                    "KenLM package (https://github.com/kpu/kenlm) is not installed. " "Use ngram_lm_model=None."
-                )
+            self.ngram_lm = ngram_lm_model
+            self.ngram_lm_alpha = ngram_lm_alpha
         else:
             self.ngram_lm = None
 
@@ -1492,9 +1519,185 @@ class BeamRNNTInfer(Typing):
         """
         # TOKEN_OFFSET for BPE-based models
         if decoding_type == 'subword':
-            from nemo.collections.asr.parts.submodules.ctc_beam_decoding import DEFAULT_TOKEN_OFFSET
-
             self.token_offset = DEFAULT_TOKEN_OFFSET
+
+
+class BeamBatchedRNNTInfer(Typing, ConfidenceMethodMixin, WithOptionalCudaGraphs):
+    @property
+    def input_types(self):
+        """Returns definitions of module input ports."""
+        return {
+            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+            "partial_hypotheses": [NeuralType(elements_type=HypothesisType(), optional=True)],  # must always be last
+        }
+
+    def __init__(
+        self,
+        decoder_model: rnnt_abstract.AbstractRNNTDecoder,
+        joint_model: rnnt_abstract.AbstractRNNTJoint,
+        blank_index: int,
+        beam_size: int,
+        search_type: str = 'malsd_batch',
+        score_norm: bool = True,
+        maes_num_steps: Optional[int] = 2,
+        maes_expansion_gamma: Optional[float] = 2.3,
+        maes_expansion_beta: Optional[int] = 2,
+        max_symbols_per_step: Optional[int] = 10,
+        preserve_alignments: bool = False,
+        fusion_models: Optional[List[NGramGPULanguageModel]] = None,
+        fusion_models_alpha: Optional[List[float]] = None,
+        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.LM_WEIGHTED_FULL,
+        pruning_mode: Optional[str | PruningMode] = PruningMode.LATE,
+        allow_cuda_graphs: Optional[bool] = True,
+        return_best_hypothesis: Optional[str] = True,
+    ):
+        """
+        Init method.
+        Args:
+            decoder: Prediction network from RNN-T
+            joint: Joint module from RNN-T
+            blank_index: index of blank symbol
+            beam_size: beam size
+            search_type: strategy from [`maes_batch`. `malsd_batch`]. Defaults to `malsd_batch`
+            score_norm: whether to normalize scores before best hypothesis extraction
+            maes_num_steps:  Number of adaptive steps to take. From the paper, 2 steps is generally sufficient. int > 1.
+            maes_expansion_gamma: Float pruning threshold used in the prune-by-value step when computing the expansions.
+                The default (2.3) is selected from the paper. It performs a comparison
+                (max_log_prob - gamma <= log_prob[v]) where v is all vocabulary indices in the Vocab set and max_log_prob
+                is the "most" likely token to be predicted. Gamma therefore provides a margin of additional tokens which
+                can be potential candidates for expansion apart from the "most likely" candidate.
+                Lower values will reduce the number of expansions (by increasing pruning-by-value, thereby improving speed
+                but hurting accuracy). Higher values will increase the number of expansions (by reducing pruning-by-value,
+                thereby reducing speed but potentially improving accuracy). This is a hyper parameter to be experimentally
+                tuned on a validation set.
+            maes_expansion_beta: Maximum number of prefix expansions allowed, in addition to the beam size.
+                Effectively, the number of hypothesis = beam_size + maes_expansion_beta. Must be an int >= 0,
+                and affects the speed of inference since large values will perform large beam search in the next step.
+            max_symbols_per_step: max symbols to emit on each step (to avoid infinite looping)
+            preserve_alignments: if alignments are needed
+            fusion_models: list of fusion models to use for decoding
+            fusion_models_alpha: list of alpha values for fusion models
+            blank_lm_score_mode: mode for scoring blank symbol with LM
+            pruning_mode: mode for pruning hypotheses with LM
+            allow_cuda_graphs: whether to allow CUDA graphs
+            return_best_hypothesis: whether to return the best hypothesis or N-best hypotheses
+            tokenizer: tokenizer for the model
+        """
+
+        super().__init__()
+        self.decoder = decoder_model
+        self.joint = joint_model
+
+        self._blank_index = blank_index
+        self._SOS = blank_index  # Start of single index
+        self.beam_size = beam_size
+        self.score_norm = score_norm
+        self.return_best_hypothesis = return_best_hypothesis
+
+        if max_symbols_per_step is not None and max_symbols_per_step <= 0:
+            raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
+        self.max_symbols = max_symbols_per_step
+        self.preserve_alignments = preserve_alignments
+
+        if search_type == "malsd_batch":
+            # Depending on availability of `blank_as_pad` support
+            # switch between more efficient batch decoding technique
+            self._decoding_computer = ModifiedALSDBatchedRNNTComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                beam_size=self.beam_size,
+                blank_index=self._blank_index,
+                max_symbols_per_step=self.max_symbols,
+                preserve_alignments=preserve_alignments,
+                fusion_models=fusion_models,
+                fusion_models_alpha=fusion_models_alpha,
+                blank_lm_score_mode=blank_lm_score_mode,
+                pruning_mode=pruning_mode,
+                allow_cuda_graphs=allow_cuda_graphs,
+            )
+        elif search_type == "maes_batch":
+            self._decoding_computer = ModifiedAESBatchedRNNTComputer(
+                decoder=self.decoder,
+                joint=self.joint,
+                beam_size=self.beam_size,
+                blank_index=self._blank_index,
+                maes_num_steps=maes_num_steps,
+                maes_expansion_beta=maes_expansion_beta,
+                maes_expansion_gamma=maes_expansion_gamma,
+                preserve_alignments=preserve_alignments,
+                ngram_lm_model=fusion_models[0] if fusion_models is not None else None,
+                ngram_lm_alpha=fusion_models_alpha[0] if fusion_models_alpha is not None else 0.0,
+                blank_lm_score_mode=blank_lm_score_mode,
+                pruning_mode=pruning_mode,
+                allow_cuda_graphs=allow_cuda_graphs,
+            )
+
+    def disable_cuda_graphs(self) -> bool:
+        """Disable CUDA graphs (e.g., for decoding in training)"""
+        if isinstance(self._decoding_computer, WithOptionalCudaGraphs):
+            return self._decoding_computer.disable_cuda_graphs()
+        return False
+
+    def maybe_enable_cuda_graphs(self) -> bool:
+        """Enable CUDA graphs (if allowed)"""
+        if isinstance(self._decoding_computer, WithOptionalCudaGraphs):
+            return self._decoding_computer.maybe_enable_cuda_graphs()
+        return False
+
+    @property
+    def output_types(self):
+        """Returns definitions of module output ports."""
+        return {"predictions": [NeuralType(elements_type=HypothesisType())]}
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+    @typecheck()
+    def forward(
+        self,
+        encoder_output: torch.Tensor,
+        encoded_lengths: torch.Tensor,
+        partial_hypotheses: Optional[list[Hypothesis]] = None,
+    ) -> Tuple[list[Hypothesis] | List[NBestHypotheses]]:
+        """Returns a list of hypotheses given an input batch of the encoder hidden embedding.
+        Output token is generated auto-regressively.
+        Args:
+            encoder_output: A tensor of size (batch, features, timesteps).
+            encoded_lengths: list of int representing the length of each sequence
+                output sequence.
+        Returns:
+            Tuple[list[Hypothesis] | List[NBestHypotheses]]: Tuple of a list of hypotheses for each batch. Each hypothesis contains
+                the decoded sequence, timestamps and associated scores. The format of the returned hypotheses depends
+                on the `return_best_hypothesis` attribute:
+                    - If `return_best_hypothesis` is True, returns the best hypothesis for each batch.
+                    - Otherwise, returns the N-best hypotheses for each batch.
+        """
+        # Preserve decoder and joint training state
+        decoder_training_state = self.decoder.training
+        joint_training_state = self.joint.training
+
+        with torch.inference_mode():
+            # Apply optional preprocessing
+            encoder_output = encoder_output.transpose(1, 2)  # (B, T, D)
+            logitlen = encoded_lengths
+
+            self.decoder.eval()
+            self.joint.eval()
+
+            inseq = encoder_output  # [B, T, D]
+            batched_beam_hyps = self._decoding_computer(x=inseq, out_len=logitlen)
+
+            batch_size = encoder_output.shape[0]
+            if self.return_best_hypothesis:
+                hyps = batched_beam_hyps.to_hyps_list(score_norm=self.score_norm)[:batch_size]
+            else:
+                hyps = batched_beam_hyps.to_nbest_hyps_list(score_norm=self.score_norm)[:batch_size]
+
+        self.decoder.train(decoder_training_state)
+        self.joint.train(joint_training_state)
+
+        return (hyps,)
 
 
 @dataclass
@@ -1520,5 +1723,11 @@ class BeamRNNTInferConfig:
     preserve_alignments: bool = False
     ngram_lm_model: Optional[str] = None
     ngram_lm_alpha: Optional[float] = 0.0
+    boosting_tree: BoostingTreeModelConfig = field(default_factory=BoostingTreeModelConfig)
+    boosting_tree_alpha: Optional[float] = 0.0
     hat_subtract_ilm: bool = False
     hat_ilm_weight: float = 0.0
+    max_symbols_per_step: Optional[int] = 10
+    blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.LM_WEIGHTED_FULL
+    pruning_mode: Optional[str | PruningMode] = PruningMode.LATE
+    allow_cuda_graphs: Optional[bool] = True

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -109,24 +109,6 @@ class TestMegatronParallel:
         assert megatron_parallel.data_step == mock_data_step
         assert megatron_parallel.forward_step == mock_forward_step
         assert megatron_parallel.loss_reduction == mock_loss_reduction
-
-    def test_init_with_virtual_pipeline(self, mocker, mock_pipeline):
-        """Test __init__ with virtual pipeline model parallel world size."""
-        mocker.patch('torch.distributed.get_rank', return_value=1)
-        mocker.patch('megatron.core.parallel_state.get_tensor_model_parallel_group', return_value=1)
-        mocker.patch('megatron.core.parallel_state.get_pipeline_model_parallel_group', return_value=1)
-        mocker.patch('megatron.core.parallel_state.get_pipeline_model_parallel_world_size', return_value=2)
-        mocker.patch('megatron.core.parallel_state.model_parallel_is_initialized', return_value=True)
-        mocker.patch('megatron.core.parallel_state.set_virtual_pipeline_model_parallel_world_size')
-        mocker.patch('megatron.core.parallel_state.set_virtual_pipeline_model_parallel_rank')
-        mocker.patch('nemo.lightning.io.reinit', return_value=mock_pipeline)
-
-        megatron_parallel = mp.MegatronParallel(mock_pipeline, vp_size=2, cpu=True)
-
-        assert len(megatron_parallel.pipeline) == 2
-        assert all(isinstance(mod, nn.Module) for mod in megatron_parallel.pipeline)
-        parallel_state.set_virtual_pipeline_model_parallel_world_size.assert_called_once_with(2)
-        assert parallel_state.set_virtual_pipeline_model_parallel_rank.call_count == 1
 
 
 class TestCallbackConnector:

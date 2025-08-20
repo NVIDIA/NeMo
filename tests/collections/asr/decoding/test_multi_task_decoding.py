@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,10 +20,13 @@ import torch
 from nemo.collections.asr.modules.transformer.transformer import TransformerDecoderNM
 from nemo.collections.asr.modules.transformer.transformer_generators import (
     BeamSearchSequenceGenerator,
+    BeamSearchSequenceGeneratorWithFusionModels,
     GreedySequenceGenerator,
 )
+from nemo.collections.asr.parts.context_biasing import GPUBoostingTreeModel
 from nemo.collections.asr.parts.submodules.multitask_beam_decoding import TransformerAEDBeamInfer
 from nemo.collections.asr.parts.submodules.multitask_greedy_decoding import TransformerAEDGreedyInfer
+from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.token_classifier import TokenClassifier
 
 
@@ -131,6 +134,44 @@ def test_beam_decoding_beam_scores_false(inputs, nnet):
 
 def test_beam_decoding_beam_scores_true(inputs, nnet):
     gen = BeamSearchSequenceGenerator(*nnet, beam_size=2)
+    output = gen(*inputs, return_beam_scores=True)
+
+    assert len(output) == 3
+    beam_paths, scores, best_path = output
+
+    assert beam_paths is not None
+    assert isinstance(beam_paths, list)
+    assert len(beam_paths) == 1
+    (beam_paths_seq0,) = beam_paths
+    assert torch.is_tensor(beam_paths_seq0)
+    assert beam_paths_seq0.shape == (2, 26)
+
+    assert scores is not None
+    assert isinstance(scores, list)
+    assert len(scores) == 1
+    (scores_seq0,) = scores
+    assert torch.is_tensor(scores_seq0)
+    assert scores_seq0.shape == (2,)
+
+    assert best_path is not None
+    assert torch.is_tensor(best_path)
+    assert best_path.shape == (1, 26)
+
+
+def test_beam_decoding_beam_scores_true_with_fusion_models(inputs, nnet):
+    """Test decoding with dummy unigram LM and boosting tree"""
+    # load dummy ngpu-lm
+    lm = NGramGPULanguageModel.dummy_unigram_lm(vocab_size=8)
+
+    # load dummy boosting tree
+    boosting_tree = GPUBoostingTreeModel.dummy_boosting_tree(vocab_size=8)
+
+    fusion_models = [lm, boosting_tree]
+    fusion_models_alpha = [0.2, 0.2]
+
+    gen = BeamSearchSequenceGeneratorWithFusionModels(
+        *nnet, fusion_models=fusion_models, fusion_models_alpha=fusion_models_alpha, beam_size=2
+    )
     output = gen(*inputs, return_beam_scores=True)
 
     assert len(output) == 3

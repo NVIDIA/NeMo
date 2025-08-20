@@ -90,7 +90,7 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         self.delete_raw = delete_raw
 
         assert packed_sequence_specs is None, "RetrievalDataModule does not support packed sequences."
-        if isinstance(data_root, str):
+        if not isinstance(data_root, list):
             data_root = [data_root]
         for directory in data_root:
             assert os.path.exists(directory), f"Data root {directory} does not exist."
@@ -184,6 +184,10 @@ class CustomRetrievalDataModule(FineTuningDataModule):
             save_splits['test'] = Dataset.from_list(json.load(open(self.test_root, 'r')))
         else:
             save_splits['test'] = split_dataset2['test']
+
+        logging.info(f"training samples: {len(save_splits['training'])}")
+        logging.info(f"validation samples: {len(save_splits['validation'])}")
+        logging.info(f"test samples: {len(save_splits['test'])}")
 
         for split_name, dataset in save_splits.items():
             output_file = self.dataset_root / f"{split_name}.jsonl"

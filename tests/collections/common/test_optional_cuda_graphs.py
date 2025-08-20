@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,11 +23,15 @@ class MockClassWithCudaGraphs(WithOptionalCudaGraphs):
         super().__init__()
         self.cuda_graphs_used = True
 
-    def disable_cuda_graphs(self):
+    def disable_cuda_graphs(self) -> bool:
+        cuda_graphs_were_used = self.cuda_graphs_used
         self.cuda_graphs_used = False
+        return cuda_graphs_were_used != self.cuda_graphs_used
 
-    def maybe_enable_cuda_graphs(self):
+    def maybe_enable_cuda_graphs(self) -> bool:
+        cuda_graphs_were_used = self.cuda_graphs_used
         self.cuda_graphs_used = True
+        return cuda_graphs_were_used != self.cuda_graphs_used
 
 
 class MockModuleWithCudaGraphs(MockClassWithCudaGraphs, nn.Module):

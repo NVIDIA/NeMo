@@ -242,8 +242,6 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
         stft_exact_pad=False,  # Deprecated arguments; kept for config compatibility
         stft_conv=False,  # Deprecated arguments; kept for config compatibility
     ):
-        super().__init__(n_window_size, n_window_stride)
-
         self._sample_rate = sample_rate
         if window_size and n_window_size:
             raise ValueError(f"{self} received both window_size and " f"n_window_size. Only one should be specified.")
@@ -255,6 +253,7 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
             n_window_size = int(window_size * self._sample_rate)
         if window_stride:
             n_window_stride = int(window_stride * self._sample_rate)
+        super().__init__(n_window_size, n_window_stride)
 
         # Given the long and similar argument list, point to the class and instantiate it by reference
         if not use_torchaudio:
@@ -290,11 +289,11 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
         )
 
     def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
-        batch_size = torch.randint(low=1, high=max_batch, size=[1]).item()
-        max_length = torch.randint(low=min_length, high=max_dim, size=[1]).item()
-        signals = torch.rand(size=[batch_size, max_length]) * 2 - 1
-        lengths = torch.randint(low=min_length, high=max_dim, size=[batch_size])
-        lengths[0] = max_length
+        dev = self.filter_banks.device
+
+        signals = torch.randn(size=[max_batch, max_dim], device=dev)
+        lengths = torch.randint(low=min_length, high=max_dim, size=[max_batch], device=dev)
+        lengths[0] = max_dim
         return signals, lengths
 
     def get_features(self, input_signal, length):
