@@ -1089,7 +1089,7 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
 # TODO @xueyang: subclassing from `nemo/collections/common/tokenizers/tokenizer_spec.py::TokenizerSpec`, and/or
 #  adjust to reuse `nemo/collections/common/tokenizers/aggregate_tokenizer.py::AggregateTokenizer`
 class AggregatedTTSTokenizer:
-    def __init__(self, tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]], tokenizer_names: List[str], limit_to_vocab_size: bool = False):
+    def __init__(self, tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]], tokenizer_names: List[str]):
         """A simple aggregated tokenizer. Aggregates multiple tokenizers into one by combining (simply concatenating)
         their tokens into one vocabulary.
         Args:
@@ -1102,27 +1102,36 @@ class AggregatedTTSTokenizer:
         toknizer_offsets = {}
         tokenizer_offset = 0
         self.tokenizers = {}
+        num_tokens_per_tokenizer = {}
+        tokenizer_pad_ids = {}
         for idx, tokenizer in enumerate(tokenizers):
-            self.tokenizers[tokenizer_names[idx]] = tokenizer
-            toknizer_offsets[tokenizer_names[idx]] = tokenizer_offset
+            tokenizer_name = tokenizer_names[idx]
+            self.tokenizers[tokenizer_name] = tokenizer
+            toknizer_offsets[tokenizer_name] = tokenizer_offset
             if isinstance(tokenizer, BaseTokenizer):
                 tokens.extend(tokenizer.tokens)
                 num_tokens = len(tokenizer.tokens)
+                tokenizer_pad_ids[tokenizer_name] = tokenizer.pad
             elif isinstance(tokenizer, PreTrainedTokenizerBase):
                 _tokens = list(tokenizer.get_vocab().keys())
-                if limit_to_vocab_size:
-                    _tokens = _tokens[:tokenizer.vocab_size]
+                # if tokenizer_name.endswith("_limit_vocab_size"):
+                #     # @pneekhara: For legacy reasons, older models had vocab size limited.
+                #     _tokens = _tokens[:tokenizer.vocab_size]
 
                 tokens.extend(_tokens)
                 num_tokens = len(_tokens)
+                tokenizer_pad_ids[tokenizer_name] = tokenizer.pad_token_id + tokenizer_offset
             else:
                 raise ValueError("Tokenizers must be either BaseTokenizer or HuggingFace PreTrainedTokenizerBase.")
             tokenizer_offset += num_tokens
+            num_tokens_per_tokenizer[tokenizer_names[idx]] = num_tokens
 
         self.tokens = tokens
         self.tokenizer_names = tokenizer_names
         self.toknizer_offsets = toknizer_offsets
         self.vocab_size = len(tokens)
+        self.num_tokens_per_tokenizer = num_tokens_per_tokenizer
+        self.tokenizer_pad_ids = tokenizer_pad_ids
         # Define aggregated token's pad value from the first tokenizer's pad value
         first_tokenizer = self.tokenizers[tokenizer_names[0]]
         if hasattr(first_tokenizer, "pad_token_id"):  # Defined in PreTrainedTokenizerBase subclasses

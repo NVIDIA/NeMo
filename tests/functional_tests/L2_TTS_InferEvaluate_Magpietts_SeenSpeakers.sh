@@ -23,6 +23,7 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     --hparams_files /home/TestData/tts/2506_SeenSpeaker/hparams.yaml \
     --checkpoint_files /home/TestData/tts/2506_SeenSpeaker/T5TTS--val_loss=0.3125-epoch=8.ckpt \
     --legacy_codebooks \
+    --legacy_text_conditioning \
     --apply_attention_prior \
     --clean_up_disk \
     --cer_target 0.3 \

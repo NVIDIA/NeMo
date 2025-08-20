@@ -50,7 +50,7 @@ def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0
         metrics[key] = "{:.4f} +/- {:.4f}".format(mean, confidence_interval)
     return metrics
 
-def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
+def update_config(model_cfg, codecmodel_path, legacy_codebooks=False, legacy_text_conditioning=False):
     ''' helper function to rename older yamls from t5 to magpie '''
     model_cfg.codecmodel_path = codecmodel_path
     if hasattr(model_cfg, 'text_tokenizer'):
@@ -60,6 +60,7 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
         model_cfg.text_tokenizer.g2p.phoneme_probability = 1.0
     model_cfg.train_ds = None
     model_cfg.validation_ds = None
+    model_cfg.legacy_text_conditioning = legacy_text_conditioning
     if "t5_encoder" in model_cfg:
         model_cfg.encoder = model_cfg.t5_encoder
         del model_cfg.t5_encoder
@@ -511,6 +512,7 @@ def main():
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
+    parser.add_argument('--legacy_text_conditioning', action='store_true')
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=None)
     parser.add_argument('--ssim_target', type=float, default=None)
@@ -552,6 +554,7 @@ def main():
         use_local_transformer=args.use_local_transformer,
         maskgit_n_steps=args.maskgit_n_steps,
         legacy_codebooks=args.legacy_codebooks,
+        legacy_conditioning=args.legacy_conditioning,
         clean_up_disk=args.clean_up_disk,
         hparams_file_from_wandb=args.hparams_file_from_wandb,
         log_exp_name=args.log_exp_name,

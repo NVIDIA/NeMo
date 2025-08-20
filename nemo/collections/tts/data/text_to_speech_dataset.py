@@ -414,9 +414,6 @@ class MagpieTTSDataset(TextToSpeechDataset):
         self.load_16khz_audio = load_16khz_audio
         self.use_text_conditioning_tokenizer = use_text_conditioning_tokenizer
         self.text_conditioning_tokenizer_name = text_conditioning_tokenizer_name
-        self.text_conditioning_tokenizer = (
-            None  # Assigned in worker_init_fn in model file if use_text_conditioning_tokenizer is True
-        )
         self.pad_context_text_to_max_duration = pad_context_text_to_max_duration
         self.context_duration_min = context_duration_min
         self.context_duration_max = context_duration_max
@@ -581,17 +578,17 @@ class MagpieTTSDataset(TextToSpeechDataset):
 
         if self.use_text_conditioning_tokenizer:
             if 'context_text' in data.manifest_entry:
-                context_tokens = self.text_conditioning_tokenizer.encode(data.manifest_entry['context_text'])
+                context_tokens = self.text_tokenizer.encode(data.manifest_entry['context_text'], self.text_conditioning_tokenizer_name)
                 example['has_text_context'] = True
             else:
-                context_tokens = self.text_conditioning_tokenizer.encode("[NO TEXT CONTEXT]")
+                context_tokens = self.text_tokenizer.encode("[NO TEXT CONTEXT]",  self.text_conditioning_tokenizer_name)
                 example['has_text_context'] = False
             if self.pad_context_text_to_max_duration:
                 _required_len = (
                     int(self.context_duration_max * self.sample_rate / self.codec_model_samples_per_frame) + 2
                 )  # +2 for BOS and EOS
                 if len(context_tokens) < _required_len:
-                    _pad_id = self.text_conditioning_tokenizer.pad
+                    _pad_id = self.text_tokenizer.tokenizer_pad_ids[self.text_conditioning_tokenizer_name]
                     context_tokens += [_pad_id] * (_required_len - len(context_tokens))
                 else:
                     context_tokens = context_tokens[:_required_len]
