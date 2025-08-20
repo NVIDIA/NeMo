@@ -19,6 +19,8 @@ import string
 import logging
 from contextlib import contextmanager
 from functools import partial
+import soundfile as sf
+import tempfile
 
 import numpy as np
 import torch
@@ -132,8 +134,11 @@ def extract_embedding(model, extractor, audio_path, device, sv_model_type):
         with torch.no_grad():
             embeddings = model(inputs).embeddings
     else:  # Titanet
-        with torch.no_grad():
-            embeddings = model.get_embedding(audio_path).squeeze()
+        with tempfile.NamedTemporaryFile(suffix=".wav") as temp_file:  
+            # the embedding model doesn't accept NumPy arrays, so we write to a temporary file
+            sf.write(temp_file.name, speech_array, samplerate=16000)
+            with torch.no_grad():
+                embeddings = model.get_embedding(temp_file.name).squeeze()
 
     return embeddings.squeeze()
 
