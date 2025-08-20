@@ -261,16 +261,6 @@ def set_primary_perf_configs(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
 
-    # Check if MockDataModule is available before using it
-    try:
-        from nemo.collections.llm.gpt.data.mock import MockDataModule
-
-        if recipe.data.__fn_or_cls__ == MockDataModule:
-            recipe.data.num_train_samples = max_steps * gbs  # ensure only 1 epoch for whole run
-    except ImportError:
-        # MockDataModule not available, skip this configuration
-        pass
-
     # parallelism configs
     recipe.trainer.strategy.tensor_model_parallel_size = tp_size
     recipe.trainer.strategy.pipeline_model_parallel_size = pp_size

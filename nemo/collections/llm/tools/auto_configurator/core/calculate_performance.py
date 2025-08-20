@@ -14,10 +14,15 @@
 
 import os
 import re
-from typing import Optional
+import logging
+from typing import Optional, List
+from dataclasses import dataclass
 
 import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 GPT_BASED_MODELS = [
     "gpt3",
@@ -30,6 +35,97 @@ GPT_BASED_MODELS = [
     "starcoder",
 ]
 
+
+@dataclass
+class PerformanceResult:
+    """Structured class for performance results to replace confusing list indices."""
+    model_name: str
+    model_size: int
+    seq_length: int
+    tp: int
+    pp: int
+    cp: int
+    ep: int
+    mbs: int
+    vp: Optional[int]
+    layers: int
+    hidden_size: int
+    ffn_hidden_size: int
+    gbs: int
+    num_nodes: int
+    gpus_per_node: int
+    time_per_step: float
+    samples_per_second: float
+    tflops_per_gpu: float
+    tflops_total: float
+    descriptive_name: str
+
+    def to_list(self) -> List:
+        """Convert to list format for backward compatibility with CSV export."""
+        return [
+            self.model_name,
+            self.model_size,
+            self.seq_length,
+            self.tp,
+            self.pp,
+            self.cp,
+            self.ep,
+            self.mbs,
+            self.vp,
+            self.layers,
+            self.hidden_size,
+            self.ffn_hidden_size,
+            self.gbs,
+            self.num_nodes,
+            self.gpus_per_node,
+            self.time_per_step,
+            self.samples_per_second,
+            self.tflops_per_gpu,
+            self.tflops_total,
+            self.descriptive_name,
+        ]
+
+
+@dataclass
+class ErrorResult:
+    """Structured class for error results."""
+    model_name: str
+    model_size: int
+    seq_length: int
+    tp: int
+    pp: int
+    cp: int
+    ep: int
+    mbs: int
+    vp: Optional[int]
+    layers: int
+    hidden_size: int
+    ffn_hidden_size: int
+    gbs: int
+    num_nodes: int
+    gpus_per_node: int
+    error_message: str
+
+    def to_list(self) -> List:
+        """Convert to list format for backward compatibility with CSV export."""
+        return [
+            self.model_name,
+            self.model_size,
+            self.seq_length,
+            self.tp,
+            self.pp,
+            self.cp,
+            self.ep,
+            self.mbs,
+            self.vp,
+            self.layers,
+            self.hidden_size,
+            self.ffn_hidden_size,
+            self.gbs,
+            self.num_nodes,
+            self.gpus_per_node,
+            self.error_message,
+        ]
 
 def get_results(
     base_config=None,
@@ -47,6 +143,10 @@ def get_results(
         output_top_n (Optional[int]): Number of configs to be printed out as best configs.
         log_file_prefix: (Optional[str]): prefix of log files.
     """
+
+    logger.info(f"Starting performance analysis for model: {train_config.model_type}")
+    logger.info(f"Logs directory: {path_to_save}")
+    logger.info(f"Log file prefix: {log_file_prefix}")
 
     # Define needed variables
     model_name = train_config.model_type
@@ -113,35 +213,37 @@ def get_results(
     error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
+    
+    logger.info(f"Found {len(dirs)} directories, {len(error_files)} error files, {len(tb_files)} tensorboard files")
 
     for error_file, tb_file, candidate_dir in zip(error_files, tb_files, dirs):
         try:
             tp, pp, cp, ep, mbs, vp, gbs = get_config(candidate_dir)
         except Exception as e:
-            print(f"Skipping {candidate_dir}: {e}")
+            logger.warning(f"Skipping {candidate_dir}: {e}")
             continue
 
         error = find_error(error_file) if error_file else None
         if error:
             errors.append(
-                [
-                    model_name,
-                    model_size,
-                    seq_length,
-                    tp,
-                    pp,
-                    cp,
-                    ep,
-                    mbs,
-                    vp,
-                    layers,
-                    hs,
-                    ffn_hs,
-                    gbs,
-                    num_nodes,
-                    gpus_per_node,
-                    error,
-                ]
+                ErrorResult(
+                    model_name=model_name,
+                    model_size=model_size,
+                    seq_length=seq_length,
+                    tp=tp,
+                    pp=pp,
+                    cp=cp,
+                    ep=ep,
+                    mbs=mbs,
+                    vp=vp,
+                    layers=layers,
+                    hidden_size=hs,
+                    ffn_hidden_size=ffn_hs,
+                    gbs=gbs,
+                    num_nodes=num_nodes,
+                    gpus_per_node=gpus_per_node,
+                    error_message=error,
+                )
             )
 
         if not tb_file:
@@ -149,13 +251,13 @@ def get_results(
             
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
-
+ 
         try:
             timing_list = ea.Scalars("train_step_timing in s")
             
             if len(timing_list) < 10:
                 continue
-
+ 
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
             samples_per_s = round(gbs / avg_global_step_time, 2)
@@ -187,28 +289,28 @@ def get_results(
             )
 
             result.append(
-                [
-                    model_name,
-                    model_size,
-                    seq_length,
-                    tp,
-                    pp,
-                    cp,
-                    ep,
-                    mbs,
-                    vp,
-                    layers,
-                    hs,
-                    ffn_hs,
-                    gbs,  # Use extracted GBS
-                    num_nodes,
-                    gpus_per_node,
-                    avg_global_step_time,
-                    samples_per_s,
-                    m_tflops_gpu,
-                    m_tflops,
-                    descriptive_name,
-                ]
+                PerformanceResult(
+                    model_name=model_name,
+                    model_size=model_size,
+                    seq_length=seq_length,
+                    tp=tp,
+                    pp=pp,
+                    cp=cp,
+                    ep=ep,
+                    mbs=mbs,
+                    vp=vp,
+                    layers=layers,
+                    hidden_size=hs,
+                    ffn_hidden_size=ffn_hs,
+                    gbs=gbs,  # Use extracted GBS
+                    num_nodes=num_nodes,
+                    gpus_per_node=gpus_per_node,
+                    time_per_step=avg_global_step_time,
+                    samples_per_second=samples_per_s,
+                    tflops_per_gpu=m_tflops_gpu,
+                    tflops_total=m_tflops,
+                    descriptive_name=descriptive_name,
+                )
             )
 
             performance_dict[descriptive_name] = {
@@ -219,31 +321,33 @@ def get_results(
             }
 
         except Exception as e:
-            print(f"Error processing tensorboard file: {e}")
+            logger.error(f"Error processing tensorboard file: {e}")
         finally:
             continue
 
+    logger.info(f"Processing complete. Found {len(result)} successful results and {len(errors)} errors")
+    
     if result:
-        result.sort(key=lambda x: x[15])
-        print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
+        result.sort(key=lambda x: x.time_per_step)
+        logger.info(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
         for i, res in enumerate(result):
-            print(f"Config #{i+1} - {res[-1]}: {res[-3]} TFLOPS per GPU with {res[15]:.4f}s per global step.")
+            logger.info(f"Config #{i+1} - {res[-1]}: {res[-3]} TFLOPS per GPU with {res[15]:.4f}s per global step.")
             if i + 1 == output_top_n:
                 break
 
-        print("\n==================================================")
-        print(f"Optimal config: {result[0][-1]} with {result[0][15]:.4f}s per global step.")
-        print("==================================================\n")
+        logger.info("\n==================================================")
+        logger.info(f"Optimal config: {result[0][-1]} with {result[0].time_per_global_step:.4f}s per global step.")
+        logger.info("==================================================\n")
 
         # Save results as a CSV file.
         os.makedirs(final_result_logs, exist_ok=True)
-        result_df = pd.DataFrame(result, columns=result_columns)
+        result_df = pd.DataFrame([r.to_list() for r in result], columns=result_columns)
         result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
 
-        error_df = pd.DataFrame(errors, columns=error_columns)
+        error_df = pd.DataFrame([e.to_list() for e in errors], columns=error_columns)
         error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
     else:
-        print("No valid results found to process.")
+        logger.warning("No valid results found to process.")
 
     return performance_dict
 
