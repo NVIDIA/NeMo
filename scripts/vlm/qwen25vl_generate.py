@@ -19,11 +19,14 @@ python qwen25vl_generate.py --load_from_hf --osl 50
 import argparse
 
 import torch
+from megatron.core.inference.common_inference_params import CommonInferenceParams
 from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor
 
 import nemo.lightning as nl
 from nemo.collections.vlm import Qwen2VLModel, Qwen25VLConfig3B, Qwen25VLConfig7B, Qwen25VLConfig32B, Qwen25VLConfig72B
+from nemo.collections.vlm.inference import generate as vlm_generate
+from nemo.collections.vlm.inference import setup_inference_wrapper
 from nemo.utils import logging
 
 
@@ -59,16 +62,24 @@ def main(args) -> None:
     if args.load_from_hf:
         model = fabric.import_model(f"hf://Qwen/Qwen2.5-VL-{args.model_size}-Instruct", Qwen2VLModel)
     else:
-        model_config = {
-            "3B": Qwen25VLConfig3B,
-            "7B": Qwen25VLConfig7B,
-            "32B": Qwen25VLConfig32B,
-            "72B": Qwen25VLConfig72B,
-        }[args.model_size]()
-        model = Qwen2VLModel(model_config, model_version="qwen25-vl", tokenizer=hf_tokenizer)
-        model = fabric.load_model(args.local_model_path, model)
-    model = model.module.cuda()
-    model.eval()
+        # model_config = {
+        #     "3B": Qwen25VLConfig3B,
+        #     "7B": Qwen25VLConfig7B,
+        #     "32B": Qwen25VLConfig32B,
+        #     "72B": Qwen25VLConfig72B,
+        # }[args.model_size]()
+        # model = Qwen2VLModel(model_config, model_version="qwen25-vl", tokenizer=hf_tokenizer)
+        # model = fabric.load_model(args.local_model_path, model)
+        from nemo.collections.vlm.inference import setup_model_and_tokenizer
+        inference_wrapped_model, _ = setup_model_and_tokenizer(
+            path=args.local_model_path,
+            tp_size=args.tp_size,
+            pp_size=args.pp_size,
+        )
+    # model = model.module.cuda()
+    # model.eval()
+
+    # inference_wrapped_model = setup_inference_wrapper(model, hf_tokenizer)
 
     messages = [
         {
@@ -87,54 +98,29 @@ def main(args) -> None:
     text = processor.apply_chat_template(messages, tokenizer=False, add_generation_prompt=True)
     image_inputs, video_inputs = process_vision_info(messages)
 
-    inputs = processor(
-        text=[text],
-        images=image_inputs,
-        videos=video_inputs,
-        padding=True,
-        return_tensors="pt",
+    inference_params = CommonInferenceParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        top_k=args.top_k,
+        num_tokens_to_generate=args.osl,
     )
 
-    with torch.no_grad():
-        input_ids = inputs['input_ids'].clone().to("cuda")
-        # convert special tokens to nemo image ID
-        input_ids[input_ids == 151655] = -200
-        image_grid_thw = inputs['image_grid_thw'].clone().to("cuda")
-        pixel_values = inputs['pixel_values'].clone().to("cuda")
+    prompts = [text]
+    images = [image_inputs]
+    result = vlm_generate(
+        inference_wrapped_model,
+        hf_tokenizer,
+        processor.image_processor,
+        prompts,
+        images,
+        processor=processor,
+        inference_params=inference_params,
+    )
 
-        # Greedy generation loop
-        generated_ids = input_ids
 
-        for _ in range(args.osl):
-            output = model(
-                pixel_values=pixel_values,
-                input_ids=input_ids,
-                position_ids=None,
-                attention_mask=None,
-                image_grid_thw=image_grid_thw,
-            )
-
-            next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
-
-            generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
-
-            input_ids = generated_ids
-            # If the generated token is the end of sequence token, stop generating
-            if next_token_ids.item() == hf_tokenizer.eos_token_id:
-                break
-
-        generated_ids[generated_ids < 0] = 0
-        generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
-
-        generated_texts = processor.batch_decode(
-            generated_ids_trimmed,
-            skip_special_tokens=True,
-            clean_up_tokenization_spaces=False,
-        )
-
-        logging.info("======== GENERATED TEXT OUTPUT ========")
-        logging.info(f"{args.image_url}, \t\t{generated_texts}")
-        logging.info("=======================================")
+    logging.info("======== GENERATED TEXT OUTPUT ========")
+    logging.info(f"{args.image_url}, \t\t{result[0].generated_text}")
+    logging.info("=======================================")
 
 
 if __name__ == "__main__":
@@ -158,6 +144,24 @@ if __name__ == "__main__":
     parser.add_argument('--osl', type=int, default=30, help='output seq length')
     parser.add_argument('--tp_size', type=int, default=1, help='tensor parallel size')
     parser.add_argument('--pp_size', type=int, default=1, help='pipeline parallel size')
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="""Temperature to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        default=0.0,
+        help="""top_p to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
+    parser.add_argument(
+        "--top_k",
+        type=int,
+        default=1,
+        help="""top_k to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
     args = parser.parse_args()
 
     main(args)
