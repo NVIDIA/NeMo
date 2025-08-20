@@ -41,7 +41,6 @@ from omegaconf import DictConfig, OmegaConf
 
 import nemo
 from nemo.core.classes.mixins.hf_io_mixin import HuggingFaceFileIO
-from nemo.core.classes.modelPT import ModelPT
 from nemo.core.config.templates.model_card import NEMO_DEFAULT_MODEL_CARD_TEMPLATE
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
@@ -76,10 +75,6 @@ ALLOWED_TARGET_PREFIXES = [
     "megatron.",
 ]
 
-
-SAFE_BASES = (torch.nn.Module, ModelPT)
-
-
 def _is_target_allowed(target: str) -> bool:
     # Ensure the target is under an allowed prefix
     if not any(target.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES):
@@ -95,6 +90,10 @@ def _is_target_allowed(target: str) -> bool:
     if not isinstance(obj, type):
         return False
 
+    # Import ModelPT lazily to avoid circular import issues
+    from nemo.core.classes.modelPT import ModelPT
+    SAFE_BASES = (torch.nn.Module, ModelPT)
+    
     # Must inherit from a known safe base!
     if not issubclass(obj, SAFE_BASES):
         return False
