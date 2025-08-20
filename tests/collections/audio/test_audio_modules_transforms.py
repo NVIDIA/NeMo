@@ -340,8 +340,9 @@ class TestAudioSpectrogram:
     @pytest.mark.parametrize('num_channels', [1, 2])
     @pytest.mark.parametrize('magnitude_power', [0.5, 1, 2])
     @pytest.mark.parametrize('scale', [0.1, 1.0])
+    @pytest.mark.parametrize('chunk_size', [1, 2, 5])
     def test_streaming_istft_matches_offline_rectangular_center_false(
-        self, fft_length: int, hop_div: int, batch_size: int, num_channels: int, magnitude_power: float, scale: float
+        self, fft_length: int, hop_div: int, batch_size: int, num_channels: int, magnitude_power: float, scale: float, chunk_size: int
     ):
         """Streaming iSTFT (frame-by-frame) matches offline torch.istft when
         using rectangular window and center=False.
@@ -374,7 +375,7 @@ class TestAudioSpectrogram:
         spec2audio_offline.window = window
         x_offline, _ = spec2audio_offline(input=spec)
 
-        # Streaming iSTFT via SpectrogramToAudio
+        # Streaming iSTFT via SpectrogramToAudio with parametrized chunk size
         spec2audio = SpectrogramToAudio(fft_length=fft_length, hop_length=hop_length, magnitude_power=magnitude_power, scale=scale, center=False)
         # Switch window
         spec2audio.use_streaming = True
@@ -382,10 +383,10 @@ class TestAudioSpectrogram:
         spec2audio.reset_streaming()
 
         parts = []
-        for t in range(N):
-            # Feed one frame at a time: shape (B, C, F, 1)
-            frame = spec[..., t : t + 1]
-            out, _ = spec2audio(input=frame)
+        for t in range(0, N, chunk_size):
+            # Feed chunk_size frames at a time: shape (B, C, F, K)
+            frames = spec[..., t : min(t + chunk_size, N)]
+            out, _ = spec2audio(input=frames)
             parts.append(out)
         tail = spec2audio.stream_finalize()
         x_stream = torch.cat(parts + [tail], dim=-1)
@@ -393,5 +394,5 @@ class TestAudioSpectrogram:
         # Compare offline vs streaming
         assert x_stream.shape == x_offline.shape
         assert torch.allclose(x_stream, x_offline, atol=1e-5), (
-            f"Streaming iSTFT mismatch: max abs diff {torch.max(torch.abs(x_stream - x_offline))}"
+            f"Streaming iSTFT mismatch (chunk_size={chunk_size}): max abs diff {torch.max(torch.abs(x_stream - x_offline))}"
         )

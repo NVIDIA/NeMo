@@ -282,7 +282,7 @@ class SpectrogramToAudio(NeuralModule):
         signal. Multi-channel IO is supported.
 
         Offline mode (default): processes the entire input spectrogram at once.
-        Streaming mode: expects a single frame (N=1) and returns hop-length samples per call.
+        Streaming mode: expects one or more frames (N>=1) and returns hop_length * N samples per call.
 
         Args:
             input: Input spectrogram for C channels, shape (B, C, F, N)
@@ -383,7 +383,7 @@ class SpectrogramToAudio(NeuralModule):
 
     @torch.no_grad()
     def stream_update(self, input: torch.Tensor) -> torch.Tensor:
-        """Consume exactly one spectrogram frame (N=1) and return hop_length samples via OLA.
+        """Consume one or more spectrogram frames (N>=1) and return hop_length * N samples via OLA.
 
         Steps per frame:
         - inverse FFT
@@ -403,35 +403,41 @@ class SpectrogramToAudio(NeuralModule):
 
         B, C, F, num_frames = input.size()
         assert F == self.num_subbands, f"Number of subbands F={F} not matching self.num_subbands={self.num_subbands}"
-        if num_frames != 1:
-            raise ValueError(f"stream_update expects exactly one frame (N=1), got {num_frames}")
 
-        # Compute inverse FFT for the single frame
-        frame_spec = input[..., 0]  # (B, C, F)
-        # irfft along the last dimension (frequency bins)
-        frame_time = torch.fft.irfft(frame_spec, n=self.fft_length, dim=-1)  # (B, C, T)
+        # Vectorized inverse FFT over frequency bins (dim=-2), yields (B, C, T, N)
+        frames_time = torch.fft.irfft(input, n=self.fft_length, dim=-2)
 
-        # Apply synthesis window
-        win = self.window.to(frame_time.device, dtype=frame_time.dtype)
-        frame_time_windowed = frame_time * win
-        
-        # Overlap-add accumulation and window-sum-square weights
-        self._ola_accum = self._ola_accum.to(frame_time_windowed.device, dtype=frame_time_windowed.dtype)
-        self._ola_weight = self._ola_weight.to(frame_time_windowed.device, dtype=frame_time_windowed.dtype)
-        self._ola_accum.add_(frame_time_windowed)
-        self._ola_weight.add_(win.pow(2))
-
-        # Emit first hop_length samples with normalization
+        # Prepare window and ensure buffers are on correct device/dtype
         hop = self.hop_length
+        emitted_parts = []
+        # Window shaped for broadcasting over frames
+        win = self.window.to(frames_time.device, dtype=frames_time.dtype).view(1, 1, self.win_length, 1)
+        win_sq = win[..., 0].squeeze(-1).pow(2)  # (1, 1, T)
+        frames_time_windowed = frames_time * win  # (B, C, T, N)
+
+        # Ensure buffers on correct device/dtype
+        self._ola_accum = self._ola_accum.to(frames_time_windowed.device, dtype=frames_time_windowed.dtype)
+        self._ola_weight = self._ola_weight.to(frames_time_windowed.device, dtype=frames_time_windowed.dtype)
         eps = torch.finfo(self._ola_weight.dtype).eps
-        denom = torch.clamp(self._ola_weight[..., :hop], min=eps)
-        emitted = self._ola_accum[..., :hop] / denom
 
-        # Shift buffers left by hop_length
-        self._shift_left_inplace(self._ola_accum)
-        self._shift_left_inplace(self._ola_weight)
+        # Iterate over frames for OLA
+        for t in range(num_frames):
+            frame_t = frames_time_windowed[..., t]  # (B, C, T)
 
-        return emitted
+            # Overlap-add accumulation and window-sum-square weights
+            self._ola_accum.add_(frame_t)
+            self._ola_weight.add_(win_sq)
+
+            # Emit first hop_length samples with normalization
+            denom = torch.clamp(self._ola_weight[..., :hop], min=eps)
+            emitted = self._ola_accum[..., :hop] / denom
+            emitted_parts.append(emitted)
+
+            # Shift buffers left by hop_length
+            self._shift_left_inplace(self._ola_accum)
+            self._shift_left_inplace(self._ola_weight)
+
+        return torch.cat(emitted_parts, dim=-1)
 
     @torch.no_grad()
     def stream_finalize(self) -> torch.Tensor:
