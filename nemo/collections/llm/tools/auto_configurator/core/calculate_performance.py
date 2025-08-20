@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import re
-import logging
-from typing import Optional, List
 from dataclasses import dataclass
+from typing import List, Optional
 
 import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
@@ -39,6 +39,7 @@ GPT_BASED_MODELS = [
 @dataclass
 class PerformanceResult:
     """Structured class for performance results to replace confusing list indices."""
+
     model_name: str
     model_size: int
     seq_length: int
@@ -89,6 +90,7 @@ class PerformanceResult:
 @dataclass
 class ErrorResult:
     """Structured class for error results."""
+
     model_name: str
     model_size: int
     seq_length: int
@@ -126,6 +128,7 @@ class ErrorResult:
             self.gpus_per_node,
             self.error_message,
         ]
+
 
 def get_results(
     base_config=None,
@@ -213,7 +216,7 @@ def get_results(
     error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
-    
+
     logger.info(f"Found {len(dirs)} directories, {len(error_files)} error files, {len(tb_files)} tensorboard files")
 
     # Track tensorboard processing errors
@@ -255,13 +258,13 @@ def get_results(
             
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
- 
+
         try:
             timing_list = ea.Scalars("train_step_timing in s")
             
             if len(timing_list) < 10:
                 continue
- 
+
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
             samples_per_s = round(gbs / avg_global_step_time, 2)
@@ -342,7 +345,7 @@ def get_results(
             logger.warning(f"  {error_type}: {count} occurrences")
 
     logger.info(f"Processing complete. Found {len(result)} successful results and {len(errors)} errors")
-    
+
     if result:
         result.sort(key=lambda x: x.time_per_step)
         logger.info(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
