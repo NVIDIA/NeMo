@@ -37,9 +37,9 @@ GPT_BASED_MODELS = [
 
 
 @dataclass
-class PerformanceResult:
-    """Structured class for performance results to replace confusing list indices."""
-
+class BaseConfigResult:
+    """Base class for configuration results containing common parallelism and model parameters."""
+    
     model_name: str
     model_size: int
     seq_length: int
@@ -55,6 +55,82 @@ class PerformanceResult:
     gbs: int
     num_nodes: int
     gpus_per_node: int
+
+    @classmethod
+    def from_common_params(cls, model_name: str, model_size: int, seq_length: int, 
+                          tp: int, pp: int, cp: int, ep: int, mbs: int, vp: Optional[int],
+                          layers: int, hidden_size: int, ffn_hidden_size: int, gbs: int,
+                          num_nodes: int, gpus_per_node: int, **kwargs):
+        """Create a base config result from common parameters."""
+        return cls(
+            model_name=model_name,
+            model_size=model_size,
+            seq_length=seq_length,
+            tp=tp,
+            pp=pp,
+            cp=cp,
+            ep=ep,
+            mbs=mbs,
+            vp=vp,
+            layers=layers,
+            hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
+            gbs=gbs,
+            num_nodes=num_nodes,
+            gpus_per_node=gpus_per_node,
+            **kwargs
+        )
+
+    def to_list(self) -> List:
+        """Convert base configuration to list format for backward compatibility with CSV export.
+        
+        This method handles the common fields. Child classes should override this method
+        to add their specific fields at the end.
+        """
+        return [
+            self.model_name,
+            self.model_size,
+            self.seq_length,
+            self.tp,
+            self.pp,
+            self.cp,
+            self.ep,
+            self.mbs,
+            self.vp,
+            self.layers,
+            self.hidden_size,
+            self.ffn_hidden_size,
+            self.gbs,
+            self.num_nodes,
+            self.gpus_per_node,
+        ]
+
+    @classmethod
+    def get_csv_columns(cls) -> List[str]:
+        """Get the CSV column headers for the base configuration."""
+        return [
+            "Model Name",
+            "Model Size",
+            "Seq Length",
+            "TP",
+            "PP",
+            "CP",
+            "EP",
+            "MBS",
+            "VP",
+            "Num Layers",
+            "Hidden Size",
+            "FFN Hidden Size",
+            "GBS",
+            "Nodes",
+            "GPUs per Node",
+        ]
+
+
+@dataclass
+class PerformanceResult(BaseConfigResult):
+    """Structured class for performance results to replace confusing list indices."""
+    
     time_per_step: float
     samples_per_second: float
     tflops_per_gpu: float
@@ -63,22 +139,8 @@ class PerformanceResult:
 
     def to_list(self) -> List:
         """Convert to list format for backward compatibility with CSV export."""
-        return [
-            self.model_name,
-            self.model_size,
-            self.seq_length,
-            self.tp,
-            self.pp,
-            self.cp,
-            self.ep,
-            self.mbs,
-            self.vp,
-            self.layers,
-            self.hidden_size,
-            self.ffn_hidden_size,
-            self.gbs,
-            self.num_nodes,
-            self.gpus_per_node,
+        base_list = super().to_list()
+        return base_list + [
             self.time_per_step,
             self.samples_per_second,
             self.tflops_per_gpu,
@@ -86,48 +148,35 @@ class PerformanceResult:
             self.descriptive_name,
         ]
 
+    @classmethod
+    def get_csv_columns(cls) -> List[str]:
+        """Get the CSV column headers for performance results."""
+        base_columns = BaseConfigResult.get_csv_columns()
+        return base_columns + [
+            "Time per Step",
+            "Samples per Second",
+            "Model TFLOPS / GPU",
+            "Model TFLOPS Aggregate",
+            "Full Configuration Name",
+        ]
+
 
 @dataclass
-class ErrorResult:
+class ErrorResult(BaseConfigResult):
     """Structured class for error results."""
-
-    model_name: str
-    model_size: int
-    seq_length: int
-    tp: int
-    pp: int
-    cp: int
-    ep: int
-    mbs: int
-    vp: Optional[int]
-    layers: int
-    hidden_size: int
-    ffn_hidden_size: int
-    gbs: int
-    num_nodes: int
-    gpus_per_node: int
+    
     error_message: str
 
     def to_list(self) -> List:
         """Convert to list format for backward compatibility with CSV export."""
-        return [
-            self.model_name,
-            self.model_size,
-            self.seq_length,
-            self.tp,
-            self.pp,
-            self.cp,
-            self.ep,
-            self.mbs,
-            self.vp,
-            self.layers,
-            self.hidden_size,
-            self.ffn_hidden_size,
-            self.gbs,
-            self.num_nodes,
-            self.gpus_per_node,
-            self.error_message,
-        ]
+        base_list = super().to_list()
+        return base_list + [self.error_message]
+
+    @classmethod
+    def get_csv_columns(cls) -> List[str]:
+        """Get the CSV column headers for error results."""
+        base_columns = BaseConfigResult.get_csv_columns()
+        return base_columns + ["Error Message"]
 
 
 def get_results(
@@ -167,46 +216,10 @@ def get_results(
     training_logs = path_to_save
     final_result_logs = path_to_save
 
-    result_columns = [
-        "Model Name",
-        "Model Size",
-        "Seq Length",
-        "TP",
-        "PP",
-        "CP",
-        "EP",
-        "MBS",
-        "VP",
-        "Num Layers",
-        "Hidden Size",
-        "FFN Hidden Size",
-        "GBS",
-        "Nodes",
-        "GPUs per Node",
-        "Time per Step",
-        "Samples per Second",
-        "Model TFLOPS / GPU",
-        "Model TFLOPS Aggregate",
-        "Full Configuration Name",
-    ]
-    error_columns = [
-        "Model Name",
-        "Model Size",
-        "Seq Length",
-        "TP",
-        "PP",
-        "CP",
-        "EP",
-        "MBS",
-        "VP",
-        "Num Layers",
-        "Hidden Size",
-        "FFN Hidden Size",
-        "GBS",
-        "Nodes",
-        "GPUs per Node",
-        "Error Message",
-    ]
+    # Use generic column methods instead of hardcoded lists
+    result_columns = PerformanceResult.get_csv_columns()
+    error_columns = ErrorResult.get_csv_columns()
+    
     result = []
     errors = []
 
@@ -233,7 +246,7 @@ def get_results(
         error = find_error(error_file) if error_file else None
         if error:
             errors.append(
-                ErrorResult(
+                ErrorResult.from_common_params(
                     model_name=model_name,
                     model_size=model_size,
                     seq_length=seq_length,
@@ -296,7 +309,7 @@ def get_results(
             )
 
             result.append(
-                PerformanceResult(
+                PerformanceResult.from_common_params(
                     model_name=model_name,
                     model_size=model_size,
                     seq_length=seq_length,
