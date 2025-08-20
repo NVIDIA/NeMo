@@ -149,13 +149,13 @@ def get_results(
             
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
-        
+
         try:
             timing_list = ea.Scalars("train_step_timing in s")
             
             if len(timing_list) < 10:
                 continue
-                
+
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
             samples_per_s = round(gbs / avg_global_step_time, 2)
