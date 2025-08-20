@@ -249,6 +249,7 @@ def set_primary_perf_configs(
     keep_fsdp_fp8_transpose_cache: Optional[bool] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
+    logger.info(f"Setting primary performance configs for {task}")
     # nemo.lightning.Trainer configs
     recipe.trainer.num_nodes = num_nodes
     recipe.trainer.devices = num_gpus_per_node
