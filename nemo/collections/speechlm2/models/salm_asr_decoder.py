@@ -14,6 +14,8 @@
 import warnings
 from collections import defaultdict
 from typing import Any
+from pathlib import Path
+import random
 
 import torch
 from lightning import LightningModule
@@ -50,6 +52,11 @@ from nemo.collections.speechlm2.parts.pretrained import (
 )
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
+from nemo.collections.common.data.lhotse.text_adapters import TextTurn
+from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
+from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
+from lhotse import fastcopy
+from lhotse.serialization import SequentialJsonlWriter
 
 
 class SALMWithAsrDecoder(LightningModule, HFHubMixin):
@@ -167,6 +174,10 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             input_signal=batch["audios"], input_signal_length=batch["audio_lens"]
         )
         asr_hyps = self.perception.transcribe_encoded(encoded=encoded, encoded_len=encoded_len)
+        # During training, we randomly drop the transcript
+        for hyp in asr_hyps:
+            if self.training and random.random() < self.cfg.get("asr_transcript_drop_prob", 0.0):
+                hyp.text = ""
         asr_tokens = [
             torch.as_tensor(self.tokenizer.text_to_ids(f">> {hyp.text} <<" if hyp.text else ">> <<"))
             for hyp in asr_hyps
@@ -250,6 +261,9 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         self._partial_val_losses = defaultdict(list)
         self._partial_accuracies = defaultdict(list)
 
+        # collect generations per validation set (per-rank)
+        self._val_generations = defaultdict(list)
+
     def on_validation_epoch_end(self) -> None:
         val_losses = []
         for name, vals in self._partial_val_losses.items():
@@ -268,32 +282,93 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         self._partial_val_losses.clear()
         self._partial_accuracies.clear()
 
+        # Gather and write generations to a single file per dataset (rank 0 only)
+        if self.cfg.get("val_save_path", None) is not None:
+            dist = torch.distributed
+            if dist.is_available() and dist.is_initialized():
+                world_size = dist.get_world_size()
+                gathered = [None for _ in range(world_size)]
+                dist.all_gather_object(gathered, dict(self._val_generations))
+                is_global_zero = dist.get_rank() == 0
+            else:
+                gathered = [dict(self._val_generations)]
+                is_global_zero = True
+
+            if is_global_zero:
+                merged = defaultdict(list)
+                for per_rank_dict in gathered:
+                    for name, items in per_rank_dict.items():
+                        merged[name].extend(items)
+
+                val_save_path = Path(self.cfg.val_save_path) / f"{self.global_step:06d}"
+                val_save_path.mkdir(parents=True, exist_ok=True)
+                for name, items in merged.items():
+                    out_path = val_save_path / f"{name}.jsonl"
+                    with SequentialJsonlWriter(out_path) as writer:
+                        for obj in items:
+                            writer.write(obj)
+
+        self._val_generations.clear()
+
     def validation_step(self, batch: dict, batch_idx: int):
         for name, dataset_batch in batch.items():
             if dataset_batch is None:
                 continue  # some dataset is exhausted
-            inputs = self.prepare_inputs(dataset_batch)
-            forward_outputs = self(inputs["input_embeds"], attention_mask=inputs["attention_mask"])
-            num_frames = (inputs["target_ids"] != -100).long().sum()
-            with loss_parallel():
-                loss = (
-                    torch.nn.functional.cross_entropy(
-                        forward_outputs["logits"].flatten(0, 1),
-                        inputs["target_ids"].flatten(0, 1),
-                        reduction="sum",
-                        ignore_index=-100,
+            
+            try:
+                inputs = self.prepare_inputs(dataset_batch)
+                forward_outputs = self(inputs["input_embeds"], attention_mask=inputs["attention_mask"])
+                num_frames = (inputs["target_ids"] != -100).long().sum()
+                with loss_parallel():
+                    loss = (
+                        torch.nn.functional.cross_entropy(
+                            forward_outputs["logits"].flatten(0, 1),
+                            inputs["target_ids"].flatten(0, 1),
+                            reduction="sum",
+                            ignore_index=-100,
+                        )
+                        / num_frames
                     )
-                    / num_frames
+
+                preds = forward_outputs["logits"].argmax(dim=-1).view(-1)
+                refs = inputs["target_ids"].reshape(-1)
+                preds = preds[refs != -100]
+                refs = refs[refs != -100]
+                accuracy = preds.eq(refs).float().mean()
+
+                self._partial_accuracies[name].append(accuracy)
+                self._partial_val_losses[name].append(loss)
+
+            except Exception as e:
+                # Skip the dataset if there is an error, e.g., the dataset does not have answers
+                logging.warning_once(f"Error in validation step for dataset {name}: {e}")
+
+            # Run autoregressive generation and collect results (writing happens at epoch end)
+            if self.cfg.get("val_save_path", None) is not None:
+                convs_no_answer = [strip_response_if_any(conv) for conv in dataset_batch["conversations"]]
+                convs_no_answer = [tokenize_with_prompt(conv, self.tokenizer, self.cfg.prompt_format) for conv in convs_no_answer]
+                answer_ids = self.generate(
+                    prompts=left_collate_vectors([c.input_ids for c in convs_no_answer], padding_value=self.text_pad_id).to(self.device),
+                    audios=dataset_batch["audios"].to(self.device, non_blocking=True),
+                    audio_lens=dataset_batch["audio_lens"].to(self.device, non_blocking=True),
+                    generation_config=GenerationConfig(
+                        max_new_tokens=128,
+                        bos_token_id=self.text_bos_id,
+                        eos_token_id=[self.text_eos_id],
+                        pad_token_id=self.text_pad_id,
+                        do_sample=False,
+                        num_beams=1,  # greedy decoding
+                    ),
                 )
-
-            preds = forward_outputs["logits"].argmax(dim=-1).view(-1)
-            refs = inputs["target_ids"].reshape(-1)
-            preds = preds[refs != -100]
-            refs = refs[refs != -100]
-            accuracy = preds.eq(refs).float().mean()
-
-            self._partial_accuracies[name].append(accuracy)
-            self._partial_val_losses[name].append(loss)
+                answer_ids = answer_ids.cpu()
+                answer_ids = [parse_hyp(ans, [self.text_eos_id]) for ans in answer_ids]
+                batch_answers = [self.tokenizer.ids_to_text(ans) for ans in answer_ids]
+                for conv, ans in zip(convs_no_answer, batch_answers):
+                    conv.turns.append(TextTurn(role="assistant", value=ans))
+                    for k, v in list(conv.custom.items()):
+                        if isinstance(v, torch.Tensor):
+                            del conv.custom[k]
+                    self._val_generations[name].append(conv.to_dict())
 
     def on_test_epoch_start(self) -> None:
         return self.on_validation_epoch_start()
@@ -589,3 +664,19 @@ def setup_speech_encoder_with_asr(model: torch.nn.Module, pretrained_weights: bo
     from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 
     WithOptionalCudaGraphs.disable_cuda_graphs_recursive(model.perception.asr, attribute_path="decoding.decoding")
+
+
+def parse_hyp(answer: torch.Tensor, eos_tokens: list[int]):
+    end = torch.isin(answer, torch.tensor(eos_tokens)).nonzero(as_tuple=True)[0]
+    if end.numel() == 0:
+        return answer
+    end = end[0]
+    return answer[:end]
+
+def strip_response_if_any(
+    conversation: NeMoMultimodalConversation,
+) -> NeMoMultimodalConversation:
+    turns = conversation.turns
+    while turns[-1].role == "assistant":
+        turns = turns[:-1]
+    return fastcopy(conversation, turns=turns)
