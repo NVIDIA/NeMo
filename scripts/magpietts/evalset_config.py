@@ -335,7 +335,7 @@ dataset_meta_info = {
         'feature_dir' : None,
     },
     'j_riva_money': {
-        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-digits-RivaEnContext.ndjson',
+        'manifest_path' : '/home/jasoli/data_prime/manifests/hard-money-RivaEnContext.ndjson',
         'audio_dir' : '/',
         'feature_dir' : None,
     },
