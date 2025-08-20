@@ -26,8 +26,8 @@ from pipecat.transports.network.websocket_server import (
     WebsocketServerParams,
 )
 
-from nemo.collections.voice_agent.pipecat.transports.base_input import BaseInputTransport
-from nemo.collections.voice_agent.pipecat.transports.base_transport import TransportParams
+from nemo.agents.voice_agent.pipecat.transports.base_input import BaseInputTransport
+from nemo.agents.voice_agent.pipecat.transports.base_transport import TransportParams
 
 try:
     import websockets

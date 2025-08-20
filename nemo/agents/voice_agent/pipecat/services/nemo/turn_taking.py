@@ -33,7 +33,7 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.transcriptions.language import Language
 from pipecat.utils.time import time_now_iso8601
 
-from nemo.collections.voice_agent.pipecat.frames.frames import DiarResultFrame
+from nemo.agents.voice_agent.pipecat.frames.frames import DiarResultFrame
 
 DEFAULT_BACKCHANNEL_PHRASES = [
     "cool",

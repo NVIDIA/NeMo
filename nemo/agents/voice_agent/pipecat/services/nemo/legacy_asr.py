@@ -20,9 +20,9 @@ import torch
 from omegaconf import open_dict
 
 import nemo.collections.asr as nemo_asr
+from nemo.agents.voice_agent.pipecat.services.nemo.utils import CacheFeatureBufferer
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
-from nemo.collections.voice_agent.pipecat.services.nemo.utils import CacheFeatureBufferer
 
 
 class NemoLegacyASRService:

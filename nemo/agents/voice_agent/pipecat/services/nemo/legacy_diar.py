@@ -19,8 +19,8 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from nemo.agents.voice_agent.pipecat.services.nemo.utils import CacheFeatureBufferer
 from nemo.collections.asr.models import SortformerEncLabelModel
-from nemo.collections.voice_agent.pipecat.services.nemo.utils import CacheFeatureBufferer
 
 
 @dataclass

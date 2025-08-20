@@ -44,16 +44,16 @@ from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.processors.frameworks.rtvi import RTVIAction, RTVIConfig, RTVIObserver, RTVIProcessor
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
 
-from nemo.collections.voice_agent.pipecat.services.nemo.diar import NeMoDiarInputParams, NemoDiarService
-from nemo.collections.voice_agent.pipecat.services.nemo.llm import HuggingFaceLLMService
-from nemo.collections.voice_agent.pipecat.services.nemo.stt import NeMoSTTInputParams, NemoSTTService
-from nemo.collections.voice_agent.pipecat.services.nemo.tts import NeMoFastPitchHiFiGANTTSService
-from nemo.collections.voice_agent.pipecat.services.nemo.turn_taking import NeMoTurnTakingService
-from nemo.collections.voice_agent.pipecat.transports.network.websocket_server import (
+from nemo.agents.voice_agent.pipecat.services.nemo.diar import NeMoDiarInputParams, NemoDiarService
+from nemo.agents.voice_agent.pipecat.services.nemo.llm import HuggingFaceLLMService
+from nemo.agents.voice_agent.pipecat.services.nemo.stt import NeMoSTTInputParams, NemoSTTService
+from nemo.agents.voice_agent.pipecat.services.nemo.tts import NeMoFastPitchHiFiGANTTSService
+from nemo.agents.voice_agent.pipecat.services.nemo.turn_taking import NeMoTurnTakingService
+from nemo.agents.voice_agent.pipecat.transports.network.websocket_server import (
     WebsocketServerParams,
     WebsocketServerTransport,
 )
-from nemo.collections.voice_agent.pipecat.utils.text.simple_text_aggregator import SimpleSegmentedTextAggregator
+from nemo.agents.voice_agent.pipecat.utils.text.simple_text_aggregator import SimpleSegmentedTextAggregator
 
 SERVER_CONFIG_PATH = os.environ.get(
     "SERVER_CONFIG_PATH", f"{os.path.dirname(os.path.abspath(__file__))}/server_config.yaml"

@@ -34,7 +34,7 @@ from pipecat.utils.time import time_now_iso8601
 from pipecat.utils.tracing.service_decorators import traced_stt
 from pydantic import BaseModel
 
-from nemo.collections.voice_agent.pipecat.services.nemo.legacy_asr import NemoLegacyASRService
+from nemo.agents.voice_agent.pipecat.services.nemo.legacy_asr import NemoLegacyASRService
 
 try:
     # disable nemo logging
