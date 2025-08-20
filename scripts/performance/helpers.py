@@ -484,6 +484,41 @@ def set_primary_perf_configs(
         keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
     )
 
+    recipe.trainer.enable_checkpointing = save_checkpoint
+    recipe.trainer.val_check_interval = max_steps
+
+    if save_checkpoint:
+        recipe.trainer.callbacks.append(
+            run.Config(
+                ModelCheckpoint,
+                every_n_train_steps=max_steps,
+                dirpath=None,
+                save_top_k=1,
+                always_save_context=True,
+                save_optim_on_train_end=True,
+                save_context_on_train_end=True,
+
+            )
+        )
+
+    if recipe.trainer.enable_checkpointing or load_checkpoint_path is not None:
+        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = False
+
+    if load_checkpoint_path is not None:
+        recipe.resume = run.Config(
+            AutoResume,
+            resume_if_exists=True,
+            resume_ignore_no_checkpoint=False,
+            restore_config=run.Config(
+                nl.RestoreConfig,
+                path=load_checkpoint_path,
+                load_model_state=True,
+                load_optim_state=True,
+                load_artifacts=False,
+            ),
+        )
+
+
     return recipe
 
 
