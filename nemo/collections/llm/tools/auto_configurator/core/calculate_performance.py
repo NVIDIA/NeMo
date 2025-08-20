@@ -39,7 +39,7 @@ GPT_BASED_MODELS = [
 @dataclass
 class BaseConfigResult:
     """Base class for configuration results containing common parallelism and model parameters."""
-    
+
     model_name: str
     model_size: int
     seq_length: int
@@ -57,10 +57,25 @@ class BaseConfigResult:
     gpus_per_node: int
 
     @classmethod
-    def from_common_params(cls, model_name: str, model_size: int, seq_length: int, 
-                          tp: int, pp: int, cp: int, ep: int, mbs: int, vp: Optional[int],
-                          layers: int, hidden_size: int, ffn_hidden_size: int, gbs: int,
-                          num_nodes: int, gpus_per_node: int, **kwargs):
+    def from_common_params(
+        cls,
+        model_name: str,
+        model_size: int,
+        seq_length: int,
+        tp: int,
+        pp: int,
+        cp: int,
+        ep: int,
+        mbs: int,
+        vp: Optional[int],
+        layers: int,
+        hidden_size: int,
+        ffn_hidden_size: int,
+        gbs: int,
+        num_nodes: int,
+        gpus_per_node: int,
+        **kwargs,
+    ):
         """Create a base config result from common parameters."""
         return cls(
             model_name=model_name,
@@ -78,12 +93,12 @@ class BaseConfigResult:
             gbs=gbs,
             num_nodes=num_nodes,
             gpus_per_node=gpus_per_node,
-            **kwargs
+            **kwargs,
         )
 
     def to_list(self) -> List:
         """Convert base configuration to list format for backward compatibility with CSV export.
-        
+
         This method handles the common fields. Child classes should override this method
         to add their specific fields at the end.
         """
@@ -130,7 +145,7 @@ class BaseConfigResult:
 @dataclass
 class PerformanceResult(BaseConfigResult):
     """Structured class for performance results to replace confusing list indices."""
-    
+
     time_per_step: float
     samples_per_second: float
     tflops_per_gpu: float
@@ -164,7 +179,7 @@ class PerformanceResult(BaseConfigResult):
 @dataclass
 class ErrorResult(BaseConfigResult):
     """Structured class for error results."""
-    
+
     error_message: str
 
     def to_list(self) -> List:
@@ -219,7 +234,7 @@ def get_results(
     # Use generic column methods instead of hardcoded lists
     result_columns = PerformanceResult.get_csv_columns()
     error_columns = ErrorResult.get_csv_columns()
-    
+
     result = []
     errors = []
 
