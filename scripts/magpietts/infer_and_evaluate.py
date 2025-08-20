@@ -190,6 +190,7 @@ def run_inference(
         use_local_transformer=False,
         maskgit_n_steps=3,
         legacy_codebooks=False,
+        legacy_text_conditioning=False,
         clean_up_disk=False,
         hparams_file_from_wandb=False,
         log_exp_name=False,
@@ -206,7 +207,7 @@ def run_inference(
             model_cfg = model_cfg.value
 
         with open_dict(model_cfg):
-            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
+            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks, legacy_text_conditioning)
 
         model = MagpieTTSModel(cfg=model_cfg)
         model.use_kv_cache_for_inference = True
@@ -220,7 +221,7 @@ def run_inference(
     elif nemo_file is not None:
         model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
         with open_dict(model_cfg):
-            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
+            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks, legacy_text_conditioning)
         model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
@@ -333,7 +334,7 @@ def run_inference(
                 g2p = model.tokenizer.g2p
             if g2p is not None:
                 g2p.phoneme_probability = 1.0
-            test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
+            
 
             test_data_loader = torch.utils.data.DataLoader(
                 test_dataset,
