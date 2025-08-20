@@ -811,10 +811,6 @@ class MagpieTTSModel(ModelPT):
             assert confidences.max() + confidence_eps < max_confidence, f"Predicted confidence is approaching max_confidence: {confidences.max()}"
             # for unmasked codebooks, set confidence to max so that they will remain unmasked
             confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
-        rand_sampling = False
-        if rand_sampling:
-            print("Using random sampling")
-            confidences = torch.rand_like(confidences)
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
 
