@@ -117,7 +117,7 @@ class MagpieTTSModel(ModelPT):
         # frame stacking. We have a separate embedding table for each of the stacked frames, e.g. for frame stacking
         # factor of 3, the entries of codebook 0 appear 3 times in the embedding table.
         self.frame_stacking_factor = cfg.get('frame_stacking_factor', 1)
-        assert not 'downsample_factor' in cfg, '`downsample_factor` is deprecated, use `frame_stacking_factor` instead'
+        assert 'downsample_factor' not in cfg, '`downsample_factor` is deprecated, use `frame_stacking_factor` instead'
         # Setup tokenizer
         if hasattr(cfg, 'text_tokenizer'):
             # For backward compatibility for English-only models
@@ -565,8 +565,6 @@ class MagpieTTSModel(ModelPT):
         """
         loss_mask = get_mask_from_lengths(audio_codes_lens, pad_to_factor=frame_stacking_factor)
         if mask_tokens_mask is not None:
-            #@rfejgin TODO review this for frame-stacking
-
             # For MaskGit we only compute loss for the masked tokens.
             # *Both* conditions must be true:
             # 1. the token is masked
@@ -1392,7 +1390,7 @@ class MagpieTTSModel(ModelPT):
                 )
 
                 aligner_encoder_loss = self.alignment_encoder_loss(
-                    attn_logprob=aligner_attn_logprobs, in_lens=context_tensors['text_lens'], out_lens=audio_codes_lens_input # is this right?
+                    attn_logprob=aligner_attn_logprobs, in_lens=context_tensors['text_lens'], out_lens=audio_codes_lens_input
                 )
             else:
                 with torch.no_grad():
