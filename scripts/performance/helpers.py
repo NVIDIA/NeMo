@@ -497,7 +497,6 @@ def set_primary_perf_configs(
                 always_save_context=True,
                 save_optim_on_train_end=True,
                 save_context_on_train_end=True,
-
             )
         )
 
@@ -517,7 +516,6 @@ def set_primary_perf_configs(
                 load_artifacts=False,
             ),
         )
-
 
     return recipe
 
