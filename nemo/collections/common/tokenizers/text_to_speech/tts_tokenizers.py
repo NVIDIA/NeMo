@@ -1119,7 +1119,7 @@ class AggregatedTTSTokenizer:
             else:
                 raise ValueError("Tokenizers must be either BaseTokenizer or HuggingFace PreTrainedTokenizerBase.")
             tokenizer_offset += num_tokens
-            num_tokens_per_tokenizer[tokenizer_names[idx]] = num_tokens
+            num_tokens_per_tokenizer[tokenizer_name] = num_tokens
 
         self.tokens = tokens
         self.tokenizer_names = tokenizer_names
