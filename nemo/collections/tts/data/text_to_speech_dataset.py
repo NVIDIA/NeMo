@@ -581,7 +581,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
                 context_tokens = self.text_tokenizer.encode(data.manifest_entry['context_text'], self.text_conditioning_tokenizer_name)
                 example['has_text_context'] = True
             else:
-                context_tokens = self.text_tokenizer.encode("[NO TEXT CONTEXT]",  self.text_conditioning_tokenizer_name)
+                context_tokens = self.text_tokenizer.encode("[NO TEXT CONTEXT]", self.text_conditioning_tokenizer_name)
                 example['has_text_context'] = False
             if self.pad_context_text_to_max_duration:
                 _required_len = (

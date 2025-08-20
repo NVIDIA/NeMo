@@ -18,6 +18,7 @@ import pprint
 import string
 import logging
 from contextlib import contextmanager
+from functools import partial
 
 import numpy as np
 import torch
@@ -252,22 +253,31 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         pred_context_ssim = 0.0
         gt_context_ssim = 0.0
         with torch.no_grad():
-            gt_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, gt_audio_filepath, device, sv_model_type)
-            pred_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, pred_audio_filepath, device, sv_model_type)
+            extract_embedding_fn = partial(extract_embedding, model=speaker_verification_model, extractor=feature_extractor, device=device, sv_model_type=sv_model_type)
+            extract_embedding_fn_alternate = partial(extract_embedding, model=speaker_verification_model_alternate, extractor=feature_extractor, device=device, sv_model_type=sv_model_type)
+
+            # Ground truth vs. predicted
+            gt_speaker_embedding = extract_embedding_fn(audio_path=gt_audio_filepath)
+            pred_speaker_embedding = extract_embedding_fn(audio_path=pred_audio_filepath)
             pred_gt_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, pred_speaker_embedding, dim=0).item()
 
-            gt_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(gt_audio_filepath).squeeze()
-            pred_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(pred_audio_filepath).squeeze()
+            # Ground truth vs. predicted (alternate model)
+            gt_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=gt_audio_filepath)
+            pred_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=pred_audio_filepath)
             pred_gt_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, pred_speaker_embedding_alternate, dim=0).item()
 
             if context_audio_filepath is not None:
-                context_speaker_embedding = extract_embedding(speaker_verification_model, feature_extractor, context_audio_filepath, device, sv_model_type)
-                context_speaker_embedding_alternate = speaker_verification_model_alternate.get_embedding(context_audio_filepath).squeeze()
-
+                context_speaker_embedding = extract_embedding_fn(audio_path=context_audio_filepath)
+                context_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=context_audio_filepath)
+    
+                # Predicted vs. context
                 pred_context_ssim = torch.nn.functional.cosine_similarity(pred_speaker_embedding, context_speaker_embedding, dim=0).item()
+                # Ground truth vs. context
                 gt_context_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, context_speaker_embedding, dim=0).item()
 
+                # Predicted vs. context (alternate model)
                 pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
+                # Ground truth vs. context (alternate model)
                 gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
 
         filewise_metrics.append({
