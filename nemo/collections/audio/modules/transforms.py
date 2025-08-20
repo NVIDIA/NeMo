@@ -218,8 +218,10 @@ class SpectrogramToAudio(NeuralModule):
 
         # --- Streaming state (initialized lazily) ---
         self._stream_initialized: bool = False
-        # Streaming buffer: keep last spectrogram frame to build 1- or 2-frame
-        # chunks and reuse istft normalization.
+        # Time-domain overlap-add buffers (initialized lazily)
+        self._ola_accum: Optional[torch.Tensor] = None
+        self._ola_weight: Optional[torch.Tensor] = None
+        # Kept for backward compatibility; not used in OLA implementation
         self._prev_spec_frame: Optional[torch.Tensor] = None
         self.use_streaming: bool = False
 
@@ -354,6 +356,12 @@ class SpectrogramToAudio(NeuralModule):
             return
         if shape_like.dim() != 4:
             raise ValueError("Expected input of shape (B, C, F, N_frames) for streaming.")
+        B, C = shape_like.size(0), shape_like.size(1)
+        device = shape_like.device
+        # Real-valued buffers for accumulated time-domain samples and weights
+        dtype = torch.float32 if shape_like.dtype == torch.complex64 else torch.float64
+        self._ola_accum = torch.zeros(B, C, self.win_length, device=device, dtype=dtype)
+        self._ola_weight = torch.zeros(B, C, self.win_length, device=device, dtype=dtype)
         self._prev_spec_frame = None
         self._stream_initialized = True
 
@@ -364,6 +372,8 @@ class SpectrogramToAudio(NeuralModule):
         """
         self._stream_initialized = False
         self._prev_spec_frame = None
+        self._ola_accum = None
+        self._ola_weight = None
 
     def _shift_left_inplace(self, buffer: torch.Tensor) -> None:
         """Shift buffer left by hop length and zero-fill the tail in-place."""
@@ -373,22 +383,20 @@ class SpectrogramToAudio(NeuralModule):
 
     @torch.no_grad()
     def stream_update(self, input: torch.Tensor) -> torch.Tensor:
-        """Consume exactly one spectrogram frame and return hop_length samples.
+        """Consume exactly one spectrogram frame (N=1) and return hop_length samples via OLA.
 
-        This method supports batched, multi-channel inputs and performs
-        overlap-add buffering internally. For each call, it will output
-        exactly `hop_length` time-domain samples (normalized by the
-        accumulated squared-window weights).
-
-        Args:
-            input: Complex spectrogram of shape (B, C, F, 1), where
-                   F = fft_length // 2 + 1.
-
-        Returns:
-            Time-domain samples of shape (B, C, hop_length).
+        Steps per frame:
+        - inverse FFT
+        - apply synthesis window
+        - overlap-add into accumulation buffer
+        - emit first hop_length samples normalized by window-sum-square
+        - shift buffers left by hop_length
         """
         if not input.is_complex():
             raise ValueError("Expected `input` to be complex dtype for streaming.")
+
+        if self.center:
+            raise ValueError("Streaming iSTFT requires center=False.")
 
         # Lazily initialize buffers
         self._init_stream_buffers(input)
@@ -398,46 +406,49 @@ class SpectrogramToAudio(NeuralModule):
         if Nf != 1:
             raise ValueError("stream_update expects exactly one frame (N=1).")
 
-        # Build two-frame chunk and use class istft for proper normalization
-        current_frame = input[..., 0]  # (B, C, F)
+        # Compute inverse FFT for the single frame
+        frame_spec = input[..., 0]  # (B, C, F)
+        # irfft along the last dimension (frequency bins)
+        frame_time = torch.fft.irfft(frame_spec, n=self.fft_length, dim=-1)  # (B, C, T)
 
-        if self._prev_spec_frame is None:
-            # center=False: emit the first hop directly from a single-frame iSTFT
-            self._prev_spec_frame = current_frame
-            one_frame_spec = input  # (B, C, F, 1)
-            out = self.istft(one_frame_spec)
-            hop = self.hop_length
-            return out[..., :hop]
+        # Apply synthesis window
+        win = self.window.to(frame_time.device, dtype=frame_time.dtype)
+        frame_time_windowed = frame_time * win
+        
+        # Overlap-add accumulation and window-sum-square weights
+        self._ola_accum = self._ola_accum.to(frame_time_windowed.device, dtype=frame_time_windowed.dtype)
+        self._ola_weight = self._ola_weight.to(frame_time_windowed.device, dtype=frame_time_windowed.dtype)
+        self._ola_accum.add_(frame_time_windowed)
+        self._ola_weight.add_(win.pow(2))
 
-        two_frame_spec = torch.stack([self._prev_spec_frame, current_frame], dim=-1)  # (B, C, F, 2)
-        # Use istft which internally handles window-sum-square normalization
-        out = self.istft(two_frame_spec)
-
-        # Update previous frame buffer
-        self._prev_spec_frame = current_frame
+        # Emit first hop_length samples with normalization
         hop = self.hop_length
-        # Middle hop from two-frame iSTFT corresponds to newly available samples
-        emitted = out[..., hop : 2 * hop]
+        eps = torch.finfo(self._ola_weight.dtype).eps
+        denom = torch.clamp(self._ola_weight[..., :hop], min=eps)
+        emitted = self._ola_accum[..., :hop] / denom
+
+        # Shift buffers left by hop_length
+        self._shift_left_inplace(self._ola_accum)
+        self._shift_left_inplace(self._ola_weight)
+
         return emitted
 
     @torch.no_grad()
     def stream_finalize(self) -> torch.Tensor:
-        """Flush the remaining buffered samples.
+        """Flush the remaining buffered samples (final tail for center=False).
 
-        For center=False, offline iSTFT returns win_length + (N-1)*hop samples.
-        The streaming loop emits N*hop samples, so we must emit an additional
-        tail of length (win_length - hop) derived from the final frame.
-
+        After processing the last frame, the streaming loop has emitted N*hop
+        samples. The remaining tail corresponds to the last (win_length - hop)
+        samples, which we return after proper window-sum-square normalization.
         """
-        if not self._stream_initialized:
+        if not self._stream_initialized or self._ola_accum is None or self._ola_weight is None:
             return torch.tensor((), device=self.window.device)
 
-        if self._prev_spec_frame is None:
+        tail_len = self.win_length - self.hop_length
+        if tail_len <= 0:
             return torch.tensor((), device=self.window.device)
 
-        # For center=False, emit final tail from last frame via istft
-        last_frame_spec = self._prev_spec_frame.unsqueeze(-1)
-        out = self.istft(last_frame_spec)
-        hop = self.hop_length
-        tail = out[..., hop:]
+        eps = torch.finfo(self._ola_weight.dtype).eps
+        denom_tail = torch.clamp(self._ola_weight[..., :tail_len], min=eps)
+        tail = self._ola_accum[..., :tail_len] / denom_tail
         return tail
