@@ -92,6 +92,7 @@ class QwenVLTextGenerationController(VLMTextGenerationController):
         super().__init__(inference_wrapped_model, tokenizer, image_processor)
 
         class QwenVLTokenizer(TokenizerWrapper):
+            # pylint: disable=C0115,C0116
             def detokenize(self, tokens):
                 new_tokens = []
                 for token in tokens:
