@@ -76,10 +76,29 @@ ALLOWED_TARGET_PREFIXES = [
 ]
 
 
-def _is_target_allowed(target_path: str) -> bool:
-    if not isinstance(target_path, str):
+SAFE_BASES = (torch.nn.Module, nemo.core.ModelPT)
+
+
+def _is_target_allowed(target: str) -> bool:
+    # Ensure the target is under an allowed prefix
+    if not any(target.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES):
         return False
-    return any(target_path.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES)
+
+    # Resolve the target at runtime
+    try:
+        obj = hydra.utils.get_class(target)
+    except Exception:
+        return False
+
+    # Must be a class, not a function!
+    if not isinstance(obj, type):
+        return False
+
+    # Must inherit from a known safe base!
+    if not issubclass(obj, SAFE_BASES):
+        return False
+
+    return True
 
 
 def _validate_config_targets_recursive(config_node: Any):
