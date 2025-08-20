@@ -75,6 +75,7 @@ ALLOWED_TARGET_PREFIXES = [
     "megatron.",
 ]
 
+
 def _is_target_allowed(target: str) -> bool:
     # Ensure the target is under an allowed prefix
     if not any(target.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES):
@@ -92,8 +93,9 @@ def _is_target_allowed(target: str) -> bool:
 
     # Import ModelPT lazily to avoid circular import issues
     from nemo.core.classes.modelPT import ModelPT
+
     SAFE_BASES = (torch.nn.Module, ModelPT)
-    
+
     # Must inherit from a known safe base!
     if not issubclass(obj, SAFE_BASES):
         return False
