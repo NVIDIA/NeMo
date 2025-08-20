@@ -1095,7 +1095,6 @@ class AggregatedTTSTokenizer:
         Args:
             tokenizers: List of tokenizers to aggregate.
             tokenizer_names: List of names for each tokenizer (usually the language identifier).
-            limit_to_vocab_size: If True, will limit the tokens of HF tokenizers to the size of each tokenizer's vocabulary.
         """
         assert len(tokenizers) == len(tokenizer_names), "Number of tokenizers and tokenizer names must be the same."
         tokens = []
@@ -1114,10 +1113,6 @@ class AggregatedTTSTokenizer:
                 tokenizer_pad_ids[tokenizer_name] = tokenizer.pad
             elif isinstance(tokenizer, PreTrainedTokenizerBase):
                 _tokens = list(tokenizer.get_vocab().keys())
-                # if tokenizer_name.endswith("_limit_vocab_size"):
-                #     # @pneekhara: For legacy reasons, older models had vocab size limited.
-                #     _tokens = _tokens[:tokenizer.vocab_size]
-
                 tokens.extend(_tokens)
                 num_tokens = len(_tokens)
                 tokenizer_pad_ids[tokenizer_name] = tokenizer.pad_token_id + tokenizer_offset
