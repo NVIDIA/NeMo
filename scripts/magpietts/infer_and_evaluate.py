@@ -38,6 +38,9 @@ from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
 from nemo.collections.tts.models import MagpieTTSModel
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer, IPATokenizer
 
+# EVALUATION_DATASETS is the full list of datasets for evaluation of a new model.
+EVALUATION_DATASETS = "riva_hard_digits,riva_hard_letters,riva_hard_money,riva_hard_short,vctk,libritts_seen,libritts_test_clean"
+
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
     for key in metric_keys:
@@ -165,6 +168,87 @@ def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png:
     plt.savefig(output_png, format="png", bbox_inches="tight")
 
 
+def create_combined_violin_plots(dataset_metrics: dict, metric_keys: List[str], output_png: str):
+    """
+    Create box plots comparing multiple datasets for each metric in a single figure.
+    
+    Args:
+        dataset_metrics: Dictionary where keys are dataset names and values are lists of metric dictionaries
+        metric_keys: List of metric names to plot
+        output_png: Output file path for the combined plot
+    """
+    # Prepare data for plotting
+    datasets = list(dataset_metrics.keys())
+    num_datasets = len(datasets)
+    num_metrics = len(metric_keys)
+    
+    # Create figure with subplots for each metric
+    fig, axs = plt.subplots(1, num_metrics, figsize=(num_metrics * 6, 6))
+    
+    # Handle case where there's only one metric (axs won't be an array)
+    if num_metrics == 1:
+        axs = [axs]
+    
+    # Define colors for different datasets
+    colors = plt.cm.Set3(np.linspace(0, 1, num_datasets))
+    
+    for metric_idx, metric in enumerate(metric_keys):
+        ax = axs[metric_idx]
+        
+        # Collect data for all datasets for this metric
+        all_data = []
+        positions = []
+        dataset_labels = []
+        
+        for dataset_idx, dataset in enumerate(datasets):
+            df = pd.DataFrame(dataset_metrics[dataset])
+            if metric in df.columns:
+                data = df[metric].dropna()
+                all_data.append(data)
+                positions.append(dataset_idx + 1)
+                dataset_labels.append(dataset)
+        
+        # Create box plots
+        if all_data:
+            bp = ax.boxplot(all_data, positions=positions, widths=0.6, patch_artist=True,
+                           showmeans=True, meanline=False, meanprops={'marker': 'o', 'markerfacecolor': 'red', 
+                           'markeredgecolor': 'red', 'markersize': 6})
+            
+            # Color the box plots
+            for i, patch in enumerate(bp['boxes']):
+                patch.set_facecolor(colors[i])
+                patch.set_alpha(0.7)
+            
+            # Add mean labels for each dataset
+            for i, (data, pos) in enumerate(zip(all_data, positions)):
+                mean = data.mean()
+                sem = data.sem()
+                
+                label_numeric = f"{mean:.3f}±{1.96 * sem:.3f}"
+                ax.text(pos + 0.1, mean, label_numeric, ha="left", va="center", fontsize=8)
+        
+        # Set labels and title
+        ax.set_title(f"{metric.upper()}", fontsize=12, fontweight='bold')
+        ax.set_xticks(positions)
+        ax.set_xticklabels(dataset_labels, rotation=45, ha='right')
+        ax.grid(True, linestyle="dotted", alpha=0.7)
+        ax.set_xlabel("Dataset")
+        ax.set_ylabel(metric)
+        
+        # Set y-axis limit for CER metrics
+        if 'cer' in metric.lower():
+            ax.set_ylim(0, 0.3)
+    
+    # Add overall title
+    fig.suptitle("Performance Comparison Across Datasets", fontsize=14, fontweight='bold')
+    
+    # Adjust layout and save
+    plt.tight_layout()
+    plt.savefig(output_png, format="png", bbox_inches="tight", dpi=300)
+    plt.close()
+    print(f"Combined violin plot saved to: {output_png}")
+
+
 def run_inference(
         hparams_file,
         checkpoint_file,
@@ -242,7 +326,6 @@ def run_inference(
     else:
         exp_name = ""
 
-    checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     checkpoint_name = "{}{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_LT_{}_MGsteps_{}_ST_{}_sched_{}".format(
         exp_name,
         checkpoint_name,
@@ -264,6 +347,7 @@ def run_inference(
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
     cer_per_dataset = []
+    all_datasets_filewise_metrics = {}  # Store filewise metrics for all datasets for combined violin plot
     for dataset in datasets:
         print(f"Evaluating dataset {dataset}")
         metrics_n_repeated = []
@@ -295,6 +379,7 @@ def run_inference(
             context_duration_min = 5.0
             context_duration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
 
+        dataset_filewise_metrics_all_repeats = []  # Store metrics for all repeats of this dataset
         for repeat_idx in range(num_repeats):
             pred_audio_dir = os.path.join(audio_dir, f"repeat_{repeat_idx}")
             os.makedirs(pred_audio_dir, exist_ok=True)
@@ -416,6 +501,8 @@ def run_inference(
                 codecmodel_path=codecmodel_path if compute_fcd else None
             )
             metrics_n_repeated.append(metrics)
+            dataset_filewise_metrics_all_repeats.extend(filewise_metrics)  # Collect all filewise metrics for combined plot
+            
             with open(os.path.join(eval_dir, f"{dataset}_metrics_{repeat_idx}.json"), "w") as f:
                 json.dump(metrics, f, indent=4)
 
@@ -440,6 +527,9 @@ def run_inference(
             # Clean up temporary codec files
             for codes_file in codec_file_paths:
                 os.remove(codes_file)
+
+        # Store filewise metrics for this dataset for combined plotting
+        all_datasets_filewise_metrics[dataset] = dataset_filewise_metrics_all_repeats
 
         metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative',
                        'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg',
@@ -473,6 +563,11 @@ def run_inference(
         cer_current = np.mean(measurements)
         cer_per_dataset.append(cer_current)
 
+    # Create combined violin plot for all datasets
+    if len(all_datasets_filewise_metrics) > 1:  # Only create combined plot if we have multiple datasets
+        combined_output_png = os.path.join(out_dir, f"{checkpoint_name}_combined_violin_plot.png")
+        create_combined_violin_plots(all_datasets_filewise_metrics, violin_plot_metrics, combined_output_png)
+    
     # Average across datasets
     ssim = np.mean(ssim_per_dataset)
     cer = np.mean(cer_per_dataset)
@@ -483,17 +578,13 @@ def run_inference(
 
 def main():
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
-    parser.add_argument('--hparams_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_hparams.yaml,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_hparams.yaml")
+    parser.add_argument('--hparams_files', type=str, default=None)
     parser.add_argument('--hparams_file_from_wandb', action='store_true')
-    parser.add_argument('--checkpoint_files', type=str, default="/datap/misc/continuouscheckpoints_ks3ks3/multiencoder_small_sp_ks3_epoch302.ckpt,/datap/misc/continuouscheckpoints_ks3ks3/decodercontext_small_sp_ks3Correct_epoch305.ckpt")
+    parser.add_argument('--checkpoint_files', type=str, default=None)
     parser.add_argument('--nemo_files', type=str, default=None)
-    parser.add_argument('--codecmodel_path', type=str, default="/datap/misc/checkpoints/12.5_FPS_causal_13codebooks_codecmodel.nemo", help="Path to codec model (used for FCD computation unless --disable_fcd is specified)")
-    parser.add_argument('--datasets', type=str, default="libri_unseen_test_12.5")
-    parser.add_argument('--base_exp_dir', type=str, default="/datap/misc/eosmountedresson/")
-    parser.add_argument('--draco_exp_dir', type=str, default="/lustre/fsw/llmservice_nemo_speechlm/users/pneekhara/gitrepos/experiments/NewT5TTS_FixedPosEmb/AllKernselSize3/EdressonCodecExperiments/")
-    parser.add_argument('--server_address', type=str, default="pneekhara@login-eos02.eos.clusters.nvidia.com")
-    parser.add_argument('--exp_names', type=str, default="koel_12.5_FPS_causal_13codebooks_codecmodel_context5sec_LTN1,koel_12.5_FPS_causal_13codebooks_codecmodel_context5sec_LTN3")
-    parser.add_argument('--local_ckpt_dir', type=str, default="/datap/misc/experiment_checkpoints/localtransformer")
+    parser.add_argument('--codecmodel_path', type=str, default=None, help="Path to codec model")
+    parser.add_argument('--datasets', type=str, default=None)
+    # Parameters for running inference experiments locally
     parser.add_argument('--out_dir', type=str, default="/datap/misc/Evals/LocalTransformerAblations2")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--use_cfg', action='store_true')
@@ -501,13 +592,14 @@ def main():
     parser.add_argument('--maskgit_n_steps', type=int, default=3)
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
-    parser.add_argument('--attention_prior_epsilon', type=float, default=1e-3)
-    parser.add_argument('--attention_prior_lookahead_window', type=int, default=10)
+    parser.add_argument('--attention_prior_epsilon', type=float, default=0.1)
+    parser.add_argument('--attention_prior_lookahead_window', type=int, default=5)
     parser.add_argument('--estimate_alignment_from_layers', type=str, default=None)
     parser.add_argument('--apply_prior_to_layers', type=str, default=None)
-    parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=10)
+    parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=0)
     parser.add_argument('--topk', type=int, default=80)
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--batch_size', type=int, default=32)
+    # Parameters for evaluation
     parser.add_argument('--sv_model', type=str, default="titanet") # titanet, wavlm
     parser.add_argument('--asr_model_name', type=str, default="nvidia/parakeet-tdt-1.1b") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
     parser.add_argument('--num_repeats', type=int, default=1)
@@ -521,6 +613,9 @@ def main():
     parser.add_argument('--disable_fcd', action='store_true', help="Disable Frechet Codec Distance computation")
     parser.add_argument('--violin_plot_metrics', type=str, nargs='*', default=['cer','pred_context_ssim'], help="Which metrics to add the violin plot.")
     args = parser.parse_args()
+
+    if args.datasets is None:
+        args.datasets = EVALUATION_DATASETS
 
     # FCD computation is enabled by default, disabled only when --disable_fcd is specified
     compute_fcd = not args.disable_fcd
@@ -586,55 +681,11 @@ def main():
                 checkpoint_file=None,
                 nemo_file=nemo_file,
             )
-    # Mode 3: Discover and run experiments from a base directory
-    #   Mount DRACO_EXP_DIR to BASE_EXP_DIR as follows:
-    #   sshfs -o allow_other pneekhara@draco-oci-dc-02.draco-oci-iad.nvidia.com:/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/experiments/NewT5AllFixedFresh /datap/misc/dracomount/
-    elif args.base_exp_dir:
-        BASE_EXP_DIR = args.base_exp_dir
-        DRACO_EXP_DIR = args.draco_exp_dir
-        if args.exp_names is None:
-            exp_names = os.listdir(BASE_EXP_DIR)
-        else:
-            exp_names = args.exp_names.split(",")
-
-        for exp_name in exp_names:
-            exp_dir = os.path.join(BASE_EXP_DIR, exp_name)
-            # recurisvely look for hparams.yaml
-            try:
-                hparams_file = glob.glob(f"{exp_dir}/**/hparams.yaml", recursive=True)[0]
-                checkpoints_dir = glob.glob(f"{exp_dir}/**/checkpoints", recursive=True)[0]
-                last_checkpoint = (glob.glob(f"{checkpoints_dir}/*last.ckpt"))[0]
-            except:
-                print(f"Skipping experiment {exp_name} as hparams or last checkpoint not found.")
-                continue
-            last_checkpoint_path_draco = last_checkpoint.replace(BASE_EXP_DIR, DRACO_EXP_DIR)
-            epoch_num = last_checkpoint.split("epoch=")[1].split("-")[0]
-
-            checkpoint_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_epoch_{epoch_num}.ckpt")
-            hparams_copy_path = os.path.join(args.local_ckpt_dir, f"{exp_name}_hparams.yaml")
-
-            scp_command = f"scp {args.server_address}:{last_checkpoint_path_draco} {checkpoint_copy_path}"
-            print(f"Running command: {scp_command}")
-            os.system(scp_command)
-            print("Copied checkpoint.")
-            hparams_path_draco = hparams_file.replace(BASE_EXP_DIR, DRACO_EXP_DIR)
-            scp_command_hparams = f"scp {args.server_address}:{hparams_path_draco} {hparams_copy_path}"
-            print(f"Running command: {scp_command_hparams}")
-            os.system(scp_command_hparams)
-            print("Copied hparams file.")
-            print("Hparams file path: ", hparams_copy_path)
-            print("Checkpoint file path: ", checkpoint_copy_path)
-            run_inference_w_args(
-                hparams_copy_path,
-                checkpoint_copy_path,
-                nemo_file=None,
-            )
     else:
         parser.error(
             "You must provide a model to run. Please specify either:\n"
             "1. --hparams_files and --checkpoint_files\n"
             "2. --nemo_file\n"
-            "3. --base_exp_dir to discover experiments"
         )
     if args.cer_target is not None and cer > float(args.cer_target):
         raise ValueError()
