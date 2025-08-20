@@ -71,6 +71,7 @@ def main(args) -> None:
         # model = Qwen2VLModel(model_config, model_version="qwen25-vl", tokenizer=hf_tokenizer)
         # model = fabric.load_model(args.local_model_path, model)
         from nemo.collections.vlm.inference import setup_model_and_tokenizer
+
         inference_wrapped_model, _ = setup_model_and_tokenizer(
             path=args.local_model_path,
             tp_size=args.tp_size,
@@ -116,7 +117,6 @@ def main(args) -> None:
         processor=processor,
         inference_params=inference_params,
     )
-
 
     logging.info("======== GENERATED TEXT OUTPUT ========")
     logging.info(f"{args.image_url}, \t\t{result[0].generated_text}")
