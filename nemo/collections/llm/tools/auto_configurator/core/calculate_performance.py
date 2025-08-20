@@ -248,20 +248,20 @@ def get_results(
 
         if not tb_file:
             continue
-            
+
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
  
         try:
             timing_list = ea.Scalars("train_step_timing in s")
-            
+
             if len(timing_list) < 10:
                 continue
  
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
             samples_per_s = round(gbs / avg_global_step_time, 2)
-            
+
             m_tflops, m_tflops_gpu = calculate_tflops(
                 model_name=model_name,
                 gbs=gbs,
@@ -473,7 +473,7 @@ def get_config(run_name: str) -> tuple:
         mbs = int(params.get("mbs"))
         vp = int(params["vp"]) if params.get("vp") not in [None, 'None'] else None
         gbs = int(params.get("gbs"))
-        
+
     except (ValueError, KeyError, TypeError) as e:
         raise ValueError(
             f"Missing or invalid configuration parameters in '{run_name}': {e}. Expected integer values for all parallelism settings."
