@@ -188,10 +188,18 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
     if pretrained_model_path.endswith('.nemo'):
         pretrained_model = ASRModel.restore_from(restore_path=pretrained_model_path)  # type: EncDecRNNTBPEModel
     else:
-        try:
-            pretrained_model = ASRModel.from_pretrained(pretrained_model_path)  # type: EncDecRNNTBPEModel
-        except Exception as e:
-            raise ValueError(f"Could not load pretrained model from {pretrained_model_path}.") from e
+        pretrained_model = ASRModel.from_pretrained(pretrained_model_path)  # type: EncDecRNNTBPEModel
+
+    try:
+        model.load_state_dict(pretrained_model.state_dict(), strict=True)
+        logging.info(
+            f"Pretrained model from {pretrained_model_path} has exactly the same model structure, skip further loading."
+        )
+        return
+    except Exception as e:
+        logging.warning(
+            f"Pretrained model {pretrained_model_path} has different model structure, try loading weights separately and add EOU/EOB classes."
+        )
 
     if not isinstance(pretrained_model, (EncDecRNNTBPEModel, EncDecHybridRNNTCTCBPEModel)):
         raise ValueError(
