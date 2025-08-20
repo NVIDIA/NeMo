@@ -1098,7 +1098,7 @@ class AggregatedTTSTokenizer:
         """
         assert len(tokenizers) == len(tokenizer_names), "Number of tokenizers and tokenizer names must be the same."
         tokens = []
-        toknizer_offsets = {}
+        tokenizer_offsets = {}
         tokenizer_offset = 0
         self.tokenizers = {}
         num_tokens_per_tokenizer = {}
@@ -1106,7 +1106,7 @@ class AggregatedTTSTokenizer:
         for idx, tokenizer in enumerate(tokenizers):
             tokenizer_name = tokenizer_names[idx]
             self.tokenizers[tokenizer_name] = tokenizer
-            toknizer_offsets[tokenizer_name] = tokenizer_offset
+            tokenizer_offsets[tokenizer_name] = tokenizer_offset
             if isinstance(tokenizer, BaseTokenizer):
                 tokens.extend(tokenizer.tokens)
                 num_tokens = len(tokenizer.tokens)
@@ -1123,7 +1123,7 @@ class AggregatedTTSTokenizer:
 
         self.tokens = tokens
         self.tokenizer_names = tokenizer_names
-        self.toknizer_offsets = toknizer_offsets
+        self.tokenizer_offsets = tokenizer_offsets
         self.vocab_size = len(tokens)
         self.num_tokens_per_tokenizer = num_tokens_per_tokenizer
         self.tokenizer_pad_ids = tokenizer_pad_ids
@@ -1142,12 +1142,12 @@ class AggregatedTTSTokenizer:
             tokenizer_name = self.tokenizer_names[0]
         tokenizer = self.tokenizers[tokenizer_name]
         tokens = tokenizer.encode(text)
-        return [self.toknizer_offsets[tokenizer_name] + token for token in tokens]
+        return [self.tokenizer_offsets[tokenizer_name] + token for token in tokens]
 
     def decode(self, tokens: List[int], tokenizer_name: str = None) -> str:
         if tokenizer_name is None:
             # Default to the first tokenizer if no name is provided
             tokenizer_name = self.tokenizer_names[0]
         tokenizer = self.tokenizers[tokenizer_name]
-        return tokenizer.decode([token - self.toknizer_offsets[tokenizer_name] for token in tokens])
+        return tokenizer.decode([token - self.tokenizer_offsets[tokenizer_name] for token in tokens])
 

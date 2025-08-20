@@ -912,7 +912,7 @@ class MagpieTTSModel(ModelPT):
 
     def embed_context_text(self, context_text_tokens):
         if self.legacy_text_conditioning:
-            context_text_tokens = context_text_tokens - self.tokenizer.toknizer_offsets[self.text_conditioning_tokenizer_name]
+            context_text_tokens = context_text_tokens - self.tokenizer.tokenizer_offsets[self.text_conditioning_tokenizer_name]
             context_text_embedded = self.context_text_embedding(context_text_tokens)  # (B, L, E)
         else:
             context_text_embedded = self.text_embedding(context_text_tokens)  # (B, L, E)
