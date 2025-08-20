@@ -426,10 +426,10 @@ class MagpieTTSModel(ModelPT):
             # audio_len: (B,)
             return audio, audio_len
 
-    def embed_audio_tokens(self, audio_tokens, frame_stacking_factor):
+    def embed_audio_tokens(self, audio_tokens):
         B, C, T = audio_tokens.shape
         audio_embedding = None
-        for i in range(frame_stacking_factor):
+        for i in range(self.frame_stacking_factor):
             for c in range(C):
                 tokens = audio_tokens[:,c , i::self.frame_stacking_factor]
                 embedding = self.audio_embeddings[c + i * C](tokens)
@@ -477,13 +477,17 @@ class MagpieTTSModel(ModelPT):
         C = self.num_audio_codebooks
         dec_out_all = dec_out.reshape(-1, dec_out.size(-1)) # (B*T', E)
         local_transformer_input = [dec_out_all]
+        # Build the teacher-forced input to the LT.
         for fs_index in range(self.frame_stacking_factor):
             for codebook_num in range(C):
+                # Collect ground truth codes for the current codebook and frame stack index combintation. 
                 codes = audio_codes_target[:, codebook_num, fs_index::self.frame_stacking_factor] # (B, T')
+                # Individual timesteps are independently handled by the LT fold time into the batch dimension.
                 codes = codes.reshape(-1) # (B*T',)
+                # Embed the codes
                 codebook_embedding = self.audio_embeddings[codebook_num + fs_index * C](codes) # (B*T', E)
                 local_transformer_input.append(codebook_embedding)
-
+        # Stack the input codes along dimension 1 (codebooks). This is the dimension along which the LT predicts iteratively.
         local_transformer_input = torch.stack(local_transformer_input, dim=1) # (B*T', C+1, E)
         local_transformer_input = self.local_transformer_in_projection(local_transformer_input) # (B*T', C+1, 128)
         _mask = torch.ones(local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
@@ -641,7 +645,7 @@ class MagpieTTSModel(ModelPT):
 
         return all_preds
 
-    def debug_visualize_codes(self,codes, mask_id=2020, frame_stacking_rate=2):
+    def debug_visualize_codes(self, codes, mask_id=2020, frame_stacking_rate=2):
         """
         Visualize codes for debug purposes
         codes: (B, C)
@@ -651,17 +655,17 @@ class MagpieTTSModel(ModelPT):
                 return "M    "
             else:
                 return f"{code:04d} "
-        DS = frame_stacking_rate
         B, C = codes.shape
         if B > 1:
-            print("Warning: visualizing only first batch element")
+            logging.debug("Warning: visualizing only first batch element")
         codes = codes.clone().detach().cpu().numpy()[0]
         codes = [code_to_str(c) for c in codes]
+        output_str = ""
         for i, c in enumerate(codes):
             if (i) % (C/frame_stacking_rate) == 0:
-                print("  |timestep| ", end="")
-            print(c, end="")
-        print()
+                output_str += "|timestep| "
+            output_str += c
+        logging.debug(output_str)
 
     def clear_forbidden_logits(self, logits, clear_audio_eos=False):
         """
@@ -677,7 +681,9 @@ class MagpieTTSModel(ModelPT):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
         """        
-        debug_print = False
+        debug_print = True
+        if debug_print:
+            logging.set_verbosity(logging.DEBUG)
         # dec_output: (B, E)
         device = dec_output.device
         # disable KV cache since our transformer is not causal
@@ -696,12 +702,12 @@ class MagpieTTSModel(ModelPT):
         codes = self.mask_token_id * torch.ones((B, codebook_seq_len), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
         topk_indices = None
-        if debug_print: print(f"Sampling type: {sampling_type}")
+        if debug_print: logging.debug(f"Sampling type: {sampling_type}")
         if fixed_schedule is not None:
             n_steps = len(fixed_schedule)
-            if debug_print: print(f"Using fixed schedule: {fixed_schedule}")        
+            if debug_print: logging.debug(f"Using fixed schedule: {fixed_schedule}")        
         if dynamic_cfg_scale:
-            if debug_print: print(f"Using dynamic CFG scale")
+            if debug_print: logging.debug(f"Using dynamic CFG scale")
         for step in range(n_steps):
             # how far along we are in the unmasking process
             progress = step / n_steps
@@ -731,9 +737,9 @@ class MagpieTTSModel(ModelPT):
             unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
             codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
             if debug_print:
-                print(f"Transformer Input at step {step} of {n_steps}")
+                logging.debug(f"Transformer Input at step {step} of {n_steps}")
                 self.debug_visualize_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
-                print("--------------------------------")
+                logging.debug("--------------------------------")
 
             # build transformer input
             local_transformer_input = local_transformer_input_init
@@ -768,7 +774,7 @@ class MagpieTTSModel(ModelPT):
                     #interp = 1.0 - progress  # decrease from 1 to 0
                     interp = progress # gradually increase from 0 to 1
                     current_cfg_scale = (cfg_scale - 1) * interp + 1.0  # 1.0 --> cfg_scale --> 1.0
-                    print(f"step={step}, current_cfg_scale={current_cfg_scale:.2f}")
+                    logging.debug(f"step={step}, current_cfg_scale={current_cfg_scale:.2f}")
                 cfg_logits = current_cfg_scale * conditional_logits +  (1.0 - current_cfg_scale) * unconditional_logits                                    
                 logits[:actual_batch_size] = cfg_logits
 
@@ -815,9 +821,9 @@ class MagpieTTSModel(ModelPT):
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
 
         if debug_print:
-            print(f"Final codes after MaskGit sampling")
+            logging.debug(f"Final codes after MaskGit sampling")
             self.debug_visualize_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
-            print("--------------------------------")
+            logging.debug("--------------------------------")
         # break stacked groups of frames into individual frames
         codes = codes.reshape(B, self.frame_stacking_factor, self.num_audio_codebooks).permute(0,2,1) # B, C, frame_stacking_factor
 
@@ -1103,7 +1109,7 @@ class MagpieTTSModel(ModelPT):
                     batch['context_audio'], batch['context_audio_lens'], audio_type='context'
                 )
             context_audio_codes = self.pad_audio_codes(context_audio_codes, self.frame_stacking_factor, pad_token=0)
-            context_audio_embedded = self.embed_audio_tokens(context_audio_codes, frame_stacking_factor=self.frame_stacking_factor)  # (B, T/frame_stacking_factor, E)
+            context_audio_embedded = self.embed_audio_tokens(context_audio_codes)  # (B, T/frame_stacking_factor, E)
 
             if self.use_text_conditioning_encoder:
                 context_text_tokens = batch['context_text_tokens']
@@ -1314,7 +1320,7 @@ class MagpieTTSModel(ModelPT):
         audio_codes_lens_input_unstacked =  audio_codes_lens - 1  # don't count EOS for input
         audio_codes_lens_target_unstacked = audio_codes_lens - self.frame_stacking_factor # don't count BOS for target
         audio_codes_lens_input = torch.floor(audio_codes_lens_input_unstacked / self.frame_stacking_factor).long()
-        audio_codes_embedded_all = self.embed_audio_tokens(audio_codes, frame_stacking_factor=self.frame_stacking_factor) # (B, T, E) # Computing this to be use in the alignment encoder
+        audio_codes_embedded_all = self.embed_audio_tokens(audio_codes) # (B, T, E) # Computing this to be use in the alignment encoder
         audio_codes_embedded = audio_codes_embedded_all[:, :-1, :] # (B, T', E) Input to the decoder; this is already in the frame-stacked domain, hence the -1 (not `frame_stacking_factor`)
 
         audio_codes_mask = get_mask_from_lengths(audio_codes_lens_input)
@@ -1360,7 +1366,7 @@ class MagpieTTSModel(ModelPT):
                 )
                 # timestep_mask is True for timesteps to be kept
                 audio_codes_input_unstacked = audio_codes_input_unstacked * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
-                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input_unstacked, frame_stacking_factor=self.frame_stacking_factor) # (B, T', E)
+                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input_unstacked) # (B, T', E)
 
         if context_tensors['additional_decoder_input'] is not None:
             dec_input_embedded = torch.cat([additional_decoder_input, audio_codes_embedded], dim=1)
@@ -1811,7 +1817,7 @@ class MagpieTTSModel(ModelPT):
                     time_to_first_prediction = time.time() - start_time
                 if idx % 20 == 0:
                     print(f"Decoding timestep {idx}")
-                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input, frame_stacking_factor=self.frame_stacking_factor)
+                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input)
                 if context_tensors['additional_decoder_input'] is not None:
                     _audio_codes_embedded = torch.cat(
                         [context_tensors['additional_decoder_input'], audio_codes_embedded], dim=1
