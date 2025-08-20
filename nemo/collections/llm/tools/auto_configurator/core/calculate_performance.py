@@ -216,6 +216,10 @@ def get_results(
     
     logger.info(f"Found {len(dirs)} directories, {len(error_files)} error files, {len(tb_files)} tensorboard files")
 
+    # Track tensorboard processing errors
+    tb_errors = 0
+    tb_error_types = {}
+
     for error_file, tb_file, candidate_dir in zip(error_files, tb_files, dirs):
         try:
             tp, pp, cp, ep, mbs, vp, gbs = get_config(candidate_dir)
@@ -248,20 +252,20 @@ def get_results(
 
         if not tb_file:
             continue
-
+            
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
  
         try:
             timing_list = ea.Scalars("train_step_timing in s")
-
+            
             if len(timing_list) < 10:
                 continue
  
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
             samples_per_s = round(gbs / avg_global_step_time, 2)
-
+            
             m_tflops, m_tflops_gpu = calculate_tflops(
                 model_name=model_name,
                 gbs=gbs,
@@ -321,9 +325,21 @@ def get_results(
             }
 
         except Exception as e:
-            logger.error(f"Error processing tensorboard file: {e}")
+            tb_errors += 1
+            error_type = str(e)
+            tb_error_types[error_type] = tb_error_types.get(error_type, 0) + 1
+            
+            # Only log the first few errors to avoid spam
+            if tb_errors <= 1:
+                logger.warning(f"Error processing at least one tensorboard file: {e}")
         finally:
             continue
+
+    # Log summary of tensorboard errors if any occurred
+    if tb_errors > 0:
+        logger.warning(f"Tensorboard processing completed with {tb_errors} errors:")
+        for error_type, count in tb_error_types.items():
+            logger.warning(f"  {error_type}: {count} occurrences")
 
     logger.info(f"Processing complete. Found {len(result)} successful results and {len(errors)} errors")
     
@@ -331,12 +347,12 @@ def get_results(
         result.sort(key=lambda x: x.time_per_step)
         logger.info(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
         for i, res in enumerate(result):
-            logger.info(f"Config #{i+1} - {res[-1]}: {res[-3]} TFLOPS per GPU with {res[15]:.4f}s per global step.")
+            logger.info(f"Config #{i+1} - {res.descriptive_name}: {res.tflops_per_gpu:.4f} TFLOPS per GPU with {res.time_per_step:.4f}s per global step.")
             if i + 1 == output_top_n:
                 break
 
         logger.info("\n==================================================")
-        logger.info(f"Optimal config: {result[0][-1]} with {result[0].time_per_global_step:.4f}s per global step.")
+        logger.info(f"Optimal config: {result[0].descriptive_name} with {result[0].time_per_step:.4f}s per global step.")
         logger.info("==================================================\n")
 
         # Save results as a CSV file.
@@ -473,7 +489,7 @@ def get_config(run_name: str) -> tuple:
         mbs = int(params.get("mbs"))
         vp = int(params["vp"]) if params.get("vp") not in [None, 'None'] else None
         gbs = int(params.get("gbs"))
-
+        
     except (ValueError, KeyError, TypeError) as e:
         raise ValueError(
             f"Missing or invalid configuration parameters in '{run_name}': {e}. Expected integer values for all parallelism settings."
