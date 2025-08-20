@@ -401,10 +401,10 @@ class SpectrogramToAudio(NeuralModule):
         # Lazily initialize buffers
         self._init_stream_buffers(input)
 
-        B, C, F, Nf = input.size()
+        B, C, F, num_frames = input.size()
         assert F == self.num_subbands, f"Number of subbands F={F} not matching self.num_subbands={self.num_subbands}"
-        if Nf != 1:
-            raise ValueError("stream_update expects exactly one frame (N=1).")
+        if num_frames != 1:
+            raise ValueError(f"stream_update expects exactly one frame (N=1), got {num_frames}")
 
         # Compute inverse FFT for the single frame
         frame_spec = input[..., 0]  # (B, C, F)
