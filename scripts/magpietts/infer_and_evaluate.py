@@ -650,7 +650,7 @@ def main():
         use_local_transformer=args.use_local_transformer,
         maskgit_n_steps=args.maskgit_n_steps,
         legacy_codebooks=args.legacy_codebooks,
-        legacy_conditioning=args.legacy_conditioning,
+        legacy_text_conditioning=args.legacy_text_conditioning,
         clean_up_disk=args.clean_up_disk,
         hparams_file_from_wandb=args.hparams_file_from_wandb,
         log_exp_name=args.log_exp_name,
