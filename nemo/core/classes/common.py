@@ -41,10 +41,10 @@ from omegaconf import DictConfig, OmegaConf
 
 import nemo
 from nemo.core.classes.mixins.hf_io_mixin import HuggingFaceFileIO
+from nemo.core.classes.modelPT import ModelPT
 from nemo.core.config.templates.model_card import NEMO_DEFAULT_MODEL_CARD_TEMPLATE
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.core.neural_types import NeuralType, NeuralTypeComparisonResult
-from nemo.core.classes.modelPT import ModelPT
 from nemo.utils import logging
 from nemo.utils.cloud import maybe_download_from_cloud
 from nemo.utils.data_utils import resolve_cache_dir
