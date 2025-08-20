@@ -436,15 +436,14 @@ def set_primary_perf_configs(
         keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
     )
 
-    # the line below is ignored
     recipe.trainer.enable_checkpointing = save_checkpoint
-    # instead have to add ModelCheckpoint callback
+    # Need to add ModelCheckpoint callback
     if save_checkpoint:
         recipe.trainer.callbacks.append(
             run.Config(
                 ModelCheckpoint,
                 every_n_train_steps=max_steps,
-                dirpath=dir,
+                dirpath=None,
                 save_top_k=1,
                 always_save_context=True,
                 save_optim_on_train_end=True,
