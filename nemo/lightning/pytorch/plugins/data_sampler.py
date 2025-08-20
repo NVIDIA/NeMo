@@ -30,6 +30,7 @@ class DataSampler:
     ``torch.utils.data.DataLoader`` in ``transform_dataloader`` to inject the
     appropriate sampler for the active strategy.
     """
+
     def connect(self, trainer: pl.Trainer):
         """Attach the Lightning ``trainer`` to this sampler instance."""
         self.trainer = trainer
@@ -49,6 +50,7 @@ class MegatronDataSampler(DataSampler):
     Handles batch ramp-up, logging of consumed samples, and wiring Megatron's
     microbatch/global-batch calculations into NeMo Lightning training.
     """
+
     def __init__(
         self,
         seq_len: int,
