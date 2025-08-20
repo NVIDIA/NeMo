@@ -30,6 +30,7 @@ from lhotse.cut import Cut
 from lhotse.dataset.collation import collate_matrices, collate_vectors
 from lhotse.dataset.dataloading import resolve_seed
 from lhotse.serialization import load_jsonl
+from lhotse.serialization import decode_json_line, deserialize_item, open_best
 from lhotse.shar import AudioTarWriter, JsonlShardWriter
 from lhotse.utils import Pathlike, is_valid_url
 
@@ -424,6 +425,7 @@ def collate_conversation_audio_fault_tolerant(
                 conv_audios.append(torch.as_tensor(cut.load_audio()).squeeze())
                 conv_cuts.append(cut)
         except AudioLoadingError:
+            logging.warning(f"Skipping conversation because it failed to load audio: {conversation.to_dict()}")
             continue
         else:
             audios.extend(conv_audios)
@@ -823,7 +825,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
         Detects audio placeholders (<sound>, <speech>) and creates appropriate audio/text turns.
         """
         conversations = []
-        audio_path = data.get("sound") or data.get("ori_sound")
+        audio_path = data.get("sound") or data.get("ori_sound") or data.get("speech")
 
         for turn in data["conversations"]:
             # Map ShareGPT roles to standard roles
