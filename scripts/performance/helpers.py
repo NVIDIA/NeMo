@@ -439,6 +439,21 @@ def set_primary_perf_configs(
     recipe.trainer.enable_checkpointing = save_checkpoint
     recipe.trainer.val_check_interval = max_steps
 
+    if save_checkpoint:
+        recipe.trainer.callbacks.append(
+            run.Config(
+                ModelCheckpoint,
+                every_n_train_steps=max_steps,
+                dirpath=None,
+                save_top_k=1,
+                always_save_context=True,
+                save_optim_on_train_end=True,
+                save_context_on_train_end=True,
+
+            )
+        )
+
+
     if recipe.trainer.enable_checkpointing or load_checkpoint_path is not None:
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = False
 
