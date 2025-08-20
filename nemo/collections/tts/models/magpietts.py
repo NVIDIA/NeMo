@@ -681,8 +681,9 @@ class MagpieTTSModel(ModelPT):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
         """        
-        debug_print = True
+        debug_print = False
         if debug_print:
+            original_verbosity = logging.get_verbosity()
             logging.set_verbosity(logging.DEBUG)
         # dec_output: (B, E)
         device = dec_output.device
@@ -824,6 +825,7 @@ class MagpieTTSModel(ModelPT):
             logging.debug(f"Final codes after MaskGit sampling")
             self.debug_visualize_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
             logging.debug("--------------------------------")
+            logging.set_verbosity(original_verbosity)
         # break stacked groups of frames into individual frames
         codes = codes.reshape(B, self.frame_stacking_factor, self.num_audio_codebooks).permute(0,2,1) # B, C, frame_stacking_factor
 
