@@ -9,7 +9,9 @@ import os
 JOB_DIR = "/lustre/fsw/portfolios/coreai/users/zhiyul/NeMo"
 SLURM_ACCOUNT = os.environ.get("SLURM_ACCOUNT", "coreai_dlalgo_genai")
 SLURM_PARTITION = os.environ.get("SLURM_PARTITION", "interactive")
-BASE_IMAGE = os.environ.get("BASE_IMAGE", "nvcr.io#nvidia/nemo:25.07")
+# BASE_IMAGE = os.environ.get("BASE_IMAGE", "nvcr.io#nvidia/nemo:25.07")
+BASE_IMAGE = os.environ.get("BASE_IMAGE", "/lustre/fsw/portfolios/coreai/users/zhiyul/NeMo/nemo-25.07-dev.sqsh")
+NEMO_DIR = "/lustre/fsw/portfolios/coreai/users/zhiyul/NeMo"
 
 def custom_qwen3_32b():
     # pretrain_recipe defaults to mock dataset, with the qwen tokenizer.
@@ -60,26 +62,35 @@ if __name__ == "__main__":
         "HF_HOME": "/lustre/fsw/portfolios/coreai/users/zhiyul/hf",
         "NEMO_MODELS_CACHE": "/lustre/fsw/portfolios/coreai/users/zhiyul/nemo",   # cache path
     }
-
-    slurm_executor = run.SlurmExecutor(
-        account=SLURM_ACCOUNT,
-        partition=SLURM_PARTITION,
-        nodes=1,
-        gpus_per_node=8,
-        ntasks_per_node=8,  # Typically 1 task per GPU
-        time="02:00:00" if SLURM_PARTITION == "interactive" else "04:00:00",
-        container_image=BASE_IMAGE,
-        job_name_prefix="zhiyul_nemo_pretrain-",
-        # launcher="torchrun" is often used for multi-gpu/multi-node jobs
-        # When a launcher like Torchrun is used, `ntasks_per_node` is automatically
-        # set to 1 and the value is passed to torchrun's nproc_per_node argument.
-        launcher="torchrun",
-        container_mounts=["/lustre:/lustre",],
-        env_vars=env_vars,
-    )
+    executor = None
+    use_slurm = False
+    if use_slurm:
+        executor = run.SlurmExecutor(
+            account=SLURM_ACCOUNT,
+            partition=SLURM_PARTITION,
+            nodes=1,
+            gpus_per_node=8,
+            ntasks_per_node=8,  # Typically 1 task per GPU
+            time="02:00:00" if SLURM_PARTITION == "interactive" else "04:00:00",
+            container_image=BASE_IMAGE,
+            job_name_prefix="zhiyul_nemo_pretrain-",
+            # launcher="torchrun" is often used for multi-gpu/multi-node jobs
+            # When a launcher like Torchrun is used, `ntasks_per_node` is automatically
+            # set to 1 and the value is passed to torchrun's nproc_per_node argument.
+            launcher="torchrun",
+            container_mounts=["/lustre:/lustre", f"{NEMO_DIR}:/opt/NeMo"],
+            env_vars=env_vars,
+        )
+    else:
+        executor = run.LocalExecutor(
+            nodes=1,
+            ntasks_per_node=8,  # Typically 1 task per GPU
+            env_vars=env_vars,
+            launcher="torchrun",
+        )
 
     run.run(
         recipe,
-        executor=slurm_executor,
+        executor=executor,
         name="multinode_qwen3_32b_pretraining"
     )

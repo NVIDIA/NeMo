@@ -109,6 +109,7 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
             raise ValueError(f'Incompatible wrapped checkpoint_io type: {type(checkpoint_io)}')
 
         super().__init__(checkpoint_io)
+        logging.info(f"persistent_workers: {persistent_workers}")
         self.async_calls_queue = AsyncCallsQueue(persistent=persistent_workers)
 
     def save_checkpoint(
@@ -362,7 +363,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             )
 
         if sharded_strategy is not None:
-            logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
+            logging.info(f'Using {sharded_strategy} dist-ckpt load strategy. here')
 
         if isinstance(strict, bool):
             # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)

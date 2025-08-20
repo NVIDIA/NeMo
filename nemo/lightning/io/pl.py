@@ -272,7 +272,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             )
 
         if sharded_strategy is not None:
-            logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
+            logging.info(f'Using {sharded_strategy} dist-ckpt load strategy. here2')
 
         if isinstance(strict, bool):
             # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)
