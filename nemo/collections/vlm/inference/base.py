@@ -108,7 +108,7 @@ def setup_model_and_tokenizer(
         model = vlm.LlavaModel(model_config, tokenizer=processor.tokenizer)
     elif isinstance(model_config, vlm.Qwen2VLConfig):
         if model_config.vision_projection_config.projector_type != "mcore_mlp":
-            raise ValueError(f"Only support Qwen2.5-VL with mcore_mlp projector type")
+            raise ValueError("Only support Qwen2.5-VL with mcore_mlp projector type")
         if model_config.vision_projection_config.hidden_size == 2048:
             model_id = "Qwen/Qwen2.5-VL-3B-Instruct"
         elif model_config.vision_projection_config.hidden_size == 3584:
