@@ -62,25 +62,18 @@ def main(args) -> None:
     if args.load_from_hf:
         model = fabric.import_model(f"hf://Qwen/Qwen2.5-VL-{args.model_size}-Instruct", Qwen2VLModel)
     else:
-        # model_config = {
-        #     "3B": Qwen25VLConfig3B,
-        #     "7B": Qwen25VLConfig7B,
-        #     "32B": Qwen25VLConfig32B,
-        #     "72B": Qwen25VLConfig72B,
-        # }[args.model_size]()
-        # model = Qwen2VLModel(model_config, model_version="qwen25-vl", tokenizer=hf_tokenizer)
-        # model = fabric.load_model(args.local_model_path, model)
-        from nemo.collections.vlm.inference import setup_model_and_tokenizer
+        model_config = {
+            "3B": Qwen25VLConfig3B,
+            "7B": Qwen25VLConfig7B,
+            "32B": Qwen25VLConfig32B,
+            "72B": Qwen25VLConfig72B,
+        }[args.model_size]()
+        model = Qwen2VLModel(model_config, model_version="qwen25-vl", tokenizer=hf_tokenizer)
+        model = fabric.load_model(args.local_model_path, model)
+    model = model.module.cuda()
+    model.eval()
 
-        inference_wrapped_model, _ = setup_model_and_tokenizer(
-            path=args.local_model_path,
-            tp_size=args.tp_size,
-            pp_size=args.pp_size,
-        )
-    # model = model.module.cuda()
-    # model.eval()
-
-    # inference_wrapped_model = setup_inference_wrapper(model, hf_tokenizer)
+    inference_wrapped_model = setup_inference_wrapper(model, hf_tokenizer)
 
     messages = [
         {
