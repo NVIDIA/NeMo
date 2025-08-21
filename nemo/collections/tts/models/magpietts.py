@@ -693,14 +693,14 @@ class MagpieTTSModel(ModelPT):
             output_str += c
         logging.debug(output_str)
 
-    def clear_forbidden_logits(self, logits, clear_audio_eos=False):
+    def clear_forbidden_logits(self, logits):
         """
-        Sets logits for forbidden tokens to `-inf`.
+        Sets logits of forbidden tokens to `-inf` so they will never be sampled.
+        Specifically, we forbid sampling of all special tokens except AUDIO_EOS.
         Args:
             logits: (B, C, num_audio_tokens_per_codebook)
-            clear_audio_eos: bool, whether to clear the audio EOS token
         """
-        logits[:,:, SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, forbid_audio_eos=clear_audio_eos)] = float('-inf')
+        logits[:, :, SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, forbid_audio_eos=False)] = float('-inf')
         return logits
 
     def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule=None, dynamic_cfg_scale=False, sampling_type=None):
@@ -793,7 +793,7 @@ class MagpieTTSModel(ModelPT):
                 logits[:actual_batch_size] = cfg_logits
 
             # Disallow generation of special tokens (except audio EOS which is handled separately)
-            logits = self.clear_forbidden_logits(logits, clear_audio_eos=False)
+            logits = self.clear_forbidden_logits(logits)
 
             # handle unfinished and finished items
             for item_idx in unfinished_items:
@@ -865,6 +865,7 @@ class MagpieTTSModel(ModelPT):
                 codebook_logits[item_idx, :] = float('-inf')
                 codebook_logits[item_idx, self.audio_eos_id] = 0.0
 
+            codebook_logits = self.clear_forbidden_logits(codebook_logits.unsqueeze(1)).squeeze(1)
             codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0] # (B, topk)
             indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(-1) # (B, num_tokens_per_codebook)
             codebook_logits_rescored = codebook_logits.clone()
@@ -899,6 +900,7 @@ class MagpieTTSModel(ModelPT):
                 for item_idx in finished_items:
                     codebook_logits[item_idx, :] = float('-inf')
                     codebook_logits[item_idx, self.audio_eos_id] = 0.0
+                codebook_logits = self.clear_forbidden_logits(codebook_logits.unsqueeze(1)).squeeze(1)
                 codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0]  # (B, topk)
                 indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(
                     -1
