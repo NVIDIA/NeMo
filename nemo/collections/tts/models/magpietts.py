@@ -681,8 +681,8 @@ class MagpieTTSModel(ModelPT):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
         """        
-        debug_print = False
-        if debug_print:
+        debug_maskgit = os.getenv("NEMO_TESTING") == "1"
+        if debug_maskgit:
             original_verbosity = logging.get_verbosity()
             logging.set_verbosity(logging.DEBUG)
         # dec_output: (B, E)
@@ -703,12 +703,12 @@ class MagpieTTSModel(ModelPT):
         codes = self.mask_token_id * torch.ones((B, codebook_seq_len), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
         topk_indices = None
-        if debug_print: logging.debug(f"Sampling type: {sampling_type}")
+        if debug_maskgit: logging.debug(f"Sampling type: {sampling_type}")
         if fixed_schedule is not None:
             n_steps = len(fixed_schedule)
-            if debug_print: logging.debug(f"Using fixed schedule: {fixed_schedule}")        
+            if debug_maskgit: logging.debug(f"Using fixed schedule: {fixed_schedule}")        
         if dynamic_cfg_scale:
-            if debug_print: logging.debug(f"Using dynamic CFG scale")
+            if debug_maskgit: logging.debug(f"Using dynamic CFG scale")
         for step in range(n_steps):
             # how far along we are in the unmasking process
             progress = step / n_steps
@@ -737,7 +737,7 @@ class MagpieTTSModel(ModelPT):
             # replace masks of the top-k confident codebooks with the codes that were sampled for them
             unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
             codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
-            if debug_print:
+            if debug_maskgit:
                 logging.debug(f"Transformer Input at step {step} of {n_steps}")
                 self.debug_visualize_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
                 logging.debug("--------------------------------")
@@ -821,7 +821,7 @@ class MagpieTTSModel(ModelPT):
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
 
-        if debug_print:
+        if debug_maskgit:
             logging.debug(f"Final codes after MaskGit sampling")
             self.debug_visualize_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
             logging.debug("--------------------------------")
