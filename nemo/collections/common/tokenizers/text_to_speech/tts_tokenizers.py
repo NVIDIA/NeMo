@@ -1098,26 +1098,35 @@ class AggregatedTTSTokenizer:
         """
         assert len(tokenizers) == len(tokenizer_names), "Number of tokenizers and tokenizer names must be the same."
         tokens = []
-        toknizer_offsets = {}
+        tokenizer_offsets = {}
         tokenizer_offset = 0
         self.tokenizers = {}
+        num_tokens_per_tokenizer = {}
+        tokenizer_pad_ids = {}
         for idx, tokenizer in enumerate(tokenizers):
-            self.tokenizers[tokenizer_names[idx]] = tokenizer
-            toknizer_offsets[tokenizer_names[idx]] = tokenizer_offset
+            tokenizer_name = tokenizer_names[idx]
+            self.tokenizers[tokenizer_name] = tokenizer
+            tokenizer_offsets[tokenizer_name] = tokenizer_offset
             if isinstance(tokenizer, BaseTokenizer):
                 tokens.extend(tokenizer.tokens)
                 num_tokens = len(tokenizer.tokens)
+                tokenizer_pad_ids[tokenizer_name] = tokenizer.pad + tokenizer_offset
             elif isinstance(tokenizer, PreTrainedTokenizerBase):
                 _tokens = list(tokenizer.get_vocab().keys())
                 tokens.extend(_tokens)
                 num_tokens = len(_tokens)
+                tokenizer_pad_ids[tokenizer_name] = tokenizer.pad_token_id + tokenizer_offset
             else:
                 raise ValueError("Tokenizers must be either BaseTokenizer or HuggingFace PreTrainedTokenizerBase.")
             tokenizer_offset += num_tokens
+            num_tokens_per_tokenizer[tokenizer_name] = num_tokens
 
         self.tokens = tokens
         self.tokenizer_names = tokenizer_names
-        self.toknizer_offsets = toknizer_offsets
+        self.tokenizer_offsets = tokenizer_offsets
+        self.vocab_size = len(tokens)
+        self.num_tokens_per_tokenizer = num_tokens_per_tokenizer
+        self.tokenizer_pad_ids = tokenizer_pad_ids
         # Define aggregated token's pad value from the first tokenizer's pad value
         first_tokenizer = self.tokenizers[tokenizer_names[0]]
         if hasattr(first_tokenizer, "pad_token_id"):  # Defined in PreTrainedTokenizerBase subclasses
@@ -1127,12 +1136,12 @@ class AggregatedTTSTokenizer:
         else:
            raise ValueError("AggregatedTTSTokenizer could not find a padding token in the first tokenizer")
 
-    def encode(self, text: str, tokenizer_name: str) -> List[int]:
+    def encode(self, text: str, tokenizer_name: str = None) -> List[int]:
         tokenizer = self.tokenizers[tokenizer_name]
         tokens = tokenizer.encode(text)
-        return [self.toknizer_offsets[tokenizer_name] + token for token in tokens]
+        return [self.tokenizer_offsets[tokenizer_name] + token for token in tokens]
 
-    def decode(self, tokens: List[int], tokenizer_name: str) -> str:
+    def decode(self, tokens: List[int], tokenizer_name: str = None) -> str:
         tokenizer = self.tokenizers[tokenizer_name]
-        return tokenizer.decode([token - self.toknizer_offsets[tokenizer_name] for token in tokens])
+        return tokenizer.decode([token - self.tokenizer_offsets[tokenizer_name] for token in tokens])
 

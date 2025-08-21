@@ -55,11 +55,11 @@ def worker_init_fn(worker_id):
     logging.info(f"Worker {worker_id} initializing...")
     worker_info = get_worker_info()
     dataset = worker_info.dataset  # Get the dataset instance in this worker
-    tokenizer, text_conditioning_tokenizer = setup_tokenizers(
-        dataset.tokenizer_config, dataset.use_text_conditioning_tokenizer, mode=dataset.dataset_type
+    tokenizer = setup_tokenizers(
+        dataset.tokenizer_config,
+        mode=dataset.dataset_type
     )
     dataset.text_tokenizer = tokenizer
-    dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
 
 class MagpieTTSModel(ModelPT):
     """
@@ -126,16 +126,41 @@ class MagpieTTSModel(ModelPT):
                 del cfg['text_tokenizer']
 
         self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
+        # Using google-t5/t5-small as default text conditioning tokenizer for backward compatibility.
+        self.text_conditioning_tokenizer_name = cfg.get('text_conditioning_tokenizer_name', None)
+        self.legacy_text_conditioning = cfg.get('legacy_text_conditioning', False)
+        
+        if self.legacy_text_conditioning:
+            if self.text_conditioning_tokenizer_name is None:
+                self.text_conditioning_tokenizer_name = "google-t5/t5-small"
+            
+            tokenizer_target = "AutoTokenizer"
+            if self.text_conditioning_tokenizer_name == "google-t5/t5-small":
+                tokenizer_target = "T5Tokenizer"
+
+            with open_dict(cfg):
+                cfg.text_tokenizers[self.text_conditioning_tokenizer_name] = {
+                    '_target_' : tokenizer_target,
+                    'pretrained_model' : self.text_conditioning_tokenizer_name,
+                }
+        elif self.text_conditioning_tokenizer_name is None:
+            # If no text_conditioning_tokenizer_name is specified, use the first one as default
+            # For text context tokenization
+            self.text_conditioning_tokenizer_name = list(cfg.text_tokenizers.keys())[0]
+
         # TODO @xueyang: both tokenizers are only used to get some token ids. We
         # should kill them to save a small amount of mem resources since dataloader will initialize them
         # again after the worker processes are spawned.
-        self.tokenizer, self.text_conditioning_tokenizer = setup_tokenizers(
+        self.tokenizer = setup_tokenizers(
             all_tokenizers_config=cfg.text_tokenizers,
-            use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
             mode='train',
         )
 
         num_tokens_tokenizer = len(self.tokenizer.tokens)
+        if self.legacy_text_conditioning:
+            # Text context tokens are not a part of the the regular transcript embedding table in legacy models
+            num_tokens_tokenizer -= self.tokenizer.num_tokens_per_tokenizer[self.text_conditioning_tokenizer_name]
+
         num_tokens = num_tokens_tokenizer + 2  # +2 for BOS and EOS
         self.bos_id = num_tokens - 2
         self.eos_id = num_tokens - 1
@@ -147,8 +172,9 @@ class MagpieTTSModel(ModelPT):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        if self.use_text_conditioning_encoder:
-            self.context_text_embedding = nn.Embedding(self.text_conditioning_tokenizer.vocab_size, cfg.embedding_dim)
+        if self.legacy_text_conditioning:
+            tc_tokenizer = self.tokenizer.tokenizers[self.text_conditioning_tokenizer_name]
+            self.context_text_embedding = nn.Embedding(tc_tokenizer.vocab_size, cfg.embedding_dim)
 
         # This needs to happen after super().__init__()
         self._codec_model = codec_model
@@ -1068,6 +1094,15 @@ class MagpieTTSModel(ModelPT):
             audio_codes = torch.cat([audio_codes, padding], dim=2)
         return audio_codes
 
+    def embed_context_text(self, context_text_tokens):
+        if self.legacy_text_conditioning:
+            context_text_tokens = context_text_tokens - self.tokenizer.tokenizer_offsets[self.text_conditioning_tokenizer_name]
+            context_text_embedded = self.context_text_embedding(context_text_tokens)  # (B, L, E)
+        else:
+            context_text_embedded = self.text_embedding(context_text_tokens)  # (B, L, E)
+        
+        return context_text_embedded
+
     def prepare_context_tensors(self, batch):
         dec_context_size = 0
         additional_decoder_input = None
@@ -1116,7 +1151,8 @@ class MagpieTTSModel(ModelPT):
             if self.use_text_conditioning_encoder:
                 context_text_tokens = batch['context_text_tokens']
                 context_text_lens = batch['context_text_tokens_lens']
-                context_text_embedded = self.context_text_embedding(context_text_tokens)  # (B, L, E)
+                context_text_embedded = self.embed_context_text(context_text_tokens)  # (B, L, E)
+                
                 # Pad context_audio_embedded or context_text_embedded so that they have same number of timesteps
                 if context_audio_embedded.size(1) < context_text_embedded.size(1):
                     padding = torch.zeros(
@@ -1710,8 +1746,8 @@ class MagpieTTSModel(ModelPT):
 
         for bidx in finished_texts_counter:
             finished_texts_counter[bidx] += 1
-            if finished_texts_counter[bidx] > 10:
-                # This means we have been within the text EOS window for atleast 10 timesteps
+            if finished_texts_counter[bidx] > 5:
+                # This means we have been within the text EOS window for at least 5 timesteps
                 # We should allow EOS to be predicted now.
                 unfinished_texts[bidx] = False
 
@@ -2109,6 +2145,7 @@ class MagpieTTSModel(ModelPT):
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=dataset_type,  # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
             use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
+            text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
             pad_context_text_to_max_duration=self.pad_context_text_to_max_duration,
             context_duration_min=self.cfg.context_duration_min,
             context_duration_max=self.cfg.context_duration_max,
@@ -2139,6 +2176,7 @@ class MagpieTTSModel(ModelPT):
             context_duration_min=self.cfg.context_duration_min,
             context_duration_max=self.cfg.context_duration_max,
             use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
+            text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
             tokenizer_config=self.cfg.text_tokenizers,
         )
         data_loader = get_lhotse_dataloader_from_config(
@@ -2169,9 +2207,8 @@ class MagpieTTSModel(ModelPT):
             if dataset_cfg.dataloader_params.num_workers == 0:
                 persistent_workers = False
                 # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-                dataset.text_tokenizer, dataset.text_conditioning_tokenizer = setup_tokenizers(
+                dataset.text_tokenizer = setup_tokenizers(
                     all_tokenizers_config=self.cfg.text_tokenizers,
-                    use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
                     mode='train',
                 )
             self._train_dl = torch.utils.data.DataLoader(
@@ -2198,9 +2235,8 @@ class MagpieTTSModel(ModelPT):
             if dataset_cfg.dataloader_params.num_workers == 0:
                 persistent_workers = False
                 # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-                dataset.text_tokenizer, dataset.text_conditioning_tokenizer = setup_tokenizers(
+                dataset.text_tokenizer = setup_tokenizers(
                     all_tokenizers_config=self.cfg.text_tokenizers,
-                    use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
                     mode='test'
                 )
 

@@ -53,7 +53,7 @@ def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0
         metrics[key] = "{:.4f} +/- {:.4f}".format(mean, confidence_interval)
     return metrics
 
-def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
+def update_config(model_cfg, codecmodel_path, legacy_codebooks=False, legacy_text_conditioning=False):
     ''' helper function to rename older yamls from t5 to magpie '''
     model_cfg.codecmodel_path = codecmodel_path
     if hasattr(model_cfg, 'text_tokenizer'):
@@ -63,6 +63,7 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
         model_cfg.text_tokenizer.g2p.phoneme_probability = 1.0
     model_cfg.train_ds = None
     model_cfg.validation_ds = None
+    model_cfg.legacy_text_conditioning = legacy_text_conditioning
     if "t5_encoder" in model_cfg:
         model_cfg.encoder = model_cfg.t5_encoder
         del model_cfg.t5_encoder
@@ -279,6 +280,7 @@ def run_inference(
         maskgit_fixed_schedule=None,
         maskgit_sampling_type=None,
         legacy_codebooks=False,
+        legacy_text_conditioning=False,
         clean_up_disk=False,
         hparams_file_from_wandb=False,
         log_exp_name=False,
@@ -295,7 +297,7 @@ def run_inference(
             model_cfg = model_cfg.value
 
         with open_dict(model_cfg):
-            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
+            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks, legacy_text_conditioning)
 
         model = MagpieTTSModel(cfg=model_cfg)
         model.use_kv_cache_for_inference = True
@@ -309,7 +311,7 @@ def run_inference(
     elif nemo_file is not None:
         model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
         with open_dict(model_cfg):
-            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks)
+            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks, legacy_text_conditioning)
         model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
@@ -408,6 +410,7 @@ def run_inference(
                 tokenizer_config=None,
                 load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
                 use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
+                text_conditioning_tokenizer_name=model.text_conditioning_tokenizer_name,
                 pad_context_text_to_max_duration=model.pad_context_text_to_max_duration,
                 context_duration_min=context_duration_min,
                 context_duration_max=context_duration_max,
@@ -423,7 +426,7 @@ def run_inference(
                 g2p = model.tokenizer.g2p
             if g2p is not None:
                 g2p.phoneme_probability = 1.0
-            test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
+            
 
             test_data_loader = torch.utils.data.DataLoader(
                 test_dataset,
@@ -615,6 +618,7 @@ def main():
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
+    parser.add_argument('--legacy_text_conditioning', action='store_true')
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=None)
     parser.add_argument('--ssim_target', type=float, default=None)
@@ -662,6 +666,7 @@ def main():
         maskgit_fixed_schedule=args.maskgit_fixed_schedule,
         maskgit_sampling_type=args.maskgit_sampling_type,
         legacy_codebooks=args.legacy_codebooks,
+        legacy_text_conditioning=args.legacy_text_conditioning,
         clean_up_disk=args.clean_up_disk,
         hparams_file_from_wandb=args.hparams_file_from_wandb,
         log_exp_name=args.log_exp_name,
