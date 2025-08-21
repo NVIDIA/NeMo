@@ -2028,10 +2028,6 @@ class MagpieTTSModel(ModelPT):
                 'batch_size': text.size(0),
             }
             torch.cuda.empty_cache()
-            if predicted_audio.numel() == 0 or predicted_codes.numel() == 0:
-                print("Zero length output")
-                raise ValueError("Zero length output")
-
             if return_cross_attn_probs:
                 cross_attention_maps, headwise_cross_attention_maps = self.get_inference_attention_plots(
                     cross_attention_scores_all_timesteps, all_heads_cross_attn_scores_all_timesteps,
