@@ -729,12 +729,8 @@ class MagpieTTSModel(ModelPT):
         codes = self.mask_token_id * torch.ones((B, codebook_seq_len), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
         topk_indices = None
-        if debug_maskgit: logging.debug(f"Sampling type: {sampling_type}")
         if fixed_schedule is not None:
             n_steps = len(fixed_schedule)
-            if debug_maskgit: logging.debug(f"Using fixed schedule: {fixed_schedule}")        
-        if dynamic_cfg_scale:
-            if debug_maskgit: logging.debug(f"Using dynamic CFG scale")
         for step in range(n_steps):
             # how far along we are in the unmasking process
             progress = step / n_steps
