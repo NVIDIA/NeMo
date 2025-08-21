@@ -235,7 +235,6 @@ def apply_transforms(
             f"Right side is "
             f"{ {k: v for k, v in extract_dtypes(_target.named_parameters()).items() if v!=torch.bfloat16} }"
         )
-
     if hasattr(target, "module") and isinstance(target.module, MegatronModule):
         target.module = _target
 
