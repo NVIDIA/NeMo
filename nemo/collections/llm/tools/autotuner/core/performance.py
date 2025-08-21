@@ -20,7 +20,7 @@ from nemo.collections.llm.tools.auto_configurator.core.calculate_performance imp
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
 from nemo.collections.llm.tools.autotuner.core.display import display_performance_analysis
 from nemo.collections.llm.tools.autotuner.core.predictive_config_builder import generate_recipe_configs
-from nemo.collections.llm.tools.autotuner.core.utils import extract_all_values, update_args_with_performance_results
+from nemo.collections.llm.tools.autotuner.core.utils import update_args_with_performance_results
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -95,8 +95,7 @@ def calculate_performance_analysis(performance_dict, args, total_tokens, cost_pe
     for config_name, config_data in performance_dict.items():
         time_per_step = config_data.get('time_per_global_step', 0)
         m_tflops_gpu = config_data.get('m_tflops_gpu', 0)
-        extracted_values = extract_all_values(config_name)
-        gbs = extracted_values.get('gbs')
+        gbs = int(config_name.split('_')[-1])
         tokens_per_step = args.seq_length * gbs
         total_steps = total_tokens / tokens_per_step
         total_training_time_seconds = time_per_step * total_steps

@@ -13,6 +13,10 @@
 # limitations under the License.
 
 from dataclasses import dataclass
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 GPT_BASED_MODELS = [
@@ -417,6 +421,25 @@ def modify_cfg(
         dict: dictionary containing the updated model configuration parameters.
     """
 
+    # validate config
+    is_valid, error_msg = True, ''
+
+    parallel_configs = [
+        ("tensor parallel", tp),
+        ("pipeline parallel", pp), 
+        ("context parallel", cp),
+        ("expert parallel", ep)
+    ]
+    
+    for name, size in parallel_configs:
+        if total_gpus % size != 0:
+            is_valid = False
+            error_msg = f"Invalid {name} size {size} for {total_gpus} GPUs"
+            break
+
+    if not is_valid:
+        logger.info(error_msg)
+        return None
     att_heads = base_cfg.model.config.num_attention_heads
     num_layers = base_cfg.model.config.num_layers
 
@@ -446,9 +469,13 @@ def modify_cfg(
 
     if cp is not None:
         new_cfg["context_parallel_size"] = cp
+    else:
+        new_cfg["context_parallel_size"] = 1
 
     if ep is not None:
         new_cfg["expert_model_parallel_size"] = ep
+    else:
+        new_cfg["expert_model_parallel_size"] = 1
 
     mod_gbs = gbs % (mbs * num_gpus / (tp * pp))
     mod_att_heads = att_heads % tp

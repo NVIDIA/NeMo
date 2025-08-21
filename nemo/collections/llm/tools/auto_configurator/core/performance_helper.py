@@ -18,6 +18,7 @@ Extracted from NeMo's scripts/performance/helpers.py to avoid external dependenc
 """
 
 import logging
+import re
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
@@ -247,6 +248,7 @@ def set_primary_perf_configs(
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
     keep_fsdp_fp8_transpose_cache: Optional[bool] = None,
+    model_name: str = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     logger.info(f"Setting primary performance configs for {task}")
@@ -283,6 +285,34 @@ def set_primary_perf_configs(
         recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
+
+    # Auto-detect NCCL User Buffer setting based on model size if model_name is provided
+    if model_name and use_user_buffer_registration is None:
+        MODEL_SIZE_PATTERNS = [
+            r'Config(\d+)B',  # Nemotron3Config4B -> 4B
+            r'_(\d+)b_',  # _4b_, _70b_, etc.
+            r'_(\d+)B_',  # _4B_, _70B_, etc.
+            r'(\d+)b_',  # 4b_, 70b_ at start
+            r'(\d+)B_',  # 4B_, 70B_ at start
+            r'_(\d+)b\d',  # _4b8, _70b8 (followed by digit)
+            r'_(\d+)B\d',  # _4B8, _70B8 (followed by digit)
+            r'(\d+)B',  # General pattern for XB
+            r'(\d+)b',  # lowercase b
+        ]
+        
+        model_size_b = 0
+        for pattern in MODEL_SIZE_PATTERNS:
+            match = re.search(pattern, model_name, re.IGNORECASE)
+            if match:
+                model_size_b = int(match.group(1))
+                break
+
+        # Enable NCCL User Buffer for models >= 70B parameters
+        # Smaller models may not have enough memory headroom for the additional buffer allocation
+        use_user_buffer_registration = model_size_b >= 70
+
+        logger.info(f"Model size: {model_size_b}B parameters")
+        logger.info(f"NCCL User Buffer auto-enabled: {use_user_buffer_registration} (threshold: 70B+)")
 
     recipe = set_perf_optimization_configs(
         recipe=recipe,

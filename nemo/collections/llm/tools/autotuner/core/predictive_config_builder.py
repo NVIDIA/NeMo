@@ -15,11 +15,12 @@
 import json
 import logging
 import os
+import logging
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
 import nemo_run as run
-from rich.table import Table
+from rich.table import Table   
 
 from nemo.collections import llm
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
@@ -28,114 +29,29 @@ from nemo.collections.llm.tools.autotuner.core.display import _display_configs_t
 from nemo.collections.llm.tools.auto_configurator.core.performance_helper import set_primary_perf_configs
 from nemo.collections.llm.tools.autotuner.core.utils import (
     _load_args_from_config_dir,
-    check_config_matches,
     console,
-    create_log_dir_name,
-    extract_all_values,
     extract_gpu_specs_unified,
     get_args_file_path,
     get_supported_models,
-    logger,
     update_args_with_generation_metadata,
     validate_all_configs,
 )
 from nemo.lightning.resume import AutoResume
 
+
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-
-def set_performance_optimizations_aligned_with_nemo(recipe, args):
-    """
-    Set performance optimizations using NeMo's standard set_primary_perf_configs function.
-    This ensures we use the exact same optimization logic as the performant scripts.
-
-    Note: User buffer configurations are handled per-config in autotuner/core/training_config.py
-    to ensure each configuration gets appropriate settings based on its TP/PP/CP values.
-    """
-
-    # Extract GPU specs for optimization parameters
-    gpu_type, _, _ = extract_gpu_specs_unified(args.resource_shape, getattr(args, 'memory_per_gpu', None))
-    compute_dtype = getattr(recipe, 'compute_dtype', 'bf16') or 'bf16'
-
-    # Get current parallelism settings from recipe
-    tp_size = getattr(recipe.trainer.strategy, 'tensor_model_parallel_size', 1)
-    pp_size = getattr(recipe.trainer.strategy, 'pipeline_model_parallel_size', 1)
-    cp_size = getattr(recipe.trainer.strategy, 'context_parallel_size', 1)
-    vp_size = getattr(recipe.trainer.strategy, 'virtual_pipeline_model_parallel_size', 1)
-    ep_size = getattr(recipe.trainer.strategy, 'expert_model_parallel_size', 1)
-    if vp_size is None:
-        vp_size = 1
-
-    # Determine if NCCL User Buffer should be enabled based on model size
-    model_info = extract_all_values(args.model)
-    model_size_b = model_info.get('model_size_b', 0)
-
-    # Enable NCCL User Buffer for models >= 70B parameters
-    # Smaller models may not have enough memory headroom for the additional buffer allocation
-    buffer_registration_flag = model_size_b >= 70
-
-    logger.info(f"Model size: {model_size_b}B parameters")
-    logger.info(f"NCCL User Buffer enabled: {buffer_registration_flag} (threshold: 70B+)")
-
-    # Use NeMo's standard performance configuration function
-    recipe = set_primary_perf_configs(
-        recipe=recipe,
-        task="pre_train",  # AutoTune is for pretraining
-        num_nodes=recipe.trainer.num_nodes,
-        num_gpus_per_node=recipe.trainer.devices,
-        mbs=recipe.data.micro_batch_size,
-        gbs=recipe.data.global_batch_size,
-        max_steps=recipe.trainer.max_steps,
-        tp_size=tp_size,
-        pp_size=pp_size,
-        cp_size=cp_size,
-        vp_size=vp_size,
-        ep_size=ep_size,
-        etp_size=getattr(recipe.trainer.strategy, 'expert_tensor_parallel_size', None),
-        enable_cuda_graphs=False,  # Disabled for FSDP compatibility
-        use_mcore_fsdp=False,  # Disabled for compatibility with NeMo
-        use_user_buffer_registration=buffer_registration_flag,
-        use_sharp=False,  # Enable SHARP for collective communication
-        recompute_layers=0,  # No recompute for base config
-        activation_offload_layers=0,  # No offload for base config
-        keep_fsdp_fp8_transpose_cache=False,
-        compute_dtype=compute_dtype,
-        fp8_recipe=None,  # Use default FP8 recipe
-        recompute_modules=None,  # No selective recompute
-        nccl_communicator_config_path=None,  # Use default NCCL config
-    )
-    return recipe
 
 
 def generate(**kwargs):
     """Generate AutoTune configurations for NeMo pretraining."""
     console.print(f"Generating AutoTune configurations for model: [bold]{kwargs['model']}[/bold]")
 
-    # print the received values for debugging
-    console.print("[blue]Received parameters:[/blue]")
-    console.print(f"  Global batch sizes: {kwargs['global_batch_sizes']}")
-    console.print(f"  Tensor parallel sizes: {kwargs['tensor_parallel_sizes']}")
-    console.print(f"  Pipeline parallel sizes: {kwargs['pipeline_parallel_sizes']}")
-    console.print(f"  Context parallel sizes: {kwargs['context_parallel_sizes']}")
-    console.print(f"  Expert parallel sizes: {kwargs['expert_parallel_sizes']}")
-    console.print(f"  Micro batch sizes: {kwargs['micro_batch_sizes']}")
-    gpu_type, gpu_count, gpu_memory_gb = extract_gpu_specs_unified(
-        kwargs['resource_shape'], kwargs.get('memory_per_gpu')
-    )
-    model_info = extract_all_values(kwargs['model'])
-    model_size_b = model_info.get('model_size_b')
-
-    console.print(
-        f" Resource: [blue]{kwargs['resource_shape']}[/blue] ({gpu_type.upper()}, {gpu_memory_gb}GB per GPU)"
-    )
-    if model_size_b:
-        console.print(f" Model: [cyan]{kwargs['model']}[/cyan] ({model_size_b}B parameters)")
-    else:
-        console.print(f" Model: [cyan]{kwargs['model']}[/cyan]")
-
     args = AutoTuneArgs(**kwargs)
 
     try:
+        result = generate_recipe_configs(args)
+
         console.print("[yellow]Validating configuration parameters...[/yellow]")
         is_valid, error_msg = validate_all_configs(args)
         if not is_valid:
@@ -150,8 +66,6 @@ def generate(**kwargs):
         console.print(f"[blue]Arguments saved to: {args_file_path}[/blue]")
 
         console.print("[yellow]Generating configurations with performance optimizations...[/yellow]")
-
-        result = generate_recipe_configs(args)
 
         update_args_with_generation_metadata(args.model, result, kwargs['config_dir'])
         console.print(f"[blue]Metadata and objects saved to: {args_file_path}[/blue]")
@@ -638,7 +552,7 @@ def check_cuda_oom_risk(
 
 def validate_configurations_memory(
     configs: Dict[str, Any],
-    base_config: Any,
+    base_config_values: Dict[str, Any],
     resource_shape: str,
     model_name: str,
     model_config: Any,
@@ -658,7 +572,6 @@ def validate_configurations_memory(
         Dictionary with memory analysis for each configuration
     """
     memory_analysis = {}
-    base_config_values = extract_all_values(base_config)
 
     # Base config is always considered valid - skip OOM risk check
     # Still estimate memory for informational purposes
@@ -676,7 +589,7 @@ def validate_configurations_memory(
 
     # Check each generated config using unified extraction call
     for config_name, config_obj in configs.items():
-        config_values = extract_all_values(config_obj)
+        config_values = extract_all_values(config_name)
 
         will_oom, reason, usage_gb, total_gb = check_cuda_oom_risk(
             config_values, resource_shape, model_name, model_config=model_config, memory_per_gpu=memory_per_gpu
@@ -695,10 +608,9 @@ def validate_configurations_memory(
 
 # ======================== Generate and Save Configs ========================
 
-
 def generate_recipe_configs(args):
     """
-    Generate AutoTune recipe configurations.
+    Generate AutConfigurator recipe configurations.
     Uses unified extraction system.
     Args:
         args: Arguments object with all configuration parameters
@@ -725,10 +637,35 @@ def generate_recipe_configs(args):
             f"For the latest list, check: https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/llm/recipes/__init__.py"
         )
 
-    base_log_path = args.get_full_logs_path()
-
     recipe = partial(model_class.pretrain_recipe, num_nodes=args.nodes, num_gpus_per_node=args.gpus_per_node)()
-    recipe = set_performance_optimizations_aligned_with_nemo(recipe, args)
+    # Set performance optimizations directly using set_primary_perf_configs
+    recipe = set_primary_perf_configs(
+        recipe=recipe,
+        task="pre_train",  # AutoTune is for pretraining
+        num_nodes=recipe.trainer.num_nodes,
+        num_gpus_per_node=recipe.trainer.devices,
+        mbs=recipe.data.micro_batch_size,
+        gbs=recipe.data.global_batch_size,
+        max_steps=recipe.trainer.max_steps,
+        tp_size=getattr(recipe.trainer.strategy, 'tensor_model_parallel_size', 1),
+        pp_size=getattr(recipe.trainer.strategy, 'pipeline_model_parallel_size', 1),
+        cp_size=getattr(recipe.trainer.strategy, 'context_parallel_size', 1),
+        vp_size=getattr(recipe.trainer.strategy, 'virtual_pipeline_model_parallel_size', 1) or 1,
+        ep_size=getattr(recipe.trainer.strategy, 'expert_model_parallel_size', 1),
+        etp_size=getattr(recipe.trainer.strategy, 'expert_tensor_parallel_size', None),
+        enable_cuda_graphs=False,  # Disabled for FSDP compatibility
+        use_mcore_fsdp=False,  # Disabled for compatibility with NeMo
+        use_user_buffer_registration=None,  # Let the function auto-detect based on model size
+        use_sharp=False,  # Enable SHARP for collective communication
+        recompute_layers=0,  # No recompute for base config
+        activation_offload_layers=0,  # No offload for base config
+        keep_fsdp_fp8_transpose_cache=False,
+        compute_dtype=getattr(recipe, 'compute_dtype', 'bf16') or 'bf16',
+        fp8_recipe=None,  # Use default FP8 recipe
+        recompute_modules=None,  # No selective recompute
+        nccl_communicator_config_path=None,  # Use default NCCL config
+        model_name=args.model,  # Pass model name for auto-detection
+    )
 
     seq_length = getattr(args, 'seq_length', 8192)
     max_steps = getattr(args, 'max_steps', 10)
@@ -742,7 +679,10 @@ def generate_recipe_configs(args):
     recipe.trainer.strategy.ckpt_async_save = False
     recipe.resume = run.Config(AutoResume)
     recipe.log.ckpt.save_last = False
+
+    base_log_path = args.get_full_logs_path()
     recipe.log.log_dir = os.path.join(base_log_path, "base_config")
+
     num_moe_experts = getattr(recipe.model.config, "num_moe_experts", 0)
     if num_moe_experts and num_moe_experts > 1:
         recipe.trainer.strategy.sequence_parallel = True
@@ -750,10 +690,6 @@ def generate_recipe_configs(args):
     gpu_type, gpu_count, gpu_memory_gb = extract_gpu_specs_unified(
         args.resource_shape, getattr(args, 'memory_per_gpu', None)
     )
-
-    logger.info(f"Using dynamic log path: {base_log_path}")
-    logger.info(f"  Mount path: {args.mount_path}")
-    logger.info(f"  Logs subdir: {args.logs_subdir}")
 
     # Initialize Auto Configurator runner
     runner = AutoConfigurator(
@@ -776,8 +712,32 @@ def generate_recipe_configs(args):
         calculate_model_size=False,
     )
 
-    base_config, configs = generate_configs(runner, args.resource_shape)
+    base_config, configs, base_configuration_matches = generate_configs(runner, args.resource_shape)
     num_configs_generated = len(configs)
+
+
+    base_config_values = {
+        'tp': base_config.trainer.strategy.tensor_model_parallel_size,
+        'pp': base_config.trainer.strategy.pipeline_model_parallel_size,
+        'cp': base_config.trainer.strategy.context_parallel_size,
+        'ep': base_config.trainer.strategy.expert_model_parallel_size,
+        'mbs': base_config.data.micro_batch_size,
+        'vp': base_config.trainer.strategy.virtual_pipeline_model_parallel_size,
+        'seq_length': base_config.data.seq_length,
+        'gbs': base_config.data.global_batch_size,
+        'nodes': args.nodes,
+        'model_size_b': base_config.model.config.model_size,
+        'precision': base_config.trainer.strategy.precision,
+    }
+
+    model_family = list(configs.keys())[0].split('_')[0]
+
+    base_config_generated_name = (
+            f"{model_family}_{base_config_values['model_size_b']}b_{base_config_values['nodes']}nodes_"
+            f"tp_{base_config_values['tp']}_pp_{base_config_values['pp']}_cp_{base_config_values['cp']}_ep_{base_config_values['ep']}_mbs_{base_config_values['mbs']}_vp_{base_config_values['vp']}_seq_{base_config_values['seq_length']}_gbs_{base_config_values['gbs']}"
+        )
+    
+    args.metadata['base_config_generated_name'] = base_config_generated_name
 
     logger.info("Performing CUDA OOM analysis for all configurations...")
     # Get model config from the recipe for accurate memory estimation
@@ -787,7 +747,7 @@ def generate_recipe_configs(args):
     model_config = base_config.model.config
     memory_analysis = validate_configurations_memory(
         configs,
-        base_config,
+        base_config_values,
         args.resource_shape,
         args.model,
         model_config=model_config,
@@ -823,25 +783,17 @@ def generate_recipe_configs(args):
     base_config_path = os.path.join(args.config_dir, args.model, "base_config.json")
     generated_configs_dir = os.path.join(args.config_dir, args.model)
 
-    config_values = extract_all_values(base_config)
-    args.metadata['base_config_generated_name'] = create_log_dir_name(args.model, config_values)
-
-    has_matches, matching_files = check_config_matches(base_config_path, generated_configs_dir)
-
-    base_config_matches = []
+    has_matches = len(base_configuration_matches) > 0
     if has_matches:
-        for matching_file in matching_files:
-            config_name = matching_file.replace('.json', '')
-            if config_name in configs:
-                base_config_matches.append(config_name)
-                logger.info(f"Config '{config_name}' matches base config - will be flagged as base config equivalent")
-        logger.info(f"Found {len(matching_files)} matching configs. Using original log_dir: {recipe.log.log_dir}")
+        for bcm in base_configuration_matches:
+                logger.info(f"Config '{bcm}' matches base config - will be flagged as base config equivalent")
+        logger.info(f"Found {len(base_configuration_matches)} matching configs. Using original log_dir: {recipe.log.log_dir}")
     else:
         recipe.log.log_dir = os.path.join(base_log_path, args.metadata['base_config_generated_name'])
         logger.info(f"No matching configs found. Updated log_dir to: {recipe.log.log_dir}")
 
     # Update the generation result with final metadata
-    generation_result['base_config_matches'] = base_config_matches
+    generation_result['base_config_matches'] = base_configuration_matches
     generation_result['memory_analysis'] = memory_analysis
     args.update_metadata(generation_result)
 
