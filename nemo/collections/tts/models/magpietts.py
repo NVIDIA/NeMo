@@ -671,9 +671,9 @@ class MagpieTTSModel(ModelPT):
 
         return all_preds
 
-    def debug_visualize_codes(self, codes, mask_id=2020, frame_stacking_rate=2):
+    def visualize_codes(self, codes, mask_id=2020, frame_stacking_rate=2):
         """
-        Visualize codes for debug purposes
+        Visualize codes for analysis purposes
         codes: (B, C)
         """
         def code_to_str(code):
@@ -707,10 +707,6 @@ class MagpieTTSModel(ModelPT):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
         """        
-        debug_maskgit = os.getenv("NEMO_TESTING") == "1"
-        if debug_maskgit:
-            original_verbosity = logging.get_verbosity()
-            logging.set_verbosity(logging.DEBUG)
         # dec_output: (B, E)
         device = dec_output.device
         # disable KV cache since our transformer is not causal
@@ -759,11 +755,7 @@ class MagpieTTSModel(ModelPT):
             # replace masks of the top-k confident codebooks with the codes that were sampled for them
             unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
             codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
-            if debug_maskgit:
-                logging.debug(f"Transformer Input at step {step} of {n_steps}")
-                self.debug_visualize_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
-                logging.debug("--------------------------------")
-
+  
             # build transformer input
             local_transformer_input = local_transformer_input_init
             for codebook_num in range(codebook_seq_len):
@@ -797,7 +789,6 @@ class MagpieTTSModel(ModelPT):
                     #interp = 1.0 - progress  # decrease from 1 to 0
                     interp = progress # gradually increase from 0 to 1
                     current_cfg_scale = (cfg_scale - 1) * interp + 1.0  # 1.0 --> cfg_scale --> 1.0
-                    logging.debug(f"step={step}, current_cfg_scale={current_cfg_scale:.2f}")
                 cfg_logits = current_cfg_scale * conditional_logits +  (1.0 - current_cfg_scale) * unconditional_logits                                    
                 logits[:actual_batch_size] = cfg_logits
 
@@ -843,11 +834,6 @@ class MagpieTTSModel(ModelPT):
         codes = sampled_codes
         assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
 
-        if debug_maskgit:
-            logging.debug(f"Final codes after MaskGit sampling")
-            self.debug_visualize_codes(codes, mask_id=self.mask_token_id, frame_stacking_rate=self.frame_stacking_factor)
-            logging.debug("--------------------------------")
-            logging.set_verbosity(original_verbosity)
         # break stacked groups of frames into individual frames
         codes = codes.reshape(B, self.frame_stacking_factor, self.num_audio_codebooks).permute(0,2,1) # B, C, frame_stacking_factor
 
