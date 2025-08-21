@@ -65,6 +65,7 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     model.context_encoder.n_layers=6 \
     model.encoder.is_causal=false \
     model.use_text_conditioning_encoder=true \
+    +model.legacy_text_conditioning=True \
     +model.forced_num_all_tokens_per_codebook=2048 \
     +model.forced_audio_eos_id=2047 \
     +model.forced_audio_bos_id=2046 \
