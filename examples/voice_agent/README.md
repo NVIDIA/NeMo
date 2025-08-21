@@ -1,16 +1,16 @@
 # NeMo Voice Agent
 
-A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the simplest way to create a voice agent using NVIDIA NeMo STT/TTS service and HuggingFace LLM. Everything is open-source and deployed locally so you can have your own voice agent. Feel free to explore the code and see how different speech technologies can be integrated with LLMs to create a seamless conversation experience.
+A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the simplest way to create a voice agent using NVIDIA NeMo STT/TTS service and HuggingFace LLM. Everything is open-source and deployed locally so you can have your own voice agent. Feel free to explore the code and see how different speech technologies can be integrated with LLMs to create a seamless conversation experience. As of now, we only support English input and output, but more languages will be supported in the future.
 
 
 
 ## ✨ Key Features
 
 - Open-source, local deployment, and flexible customization.
-- Talk to most LLMs from HuggingFace, use different prompts to configure the agent. 
-- Streaming speech recognition.
-- FastPitch-HiFiGAN TTS.
-- Speaker diarization up to 4 speakers.
+- Allow users to talk to most LLMs from HuggingFace with configurable prompts. 
+- Streaming speech recognition with low latency.
+- FastPitch-HiFiGAN TTS for fast audio response generation.
+- Speaker diarization up to 4 speakers across different turns.
 - WebSocket server for easy deployment.
 
 
@@ -127,6 +127,9 @@ We use [cache-aware streaming FastConformer](https://arxiv.org/abs/2312.17279) t
 
 We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the speaker for each user turn. As of now, we only support detecting 1 speaker for a single user turn, but different turns can be from different speakers, with a maximum of 4 speakers in the whole conversation. Currently supported models are:
  - [nvidia/diar_streaming_sortformer_4spk-v2](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2) (default)
+
+
+Please note that in some circumstances, the diarization model might not work well in noisy environments, or it may confuse the speakers. In this case, you can disable the diarization by setting `diar.enabled` to `false` in `server/server_config.yaml`.
 
 ### 🔉 TTS
 
