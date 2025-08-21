@@ -217,12 +217,10 @@ class SpectrogramToAudio(NeuralModule):
         logging.debug('\tscale:           %s', scale)
 
         # --- Streaming state (initialized lazily) ---
-        self._stream_initialized: bool = False
         # Time-domain overlap-add buffers (initialized lazily)
         self._ola_accum: Optional[torch.Tensor] = None
         self._ola_weight: Optional[torch.Tensor] = None
         # Kept for backward compatibility; not used in OLA implementation
-        self._prev_spec_frame: Optional[torch.Tensor] = None
         self.use_streaming: bool = False
 
     @property
@@ -347,6 +345,16 @@ class SpectrogramToAudio(NeuralModule):
         output_length = input_length.sub(1).mul(self.hop_length).long()
         return output_length
 
+    @property
+    def _stream_initialized(self) -> bool:
+        """Return True if streaming buffers are initialized."""
+        return (self._ola_accum is not None) and (self._ola_weight is not None)
+
+    @property
+    def _eps(self) -> float:
+        """Machine epsilon for the active streaming dtype."""
+        dtype = self._ola_weight.dtype if self._ola_weight is not None else self.window.dtype
+        return torch.finfo(dtype).eps
     # ------------------------------------------------------------------
     # Streaming iSTFT API (frame-by-frame with overlap-add buffering)
     # ------------------------------------------------------------------
@@ -362,16 +370,12 @@ class SpectrogramToAudio(NeuralModule):
         dtype = torch.float32 if shape_like.dtype == torch.complex64 else torch.float64
         self._ola_accum = torch.zeros(B, C, self.win_length, device=device, dtype=dtype)
         self._ola_weight = torch.zeros(B, C, self.win_length, device=device, dtype=dtype)
-        self._prev_spec_frame = None
-        self._stream_initialized = True
 
     def reset_streaming(self) -> None:
         """Reset the internal streaming buffers.
 
         Re-initialization happens lazily on the next call to `stream_update`.
         """
-        self._stream_initialized = False
-        self._prev_spec_frame = None
         self._ola_accum = None
         self._ola_weight = None
 
@@ -418,7 +422,6 @@ class SpectrogramToAudio(NeuralModule):
         # Ensure buffers on correct device/dtype
         self._ola_accum = self._ola_accum.to(frames_time_windowed.device, dtype=frames_time_windowed.dtype)
         self._ola_weight = self._ola_weight.to(frames_time_windowed.device, dtype=frames_time_windowed.dtype)
-        eps = torch.finfo(self._ola_weight.dtype).eps
 
         # Iterate over frames for OLA
         for t in range(num_frames):
@@ -429,7 +432,7 @@ class SpectrogramToAudio(NeuralModule):
             self._ola_weight.add_(win_sq)
 
             # Emit first hop_length samples with normalization
-            denom = torch.clamp(self._ola_weight[..., :hop], min=eps)
+            denom = torch.clamp(self._ola_weight[..., :hop], min=self._eps)
             emitted = self._ola_accum[..., :hop] / denom
             emitted_parts.append(emitted)
 
@@ -447,14 +450,13 @@ class SpectrogramToAudio(NeuralModule):
         samples. The remaining tail corresponds to the last (win_length - hop)
         samples, which we return after proper window-sum-square normalization.
         """
-        if not self._stream_initialized or self._ola_accum is None or self._ola_weight is None:
+        if not self._stream_initialized:
             return torch.tensor((), device=self.window.device)
 
         tail_len = self.win_length - self.hop_length
         if tail_len <= 0:
             return torch.tensor((), device=self.window.device)
 
-        eps = torch.finfo(self._ola_weight.dtype).eps
-        denom_tail = torch.clamp(self._ola_weight[..., :tail_len], min=eps)
+        denom_tail = torch.clamp(self._ola_weight[..., :tail_len], min=self._eps)
         tail = self._ola_accum[..., :tail_len] / denom_tail
         return tail
