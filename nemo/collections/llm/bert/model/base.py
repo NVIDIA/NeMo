@@ -317,7 +317,9 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
 
-        hidden_states_after_lm_head = self.lm_head(hidden_states=hidden_states) if self.config.add_lm_head else hidden_states
+        hidden_states_after_lm_head = (
+            self.lm_head(hidden_states=hidden_states) if self.config.add_lm_head else hidden_states
+        )
         logits, _ = self.output_layer(hidden_states_after_lm_head, weight=output_weight)
 
         binary_logits = None
