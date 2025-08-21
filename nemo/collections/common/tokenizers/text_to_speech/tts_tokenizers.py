@@ -1110,7 +1110,7 @@ class AggregatedTTSTokenizer:
             if isinstance(tokenizer, BaseTokenizer):
                 tokens.extend(tokenizer.tokens)
                 num_tokens = len(tokenizer.tokens)
-                tokenizer_pad_ids[tokenizer_name] = tokenizer.pad
+                tokenizer_pad_ids[tokenizer_name] = tokenizer.pad + tokenizer_offset
             elif isinstance(tokenizer, PreTrainedTokenizerBase):
                 _tokens = list(tokenizer.get_vocab().keys())
                 tokens.extend(_tokens)
