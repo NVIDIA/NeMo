@@ -40,6 +40,7 @@ def setup_microbatch_calculator(
     micro_batch_size: int,
     global_batch_size: int,
     rampup_batch_size: Optional[List[int]] = None,
+    val_global_batch_size: Optional[int] = None,
 ) -> None:
     """
     Initializes the data for distributed training by setting up the microbatch calculator
@@ -132,6 +133,18 @@ def setup_microbatch_calculator(
             else:
                 raise Exception("Microbatch calculator already initialized.")
 
+    if val_global_batch_size is not None:
+        val_num_microbatches_calculator = ConstantNumMicroBatchesCalculator(
+            global_batch_size=val_global_batch_size,
+            micro_batch_size=micro_batch_size,
+            data_parallel_size=app_state.data_parallel_size,
+            decrease_batch_size_if_needed=False,
+            rank=init_global_rank,
+        )
+        return val_num_microbatches_calculator
+
+    return None
+
 
 def add_megatron_sampler(
     dataloader: DataLoader,
@@ -179,6 +192,9 @@ def add_megatron_sampler(
     Returns:
         DataLoader: A new DataLoader instance with the configured Megatron sampler.
     """
+
+    print(f"Type : {dataloader_type} Mode : {dataloader_mode} Batch Sizes; {global_batch_size} and {micro_batch_size}")
+
     if dataloader_type == 'single':
         batch_sampler = MegatronPretrainingSampler(
             total_samples=len(dataloader.dataset),
@@ -290,7 +306,7 @@ class BaseMegatronSampler:
 
         logging.info(
             f"Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and"
-            f" consumed_samples: {consumed_samples}"
+            f" consumed_samples: {consumed_samples} and global_batch_size: {self.global_batch_size}"
         )
 
     def __len__(self):
