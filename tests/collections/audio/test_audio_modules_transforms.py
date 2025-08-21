@@ -343,7 +343,15 @@ class TestAudioSpectrogram:
     @pytest.mark.parametrize('chunk_size', [1, 2, 5])
     @pytest.mark.parametrize('window_type', ['rectangular', 'hamming'])
     def test_streaming_istft_matches_offline_rectangular_center_false(
-        self, fft_length: int, hop_div: int, batch_size: int, num_channels: int, magnitude_power: float, scale: float, chunk_size: int, window_type: str
+        self,
+        fft_length: int,
+        hop_div: int,
+        batch_size: int,
+        num_channels: int,
+        magnitude_power: float,
+        scale: float,
+        chunk_size: int,
+        window_type: str,
     ):
         """Streaming iSTFT (frame-by-frame) matches offline torch.istft when
         using rectangular window and center=False.
@@ -369,9 +377,11 @@ class TestAudioSpectrogram:
             window = torch.hamming_window(fft_length)
         else:
             raise ValueError(f"Unsupported window_type: {window_type}")
-        
+
         # STFT with center=False
-        audio2spec = AudioToSpectrogram(fft_length=fft_length, hop_length=hop_length,  magnitude_power=magnitude_power, scale=scale, center=False)
+        audio2spec = AudioToSpectrogram(
+            fft_length=fft_length, hop_length=hop_length, magnitude_power=magnitude_power, scale=scale, center=False
+        )
         audio2spec.window = window
 
         spec, _ = audio2spec(input=x)
@@ -379,12 +389,16 @@ class TestAudioSpectrogram:
         N = spec.size(-1)
 
         # Offline reconstruction using SpectrogramToAudio (same class)
-        spec2audio_offline = SpectrogramToAudio(fft_length=fft_length, hop_length=hop_length, magnitude_power=magnitude_power, scale=scale, center=False)
+        spec2audio_offline = SpectrogramToAudio(
+            fft_length=fft_length, hop_length=hop_length, magnitude_power=magnitude_power, scale=scale, center=False
+        )
         spec2audio_offline.window = window
         x_offline, _ = spec2audio_offline(input=spec)
 
         # Streaming iSTFT via SpectrogramToAudio with parametrized chunk size
-        spec2audio = SpectrogramToAudio(fft_length=fft_length, hop_length=hop_length, magnitude_power=magnitude_power, scale=scale, center=False)
+        spec2audio = SpectrogramToAudio(
+            fft_length=fft_length, hop_length=hop_length, magnitude_power=magnitude_power, scale=scale, center=False
+        )
         # Switch window
         spec2audio.use_streaming = True
         spec2audio.window = window
@@ -401,6 +415,6 @@ class TestAudioSpectrogram:
 
         # Compare offline vs streaming
         assert x_stream.shape == x_offline.shape
-        assert torch.allclose(x_stream, x_offline, atol=1e-5), (
-            f"Streaming iSTFT mismatch (chunk_size={chunk_size}): max abs diff {torch.max(torch.abs(x_stream - x_offline))}"
-        )
+        assert torch.allclose(
+            x_stream, x_offline, atol=1e-5
+        ), f"Streaming iSTFT mismatch (chunk_size={chunk_size}): max abs diff {torch.max(torch.abs(x_stream - x_offline))}"

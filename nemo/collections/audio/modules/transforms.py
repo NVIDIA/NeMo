@@ -355,6 +355,7 @@ class SpectrogramToAudio(NeuralModule):
         """Machine epsilon for the active streaming dtype."""
         dtype = self._ola_weight.dtype if self._ola_weight is not None else self.window.dtype
         return torch.finfo(dtype).eps
+
     # ------------------------------------------------------------------
     # Streaming iSTFT API (frame-by-frame with overlap-add buffering)
     # ------------------------------------------------------------------
