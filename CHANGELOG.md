@@ -374,6 +374,7 @@ This release addresses known security issues. For the latest NVIDIA Vulnerabilit
 - Collections
   - LLM
     - Llama 4: Fixed an accuracy issue caused by MoE probability normalization. Improved pre-train and fine-tune performance.
+    - ModelOpt: Added support for [Minifinetuning](https://arxiv.org/abs/2506.15702) to support less-forgetful finetuning of models on small datasets.
 - Export & Deploy
   - Updated vLLMExporter to use vLLM V1 to address a security vulnerability.
 - AutoModel
@@ -2440,3 +2441,4 @@ For additional information regarding NeMo containers, please visit: <https://cat
 - Fix link in multimodal dataprep tutorial by @cuichenx :: PR: #8517
 
 </details>
+
