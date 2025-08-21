@@ -129,6 +129,10 @@ class MagpieTTSModel(ModelPT):
                     '_target_' : tokenizer_target,
                     'pretrained_model' : self.text_conditioning_tokenizer_name,
                 }
+        elif self.text_conditioning_tokenizer_name is None:
+            # If no text_conditioning_tokenizer_name is specified, use the first one as default
+            # For text context tokenization
+            self.text_conditioning_tokenizer_name = list(cfg.text_tokenizers.keys())[0]
 
         # TODO @xueyang: both tokenizers are only used to get some token ids. We
         # should kill them to save a small amount of mem resources since dataloader will initialize them

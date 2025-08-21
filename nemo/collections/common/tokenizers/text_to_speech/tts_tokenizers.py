@@ -1137,17 +1137,11 @@ class AggregatedTTSTokenizer:
            raise ValueError("AggregatedTTSTokenizer could not find a padding token in the first tokenizer")
 
     def encode(self, text: str, tokenizer_name: str = None) -> List[int]:
-        if tokenizer_name is None:
-            # Default to the first tokenizer if no name is provided
-            tokenizer_name = self.tokenizer_names[0]
         tokenizer = self.tokenizers[tokenizer_name]
         tokens = tokenizer.encode(text)
         return [self.tokenizer_offsets[tokenizer_name] + token for token in tokens]
 
     def decode(self, tokens: List[int], tokenizer_name: str = None) -> str:
-        if tokenizer_name is None:
-            # Default to the first tokenizer if no name is provided
-            tokenizer_name = self.tokenizer_names[0]
         tokenizer = self.tokenizers[tokenizer_name]
         return tokenizer.decode([token - self.tokenizer_offsets[tokenizer_name] for token in tokens])
 

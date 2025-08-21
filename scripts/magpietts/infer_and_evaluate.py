@@ -404,6 +404,7 @@ def run_inference(
                 tokenizer_config=None,
                 load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
                 use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
+                text_conditioning_tokenizer_name=model.text_conditioning_tokenizer_name,
                 pad_context_text_to_max_duration=model.pad_context_text_to_max_duration,
                 context_duration_min=context_duration_min,
                 context_duration_max=context_duration_max,
