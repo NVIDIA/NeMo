@@ -69,6 +69,7 @@ def override_recipe_configs(
         use_mcore_fsdp=args.use_mcore_fsdp,
         use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
+        use_te_act_func=args.use_te_act_func,
     )
 
     recipe = set_exp_logging_configs(
