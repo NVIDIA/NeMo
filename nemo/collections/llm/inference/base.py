@@ -241,7 +241,9 @@ def setup_model_and_tokenizer(
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     inference_wrapped_model = model.get_inference_wrapper(
-        params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length,
+        params_dtype,
+        inference_batch_times_seqlen_threshold,
+        inference_max_seq_length,
         prompt_segmentation_threshold=prompt_segmentation_threshold,
     )
     return (

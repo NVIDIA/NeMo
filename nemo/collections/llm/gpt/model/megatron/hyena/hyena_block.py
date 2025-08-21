@@ -290,8 +290,7 @@ class HyenaStack(MegatronModule):
             hidden_states = self.input_tensor
 
         if not self.training:
-            assert (not self.config.fp32_residual_connection and
-                    hidden_states.dtype == self.config.params_dtype)
+            assert not self.config.fp32_residual_connection and hidden_states.dtype == self.config.params_dtype
 
         hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
 

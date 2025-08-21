@@ -15,25 +15,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
-from megatron.core.transformer.dot_product_attention import DotProductAttention
+from functools import lru_cache
 
+import transformer_engine.pytorch as te
 from megatron.core.extensions.transformer_engine import (
     TEDotProductAttention,
     TELayerNormColumnParallelLinear,
-    TENorm,
     TELinear,
+    TENorm,
     TERowParallelLinear,
 )
-
-import transformer_engine.pytorch as te
+from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
+from megatron.core.transformer.dot_product_attention import DotProductAttention
 from transformer_engine.common.recipe import DelayedScaling, Format
 
-from functools import lru_cache
 
-@lru_cache # Need to move this cache to inference context
+@lru_cache  # Need to move this cache to inference context
 def get_pad_tensor(*, pad_shape, dtype, device):
     return torch.zeros(pad_shape, device=device, dtype=dtype)
+
 
 def pad_to_multiple(x, multiple=8):
     """Pad tensor to make sequence length divisible by multiple."""
@@ -45,11 +45,13 @@ def pad_to_multiple(x, multiple=8):
     pad_tensor = get_pad_tensor(pad_shape=pad_shape, dtype=x.dtype, device=x.device)
     return torch.cat([x, pad_tensor], dim=0)
 
+
 def set_format_recipe():
     """Set the fp8 format recipe. for Hyena."""
     fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
     fp8_recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
     return fp8_recipe
+
 
 def fp8_padded_forward(cls, self, x):
     L = x.shape[0]
@@ -60,30 +62,39 @@ def fp8_padded_forward(cls, self, x):
         x = x[:L, :, :]
     return x, bias
 
+
 def rmsnorm(self, x):
     assert self.eps == 1e-6, self.eps
     norm = x.norm(2, dim=-1, keepdim=True) * self.in_features ** (-0.5) + self.eps
     return self.layer_norm_weight * x / norm
 
+
 import torch
 import torch.nn as nn
+
 
 class RMSNormLinear(TELayerNormColumnParallelLinear):
     def forward(self, x):
         x = rmsnorm(self, x)
         return nn.functional.linear(x, self.weight, None), None
 
+
 class TELinearFp8(TELinear):
-    def forward(self, x): return fp8_padded_forward(super(), self, x)
+    def forward(self, x):
+        return fp8_padded_forward(super(), self, x)
+
 
 class TELayerNormColumnParallelLinearFp8(TELayerNormColumnParallelLinear):
-    def forward(self, x): return fp8_padded_forward(super(), self, x)
+    def forward(self, x):
+        return fp8_padded_forward(super(), self, x)
+
 
 class RMSNormTELinearFp8(TELinearFp8):
     """
     PyTorch-compatible drop-in for TELayerNormColumnParallelLinear.
     Ignores parallelization, but signatures and parameter names are compatible.
     """
+
     def __init__(
         self,
         input_size: int,
@@ -97,12 +108,10 @@ class RMSNormTELinearFp8(TELinearFp8):
             output_size=output_size,
             parallel_mode=None,
             skip_weight_param_allocation=False,
-            **kwargs
+            **kwargs,
         )
         config = kwargs["config"]
-        self.register_parameter(
-            "layer_norm_weight", nn.Parameter(torch.empty(input_size, dtype=config.params_dtype))
-        )
+        self.register_parameter("layer_norm_weight", nn.Parameter(torch.empty(input_size, dtype=config.params_dtype)))
         self.eps = config.layernorm_epsilon
 
     def forward(self, x):

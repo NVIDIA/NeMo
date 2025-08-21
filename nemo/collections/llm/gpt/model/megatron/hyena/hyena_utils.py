@@ -16,7 +16,7 @@
 # limitations under the License.
 
 import math
-from functools import partial, lru_cache
+from functools import lru_cache, partial
 from typing import Literal
 
 import torch
@@ -652,7 +652,7 @@ class ExplicitSingleDecayFilter(nn.Module):
         """
         return self.filter(L, *args, **kwargs)
 
-    #@torch.compile(mode="max-autotune")
+    # @torch.compile(mode="max-autotune")
     def filter(self, L, *args, **kwargs):
         """Compute the filter as a function of h and decay for the requested sequence length."""
         if self._full_filter_kernel is None:
@@ -844,7 +844,6 @@ class ParallelHyenaOperator(nn.Module):
             self.conv_bias.partition_dim = 0
             self.conv_bias.stride = 1
 
-
     def forward_long(self, *, x1, x2, v, bias, inference_context):
         """Forward pass long."""
         import nemo.collections.llm.gpt.model.megatron.hyena.engine as engine
@@ -900,7 +899,7 @@ class ParallelHyenaOperator(nn.Module):
         # rearrange([x1, x2, v], "h b d l -> h b l d")
         x1 = x1.transpose(1, 2)  # b l d
         x2 = x2.transpose(1, 2)  # b l d
-        v = v.transpose(1, 2)    # b l d
+        v = v.transpose(1, 2)  # b l d
         # all above in [B D L]
         u = x2 * v  # b l d
         L = u.shape[1]
@@ -1027,7 +1026,6 @@ class ParallelHyenaOperator(nn.Module):
         z = x1 * z
         return z  # [B, (G, DG), L]
 
-
     def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the ParallelHyenaOperator."""
         sharded_state_dict = {}
@@ -1137,7 +1135,7 @@ class ParallelShortHyenaOperator(nn.Module):
         else:
             # maybe handle num_groups
             bias = self.conv_bias.repeat_interleave(self.group_dim, dim=0)
-            bias = bias.view(1, -1, 1) # h -> 1 h 1
+            bias = bias.view(1, -1, 1)  # h -> 1 h 1
             z = self.short_conv(z, _use_cp=_hyena_use_cp) + bias * z
 
         z = x1 * z if self.postgate else z
@@ -1449,7 +1447,7 @@ class ParallelCausalDepthwiseConv1dWithState(ParallelCausalDepthwiseConv1d):
     def _get_weight(self):
         weight = self.short_conv_weight
         if len(weight.shape) == 2:
-            weight = weight.unsqueeze(1) # hidden_size3 filter_len -> hidden_size3 1 filter_len
+            weight = weight.unsqueeze(1)  # hidden_size3 filter_len -> hidden_size3 1 filter_len
         weight = weight.repeat_interleave(self.group_dim, dim=0).to(torch.float32)
         del self._parameters["short_conv_weight"]
         return weight

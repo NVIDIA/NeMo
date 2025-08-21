@@ -20,10 +20,10 @@ from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParall
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
 from megatron.core.transformer.dot_product_attention import DotProductAttention
 from megatron.core.transformer.enums import AttnMaskType
+from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from megatron.core.transformer.identity_op import IdentityOp
 
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_block import HyenaStack, HyenaStackSubmodules
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer import HyenaLayer, HyenaLayerSubmodules
@@ -36,10 +36,11 @@ try:
         TENorm,
         TERowParallelLinear,
     )
+
     from nemo.collections.llm.gpt.model.megatron.hyena.te_compat import (
         RMSNormLinear,
-        TELayerNormColumnParallelLinearFp8,
         RMSNormTELinearFp8,
+        TELayerNormColumnParallelLinearFp8,
     )
 
     HAVE_TE = True
@@ -65,12 +66,12 @@ def get_hyena_stack_spec(
     if use_te:
         row_linear = TERowParallelLinear
         col_linear = TELayerNormColumnParallelLinear
-        pre_layernorm = IdentityOp # fused Norm+Linear, so no pre norm
+        pre_layernorm = IdentityOp  # fused Norm+Linear, so no pre norm
         core_attention = TEDotProductAttention
     else:
         row_linear = RowParallelLinear
         col_linear = ColumnParallelLinear
-        pre_layernorm = TENorm # would raise error if attempt to use
+        pre_layernorm = TENorm  # would raise error if attempt to use
         core_attention = DotProductAttention
 
     if unfused_rmsnorm:
@@ -86,6 +87,7 @@ def get_hyena_stack_spec(
 
     if plain_row_linear:
         from megatron.core.post_training.modelopt.layers import Linear
+
         row_linear = Linear
 
     return ModuleSpec(
@@ -96,17 +98,13 @@ def get_hyena_stack_spec(
                 submodules=HyenaLayerSubmodules(
                     mixer=ModuleSpec(
                         module=HyenaMixer,
-                        submodules=HyenaMixerSubmodules(
-                            dense_projection=dense_projection, dense=row_linear
-                        ),
+                        submodules=HyenaMixerSubmodules(dense_projection=dense_projection, dense=row_linear),
                     ),
                     hyena_bda=get_bias_dropout_add,
                     pre_mlp_layernorm=pre_layernorm,
                     mlp=ModuleSpec(
                         module=MLP,
-                        submodules=MLPSubmodules(
-                            linear_fc1=col_linear, linear_fc2=row_linear
-                        ),
+                        submodules=MLPSubmodules(linear_fc1=col_linear, linear_fc2=row_linear),
                     ),
                     mlp_bda=get_bias_dropout_add,
                 ),
@@ -128,9 +126,7 @@ def get_hyena_stack_spec(
                     pre_mlp_layernorm=pre_layernorm,
                     mlp=ModuleSpec(
                         module=MLP,
-                        submodules=MLPSubmodules(
-                            linear_fc1=col_linear, linear_fc2=row_linear
-                        ),
+                        submodules=MLPSubmodules(linear_fc1=col_linear, linear_fc2=row_linear),
                     ),
                     mlp_bda=get_bias_dropout_add,
                 ),
@@ -138,4 +134,5 @@ def get_hyena_stack_spec(
         ),
     )
 
-hyena_stack_spec_no_te = get_hyena_stack_spec(use_te=False) # for tests/debugging
+
+hyena_stack_spec_no_te = get_hyena_stack_spec(use_te=False)  # for tests/debugging

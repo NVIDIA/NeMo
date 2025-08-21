@@ -41,6 +41,7 @@ from nemo.utils import logging
 
 class HyenaInferenceContext(StaticInferenceContext):
     """Hyena-specific inference context."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.reset()
@@ -52,6 +53,7 @@ class HyenaInferenceContext(StaticInferenceContext):
         self.fir_state = {}
         self.causal_fir_state = {}
 
+
 class HyenaModel(GPTModel):
     """
     This is a wrapper around the MCoreHyenaModel to allow for inference. Our model follows the same API
@@ -60,7 +62,10 @@ class HyenaModel(GPTModel):
     """
 
     def get_inference_wrapper(
-        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=None,
+        self,
+        params_dtype,
+        inference_batch_times_seqlen_threshold,
+        inference_max_seq_length=None,
         *,
         prompt_segmentation_threshold=None,
     ) -> torch.Tensor:
@@ -245,8 +250,8 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     vortex_style_fp8: bool = False
     use_subquadratic_ops: bool = False
     share_embeddings_and_output_weights: bool = True
-    unfused_rmsnorm: bool = False # Use unfused RMSNorm + TELinear for dense projection
-    plain_row_linear: bool = False # Use plain pytorch implementation instead of Megatron's row parallel linears
+    unfused_rmsnorm: bool = False  # Use unfused RMSNorm + TELinear for dense projection
+    plain_row_linear: bool = False  # Use plain pytorch implementation instead of Megatron's row parallel linears
 
     def __post_init__(self):
         """
