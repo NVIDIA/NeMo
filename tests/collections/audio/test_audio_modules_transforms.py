@@ -341,8 +341,9 @@ class TestAudioSpectrogram:
     @pytest.mark.parametrize('magnitude_power', [0.5, 1, 2])
     @pytest.mark.parametrize('scale', [0.1, 1.0])
     @pytest.mark.parametrize('chunk_size', [1, 2, 5])
+    @pytest.mark.parametrize('window_type', ['rectangular', 'hamming'])
     def test_streaming_istft_matches_offline_rectangular_center_false(
-        self, fft_length: int, hop_div: int, batch_size: int, num_channels: int, magnitude_power: float, scale: float, chunk_size: int
+        self, fft_length: int, hop_div: int, batch_size: int, num_channels: int, magnitude_power: float, scale: float, chunk_size: int, window_type: str
     ):
         """Streaming iSTFT (frame-by-frame) matches offline torch.istft when
         using rectangular window and center=False.
@@ -361,8 +362,15 @@ class TestAudioSpectrogram:
         T = fft_length * 20 + 5  # non-multiple of hop to exercise edges
         x = torch.randn(batch_size, num_channels, T)
 
-        # Window and STFT with center=False
-        window = torch.ones(fft_length)
+        # Window selection
+        if window_type == 'rectangular':
+            window = torch.ones(fft_length)
+        elif window_type == 'hamming':
+            window = torch.hamming_window(fft_length)
+        else:
+            raise ValueError(f"Unsupported window_type: {window_type}")
+        
+        # STFT with center=False
         audio2spec = AudioToSpectrogram(fft_length=fft_length, hop_length=hop_length,  magnitude_power=magnitude_power, scale=scale, center=False)
         audio2spec.window = window
 
