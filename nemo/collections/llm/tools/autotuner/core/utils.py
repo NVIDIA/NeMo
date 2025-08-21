@@ -66,18 +66,11 @@ class ExtractionPatterns:
         'seq_length': r'seq_(\d+)_',
     }
 
+    GPU_MEMORY_SPECS = {"h100": 80, "h200": 141, "a100": 80, "v100": 32, "l40s": 48, "gb200": 192, "b200": 180}
 
-    GPU_MEMORY_SPECS = {
-        "h100": 80,
-        "h200": 141,
-        "a100": 80,
-        "v100": 32,
-        "l40s": 48,
-        "gb200": 192,
-        "b200": 180
-    }
 
 # ===================== CORE EXTRACTION FUNCTIONS =====================
+
 
 def extract_all_values(config_name: str) -> Dict[str, Any]:
     config_values = {}
@@ -148,7 +141,9 @@ def extract_gpu_specs_unified(resource_shape: str, memory_per_gpu: Optional[floa
 
     return gpu_type, gpu_count, memory_gb
 
+
 # ===================== MODEL SUPPORT FUNCTIONS =====================
+
 
 def get_supported_models() -> List[str]:
     """Get list of supported models from NeMo's llm module."""
@@ -163,7 +158,9 @@ def get_supported_models() -> List[str]:
         logger.warning(f"Error getting supported models: {e}")
     return sorted(supported_models)
 
+
 # ===================== UTILITY FUNCTIONS =====================
+
 
 def get_args_file_path(model, config_dir):
     """Get the standard path for the args file."""

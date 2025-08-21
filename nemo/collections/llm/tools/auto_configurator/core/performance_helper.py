@@ -299,7 +299,7 @@ def set_primary_perf_configs(
             r'(\d+)B',  # General pattern for XB
             r'(\d+)b',  # lowercase b
         ]
-        
+
         model_size_b = 0
         for pattern in MODEL_SIZE_PATTERNS:
             match = re.search(pattern, model_name, re.IGNORECASE)

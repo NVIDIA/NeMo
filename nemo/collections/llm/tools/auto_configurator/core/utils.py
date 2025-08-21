@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -426,11 +426,11 @@ def modify_cfg(
 
     parallel_configs = [
         ("tensor parallel", tp),
-        ("pipeline parallel", pp), 
+        ("pipeline parallel", pp),
         ("context parallel", cp),
-        ("expert parallel", ep)
+        ("expert parallel", ep),
     ]
-    
+
     for name, size in parallel_configs:
         if total_gpus % size != 0:
             is_valid = False
