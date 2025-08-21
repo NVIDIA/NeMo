@@ -24,9 +24,9 @@ from rich.table import Table
 
 from nemo.collections import llm
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
+from nemo.collections.llm.tools.auto_configurator.core.performance_helper import set_primary_perf_configs
 from nemo.collections.llm.tools.autotuner.args import AutoTuneArgs
 from nemo.collections.llm.tools.autotuner.core.display import _display_configs_table
-from nemo.collections.llm.tools.auto_configurator.core.performance_helper import set_primary_perf_configs
 from nemo.collections.llm.tools.autotuner.core.utils import (
     _load_args_from_config_dir,
     console,

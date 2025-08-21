@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from nemo.collections.llm.tools.auto_configurator.core.calculate_performance import get_results
-from nemo.collections.llm.tools.auto_configurator.runner import AutoConfigurator, generate_configs
 from nemo.collections.llm.tools.auto_configurator.core.performance_helper import set_primary_perf_configs
+from nemo.collections.llm.tools.auto_configurator.runner import AutoConfigurator, generate_configs
 
 __all__ = ['get_results', 'AutoConfigurator', 'generate_configs', 'set_primary_perf_configs']
