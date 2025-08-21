@@ -523,6 +523,7 @@ class NeMoMultimodalConversationJsonlAdapter:
     shuffle_shards: bool = False
     shard_seed: Union[int, Literal["trng", "randomized"]] = "trng"
     system_prompt: str | None = None
+    context: str | None = None
 
     def __post_init__(self):
         self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
@@ -581,6 +582,8 @@ class NeMoMultimodalConversationJsonlAdapter:
                     )
                     for turn in data["conversations"]
                 ]
+                if self.context is not None and turns[0].role == "user" and isinstance(turns[0], AudioTurn):
+                    turns = [TextTurn(role="user", value=self.context)] + turns
                 if self.system_prompt is not None and turns[0].role != "system":
                     turns = [TextTurn(role="system", value=self.system_prompt)] + turns
                 yield NeMoMultimodalConversation(
@@ -615,6 +618,8 @@ class NeMoMultimodalConversationJsonlAdapter:
                     )
                     for turn in data["conversations"]
                 ]
+                if self.context is not None and turns[0].role == "user" and isinstance(turns[0], AudioTurn):
+                    turns = [TextTurn(role="user", value=self.context)] + turns
                 if self.system_prompt is not None and turns[0].role != "system":
                     turns = [TextTurn(role="system", value=self.system_prompt)] + turns
                 yield NeMoMultimodalConversation(
