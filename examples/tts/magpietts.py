@@ -18,8 +18,8 @@ from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.tts.models import (
     MagpieTTSModel,
-    MagpieTTSModelOfflinePODataGen,
     MagpieTTSModelOfflinePO,
+    MagpieTTSModelOfflinePODataGen,
     MagpieTTSModelOnlinePO,
 )
 from nemo.core.config import hydra_runner
@@ -69,9 +69,7 @@ def main(cfg):
     elif mode == 'test':
         model = MagpieTTSModelOfflinePODataGen(cfg=cfg.model, trainer=trainer)
     else:
-        raise NotImplementedError(
-            f"Only train, dpo_train, onlinepo_train and test modes are supported. Got {mode}"
-        )
+        raise NotImplementedError(f"Only train, dpo_train, onlinepo_train and test modes are supported. Got {mode}")
 
     model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
 
@@ -83,7 +81,9 @@ def main(cfg):
             logging.info("Starting testing...")
             trainer.test(model)
         else:
-            raise NotImplementedError(f"Only train, dpo_train, onlinepo_train and test modes are supported. Got {mode}")
+            raise NotImplementedError(
+                f"Only train, dpo_train, onlinepo_train and test modes are supported. Got {mode}"
+            )
         logging.info("Training/testing completed successfully.")
     finally:
         # Ensure WandB completes all uploads before Python thread shutdown
@@ -91,6 +91,7 @@ def main(cfg):
         # overwhelmed and fail to properly coordinate with WandB's background threads
         try:
             import wandb
+
             if wandb.run is not None:
                 logging.info("Finishing WandB run to prevent threading shutdown hang...")
                 wandb.finish()

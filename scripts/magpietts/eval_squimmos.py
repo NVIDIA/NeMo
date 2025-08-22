@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.from torchaudio.pipelines import SQUIM_OBJECTIVE, SQUIM_SUBJECTIVE
-import os
-import json
-import torch
 import argparse
+import json
+import os
+
 import librosa
-import scipy.stats as stats
 import numpy as np
+import scipy.stats as stats
+import torch
+
 
 def find_sample_audios(audio_dir):
     file_list = []
@@ -29,6 +31,7 @@ def find_sample_audios(audio_dir):
     file_list = [t[1] for t in file_list]
     return file_list
 
+
 def compute_mean_and_confidence_interval(measurements, confidence=0.95):
     mean = np.mean(measurements)
     std_err = stats.sem(measurements)
@@ -37,10 +40,15 @@ def compute_mean_and_confidence_interval(measurements, confidence=0.95):
 
     return "{:.4f} +/- {:.4f}".format(mean, confidence_interval), mean, confidence_interval
 
+
 def main():
     parser = argparse.ArgumentParser(description='Evaluate Squim MOS')
     parser.add_argument('--exp_base_dir', type=str, default="/datap/misc/ContinuousEvalResults/NewTransformerKoelTTS")
-    parser.add_argument('--audio_dirs', type=str, default="svencoder_small_sp_ks3_onlyphoneme_epoch242_Temp0.6_Topk80_Cfg_False_1.0_libri_val")
+    parser.add_argument(
+        '--audio_dirs',
+        type=str,
+        default="svencoder_small_sp_ks3_onlyphoneme_epoch242_Temp0.6_Topk80_Cfg_False_1.0_libri_val",
+    )
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"

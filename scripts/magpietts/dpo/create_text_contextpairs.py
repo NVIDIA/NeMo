@@ -149,6 +149,7 @@ def create_audio_context_record(text, audio_context, record_type):
 
     return record
 
+
 def create_text_context_record(text, text_context, record_type):
     """
     Creates a record for a text-context pair with text context.
@@ -164,11 +165,11 @@ def create_text_context_record(text, text_context, record_type):
     if text_context.endswith("\n"):
         text_context = text_context[:-1]
     record = {
-        'text' : text,
-        'duration' : 6.0, # Does not matter, avoids filtering out in DPO,
+        'text': text,
+        'duration': 6.0,  # Does not matter, avoids filtering out in DPO,
         'audio_filepath': text_context.split(",")[1],
-        'context_text' : text_context.split(",")[0],
-        'record_type' : record_type # challenging or regular
+        'context_text': text_context.split(",")[0],
+        'record_type': record_type,  # challenging or regular
     }
     if text_context.split(",")[-1].endswith(".pt"):
         record['target_audio_codes_path'] = text_context.split(",")[-1]

@@ -11,17 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import json
-import torch
-from torch.utils.data import Dataset, DataLoader
+import os
+
 import lightning.pytorch as pl
+import torch
 from lightning.pytorch import Trainer
 from lightning.pytorch.strategies import DDPStrategy
-from nemo.collections.tts.models import AudioCodecModel
-import os
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-import argparse
 from lightning.pytorch.utilities import rank_zero_only
+from torch.utils.data import DataLoader, Dataset
+
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.tts.models import AudioCodecModel
+
 
 class AudioDataset(Dataset):
     def __init__(self, file_lists, base_audio_dirs, dataset_names, out_dir, sample_rate=22050, pad_multiple=1024):
@@ -36,18 +39,19 @@ class AudioDataset(Dataset):
             dataset_name = dataset_names[fidx]
             for file_path in file_list:
                 audio_file_path = os.path.join(base_audio_dir, file_path)
-                self.combined_file_list.append({
-                    "file_path": file_path,
-                    "audio_file_path": audio_file_path,
-                    "dataset_name": dataset_name
-                })
+                self.combined_file_list.append(
+                    {"file_path": file_path, "audio_file_path": audio_file_path, "dataset_name": dataset_name}
+                )
 
     def __len__(self):
         return len(self.combined_file_list)
 
     def get_wav_from_filepath(self, file_path):
         features = AudioSegment.segment_from_file(
-            file_path, target_sr=self.sample_rate, n_segments=-1, trim=False,
+            file_path,
+            target_sr=self.sample_rate,
+            n_segments=-1,
+            trim=False,
         )
         audio_samples = features.samples
         audio = torch.tensor(audio_samples)
@@ -66,7 +70,7 @@ class AudioDataset(Dataset):
             "audio": audio,
             "audio_length": audio_length,
             "file_path": file_path,
-            "codec_file_path": os.path.join(self.out_dir, dataset_name, codec_file_path_rel)
+            "codec_file_path": os.path.join(self.out_dir, dataset_name, codec_file_path_rel),
         }
 
     def collate_fn(self, batch):
@@ -76,9 +80,7 @@ class AudioDataset(Dataset):
         codec_file_paths = []
         max_audio_length = max(item["audio_length"].item() for item in batch)
         for item in batch:
-            audio = torch.nn.functional.pad(
-                item["audio"], (0, max_audio_length - item["audio"].size(0)), value=0
-            )
+            audio = torch.nn.functional.pad(item["audio"], (0, max_audio_length - item["audio"].size(0)), value=0)
             audios_padded.append(audio)
             audio_lengths.append(item["audio_length"])
             file_paths.append(item["file_path"])
@@ -88,7 +90,7 @@ class AudioDataset(Dataset):
             "audios": torch.stack(audios_padded),
             "audio_lengths": torch.stack(audio_lengths),
             "audio_file_paths": file_paths,
-            "codec_file_paths": codec_file_paths
+            "codec_file_paths": codec_file_paths,
         }
 
 
@@ -108,9 +110,10 @@ class CodecExtractor(pl.LightningModule):
         codes, codes_lengths = self(batch)
         for i, file_path in enumerate(batch["codec_file_paths"]):
             # get directory from file path
-            item_codes = codes[i, :, :codes_lengths[i]] # 8, T
+            item_codes = codes[i, :, : codes_lengths[i]]  # 8, T
             torch.save(item_codes.cpu().type(torch.int16), file_path)
         return None
+
 
 def read_manifest(manifest_path):
     records = []
@@ -122,6 +125,7 @@ def read_manifest(manifest_path):
             records.append(record)
     return records
 
+
 def write_manifest(manifest_path, records):
     with open(manifest_path, 'w') as f:
         file_str = ""
@@ -130,6 +134,7 @@ def write_manifest(manifest_path, records):
         file_str = file_str.strip()
         f.write(file_str)
         print("Wrote {} records to: {}".format(len(records), manifest_path))
+
 
 @rank_zero_only
 def update_manifests(manifests, save_dir, dataset_names, codec_model_name):
@@ -143,13 +148,18 @@ def update_manifests(manifests, save_dir, dataset_names, codec_model_name):
                 assert os.path.exists(audio_codes_path), "Audio codes not found: {}".format(audio_codes_path)
 
             if "context_audio_filepath" in record:
-                context_audio_codes_path = record["context_audio_filepath"].replace(".wav", ".pt").replace(".flac", ".pt")
+                context_audio_codes_path = (
+                    record["context_audio_filepath"].replace(".wav", ".pt").replace(".flac", ".pt")
+                )
                 context_audio_codes_path = os.path.join(save_dir, dataset_names[midx], context_audio_codes_path)
                 record["context_audio_codes_path"] = context_audio_codes_path
                 if ridx % 10 == 0:
-                    assert os.path.exists(context_audio_codes_path), "Context audio codes not found: {}".format(context_audio_codes_path)
+                    assert os.path.exists(context_audio_codes_path), "Context audio codes not found: {}".format(
+                        context_audio_codes_path
+                    )
 
         write_manifest(manifest.replace(".json", "_withAudioCodes_{}.json".format(codec_model_name)), records)
+
 
 def prepare_directories(base_save_dir, codec_model_name, manifests, audio_base_dirs, dataset_names):
     print("In prepare_directories")
@@ -171,6 +181,7 @@ def prepare_directories(base_save_dir, codec_model_name, manifests, audio_base_d
                 os.makedirs(out_dir_path, exist_ok=True)
     print("Created directories for saving audio codes at: ", save_dir, len(file_lists))
     return save_dir, file_lists
+
 
 if __name__ == "__main__":
     """
@@ -220,11 +231,7 @@ if __name__ == "__main__":
         rank = torch.distributed.get_rank()
         if rank == 0:
             save_dir, file_lists = prepare_directories(
-                args.save_dir,
-                args.codec_model_name,
-                manifests,
-                audio_base_dirs,
-                dataset_names
+                args.save_dir, args.codec_model_name, manifests, audio_base_dirs, dataset_names
             )
             results = [save_dir, file_lists]
         else:
@@ -233,11 +240,7 @@ if __name__ == "__main__":
         save_dir, file_lists = results
     else:
         save_dir, file_lists = prepare_directories(
-            args.save_dir,
-            args.codec_model_name,
-            manifests,
-            audio_base_dirs,
-            dataset_names
+            args.save_dir, args.codec_model_name, manifests, audio_base_dirs, dataset_names
         )
 
     codec_extractor = CodecExtractor(args.codec_model_path)
