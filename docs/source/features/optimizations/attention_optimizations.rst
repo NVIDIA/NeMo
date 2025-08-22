@@ -26,7 +26,7 @@ In the NeMo Framework, flash attention is supported through `Transformer Engine 
 
 To disable Tri Dao flash attention, set the environment variable ``NVTE_FLASH_ATTN=0``. To disable cuDNN flash attention, set ``NVTE_FUSED_ATTN=0``.
 
-For more details on the Dot Product Attention backends supported in Transformer Engine, please refer to the source code at `Transformer Engine's Attention Mechanism <https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/attention.py>`_.
+For more details on the Dot Product Attention backends supported in Transformer Engine, please refer to the source code at `Transformer Engine's Attention Mechanism <https://github.com/NVIDIA/TransformerEngine/blob/main/transformer_engine/pytorch/attention>`_.
 
 Multi-query Attention (MQA) and Grouped-query Attention (GQA)
 -------------------------------------------------------------
@@ -93,4 +93,4 @@ Implement MQA or GQA
 
 NeMo's support for GQA and MQA is enabled through the integration of Megatron Core's Attention mechanism. The underlying implementation details can be explored within the Attention class of Megatron Core, which provides the functional backbone for these advanced attention methods. To understand the specific modifications and implementations of MQA and GQA, refer to the source code in the Attention class:
 
-To check implementation details from the Attention Class in Megatron Core Repo, please refer to https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/attention.py#L49.
+To check implementation details from the Attention Class in Megatron Core Repo, please refer to https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/core/transformer/attention.py#L89.

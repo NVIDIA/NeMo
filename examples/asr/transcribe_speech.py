@@ -14,11 +14,11 @@
 
 import json
 import os
-import time
 from dataclasses import dataclass, field, is_dataclass
 from typing import List, Optional, Union
 
 import lightning.pytorch as pl
+import numpy as np
 import torch
 from omegaconf import OmegaConf, open_dict
 
@@ -39,6 +39,7 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
 )
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.timers import SimpleTimer
 
 """
 Transcribe audio file on a single CPU/GPU. Useful for transcription of moderate amounts of audio data.
@@ -152,8 +153,10 @@ class TranscriptionConfig:
     allow_mps: bool = False  # allow to select MPS device (Apple Silicon M-series GPU)
     amp: bool = False
     amp_dtype: str = "float16"  # can be set to "float16" or "bfloat16" when using amp
-    compute_dtype: str = "float32"
-    matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
+    compute_dtype: Optional[str] = (
+        None  # "float32", "bfloat16" or "float16"; if None (default): bfloat16 if available else float32
+    )
+    matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
     audio_type: str = "wav"
 
     # Recompute model transcription, even if the output folder exists with scores.
@@ -203,6 +206,8 @@ class TranscriptionConfig:
     extract_nbest: bool = False  # Extract n-best hypotheses from the model
 
     calculate_rtfx: bool = False
+    warmup_steps: int = 0  # by default - no warmup
+    run_steps: int = 1  # by default - single run
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -265,13 +270,23 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
     asr_model.set_trainer(trainer)
     asr_model = asr_model.eval()
 
-    if cfg.compute_dtype != "float32" and cfg.amp:
+    if (cfg.compute_dtype is not None and cfg.compute_dtype != "float32") and cfg.amp:
         raise ValueError("amp=true is mutually exclusive with a compute_dtype other than float32")
 
     amp_dtype = torch.float16 if cfg.amp_dtype == "float16" else torch.bfloat16
 
-    if cfg.compute_dtype != "float32":
-        asr_model.to(getattr(torch, cfg.compute_dtype))
+    compute_dtype: torch.dtype
+    if cfg.compute_dtype is None:
+        can_use_bfloat16 = (not cfg.amp) and map_location.type == "cuda" and torch.cuda.is_bf16_supported()
+        if can_use_bfloat16:
+            compute_dtype = torch.bfloat16
+        else:
+            compute_dtype = torch.float32
+    else:
+        assert cfg.compute_dtype in {"float32", "bfloat16", "float16"}
+        compute_dtype = getattr(torch, cfg.compute_dtype)
+
+    asr_model.to(compute_dtype)
 
     # we will adjust this flag if the model does not support it
     compute_langs = cfg.compute_langs
@@ -378,11 +393,16 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
                     )
                 total_duration += item["duration"]
 
+        if cfg.warmup_steps == 0:
+            logging.warning(
+                "RTFx measurement enabled, but warmup_steps=0. "
+                "At least one warmup step is recommended to measure RTFx"
+            )
+
+    timer = SimpleTimer()
+    model_measurements = []
     with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu', dtype=amp_dtype, enabled=cfg.amp):
         with torch.no_grad():
-            if cfg.calculate_rtfx:
-                start_time = time.time()
-
             override_cfg = asr_model.get_transcribe_config()
             override_cfg.batch_size = cfg.batch_size
             override_cfg.num_workers = cfg.num_workers
@@ -395,12 +415,30 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             if hasattr(override_cfg, "prompt"):
                 override_cfg.prompt = parse_multitask_prompt(OmegaConf.to_container(cfg.prompt))
 
-            transcriptions = asr_model.transcribe(
-                audio=filepaths,
-                override_config=override_cfg,
-            )
-            if cfg.calculate_rtfx:
-                transcribe_time = time.time() - start_time
+            device = next(asr_model.parameters()).device
+            for run_step in range(cfg.warmup_steps + cfg.run_steps):
+                if run_step < cfg.warmup_steps:
+                    logging.info(f"Running warmup step {run_step}")
+                # reset timer
+                timer.reset()
+                timer.start(device=device)
+                # call transcribe
+                transcriptions = asr_model.transcribe(
+                    audio=filepaths,
+                    override_config=override_cfg,
+                    timestamps=cfg.timestamps,
+                )
+                # stop timer, log time
+                timer.stop(device=device)
+                logging.info(f"Model time for iteration {run_step}: {timer.total_sec():.3f}")
+                if run_step >= cfg.warmup_steps:
+                    model_measurements.append(timer.total_sec())
+
+    model_measurements_np = np.asarray(model_measurements)
+    logging.info(
+        f"Model time avg: {model_measurements_np.mean():.3f}"
+        + (f" (std: {model_measurements_np.std():.3f})" if cfg.run_steps > 1 else "")
+    )
 
     if cfg.dataset_manifest is not None:
         logging.info(f"Finished transcribing from manifest file: {cfg.dataset_manifest}")
@@ -453,7 +491,11 @@ def main(cfg: TranscriptionConfig) -> Union[TranscriptionConfig, List[Hypothesis
             logging.info(f"{total_res}")
 
     if cfg.calculate_rtfx:
-        logging.info(f"Dataset RTFx {(total_duration/transcribe_time)}")
+        rtfx_measurements = total_duration / model_measurements_np
+        logging.info(
+            f"Model RTFx on the dataset: {rtfx_measurements.mean():.3f}"
+            + (f" (std: {rtfx_measurements.std():.3f})" if cfg.run_steps > 1 else "")
+        )
 
     return cfg
 

@@ -24,10 +24,15 @@ import fiddle as fdl
 import lightning.pytorch as pl
 import torch
 from lightning.pytorch.loggers import WandbLogger
-from scripts.vlm.automodel_datasets import mk_hf_vlm_dataset_cord_v2, mk_hf_vlm_dataset_rdr
 
 from nemo import lightning as nl
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm, vlm
+from nemo.collections.vlm.hf.data.automodel_datasets import (
+    mk_hf_vlm_dataset_cord_v2,
+    mk_hf_vlm_dataset_fineweb_edu,
+    mk_hf_vlm_dataset_rdr,
+)
 
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
@@ -39,6 +44,7 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
     elif strategy == 'ddp':
         return pl.strategies.DDPStrategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
+            find_unused_parameters=True,
         )
     elif strategy == 'fsdp2':
         return nl.FSDP2Strategy(
@@ -59,8 +65,8 @@ if __name__ == '__main__':
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
     parser.add_argument('--devices', default=1, type=int)
     parser.add_argument('--num-nodes', default=1, type=int)
-    parser.add_argument('--mbs', default=1)
-    parser.add_argument('--gbs', default=4)
+    parser.add_argument('--mbs', default=1, type=int)
+    parser.add_argument('--gbs', default=4, type=int)
     parser.add_argument(
         "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
     )
@@ -76,6 +82,8 @@ if __name__ == '__main__':
         help="Path to the dataset. Can be a local path or a HF dataset name",
     )
     parser.add_argument("--peft", type=str, default="none", choices=["lora", "none"], help="Which peft to use")
+    parser.add_argument("--freeze-vision-model", action="store_true", help="Freeze the vision model parameters")
+    parser.add_argument("--freeze-language-model", action="store_true", help="Freeze the language model parameters")
     args = parser.parse_args()
 
     dataset_fn = None
@@ -85,12 +93,35 @@ if __name__ == '__main__':
         dataset_fn = mk_hf_vlm_dataset_rdr
     elif "cord-v2" in args.data_path:
         dataset_fn = mk_hf_vlm_dataset_cord_v2
+    elif "fineweb-edu" in args.data_path:
+        dataset_fn = mk_hf_vlm_dataset_fineweb_edu
     else:
         raise NotImplementedError
 
     processor = vlm.HFAutoModelForImageTextToText.configure_processor(args.model)
 
-    model = vlm.HFAutoModelForImageTextToText(args.model, load_in_4bit=args.use_4bit, processor=processor)
+    with FirstRankPerNode():
+        dataset = dataset_fn(args.data_path, processor, args.mbs, args.gbs)
+
+    model_kwargs = {}
+
+    # Gemma-3 recommends eager attention implementation
+    if "google/gemma-3" in args.model:
+        model_kwargs["attn_implementation"] = "eager"
+
+    # Currently freezing language model is not supported as it gives error related to no grad
+    # TODO: Fix this
+    if args.freeze_language_model:
+        raise ValueError("Freezing language model is not supported for current version of VLM automodel")
+
+    model = vlm.HFAutoModelForImageTextToText(
+        args.model,
+        load_in_4bit=args.use_4bit,
+        processor=processor,
+        freeze_language_model=args.freeze_language_model,
+        freeze_vision_model=args.freeze_vision_model,
+        **model_kwargs,
+    )
 
     peft = None
     if args.peft == 'lora':
@@ -107,7 +138,7 @@ if __name__ == '__main__':
 
     llm.finetune(
         model=model,
-        data=dataset_fn(args.data_path, processor, args.mbs, args.gbs),
+        data=dataset,
         trainer=nl.Trainer(
             devices=args.devices,
             max_steps=args.max_steps,
@@ -116,7 +147,7 @@ if __name__ == '__main__':
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
-            accumulate_grad_batches=1,
+            accumulate_grad_batches=max(1, args.gbs // args.mbs),
             gradient_clip_val=1,
             use_distributed_sampler=False,
             enable_checkpointing=args.disable_ckpt,

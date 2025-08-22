@@ -23,6 +23,7 @@ from typing import Callable, Literal, Optional, Type
 
 import torch
 from megatron.core import parallel_state
+from megatron.core.inference.contexts import StaticInferenceContext
 from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.transformer.enums import AttnBackend
@@ -38,6 +39,18 @@ from nemo.lightning.io.state import TransformFns
 from nemo.utils import logging
 
 
+class HyenaInferenceContext(StaticInferenceContext):
+    """Hyena-specific inference context."""
+
+    def reset(self):
+        """Reset the inference context."""
+        super().reset()  # standard state reset for GPT models
+        for key in dir(self):
+            # Remove all of the state that we add in hyena.py
+            if "filter_state_dict" in key:
+                delattr(self, key)
+
+
 class HyenaModel(GPTModel):
     """
     This is a wrapper around the MCoreHyenaModel to allow for inference. Our model follows the same API
@@ -45,13 +58,16 @@ class HyenaModel(GPTModel):
       slightly differently.
     """
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+    def get_inference_wrapper(
+        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=None
+    ) -> torch.Tensor:
         """
         Gets the inference wrapper for the Hyena model.
 
         Args:
             params_dtype: The data type for model parameters
             inference_batch_times_seqlen_threshold: Threshold for batch size * sequence length during inference
+            inference_max_seq_length: Maximum sequence length for inference
 
         Returns:
             GPTInferenceWrapper: The inference wrapper for the model
@@ -84,9 +100,12 @@ class HyenaModel(GPTModel):
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
             padded_vocab_size=vocab_size,
+            inference_max_seq_length=inference_max_seq_length,
+            inference_max_requests=1,
         )
 
-        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
+        inference_context = HyenaInferenceContext.from_config(inference_wrapper_config)
+        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config, inference_context)
         return model_inference_wrapper
 
     def forward(
@@ -97,7 +116,7 @@ class HyenaModel(GPTModel):
         labels: Optional[torch.Tensor] = None,
         decoder_input: Optional[torch.Tensor] = None,
         loss_mask: Optional[torch.Tensor] = None,
-        inference_params=None,
+        inference_context=None,
         packed_seq_params=None,
     ) -> torch.Tensor:
         """
@@ -110,7 +129,7 @@ class HyenaModel(GPTModel):
             labels: Optional labels for loss computation
             decoder_input: Optional decoder input
             loss_mask: Optional loss mask
-            inference_params: Optional inference parameters
+            inference_context: Optional inference parameters
             packed_seq_params: Optional parameters for packed sequences
 
         Returns:
@@ -123,7 +142,7 @@ class HyenaModel(GPTModel):
             attention_mask,
             decoder_input=decoder_input,
             labels=labels,
-            inference_params=inference_params,
+            inference_context=inference_context,
             loss_mask=loss_mask,
             **extra_kwargs,
         )
@@ -171,6 +190,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     fp16: bool = False
     bf16: bool = True
     num_layers: int = 2
+    hidden_size: int = 1024
     num_attention_heads: int = 8
     num_groups_hyena: int = None
     num_groups_hyena_medium: int = None
@@ -187,7 +207,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     seq_len_interpolation_factor: Optional[float] = None
     apply_rope_fusion: bool = True
     make_vocab_size_divisible_by: int = 128
-    gated_linear_unit: bool = False
+    gated_linear_unit: bool = True
     fp32_residual_connection: bool = True
     normalization: str = 'RMSNorm'
     add_bias_linear: bool = False
@@ -219,6 +239,8 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     # Use this if you want to turn FP8 on for the linear layer in the mixer only. When using this, do not set
     #  Fp8 in the mixed precision plugin.
     vortex_style_fp8: bool = False
+    use_subquadratic_ops: bool = False
+    share_embeddings_and_output_weights: bool = True
 
     def __post_init__(self):
         """
@@ -227,17 +249,22 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
         super().__post_init__()
         self.hyena_no_weight_decay_cond_fn = hyena_no_weight_decay_cond if self.hyena_filter_no_wd else None
 
-    def configure_model(self, tokenizer) -> "MCoreHyenaModel":
+    def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreHyenaModel":
         """
         Configures and returns a Hyena model instance based on the config settings.
 
         Args:
             tokenizer: Tokenizer to use for the model
+            vp_stage: Virtual pipeline stage
 
         Returns:
             MCoreHyenaModel: Configured Hyena model instance
         """
         self.bias_activation_fusion = False if self.remove_activation_post_first_layer else self.bias_activation_fusion
+
+        assert (
+            getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
+        ), "Virtual pipeline model parallelism is temporarily unsupported in Hyena."
 
         model = MCoreHyenaModel(
             self,
@@ -254,7 +281,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=parallel_state.is_pipeline_first_stage(),
             post_process=parallel_state.is_pipeline_last_stage(),
-            share_embeddings_and_output_weights=True,
+            share_embeddings_and_output_weights=self.share_embeddings_and_output_weights,
             hyena_init_method=self.hyena_init_method,
             hyena_output_layer_init_method=self.hyena_output_layer_init_method,
             remove_activation_post_first_layer=self.remove_activation_post_first_layer,
@@ -295,6 +322,7 @@ class HyenaTestConfig(HyenaConfig):
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
     use_short_conv_bias: bool = False
+    use_subquadratic_ops: bool = False
 
 
 @dataclass
@@ -338,7 +366,7 @@ class Hyena1bConfig(HyenaConfig):
     layernorm_epsilon: float = 1e-6
     recompute_granularity: str = 'full'
     recompute_method: str = 'uniform'
-    recompute_num_layers: int = 4
+    recompute_num_layers: int = 5
     hyena_init_method: str = 'small_init'
     hyena_output_layer_init_method: str = 'wang_init'
     hyena_filter_no_wd: bool = True
@@ -455,6 +483,7 @@ class Hyena7bARCLongContextConfig(Hyena7bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 11264
+    seq_len_interpolation_factor: float = 128
 
 
 @dataclass
@@ -463,6 +492,7 @@ class Hyena40bARCLongContextConfig(Hyena40bConfig):
     due to constraintes from large TP size for training."""
 
     ffn_hidden_size: int = 22528
+    seq_len_interpolation_factor: float = 128
 
 
 @io.model_importer(HyenaModel, "pytorch")
@@ -737,62 +767,66 @@ class HuggingFaceSavannaHyenaImporter(PyTorchHyenaImporter):
         import huggingface_hub.errors
         from huggingface_hub import hf_hub_download
 
-        if ":" in str(self):
-            repo_id, revision = str(self).split(":")
+        if os.path.exists(str(self)):
+            logging.info(f"Loading model from local path {str(self)}")
+            return torch.load(str(self), map_location='cpu', weights_only=False)
         else:
-            repo_id = str(self)
-            revision = None
-        # See HF download logic here:
-        #   https://github.com/ArcInstitute/evo2/blob/96ac9d9cd/evo2/models.py#L191-L231
-        modelname = repo_id.split("/")[-1]
-        download_dir = str(NEMO_MODELS_CACHE / repo_id)
-        weights_filename = f"{modelname}.pt"
-        try:
-            weights_path = hf_hub_download(
-                repo_id=repo_id, local_dir=download_dir, revision=revision, filename=weights_filename
-            )
-        except Exception:
-            # Try downloading multi-part
-            # If file is split, download and join parts
-            logging.warning(f"Single path download failed, try loading checkpoint shards for {modelname}")
-            # If file is split, get the first part's directory to use the same cache location
-            weights_path = os.path.join(download_dir, weights_filename)
-            if os.path.exists(weights_path):
-                logging.info(f"Found {weights_path}")
+            if ":" in str(self):
+                repo_id, revision = str(self).split(":")
             else:
-                # Download and join parts
-                parts = []
-                part_num = 0
-                while True:
-                    try:
-                        part_path = hf_hub_download(
-                            repo_id=repo_id,
-                            local_dir=download_dir,
-                            revision=revision,
-                            filename=f"{weights_filename}.part{part_num}",
-                        )
-                        parts.append(part_path)
-                        part_num += 1
-                    except huggingface_hub.errors.EntryNotFoundError:
-                        break
+                repo_id = str(self)
+                revision = None
+            # See HF download logic here:
+            #   https://github.com/ArcInstitute/evo2/blob/96ac9d9cd/evo2/models.py#L191-L231
+            modelname = repo_id.split("/")[-1]
+            download_dir = str(NEMO_MODELS_CACHE / repo_id)
+            weights_filename = f"{modelname}.pt"
+            try:
+                weights_path = hf_hub_download(
+                    repo_id=repo_id, local_dir=download_dir, revision=revision, filename=weights_filename
+                )
+            except Exception:
+                # Try downloading multi-part
+                # If file is split, download and join parts
+                logging.warning(f"Single path download failed, try loading checkpoint shards for {modelname}")
+                # If file is split, get the first part's directory to use the same cache location
+                weights_path = os.path.join(download_dir, weights_filename)
+                if os.path.exists(weights_path):
+                    logging.info(f"Found {weights_path}")
+                else:
+                    # Download and join parts
+                    parts = []
+                    part_num = 0
+                    while True:
+                        try:
+                            part_path = hf_hub_download(
+                                repo_id=repo_id,
+                                local_dir=download_dir,
+                                revision=revision,
+                                filename=f"{weights_filename}.part{part_num}",
+                            )
+                            parts.append(part_path)
+                            part_num += 1
+                        except huggingface_hub.errors.EntryNotFoundError:
+                            break
 
-                # Join in the same directory
-                with open(weights_path, 'wb') as outfile:
+                    # Join in the same directory
+                    with open(weights_path, 'wb') as outfile:
+                        for part in parts:
+                            with open(part, 'rb') as infile:
+                                while True:
+                                    chunk = infile.read(8192 * 1024)
+                                    if not chunk:
+                                        break
+                                    outfile.write(chunk)
+
+                    # Cleaning up the parts
                     for part in parts:
-                        with open(part, 'rb') as infile:
-                            while True:
-                                chunk = infile.read(8192 * 1024)
-                                if not chunk:
-                                    break
-                                outfile.write(chunk)
-
-                # Cleaning up the parts
-                for part in parts:
-                    try:
-                        os.remove(part)
-                    except OSError as e:
-                        print(f"Error removing {part}: {e}")
-                    print("Cleaned up shards, final checkpoint saved to", weights_path)
+                        try:
+                            os.remove(part)
+                        except OSError as e:
+                            print(f"Error removing {part}: {e}")
+                        print("Cleaned up shards, final checkpoint saved to", weights_path)
 
         return torch.load(weights_path, map_location='cpu', weights_only=False)
 

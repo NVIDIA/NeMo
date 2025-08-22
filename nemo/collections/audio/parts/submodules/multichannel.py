@@ -20,16 +20,10 @@ import torch
 
 from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
 from nemo.collections.asr.parts.submodules.multi_head_attention import MultiHeadAttention
+from nemo.collections.audio.parts.utils.audio import covariance_matrix
 from nemo.core.classes import NeuralModule, typecheck
 from nemo.core.neural_types import AudioSignal, FloatType, LengthsType, NeuralType, SpectrogramType
 from nemo.utils import logging
-
-try:
-    import torchaudio
-
-    HAVE_TORCHAUDIO = True
-except ModuleNotFoundError:
-    HAVE_TORCHAUDIO = False
 
 
 class ChannelAugment(NeuralModule):
@@ -414,13 +408,6 @@ class ParametricMultichannelWienerFilter(NeuralModule):
         diag_reg: Optional[float] = 1e-6,
         eps: float = 1e-8,
     ):
-        if not HAVE_TORCHAUDIO:
-            logging.error('Could not import torchaudio. Some features might not work.')
-
-            raise ModuleNotFoundError(
-                f"torchaudio is not installed but is necessary to instantiate a {self.__class__.__name__}"
-            )
-
         super().__init__()
 
         # Parametric filter
@@ -447,9 +434,6 @@ class ParametricMultichannelWienerFilter(NeuralModule):
         if eps <= 0:
             raise ValueError(f'Epsilon {eps} must be positive.')
         self.eps = eps
-
-        # PSD estimator
-        self.psd = torchaudio.transforms.PSD()
 
         # Reference channel
         self.ref_channel = ref_channel
@@ -597,15 +581,15 @@ class ParametricMultichannelWienerFilter(NeuralModule):
         """
         iodtype = input.dtype
 
-        with torch.amp.autocast(self.device.type, enabled=False):
+        with torch.amp.autocast(input.device.type, enabled=False):
             # Convert to double
             input = input.cdouble()
             mask_s = mask_s.double()
             mask_n = mask_n.double()
 
             # Calculate signal statistics
-            psd_s = self.psd(input, mask_s)
-            psd_n = self.psd(input, mask_n)
+            psd_s = covariance_matrix(x=input, mask=mask_s)
+            psd_n = covariance_matrix(x=input, mask=mask_n)
 
             if self.rank == 'one':
                 # Calculate filter W using (18) in [1]
@@ -955,16 +939,12 @@ class WPEFilter(NeuralModule):
             `tilde{X}` the corresponding multi-channel correlation matrix,
             and `w` the vector of weights.
 
-            The first output is
-                Q = tilde{X}^H * diag(w) * tilde{X}     (1)
-            for each (b, f).
-            The matrix calculated in (1) has shape (C * filter_length, C * filter_length)
+            The first output is Q = tilde{X}^H * diag(w) * tilde{X}, for each (b, f).
+            The matrix Q has shape (C * filter_length, C * filter_length)
             The output is returned in a tensor with shape (B, F, C, filter_length, C, filter_length).
 
-            The second output is
-                R = tilde{X}^H * diag(w) * X            (2)
-            for each (b, f).
-            The matrix calculated in (2) has shape (C * filter_length, C)
+            The second output is R = tilde{X}^H * diag(w) * X, for each (b, f).
+            The matrix R has shape (C * filter_length, C)
             The output is returned in a tensor with shape (B, F, C, filter_length, C). The last
             dimension corresponds to output channels.
         """
@@ -986,8 +966,7 @@ class WPEFilter(NeuralModule):
         return Q, R
 
     def estimate_filter(self, Q: torch.Tensor, R: torch.Tensor) -> torch.Tensor:
-        r"""Estimate the MIMO prediction filter as
-            G(b,f) = Q(b,f) \ R(b,f)
+        r"""Estimate the MIMO prediction filter as G(b,f) = Q(b,f) \ R(b,f)
         for each subband in each example in the batch (b, f).
 
         Args:

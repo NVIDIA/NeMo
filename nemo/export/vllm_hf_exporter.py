@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 from typing import List
 
 import numpy as np
-from pytriton.decorators import batch
+from pytriton.decorators import batch, first_value
 from pytriton.model_config import Tensor
 from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
@@ -81,17 +81,18 @@ class vLLMHFExporter(ITritonDeployable):
         return outputs
 
     @batch
+    @first_value("max_output_len", "top_k", "top_p", "temperature")
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             infer_input = {"input_texts": str_ndarray2list(inputs.pop("prompts"))}
             if "max_output_len" in inputs:
-                infer_input["max_output_len"] = inputs.pop("max_output_len")[0][0]
+                infer_input["max_output_len"] = inputs.pop("max_output_len")
             if "top_k" in inputs:
-                infer_input["top_k"] = inputs.pop("top_k")[0][0]
+                infer_input["top_k"] = inputs.pop("top_k")
             if "top_p" in inputs:
-                infer_input["top_p"] = inputs.pop("top_p")[0][0]
+                infer_input["top_p"] = inputs.pop("top_p")
             if "temperature" in inputs:
-                infer_input["temperature"] = inputs.pop("temperature")[0][0]
+                infer_input["temperature"] = inputs.pop("temperature")
 
             output_texts = self.forward(**infer_input)
             output = cast_output(output_texts, np.bytes_)

@@ -1,2 +1,2 @@
-# Installs EleutherAI's lm-evaluation-harness https://github.com/EleutherAI/lm-evaluation-harness/tree/main
-lm-eval
+flask
+nvidia-lm-eval==25.6.1

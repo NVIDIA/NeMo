@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -183,7 +183,7 @@ class TestVQASampleEncoder(unittest.TestCase):
         self.assertIsNotNone(encoded_sample.tokens, "The encoded sample should have tokens.")
         self.assertIsNotNone(encoded_sample.labels, "The encoded sample should have labels.")
         self.assertIsNotNone(encoded_sample.loss_mask, "The encoded sample should have a loss mask.")
-        self.assertEqual(encoded_sample.images.shape, (3, 336, 336))
+        self.assertEqual(encoded_sample.images.shape, (1, 3, 336, 336))
         self.assertEqual(
             len(encoded_sample.tokens), len(encoded_sample.labels), "Tokens and labels should have the same length."
         )

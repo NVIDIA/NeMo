@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,9 +71,12 @@ class MockDataModule(pl.LightningDataModule):
         self.image_precached = image_precached
         self.text_precached = text_precached
         self.global_batch_size = global_batch_size
+        self.micro_batch_size = micro_batch_size
+        self.tokenizer = None
+        self.seq_length = 10
 
         self.data_sampler = MegatronDataSampler(
-            seq_len=10,
+            seq_len=self.seq_length,
             micro_batch_size=micro_batch_size,
             global_batch_size=global_batch_size,
             rampup_batch_size=rampup_batch_size,
