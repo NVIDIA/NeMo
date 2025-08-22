@@ -53,9 +53,7 @@ class AutoConfigurator:
         gpu_memory_gb: Optional[int] = 80,
         tensor_parallel_sizes: Optional[List[int]] = "auto",
         pipeline_parallel_sizes: Optional[List[int]] = "auto",
-        virtual_pipeline_model_parallel_sizes: Optional[List[int]] = None,
         micro_batch_sizes: Optional[List[int]] = "auto",
-        global_batch_sizes: Optional[List[int]] = [512],
         context_parallel_sizes: Optional[List[int]] = [1],
         expert_parallel_sizes: Optional[List[int]] = [1],
         min_model_parallel_size: Optional[int] = "auto",
@@ -78,11 +76,8 @@ class AutoConfigurator:
                 or a list, such as [1, 2, 4, 8].
             pipeline_parallel_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
                 or a list, such as [1, 2, 4, 8].
-            virtual_pipeline_model_parallel_sizes (Optional[List[int]]): virtual pipeline parallelism sizes to test.
-                A list, such as [1, 2, 4, 8], or None to disable virtual pipeline parallelism.
             micro_batch_sizes (Optional[List[int]]): set to "auto" to use our recommendation,
                 or a list, such as [1, 2, 4, 8].
-            global_batch_sizes (Optional[List[int]]): A list, such as [512]
             context_parallel_sizes (Optional[List[int]]): model context parallel size. A list, such as [1, 2, 4, 8].
             expert_parallel_sizes (Optional[List[int]]): model expert parallel size. A list, such as [1, 2, 4, 8].
             min_model_parallel_size (Optional[int]): set to "auto" to use our recommendation,
@@ -132,7 +127,10 @@ class AutoConfigurator:
         self.num_nodes = recipe.trainer.num_nodes
         gpu_count = self.num_nodes * self.num_gpus
         assert gpu_count > 0, "num_nodes * gpus_per_node must be an int larger than zero."
-        assert 16 <= gpu_memory_gb <= 200, f"gpu_memory_gb must be between 16GB and 200GB. Got: {gpu_memory_gb} GB"
+        assert gpu_memory_gb in (
+            40,
+            80,
+        ), "gpu_memory_gb can only be 40 or 80."
         assert max_minutes_per_run >= 10, "max_minutes_per_run must be an int and be at least 10 minutes."
         assert max_steps_per_run >= 10, "max_steps_per_run must be an int and be at least 10 minutes."
 
@@ -171,6 +169,7 @@ class AutoConfigurator:
         )
         self.gpu_count = gpu_count
         self.seq_length = recipe.data.seq_length
+        self.global_batch_size = recipe.data.global_batch_size
 
     def _get_message(self, config: dict) -> str:
         """
@@ -251,7 +250,7 @@ class AutoConfigurator:
             )
 
 
-def generate_configs(runner_config: AutoConfigurator = None, resource_shape: str = '') -> dict:
+def generate_configs(runner_config: AutoConfigurator = None) -> dict:
     """
     Function that returns a dictionary of Partial configs.
 
@@ -265,9 +264,7 @@ def generate_configs(runner_config: AutoConfigurator = None, resource_shape: str
     # Generate base config for the given model size
     base_config, train_config = generic_base_config(runner_config)
     # Launch grid search for training constraints
-    base_config, train_configs, matching_configs = generate_grid_search_configs(
-        base_config, train_config, resource_shape
-    )
+    base_config, train_configs = generate_grid_search_configs(base_config, train_config)
 
     configs = {}
     for name, config in train_configs.items():
@@ -288,7 +285,6 @@ def generate_configs(runner_config: AutoConfigurator = None, resource_shape: str
             "virtual_pipeline_model_parallel_size", None
         )
         trainer.max_steps = config.get("max_steps")
-        trainer.callbacks = config.get("callbacks")
         trainer.log_every_n_steps = 1
 
         log.log_dir = os.path.join(config.get("path_to_logs"), name)
@@ -305,4 +301,4 @@ def generate_configs(runner_config: AutoConfigurator = None, resource_shape: str
             resume=None,
         )
 
-    return base_config, configs, matching_configs
+    return base_config, configs

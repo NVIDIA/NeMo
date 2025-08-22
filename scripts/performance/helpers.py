@@ -326,35 +326,18 @@ def set_perf_optimization_configs(
 
     recipe.trainer.strategy.use_sharp = bool(use_sharp)
 
-    ddp_strategy = recipe.trainer.strategy.ddp
-    is_ddp_obj = hasattr(ddp_strategy, "ddp") and not isinstance(ddp_strategy.ddp, str)
-
-    if not is_ddp_obj:
-        if use_user_buffer_registration:
-            logging.warning("DDP is not configured. Cannot use user buffer registration.")
-        return recipe
-
-    # Configure DDP settings (only when DDP object exists)
-    ddp_strategy.check_for_nan_in_grad = False
-    ddp_strategy.check_for_large_grads = False
-
-    # Configure NCCL User Buffer only when explicitly requested
-    if use_user_buffer_registration:
-        try:
-            if hasattr(ddp_strategy, 'nccl_ub'):
-                ddp_strategy.nccl_ub = True
-            if hasattr(ddp_strategy, 'fsdp_double_buffer'):
-                recipe.trainer.strategy.ddp.fsdp_double_buffer = bool(use_fsdp_double_buffer)
-            if hasattr(ddp_strategy, 'keep_fp8_transpose_cache_when_using_custom_fsdp'):
-                recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = bool(
-                    keep_fsdp_fp8_transpose_cache
-                )
-                logging.info("NCCL User Buffer registration enabled successfully")
-            else:
-                logging.warning("NCCL User Buffer property not available in DDP strategy")
-        except (AttributeError, TypeError, ValueError) as e:
-            logging.warning(f"Failed to enable NCCL User Buffer registration: {e}")
-            logging.warning("Continuing without NCCL User Buffer optimization")
+    is_ddp_obj = hasattr(recipe.trainer.strategy, "ddp") and not isinstance(recipe.trainer.strategy.ddp, str)
+    if use_user_buffer_registration and not is_ddp_obj:
+        logging.warning("DDP is not configured. Cannot use user buffer registration.")
+    if is_ddp_obj:
+        # Disable local gradient checker at non-debugging mode
+        recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
+        recipe.trainer.strategy.ddp.check_for_large_grads = False
+        recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
+        recipe.trainer.strategy.ddp.fsdp_double_buffer = bool(use_fsdp_double_buffer)
+        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = bool(
+            keep_fsdp_fp8_transpose_cache
+        )
 
     return recipe
 
