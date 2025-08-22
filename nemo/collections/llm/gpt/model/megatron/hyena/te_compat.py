@@ -69,7 +69,28 @@ import torch
 import torch.nn as nn
 
 
-class Linear(MTLinear):
+class NoTP:
+    """
+    Mixin to disallow tensor parallelism > 1 for certain classes.
+    Checks for parallel_mode or tensor parallel world size > 1 and raises an
+    exception.
+    """
+
+    def __init__(self, *args, **kwargs):  # pylint: disable=missing-function-docstring
+        parallel_mode = str(kwargs.get("parallel_mode"))
+        config = kwargs.get("config")
+        tp_world_size = getattr(config, "tensor_model_parallel_size", 1) if config else 1
+
+        if parallel_mode != "None" or tp_world_size > 1:
+            raise RuntimeError(
+                "This class does not support tensor parallelism (TP > 1). "
+                "Set tensor_model_parallel_size=1, or don't use "
+                "unfused_rmsnorm and plain_row_linear in the Hyena config."
+            )
+        super().__init__(*args, **kwargs)
+
+
+class Linear(NoTP, MTLinear):
     """
     Same as TERowParallelLinear, but doesn't use TE or any parallelism, but
     compatible arguments-wise and checkpoints/sharding-wise.
@@ -83,7 +104,7 @@ class Linear(MTLinear):
         return x, None
 
 
-class RMSNormLinear(TELayerNormColumnParallelLinear):
+class RMSNormLinear(NoTP, TELayerNormColumnParallelLinear):
     """
     RMSNorm + Linear that doesn't use TE or fusion, yet reuses checkpoint
     structure/sharding of TELayerNormColumnParallelLinear.
@@ -94,14 +115,14 @@ class RMSNormLinear(TELayerNormColumnParallelLinear):
         return nn.functional.linear(x, self.weight, None), None
 
 
-class TELinearFp8(TELinear):
+class TELinearFp8(NoTP, TELinear):
     """TELinear that internally ensures fp8 padding as required by TE."""
 
     def forward(self, x):  # pylint: disable=missing-function-docstring
         return fp8_padded_forward(super(), self, x)
 
 
-class TELayerNormColumnParallelLinearFp8(TELayerNormColumnParallelLinear):
+class TELayerNormColumnParallelLinearFp8(NoTP, TELayerNormColumnParallelLinear):
     """
     TELayerNormColumnParallelLinearFp8 that internally ensures fp8 padding
     as required by TE.
