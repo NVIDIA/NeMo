@@ -31,11 +31,13 @@ __all__ = ["Logger", "LogMode"]
 
 
 class LogMode(enum.IntEnum):
+    """Enum to control how many times to log messages in NeMo logging"""
     EACH = 0  # Log the message each time
     ONCE = 1  # Log the message only once. The same message will not be logged again.
 
 
 class Logger(metaclass=Singleton):
+    """NeMo's logging class. Makes some changes on top of python's logging module to aid model devs."""
 
     # Level 0
     NOTSET = _logging.NOTSET
