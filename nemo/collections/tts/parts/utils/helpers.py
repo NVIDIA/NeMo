@@ -444,12 +444,15 @@ def tacotron2_log_to_wandb_func(
             swriter.log({"audios": audios})
 
 
-def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None):
+def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None, attended=None):
     if phoneme_seq:
         fig, ax = plt.subplots(figsize=(15, 10))
     else:
         fig, ax = plt.subplots(figsize=(6, 4))
     im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
+    if attended is not None:
+        for step in range(len(attended)-1):
+            plt.plot([step, step+1], [attended[step], attended[step+1]], color='red', linewidth=1, linestyle='--')
     ax.set_title(title)
     fig.colorbar(im, ax=ax)
     xlabel = 'Decoder timestep'
