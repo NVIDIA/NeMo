@@ -30,7 +30,7 @@ from megatron.core.transformer.enums import AttnBackend
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec, hyena_stack_spec_no_te
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import get_hyena_stack_spec
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_model import HyenaModel as MCoreHyenaModel
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import hyena_no_weight_decay_cond
 from nemo.lightning import get_vocab_size, io, teardown
@@ -241,6 +241,8 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
     vortex_style_fp8: bool = False
     use_subquadratic_ops: bool = False
     share_embeddings_and_output_weights: bool = True
+    unfused_rmsnorm: bool = False  # Use unfused RMSNorm + TELinear for dense projection
+    plain_row_linear: bool = False  # Use plain pytorch implementation instead of Megatron's row parallel linears
 
     def __post_init__(self):
         """
@@ -268,7 +270,12 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
 
         model = MCoreHyenaModel(
             self,
-            hyena_stack_spec=hyena_stack_spec if self.use_te else hyena_stack_spec_no_te,
+            hyena_stack_spec=get_hyena_stack_spec(
+                use_te=self.use_te,
+                vortex_style_fp8=self.vortex_style_fp8,
+                unfused_rmsnorm=self.unfused_rmsnorm,
+                plain_row_linear=self.plain_row_linear,
+            ),
             vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
             max_sequence_length=self.seq_length,
             num_groups_hyena=self.num_groups_hyena,
