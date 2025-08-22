@@ -265,7 +265,9 @@ def generate_configs(runner_config: AutoConfigurator = None, resource_shape: str
     # Generate base config for the given model size
     base_config, train_config = generic_base_config(runner_config)
     # Launch grid search for training constraints
-    base_config, train_configs, matching_configs = generate_grid_search_configs(base_config, train_config, resource_shape)
+    base_config, train_configs, matching_configs = generate_grid_search_configs(
+        base_config, train_config, resource_shape
+    )
 
     configs = {}
     for name, config in train_configs.items():

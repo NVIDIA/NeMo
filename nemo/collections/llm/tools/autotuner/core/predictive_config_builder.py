@@ -15,12 +15,11 @@
 import json
 import logging
 import os
-import logging
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
 import nemo_run as run
-from rich.table import Table   
+from rich.table import Table
 
 from nemo.collections import llm
 from nemo.collections.llm.tools.auto_configurator import AutoConfigurator, generate_configs
@@ -37,7 +36,6 @@ from nemo.collections.llm.tools.autotuner.core.utils import (
     validate_all_configs,
 )
 from nemo.lightning.resume import AutoResume
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -608,6 +606,7 @@ def validate_configurations_memory(
 
 # ======================== Generate and Save Configs ========================
 
+
 def generate_recipe_configs(args):
     """
     Generate AutConfigurator recipe configurations.
@@ -717,7 +716,6 @@ def generate_recipe_configs(args):
     base_config, configs, base_configuration_matches = generate_configs(runner, args.resource_shape)
     num_configs_generated = len(configs)
 
-
     base_config_values = {
         'tp': base_config.trainer.strategy.tensor_model_parallel_size,
         'pp': base_config.trainer.strategy.pipeline_model_parallel_size,
@@ -735,10 +733,10 @@ def generate_recipe_configs(args):
     model_family = list(configs.keys())[0].split('_')[0]
 
     base_config_generated_name = (
-            f"{model_family}_{base_config_values['model_size_b']}b_{base_config_values['nodes']}nodes_"
-            f"tp_{base_config_values['tp']}_pp_{base_config_values['pp']}_cp_{base_config_values['cp']}_ep_{base_config_values['ep']}_mbs_{base_config_values['mbs']}_vp_{base_config_values['vp']}_seq_{base_config_values['seq_length']}_gbs_{base_config_values['gbs']}"
-        )
-    
+        f"{model_family}_{base_config_values['model_size_b']}b_{base_config_values['nodes']}nodes_"
+        f"tp_{base_config_values['tp']}_pp_{base_config_values['pp']}_cp_{base_config_values['cp']}_ep_{base_config_values['ep']}_mbs_{base_config_values['mbs']}_vp_{base_config_values['vp']}_seq_{base_config_values['seq_length']}_gbs_{base_config_values['gbs']}"
+    )
+
     args.metadata['base_config_generated_name'] = base_config_generated_name
 
     logger.info("Performing CUDA OOM analysis for all configurations...")
@@ -788,8 +786,10 @@ def generate_recipe_configs(args):
     has_matches = len(base_configuration_matches) > 0
     if has_matches:
         for bcm in base_configuration_matches:
-                logger.info(f"Config '{bcm}' matches base config - will be flagged as base config equivalent")
-        logger.info(f"Found {len(base_configuration_matches)} matching configs. Using original log_dir: {recipe.log.log_dir}")
+            logger.info(f"Config '{bcm}' matches base config - will be flagged as base config equivalent")
+        logger.info(
+            f"Found {len(base_configuration_matches)} matching configs. Using original log_dir: {recipe.log.log_dir}"
+        )
     else:
         recipe.log.log_dir = os.path.join(base_log_path, args.metadata['base_config_generated_name'])
         logger.info(f"No matching configs found. Updated log_dir to: {recipe.log.log_dir}")

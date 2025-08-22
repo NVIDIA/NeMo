@@ -17,7 +17,9 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
-from nemo.collections.llm.tools.auto_configurator.core.performance_utils import apply_per_config_tp_comm_overlap_optimization
+from nemo.collections.llm.tools.auto_configurator.core.performance_utils import (
+    apply_per_config_tp_comm_overlap_optimization,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -181,7 +183,7 @@ def generate_grid_search_configs(base_cfg: dict, train_cfg: dict, resource_shape
                                     kwargs["act"] = act
                                     kwargs["num_mbs_act"] = num_mbs_act
                                     kwargs["act_per_pipe"] = act_per_pipe
-                    new_cfg = utils.modify_cfg(**kwargs) # returns None if config is not valid
+                    new_cfg = utils.modify_cfg(**kwargs)  # returns None if config is not valid
                     if new_cfg:  # Save candidate cfg.
                         new_cfg = apply_per_config_tp_comm_overlap_optimization(new_cfg, base_cfg, resource_shape)
                         configs[new_cfg["name"]] = new_cfg
@@ -189,16 +191,19 @@ def generate_grid_search_configs(base_cfg: dict, train_cfg: dict, resource_shape
     matching_configs = []
     # logic to find if , for tp, pp, cp, ep, virtual_pipelines, mbs, gbs, seq_len, any generated config matches with base config
     for config in configs:
-        if config["tensor_model_parallel_size"] == base_cfg.trainer.strategy.tensor_model_parallel_size and \
-        config["pipeline_model_parallel_size"] == base_cfg.trainer.strategy.pipeline_model_parallel_size and \
-        config["context_parallel_size"] == base_cfg.trainer.strategy.context_parallel_size and \
-        config["expert_model_parallel_size"] == base_cfg.trainer.strategy.expert_model_parallel_size and \
-        config["virtual_pipeline_model_parallel_size"] == base_cfg.trainer.strategy.virtual_pipeline_model_parallel_size and \
-        config["micro_batch_size"] == base_cfg.data.micro_batch_size and \
-        config["global_batch_size"] == base_cfg.data.global_batch_size and \
-        config["seq_length"] == base_cfg.data.seq_length:
+        if (
+            config["tensor_model_parallel_size"] == base_cfg.trainer.strategy.tensor_model_parallel_size
+            and config["pipeline_model_parallel_size"] == base_cfg.trainer.strategy.pipeline_model_parallel_size
+            and config["context_parallel_size"] == base_cfg.trainer.strategy.context_parallel_size
+            and config["expert_model_parallel_size"] == base_cfg.trainer.strategy.expert_model_parallel_size
+            and config["virtual_pipeline_model_parallel_size"]
+            == base_cfg.trainer.strategy.virtual_pipeline_model_parallel_size
+            and config["micro_batch_size"] == base_cfg.data.micro_batch_size
+            and config["global_batch_size"] == base_cfg.data.global_batch_size
+            and config["seq_length"] == base_cfg.data.seq_length
+        ):
             matching_configs.append(config["name"])
-        
+
     logger.debug(f"Generated {len(configs)} total configurations")
     return base_cfg, configs, matching_configs
 
