@@ -294,6 +294,7 @@ def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
             system_prompt=config.get("tags", {}).get("system_prompt"),
+            slice_length=config.get("slice_length"),
         )
     )
     if not config.get("force_finite", False):
@@ -313,6 +314,7 @@ def read_share_gpt_as_conversation(config) -> tuple[CutSet, bool]:
             token_equivalent_duration=config.get("token_equivalent_duration"),
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
+            slice_length=config.get("slice_length"),
         )
     )
     if not config.get("force_finite", False):

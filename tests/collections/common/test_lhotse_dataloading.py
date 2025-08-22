@@ -2660,7 +2660,6 @@ def test_dataloader_lhotse_shar_slice_length_multi_epoch_different_sample(cutset
                     # 2 shards, 5 utterances each
                     "type": "lhotse_shar",
                     "shar_path": cutset_shar_path,
-                    "tags": {"origin": "lhotse_shar"},
                 },
             ],
             "slice_length": 2,
@@ -2679,9 +2678,8 @@ def test_dataloader_lhotse_shar_slice_length_multi_epoch_different_sample(cutset
     assert len(batches) == 4
     epoch0_ids = [cut.id for b in batches[:2] for cut in b]
     epoch1_ids = [cut.id for b in batches[2:] for cut in b]
-    print(epoch0_ids)
-    print(epoch1_ids)
     assert epoch0_ids != epoch1_ids
+    assert epoch0_ids + epoch1_ids != sorted(epoch0_ids + epoch1_ids)  # true when slice_length=None
 
 
 def test_dataloader_nemo_tarred_slice_length_multi_epoch_different_sample(
@@ -2696,7 +2694,6 @@ def test_dataloader_nemo_tarred_slice_length_multi_epoch_different_sample(
                     "type": "nemo_tarred",
                     "manifest_filepath": json_mft,
                     "tarred_audio_filepaths": tar_mft,
-                    "tags": {"origin": "nemo_tarred"},
                 },
             ],
             "slice_length": 2,
@@ -2716,6 +2713,5 @@ def test_dataloader_nemo_tarred_slice_length_multi_epoch_different_sample(
 
     epoch0_ids = [cut.id for b in batches[:2] for cut in b]
     epoch1_ids = [cut.id for b in batches[2:] for cut in b]
-    print(epoch0_ids)
-    print(epoch1_ids)
     assert epoch0_ids != epoch1_ids
+    assert epoch0_ids + epoch1_ids != sorted(epoch0_ids + epoch1_ids)  # true when slice_length=None
