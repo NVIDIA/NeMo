@@ -85,7 +85,7 @@ def override_recipe_configs(
     gpu_type = args.gpu.lower()
 
     # data module configs
-    if args.use_hf_tokenizer:
+    if args.hf_token:
         recipe.data.tokenizer = hf_tokenizer("nvidia/Nemotron-4-340B-Base")
     else:
         recipe.data.tokenizer = run.Config(
