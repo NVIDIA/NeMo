@@ -710,9 +710,6 @@ def generate_recipe_configs(args):
         'vp': base_config.trainer.strategy.virtual_pipeline_model_parallel_size,
         'seq_length': base_config.data.seq_length,
         'gbs': base_config.data.global_batch_size,
-        'nodes': args.nodes,
-        'model_size_b': base_config.model.config.model_size,
-        'precision': base_config.trainer.strategy.precision,
     }
 
     model_family = list(configs.keys())[0].split('_')[0]
