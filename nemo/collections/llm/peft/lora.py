@@ -98,6 +98,12 @@ if HAVE_TE_FUSED_LORA:
                 elif kwargs["tensor_parallel_mode"] == "column":
                     kwargs["out_features"] *= tensor_parallel_size
 
+            # wgrad accumulation fusion
+            accumulate_into_main_grad = False
+            if isinstance(self.to_wrap, (te.Linear, te.LayerNormLinear)):
+                accumulate_into_main_grad = self.to_wrap.fuse_wgrad_accumulation
+            kwargs["accumulate_into_main_grad"] = accumulate_into_main_grad
+
             # Construct fused branches
             main_branch = self._make_main_branch(**kwargs)
             lora_branch = self._make_lora_branch(**kwargs)
@@ -112,6 +118,7 @@ if HAVE_TE_FUSED_LORA:
             tensor_parallel_mode: Optional[str],
             tensor_parallel_group: Optional[torch.distributed.ProcessGroup],
             sequence_parallel: bool,
+            accumulate_into_main_grad: bool,
         ) -> te.ops.Sequential:
             """Construct fused module for main branch (norm + fork + linear)"""
 
@@ -162,6 +169,7 @@ if HAVE_TE_FUSED_LORA:
                 tensor_parallel_mode=tensor_parallel_mode,
                 tensor_parallel_group=tensor_parallel_group,
                 sequence_parallel=sequence_parallel,
+                accumulate_into_main_grad=accumulate_into_main_grad,
             )
             op.weight = weight
             op.bias = bias
@@ -177,6 +185,7 @@ if HAVE_TE_FUSED_LORA:
             tensor_parallel_mode: Optional[str],
             tensor_parallel_group: Optional[torch.distributed.ProcessGroup],
             sequence_parallel: bool,
+            accumulate_into_main_grad: bool,
         ) -> te.ops.Sequential:
             """Construct fused module for LoRA branch (lora_a + lora_b + add)"""
 
@@ -223,6 +232,7 @@ if HAVE_TE_FUSED_LORA:
                 tensor_parallel_mode=tensor_parallel_mode,
                 tensor_parallel_group=tensor_parallel_group,
                 sequence_parallel=sequence_parallel,
+                accumulate_into_main_grad=accumulate_into_main_grad,
             )
             op.weight = lora_a_weight
             lora_branch.append(op)
@@ -240,6 +250,7 @@ if HAVE_TE_FUSED_LORA:
                 tensor_parallel_mode=None if tensor_parallel_mode is None else "column",
                 tensor_parallel_group=tensor_parallel_group,
                 sequence_parallel=False,
+                accumulate_into_main_grad=accumulate_into_main_grad,
             )
             op.weight = lora_b_weight
             lora_branch.append(op)
