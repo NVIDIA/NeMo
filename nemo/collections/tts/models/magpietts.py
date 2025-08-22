@@ -1958,7 +1958,7 @@ class MagpieTTSModel(ModelPT):
         predicted_codes_lens,
         batch_size,
         compute_all_heads_attn_maps,
-        last_attended_timestep
+        last_attended_timestep,
     ):
         last_attended_timestep = np.array(last_attended_timestep).T
         cross_attention_scores_all_timesteps = torch.stack(
@@ -1974,14 +1974,24 @@ class MagpieTTSModel(ModelPT):
         cross_attention_maps = []
         headwise_cross_attention_maps = []
         for bidx in range(batch_size):
-            item_cross_attention_scores = cross_attention_scores_all_timesteps[bidx,:text_lens[bidx],:predicted_codes_lens[bidx]]
-            cross_attn_np = plot_alignment_to_numpy(item_cross_attention_scores.cpu().numpy(), attended=last_attended_timestep[bidx,:predicted_codes_lens[bidx]])
+            item_cross_attention_scores = cross_attention_scores_all_timesteps[
+                bidx, : text_lens[bidx], : predicted_codes_lens[bidx]
+            ]
+            cross_attn_np = plot_alignment_to_numpy(
+                item_cross_attention_scores.cpu().numpy(),
+                attended=last_attended_timestep[bidx, : predicted_codes_lens[bidx]],
+            )
             cross_attention_maps.append(cross_attn_np)
             item_all_head_cross_attn_maps = []
             if compute_all_heads_attn_maps:
                 for hidx in range(len(all_heads_cross_attn_scores_all_timesteps[0])):
-                    item_headwise_cross_attention_scores = headwise_cross_attention_scores_all_timesteps[hidx][bidx,:text_lens[bidx],:predicted_codes_lens[bidx]]
-                    headwise_cross_attn_np = plot_alignment_to_numpy(item_headwise_cross_attention_scores.cpu().numpy(), attended=last_attended_timestep[bidx,:predicted_codes_lens[bidx]])
+                    item_headwise_cross_attention_scores = headwise_cross_attention_scores_all_timesteps[hidx][
+                        bidx, : text_lens[bidx], : predicted_codes_lens[bidx]
+                    ]
+                    headwise_cross_attn_np = plot_alignment_to_numpy(
+                        item_headwise_cross_attention_scores.cpu().numpy(),
+                        attended=last_attended_timestep[bidx, : predicted_codes_lens[bidx]],
+                    )
                     item_all_head_cross_attn_maps.append(headwise_cross_attn_np)
                 headwise_cross_attention_maps.append(item_all_head_cross_attn_maps)
 
@@ -2296,7 +2306,7 @@ class MagpieTTSModel(ModelPT):
                     predicted_codes_lens,
                     text.size(0),
                     compute_all_heads_attn_maps,
-                    last_attended_timesteps
+                    last_attended_timesteps,
                 )
                 return (
                     predicted_audio,
