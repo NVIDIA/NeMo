@@ -20,6 +20,7 @@ from torch import nn
 
 @runtime_checkable
 class HasBool(Protocol):
+    """Protocol for objects with bool operation"""
     def __bool__(self) -> bool: ...
 
 
