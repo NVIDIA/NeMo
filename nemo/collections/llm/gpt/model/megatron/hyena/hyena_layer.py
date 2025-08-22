@@ -137,10 +137,15 @@ class HyenaLayer(MegatronModule):
 
         mixer_out_with_bias = self.mixer(hidden_states, inference_context=inference_context)
 
-        with self.bias_dropout_add_exec_handler():
-            hidden_states = self.hyena_bda(self.training, self.transformer_config.bias_dropout_fusion)(
-                mixer_out_with_bias, residual, self.hidden_dropout
-            )
+        if not self.training:
+            # This shortcut consistently about 0.2..0.7 tok/sec faster on slow
+            # CPU than indirections above. Note: bias was already added.
+            hidden_states = mixer_out_with_bias[0] + residual
+        else:
+            with self.bias_dropout_add_exec_handler():
+                hidden_states = self.hyena_bda(self.training, self.transformer_config.bias_dropout_fusion)(
+                    mixer_out_with_bias, residual, self.hidden_dropout
+                )
 
         residual = hidden_states
 
@@ -148,9 +153,14 @@ class HyenaLayer(MegatronModule):
 
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
-        with self.bias_dropout_add_exec_handler():
-            hidden_states = self.mlp_bda(self.training, self.transformer_config.bias_dropout_fusion)(
-                mlp_output_with_bias, residual, self.hidden_dropout
-            )
+        if not self.training:
+            # This shortcut consistently about 0.2..0.7 tok/sec faster on slow
+            # CPUs than indirections. Note: no MLP bias in Evo 2.
+            hidden_states = mlp_output_with_bias[0] + residual
+        else:
+            with self.bias_dropout_add_exec_handler():
+                hidden_states = self.mlp_bda(self.training, self.transformer_config.bias_dropout_fusion)(
+                    mlp_output_with_bias, residual, self.hidden_dropout
+                )
 
         return hidden_states, context

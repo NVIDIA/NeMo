@@ -17,7 +17,6 @@
 
 import torch
 import torch.nn.functional as F
-from einops import rearrange
 
 
 def adjust_filter_shape_for_broadcast(u, h):
@@ -69,7 +68,7 @@ def parallel_fir(
 ):
     """Compute parallel finite impulse response filtering with optional state computation."""
     L = u.shape[1]
-    u = rearrange(u, "b l d -> b d l")
+    u = u.transpose(1, 2)  # BLD -> BDL
 
     if fir_length >= 128:
         with torch.autocast("cuda"):
@@ -176,13 +175,12 @@ def step_fir(*, u, fir_state, weight, bias=None, gated_bias=False, flip_filter=F
     return y.to(input_dtype), fir_state
 
 
-def step_iir(*, x2, x1, v, D, residues, poles, iir_state):
+def step_iir(*, x2, x1, v, D, residues, exp_poles, iir_state):
     """Steps forward IIR filters in the architecture."""
     x1v = x1 * v
-    poles = torch.exp(poles)  # poles arg contains log_poles
-    poles = poles[..., 0][None]  # squeeze dummy seqlen dim and add dummy batch dim
+    exp_poles = exp_poles[..., 0][None]  # squeeze dummy seqlen dim and add dummy batch dim
     residues = residues[None]  # add dummy batch dim
-    iir_state = poles * iir_state + x1v[..., None]
+    iir_state = exp_poles * iir_state + x1v[..., None]
 
     res_state = torch.sum(residues * iir_state, dim=-1)
     y = x2 * (res_state + D * x1v)
@@ -197,7 +195,7 @@ def prefill_via_modal_fft(*, x1v, L, poles, t, X_s):
     # we split the filter into poles and residues and reuse FFT computation on the input.
     bs = x1v.shape[0]
     fft_size = 2 * L
-    state_s = (poles.to(torch.float32) * t).exp()
+    state_s = (poles * t).exp()
     state_S = torch.fft.fft(state_s, n=fft_size).repeat(bs, 1, 1, 1)  # B, D, state_dim, 2 * L
     state = torch.fft.ifft(X_s[..., None, :] * state_S, n=fft_size)
     # Do not try to fix `UserWarning: Casting complex values to real discards
