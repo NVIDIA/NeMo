@@ -32,6 +32,7 @@ __all__ = ["Logger", "LogMode"]
 
 class LogMode(enum.IntEnum):
     """Enum to control how many times to log messages in NeMo logging"""
+
     EACH = 0  # Log the message each time
     ONCE = 1  # Log the message only once. The same message will not be logged again.
 
