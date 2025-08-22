@@ -467,6 +467,7 @@ def modify_cfg(
     new_cfg["global_batch_size"] = gbs
     new_cfg["max_steps"] = max_steps
     new_cfg["path_to_logs"] = path_to_logs
+    new_cfg["seq_length"] = seq_len
 
     if cp is not None:
         new_cfg["context_parallel_size"] = cp

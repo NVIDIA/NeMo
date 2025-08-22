@@ -190,7 +190,7 @@ def generate_grid_search_configs(base_cfg: dict, train_cfg: dict, resource_shape
 
     matching_configs = []
     # logic to find if , for tp, pp, cp, ep, virtual_pipelines, mbs, gbs, seq_len, any generated config matches with base config
-    for config in configs:
+    for config_name, config in configs.items():
         if (
             config["tensor_model_parallel_size"] == base_cfg.trainer.strategy.tensor_model_parallel_size
             and config["pipeline_model_parallel_size"] == base_cfg.trainer.strategy.pipeline_model_parallel_size
@@ -200,9 +200,9 @@ def generate_grid_search_configs(base_cfg: dict, train_cfg: dict, resource_shape
             == base_cfg.trainer.strategy.virtual_pipeline_model_parallel_size
             and config["micro_batch_size"] == base_cfg.data.micro_batch_size
             and config["global_batch_size"] == base_cfg.data.global_batch_size
-            and config["seq_length"] == base_cfg.data.seq_length
+            and config["seq_length"] == base_cfg.model.config.seq_length
         ):
-            matching_configs.append(config["name"])
+            matching_configs.append(config_name)
 
     logger.debug(f"Generated {len(configs)} total configurations")
     return base_cfg, configs, matching_configs
