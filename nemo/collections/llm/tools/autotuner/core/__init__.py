@@ -25,12 +25,7 @@ This module contains the core functionality for the AutoTuner system:
 
 from .display import _display_configs_table, display_performance_analysis
 from .performance import results
-from .predictive_config_builder import (
-    generate,
-    generate_recipe_configs,
-    get_supported_models,
-    list_models,
-)
+from .predictive_config_builder import generate, generate_recipe_configs, get_supported_models, list_models
 from .pretraining import run_pretraining
 from .utils import (
     extract_all_values,

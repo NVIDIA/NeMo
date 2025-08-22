@@ -29,11 +29,11 @@ from nemo.collections.llm.tools.autotuner.core.display import _display_configs_t
 from nemo.collections.llm.tools.autotuner.core.utils import (
     _load_args_from_config_dir,
     console,
+    extract_all_values,
     extract_gpu_specs_unified,
     get_args_file_path,
     get_supported_models,
     update_args_with_generation_metadata,
-    extract_all_values,
 )
 from nemo.lightning.resume import AutoResume
 
