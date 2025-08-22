@@ -1310,15 +1310,9 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
 
         # subquadratic_ops causal_conv1d is only applied to the projection conv of Hyena LI layer
         # Projection conv is fused with SE/MR layers (B2BCausalConv1dModule)
-        # subquadratic_ops handles padding in the kernel, so we don't need to pad (when CP=1)
-        # for cp > 1 padding == overlapping regions for conv
         if self.use_fast_causal_conv:  # hyena_proj_conv case
-            if self.use_subquadratic_ops and _use_cp:  # hyena_proj_conv of LI layer when subquadratic_ops is enabled
+            if self.use_subquadratic_ops:  # hyena_proj_conv of LI layer when subquadratic_ops is enabled
                 y = causal_conv1d(x, weight)[..., pad_size:]
-            elif (
-                self.use_subquadratic_ops and not _use_cp
-            ):  # hyena_proj_conv of LI layer when subquadratic_ops is enabled
-                y = causal_conv1d(x[..., pad_size:], weight)  # drop padding handling for subquadratic_ops with no CP
             else:
                 y = causal_conv1d_fn(x, weight, bias=None, activation=None)[..., pad_size:]
         else:  # hyena_short_conv case
