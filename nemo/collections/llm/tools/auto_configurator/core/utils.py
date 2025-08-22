@@ -421,6 +421,7 @@ def modify_cfg(
         dict: dictionary containing the updated model configuration parameters.
     """
 
+    total_gpus = base_cfg.trainer.devices * base_cfg.trainer.num_nodes
     # validate config
     is_valid, error_msg = True, ''
 

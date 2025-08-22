@@ -33,7 +33,7 @@ from nemo.collections.llm.tools.autotuner.core.utils import (
     get_args_file_path,
     get_supported_models,
     update_args_with_generation_metadata,
-    validate_all_configs,
+    extract_all_values,
 )
 from nemo.lightning.resume import AutoResume
 
@@ -49,16 +49,6 @@ def generate(**kwargs):
 
     try:
         result = generate_recipe_configs(args)
-
-        console.print("[yellow]Validating configuration parameters...[/yellow]")
-        is_valid, error_msg = validate_all_configs(args)
-        if not is_valid:
-            console.print("[red]Configuration validation failed:[/red]")
-            console.print(f"   {error_msg}")
-            raise ValueError(f"Configuration validation failed: {error_msg}")
-
-        console.print("[green]Configuration validation passed![/green]")
-
         args_file_path = get_args_file_path(args.model, kwargs['config_dir'])
         args.save_to_file(args_file_path)
         console.print(f"[blue]Arguments saved to: {args_file_path}[/blue]")
@@ -623,10 +613,6 @@ def generate_recipe_configs(args):
             - base_config_matches: List of configs that match base config
             - memory_analysis: To know which configs will result in CUDA OOM
     """
-    is_valid, error_msg = validate_all_configs(args)
-    if not is_valid:
-        raise ValueError(f"Configuration validation failed: {error_msg}")
-
     model_class = getattr(llm, args.model, None)
     if model_class is None:
         supported_models = get_supported_models()
@@ -781,7 +767,6 @@ def generate_recipe_configs(args):
     args.update_metadata(generation_result)
 
     base_config_path = os.path.join(args.config_dir, args.model, "base_config.json")
-    generated_configs_dir = os.path.join(args.config_dir, args.model)
 
     has_matches = len(base_configuration_matches) > 0
     if has_matches:

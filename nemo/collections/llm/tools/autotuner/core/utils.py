@@ -26,7 +26,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from rich.console import Console
 
