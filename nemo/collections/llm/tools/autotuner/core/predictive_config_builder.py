@@ -713,9 +713,10 @@ def generate_recipe_configs(args):
     }
 
     model_family = list(configs.keys())[0].split('_')[0]
+    model_size_b = list(configs.keys())[0].split('_')[1]
 
     base_config_generated_name = (
-        f"{model_family}_{base_config_values['model_size_b']}b_{base_config_values['nodes']}nodes_"
+        f"{model_family}_{model_size_b}_{base_config_values['nodes']}nodes_"
         f"tp_{base_config_values['tp']}_pp_{base_config_values['pp']}_cp_{base_config_values['cp']}_ep_{base_config_values['ep']}_mbs_{base_config_values['mbs']}_vp_{base_config_values['vp']}_seq_{base_config_values['seq_length']}_gbs_{base_config_values['gbs']}"
     )
 
