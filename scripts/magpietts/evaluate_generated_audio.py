@@ -13,26 +13,26 @@
 # limitations under the License.
 import argparse
 import json
+import logging
 import os
 import pprint
 import string
-import logging
+import tempfile
 from contextlib import contextmanager
 from functools import partial
-import soundfile as sf
-import tempfile
 
+import librosa
 import numpy as np
+import scripts.magpietts.evalset_config as evalset_config
+import soundfile as sf
 import torch
+from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector, WhisperForConditionalGeneration, WhisperProcessor
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
-from nemo.collections.tts.modules.fcd_metric import FrechetCodecDistance
 from nemo.collections.tts.models import AudioCodecModel
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-import librosa
-import scripts.magpietts.evalset_config as evalset_config
-from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
+from nemo.collections.tts.modules.fcd_metric import FrechetCodecDistance
+
 
 def find_generated_files(audio_dir, prefix, extension):
     file_list = []
@@ -44,11 +44,14 @@ def find_generated_files(audio_dir, prefix, extension):
     file_list = [t[1] for t in file_list]
     return file_list
 
+
 def find_generated_audio_files(audio_dir):
     return find_generated_files(audio_dir=audio_dir, prefix="predicted_audio", extension=".wav")
 
+
 def find_generated_codec_files(audio_dir):
     return find_generated_files(audio_dir=audio_dir, prefix="predicted_codes", extension=".pt")
+
 
 def read_manifest(manifest_path):
     records = []
@@ -58,6 +61,7 @@ def read_manifest(manifest_path):
             line = line.strip()
             records.append(json.loads(line))
     return records
+
 
 def process_text(input_text):
     # Convert text to lowercase
@@ -76,10 +80,13 @@ def process_text(input_text):
 
     return single_space_text
 
+
 def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, language, device):
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
     # Set the language task (optional, improves performance for specific languages)
-    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
+    forced_decoder_ids = (
+        whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
+    )
     inputs = whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
     inputs = inputs.to(device)
     # Generate transcription
@@ -90,6 +97,7 @@ def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, langua
     transcription = whisper_processor.batch_decode(predicted_ids, skip_special_tokens=True)
     result = transcription[0]
     return result
+
 
 def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_seconds: float) -> np.ndarray:
     """
@@ -106,6 +114,7 @@ def pad_audio_to_min_length(audio_np: np.ndarray, sampling_rate: int, min_second
         padding_needed = min_samples - n_samples
         audio_np = np.pad(audio_np, (0, padding_needed), mode='constant', constant_values=0)
     return audio_np
+
 
 @contextmanager
 def nemo_log_level(level):
@@ -125,6 +134,7 @@ def nemo_log_level(level):
         # restore the original level when the context manager is exited (even if an exception was raised)
         logger.setLevel(original_level)
 
+
 def extract_embedding(model, extractor, audio_path, device, sv_model_type):
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
     # pad to 0.5 seconds as the extractor may not be able to handle very short signals
@@ -134,7 +144,7 @@ def extract_embedding(model, extractor, audio_path, device, sv_model_type):
         with torch.inference_mode():
             embeddings = model(inputs).embeddings
     else:  # Titanet
-        with tempfile.NamedTemporaryFile(suffix=".wav") as temp_file:  
+        with tempfile.NamedTemporaryFile(suffix=".wav") as temp_file:
             # the embedding model doesn't accept NumPy arrays, so we write to a temporary file
             sf.write(temp_file.name, speech_array, samplerate=16000)
             with torch.inference_mode():
@@ -142,8 +152,16 @@ def extract_embedding(model, extractor, audio_path, device, sv_model_type):
 
     return embeddings.squeeze()
 
-def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_model_type="titanet", asr_model_name="stt_en_conformer_transducer_large",
-             codecmodel_path=None):
+
+def evaluate(
+    manifest_path,
+    audio_dir,
+    generated_audio_dir,
+    language="en",
+    sv_model_type="titanet",
+    asr_model_name="stt_en_conformer_transducer_large",
+    codecmodel_path=None,
+):
     audio_file_lists = find_generated_audio_files(generated_audio_dir)
     records = read_manifest(manifest_path)
     assert len(audio_file_lists) == len(records)
@@ -171,13 +189,17 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         speaker_verification_model = WavLMForXVector.from_pretrained('microsoft/wavlm-base-plus-sv').to(device).eval()
     else:
         feature_extractor = None
-        speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
+        speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
+            model_name='titanet_large'
+        )
         speaker_verification_model = speaker_verification_model.to(device)
         speaker_verification_model.eval()
     with nemo_log_level(logging.ERROR):
         # The model `titanet_small` prints thousands of lines during initialization, so suppress logs temporarily
         print("Loading `titanet_small` model...")
-        speaker_verification_model_alternate = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_small')
+        speaker_verification_model_alternate = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
+            model_name='titanet_small'
+        )
     speaker_verification_model_alternate = speaker_verification_model_alternate.to(device)
     speaker_verification_model_alternate.eval()
 
@@ -207,7 +229,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
                 context_audio_filepath = os.path.join(audio_dir, context_audio_filepath)
             # Update the FCD metric for *real* codes
             if fcd_metric is not None:
-                 fcd_metric.update_from_audio_file(gt_audio_filepath, True)
+                fcd_metric.update_from_audio_file(gt_audio_filepath, True)
 
         pred_audio_filepath = audio_file_lists[ridx]
         if fcd_metric is not None:
@@ -221,9 +243,13 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
                     gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0].text
                     gt_audio_text = process_text(gt_audio_text)
             else:
-                pred_text = transcribe_with_whisper(whisper_model, whisper_processor, pred_audio_filepath, language, device)
+                pred_text = transcribe_with_whisper(
+                    whisper_model, whisper_processor, pred_audio_filepath, language, device
+                )
                 pred_text = process_text(pred_text)
-                gt_audio_text = transcribe_with_whisper(whisper_model, whisper_processor, gt_audio_filepath, language, device)
+                gt_audio_text = transcribe_with_whisper(
+                    whisper_model, whisper_processor, gt_audio_filepath, language, device
+                )
                 gt_audio_text = process_text(gt_audio_text)
         except Exception as e:
             print("Error during ASR: {}".format(e))
@@ -251,60 +277,95 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
 
         # update FCD metric
         if fcd_metric is not None:
-            predicted_codes = torch.load(pred_codes_filepath).unsqueeze(0) # B, C, T
+            predicted_codes = torch.load(pred_codes_filepath).unsqueeze(0)  # B, C, T
             predicted_codes_lens = torch.tensor([predicted_codes.size(-1)], dtype=torch.int, device=device)
             fcd_metric.update(predicted_codes, predicted_codes_lens, False)
 
         pred_context_ssim = 0.0
         gt_context_ssim = 0.0
         with torch.inference_mode():
-            extract_embedding_fn = partial(extract_embedding, model=speaker_verification_model, extractor=feature_extractor, device=device, sv_model_type=sv_model_type)
-            extract_embedding_fn_alternate = partial(extract_embedding, model=speaker_verification_model_alternate, extractor=feature_extractor, device=device, sv_model_type=sv_model_type)
+            extract_embedding_fn = partial(
+                extract_embedding,
+                model=speaker_verification_model,
+                extractor=feature_extractor,
+                device=device,
+                sv_model_type=sv_model_type,
+            )
+            extract_embedding_fn_alternate = partial(
+                extract_embedding,
+                model=speaker_verification_model_alternate,
+                extractor=feature_extractor,
+                device=device,
+                sv_model_type=sv_model_type,
+            )
 
             # Ground truth vs. predicted
             gt_speaker_embedding = extract_embedding_fn(audio_path=gt_audio_filepath)
             pred_speaker_embedding = extract_embedding_fn(audio_path=pred_audio_filepath)
-            pred_gt_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, pred_speaker_embedding, dim=0).item()
+            pred_gt_ssim = torch.nn.functional.cosine_similarity(
+                gt_speaker_embedding, pred_speaker_embedding, dim=0
+            ).item()
 
             # Ground truth vs. predicted (alternate model)
             gt_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=gt_audio_filepath)
             pred_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=pred_audio_filepath)
-            pred_gt_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, pred_speaker_embedding_alternate, dim=0).item()
+            pred_gt_ssim_alternate = torch.nn.functional.cosine_similarity(
+                gt_speaker_embedding_alternate, pred_speaker_embedding_alternate, dim=0
+            ).item()
 
             if context_audio_filepath is not None:
                 context_speaker_embedding = extract_embedding_fn(audio_path=context_audio_filepath)
                 context_speaker_embedding_alternate = extract_embedding_fn_alternate(audio_path=context_audio_filepath)
-    
+
                 # Predicted vs. context
-                pred_context_ssim = torch.nn.functional.cosine_similarity(pred_speaker_embedding, context_speaker_embedding, dim=0).item()
+                pred_context_ssim = torch.nn.functional.cosine_similarity(
+                    pred_speaker_embedding, context_speaker_embedding, dim=0
+                ).item()
                 # Ground truth vs. context
-                gt_context_ssim = torch.nn.functional.cosine_similarity(gt_speaker_embedding, context_speaker_embedding, dim=0).item()
+                gt_context_ssim = torch.nn.functional.cosine_similarity(
+                    gt_speaker_embedding, context_speaker_embedding, dim=0
+                ).item()
 
                 # Predicted vs. context (alternate model)
-                pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
+                pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(
+                    pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0
+                ).item()
                 # Ground truth vs. context (alternate model)
-                gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
+                gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(
+                    gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0
+                ).item()
 
-        filewise_metrics.append({
-            'gt_text': gt_text,
-            'pred_text': pred_text,
-            'gt_audio_text': gt_audio_text,
-            'detailed_cer': detailed_cer,
-            'detailed_wer': detailed_wer,
-            'cer': detailed_cer[0],
-            'wer': detailed_wer[0],
-            'pred_gt_ssim': pred_gt_ssim,
-            'pred_context_ssim': pred_context_ssim,
-            'gt_context_ssim': gt_context_ssim,
-            'pred_gt_ssim_alternate': pred_gt_ssim_alternate,
-            'pred_context_ssim_alternate': pred_context_ssim_alternate,
-            'gt_context_ssim_alternate': gt_context_ssim_alternate,
-            'gt_audio_filepath': gt_audio_filepath,
-            'pred_audio_filepath': pred_audio_filepath,
-            'context_audio_filepath': context_audio_filepath
-        })
+        filewise_metrics.append(
+            {
+                'gt_text': gt_text,
+                'pred_text': pred_text,
+                'gt_audio_text': gt_audio_text,
+                'detailed_cer': detailed_cer,
+                'detailed_wer': detailed_wer,
+                'cer': detailed_cer[0],
+                'wer': detailed_wer[0],
+                'pred_gt_ssim': pred_gt_ssim,
+                'pred_context_ssim': pred_context_ssim,
+                'gt_context_ssim': gt_context_ssim,
+                'pred_gt_ssim_alternate': pred_gt_ssim_alternate,
+                'pred_context_ssim_alternate': pred_context_ssim_alternate,
+                'gt_context_ssim_alternate': gt_context_ssim_alternate,
+                'gt_audio_filepath': gt_audio_filepath,
+                'pred_audio_filepath': pred_audio_filepath,
+                'context_audio_filepath': context_audio_filepath,
+            }
+        )
 
-    filewise_metrics_keys_to_save = ['cer', 'wer', 'pred_context_ssim', 'pred_text', 'gt_text', 'gt_audio_filepath', 'pred_audio_filepath', 'context_audio_filepath']
+    filewise_metrics_keys_to_save = [
+        'cer',
+        'wer',
+        'pred_context_ssim',
+        'pred_text',
+        'gt_text',
+        'gt_audio_filepath',
+        'pred_audio_filepath',
+        'context_audio_filepath',
+    ]
     filtered_filewise_metrics = []
     for m in filewise_metrics:
         filtered_filewise_metrics.append({k: m[k] for k in filewise_metrics_keys_to_save})
@@ -323,20 +384,35 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
     avg_metrics['cer_filewise_avg'] = sum([m['detailed_cer'][0] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics['wer_filewise_avg'] = sum([m['detailed_wer'][0] for m in filewise_metrics]) / len(filewise_metrics)
     avg_metrics['cer_cumulative'] = word_error_rate_detail(hypotheses=pred_texts, references=gt_texts, use_cer=True)[0]
-    avg_metrics['wer_cumulative'] = word_error_rate_detail(hypotheses=pred_texts, references=gt_texts, use_cer=False)[0]
+    avg_metrics['wer_cumulative'] = word_error_rate_detail(hypotheses=pred_texts, references=gt_texts, use_cer=False)[
+        0
+    ]
     avg_metrics['ssim_pred_gt_avg'] = sum([m['pred_gt_ssim'] for m in filewise_metrics]) / len(filewise_metrics)
-    avg_metrics['ssim_pred_context_avg'] = sum([m['pred_context_ssim'] for m in filewise_metrics]) / len(filewise_metrics)
+    avg_metrics['ssim_pred_context_avg'] = sum([m['pred_context_ssim'] for m in filewise_metrics]) / len(
+        filewise_metrics
+    )
     avg_metrics['ssim_gt_context_avg'] = sum([m['gt_context_ssim'] for m in filewise_metrics]) / len(filewise_metrics)
-    avg_metrics['ssim_pred_gt_avg_alternate'] = sum([m['pred_gt_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
-    avg_metrics['ssim_pred_context_avg_alternate'] = sum([m['pred_context_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
-    avg_metrics['ssim_gt_context_avg_alternate'] = sum([m['gt_context_ssim_alternate'] for m in filewise_metrics]) / len(filewise_metrics)
-    avg_metrics["cer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=gt_audio_texts, references=gt_texts, use_cer=True)[0]
-    avg_metrics["wer_gt_audio_cumulative"] = word_error_rate_detail(hypotheses=gt_audio_texts, references=gt_texts, use_cer=False)[0]
+    avg_metrics['ssim_pred_gt_avg_alternate'] = sum([m['pred_gt_ssim_alternate'] for m in filewise_metrics]) / len(
+        filewise_metrics
+    )
+    avg_metrics['ssim_pred_context_avg_alternate'] = sum(
+        [m['pred_context_ssim_alternate'] for m in filewise_metrics]
+    ) / len(filewise_metrics)
+    avg_metrics['ssim_gt_context_avg_alternate'] = sum(
+        [m['gt_context_ssim_alternate'] for m in filewise_metrics]
+    ) / len(filewise_metrics)
+    avg_metrics["cer_gt_audio_cumulative"] = word_error_rate_detail(
+        hypotheses=gt_audio_texts, references=gt_texts, use_cer=True
+    )[0]
+    avg_metrics["wer_gt_audio_cumulative"] = word_error_rate_detail(
+        hypotheses=gt_audio_texts, references=gt_texts, use_cer=False
+    )[0]
     avg_metrics["frechet_codec_distance"] = fcd
 
     pprint.pprint(avg_metrics)
 
     return avg_metrics, filewise_metrics
+
 
 def main():
     # audio_dir="/datap/misc/Datasets/riva" \
@@ -354,8 +430,14 @@ def main():
         args.manifest_path = dataset_meta_info[args.evalset]['manifest_path']
         args.audio_dir = dataset_meta_info[args.evalset]['audio_dir']
 
-    evaluate(args.manifest_path, args.audio_dir, args.generated_audio_dir, args.whisper_language, sv_model_type="wavlm", asr_model_name="nvidia/parakeet-ctc-0.6b")
-
+    evaluate(
+        args.manifest_path,
+        args.audio_dir,
+        args.generated_audio_dir,
+        args.whisper_language,
+        sv_model_type="wavlm",
+        asr_model_name="nvidia/parakeet-ctc-0.6b",
+    )
 
 
 if __name__ == "__main__":

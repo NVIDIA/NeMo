@@ -54,9 +54,9 @@ def setup_tokenizers(all_tokenizers_config, mode='train'):
                 tokenizer.set_phone_prob(1.0)
         tokenizers.append(tokenizer)
         tokenizer_names.append(tokenizer_name)
-    
+
     aggregated_tokenizer = AggregatedTTSTokenizer(tokenizers, tokenizer_names)  # TTS Transcript tokenizer
-    
+
     return aggregated_tokenizer
 
 
@@ -127,6 +127,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
             Used for lazy initialization within workers. Must be provided if tokenizers
             are not set externally. Defaults to None.
     """
+
     def __init__(
         self,
         sample_rate: int,
@@ -216,7 +217,9 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         context_text_tokens_len_list = []
         context_has_text_context_list = []
         reward_list = []
-        raw_text_list = []  # raw text here is the string of normalized text or text stored in the supervision segment. Used to distinguish from text tokens.
+        raw_text_list = (
+            []
+        )  # raw text here is the string of normalized text or text stored in the supervision segment. Used to distinguish from text tokens.
         for cut in cuts:
             speaker = cut.supervisions[0].speaker
             if not check_speaker_format(speaker):
@@ -332,7 +335,9 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                     )
                     context_audio_codes = torch.cat([context_bos_tensor, context_eos_tensor], dim=1)
                     context_audio_codes_len = context_audio_codes.shape[1]
-                    context_audio_codes_list.append(context_audio_codes.T)  # transpose to (T, C) to use collate_matrices to process batch.
+                    context_audio_codes_list.append(
+                        context_audio_codes.T
+                    )  # transpose to (T, C) to use collate_matrices to process batch.
                     context_audio_codes_len_list.append(context_audio_codes_len)
                 else:
                     # @shehzeenh: Added this condition so that a batch does not have a mix of context_audio and context_audio_codes
@@ -364,10 +369,14 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
 
             if self.use_text_conditioning_tokenizer:
                 if cut.supervisions[0].has_custom("context_text"):
-                    context_text_tokens = self.text_tokenizer.encode(cut.supervisions[0].context_text, tokenizer_name=self.text_conditioning_tokenizer_name)
+                    context_text_tokens = self.text_tokenizer.encode(
+                        cut.supervisions[0].context_text, tokenizer_name=self.text_conditioning_tokenizer_name
+                    )
                     has_text_context = True
                 else:
-                    context_text_tokens = self.text_tokenizer.encode("[NO TEXT CONTEXT]", tokenizer_name=self.text_conditioning_tokenizer_name)
+                    context_text_tokens = self.text_tokenizer.encode(
+                        "[NO TEXT CONTEXT]", tokenizer_name=self.text_conditioning_tokenizer_name
+                    )
                     has_text_context = False
                 if self.pad_context_text_to_max_duration:
                     _required_len = (
@@ -445,12 +454,15 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
             batch_dict["context_audio_lens"] = torch.IntTensor(context_audio_len_list)
         if len(context_audio_codes_list) > 0:
             # transpose back to (B, 8, T) from (B, T, 8).
-            batch_dict["context_audio_codes"] = collate_matrices(context_audio_codes_list, padding_value=0).transpose(1, 2)
+            batch_dict["context_audio_codes"] = collate_matrices(context_audio_codes_list, padding_value=0).transpose(
+                1, 2
+            )
             batch_dict["context_audio_codes_lens"] = torch.IntTensor(context_audio_codes_len_list)
 
         if self.use_text_conditioning_tokenizer:
             batch_dict['context_text_tokens'] = collate_vectors(
-                tensors=context_text_tokens_list, padding_value=self.text_tokenizer.tokenizer_pad_ids[self.text_conditioning_tokenizer_name]
+                tensors=context_text_tokens_list,
+                padding_value=self.text_tokenizer.tokenizer_pad_ids[self.text_conditioning_tokenizer_name],
             )
             batch_dict['context_text_tokens_lens'] = torch.IntTensor(context_text_tokens_len_list)
             batch_dict['has_text_context'] = torch.BoolTensor(context_has_text_context_list)
