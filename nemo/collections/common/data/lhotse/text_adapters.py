@@ -539,11 +539,15 @@ class NeMoMultimodalConversationJsonlAdapter:
             return False
         return bool(custom.get("_skipme", False))
 
+    def _get_rng(self) -> random.Random:
+        seed = resolve_seed(self.shard_seed)
+        return random.Random(seed)
+
     def _iter_tar(self):
         paths = list(zip(self.manifest_filepath, self.tarred_audio_filepaths))
+        rng = self._get_rng()
         if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
+            rng.shuffle(paths)
         for jsonl_path, tar_path in paths:
             tar = iter(TarIterator(tar_path))
             for data in load_jsonl(jsonl_path):
@@ -587,11 +591,15 @@ class NeMoMultimodalConversationJsonlAdapter:
 
     def _iter_jsonl(self):
         paths = self.manifest_filepath
+        rng = self._get_rng()
         if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
+            rng.shuffle(paths)
         for path in paths:
-            for data in load_jsonl(path):
+            jsonl_iter = load_jsonl(path)
+            if self.shuffle_shards:
+                jsonl_iter = list(jsonl_iter)
+                rng.shuffle(jsonl_iter)
+            for data in jsonl_iter:
                 if self._should_skip(data):
                     continue
                 turns = [
@@ -666,6 +674,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
             self.audio_placeholders = ["<sound>", "<speech>"]
         elif isinstance(self.audio_placeholders, str):
             self.audio_placeholders = [self.audio_placeholders]
+        self.epoch = 0
 
     def __iter__(self) -> Iterator[NeMoMultimodalConversation]:
         if self.tarred_audio_filepaths is not None:
@@ -673,11 +682,15 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
         else:
             yield from self._iter_jsonl()
 
+    def _get_rng(self) -> random.Random:
+        seed = resolve_seed(self.shard_seed) + self.epoch
+        return random.Random(seed)
+
     def _iter_tar(self):
         paths = list(zip(self.manifest_filepath, self.tarred_audio_filepaths))
+        rng = self._get_rng()
         if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
+            rng.shuffle(paths)
         for jsonl_path, tar_path in paths:
             tar = iter(TarIterator(tar_path))
             for data in load_jsonl(jsonl_path):
@@ -705,13 +718,19 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                     token_equivalent_duration=self.token_equivalent_duration,
                 )
 
+        self.epoch += 1
+
     def _iter_jsonl(self):
         paths = self.manifest_filepath
+        rng = self._get_rng()
         if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
+            rng.shuffle(paths)
         for path in paths:
-            for data in load_jsonl(path):
+            jsonl_iter = load_jsonl(path)
+            if self.shuffle_shards:
+                jsonl_iter = list(jsonl_iter)
+                rng.shuffle(jsonl_iter)
+            for data in jsonl_iter:
                 # Transform ShareGPT format to standard format
                 conversations = self._transform_sharegpt_conversations(data)
 
@@ -720,6 +739,8 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                     turns=self._create_turns(conversations, None, path),
                     token_equivalent_duration=self.token_equivalent_duration,
                 )
+
+        self.epoch += 1
 
     def _transform_sharegpt_conversations(self, data: dict) -> list[dict]:
         """
