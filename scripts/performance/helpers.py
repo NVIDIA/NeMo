@@ -428,6 +428,8 @@ def set_primary_perf_configs(
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
+    save_checkpoint: Optional[bool] = False,
+    load_checkpoint_path: Optional[str] = None,
     keep_fsdp_fp8_transpose_cache: Optional[bool] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
