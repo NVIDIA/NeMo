@@ -624,7 +624,7 @@ def generate_recipe_configs(args):
 
     recipe = partial(model_class.pretrain_recipe, num_nodes=args.nodes, num_gpus_per_node=args.gpus_per_node)()
     # Set performance optimizations directly using set_primary_perf_configs
-    recipe = set_primary_perf_configs( # this can go in autconf for sure
+    recipe = set_primary_perf_configs(  # this can go in autconf for sure
         recipe=recipe,
         task="pre_train",  # AutoTune is for pretraining
         num_nodes=recipe.trainer.num_nodes,
@@ -655,20 +655,19 @@ def generate_recipe_configs(args):
     seq_length = getattr(args, 'seq_length', 8192)
     max_steps = getattr(args, 'max_steps', 10)
 
-
-    # these things go right before pretraining in autotuner 
+    # these things go right before pretraining in autotuner
     recipe.model.config.seq_length = recipe.data.seq_length = seq_length
     recipe.trainer.max_steps = max_steps
     recipe.trainer.val_check_interval = max_steps
-    recipe.trainer.enable_checkpointing = False # stays here
-    recipe.trainer.log_every_n_steps = 1 
-    recipe.trainer.limit_val_batches = 0 # stays here
-    recipe.trainer.strategy.ckpt_async_save = False # stays here
-    recipe.resume = run.Config(AutoResume) 
-    recipe.log.ckpt.save_last = False # stays here
+    recipe.trainer.enable_checkpointing = False  # stays here
+    recipe.trainer.log_every_n_steps = 1
+    recipe.trainer.limit_val_batches = 0  # stays here
+    recipe.trainer.strategy.ckpt_async_save = False  # stays here
+    recipe.resume = run.Config(AutoResume)
+    recipe.log.ckpt.save_last = False  # stays here
 
-    base_log_path = args.get_full_logs_path() # stays here
-    recipe.log.log_dir = os.path.join(base_log_path, "base_config") # stays here
+    base_log_path = args.get_full_logs_path()  # stays here
+    recipe.log.log_dir = os.path.join(base_log_path, "base_config")  # stays here
 
     num_moe_experts = getattr(recipe.model.config, "num_moe_experts", 0)
     if num_moe_experts and num_moe_experts > 1:
