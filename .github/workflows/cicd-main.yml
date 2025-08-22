@@ -325,7 +325,7 @@ jobs:
       - cicd-import-tests
       - L0_Setup_Test_Data_And_Models
       - cicd-main-unit-tests
-      - cicd-main-nemo2
+      # - cicd-main-nemo2. not needed for magpie dev branch
       - cicd-main-automodel
       - cicd-main-speech
     if: always()
