@@ -195,7 +195,7 @@ if HAVE_TE_FUSED_LORA:
             lora_a_weight = None
             lora_b_weight = None
             lora_dim = None
-            dropout = None
+            dropout = 0
             dropout_position = None
             scale = None
             if isinstance(self.adapter, (LinearAdapter, TELinearAdapter)):
@@ -209,7 +209,8 @@ if HAVE_TE_FUSED_LORA:
                 lora_a_weight = self.adapter.linear_in.weight
                 lora_b_weight = self.adapter.linear_out.weight
                 lora_dim = lora_b_weight.size(1)
-                dropout = self.adapter.dropout.p
+                if self.adapter.dropout is not None:
+                    dropout = self.adapter.dropout.p
                 dropout_position = self.adapter.dropout_position
                 scale = self.adapter.alpha / self.adapter.dim
             else:
