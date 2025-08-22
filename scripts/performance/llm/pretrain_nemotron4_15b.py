@@ -75,6 +75,8 @@ def override_recipe_configs(
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
+        save_checkpoint=args.checkpoint_save,
+        load_checkpoint_path=args.checkpoint_load_path,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "nemotron4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -83,11 +85,12 @@ def override_recipe_configs(
     gpu_type = args.gpu.lower()
 
     # data module configs
-    if args.use_hf_tokenizer:
-        logging.warning("HuggingFace tokenizer not supported for Nemotron4 15B. Using NullTokenizer.")
-    recipe.data.tokenizer = run.Config(
-        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
-    )
+    if args.hf_token:
+        recipe.data.tokenizer = hf_tokenizer("nvidia/Nemotron-4-340B-Base")
+    else:
+        recipe.data.tokenizer = run.Config(
+            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
+        )
     recipe.model.tokenizer = recipe.data.tokenizer
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
