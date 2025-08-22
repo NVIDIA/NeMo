@@ -236,6 +236,12 @@ class HyenaMixer(MegatronModule):
         self.dropout_p = self.transformer_config.attention_dropout
         self.attention_dropout = nn.Dropout(self.dropout_p)
 
+        # When using non-parallel row linears, we allow PyTorch's Linear to
+        # add bias: this is faster for TP=1 inference. For other cases (and
+        # training), a more complex path is used, where bias is added as a
+        # separate step.
+        dense_skip_bias_add = not self.transformer_config.plain_row_linear
+
         self.dense = build_module(
             submodules.dense,
             self.hidden_size,
@@ -244,7 +250,7 @@ class HyenaMixer(MegatronModule):
             init_method=self.transformer_config.output_layer_init_method,
             bias=True,
             input_is_parallel=True,
-            skip_bias_add=not self.transformer_config.plain_row_linear,
+            skip_bias_add=dense_skip_bias_add,
             is_expert=False,
             tp_comm_buffer_name='fc2',
         )
