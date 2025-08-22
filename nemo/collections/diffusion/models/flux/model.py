@@ -247,7 +247,13 @@ class Flux(VisionModule):
             fp8_context = nullcontext()
         else:
             # To keep out TE dependency when not training in fp8
-            from transformer_engine.common.recipe import Format, DelayedScaling, Float8CurrentScaling, Float8BlockScaling, MXFP8BlockScaling
+            from transformer_engine.common.recipe import (
+                DelayedScaling,
+                Float8BlockScaling,
+                Float8CurrentScaling,
+                Format,
+                MXFP8BlockScaling,
+            )
             from transformer_engine.pytorch import fp8_autocast
 
             if self.config.fp8 == "e4m3":
@@ -282,9 +288,7 @@ class Flux(VisionModule):
             fp8_group = None
             if parallel_state.model_parallel_is_initialized():
                 fp8_group = parallel_state.get_amax_reduction_group(with_context_parallel=True)
-            fp8_context = fp8_autocast(
-                enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group
-            )
+            fp8_context = fp8_autocast(enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group)
         return fp8_context
 
     def forward(
