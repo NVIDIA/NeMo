@@ -101,7 +101,7 @@ if __name__ == '__main__':
         peft = None
     if args.te_op_fuser:
         # TE op fuser replaces MLP, so only finetune qkv and proj layers
-        peft.target_modules=["linear_proj", "linear_qkv"]
+        peft.target_modules = ["linear_proj", "linear_qkv"]
 
     packed_sequence_specs = (
         PackedSequenceSpecs(packed_sequence_size=2048, tokenizer_model_name="dummy_tokenizer") if args.packed else None
