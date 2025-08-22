@@ -142,6 +142,10 @@ if __name__ == "__main__":
         use_sharp,
     )
 
+    # for saving checkpoints
+    recipe.log.log_dir = "/path/to/log"
+
+    # for loading checkpoints
     recipe.resume.resume_if_exists = True
     recipe.resume.resume_ignore_no_checkpoint = True
     recipe.resume.restore_config.path = "/path/to/checkpoint"
