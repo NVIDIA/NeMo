@@ -16,6 +16,7 @@ import json
 import os
 import random
 import string
+from typing import Optional
 
 import librosa
 import numpy as np
@@ -39,17 +40,6 @@ except ImportError:
 from nemo.collections.tts.models import MagpieTTSModel
 from nemo_text_processing.text_normalization.normalize import Normalizer
 
-# Global cache for normalizers - to avoid latency from repeated creation
-_NORMALIZER_CACHE = {}
-
-def get_cached_normalizer(language):
-    """Get or create a cached normalizer for the given language."""
-    lang_key = language if language else "en"
-    if lang_key not in _NORMALIZER_CACHE:
-        logging.info(f"Creating normalizer for language: {lang_key}")
-        _NORMALIZER_CACHE[lang_key] = Normalizer(input_case="cased", lang=lang_key)
-    return _NORMALIZER_CACHE[lang_key]
-
 
 class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
     """Small override of MagpieTTSModel for parallel multi-GPU inference and metrics calculation.
@@ -71,8 +61,20 @@ class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
             self.whisper_model.eval()
-
-        self._normalize_whisper_transcript = cfg.get('normalize_whisper_transcript', True)
+            self._normalize_whisper_transcript = cfg.get('normalize_whisper_transcript', True)
+            if self._normalize_whisper_transcript:
+                self._normalizer_cache = {}
+                # Pre-create normalizer for the configured language
+                lang = cfg.get('pref_set_language', 'en')
+                self._get_cached_normalizer(lang)
+                
+    def _get_cached_normalizer(self, lang_key):
+        """Get or create a cached normalizer for the given language."""
+        lang_key = lang_key if lang_key else "en"
+        if lang_key not in self._normalizer_cache:
+            logging.info(f"Creating normalizer for language: {lang_key}")
+            self._normalizer_cache[lang_key] = Normalizer(input_case="cased", lang=lang_key)
+        return self._normalizer_cache[lang_key]
 
     def test_step(self, batch, batch_idx):
         with torch.no_grad():
@@ -119,7 +121,8 @@ class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
                             else:
                                 pred_transcripts = []
                                 for audio_path in predicted_audio_paths:
-                                    transcript = transcribe_with_whisper(audio_path, self.cfg.pref_set_language, self.whisper_processor, self.whisper_model, self.device, self._normalize_whisper_transcript)
+                                    normalizer = self._get_cached_normalizer(self.cfg.pref_set_language) if self._normalize_whisper_transcript else None
+                                    transcript = transcribe_with_whisper(audio_path, self.cfg.pref_set_language, self.whisper_processor, self.whisper_model, self.device, normalizer)
                                     pred_transcripts.append(transcript)
 
                                 pred_transcripts = [process_text_for_cer(transcript) for transcript in pred_transcripts]
@@ -455,13 +458,9 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         self.scale_rewards = self.cfg.get('scale_rewards', True)
         self.max_decoder_steps = self.cfg.get('max_decoder_steps', 430)
 
-        if cfg.get('reward_asr_model', "nemo") == "whisper":
-            expected_languages = ["en", "es", "fr", "de", "zh"]  # Add your expected languages here
-            logging.info("Pre-initializing normalizers for multilingual support...")
-            for lang in expected_languages:
-                get_cached_normalizer(lang)
-            logging.info("Normalizer pre-initialization complete")
-            self._normalize_whisper_transcript = self.cfg.get('normalize_whisper_transcript', True)
+        self._normalize_whisper_transcript = self.cfg.get('normalize_whisper_transcript', True)
+        if cfg.get('reward_asr_model', "nemo") == "whisper" and self._normalize_whisper_transcript:
+            self._normalizer_cache = {}
 
         # If the best record in the group is above this threshold, we will not use that group for training
         # Setting this to 1.0, because we clamp the ASR rewards to be in [0, 1] for OnlinePO
@@ -469,7 +468,14 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         # If the worst record in the group exceeds this threshold, we will not use that group for training
         # Setting this to 1.0, because we clamp the ASR rewards to be in [0, 1] for OnlinePO
         self.worst_cer_threshold = self.cfg.get('worst_cer_threshold', 1.0)
-        
+    
+    def _get_cached_normalizer(self, lang_key):
+        """Get or create a cached normalizer for the given language."""
+        lang_key = lang_key if lang_key else "en"
+        if lang_key not in self._normalizer_cache:
+            logging.info(f"Creating normalizer for language: {lang_key}")
+            self._normalizer_cache[lang_key] = Normalizer(input_case="cased", lang=lang_key)
+        return self._normalizer_cache[lang_key]
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         state_dict = super().state_dict(destination, prefix, keep_vars)
@@ -558,7 +564,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 pred_transcripts = []
                 for item_idx, audio_path in enumerate(predicted_audio_paths):
                     language = batch_repeated['languages'][item_idx]
-                    transcript = transcribe_with_whisper(audio_path, language, self.whisper_processor, self.whisper_model, self.device, self._normalize_whisper_transcript)
+                    normalizer = self._get_cached_normalizer(language) if self._normalize_whisper_transcript else None
+                    transcript = transcribe_with_whisper(audio_path, language, self.whisper_processor, self.whisper_model, self.device, normalizer)
                     pred_transcripts.append(transcript)
                 pred_transcripts = [process_text_for_cer(transcript) for transcript in pred_transcripts]
 
@@ -918,7 +925,7 @@ def get_speaker_embeddings_from_filepaths(filepaths, speaker_verification_model,
 
         return speaker_embeddings
 
-def transcribe_with_whisper(audio_filepath, language, whisper_processor, whisper_model, device, normalize_transcript=True):
+def transcribe_with_whisper(audio_filepath, language, whisper_processor, whisper_model, device, normalizer: Optional[Normalizer] = None):
     speech_array, sampling_rate = librosa.load(audio_filepath, sr=16000)
     forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
     inputs = whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
@@ -927,8 +934,6 @@ def transcribe_with_whisper(audio_filepath, language, whisper_processor, whisper
         predicted_ids = whisper_model.generate(inputs, forced_decoder_ids=forced_decoder_ids)
     transcription = whisper_processor.batch_decode(predicted_ids, skip_special_tokens=True)
     result = transcription[0]
-    if normalize_transcript:
-        # Use cached normalizer instead of creating new one each time
-        normalizer = get_cached_normalizer(language)
+    if normalizer is not None:
         result = normalizer.normalize(result)
     return result
