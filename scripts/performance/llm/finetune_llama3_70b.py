@@ -56,10 +56,13 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    enable_cuda_graphs: bool,
-    use_mcore_fsdp: bool,
-    recompute_layers: int,
-    activation_offload_layers: int,
+    num_layers: int,
+    hidden_size: int,
+    etp_size: int = None,
+    enable_cuda_graphs: bool = False,
+    use_mcore_fsdp: bool = False,
+    recompute_layers: int = 0,
+    activation_offload_layers: int = 0,
 ):
     """
     llama3 70b fine-tuning recipe aimed at achieving best possible performance.
@@ -74,7 +77,7 @@ def override_recipe_configs(
         # to reduce the sequence length.
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=2048)
     else:
-        recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
+        recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)    
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -89,15 +92,15 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
-        nccl_communicator_config_path=args.nccl_communicator_config_path,
-        use_user_buffer_registration=args.use_user_buffer_registration,
-        use_sharp=args.use_sharp,
     )
     recipe = set_exp_logging_configs(
         recipe,
@@ -111,14 +114,15 @@ def override_recipe_configs(
     )
 
     # data module configs
-    if args.use_hf_tokenizer:
-        recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    else:
-        recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
-        )
-        recipe.model.tokenizer = recipe.data.tokenizer
+    #if args.use_hf_tokenizer:
+    #    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    #else:
+    #    recipe.data.tokenizer = run.Config(
+    #        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
+    #    )
+    #    recipe.model.tokenizer = recipe.data.tokenizer
 
+    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
@@ -147,6 +151,9 @@ def override_recipe_configs(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
+    sequence_length = 4096
+    if args.gpu.lower() == 'gb200':
+        sequence_length = 2048
 
     kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "llama3", "70b", args)
     (
@@ -264,7 +271,7 @@ if __name__ == "__main__":
                 *prepare_squad_dataset_experiment(
                     executor,
                     HF_MODEL_URI,
-                    seq_length=4096,
+                    seq_length=sequence_length,
                 )
             )
 
