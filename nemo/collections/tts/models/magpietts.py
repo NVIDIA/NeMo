@@ -14,6 +14,7 @@
 import os
 import random
 import time
+import json
 from typing import List, Optional
 from functools import partial
 import soundfile as sf
@@ -169,6 +170,21 @@ class MagpieTTSModel(ModelPT):
 
         self.pad_context_text_to_max_duration = self.model_type in ['decoder_context_tts', 'decoder_ce']
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
+
+
+        # Below args (text_context_remapping_json, text_context_remapping_prob) are 
+        # for combining multiple context_texts into a single one during training.
+        # Eg. if we want to treat Emma_neutral and Emma_conversational as one speaker,
+        # we can create an override dict {'Emma_neutral' : 'Emma', 'Emma_conversational' : 'Emma'}
+        # This dict is saved in a json file given by cfg.model.text_context_remapping_json
+        # If we want to preserve both behaviours i.e (Emma_neutral, Emma_conversational) and just (Emma)
+        # we can do this mapping with a probability during training, as specified by text_context_remapping_prob
+        self.text_context_remapping = None
+        text_context_remapping_json = cfg.get('text_context_remapping_json', None)
+        self.text_context_remapping_prob = cfg.get('text_context_remapping_prob', 0.0)
+        if text_context_remapping_json is not None:
+            with open(text_context_remapping_json, 'r') as f:
+                self.text_context_remapping = json.load(f)
 
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -2129,6 +2145,8 @@ class MagpieTTSModel(ModelPT):
             pad_context_text_to_max_duration=self.pad_context_text_to_max_duration,
             context_duration_min=self.cfg.context_duration_min,
             context_duration_max=self.cfg.context_duration_max,
+            text_context_remapping=self.text_context_remapping,
+            text_context_remapping_prob=self.text_context_remapping_prob,
         )
         dataset.load_16khz_audio = self.model_type == 'single_encoder_sv_tts'
         dataset.tokenizer_config = (
@@ -2158,6 +2176,8 @@ class MagpieTTSModel(ModelPT):
             use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
             text_conditioning_tokenizer_name=self.text_conditioning_tokenizer_name,
             tokenizer_config=self.cfg.text_tokenizers,
+            text_context_remapping=self.text_context_remapping,
+            text_context_remapping_prob=self.text_context_remapping_prob,
         )
         data_loader = get_lhotse_dataloader_from_config(
             config=dataset_cfg.dataset,
