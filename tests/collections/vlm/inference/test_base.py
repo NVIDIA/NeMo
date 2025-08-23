@@ -80,6 +80,7 @@ class TestSetupInferenceWrapper:
         # Mock config - create a real instance of MLlamaModelConfig
         from nemo.collections.vlm import MLlamaModelConfig
         from nemo.collections.vlm.inference.base import setup_inference_wrapper
+
         mock_config = Mock(spec=MLlamaModelConfig)
         mock_config.language_model_config.hidden_size = 4096
         self.mock_model.config = mock_config
@@ -93,12 +94,7 @@ class TestSetupInferenceWrapper:
         mock_config_cls.return_value = mock_config_instance
 
         # Call function
-        result = setup_inference_wrapper(
-            self.mock_model,
-            self.mock_tokenizer,
-            torch.float16,
-            2000
-        )
+        result = setup_inference_wrapper(self.mock_model, self.mock_tokenizer, torch.float16, 2000)
 
         # Verify mcore model setup
         self.mock_mcore_model.cuda.assert_called_once()
@@ -106,17 +102,14 @@ class TestSetupInferenceWrapper:
         self.mock_mcore_model.eval.assert_called_once()
 
         # Verify wrapper creation
-        mock_wrapper_cls.assert_called_once_with(
-            self.mock_mcore_model,
-            mock_config_instance
-        )
+        mock_wrapper_cls.assert_called_once_with(self.mock_mcore_model, mock_config_instance)
 
         # Verify config creation
         mock_config_cls.assert_called_once_with(
             hidden_size=4096,
             params_dtype=torch.float16,
             inference_batch_times_seqlen_threshold=2000,
-            padded_vocab_size=32000
+            padded_vocab_size=32000,
         )
 
         # Verify return value
@@ -130,6 +123,7 @@ class TestSetupInferenceWrapper:
         # Mock config - create a real instance of LlavaConfig
         from nemo.collections.vlm import LlavaConfig
         from nemo.collections.vlm.inference.base import setup_inference_wrapper
+
         mock_config = Mock(spec=LlavaConfig)
         mock_config.language_transformer_config.hidden_size = 4096
         self.mock_model.config = mock_config
@@ -143,25 +137,17 @@ class TestSetupInferenceWrapper:
         mock_config_cls.return_value = mock_config_instance
 
         # Call function
-        result = setup_inference_wrapper(
-            self.mock_model,
-            self.mock_tokenizer,
-            torch.bfloat16,
-            1000
-        )
+        result = setup_inference_wrapper(self.mock_model, self.mock_tokenizer, torch.bfloat16, 1000)
 
         # Verify wrapper creation
-        mock_wrapper_cls.assert_called_once_with(
-            self.mock_mcore_model,
-            mock_config_instance
-        )
+        mock_wrapper_cls.assert_called_once_with(self.mock_mcore_model, mock_config_instance)
 
         # Verify config creation
         mock_config_cls.assert_called_once_with(
             hidden_size=4096,
             params_dtype=torch.bfloat16,
             inference_batch_times_seqlen_threshold=1000,
-            padded_vocab_size=32000
+            padded_vocab_size=32000,
         )
 
         # Verify return value
@@ -175,6 +161,7 @@ class TestSetupInferenceWrapper:
         # Mock config - create a real instance of Qwen2VLConfig
         from nemo.collections.vlm import Qwen2VLConfig
         from nemo.collections.vlm.inference.base import setup_inference_wrapper
+
         mock_config = Mock(spec=Qwen2VLConfig)
         mock_config.language_transformer_config.hidden_size = 4096
         self.mock_model.config = mock_config
@@ -188,25 +175,17 @@ class TestSetupInferenceWrapper:
         mock_config_cls.return_value = mock_config_instance
 
         # Call function
-        result = setup_inference_wrapper(
-            self.mock_model,
-            self.mock_tokenizer,
-            torch.bfloat16,
-            1500
-        )
+        result = setup_inference_wrapper(self.mock_model, self.mock_tokenizer, torch.bfloat16, 1500)
 
         # Verify wrapper creation
-        mock_wrapper_cls.assert_called_once_with(
-            self.mock_mcore_model,
-            mock_config_instance
-        )
+        mock_wrapper_cls.assert_called_once_with(self.mock_mcore_model, mock_config_instance)
 
         # Verify config creation
         mock_config_cls.assert_called_once_with(
             hidden_size=4096,
             params_dtype=torch.bfloat16,
             inference_batch_times_seqlen_threshold=1500,
-            padded_vocab_size=32000
+            padded_vocab_size=32000,
         )
 
         # Verify return value
@@ -240,8 +219,7 @@ class TestSetupModelAndTokenizer:
     @patch('nemo.collections.vlm.inference.base._setup_trainer_and_restore_model')
     @patch('nemo.collections.vlm.inference.base.setup_inference_wrapper')
     def test_setup_model_and_tokenizer_mllama(
-        self, mock_setup_wrapper, mock_setup_trainer, mock_model_cls,
-        mock_processor_cls, mock_load_context
+        self, mock_setup_wrapper, mock_setup_trainer, mock_model_cls, mock_processor_cls, mock_load_context
     ):
         """Test setup_model_and_tokenizer with MLlamaModelConfig"""
         # Import here to avoid import issues during test discovery
@@ -250,6 +228,7 @@ class TestSetupModelAndTokenizer:
         # Mock context and config
         mock_context = Mock()
         from nemo.collections.vlm import MLlamaModelConfig
+
         mock_config = Mock(spec=MLlamaModelConfig)
         mock_load_context.return_value = mock_context
         mock_context.config = mock_config
@@ -274,7 +253,7 @@ class TestSetupModelAndTokenizer:
             tp_size=2,
             pp_size=1,
             params_dtype=torch.float16,
-            inference_batch_times_seqlen_threshold=2000
+            inference_batch_times_seqlen_threshold=2000,
         )
 
         # Verify context loading
@@ -287,18 +266,9 @@ class TestSetupModelAndTokenizer:
         mock_model_cls.assert_called_once_with(mock_config, tokenizer=mock_processor.tokenizer)
 
         # Verify setup calls
-        mock_setup_trainer.assert_called_once_with(
-            path=self.mock_path,
-            trainer=self.mock_trainer,
-            model=mock_model
-        )
+        mock_setup_trainer.assert_called_once_with(path=self.mock_path, trainer=self.mock_trainer, model=mock_model)
 
-        mock_setup_wrapper.assert_called_once_with(
-            mock_model,
-            mock_processor.tokenizer,
-            torch.float16,
-            2000
-        )
+        mock_setup_wrapper.assert_called_once_with(mock_model, mock_processor.tokenizer, torch.float16, 2000)
 
         # Verify return values
         assert result_wrapper == mock_wrapper
@@ -310,8 +280,7 @@ class TestSetupModelAndTokenizer:
     @patch('nemo.collections.vlm.inference.base._setup_trainer_and_restore_model')
     @patch('nemo.collections.vlm.inference.base.setup_inference_wrapper')
     def test_setup_model_and_tokenizer_llava(
-        self, mock_setup_wrapper, mock_setup_trainer, mock_model_cls,
-        mock_processor_cls, mock_load_context
+        self, mock_setup_wrapper, mock_setup_trainer, mock_model_cls, mock_processor_cls, mock_load_context
     ):
         """Test setup_model_and_tokenizer with LlavaConfig"""
         # Import here to avoid import issues during test discovery
@@ -320,6 +289,7 @@ class TestSetupModelAndTokenizer:
         # Mock context and config
         mock_context = Mock()
         from nemo.collections.vlm import LlavaConfig
+
         mock_config = Mock(spec=LlavaConfig)
         mock_load_context.return_value = mock_context
         mock_context.config = mock_config
@@ -338,10 +308,7 @@ class TestSetupModelAndTokenizer:
         mock_setup_wrapper.return_value = mock_wrapper
 
         # Call function
-        result_wrapper, result_processor = setup_model_and_tokenizer(
-            self.mock_path,
-            self.mock_trainer
-        )
+        result_wrapper, result_processor = setup_model_and_tokenizer(self.mock_path, self.mock_trainer)
 
         # Verify processor creation
         mock_processor_cls.assert_called_once_with("llava-hf/llava-1.5-7b-hf")
@@ -359,8 +326,7 @@ class TestSetupModelAndTokenizer:
     @patch('nemo.collections.vlm.inference.base._setup_trainer_and_restore_model')
     @patch('nemo.collections.vlm.inference.base.setup_inference_wrapper')
     def test_setup_model_and_tokenizer_qwenvl_3b(
-        self, mock_setup_wrapper, mock_setup_trainer, mock_model_cls,
-        mock_processor_cls, mock_load_context
+        self, mock_setup_wrapper, mock_setup_trainer, mock_model_cls, mock_processor_cls, mock_load_context
     ):
         """Test setup_model_and_tokenizer with Qwen2VLConfig (3B model)"""
         # Import here to avoid import issues during test discovery
@@ -369,6 +335,7 @@ class TestSetupModelAndTokenizer:
         # Mock context and config
         mock_context = Mock()
         from nemo.collections.vlm import Qwen2VLConfig
+
         mock_config = Mock(spec=Qwen2VLConfig)
         mock_config.vision_projection_config.projector_type = "mcore_mlp"
         mock_config.vision_projection_config.hidden_size = 2048
@@ -389,23 +356,14 @@ class TestSetupModelAndTokenizer:
         mock_setup_wrapper.return_value = mock_wrapper
 
         # Call function
-        result_wrapper, result_processor = setup_model_and_tokenizer(
-            self.mock_path,
-            self.mock_trainer
-        )
+        result_wrapper, result_processor = setup_model_and_tokenizer(self.mock_path, self.mock_trainer)
 
         # Verify processor creation with correct parameters
-        mock_processor_cls.assert_called_once_with(
-            "Qwen/Qwen2.5-VL-3B-Instruct",
-            min_pixels=12544,
-            max_pixels=50176
-        )
+        mock_processor_cls.assert_called_once_with("Qwen/Qwen2.5-VL-3B-Instruct", min_pixels=12544, max_pixels=50176)
 
         # Verify model creation
         mock_model_cls.assert_called_once_with(
-            mock_config,
-            tokenizer=mock_processor.tokenizer,
-            model_version="qwen25-vl"
+            mock_config, tokenizer=mock_processor.tokenizer, model_version="qwen25-vl"
         )
 
         # Verify return values
@@ -421,6 +379,7 @@ class TestSetupModelAndTokenizer:
         # Mock context and config
         mock_context = Mock()
         from nemo.collections.vlm import Qwen2VLConfig
+
         mock_config = Mock(spec=Qwen2VLConfig)
         mock_config.vision_projection_config.projector_type = "invalid"
         mock_load_context.return_value = mock_context
@@ -439,6 +398,7 @@ class TestSetupModelAndTokenizer:
         # Mock context and config
         mock_context = Mock()
         from nemo.collections.vlm import Qwen2VLConfig
+
         mock_config = Mock(spec=Qwen2VLConfig)
         mock_config.vision_projection_config.projector_type = "mcore_mlp"
         mock_config.vision_projection_config.hidden_size = 9999  # Unknown size
@@ -457,9 +417,11 @@ class TestSetupModelAndTokenizer:
 
         # Mock context and config
         mock_context = Mock()
+
         # Use a different class that won't match any of the expected config types
         class UnknownConfig:
             pass
+
         mock_config = Mock(spec=UnknownConfig)
         mock_load_context.return_value = mock_context
         mock_context.config = mock_config
@@ -476,8 +438,14 @@ class TestSetupModelAndTokenizer:
     @patch('nemo.collections.vlm.inference.base._setup_trainer_and_restore_model')
     @patch('nemo.collections.vlm.inference.base.setup_inference_wrapper')
     def test_setup_model_and_tokenizer_no_trainer(
-        self, mock_setup_wrapper, mock_setup_trainer, mock_trainer_cls,
-        mock_strategy_cls, mock_model_cls, mock_processor_cls, mock_load_context
+        self,
+        mock_setup_wrapper,
+        mock_setup_trainer,
+        mock_trainer_cls,
+        mock_strategy_cls,
+        mock_model_cls,
+        mock_processor_cls,
+        mock_load_context,
     ):
         """Test setup_model_and_tokenizer without providing trainer"""
         # Import here to avoid import issues during test discovery
@@ -486,6 +454,7 @@ class TestSetupModelAndTokenizer:
         # Mock context and config
         mock_context = Mock()
         from nemo.collections.vlm import MLlamaModelConfig
+
         mock_config = Mock(spec=MLlamaModelConfig)
         mock_load_context.return_value = mock_context
         mock_context.config = mock_config
@@ -512,17 +481,12 @@ class TestSetupModelAndTokenizer:
 
         # Call function without trainer
         result_wrapper, result_processor = setup_model_and_tokenizer(
-            self.mock_path,
-            trainer=None,
-            tp_size=2,
-            pp_size=1
+            self.mock_path, trainer=None, tp_size=2, pp_size=1
         )
 
         # Verify strategy creation
         mock_strategy_cls.assert_called_once_with(
-            tensor_model_parallel_size=2,
-            pipeline_model_parallel_size=1,
-            ckpt_include_optimizer=False
+            tensor_model_parallel_size=2, pipeline_model_parallel_size=1, ckpt_include_optimizer=False
         )
 
         # Verify trainer creation
@@ -548,15 +512,14 @@ class TestGenerate:
     @patch('nemo.collections.vlm.inference.base.QwenVLTextGenerationController')
     @patch('nemo.collections.vlm.inference.base.VLMEngine')
     @patch('nemo.collections.vlm.inference.base.CommonInferenceParams')
-    def test_generate_qwenvl(
-        self, mock_common_params_cls, mock_engine_cls, mock_controller_cls
-    ):
+    def test_generate_qwenvl(self, mock_common_params_cls, mock_engine_cls, mock_controller_cls):
         """Test generate function with QwenVLInferenceWrapper"""
         # Import here to avoid import issues during test discovery
         from nemo.collections.vlm.inference.base import generate
 
         # Mock QwenVLInferenceWrapper - need to use real class for isinstance check
         from nemo.collections.vlm.inference.qwenvl_inference_wrapper import QwenVLInferenceWrapper
+
         self.mock_wrapped_model.__class__ = QwenVLInferenceWrapper
 
         # Mock controller - mock the class itself to skip init
@@ -585,21 +548,17 @@ class TestGenerate:
             processor=self.mock_processor,
             max_batch_size=8,
             random_seed=42,
-            inference_params=mock_common_params
+            inference_params=mock_common_params,
         )
 
         # Verify engine creation
         mock_engine_cls.assert_called_once_with(
-            text_generation_controller=mock_controller,
-            max_batch_size=8,
-            random_seed=42
+            text_generation_controller=mock_controller, max_batch_size=8, random_seed=42
         )
 
         # Verify engine.generate was called
         mock_engine.generate.assert_called_once_with(
-            prompts=self.mock_prompts,
-            images=self.mock_images,
-            common_inference_params=mock_common_params
+            prompts=self.mock_prompts, images=self.mock_images, common_inference_params=mock_common_params
         )
 
         # Verify return value
@@ -608,15 +567,14 @@ class TestGenerate:
     @patch('nemo.collections.vlm.inference.base.VLMTextGenerationController')
     @patch('nemo.collections.vlm.inference.base.VLMEngine')
     @patch('nemo.collections.vlm.inference.base.CommonInferenceParams')
-    def test_generate_other_model(
-        self, mock_common_params_cls, mock_engine_cls, mock_controller_cls
-    ):
+    def test_generate_other_model(self, mock_common_params_cls, mock_engine_cls, mock_controller_cls):
         """Test generate function with non-QwenVL model"""
         # Import here to avoid import issues during test discovery
         from nemo.collections.vlm.inference.base import generate
 
         # Mock other model type - use a different class so it goes to VLMTextGenerationController
         from nemo.collections.vlm.inference.mllama_inference_wrapper import MllamaInferenceWrapper
+
         self.mock_wrapped_model.__class__ = MllamaInferenceWrapper
 
         # Mock controller - mock the class itself to skip init
@@ -642,14 +600,12 @@ class TestGenerate:
             self.mock_image_processor,
             self.mock_prompts,
             self.mock_images,
-            max_batch_size=4
+            max_batch_size=4,
         )
 
         # Verify engine creation
         mock_engine_cls.assert_called_once_with(
-            text_generation_controller=mock_controller,
-            max_batch_size=4,
-            random_seed=None
+            text_generation_controller=mock_controller, max_batch_size=4, random_seed=None
         )
 
         # Verify default common inference params were created
@@ -657,9 +613,7 @@ class TestGenerate:
 
         # Verify engine.generate was called
         mock_engine.generate.assert_called_once_with(
-            prompts=self.mock_prompts,
-            images=self.mock_images,
-            common_inference_params=mock_common_params
+            prompts=self.mock_prompts, images=self.mock_images, common_inference_params=mock_common_params
         )
 
         # Verify return value
@@ -668,15 +622,14 @@ class TestGenerate:
     @patch('nemo.collections.vlm.inference.base.QwenVLTextGenerationController')
     @patch('nemo.collections.vlm.inference.base.VLMEngine')
     @patch('nemo.collections.vlm.inference.base.CommonInferenceParams')
-    def test_generate_with_defaults(
-        self, mock_common_params_cls, mock_engine_cls, mock_controller_cls
-    ):
+    def test_generate_with_defaults(self, mock_common_params_cls, mock_engine_cls, mock_controller_cls):
         """Test generate function with default parameters"""
         # Import here to avoid import issues during test discovery
         from nemo.collections.vlm.inference.base import generate
 
         # Mock QwenVLInferenceWrapper - need to use real class for isinstance check
         from nemo.collections.vlm.inference.qwenvl_inference_wrapper import QwenVLInferenceWrapper
+
         self.mock_wrapped_model.__class__ = QwenVLInferenceWrapper
 
         # Mock controller - mock the class itself to skip init
@@ -701,14 +654,12 @@ class TestGenerate:
             self.mock_tokenizer,
             self.mock_image_processor,
             self.mock_prompts[:1],
-            self.mock_images[:1]
+            self.mock_images[:1],
         )
 
         # Verify default values were used
         mock_engine_cls.assert_called_once_with(
-            text_generation_controller=mock_controller,
-            max_batch_size=4,  # default
-            random_seed=None    # default
+            text_generation_controller=mock_controller, max_batch_size=4, random_seed=None  # default  # default
         )
 
         # Verify default common inference params were created

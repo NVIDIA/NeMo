@@ -53,10 +53,9 @@ class TestQwenVLInferenceWrapper:
         prompts_tokens = torch.randint(0, 1000, (batch_size, seq_length))
 
         # Create mock image data
-        image_dict = [{
-            'pixel_values': torch.randn(2, 3, 224, 224),
-            'image_grid_thw': torch.tensor([[1, 1, 1], [1, 1, 1]])
-        }]
+        image_dict = [
+            {'pixel_values': torch.randn(2, 3, 224, 224), 'image_grid_thw': torch.tensor([[1, 1, 1], [1, 1, 1]])}
+        ]
 
         # Mock cuda method
         with patch.object(torch.Tensor, 'cuda') as mock_cuda:
@@ -104,7 +103,7 @@ class TestQwenVLInferenceWrapper:
         inference_input = {
             'input_ids': torch.randint(0, 1000, (2, 20)),
             'pixel_values': torch.randn(2, 3, 224, 224),
-            'image_grid_thw': torch.tensor([[1, 1, 1], [1, 1, 1]])
+            'image_grid_thw': torch.tensor([[1, 1, 1], [1, 1, 1]]),
         }
 
         context_start_position = 5
@@ -132,31 +131,23 @@ class TestQwenVLInferenceWrapper:
         inference_input = {
             'input_ids': torch.randint(0, 1000, (1, 10)),
             'pixel_values': torch.randn(1, 3, 224, 224),
-            'image_grid_thw': torch.tensor([[1, 1, 1]])
+            'image_grid_thw': torch.tensor([[1, 1, 1]]),
         }
 
         # Test with context_end_position at sequence boundary
-        result = self.wrapper.get_batch_for_context_window(
-            inference_input, 0, 10
-        )
+        result = self.wrapper.get_batch_for_context_window(inference_input, 0, 10)
         assert result['input_ids'].size(1) == 10
 
         # Test with context_end_position beyond sequence length
-        result = self.wrapper.get_batch_for_context_window(
-            inference_input, 0, 15
-        )
+        result = self.wrapper.get_batch_for_context_window(inference_input, 0, 15)
         assert result['input_ids'].size(1) == 10
 
         # Test with context_start_position equal to context_end_position
-        result = self.wrapper.get_batch_for_context_window(
-            inference_input, 5, 5
-        )
+        result = self.wrapper.get_batch_for_context_window(inference_input, 5, 5)
         assert result['input_ids'].size(1) == 5  # Returns tokens from 0 to 5
 
         # Test with context_end_position = 0 (should return 0 tokens)
-        result = self.wrapper.get_batch_for_context_window(
-            inference_input, 0, 0
-        )
+        result = self.wrapper.get_batch_for_context_window(inference_input, 0, 0)
         assert result['input_ids'].size(1) == 0  # Returns no tokens
 
     def test_forward_pass_without_pipeline_parallel(self):
@@ -165,7 +156,7 @@ class TestQwenVLInferenceWrapper:
         inference_input = {
             'input_ids': torch.randint(0, 1000, (2, 10)),
             'pixel_values': torch.randn(2, 3, 224, 224),
-            'image_grid_thw': torch.tensor([[1, 1, 1], [1, 1, 1]])
+            'image_grid_thw': torch.tensor([[1, 1, 1], [1, 1, 1]]),
         }
 
         # Mock model forward pass
@@ -179,7 +170,7 @@ class TestQwenVLInferenceWrapper:
             attention_mask=None,
             input_ids=inference_input['input_ids'],
             pixel_values=inference_input['pixel_values'],
-            image_grid_thw=inference_input['image_grid_thw']
+            image_grid_thw=inference_input['image_grid_thw'],
         )
 
         # Verify return value
@@ -206,7 +197,7 @@ class TestQwenVLInferenceWrapper:
         inference_input = {
             'input_ids': torch.randint(0, 1000, (1, 5)),
             'pixel_values': torch.randn(1, 3, 224, 224),
-            'image_grid_thw': torch.tensor([[1, 1, 1]])
+            'image_grid_thw': torch.tensor([[1, 1, 1]]),
         }
 
         # Mock model to raise an error
@@ -220,10 +211,7 @@ class TestQwenVLInferenceWrapper:
         # Create mock input
         batch_size, seq_length = 1, 8
         prompts_tokens = torch.randint(0, 1000, (batch_size, seq_length))
-        image_dict = [{
-            'pixel_values': torch.randn(1, 3, 224, 224),
-            'image_grid_thw': torch.tensor([[1, 1, 1]])
-        }]
+        image_dict = [{'pixel_values': torch.randn(1, 3, 224, 224), 'image_grid_thw': torch.tensor([[1, 1, 1]])}]
 
         # Mock cuda method
         with patch.object(torch.Tensor, 'cuda') as mock_cuda:
@@ -249,10 +237,12 @@ class TestQwenVLInferenceWrapper:
         for batch_size in [1, 2, 4]:
             seq_length = 10
             prompts_tokens = torch.randint(0, 1000, (batch_size, seq_length))
-            image_dict = [{
-                'pixel_values': torch.randn(batch_size, 3, 224, 224),
-                'image_grid_thw': torch.tensor([[1, 1, 1]] * batch_size)
-            }]
+            image_dict = [
+                {
+                    'pixel_values': torch.randn(batch_size, 3, 224, 224),
+                    'image_grid_thw': torch.tensor([[1, 1, 1]] * batch_size),
+                }
+            ]
 
             with patch.object(torch.Tensor, 'cuda') as mock_cuda:
                 mock_cuda.return_value = torch.randn(batch_size, 3, 224, 224)
@@ -271,10 +261,7 @@ class TestQwenVLInferenceWrapper:
         """Test that cuda is called with non_blocking=True flag"""
         batch_size, seq_length = 1, 5
         prompts_tokens = torch.randint(0, 1000, (batch_size, seq_length))
-        image_dict = [{
-            'pixel_values': torch.randn(1, 3, 224, 224),
-            'image_grid_thw': torch.tensor([[1, 1, 1]])
-        }]
+        image_dict = [{'pixel_values': torch.randn(1, 3, 224, 224), 'image_grid_thw': torch.tensor([[1, 1, 1]])}]
 
         # Mock cuda method to capture the call arguments
         mock_pixel_values = Mock()

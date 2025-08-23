@@ -78,9 +78,7 @@ class TestVLMTextGenerationController:
         with patch.object(VLMTextGenerationController.__bases__[0], '__init__'):
             # Create the controller
             self.controller = VLMTextGenerationController(
-                self.mock_inference_model,
-                self.mock_tokenizer,
-                self.mock_image_processor
+                self.mock_inference_model, self.mock_tokenizer, self.mock_image_processor
             )
 
             # Manually set attributes that would normally be set by parent class
@@ -120,7 +118,7 @@ class TestVLMTextGenerationController:
             'pixel_values': torch.randn(1, 4, 3, 224, 224),
             'aspect_ratio_ids': torch.tensor([1], dtype=torch.long),
             'num_tiles': [2],
-            'other_key': 'should_be_filtered'
+            'other_key': 'should_be_filtered',
         }
         self.mock_image_processor.preprocess.return_value = mock_processed
 
@@ -138,23 +136,19 @@ class TestVLMTextGenerationController:
     def test_prep_inference_input(self):
         """Test prep_inference_input method"""
         mock_prompts_tokens = torch.randn(2, 10)
-        mock_active_requests = OrderedDict([
-            ('req1', Mock(encoder_prompt='image1')),
-            ('req2', Mock(encoder_prompt='image2'))
-        ])
+        mock_active_requests = OrderedDict(
+            [('req1', Mock(encoder_prompt='image1')), ('req2', Mock(encoder_prompt='image2'))]
+        )
 
         expected_result = {'processed': 'data'}
         self.mock_inference_model.prep_inference_input.return_value = expected_result
 
         result = self.controller.prep_inference_input(
-            mock_prompts_tokens,
-            mock_active_requests,
-            use_attention_mask=True
+            mock_prompts_tokens, mock_active_requests, use_attention_mask=True
         )
 
         self.mock_inference_model.prep_inference_input.assert_called_once_with(
-            prompts_tokens=mock_prompts_tokens,
-            image_dict=['image1', 'image2']
+            prompts_tokens=mock_prompts_tokens, image_dict=['image1', 'image2']
         )
         assert result == expected_result
 
@@ -174,10 +168,7 @@ class TestQwenVLTextGenerationController:
         with patch.object(QwenVLTextGenerationController.__bases__[0], '__init__'):
             # Create the controller
             self.controller = QwenVLTextGenerationController(
-                self.mock_inference_model,
-                self.mock_tokenizer,
-                self.mock_image_processor,
-                self.mock_processor
+                self.mock_inference_model, self.mock_tokenizer, self.mock_image_processor, self.mock_processor
             )
 
             # Manually set attributes that would normally be set by parent class
@@ -214,17 +205,14 @@ class TestQwenVLTextGenerationController:
         mock_inputs = {
             'input_ids': torch.tensor([[1, 2, 151655, 3, 4]]),
             'pixel_values': torch.randn(1, 3, 224, 224),
-            'image_grid_thw': torch.tensor([1, 1, 1])
+            'image_grid_thw': torch.tensor([1, 1, 1]),
         }
         self.mock_processor.return_value = mock_inputs
 
         tokens, image_dict = self.controller.tokenize_prompt(mock_prompt, mock_image)
 
         self.mock_processor.assert_called_once_with(
-            text=[mock_prompt],
-            images=mock_image,
-            padding=True,
-            return_tensors="pt"
+            text=[mock_prompt], images=mock_image, padding=True, return_tensors="pt"
         )
 
         # Check that 151655 tokens are replaced with -200
@@ -245,11 +233,7 @@ class TestIntegration:
 
         # Mock just the parent class __init__ method to prevent real initialization
         with patch.object(VLMTextGenerationController.__bases__[0], '__init__'):
-            controller = VLMTextGenerationController(
-                mock_inference_model,
-                mock_tokenizer,
-                mock_image_processor
-            )
+            controller = VLMTextGenerationController(mock_inference_model, mock_tokenizer, mock_image_processor)
 
             # Manually set attributes that would normally be set by parent class
             controller.tokenizer = TokenizerWrapper(mock_tokenizer)
@@ -269,10 +253,7 @@ class TestIntegration:
         # Mock just the parent class __init__ method to prevent real initialization
         with patch.object(QwenVLTextGenerationController.__bases__[0], '__init__'):
             controller = QwenVLTextGenerationController(
-                mock_inference_model,
-                mock_tokenizer,
-                mock_image_processor,
-                mock_processor
+                mock_inference_model, mock_tokenizer, mock_image_processor, mock_processor
             )
 
             # Manually set attributes that would normally be set by parent class
