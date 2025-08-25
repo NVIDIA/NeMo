@@ -18,6 +18,7 @@ import torch
 import torch.distributed
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
+from nemo.collections.llm.fn.activation import quick_gelu
 from nemo.collections.nlp.modules.common.megatron.utils import ApproxGELUActivation
 from nemo.collections.vlm.clip.model import CLIPConfig, CLIPModel, CLIPTextModelConfig, CLIPViTConfig
 from nemo.lightning import io, teardown
@@ -49,6 +50,35 @@ class CLIPViTL_14_224_Config(CLIPViTConfig):
     apply_rope_fusion: bool = False
     masked_softmax_fusion: bool = True
     persist_layer_norm: bool = True
+
+
+@dataclass
+class CLIPViTL_14_336_Config(CLIPViTConfig):
+    """Clip vit large patch14 config"""
+
+    vision_model_type: str = "clip"
+    patch_dim: int = 14
+    img_h: int = 336
+    img_w: int = 336
+    num_layers: int = 24
+    num_attention_heads: int = 16
+    add_bias_linear: bool = True
+    add_qkv_bias: bool = True
+    hidden_size: int = 1024
+    hidden_dropout: float = 0.0
+    attention_dropout: float = 0.0
+    ffn_hidden_size: int = 4096
+    gated_linear_unit: bool = False
+    activation_func: callable = quick_gelu
+    kv_channels: int = 64
+    num_query_groups: int = 16
+    layernorm_zero_centered_gamma: bool = False
+    apply_query_key_layer_scaling: bool = False
+    bias_activation_fusion: bool = False
+    bias_dropout_fusion: bool = False
+    attention_softmax_in_fp32: bool = True
+    normalization: str = 'LayerNorm'
+    apply_rope_fusion: bool = False
 
 
 @dataclass
@@ -134,11 +164,44 @@ class CLIPTextModelL_14_224_Config(CLIPTextModelConfig):
 
 
 @dataclass
+class CLIPTextModelL_14_336_Config(CLIPTextModelConfig):
+    """Clip text model large config"""
+
+    # model architecture
+    max_seq_length: int = 77
+    max_position_embeddings: int = 77
+    num_layers: int = 12
+    hidden_size: int = 768
+    ffn_hidden_size: int = 3072  # Transformer FFN hidden size. Usually 4 * hidden_size.
+    num_attention_heads: int = 12
+    init_method_std: float = (
+        0.02  # Standard deviation of the zero mean normal distribution used for weight initialization.')
+    )
+    use_scaled_init_method: bool = True  # use scaled residuals initialization
+    hidden_dropout: float = 0.0  # Dropout probability for hidden state transformer.
+    attention_dropout: float = 0.0
+    apply_query_key_layer_scaling: bool = False  # scale Q * K^T by 1 / layer-number.
+    do_layer_norm_weight_decay: bool = False  # True means weight decay on all params
+
+    persist_layer_norm: bool = True  # Use of persistent fused layer norm kernel.
+    masked_softmax_fusion: bool = True
+    bias_dropout_fusion: bool = True
+
+
+@dataclass
 class CLIPConfigL14(CLIPConfig):
     """Main Clip config for Large model"""
 
     text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelL_14_224_Config())
     vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTL_14_224_Config())
+
+
+@dataclass
+class CLIPConfigL14_336(CLIPConfig):
+    """Main Clip config for Large model 336"""
+
+    text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelL_14_336_Config())
+    vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTL_14_336_Config())
 
 
 @dataclass
