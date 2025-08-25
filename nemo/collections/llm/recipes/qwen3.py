@@ -29,6 +29,7 @@ from nemo.collections.llm.gpt.model.qwen3 import (
     Qwen3Config30B_A3B,
     Qwen3Config32B,
     Qwen3Config235B_A22B,
+    Qwen3Config480B_A35B,
     Qwen3Config600M,
     Qwen3Model,
 )
@@ -63,6 +64,8 @@ def qwen3_model(version: str) -> run.Config[pl.LightningModule]:
         config = run.Config(Qwen3Config30B_A3B)
     elif version == "qwen3_235b_a22b":
         config = run.Config(Qwen3Config235B_A22B)
+    elif version == "qwen3_480b_a35b":
+        config = run.Config(Qwen3Config480B_A35B)
 
     assert config is not None, f"Invalid version: {version}"
     return run.Config(Qwen3Model, config=config)
