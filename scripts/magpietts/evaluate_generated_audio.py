@@ -13,26 +13,26 @@
 # limitations under the License.
 import argparse
 import json
+import logging
 import os
 import pprint
 import string
-import logging
+import tempfile
 from contextlib import contextmanager
 from functools import partial
-import soundfile as sf
-import tempfile
 
+import librosa
 import numpy as np
+import scripts.magpietts.evalset_config as evalset_config
+import soundfile as sf
 import torch
+from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector, WhisperForConditionalGeneration, WhisperProcessor
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate_detail
-from nemo.collections.tts.modules.fcd_metric import FrechetCodecDistance
 from nemo.collections.tts.models import AudioCodecModel
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-import librosa
-import scripts.magpietts.evalset_config as evalset_config
-from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
+from nemo.collections.tts.modules.fcd_metric import FrechetCodecDistance
+
 
 def find_generated_files(audio_dir, prefix, extension):
     file_list = []

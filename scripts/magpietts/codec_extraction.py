@@ -11,17 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import json
-import torch
-from torch.utils.data import Dataset, DataLoader
+import os
+
 import lightning.pytorch as pl
+import torch
 from lightning.pytorch import Trainer
 from lightning.pytorch.strategies import DDPStrategy
-from nemo.collections.tts.models import AudioCodecModel
-import os
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-import argparse
 from lightning.pytorch.utilities import rank_zero_only
+from torch.utils.data import DataLoader, Dataset
+
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.tts.models import AudioCodecModel
+
 
 class AudioDataset(Dataset):
     def __init__(self, file_lists, base_audio_dirs, dataset_names, out_dir, sample_rate=22050, pad_multiple=1024):

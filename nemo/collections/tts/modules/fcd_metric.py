@@ -23,12 +23,13 @@ The frames are currently considered independently, i.e. temporal relationships b
 be useful to explore).
 """
 
-import torch
-from torch import nn, Tensor
-from torchmetrics import Metric
 import numpy as np
-from nemo.collections.tts.models import AudioCodecModel
+import torch
+from torch import Tensor, nn
+from torchmetrics import Metric
+
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.collections.tts.models import AudioCodecModel
 from nemo.utils import logging
 
 

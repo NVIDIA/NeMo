@@ -14,8 +14,10 @@
 import os
 import random
 import time
-from typing import List, Optional
 from functools import partial
+from typing import List, Optional
+
+import numpy as np
 import soundfile as sf
 import torch
 import wandb
@@ -25,7 +27,6 @@ from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import nn
 from torch.utils.data import get_worker_info
-import numpy as np
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
@@ -36,8 +37,8 @@ from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
 from nemo.collections.tts.modules.magpietts_modules import (
     CharAwareSubwordEncoder,
-    SpecialAudioToken,
     LocalTransformerType,
+    SpecialAudioToken,
     cosine_schedule,
 )
 from nemo.collections.tts.parts.utils.helpers import (
@@ -49,17 +50,16 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
+
 def worker_init_fn(worker_id):
     # For mp.set_start_method("spawn", force=True)
     # The dataset class should be picklable, so we initialize non-picklable objects here
     logging.info(f"Worker {worker_id} initializing...")
     worker_info = get_worker_info()
     dataset = worker_info.dataset  # Get the dataset instance in this worker
-    tokenizer = setup_tokenizers(
-        dataset.tokenizer_config,
-        mode=dataset.dataset_type
-    )
+    tokenizer = setup_tokenizers(dataset.tokenizer_config, mode=dataset.dataset_type)
     dataset.text_tokenizer = tokenizer
+
 
 class MagpieTTSModel(ModelPT):
     """
@@ -106,10 +106,16 @@ class MagpieTTSModel(ModelPT):
         get_token_index = partial(SpecialAudioToken.get_index, base_codebook_size=num_audio_tokens)
         self.audio_bos_id = cfg.get('forced_audio_bos_id', get_token_index(SpecialAudioToken.AUDIO_BOS))
         self.audio_eos_id = cfg.get('forced_audio_eos_id', get_token_index(SpecialAudioToken.AUDIO_EOS))
-        self.context_audio_bos_id = cfg.get('forced_context_audio_bos_id', get_token_index(SpecialAudioToken.AUDIO_CONTEXT_BOS))
-        self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', get_token_index(SpecialAudioToken.AUDIO_CONTEXT_EOS))
+        self.context_audio_bos_id = cfg.get(
+            'forced_context_audio_bos_id', get_token_index(SpecialAudioToken.AUDIO_CONTEXT_BOS)
+        )
+        self.context_audio_eos_id = cfg.get(
+            'forced_context_audio_eos_id', get_token_index(SpecialAudioToken.AUDIO_CONTEXT_EOS)
+        )
         self.mask_token_id = cfg.get('forced_mask_token_id', get_token_index(SpecialAudioToken.MASK_TOKEN))
-        self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook', num_audio_tokens + len(SpecialAudioToken))
+        self.num_all_tokens_per_codebook = cfg.get(
+            'forced_num_all_tokens_per_codebook', num_audio_tokens + len(SpecialAudioToken)
+        )
         self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
 
         # The frame stacking factor controls how many consecutive frames are processed together by the base decoder
@@ -129,19 +135,19 @@ class MagpieTTSModel(ModelPT):
         # Using google-t5/t5-small as default text conditioning tokenizer for backward compatibility.
         self.text_conditioning_tokenizer_name = cfg.get('text_conditioning_tokenizer_name', None)
         self.legacy_text_conditioning = cfg.get('legacy_text_conditioning', False)
-        
+
         if self.legacy_text_conditioning:
             if self.text_conditioning_tokenizer_name is None:
                 self.text_conditioning_tokenizer_name = "google-t5/t5-small"
-            
+
             tokenizer_target = "AutoTokenizer"
             if self.text_conditioning_tokenizer_name == "google-t5/t5-small":
                 tokenizer_target = "T5Tokenizer"
 
             with open_dict(cfg):
                 cfg.text_tokenizers[self.text_conditioning_tokenizer_name] = {
-                    '_target_' : tokenizer_target,
-                    'pretrained_model' : self.text_conditioning_tokenizer_name,
+                    '_target_': tokenizer_target,
+                    'pretrained_model': self.text_conditioning_tokenizer_name,
                 }
         elif self.text_conditioning_tokenizer_name is None:
             # If no text_conditioning_tokenizer_name is specified, use the first one as default
@@ -178,7 +184,7 @@ class MagpieTTSModel(ModelPT):
 
         # This needs to happen after super().__init__()
         self._codec_model = codec_model
-        self._codec_model.freeze()  #Lightning does requires_grad = False and self.eval()
+        self._codec_model.freeze()  # Lightning does requires_grad = False and self.eval()
 
         audio_embeddings = []
         for _ in range(self.num_audio_codebooks * self.frame_stacking_factor):
@@ -204,7 +210,7 @@ class MagpieTTSModel(ModelPT):
                     d_embed=cfg.embedding_dim,
                     llm_tokenizer_vocab=subword_vocab,
                     subword_padding_idx=self.tokenizer.pad,
-                    special_vocab=special_vocab
+                    special_vocab=special_vocab,
                 )
             else:
                 # Regular text embedding
@@ -213,7 +219,10 @@ class MagpieTTSModel(ModelPT):
             self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
-        self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook * self.frame_stacking_factor)
+        self.final_proj = nn.Linear(
+            cfg.decoder.d_model,
+            self.num_audio_codebooks * self.num_all_tokens_per_codebook * self.frame_stacking_factor,
+        )
 
         self.local_transformer_type = LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
         logging.info(f"Local transformer type: {self.local_transformer_type}")
@@ -226,17 +235,19 @@ class MagpieTTSModel(ModelPT):
             self.local_transformer = transformer_2501.Transformer(
                 n_layers=self.cfg.get('local_transformer_n_layers', 2),
                 d_model=local_transformer_hidden_dim,
-                d_ffn=local_transformer_hidden_dim*4,
+                d_ffn=local_transformer_hidden_dim * 4,
                 sa_n_heads=self.cfg.get('local_transformer_n_heads', 1),
                 kernel_size=1,
                 is_causal=self.local_transformer_type == LocalTransformerType.AR,
-                max_length_causal_mask=self.frame_stacking_factor*self.num_audio_codebooks+2,
+                max_length_causal_mask=self.frame_stacking_factor * self.num_audio_codebooks + 2,
                 use_learnable_pos_emb=True,
             )
             local_transformer_out_projections = []
             for _ in range(self.num_audio_codebooks * self.frame_stacking_factor):
                 # Have a separate projection layer for each codebook, to distinguish between them
-                local_transformer_out_projections.append(nn.Linear(local_transformer_hidden_dim, self.num_all_tokens_per_codebook))
+                local_transformer_out_projections.append(
+                    nn.Linear(local_transformer_hidden_dim, self.num_all_tokens_per_codebook)
+                )
             self.local_transformer_out_projections = nn.ModuleList(local_transformer_out_projections)
 
         if cfg.get('use_alignment_encoder', False):
@@ -253,7 +264,7 @@ class MagpieTTSModel(ModelPT):
             self._speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
                 model_name='titanet_large'
             )
-            self._speaker_verification_model.freeze()  #Lightning does requires_grad = False and self.eval()
+            self._speaker_verification_model.freeze()  # Lightning does requires_grad = False and self.eval()
             self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
             self.transcript_decoder_layers = [
                 idx for idx in range(self.decoder.n_layers)
@@ -287,7 +298,7 @@ class MagpieTTSModel(ModelPT):
 
         elif self.model_type == 'decoder_pretrain_synthesizer':
             # This is for pretraining the decoder only on audio data using next frame prediction loss
-            assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"    
+            assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
         else:
             raise ValueError(f"Unsupported model type {self.model_type}")
 
@@ -324,7 +335,6 @@ class MagpieTTSModel(ModelPT):
         # Configuration validity checks
         self.check_frame_stacking_config_validity()
 
-
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         """
         Only used for saving checkpoints. On save, we remove _speaker_verification_model and _codec_model
@@ -347,7 +357,7 @@ class MagpieTTSModel(ModelPT):
         if self.frame_stacking_factor > 1:
             # The settings below are not supported with frame stacking.
             # Some of them may work - but they have not been tested.
-    
+
             # disallow alignment encoder
             if self.use_alignment_encoder:
                 raise ValueError("Alignment encoder is not supported for frame stacking")
@@ -376,7 +386,7 @@ class MagpieTTSModel(ModelPT):
             else:
                 new_state_dict[key] = state_dict[key]
         return new_state_dict
-    
+
     def load_state_dict(self, state_dict, strict=True):
         """
         Modify load_state_dict so that we don't restore weights to _speaker_verification_model and _codec_model when
@@ -388,10 +398,15 @@ class MagpieTTSModel(ModelPT):
         if strict == False:
             super().load_state_dict(state_dict, strict=False)
         for name, child in self.named_children():
-            if name in ['_speaker_verification_model', '_codec_model', '_reference_model', 
-                        'eval_asr_model', 'eval_speaker_verification_model', 
-                        'whisper_model', 'squim_objective_model'
-                        ]:
+            if name in [
+                '_speaker_verification_model',
+                '_codec_model',
+                '_reference_model',
+                'eval_asr_model',
+                'eval_speaker_verification_model',
+                'whisper_model',
+                'squim_objective_model',
+            ]:
                 continue
             if any(param.numel() > 0 for param in child.parameters()):
                 # If the module has parameters, we want to change the default mapping so that the state_dict gets
@@ -401,7 +416,7 @@ class MagpieTTSModel(ModelPT):
                 for key in state_dict.keys():
                     name_with_dot = f"{name}."
                     if key.startswith(name_with_dot):
-                        new_state_dict[key[len(name_with_dot):]] = state_dict[key]
+                        new_state_dict[key[len(name_with_dot) :]] = state_dict[key]
                 child.load_state_dict(new_state_dict)
 
     def audio_to_codes(self, audio, audio_len, audio_type='target'):
@@ -423,7 +438,7 @@ class MagpieTTSModel(ModelPT):
             bos_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), audio_bos_id, dtype=codes.dtype, device=codes.device
             )
-            # pad at the end to make room for the EOS token; the EOS token's actual position 
+            # pad at the end to make room for the EOS token; the EOS token's actual position
             # varies per batch element depending on each element's length.
             pad_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), 0, dtype=codes.dtype, device=codes.device
@@ -433,7 +448,7 @@ class MagpieTTSModel(ModelPT):
             # codes_len: (B,)
             for idx in range(codes.size(0)):
                 codes[idx, :, codes_len[idx] + 1] = audio_eos_id
-            codes_len = codes_len + 2 # +1 for bos and +1 for eos
+            codes_len = codes_len + 2  # +1 for bos and +1 for eos
             return codes.long(), codes_len.long()
 
     def codes_to_audio(self, codes, codes_len):
@@ -457,7 +472,7 @@ class MagpieTTSModel(ModelPT):
         audio_embedding = None
         for i in range(self.frame_stacking_factor):
             for c in range(C):
-                tokens = audio_tokens[:,c , i::self.frame_stacking_factor]
+                tokens = audio_tokens[:, c, i :: self.frame_stacking_factor]
                 embedding = self.audio_embeddings[c + i * C](tokens)
                 if audio_embedding is None:
                     audio_embedding = embedding
@@ -494,48 +509,54 @@ class MagpieTTSModel(ModelPT):
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
         | seq. index |    0    |    1    |    2    |    3    |    4    |    5    |    6    |    7    |    8    |
         +------------+---------+---------+---------+---------+---------+---------+---------+---------+---------+
-        
+
         dec_out: (B, T', E)
         audio_codes_target: (B, C, T')
         targets_offset_by_one: bool, if False, the target for index 0 is codebook 0, for index 1 is codebook 1, etc. (autoregressive)
                                      if True,  the target for index 1 is codebook 0, for index 2 is codebook 1, etc. (MaskGit)
         """
         C = self.num_audio_codebooks
-        dec_out_all = dec_out.reshape(-1, dec_out.size(-1)) # (B*T', E)
+        dec_out_all = dec_out.reshape(-1, dec_out.size(-1))  # (B*T', E)
         local_transformer_input = [dec_out_all]
         # Build the teacher-forced input to the LT.
         for fs_index in range(self.frame_stacking_factor):
             for codebook_num in range(C):
-                # Collect ground truth codes for the current codebook and frame stack index combintation. 
-                codes = audio_codes_target[:, codebook_num, fs_index::self.frame_stacking_factor] # (B, T')
+                # Collect ground truth codes for the current codebook and frame stack index combintation.
+                codes = audio_codes_target[:, codebook_num, fs_index :: self.frame_stacking_factor]  # (B, T')
                 # Individual timesteps are independently handled by the LT fold time into the batch dimension.
-                codes = codes.reshape(-1) # (B*T',)
+                codes = codes.reshape(-1)  # (B*T',)
                 # Embed the codes
-                codebook_embedding = self.audio_embeddings[codebook_num + fs_index * C](codes) # (B*T', E)
+                codebook_embedding = self.audio_embeddings[codebook_num + fs_index * C](codes)  # (B*T', E)
                 local_transformer_input.append(codebook_embedding)
         # Stack the input codes along dimension 1 (codebooks). This is the dimension along which the LT predicts iteratively.
-        local_transformer_input = torch.stack(local_transformer_input, dim=1) # (B*T', C+1, E)
-        local_transformer_input = self.local_transformer_in_projection(local_transformer_input) # (B*T', C+1, 128)
-        _mask = torch.ones(local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
-        local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B*T', C+1, E)
+        local_transformer_input = torch.stack(local_transformer_input, dim=1)  # (B*T', C+1, E)
+        local_transformer_input = self.local_transformer_in_projection(local_transformer_input)  # (B*T', C+1, 128)
+        _mask = torch.ones(
+            local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device
+        )
+        local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output']  # (B*T', C+1, E)
         if not targets_offset_by_one:
             # for autoregressive local transformer the target for index 0 is codebook 0, for index 1 is codebook 1, etc.
-            local_transformer_output = local_transformer_output[:, :-1, :] # (B*T', C, E)
+            local_transformer_output = local_transformer_output[:, :-1, :]  # (B*T', C, E)
         else:
             # for MaskGit the target for index **1** is codebook 0, for index 2 is codebook 1, etc.
-            local_transformer_output = local_transformer_output[:, 1:, :] # (B*T', C, E)
+            local_transformer_output = local_transformer_output[:, 1:, :]  # (B*T', C, E)
         all_code_logits = []
         for fs_index in range(self.frame_stacking_factor):
             for codebook_num in range(audio_codes_target.size(1)):
                 # Using a separate projection layer for each codebook (to distinguish between them)
                 # Checked the time - this loop is not taking much time (compared to the local transformer forward pass)
-                codebook_logits = self.local_transformer_out_projections[codebook_num + fs_index*C](local_transformer_output[:, codebook_num + fs_index*C, :]) # (B*T', num_all_tokens_per_codebook)
+                codebook_logits = self.local_transformer_out_projections[codebook_num + fs_index * C](
+                    local_transformer_output[:, codebook_num + fs_index * C, :]
+                )  # (B*T', num_all_tokens_per_codebook)
                 all_code_logits.append(codebook_logits)
-        all_code_logits = torch.cat(all_code_logits, dim=1) # (B*T'/frame_stacking_factor, num_codebooks * num_all_tokens_per_codebook * frame_stacking_factor)
+        all_code_logits = torch.cat(
+            all_code_logits, dim=1
+        )  # (B*T'/frame_stacking_factor, num_codebooks * num_all_tokens_per_codebook * frame_stacking_factor)
 
         all_code_logits = all_code_logits.view(
             audio_codes_target.size(0), audio_codes_target.size(2) // self.frame_stacking_factor, -1
-        ) # (B, T'/frame_stacking_factor, C * num_all_tokens_per_codebook * frame_stacking_factor)
+        )  # (B, T'/frame_stacking_factor, C * num_all_tokens_per_codebook * frame_stacking_factor)
 
         return all_code_logits
 
@@ -544,13 +565,13 @@ class MagpieTTSModel(ModelPT):
         Creates a mask where True indicates the positions that should be replaced with a MASK_TOKEN.
         """
         # Codes: (B, C, T)
-        B,C,T = codes.shape
+        B, C, T = codes.shape
         # get a uniform random vector uniformly sampled from [0,1) ## Todo does it need to be inclusive on the right?
-        rand_values = torch.rand(B,T, device=codes.device)
+        rand_values = torch.rand(B, T, device=codes.device)
         # apply the cosine schedule
         frac_masked = cosine_schedule(rand_values)
         # how many positions to mask
-        n_masked = torch.ceil(frac_masked * C).long() # B,T
+        n_masked = torch.ceil(frac_masked * C).long()  # B,T
         # start from all unmasked
         mask = torch.zeros_like(codes, dtype=torch.bool)
         # The code further below is the vectorized version of this:
@@ -566,11 +587,11 @@ class MagpieTTSModel(ModelPT):
         random_permutations = torch.argsort(torch.rand(B, C, T, device=codes.device), dim=1)  # (B, C, T)
         # Create a mask tensor where each position indicates if it should be masked
         mask_indices = torch.arange(C, device=codes.device).view(1, C, 1)
-        mask = mask_indices < n_masked.view(B, 1, T) # (B, C, T)
+        mask = mask_indices < n_masked.view(B, 1, T)  # (B, C, T)
         # Apply the random permutations to the mask
         mask = torch.gather(mask, 1, random_permutations)
 
-        return mask # (B, C, T)
+        return mask  # (B, C, T)
 
     def maskgit_apply_random_mask(self, codes):
         # Randomly replaces some codes with the MASK_TOKEN with a proportion following the cosine schedule.
@@ -628,7 +649,7 @@ class MagpieTTSModel(ModelPT):
                 else:
                     total_codebook_loss = total_codebook_loss + codebook_loss
 
-        total_codebook_loss = total_codebook_loss / (audio_codes.size(1) * frame_stacking_factor) 
+        total_codebook_loss = total_codebook_loss / (audio_codes.size(1) * frame_stacking_factor)
         return total_codebook_loss, loss_mask
 
     def forward(self, dec_input_embedded, dec_input_mask, cond, cond_mask, attn_prior, multi_encoder_mapping):
@@ -657,15 +678,17 @@ class MagpieTTSModel(ModelPT):
                 # argmax to get the tokens
                 codebook_preds = torch.argmax(codebook_probs, dim=-1)  # (B, T')
                 all_preds[fs_index].append(codebook_preds)
-        all_preds = [torch.stack(p, dim=1) for p in all_preds] # list of `frame_stacking_factor`` elements of shape (B,C,T) each
-        all_preds = torch.stack(all_preds, dim=-1) # B, C, T, frame_stacking_factor
+        all_preds = [
+            torch.stack(p, dim=1) for p in all_preds
+        ]  # list of `frame_stacking_factor`` elements of shape (B,C,T) each
+        all_preds = torch.stack(all_preds, dim=-1)  # B, C, T, frame_stacking_factor
         # undo the frame stacking
-        all_preds = all_preds.reshape(all_preds.size(0), all_preds.size(1), -1) # B, C, T*frame_stacking_factor
+        all_preds = all_preds.reshape(all_preds.size(0), all_preds.size(1), -1)  # B, C, T*frame_stacking_factor
         pred_max_len = all_preds.size(2)
         real_max_len = audio_codes_lens.max()
         assert (pred_max_len - real_max_len) < self.frame_stacking_factor
         # trim padding introduced for frame stacking
-        all_preds = all_preds[:,:, :real_max_len]
+        all_preds = all_preds[:, :, :real_max_len]
         audio_mask = get_mask_from_lengths(audio_codes_lens)
         all_preds = all_preds * audio_mask.unsqueeze(1)
 
@@ -676,11 +699,13 @@ class MagpieTTSModel(ModelPT):
         Visualize codes for analysis purposes
         codes: (B, C)
         """
+
         def code_to_str(code):
-            if code==mask_id:
+            if code == mask_id:
                 return "M    "
             else:
                 return f"{code:04d} "
+
         B, C = codes.shape
         if B > 1:
             logging.debug("Warning: visualizing only first batch element")
@@ -688,7 +713,7 @@ class MagpieTTSModel(ModelPT):
         codes = [code_to_str(c) for c in codes]
         output_str = ""
         for i, c in enumerate(codes):
-            if (i) % (C/frame_stacking_rate) == 0:
+            if (i) % (C / frame_stacking_rate) == 0:
                 output_str += "|timestep| "
             output_str += c
         logging.debug(output_str)
@@ -700,26 +725,44 @@ class MagpieTTSModel(ModelPT):
         Args:
             logits: (B, C, num_audio_tokens_per_codebook)
         """
-        logits[:, :, SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, forbid_audio_eos=False)] = float('-inf')
+        logits[
+            :, :, SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, forbid_audio_eos=False)
+        ] = float('-inf')
         return logits
 
-    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule=None, dynamic_cfg_scale=False, sampling_type=None):
+    def local_transformer_sample_maskgit(
+        self,
+        dec_output,
+        temperature=0.7,
+        topk=80,
+        unfinished_items={},
+        finished_items={},
+        use_cfg=False,
+        cfg_scale=1.0,
+        n_steps=3,
+        noise_scale=0.0,
+        fixed_schedule=None,
+        dynamic_cfg_scale=False,
+        sampling_type=None,
+    ):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
-        """        
+        """
         # dec_output: (B, E)
         device = dec_output.device
         # disable KV cache since our transformer is not causal
         self.local_transformer.reset_cache(use_cache=False)
-        dec_output = dec_output.unsqueeze(1) # (B, 1, E)
-        local_transformer_input_init = self.local_transformer_in_projection(dec_output) # (B, 1, D) where D is the dimension of the local transformer
+        dec_output = dec_output.unsqueeze(1)  # (B, 1, E)
+        local_transformer_input_init = self.local_transformer_in_projection(
+            dec_output
+        )  # (B, 1, D) where D is the dimension of the local transformer
         codebook_seq_len = self.num_audio_codebooks * self.frame_stacking_factor
         B = dec_output.size(0)
 
         min_confidence = 0
         # this needs to be large enough that unmasked items will always remain unmasked (even after noise addition)
         # Setting it smaller could allow "regret", i.e. re-masking a codebook that was previously unmasked; we might want to try that
-        max_confidence = 5 
+        max_confidence = 5
         confidences = min_confidence * torch.ones(B, codebook_seq_len, device=device)
         # initialize to all masked
         codes = self.mask_token_id * torch.ones((B, codebook_seq_len), device=device, dtype=torch.long)
@@ -741,39 +784,55 @@ class MagpieTTSModel(ModelPT):
                 n_masked = codebook_seq_len - fixed_schedule[step]
             n_unmasked = codebook_seq_len - n_masked
 
-            if sampling_type == "causal" or sampling_type == "purity_causal":# and n_unmasked <= self.num_audio_codebooks:
+            if (
+                sampling_type == "causal" or sampling_type == "purity_causal"
+            ):  # and n_unmasked <= self.num_audio_codebooks:
                 # force second frame not to be unmasked
-                n_frames_to_allow = int(np.floor(progress*self.frame_stacking_factor+1))
-                confidences[:,n_frames_to_allow*self.num_audio_codebooks:] = min_confidence-1 # only tested for frame_stacking_factor=2
+                n_frames_to_allow = int(np.floor(progress * self.frame_stacking_factor + 1))
+                confidences[:, n_frames_to_allow * self.num_audio_codebooks :] = (
+                    min_confidence - 1
+                )  # only tested for frame_stacking_factor=2
 
             # pick top-confidence codebooks up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
             if use_cfg:
                 actual_batch_size = topk_indices.size(0) // 2
-                assert (topk_indices[actual_batch_size:] == topk_indices[:actual_batch_size]).all(), f"Topk indices are not the same for conditional and unconditional codes"
+                assert (
+                    topk_indices[actual_batch_size:] == topk_indices[:actual_batch_size]
+                ).all(), f"Topk indices are not the same for conditional and unconditional codes"
 
             # replace masks of the top-k confident codebooks with the codes that were sampled for them
             unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
             codes.scatter_(dim=1, index=topk_indices, src=unmasked_codes)
-  
+
             # build transformer input
             local_transformer_input = local_transformer_input_init
             for codebook_num in range(codebook_seq_len):
-                next_local_transformer_input = self.audio_embeddings[codebook_num](codes[:, codebook_num]).unsqueeze(1) # (B, 1, 768)
-                next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, d_local)
-                local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, codebook_num+1, d_local)
+                next_local_transformer_input = self.audio_embeddings[codebook_num](codes[:, codebook_num]).unsqueeze(
+                    1
+                )  # (B, 1, 768)
+                next_local_transformer_input = self.local_transformer_in_projection(
+                    next_local_transformer_input
+                )  # (B, 1, d_local)
+                local_transformer_input = torch.cat(
+                    [local_transformer_input, next_local_transformer_input], dim=1
+                )  # (B, codebook_num+1, d_local)
 
             # run transformer
-            _mask = torch.ones(B, codebook_seq_len+1, device=device)
-            local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, C+1, d_local)
+            _mask = torch.ones(B, codebook_seq_len + 1, device=device)
+            local_transformer_output = self.local_transformer(local_transformer_input, _mask)[
+                'output'
+            ]  # (B, C+1, d_local)
 
             # get logits
             logits = []
             for codebook_num in range(codebook_seq_len):
                 # The `codebook_num+1` is to drop first position which corresponds to the magpie latent
-                codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, codebook_num+1, :]) # (B, num_audio_tokens_per_codebook)
+                codebook_logits = self.local_transformer_out_projections[codebook_num](
+                    local_transformer_output[:, codebook_num + 1, :]
+                )  # (B, num_audio_tokens_per_codebook)
                 logits.append(codebook_logits)
-            logits = torch.stack(logits, dim=1) # (B, C*frame_stacking_factor, num_audio_tokens_per_codebook)
+            logits = torch.stack(logits, dim=1)  # (B, C*frame_stacking_factor, num_audio_tokens_per_codebook)
 
             # apply CFG
             if use_cfg:
@@ -784,12 +843,12 @@ class MagpieTTSModel(ModelPT):
                     current_cfg_scale = cfg_scale
                 else:
                     # gradually increase the scale until mid point through sampling, then reduce it again
-                    progress = step / (n_steps-1)
-                    #interp = -abs(progress-0.5)+0.5 # increase from 0..1 in the interval from start to midpoint and then go back to zero
-                    #interp = 1.0 - progress  # decrease from 1 to 0
-                    interp = progress # gradually increase from 0 to 1
+                    progress = step / (n_steps - 1)
+                    # interp = -abs(progress-0.5)+0.5 # increase from 0..1 in the interval from start to midpoint and then go back to zero
+                    # interp = 1.0 - progress  # decrease from 1 to 0
+                    interp = progress  # gradually increase from 0 to 1
                     current_cfg_scale = (cfg_scale - 1) * interp + 1.0  # 1.0 --> cfg_scale --> 1.0
-                cfg_logits = current_cfg_scale * conditional_logits +  (1.0 - current_cfg_scale) * unconditional_logits                                    
+                cfg_logits = current_cfg_scale * conditional_logits + (1.0 - current_cfg_scale) * unconditional_logits
                 logits[:actual_batch_size] = cfg_logits
 
             # Disallow generation of special tokens (except audio EOS which is handled separately)
@@ -803,12 +862,12 @@ class MagpieTTSModel(ModelPT):
                 logits[item_idx, :, self.audio_eos_id] = 0.0
 
             # sample with top-k
-            logits_topk = torch.topk(logits, topk, dim=-1)[0] # (B, C, topk)
-            indices_to_remove = logits < logits_topk[:, :, -1].unsqueeze(-1) # (B, C, num_audio_tokens_per_codebook)
+            logits_topk = torch.topk(logits, topk, dim=-1)[0]  # (B, C, topk)
+            indices_to_remove = logits < logits_topk[:, :, -1].unsqueeze(-1)  # (B, C, num_audio_tokens_per_codebook)
             logits_rescored = logits.clone()
             logits_rescored[indices_to_remove] = float('-inf')
-            probs = torch.softmax(logits_rescored / temperature, dim=-1) # (B, C, num_audio_tokens_per_codebook)
-            sampled_codes = torch.multinomial(probs.view(B*codebook_seq_len, -1), 1).view(B, codebook_seq_len)
+            probs = torch.softmax(logits_rescored / temperature, dim=-1)  # (B, C, num_audio_tokens_per_codebook)
+            sampled_codes = torch.multinomial(probs.view(B * codebook_seq_len, -1), 1).view(B, codebook_seq_len)
             if use_cfg:
                 sampled_codes[actual_batch_size:] = sampled_codes[:actual_batch_size]
                 probs[actual_batch_size:] = probs[:actual_batch_size]
@@ -823,40 +882,64 @@ class MagpieTTSModel(ModelPT):
             if noise_scale > 0.0:
                 # get noise from uniform distribution in the interval [-0.5, 0.5), scale it by `noise_scale`,
                 # and anneal it to 0 as we approach the end of the unmasking process
-                noise = (torch.rand_like(confidences) - 0.5) * noise_scale * (1-(step+2)/n_steps) # the +2 makes sure that by the last iteration the noise is exactly 0
+                noise = (
+                    (torch.rand_like(confidences) - 0.5) * noise_scale * (1 - (step + 2) / n_steps)
+                )  # the +2 makes sure that by the last iteration the noise is exactly 0
                 confidences += noise
                 # the conditional and unconditional get different noise and must be fixed to be the same again
-                confidences[actual_batch_size:] = confidences[:actual_batch_size]                
+                confidences[actual_batch_size:] = confidences[:actual_batch_size]
             confidence_eps = 0.1
-            assert confidences.max() + confidence_eps < max_confidence, f"Predicted confidence is approaching max_confidence: {confidences.max()}"
+            assert (
+                confidences.max() + confidence_eps < max_confidence
+            ), f"Predicted confidence is approaching max_confidence: {confidences.max()}"
             # for unmasked codebooks, set confidence to max so that they will remain unmasked
-            confidences.scatter_(index=topk_indices, dim=1, src=max_confidence*torch.ones_like(topk_indices, dtype=torch.float))
+            confidences.scatter_(
+                index=topk_indices, dim=1, src=max_confidence * torch.ones_like(topk_indices, dtype=torch.float)
+            )
         codes = sampled_codes
-        assert not (codes == self.mask_token_id).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
+        assert not (
+            codes == self.mask_token_id
+        ).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
 
         # break stacked groups of frames into individual frames
-        codes = codes.reshape(B, self.frame_stacking_factor, self.num_audio_codebooks).permute(0,2,1) # B, C, frame_stacking_factor
+        codes = codes.reshape(B, self.frame_stacking_factor, self.num_audio_codebooks).permute(
+            0, 2, 1
+        )  # B, C, frame_stacking_factor
 
-        if use_cfg: 
+        if use_cfg:
             # drop unconditional codes
             codes = codes[:actual_batch_size]
         return codes
 
-    def local_transformer_sample_autoregressive(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, use_kv_cache=True):
+    def local_transformer_sample_autoregressive(
+        self,
+        dec_output,
+        temperature=0.7,
+        topk=80,
+        unfinished_items={},
+        finished_items={},
+        use_cfg=False,
+        cfg_scale=1.0,
+        use_kv_cache=True,
+    ):
         # dec_output: (B, E)
         self.local_transformer.reset_cache(use_cache=use_kv_cache)
-        dec_output = dec_output.unsqueeze(1) # (B, 1, E)
-        local_transformer_input = self.local_transformer_in_projection(dec_output) # (B, 1, 128)
+        dec_output = dec_output.unsqueeze(1)  # (B, 1, E)
+        local_transformer_input = self.local_transformer_in_projection(dec_output)  # (B, 1, 128)
         all_preds = []
         for codebook_num in range(self.num_audio_codebooks * self.frame_stacking_factor):
-            _mask = torch.ones( local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device)
-            local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output'] # (B, T, 128)
-            codebook_logits = self.local_transformer_out_projections[codebook_num](local_transformer_output[:, -1, :]) # (B, num_all_tokens_per_codebook)
+            _mask = torch.ones(
+                local_transformer_input.size(0), local_transformer_input.size(1), device=local_transformer_input.device
+            )
+            local_transformer_output = self.local_transformer(local_transformer_input, _mask)['output']  # (B, T, 128)
+            codebook_logits = self.local_transformer_out_projections[codebook_num](
+                local_transformer_output[:, -1, :]
+            )  # (B, num_all_tokens_per_codebook)
             if use_cfg:
                 actual_batch_size = codebook_logits.size(0) // 2
                 conditional_logits = codebook_logits[:actual_batch_size]
                 unconditional_logits = codebook_logits[actual_batch_size:]
-                cfg_logits = cfg_scale * conditional_logits +  (1.0 - cfg_scale) * unconditional_logits
+                cfg_logits = cfg_scale * conditional_logits + (1.0 - cfg_scale) * unconditional_logits
                 codebook_logits[:actual_batch_size] = cfg_logits
 
             for item_idx in unfinished_items:
@@ -866,27 +949,41 @@ class MagpieTTSModel(ModelPT):
                 codebook_logits[item_idx, self.audio_eos_id] = 0.0
 
             codebook_logits = self.clear_forbidden_logits(codebook_logits.unsqueeze(1)).squeeze(1)
-            codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0] # (B, topk)
-            indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(-1) # (B, num_tokens_per_codebook)
+            codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0]  # (B, topk)
+            indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(
+                -1
+            )  # (B, num_tokens_per_codebook)
             codebook_logits_rescored = codebook_logits.clone()
             codebook_logits_rescored[indices_to_remove] = float('-inf')
-            codebook_probs = torch.softmax(codebook_logits_rescored / temperature, dim=-1) # (B, num_tokens_per_codebook)
-            codebook_preds = torch.multinomial(codebook_probs, 1) # (B, 1)
+            codebook_probs = torch.softmax(
+                codebook_logits_rescored / temperature, dim=-1
+            )  # (B, num_tokens_per_codebook)
+            codebook_preds = torch.multinomial(codebook_probs, 1)  # (B, 1)
             if use_cfg:
                 codebook_preds[actual_batch_size:] = codebook_preds[:actual_batch_size]
             all_preds.append(codebook_preds)
-            next_local_transformer_input = self.audio_embeddings[codebook_num](codebook_preds.squeeze(-1)).unsqueeze(1) # (B, 1, 128)
-            next_local_transformer_input = self.local_transformer_in_projection(next_local_transformer_input) # (B, 1, 128)
-            local_transformer_input = torch.cat([local_transformer_input, next_local_transformer_input], dim=1) # (B, T+1, 128)
+            next_local_transformer_input = self.audio_embeddings[codebook_num](codebook_preds.squeeze(-1)).unsqueeze(
+                1
+            )  # (B, 1, 128)
+            next_local_transformer_input = self.local_transformer_in_projection(
+                next_local_transformer_input
+            )  # (B, 1, 128)
+            local_transformer_input = torch.cat(
+                [local_transformer_input, next_local_transformer_input], dim=1
+            )  # (B, T+1, 128)
 
-        all_preds = torch.cat(all_preds, dim=1).long() # (B, num_codebooks * frame_stacking_factor)
-        all_preds = all_preds.reshape(-1, self.frame_stacking_factor, self.num_audio_codebooks).permute(0,2,1) # (B, num_codebooks, frame_stacking_factor)
+        all_preds = torch.cat(all_preds, dim=1).long()  # (B, num_codebooks * frame_stacking_factor)
+        all_preds = all_preds.reshape(-1, self.frame_stacking_factor, self.num_audio_codebooks).permute(
+            0, 2, 1
+        )  # (B, num_codebooks, frame_stacking_factor)
         if use_cfg:
             all_preds = all_preds[:actual_batch_size]
 
         return all_preds
 
-    def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80, unfinished_items={}, finished_items={}):
+    def sample_codes_from_logits(
+        self, all_code_logits_t, temperature=0.7, topk=80, unfinished_items={}, finished_items={}
+    ):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
         all_preds = [[] for _ in range(self.frame_stacking_factor)]
         for fs_index in range(self.frame_stacking_factor):
@@ -908,11 +1005,15 @@ class MagpieTTSModel(ModelPT):
                 codebook_logits_rescored = codebook_logits.clone()
                 codebook_logits_rescored[indices_to_remove] = float('-inf')
 
-                codebook_probs = torch.softmax(codebook_logits_rescored / temperature, dim=-1)  # (B, num_tokens_per_codebook)
+                codebook_probs = torch.softmax(
+                    codebook_logits_rescored / temperature, dim=-1
+                )  # (B, num_tokens_per_codebook)
                 codebook_preds = torch.multinomial(codebook_probs, 1)  # (B, 1)
                 all_preds[fs_index].append(codebook_preds)
-                
-        all_preds = [torch.cat(ds_preds, dim=1).long() for ds_preds in all_preds]  # list of `frame_stacking_factor` elements, each of shape (B, num_codebooks)
+
+        all_preds = [
+            torch.cat(ds_preds, dim=1).long() for ds_preds in all_preds
+        ]  # list of `frame_stacking_factor` elements, each of shape (B, num_codebooks)
         all_preds = torch.stack(all_preds, dim=2)  # (B, num_codebooks, frame_stacking_factor)
         return all_preds
 
@@ -928,7 +1029,9 @@ class MagpieTTSModel(ModelPT):
                 is_wandb = isinstance(logger, WandbLogger)
                 is_tb = isinstance(logger, TensorBoardLogger)
                 if not is_wandb and not is_tb:
-                    raise ValueError(f"Invalid logger type for image logging: {type(logger)}. Only `WandbLogger` and `TensorBoardLogger` are supported.")
+                    raise ValueError(
+                        f"Invalid logger type for image logging: {type(logger)}. Only `WandbLogger` and `TensorBoardLogger` are supported."
+                    )
 
                 wandb_images_log[f"Image/{prefix}/attention_matrix"] = list()
                 for idx in range(min(3, attention_prob_matrix_mean.size(0))):
@@ -939,7 +1042,9 @@ class MagpieTTSModel(ModelPT):
                     img_np = plot_alignment_to_numpy(item_attn_matrix.T)
 
                     if is_wandb:
-                        wandb_images_log[f"Image/{prefix}/attention_matrix"].append(wandb.Image(img_np, caption=f"Example_{idx}"))
+                        wandb_images_log[f"Image/{prefix}/attention_matrix"].append(
+                            wandb.Image(img_np, caption=f"Example_{idx}")
+                        )
 
                     if is_tb:
                         logger.experiment.add_image(
@@ -974,7 +1079,9 @@ class MagpieTTSModel(ModelPT):
             is_wandb = isinstance(logger, WandbLogger)
             is_tb = isinstance(logger, TensorBoardLogger)
             if not is_wandb and not is_tb:
-                raise ValueError(f"Invalid logger type for audio logging: {type(logger)}. Only `WandbLogger` and `TensorBoardLogger` are supported.")
+                raise ValueError(
+                    f"Invalid logger type for audio logging: {type(logger)}. Only `WandbLogger` and `TensorBoardLogger` are supported."
+                )
 
             for idx in range(min(3, pred_audio.size(0))):
                 pred_audio_np = pred_audio[idx].float().detach().cpu().numpy()
@@ -989,9 +1096,15 @@ class MagpieTTSModel(ModelPT):
                 if is_wandb:
                     wandb_audio_log[f"Audio/Example_{idx}"] = list()
                     if context_audio_np is not None:
-                        wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(context_audio_np, sample_rate=self.sample_rate, caption="context"))
-                    wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(pred_audio_np, sample_rate=self.sample_rate, caption="prediction"))
-                    wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(target_audio_np, sample_rate=self.sample_rate, caption="target"))
+                        wandb_audio_log[f"Audio/Example_{idx}"].append(
+                            wandb.Audio(context_audio_np, sample_rate=self.sample_rate, caption="context")
+                        )
+                    wandb_audio_log[f"Audio/Example_{idx}"].append(
+                        wandb.Audio(pred_audio_np, sample_rate=self.sample_rate, caption="prediction")
+                    )
+                    wandb_audio_log[f"Audio/Example_{idx}"].append(
+                        wandb.Audio(target_audio_np, sample_rate=self.sample_rate, caption="target")
+                    )
 
                 if is_tb:
                     if context_audio_np is not None:
@@ -1061,7 +1174,7 @@ class MagpieTTSModel(ModelPT):
         )
         return alignment_loss
 
-    def pad_audio_codes(self, audio_codes: torch.Tensor, frame_stacking_factor: int = 1, pad_token: int =0):
+    def pad_audio_codes(self, audio_codes: torch.Tensor, frame_stacking_factor: int = 1, pad_token: int = 0):
         """
         Pads the time dimension of the audio codes to a multiple of the frame stacking factor.
         Args:
@@ -1074,17 +1187,25 @@ class MagpieTTSModel(ModelPT):
         T = audio_codes.size(2)
         T_padded = int(np.ceil(T / frame_stacking_factor) * frame_stacking_factor)
         if T_padded > T:
-            padding = pad_token * torch.ones(audio_codes.size(0), audio_codes.size(1), T_padded - T, device=audio_codes.device, dtype=audio_codes.dtype)
+            padding = pad_token * torch.ones(
+                audio_codes.size(0),
+                audio_codes.size(1),
+                T_padded - T,
+                device=audio_codes.device,
+                dtype=audio_codes.dtype,
+            )
             audio_codes = torch.cat([audio_codes, padding], dim=2)
         return audio_codes
 
     def embed_context_text(self, context_text_tokens):
         if self.legacy_text_conditioning:
-            context_text_tokens = context_text_tokens - self.tokenizer.tokenizer_offsets[self.text_conditioning_tokenizer_name]
+            context_text_tokens = (
+                context_text_tokens - self.tokenizer.tokenizer_offsets[self.text_conditioning_tokenizer_name]
+            )
             context_text_embedded = self.context_text_embedding(context_text_tokens)  # (B, L, E)
         else:
             context_text_embedded = self.text_embedding(context_text_tokens)  # (B, L, E)
-        
+
         return context_text_embedded
 
     def prepare_context_tensors(self, batch):
@@ -1136,7 +1257,7 @@ class MagpieTTSModel(ModelPT):
                 context_text_tokens = batch['context_text_tokens']
                 context_text_lens = batch['context_text_tokens_lens']
                 context_text_embedded = self.embed_context_text(context_text_tokens)  # (B, L, E)
-                
+
                 # Pad context_audio_embedded or context_text_embedded so that they have same number of timesteps
                 if context_audio_embedded.size(1) < context_text_embedded.size(1):
                     padding = torch.zeros(
@@ -1165,7 +1286,9 @@ class MagpieTTSModel(ModelPT):
             else:
                 context_input_embedded = context_audio_embedded
                 context_input_lens = context_audio_codes_lens
-                context_input_lens = torch.ceil(context_input_lens / self.frame_stacking_factor).to(context_input_lens.dtype)
+                context_input_lens = torch.ceil(context_input_lens / self.frame_stacking_factor).to(
+                    context_input_lens.dtype
+                )
 
             context_mask = get_mask_from_lengths(context_input_lens)
 
@@ -1207,10 +1330,16 @@ class MagpieTTSModel(ModelPT):
             # Convert prior to a list of tensors, one for each layer
             # Set None for layers not in ctc_prior_layer_ids
             if self.model_type == 'multi_encoder_context_tts':
-                text_attn_prior = [attn_prior[0] if layer_idx in self.ctc_prior_layer_ids else None for layer_idx in range(self.decoder.n_layers) ]
+                text_attn_prior = [
+                    attn_prior[0] if layer_idx in self.ctc_prior_layer_ids else None
+                    for layer_idx in range(self.decoder.n_layers)
+                ]
                 attn_prior = [text_attn_prior, attn_prior[1]]
             else:
-                attn_prior = [attn_prior if layer_idx in self.ctc_prior_layer_ids else None for layer_idx in range(self.decoder.n_layers) ]
+                attn_prior = [
+                    attn_prior if layer_idx in self.ctc_prior_layer_ids else None
+                    for layer_idx in range(self.decoder.n_layers)
+                ]
 
         return {
             'beta_binomial_attn_prior': batch.get('align_prior_matrix', None),
@@ -1245,12 +1374,12 @@ class MagpieTTSModel(ModelPT):
             prior_updated = False
             for idx, prior in enumerate(text_attn_prior):
                 if prior is not None:
-                    text_attn_prior[idx][:,-aligner_attn_hard.size(1):,:] = aligner_attn_hard
+                    text_attn_prior[idx][:, -aligner_attn_hard.size(1) :, :] = aligner_attn_hard
                     prior_updated = True
             assert prior_updated, "Did not find any prior to update"
         else:
             # Same prior for all layers
-            text_attn_prior[:,-aligner_attn_hard.size(1):,:] = aligner_attn_hard
+            text_attn_prior[:, -aligner_attn_hard.size(1) :, :] = aligner_attn_hard
 
         if self.model_type == 'multi_encoder_context_tts':
             attn_prior[0] = text_attn_prior
@@ -1264,25 +1393,39 @@ class MagpieTTSModel(ModelPT):
         if self.binarize_attn_method == 'nemo_binarize':
             logging.debug("Binarizing attention using nemo_binarize")
             binarize_repeat_audio_factor = self.binarize_repeat_audio_factor
-            aligner_attn_soft_repeated = aligner_attn_soft.repeat_interleave(binarize_repeat_audio_factor, dim=2) # B, 1, 2*audio_timesteps, text_timesteps
-            aligner_attn_hard = binarize_attention_parallel(aligner_attn_soft_repeated, text_lens, audio_lens*binarize_repeat_audio_factor).squeeze(1) # B, 2*audio_timesteps, text_timesteps
-            aligner_attn_hard = aligner_attn_hard[:, ::2, :] # B, audio_timesteps, text_timesteps
+            aligner_attn_soft_repeated = aligner_attn_soft.repeat_interleave(
+                binarize_repeat_audio_factor, dim=2
+            )  # B, 1, 2*audio_timesteps, text_timesteps
+            aligner_attn_hard = binarize_attention_parallel(
+                aligner_attn_soft_repeated, text_lens, audio_lens * binarize_repeat_audio_factor
+            ).squeeze(
+                1
+            )  # B, 2*audio_timesteps, text_timesteps
+            aligner_attn_hard = aligner_attn_hard[:, ::2, :]  # B, audio_timesteps, text_timesteps
         elif self.binarize_attn_method == 'argmax':
             logging.debug("Binarizing attention using argmax")
             aligner_attn_hard = torch.argmax(aligner_attn_soft.squeeze(1), dim=-1)
-            aligner_attn_hard = torch.nn.functional.one_hot(aligner_attn_hard, num_classes=aligner_attn_soft.size(-1)).float()
+            aligner_attn_hard = torch.nn.functional.one_hot(
+                aligner_attn_hard, num_classes=aligner_attn_soft.size(-1)
+            ).float()
         else:
-            raise ValueError(f"self.binarize_attn_method '{self.binarize_attn_method}' must be one of 'nemo_binarize' or 'argmax'.")
+            raise ValueError(
+                f"self.binarize_attn_method '{self.binarize_attn_method}' must be one of 'nemo_binarize' or 'argmax'."
+            )
 
         aligner_attn_hard_wider = aligner_attn_hard + self.binarized_prior_epsilon
 
         for future_timestep in range(self.prior_future_context):
             decay_factor = self.prior_future_decay ** (future_timestep + 1)
-            aligner_attn_hard_wider[:,:,future_timestep+1:] += decay_factor * aligner_attn_hard[:,:,:-(future_timestep+1)]
+            aligner_attn_hard_wider[:, :, future_timestep + 1 :] += (
+                decay_factor * aligner_attn_hard[:, :, : -(future_timestep + 1)]
+            )
 
         for past_timestep in range(self.prior_past_context):
             decay_factor = self.prior_past_decay ** (past_timestep + 1)
-            aligner_attn_hard_wider[:,:,:-past_timestep-1] += decay_factor * aligner_attn_hard[:,:,past_timestep+1:]
+            aligner_attn_hard_wider[:, :, : -past_timestep - 1] += (
+                decay_factor * aligner_attn_hard[:, :, past_timestep + 1 :]
+            )
 
         aligner_attn_hard_wider = torch.clamp(aligner_attn_hard_wider, 0.0, 1.0)
         return aligner_attn_hard_wider
@@ -1329,28 +1472,39 @@ class MagpieTTSModel(ModelPT):
             # repeat the BOS token to frame_stacking_factor times. This is necessary since at inference
             # we need to start autoregressive generation from a full stack indicating BOS.
             # TODO: @rfejgin: this assert might be slow due to GPU/CPU sync
-            assert (audio_codes[:,:,0] == self.audio_bos_id).all(), "Audio codes do not start with BOS token"
-            audio_codes = torch.cat([torch.full((audio_codes.size(0), audio_codes.size(1), self.frame_stacking_factor - 1), self.audio_bos_id, device=audio_codes.device, dtype=audio_codes.dtype), audio_codes], dim=2)
-            audio_codes_lens += self.frame_stacking_factor - 1 # account for BOS repeat
+            assert (audio_codes[:, :, 0] == self.audio_bos_id).all(), "Audio codes do not start with BOS token"
+            audio_codes = torch.cat(
+                [
+                    torch.full(
+                        (audio_codes.size(0), audio_codes.size(1), self.frame_stacking_factor - 1),
+                        self.audio_bos_id,
+                        device=audio_codes.device,
+                        dtype=audio_codes.dtype,
+                    ),
+                    audio_codes,
+                ],
+                dim=2,
+            )
+            audio_codes_lens += self.frame_stacking_factor - 1  # account for BOS repeat
             audio_codes = self.pad_audio_codes(audio_codes, self.frame_stacking_factor, pad_token=0)
         # Note: if a tensor lacks the `_unstacked` suffix, it can be assumed to to be in the frame-stacked domain
-        
+
         # drop last (stacked) frame since it is not part of *input*
-        audio_codes_input_unstacked = audio_codes[:, :, :-self.frame_stacking_factor]  # B, C, T'
+        audio_codes_input_unstacked = audio_codes[:, :, : -self.frame_stacking_factor]  # B, C, T'
         # drop first (stacked) frame which contains BOS token(s) which are not part of *target*
-        audio_codes_target_unstacked = audio_codes[:, :, self.frame_stacking_factor:] 
-        audio_codes_lens_input_unstacked =  audio_codes_lens - 1  # don't count EOS for input
-        audio_codes_lens_target_unstacked = audio_codes_lens - self.frame_stacking_factor # don't count BOS for target
+        audio_codes_target_unstacked = audio_codes[:, :, self.frame_stacking_factor :]
+        audio_codes_lens_input_unstacked = audio_codes_lens - 1  # don't count EOS for input
+        audio_codes_lens_target_unstacked = audio_codes_lens - self.frame_stacking_factor  # don't count BOS for target
         audio_codes_lens_input = torch.floor(audio_codes_lens_input_unstacked / self.frame_stacking_factor).long()
-        audio_codes_embedded_all = self.embed_audio_tokens(audio_codes) # (B, T, E) # Computing this to be use in the alignment encoder
-        audio_codes_embedded = audio_codes_embedded_all[:, :-1, :] # (B, T', E) Input to the decoder; this is already in the frame-stacked domain, hence the -1 (not `frame_stacking_factor`)
+        audio_codes_embedded_all = self.embed_audio_tokens(
+            audio_codes
+        )  # (B, T, E) # Computing this to be use in the alignment encoder
+        audio_codes_embedded = audio_codes_embedded_all[
+            :, :-1, :
+        ]  # (B, T', E) Input to the decoder; this is already in the frame-stacked domain, hence the -1 (not `frame_stacking_factor`)
 
         audio_codes_mask = get_mask_from_lengths(audio_codes_lens_input)
-        use_cfg = (
-            (self.cfg_unconditional_prob > 0.0)
-            and (mode == "train")
-            and (context_tensors['cond'] is not None)
-        )
+        use_cfg = (self.cfg_unconditional_prob > 0.0) and (mode == "train") and (context_tensors['cond'] is not None)
         if use_cfg and torch.rand(1).item() < self.cfg_unconditional_prob:
             cond, cond_mask, additional_decoder_input, additional_decoder_mask, attn_prior = (
                 self.prepare_dummy_cond_for_cfg(
@@ -1368,11 +1522,7 @@ class MagpieTTSModel(ModelPT):
             additional_decoder_mask = context_tensors['additional_decoder_mask']
             attn_prior = context_tensors['attn_prior']
 
-            if (
-                mode == "train"
-                and self.decoder_input_dropout_prob > 0.0
-                and torch.rand(1).item() < 0.5
-            ):
+            if mode == "train" and self.decoder_input_dropout_prob > 0.0 and torch.rand(1).item() < 0.5:
                 # For some batches (half of them), replace decoder_input_dropout_prob of the timesteps with random tokens
                 max_codebook_val = self.dec_random_input_max
                 # @pneekhara: Keeping dec_random_input_max configurable since num_all_tokens_per_codebook usually has padding tokens
@@ -1387,8 +1537,10 @@ class MagpieTTSModel(ModelPT):
                     > self.decoder_input_dropout_prob
                 )
                 # timestep_mask is True for timesteps to be kept
-                audio_codes_input_unstacked = audio_codes_input_unstacked * dec_dropout_mask + random_audio_tokens * (~dec_dropout_mask)
-                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input_unstacked) # (B, T', E)
+                audio_codes_input_unstacked = audio_codes_input_unstacked * dec_dropout_mask + random_audio_tokens * (
+                    ~dec_dropout_mask
+                )
+                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input_unstacked)  # (B, T', E)
 
         if context_tensors['additional_decoder_input'] is not None:
             dec_input_embedded = torch.cat([additional_decoder_input, audio_codes_embedded], dim=1)
@@ -1407,23 +1559,25 @@ class MagpieTTSModel(ModelPT):
             # Passing target audio embeddings to the alignment encoder
             if self.global_step < self.aligner_encoder_train_steps:
                 aligner_attn_soft, aligner_attn_logprobs = self.alignment_encoder(
-                    queries=audio_codes_embedded_all[:, 1:, :].permute(0, 2, 1), # B, E, T'
-                    keys=context_tensors['text_encoder_out'].permute(0, 2, 1), # B, E, T
+                    queries=audio_codes_embedded_all[:, 1:, :].permute(0, 2, 1),  # B, E, T'
+                    keys=context_tensors['text_encoder_out'].permute(0, 2, 1),  # B, E, T
                     mask=~context_tensors['text_mask'].unsqueeze(-1),
-                    attn_prior=aligner_prior
+                    attn_prior=aligner_prior,
                 )
 
                 aligner_encoder_loss = self.alignment_encoder_loss(
-                    attn_logprob=aligner_attn_logprobs, in_lens=context_tensors['text_lens'], out_lens=audio_codes_lens_input
+                    attn_logprob=aligner_attn_logprobs,
+                    in_lens=context_tensors['text_lens'],
+                    out_lens=audio_codes_lens_input,
                 )
             else:
                 with torch.no_grad():
                     # Just get the attention matrix without computing the loss or gradients
                     aligner_attn_soft, aligner_attn_logprobs = self.alignment_encoder(
-                        queries=audio_codes_embedded_all[:, 1:, :].permute(0, 2, 1), # B, E, T'
-                        keys=context_tensors['text_encoder_out'].permute(0, 2, 1), # B, E, T
+                        queries=audio_codes_embedded_all[:, 1:, :].permute(0, 2, 1),  # B, E, T'
+                        keys=context_tensors['text_encoder_out'].permute(0, 2, 1),  # B, E, T
                         mask=~context_tensors['text_mask'].unsqueeze(-1),
-                        attn_prior=aligner_prior
+                        attn_prior=aligner_prior,
                     )
 
             with torch.no_grad():
@@ -1448,15 +1602,20 @@ class MagpieTTSModel(ModelPT):
 
         # Codebook loss (parallel)
         codebook_loss, loss_mask = self.compute_loss(
-            logits, audio_codes_target_unstacked,
+            logits,
+            audio_codes_target_unstacked,
             audio_codes_lens_target_unstacked,
-            frame_stacking_factor=self.frame_stacking_factor
+            frame_stacking_factor=self.frame_stacking_factor,
         )
         # Alignment loss
         alignment_loss = None
         if self.alignment_loss_scale > 0.0 and not disable_alignment_loss:
             text_lens = context_tensors['text_lens']
-            cross_attention_scores = [attn['cross_attn_probabilities'][1] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.ctc_prior_layer_ids]
+            cross_attention_scores = [
+                attn['cross_attn_probabilities'][1]
+                for layer_idx, attn in enumerate(attn_info)
+                if layer_idx in self.ctc_prior_layer_ids
+            ]
             alignment_loss = self.compute_alignment_loss(
                 cross_attention_scores, text_lens, audio_codes_lens_input, dec_context_size
             )
@@ -1474,13 +1633,29 @@ class MagpieTTSModel(ModelPT):
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target_unstacked)
                 # TODO @rfejgin: the very last position might be padding but the local transformer might look at it as part of
                 #                of a pair where the first position is valid. Is this an issue?
-                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_masked, targets_offset_by_one=True)
-                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target_unstacked, audio_codes_lens_target_unstacked, mask_tokens_mask, frame_stacking_factor=self.frame_stacking_factor)
+                local_transformer_logits = self.compute_local_transformer_logits(
+                    dec_out[:, dec_context_size:, :], audio_codes_masked, targets_offset_by_one=True
+                )
+                local_transformer_loss, _ = self.compute_loss(
+                    local_transformer_logits,
+                    audio_codes_target_unstacked,
+                    audio_codes_lens_target_unstacked,
+                    mask_tokens_mask,
+                    frame_stacking_factor=self.frame_stacking_factor,
+                )
             else:
                 ## Autoregressive ##
                 assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
-                local_transformer_logits = self.compute_local_transformer_logits(dec_out[:,dec_context_size:,:], audio_codes_target_unstacked, targets_offset_by_one=False)
-                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target_unstacked, audio_codes_lens_target_unstacked, None, frame_stacking_factor=self.frame_stacking_factor)
+                local_transformer_logits = self.compute_local_transformer_logits(
+                    dec_out[:, dec_context_size:, :], audio_codes_target_unstacked, targets_offset_by_one=False
+                )
+                local_transformer_loss, _ = self.compute_loss(
+                    local_transformer_logits,
+                    audio_codes_target_unstacked,
+                    audio_codes_lens_target_unstacked,
+                    None,
+                    frame_stacking_factor=self.frame_stacking_factor,
+                )
             loss = loss + self.local_transformer_loss_scale * local_transformer_loss
 
         if aligner_encoder_loss is not None:
@@ -1491,8 +1666,8 @@ class MagpieTTSModel(ModelPT):
             'attn_info': attn_info,
             'loss': loss,
             'codebook_loss': codebook_loss,
-            'local_transformer_loss' : local_transformer_loss,
-            'local_transformer_logits' : local_transformer_logits,
+            'local_transformer_loss': local_transformer_loss,
+            'local_transformer_logits': local_transformer_logits,
             'loss_mask': loss_mask,
             'alignment_loss': alignment_loss,
             'aligner_encoder_loss': aligner_encoder_loss,
@@ -1530,25 +1705,32 @@ class MagpieTTSModel(ModelPT):
             "train/batch_size": batch_size,
             "train/text_token_max_len": text_token_max_len,
             "train/text_token_total_num_in_batch": text_token_total_num.item(),
-            "train/text_token_pad_ratio_percent_in_batch": 100 * (1 - text_token_total_num / (batch_size * text_token_max_len)),
+            "train/text_token_pad_ratio_percent_in_batch": 100
+            * (1 - text_token_total_num / (batch_size * text_token_max_len)),
         }
 
         if "audio_codes" in batch:
             audio_codes_max_len = batch["audio_codes"].shape[-1]
             audio_codes_total_num = batch["audio_codes_lens"].sum()
-            batch_info_dict.update({
-                "train/audio_codes_max_len": audio_codes_max_len,
-                "train/audio_codes_total_num_in_batch": audio_codes_total_num.item(),
-                "train/audio_codes_pad_ratio_percent_in_batch": 100 * (1 - audio_codes_total_num / (batch_size * audio_codes_max_len)),
-            })
+            batch_info_dict.update(
+                {
+                    "train/audio_codes_max_len": audio_codes_max_len,
+                    "train/audio_codes_total_num_in_batch": audio_codes_total_num.item(),
+                    "train/audio_codes_pad_ratio_percent_in_batch": 100
+                    * (1 - audio_codes_total_num / (batch_size * audio_codes_max_len)),
+                }
+            )
         else:
             audio_samples_max_len = batch["audio"].shape[-1]
             audio_samples_total_num = batch["audio_lens"].sum()
-            batch_info_dict.update({
-                "train/audio_samples_max_len": audio_samples_max_len,
-                "train/audio_samples_total_num_in_batch": audio_samples_total_num.item(),
-                "train/audio_samples_pad_ratio_percent_in_batch": 100 * (1 - audio_samples_total_num / (batch_size * audio_samples_max_len)),
-            })
+            batch_info_dict.update(
+                {
+                    "train/audio_samples_max_len": audio_samples_max_len,
+                    "train/audio_samples_total_num_in_batch": audio_samples_total_num.item(),
+                    "train/audio_samples_pad_ratio_percent_in_batch": 100
+                    * (1 - audio_samples_total_num / (batch_size * audio_samples_max_len)),
+                }
+            )
 
         self.log_dict(batch_info_dict, on_step=True)
 
@@ -1592,7 +1774,11 @@ class MagpieTTSModel(ModelPT):
                 and len(attn_info[self.transcript_decoder_layers[0]]['cross_attn_probabilities']) > 1
             ):
                 # cross_attn_probabilities only returned when not using flash attention
-                cross_attention_probs = [attn['cross_attn_probabilities'][0] for layer_idx, attn in enumerate(attn_info) if layer_idx in self.ctc_prior_layer_ids]
+                cross_attention_probs = [
+                    attn['cross_attn_probabilities'][0]
+                    for layer_idx, attn in enumerate(attn_info)
+                    if layer_idx in self.ctc_prior_layer_ids
+                ]
                 wandb_log_dict.update(
                     self.log_attention_probs(
                         cross_attention_probs,
@@ -1604,14 +1790,14 @@ class MagpieTTSModel(ModelPT):
                 )
 
                 for layer_idx in self.transcript_decoder_layers:
-                    cross_attention_probs = [ attn_info[layer_idx]['cross_attn_probabilities'][0] ]
+                    cross_attention_probs = [attn_info[layer_idx]['cross_attn_probabilities'][0]]
                     wandb_log_dict.update(
                         self.log_attention_probs(
                             cross_attention_probs,
                             audio_codes_lens_target,
                             text_lens,
                             prefix=f"val/layer_{layer_idx}",
-                            dec_context_size=dec_context_size
+                            dec_context_size=dec_context_size,
                         )
                     )
 
@@ -1659,20 +1845,32 @@ class MagpieTTSModel(ModelPT):
         mean_cross_attn_scores = []
         all_heads_cross_attn_scores = []
         for lidx, layerwise_attn_prob in enumerate(attn_probs):
-            if (filter_layers is not None and lidx not in filter_layers) or (lidx not in self.transcript_decoder_layers):
+            if (filter_layers is not None and lidx not in filter_layers) or (
+                lidx not in self.transcript_decoder_layers
+            ):
                 continue
-            cross_attn_prob = layerwise_attn_prob['cross_attn_probabilities'][0] # B, H, audio_timesteps, text_timesteps
-            mean_cross_attn_scores.append(cross_attn_prob.mean(dim=1)) # B, audio_timesteps, text_timesteps
+            cross_attn_prob = layerwise_attn_prob['cross_attn_probabilities'][
+                0
+            ]  # B, H, audio_timesteps, text_timesteps
+            mean_cross_attn_scores.append(cross_attn_prob.mean(dim=1))  # B, audio_timesteps, text_timesteps
             for head_idx in range(cross_attn_prob.size(1)):
-                all_heads_cross_attn_scores.append(cross_attn_prob[:, head_idx, -1, :]) # B, text_timesteps
+                all_heads_cross_attn_scores.append(cross_attn_prob[:, head_idx, -1, :])  # B, text_timesteps
 
-        mean_cross_attn_scores = torch.stack(mean_cross_attn_scores, dim=1) # B, L, audio_timesteps, text_timesteps
-        mean_cross_attn_scores = mean_cross_attn_scores.mean(dim=1) # B, audio_timesteps, text_timesteps
-        last_audio_timestep_scores = mean_cross_attn_scores[:, -1, :] # B, text_timesteps
+        mean_cross_attn_scores = torch.stack(mean_cross_attn_scores, dim=1)  # B, L, audio_timesteps, text_timesteps
+        mean_cross_attn_scores = mean_cross_attn_scores.mean(dim=1)  # B, audio_timesteps, text_timesteps
+        last_audio_timestep_scores = mean_cross_attn_scores[:, -1, :]  # B, text_timesteps
         return last_audio_timestep_scores, all_heads_cross_attn_scores
 
-    def get_most_attended_text_timestep(self, alignment_attention_scores, last_attended_timesteps,
-                                   text_lens, lookahead_window_size, attended_timestep_counter, batch_size, left_offset=0):
+    def get_most_attended_text_timestep(
+        self,
+        alignment_attention_scores,
+        last_attended_timesteps,
+        text_lens,
+        lookahead_window_size,
+        attended_timestep_counter,
+        batch_size,
+        left_offset=0,
+    ):
         """
         Returns the most attended timestep for each batch item
         """
@@ -1684,8 +1882,10 @@ class MagpieTTSModel(ModelPT):
                 last_attended_timestep += 1
             last_attended_timestep_in_this_window = last_attended_timestep - left_offset
             window_size = lookahead_window_size
-            window_end = min(last_attended_timestep_in_this_window + window_size, text_lens[bidx] - 3) # Ignore the last 3 timesteps
-            item_attention_scores = alignment_attention_scores[bidx,last_attended_timestep_in_this_window:window_end]
+            window_end = min(
+                last_attended_timestep_in_this_window + window_size, text_lens[bidx] - 3
+            )  # Ignore the last 3 timesteps
+            item_attention_scores = alignment_attention_scores[bidx, last_attended_timestep_in_this_window:window_end]
             if item_attention_scores.size(0) == 0:
                 # This means the sentence has ended
                 attended_timestep = text_lens[bidx] - 1 + left_offset
@@ -1694,12 +1894,24 @@ class MagpieTTSModel(ModelPT):
             if not isinstance(attended_timestep, int):
                 attended_timestep = attended_timestep.item()
             text_time_step_attended.append(attended_timestep)
-            attended_timestep_counter[bidx][attended_timestep] = attended_timestep_counter[bidx].get(attended_timestep, 0) + 1
+            attended_timestep_counter[bidx][attended_timestep] = (
+                attended_timestep_counter[bidx].get(attended_timestep, 0) + 1
+            )
         return text_time_step_attended, attended_timestep_counter
 
-    def construct_inference_prior(self, prior_epsilon, cross_attention_scores,
-                                  text_lens, text_time_step_attended, attended_timestep_counter,
-                                  unfinished_texts, finished_texts_counter, end_indices, lookahead_window_size, batch_size):
+    def construct_inference_prior(
+        self,
+        prior_epsilon,
+        cross_attention_scores,
+        text_lens,
+        text_time_step_attended,
+        attended_timestep_counter,
+        unfinished_texts,
+        finished_texts_counter,
+        end_indices,
+        lookahead_window_size,
+        batch_size,
+    ):
         # Attn prior for the next timestep
         _attn_prior = torch.zeros(cross_attention_scores.shape[0], 1, cross_attention_scores.shape[1]) + prior_epsilon
         _attn_prior = _attn_prior.to(cross_attention_scores.device)
@@ -1710,16 +1922,20 @@ class MagpieTTSModel(ModelPT):
                     # Very short sentences, No Prior
                     _attn_prior[bidx, 0, :] = 1.0
                 else:
-                    _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1)] = 1.0 # Slight exposure to history for better pronounciation. Not very important.
-                    _attn_prior[bidx, 0, text_time_step_attended[bidx]] = 1.0 # Slightly bias to continue moving forward. Not very important.
+                    _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx] - 1)] = (
+                        1.0  # Slight exposure to history for better pronounciation. Not very important.
+                    )
+                    _attn_prior[bidx, 0, text_time_step_attended[bidx]] = (
+                        1.0  # Slightly bias to continue moving forward. Not very important.
+                    )
                     for ind in range(1, lookahead_window_size + 1):
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+ind, _text_len - 1) ] = 1.0
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] + ind, _text_len - 1)] = 1.0
 
                 # Penalize timesteps that have been attended to more than 10 times
                 for _timestep in attended_timestep_counter[bidx]:
                     if attended_timestep_counter[bidx][_timestep] >= 10:
                         # This means the timestep has been attended to more than 10 times (To avoid getting stuck)
-                        _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
+                        _attn_prior[bidx, 0, : _timestep + 1] = prior_epsilon
 
                 unfinished_texts[bidx] = False
                 if text_time_step_attended[bidx] < text_lens[bidx] - 3:
@@ -1740,10 +1956,22 @@ class MagpieTTSModel(ModelPT):
 
         return _attn_prior, unfinished_texts, finished_texts_counter
 
-    def construct_streaming_inference_prior(self, prior_epsilon, cross_attention_scores,
-                                  text_lens, text_time_step_attended, attended_timestep_counter,
-                                  unfinished_texts, finished_texts_counter, end_indices, 
-                                  lookahead_window_size, batch_size, end_of_text, left_offset=0, use_exponential=False):
+    def construct_streaming_inference_prior(
+        self,
+        prior_epsilon,
+        cross_attention_scores,
+        text_lens,
+        text_time_step_attended,
+        attended_timestep_counter,
+        unfinished_texts,
+        finished_texts_counter,
+        end_indices,
+        lookahead_window_size,
+        batch_size,
+        end_of_text,
+        left_offset=0,
+        use_exponential=False,
+    ):
         '''
         Does the same thing as construct_inference_prior, but for streaming inference.
         The main difference is that it uses a left_offset to account for the fact that the text is not provided in a single chunk.
@@ -1763,56 +1991,88 @@ class MagpieTTSModel(ModelPT):
                 else:
                     if use_exponential:
                         scale = 1.25
-                        n_steps = text_time_step_attended[bidx]-left_offset + 1
+                        n_steps = text_time_step_attended[bidx] - left_offset + 1
                         # Create an exponential pdf for the past steps
                         x_pdf = list(range(n_steps))
-                        pdf = [(1/scale) * np.exp(-x/2) for x in x_pdf]
+                        pdf = [(1 / scale) * np.exp(-x / 2) for x in x_pdf]
                         pdf = pdf[::-1]
                         for ii, p in enumerate(pdf):
-                            _attn_prior[bidx, 0, ii] = max(p, prior_epsilon*prior_epsilon)
+                            _attn_prior[bidx, 0, ii] = max(p, prior_epsilon * prior_epsilon)
                         # Future
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+1-left_offset, _text_len - 1) ] = 1.0
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-left_offset, _text_len - 1) ] = 0.8
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-left_offset + 1, _text_len - 1):min(text_time_step_attended[bidx]+2-left_offset + 10, _text_len - 1) ] = prior_epsilon
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-left_offset + 10, _text_len - 1): ] = prior_epsilon*prior_epsilon
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] + 1 - left_offset, _text_len - 1)] = 1.0
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] + 2 - left_offset, _text_len - 1)] = 0.8
+                        _attn_prior[
+                            bidx,
+                            0,
+                            min(text_time_step_attended[bidx] + 2 - left_offset + 1, _text_len - 1) : min(
+                                text_time_step_attended[bidx] + 2 - left_offset + 10, _text_len - 1
+                            ),
+                        ] = prior_epsilon
+                        _attn_prior[
+                            bidx, 0, min(text_time_step_attended[bidx] + 2 - left_offset + 10, _text_len - 1) :
+                        ] = (prior_epsilon * prior_epsilon)
                     else:
-                        _attn_prior[bidx, 0, :max(1, text_time_step_attended[bidx]-1-left_offset)] = prior_epsilon*prior_epsilon
-                        _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1-left_offset)] = 0.2 # Slight exposure to history for better pronounciation. Not very important.
-                        _attn_prior[bidx, 0, text_time_step_attended[bidx]-left_offset] = 0.8 # Slightly bias to continue moving forward. Not very important.
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]-left_offset + 1, _text_len - 1)] = 1.0 # Slightly bias to continue moving forward. Not very important.
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]-left_offset + 2, _text_len - 1)] = 0.8
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]-left_offset + 3, _text_len - 1):] = prior_epsilon*prior_epsilon
+                        _attn_prior[bidx, 0, : max(1, text_time_step_attended[bidx] - 1 - left_offset)] = (
+                            prior_epsilon * prior_epsilon
+                        )
+                        _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx] - 1 - left_offset)] = (
+                            0.2  # Slight exposure to history for better pronounciation. Not very important.
+                        )
+                        _attn_prior[bidx, 0, text_time_step_attended[bidx] - left_offset] = (
+                            0.8  # Slightly bias to continue moving forward. Not very important.
+                        )
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] - left_offset + 1, _text_len - 1)] = (
+                            1.0  # Slightly bias to continue moving forward. Not very important.
+                        )
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] - left_offset + 2, _text_len - 1)] = 0.8
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] - left_offset + 3, _text_len - 1) :] = (
+                            prior_epsilon * prior_epsilon
+                        )
 
                 # Penalize timesteps that have been attended to more than 10 times
                 for _timestep in attended_timestep_counter[bidx]:
                     if _timestep > left_offset and attended_timestep_counter[bidx][_timestep] >= 10:
                         # This means the timestep has been attended to more than 10 times (To avoid getting stuck)
-                        _attn_prior[bidx, 0, :_timestep-left_offset+1] = prior_epsilon
+                        _attn_prior[bidx, 0, : _timestep - left_offset + 1] = prior_epsilon
 
                 if not end_of_text:
                     unfinished_texts[bidx] = True
                 else:
                     unfinished_texts[bidx] = False
-                    if text_time_step_attended[bidx]-left_offset < text_lens[bidx] - 3:
+                    if text_time_step_attended[bidx] - left_offset < text_lens[bidx] - 3:
                         # This means the sentence has definitely not ended
                         if bidx not in end_indices:
                             unfinished_texts[bidx] = True
 
-                if end_of_text and (text_time_step_attended[bidx]-left_offset >= text_lens[bidx] - 4 or bidx in end_indices):
+                if end_of_text and (
+                    text_time_step_attended[bidx] - left_offset >= text_lens[bidx] - 4 or bidx in end_indices
+                ):
                     if bidx not in finished_texts_counter:
                         finished_texts_counter[bidx] = 0
 
                 chunk_end_has_reached = False
-                if not end_of_text and text_time_step_attended[bidx]-left_offset >= text_lens[bidx] - 4:
+                if not end_of_text and text_time_step_attended[bidx] - left_offset >= text_lens[bidx] - 4:
                     # This means entire text has not been provided yet and audio generation for current chunk has almost reached the end
                     chunk_end_has_reached = True
 
         return _attn_prior, unfinished_texts, finished_texts_counter, chunk_end_has_reached
 
-    def construct_streaming_inference_prior(self, prior_epsilon, cross_attention_scores,
-                                  text_lens, text_time_step_attended, attended_timestep_counter,
-                                  unfinished_texts, finished_texts_counter, end_indices, 
-                                  lookahead_window_size, batch_size, end_of_text, left_offset=0, use_exponential=False):
+    def construct_streaming_inference_prior(
+        self,
+        prior_epsilon,
+        cross_attention_scores,
+        text_lens,
+        text_time_step_attended,
+        attended_timestep_counter,
+        unfinished_texts,
+        finished_texts_counter,
+        end_indices,
+        lookahead_window_size,
+        batch_size,
+        end_of_text,
+        left_offset=0,
+        use_exponential=False,
+    ):
         '''
         Does the same thing as construct_inference_prior, but for streaming inference.
         The main difference is that it uses a left_offset to account for the fact that the text is not provided in a single chunk.
@@ -1832,70 +2092,108 @@ class MagpieTTSModel(ModelPT):
                 else:
                     if use_exponential:
                         scale = 1.25
-                        n_steps = text_time_step_attended[bidx]-left_offset + 1
+                        n_steps = text_time_step_attended[bidx] - left_offset + 1
                         # Create an exponential pdf for the past steps
                         x_pdf = list(range(n_steps))
-                        pdf = [(1/scale) * np.exp(-x/2) for x in x_pdf]
+                        pdf = [(1 / scale) * np.exp(-x / 2) for x in x_pdf]
                         pdf = pdf[::-1]
                         for ii, p in enumerate(pdf):
-                            _attn_prior[bidx, 0, ii] = max(p, prior_epsilon*prior_epsilon)
+                            _attn_prior[bidx, 0, ii] = max(p, prior_epsilon * prior_epsilon)
                         # Future
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+1-left_offset, _text_len - 1) ] = 1.0
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-left_offset, _text_len - 1) ] = 0.8
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-left_offset + 1, _text_len - 1):min(text_time_step_attended[bidx]+2-left_offset + 10, _text_len - 1) ] = prior_epsilon
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+2-left_offset + 10, _text_len - 1): ] = prior_epsilon*prior_epsilon
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] + 1 - left_offset, _text_len - 1)] = 1.0
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] + 2 - left_offset, _text_len - 1)] = 0.8
+                        _attn_prior[
+                            bidx,
+                            0,
+                            min(text_time_step_attended[bidx] + 2 - left_offset + 1, _text_len - 1) : min(
+                                text_time_step_attended[bidx] + 2 - left_offset + 10, _text_len - 1
+                            ),
+                        ] = prior_epsilon
+                        _attn_prior[
+                            bidx, 0, min(text_time_step_attended[bidx] + 2 - left_offset + 10, _text_len - 1) :
+                        ] = (prior_epsilon * prior_epsilon)
                     else:
-                        _attn_prior[bidx, 0, :max(1, text_time_step_attended[bidx]-1-left_offset)] = prior_epsilon*prior_epsilon
-                        _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1-left_offset)] = 0.2 # Slight exposure to history for better pronounciation. Not very important.
-                        _attn_prior[bidx, 0, text_time_step_attended[bidx]-left_offset] = 0.8 # Slightly bias to continue moving forward. Not very important.
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]-left_offset + 1, _text_len - 1)] = 1.0 # Slightly bias to continue moving forward. Not very important.
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]-left_offset + 2, _text_len - 1)] = 0.8
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]-left_offset + 3, _text_len - 1):] = prior_epsilon*prior_epsilon
+                        _attn_prior[bidx, 0, : max(1, text_time_step_attended[bidx] - 1 - left_offset)] = (
+                            prior_epsilon * prior_epsilon
+                        )
+                        _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx] - 1 - left_offset)] = (
+                            0.2  # Slight exposure to history for better pronounciation. Not very important.
+                        )
+                        _attn_prior[bidx, 0, text_time_step_attended[bidx] - left_offset] = (
+                            0.8  # Slightly bias to continue moving forward. Not very important.
+                        )
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] - left_offset + 1, _text_len - 1)] = (
+                            1.0  # Slightly bias to continue moving forward. Not very important.
+                        )
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] - left_offset + 2, _text_len - 1)] = 0.8
+                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx] - left_offset + 3, _text_len - 1) :] = (
+                            prior_epsilon * prior_epsilon
+                        )
 
                 # Penalize timesteps that have been attended to more than 10 times
                 for _timestep in attended_timestep_counter[bidx]:
                     if _timestep > left_offset and attended_timestep_counter[bidx][_timestep] >= 10:
                         # This means the timestep has been attended to more than 10 times (To avoid getting stuck)
-                        _attn_prior[bidx, 0, :_timestep-left_offset+1] = prior_epsilon
+                        _attn_prior[bidx, 0, : _timestep - left_offset + 1] = prior_epsilon
 
                 if not end_of_text:
                     unfinished_texts[bidx] = True
                 else:
                     unfinished_texts[bidx] = False
-                    if text_time_step_attended[bidx]-left_offset < text_lens[bidx] - 3:
+                    if text_time_step_attended[bidx] - left_offset < text_lens[bidx] - 3:
                         # This means the sentence has definitely not ended
                         if bidx not in end_indices:
                             unfinished_texts[bidx] = True
 
-                if end_of_text and (text_time_step_attended[bidx]-left_offset >= text_lens[bidx] - 4 or bidx in end_indices):
+                if end_of_text and (
+                    text_time_step_attended[bidx] - left_offset >= text_lens[bidx] - 4 or bidx in end_indices
+                ):
                     if bidx not in finished_texts_counter:
                         finished_texts_counter[bidx] = 0
 
                 chunk_end_has_reached = False
-                if not end_of_text and text_time_step_attended[bidx]-left_offset >= text_lens[bidx] - 4:
+                if not end_of_text and text_time_step_attended[bidx] - left_offset >= text_lens[bidx] - 4:
                     # This means entire text has not been provided yet and audio generation for current chunk has almost reached the end
                     chunk_end_has_reached = True
 
         return _attn_prior, unfinished_texts, finished_texts_counter, chunk_end_has_reached
 
-    def get_inference_attention_plots(self, cross_attention_scores_all_timesteps, all_heads_cross_attn_scores_all_timesteps, text_lens, predicted_codes_lens, batch_size, compute_all_heads_attn_maps):
-        cross_attention_scores_all_timesteps = torch.stack(cross_attention_scores_all_timesteps, dim=2) # B, text_timesteps, T'
+    def get_inference_attention_plots(
+        self,
+        cross_attention_scores_all_timesteps,
+        all_heads_cross_attn_scores_all_timesteps,
+        text_lens,
+        predicted_codes_lens,
+        batch_size,
+        compute_all_heads_attn_maps,
+    ):
+        cross_attention_scores_all_timesteps = torch.stack(
+            cross_attention_scores_all_timesteps, dim=2
+        )  # B, text_timesteps, T'
         headwise_cross_attention_scores_all_timesteps = []
         for hidx in range(len(all_heads_cross_attn_scores_all_timesteps[0])):
-            head_cross_attention_all_timesteps = torch.stack([x[hidx] for x in all_heads_cross_attn_scores_all_timesteps], dim=2) # B, text_timesteps, T'
+            head_cross_attention_all_timesteps = torch.stack(
+                [x[hidx] for x in all_heads_cross_attn_scores_all_timesteps], dim=2
+            )  # B, text_timesteps, T'
             headwise_cross_attention_scores_all_timesteps.append(head_cross_attention_all_timesteps)
 
         cross_attention_maps = []
         headwise_cross_attention_maps = []
         for bidx in range(batch_size):
-            item_cross_attention_scores = cross_attention_scores_all_timesteps[bidx,:text_lens[bidx],:predicted_codes_lens[bidx]]
+            item_cross_attention_scores = cross_attention_scores_all_timesteps[
+                bidx, : text_lens[bidx], : predicted_codes_lens[bidx]
+            ]
             cross_attn_np = plot_alignment_to_numpy(item_cross_attention_scores.cpu().numpy())
             cross_attention_maps.append(cross_attn_np)
             item_all_head_cross_attn_maps = []
             if compute_all_heads_attn_maps:
                 for hidx in range(len(all_heads_cross_attn_scores_all_timesteps[0])):
-                    item_headwise_cross_attention_scores = headwise_cross_attention_scores_all_timesteps[hidx][bidx,:text_lens[bidx],:predicted_codes_lens[bidx]]
-                    headwise_cross_attn_np = plot_alignment_to_numpy(item_headwise_cross_attention_scores.cpu().numpy())
+                    item_headwise_cross_attention_scores = headwise_cross_attention_scores_all_timesteps[hidx][
+                        bidx, : text_lens[bidx], : predicted_codes_lens[bidx]
+                    ]
+                    headwise_cross_attn_np = plot_alignment_to_numpy(
+                        item_headwise_cross_attention_scores.cpu().numpy()
+                    )
                     item_all_head_cross_attn_maps.append(headwise_cross_attn_np)
                 headwise_cross_attention_maps.append(item_all_head_cross_attn_maps)
 
@@ -1910,7 +2208,7 @@ class MagpieTTSModel(ModelPT):
         Returns:
             index (within the frame stack) of the first frame with EOS, or `None` if no EOS is found
         """
-        eos_mask = (codes == self.audio_eos_id)  # (codebooks, frame_stacking_factor)
+        eos_mask = codes == self.audio_eos_id  # (codebooks, frame_stacking_factor)
         eos_per_frame = eos_mask.any(dim=0)  # (frame_stacking_factor,) - True if any codebook has EOS in this frame
         # find first frame with EOS
         if eos_per_frame.any():
@@ -1919,28 +2217,29 @@ class MagpieTTSModel(ModelPT):
         return None
 
     def infer_batch(
-            self,
-            batch,
-            max_decoder_steps=500,
-            temperature=0.7,
-            topk=80,
-            use_cfg=False,
-            cfg_scale=1.0,
-            return_cross_attn_probs=False,
-            apply_attention_prior=False,
-            prior_epsilon=1e-5,
-            lookahead_window_size=10,
-            estimate_alignment_from_layers=None,
-            apply_prior_to_layers=None,
-            start_prior_after_n_audio_steps=10,
-            compute_all_heads_attn_maps=False,
-            use_local_transformer_for_inference=False,
-            use_LT_kv_cache=True,
-            maskgit_n_steps=3,
-            maskgit_noise_scale=0.0,
-            maskgit_fixed_schedule=None,
-            maskgit_dynamic_cfg_scale=False,
-            maskgit_sampling_type=None):
+        self,
+        batch,
+        max_decoder_steps=500,
+        temperature=0.7,
+        topk=80,
+        use_cfg=False,
+        cfg_scale=1.0,
+        return_cross_attn_probs=False,
+        apply_attention_prior=False,
+        prior_epsilon=1e-5,
+        lookahead_window_size=10,
+        estimate_alignment_from_layers=None,
+        apply_prior_to_layers=None,
+        start_prior_after_n_audio_steps=10,
+        compute_all_heads_attn_maps=False,
+        use_local_transformer_for_inference=False,
+        use_LT_kv_cache=True,
+        maskgit_n_steps=3,
+        maskgit_noise_scale=0.0,
+        maskgit_fixed_schedule=None,
+        maskgit_dynamic_cfg_scale=False,
+        maskgit_sampling_type=None,
+    ):
         with torch.no_grad():
             start_time = time.time()
             self.decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
@@ -1948,9 +2247,13 @@ class MagpieTTSModel(ModelPT):
             context_tensors = self.prepare_context_tensors(batch)
             text = context_tensors['text']
             audio_codes_bos = torch.full(
-                (text.size(0), self.num_audio_codebooks, self.frame_stacking_factor), self.audio_bos_id, device=text.device
+                (text.size(0), self.num_audio_codebooks, self.frame_stacking_factor),
+                self.audio_bos_id,
+                device=text.device,
             ).long()
-            audio_codes_lens = torch.full((text.size(0),), 1, device=text.device).long() # intetionally 1 rather than self.frame_stacking_factor since this is in stacked form
+            audio_codes_lens = torch.full(
+                (text.size(0),), 1, device=text.device
+            ).long()  # intetionally 1 rather than self.frame_stacking_factor since this is in stacked form
             audio_codes_input = audio_codes_bos
             audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
 
@@ -1973,7 +2276,9 @@ class MagpieTTSModel(ModelPT):
             unfinished_texts = {}
             finished_texts_counter = {}
             attended_timestep_counter = [{} for _ in range(text.size(0))]
-            last_attended_timesteps = [[1 for _ in range(text.size(0))]] # Maintain a list of attended timesteps as we predict audio for each batch item
+            last_attended_timesteps = [
+                [1 for _ in range(text.size(0))]
+            ]  # Maintain a list of attended timesteps as we predict audio for each batch item
             time_to_first_prediction = 0.0
             for idx in range(max_decoder_steps // self.frame_stacking_factor):
                 if idx == 1:
@@ -1985,7 +2290,9 @@ class MagpieTTSModel(ModelPT):
                     _audio_codes_embedded = torch.cat(
                         [context_tensors['additional_decoder_input'], audio_codes_embedded], dim=1
                     )
-                    _audio_codes_mask = torch.cat([context_tensors['additional_decoder_mask'], audio_codes_mask], dim=1)
+                    _audio_codes_mask = torch.cat(
+                        [context_tensors['additional_decoder_mask'], audio_codes_mask], dim=1
+                    )
                 else:
                     _audio_codes_embedded = audio_codes_embedded
                     _audio_codes_mask = audio_codes_mask
@@ -1999,7 +2306,6 @@ class MagpieTTSModel(ModelPT):
 
                 if self.model_type == 'multi_encoder_context_tts':
                     attn_prior = [attn_prior, None]
-
 
                 if use_cfg:
                     batch_size = audio_codes_embedded.size(0)
@@ -2037,7 +2343,7 @@ class MagpieTTSModel(ModelPT):
                         cond=cfg_cond,
                         cond_mask=cfg_cond_mask,
                         attn_prior=attn_prior,
-                        multi_encoder_mapping=context_tensors['multi_encoder_mapping']
+                        multi_encoder_mapping=context_tensors['multi_encoder_mapping'],
                     )
 
                     cond_logits = combined_logits[:batch_size]
@@ -2051,14 +2357,18 @@ class MagpieTTSModel(ModelPT):
                         cond=context_tensors['cond'],
                         cond_mask=context_tensors['cond_mask'],
                         attn_prior=attn_prior,
-                        multi_encoder_mapping=context_tensors['multi_encoder_mapping']
+                        multi_encoder_mapping=context_tensors['multi_encoder_mapping'],
                     )
 
                 if return_cross_attn_probs or apply_attention_prior:
-                    cross_attention_scores, all_heads_cross_attn_scores = self.get_cross_attention_scores(attn_probs) # B, text_timesteps
+                    cross_attention_scores, all_heads_cross_attn_scores = self.get_cross_attention_scores(
+                        attn_probs
+                    )  # B, text_timesteps
                     alignment_attention_scores = cross_attention_scores
                     if estimate_alignment_from_layers is not None:
-                        alignment_attention_scores, _ = self.get_cross_attention_scores(attn_probs, filter_layers=estimate_alignment_from_layers) # B, text_timesteps
+                        alignment_attention_scores, _ = self.get_cross_attention_scores(
+                            attn_probs, filter_layers=estimate_alignment_from_layers
+                        )  # B, text_timesteps
 
                     cross_attention_scores_all_timesteps.append(cross_attention_scores)
                     all_heads_cross_attn_scores_all_timesteps.append(all_heads_cross_attn_scores)
@@ -2070,7 +2380,7 @@ class MagpieTTSModel(ModelPT):
                         text_lens=context_tensors['text_lens'],
                         lookahead_window_size=lookahead_window_size,
                         attended_timestep_counter=attended_timestep_counter,
-                        batch_size=batch_size
+                        batch_size=batch_size,
                     )
                     last_attended_timesteps.append(text_time_step_attended)
                     _attn_prior, unfinished_texts, finished_texts_counter = self.construct_inference_prior(
@@ -2083,18 +2393,20 @@ class MagpieTTSModel(ModelPT):
                         finished_texts_counter=finished_texts_counter,
                         end_indices=end_indices,
                         lookahead_window_size=lookahead_window_size,
-                        batch_size=batch_size
+                        batch_size=batch_size,
                     )
 
-                finished_items = {k: v for k, v in finished_texts_counter.items() if v >= 20} # Items that have been close to the end for atleast 20 timesteps
+                finished_items = {
+                    k: v for k, v in finished_texts_counter.items() if v >= 20
+                }  # Items that have been close to the end for atleast 20 timesteps
                 unfinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
-                all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
+                all_code_logits_t = all_code_logits[:, -1, :]  # (B, num_codebooks * num_tokens_per_codebook)
                 if use_local_transformer_for_inference:
-                    if self.local_transformer_type == LocalTransformerType.AR :
+                    if self.local_transformer_type == LocalTransformerType.AR:
                         # Autoregressive sampling with local transformer
                         audio_codes_next = self.local_transformer_sample_autoregressive(
-                            dec_output=dec_out[:,-1,:],
+                            dec_output=dec_out[:, -1, :],
                             temperature=temperature,
                             topk=topk,
                             unfinished_items=unfinished_items,
@@ -2105,7 +2417,7 @@ class MagpieTTSModel(ModelPT):
                         )
                     elif self.local_transformer_type == LocalTransformerType.MASKGIT:
                         audio_codes_next = self.local_transformer_sample_maskgit(
-                            dec_output=dec_out[:,-1,:],
+                            dec_output=dec_out[:, -1, :],
                             temperature=temperature,
                             topk=topk,
                             unfinished_items=unfinished_items,
@@ -2116,51 +2428,68 @@ class MagpieTTSModel(ModelPT):
                             noise_scale=maskgit_noise_scale,
                             fixed_schedule=maskgit_fixed_schedule,
                             dynamic_cfg_scale=maskgit_dynamic_cfg_scale,
-                            sampling_type=maskgit_sampling_type
+                            sampling_type=maskgit_sampling_type,
                         )
                     else:
-                        raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
+                        raise ValueError(
+                            f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}"
+                        )
                 else:
                     # Parallel sampling from all codebooks
-                    audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks, frame_stacking_factor)
-                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unfinished_items, finished_items=finished_items) # (B, num_codebooks, frame_stacking_factor)
+                    audio_codes_next = self.sample_codes_from_logits(
+                        all_code_logits_t,
+                        temperature=temperature,
+                        topk=topk,
+                        unfinished_items=unfinished_items,
+                        finished_items=finished_items,
+                    )  # (B, num_codebooks, frame_stacking_factor)
+                all_codes_next_argmax = self.sample_codes_from_logits(
+                    all_code_logits_t,
+                    temperature=0.01,
+                    unfinished_items=unfinished_items,
+                    finished_items=finished_items,
+                )  # (B, num_codebooks, frame_stacking_factor)
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
                         # check for EOS (including within the frame stack)
                         eos_frame_multinomial = self.find_eos_frame_index(audio_codes_next[item_idx])
-                        eos_frame_argmax = self.find_eos_frame_index(all_codes_next_argmax[item_idx])                        
-                        eos_frame_multinomial = eos_frame_multinomial if eos_frame_multinomial is not None else float('inf')
+                        eos_frame_argmax = self.find_eos_frame_index(all_codes_next_argmax[item_idx])
+                        eos_frame_multinomial = (
+                            eos_frame_multinomial if eos_frame_multinomial is not None else float('inf')
+                        )
                         eos_frame_argmax = eos_frame_argmax if eos_frame_argmax is not None else float('inf')
                         # pick minimum of the two
                         frame_index = min(eos_frame_multinomial, eos_frame_argmax)
                         if frame_index != float('inf'):
-                            global_index = idx * self.frame_stacking_factor +  frame_index 
+                            global_index = idx * self.frame_stacking_factor + frame_index
                             end_indices[item_idx] = global_index
                             print(f"End detected for item {item_idx} at decoder timestep: {idx}")
 
                 all_predictions.append(audio_codes_next)
-                audio_codes_input = torch.cat(
-                    [audio_codes_input, audio_codes_next], dim=-1
-                )  # (B, C, T')
-                audio_codes_lens = audio_codes_lens + 1 # already in stacked form
+                audio_codes_input = torch.cat([audio_codes_input, audio_codes_next], dim=-1)  # (B, C, T')
+                audio_codes_lens = audio_codes_lens + 1  # already in stacked form
                 audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
                 if len(end_indices) == text.size(0) and len(all_predictions) >= 4:
                     # Codec must be of atleast 4 timesteps to be decoded properly
                     print("All ends reached")
                     break
             tts_generation_time = time.time() - start_time
-            tts_generation_time_per_frame = tts_generation_time / (len(all_predictions)*self.frame_stacking_factor)
+            tts_generation_time_per_frame = tts_generation_time / (len(all_predictions) * self.frame_stacking_factor)
 
             # Concatenate the list of predictions along the time dimension. Note that when frame stacking is on,
             # this also undoes the stacking.
             predicted_codes = torch.cat(all_predictions, dim=-1)  # (B, num_codebooks, T')
-            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
+            predicted_lens = [
+                end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))
+            ]  #  Ensure that the codec is atleast of length 4
             predicted_codes_lens = torch.tensor(predicted_lens, device=text.device).long()
 
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
             end_time = time.time()
-            total_audio_duration_generated = (predicted_audio_lens.max().item() * predicted_audio_lens.shape[0])/self.sample_rate
+            total_audio_duration_generated = (
+                predicted_audio_lens.max().item() * predicted_audio_lens.shape[0]
+            ) / self.sample_rate
             rtf = total_audio_duration_generated / (end_time - start_time)
             rtf_metrics = {
                 'rtf': rtf,
@@ -2173,10 +2502,22 @@ class MagpieTTSModel(ModelPT):
             torch.cuda.empty_cache()
             if return_cross_attn_probs:
                 cross_attention_maps, headwise_cross_attention_maps = self.get_inference_attention_plots(
-                    cross_attention_scores_all_timesteps, all_heads_cross_attn_scores_all_timesteps,
-                    context_tensors['text_lens'], predicted_codes_lens, text.size(0), compute_all_heads_attn_maps
+                    cross_attention_scores_all_timesteps,
+                    all_heads_cross_attn_scores_all_timesteps,
+                    context_tensors['text_lens'],
+                    predicted_codes_lens,
+                    text.size(0),
+                    compute_all_heads_attn_maps,
                 )
-                return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics, cross_attention_maps, headwise_cross_attention_maps
+                return (
+                    predicted_audio,
+                    predicted_audio_lens,
+                    predicted_codes,
+                    predicted_codes_lens,
+                    rtf_metrics,
+                    cross_attention_maps,
+                    headwise_cross_attention_maps,
+                )
             else:
                 # For backward compatibility
                 return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics
@@ -2201,7 +2542,9 @@ class MagpieTTSModel(ModelPT):
                 is_wandb = isinstance(logger, WandbLogger)
                 is_tb = isinstance(logger, TensorBoardLogger)
                 if not is_wandb and not is_tb:
-                    raise ValueError(f"Invalid logger type for audio logging: {type(logger)}. Only `WandbLogger` and `TensorBoardLogger` are supported.")
+                    raise ValueError(
+                        f"Invalid logger type for audio logging: {type(logger)}. Only `WandbLogger` and `TensorBoardLogger` are supported."
+                    )
 
                 for idx in range(predicted_audio.size(0)):
                     predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
@@ -2241,7 +2584,16 @@ class MagpieTTSModel(ModelPT):
         # log val_loss in the same group as the other val metrics.
         self.log("val/loss", val_loss, prog_bar=True, sync_dist=True)
         # ensure val_loss is available for epoch-level checkpointing and filename generation without cluttering wandb logs.
-        self.log("val_loss", val_loss, prog_bar=False, sync_dist=True, on_step=False, on_epoch=True, logger=False, enable_graph=False)
+        self.log(
+            "val_loss",
+            val_loss,
+            prog_bar=False,
+            sync_dist=True,
+            on_step=False,
+            on_epoch=True,
+            logger=False,
+            enable_graph=False,
+        )
         self.log("val/codebook_loss", val_codebook_loss, prog_bar=True, sync_dist=True)
         self.log("val/alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.log("val/aligner_encoder_loss", val_aligner_encoder_loss, prog_bar=True, sync_dist=True)
@@ -2356,10 +2708,7 @@ class MagpieTTSModel(ModelPT):
             if dataset_cfg.dataloader_params.num_workers == 0:
                 persistent_workers = False
                 # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-                dataset.text_tokenizer = setup_tokenizers(
-                    all_tokenizers_config=self.cfg.text_tokenizers,
-                    mode='test'
-                )
+                dataset.text_tokenizer = setup_tokenizers(all_tokenizers_config=self.cfg.text_tokenizers, mode='test')
 
             data_loader = torch.utils.data.DataLoader(
                 dataset,
@@ -2384,18 +2733,32 @@ class MagpieTTSModel(ModelPT):
         # Window parameters for streaming inference
         self.true_window_size = true_window_size
         # Parameters for maintaining history
-        self.history_text = None # Maintains the history of text tokens the model looks at to generate audio in the current step
-        self.history_context_tensor = None # Maintains the history of text encoder output the model looks at to generate audio in the current step
-        num_audio_codebooks = self.cfg.num_audio_codebooks if "num_audio_codebooks" in self.cfg else self.num_audio_codebooks
-        self.audio_codes_input = torch.full((1, num_audio_codebooks, 1), self.audio_bos_id).long() # Maintains history of audio codes generated
-        self.audio_codes_lens = torch.full((1,), 1).long() # Maintains history of audio codes generated length
-        self.history_attn_prior = None # Maintains history of attn prior based on the text step the model has attended to in the last step
-        self.left_offset = 0 # As we move the window to the right, we need to keep track of how much we have discarded
-        self.overall_idx = 0 # Overall index of the audio codes generated
+        self.history_text = (
+            None  # Maintains the history of text tokens the model looks at to generate audio in the current step
+        )
+        self.history_context_tensor = None  # Maintains the history of text encoder output the model looks at to generate audio in the current step
+        num_audio_codebooks = (
+            self.cfg.num_audio_codebooks if "num_audio_codebooks" in self.cfg else self.num_audio_codebooks
+        )
+        self.audio_codes_input = torch.full(
+            (1, num_audio_codebooks, 1), self.audio_bos_id
+        ).long()  # Maintains history of audio codes generated
+        self.audio_codes_lens = torch.full((1,), 1).long()  # Maintains history of audio codes generated length
+        self.history_attn_prior = (
+            None  # Maintains history of attn prior based on the text step the model has attended to in the last step
+        )
+        self.left_offset = 0  # As we move the window to the right, we need to keep track of how much we have discarded
+        self.overall_idx = 0  # Overall index of the audio codes generated
         batch_size = 1
-        self.last_attended_timesteps = [[1 for _ in range(batch_size)]] # Maintain a list of attended timesteps as we predict audio for each batch item
-        self.attended_timestep_counter = [{} for _ in range(batch_size)] # Maintain a list of count of attended timesteps as we predict audio for each batch item
-        self.unfinished_texts = {} # Maintains the unfinished texts .i.e. all of the text tokens have not been provided to the model yet
+        self.last_attended_timesteps = [
+            [1 for _ in range(batch_size)]
+        ]  # Maintain a list of attended timesteps as we predict audio for each batch item
+        self.attended_timestep_counter = [
+            {} for _ in range(batch_size)
+        ]  # Maintain a list of count of attended timesteps as we predict audio for each batch item
+        self.unfinished_texts = (
+            {}
+        )  # Maintains the unfinished texts .i.e. all of the text tokens have not been provided to the model yet
         self.finished_texts_counter = {}
         self.end_indices = {}
         self.attended_timestep_mapping = {}
@@ -2404,28 +2767,28 @@ class MagpieTTSModel(ModelPT):
         self.encoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
 
     def generate_speech_per_chunk_of_text(
-            self, 
-            batch, 
-            end_of_text, 
-            beginning_of_text, 
-            max_decoder_steps=500, 
-            temperature=0.7, 
-            topk=80, 
-            use_cfg=True, 
-            cfg_scale=1.0,
-            estimate_alignment_from_layers=None,
-            lookahead_window_size=5,
-            start_prior_after_n_audio_steps=10,
-            apply_attention_prior=False,
-            apply_prior_to_layers=None,
-            prior_epsilon=1e-5,
-            compute_all_heads_attn_maps=False,
-            return_cross_attn_probs=False,
-            use_exponential_weight=False,
-        ):
+        self,
+        batch,
+        end_of_text,
+        beginning_of_text,
+        max_decoder_steps=500,
+        temperature=0.7,
+        topk=80,
+        use_cfg=True,
+        cfg_scale=1.0,
+        estimate_alignment_from_layers=None,
+        lookahead_window_size=5,
+        start_prior_after_n_audio_steps=10,
+        apply_attention_prior=False,
+        apply_prior_to_layers=None,
+        prior_epsilon=1e-5,
+        compute_all_heads_attn_maps=False,
+        return_cross_attn_probs=False,
+        use_exponential_weight=False,
+    ):
         """
         This method is used for streaming inference. Method to do text to speech inference one chunk of text/words at a time.
-        This method only works with batch size 1 right now. Before calling this method for the first time please call the method 
+        This method only works with batch size 1 right now. Before calling this method for the first time please call the method
         set_streaming_inference_variables()
         """
         device = batch['text'].device
@@ -2436,9 +2799,13 @@ class MagpieTTSModel(ModelPT):
             batch_size = batch["text"].size(0)
 
             # Next section is for processing text through encoder.
-            current_text = torch.cat([self.history_text, batch["text"]], dim=1) if self.history_text is not None else batch["text"]
+            current_text = (
+                torch.cat([self.history_text, batch["text"]], dim=1)
+                if self.history_text is not None
+                else batch["text"]
+            )
             # Update current text based on the window size, current_text_len can be a maximum of true_window_size
-            current_text = current_text[:, max(0, current_text.size(1)-self.true_window_size):]
+            current_text = current_text[:, max(0, current_text.size(1) - self.true_window_size) :]
             current_text_lens = current_text.size(1)
             self.history_text = current_text
             batch['text'] = current_text
@@ -2447,37 +2814,52 @@ class MagpieTTSModel(ModelPT):
 
             # Update text encoder output based on the window size
             if not beginning_of_text:
-                context_tensors['cond'][:, :-current_chunk_len] = self.history_context_tensor[:, -(context_tensors['cond'].size(1) - current_chunk_len):]
+                context_tensors['cond'][:, :-current_chunk_len] = self.history_context_tensor[
+                    :, -(context_tensors['cond'].size(1) - current_chunk_len) :
+                ]
             self.history_context_tensor = context_tensors['cond']
 
             # Sliding window for Audio codes - keeping the history
-            self.audio_codes_input = self.audio_codes_input[:, :, max(0, self.audio_codes_input.size(2)-self.true_window_size):].to(device)
+            self.audio_codes_input = self.audio_codes_input[
+                :, :, max(0, self.audio_codes_input.size(2) - self.true_window_size) :
+            ].to(device)
             self.audio_codes_lens = torch.full((1,), self.audio_codes_input.size(2), device=device).long()
             audio_codes_mask = get_mask_from_lengths(self.audio_codes_lens)
 
             if use_cfg:
-                dummy_cond, dummy_cond_mask, dummy_additional_decoder_input, dummy_addition_dec_mask, _ = self.prepare_dummy_cond_for_cfg(
-                    context_tensors['cond'],
-                    context_tensors['cond_mask'],
-                    context_tensors['additional_decoder_input'],
-                    context_tensors['additional_decoder_mask']
+                dummy_cond, dummy_cond_mask, dummy_additional_decoder_input, dummy_addition_dec_mask, _ = (
+                    self.prepare_dummy_cond_for_cfg(
+                        context_tensors['cond'],
+                        context_tensors['cond_mask'],
+                        context_tensors['additional_decoder_input'],
+                        context_tensors['additional_decoder_mask'],
+                    )
                 )
 
             if self.history_attn_prior is not None:
                 # First case of infinite history .i.e. no window
                 if self.true_window_size > 1000:
                     if self.history_attn_prior.size(2) < current_text_lens:
-                        right_side = torch.zeros(self.history_attn_prior.size(0), 1, current_text_lens-self.history_attn_prior.size(2)).to(device) + prior_epsilon
+                        right_side = (
+                            torch.zeros(
+                                self.history_attn_prior.size(0), 1, current_text_lens - self.history_attn_prior.size(2)
+                            ).to(device)
+                            + prior_epsilon
+                        )
                         self.history_attn_prior = torch.cat([self.history_attn_prior, right_side], dim=2)
                 else:
                     # As we move the window, we need to discard the left side of the history, this logic is to do that.
-                    _tmp_attn_prior = torch.zeros(self.history_attn_prior.size(0), 1, current_text_lens).to(device) + prior_epsilon
+                    _tmp_attn_prior = (
+                        torch.zeros(self.history_attn_prior.size(0), 1, current_text_lens).to(device) + prior_epsilon
+                    )
                     # New text chunk added to the right side of the history = delta_in_len_after_chunk
                     delta_in_len_after_chunk = current_chunk_len
                     if not isinstance(delta_in_len_after_chunk, int):
                         delta_in_len_after_chunk = delta_in_len_after_chunk.item()
                     # len_to_be_deleted_from_left = (history_attn_prior.size(2) + new chunk len) - current text len to be processed
-                    len_to_be_deleted_from_left = self.history_attn_prior.size(2) + delta_in_len_after_chunk - current_text_lens
+                    len_to_be_deleted_from_left = (
+                        self.history_attn_prior.size(2) + delta_in_len_after_chunk - current_text_lens
+                    )
                     if not isinstance(len_to_be_deleted_from_left, int):
                         len_to_be_deleted_from_left = len_to_be_deleted_from_left.item()
                     # self.left_offset is the offset of the left side of the history that is to be discarded
@@ -2485,7 +2867,9 @@ class MagpieTTSModel(ModelPT):
                     if not isinstance(self.left_offset, int):
                         self.left_offset = self.left_offset.item()
                     # Use the history attn prior that has been used to generate the audio in the last step
-                    _tmp_attn_prior[:, :, :-delta_in_len_after_chunk] = self.history_attn_prior[:, :, len_to_be_deleted_from_left:]
+                    _tmp_attn_prior[:, :, :-delta_in_len_after_chunk] = self.history_attn_prior[
+                        :, :, len_to_be_deleted_from_left:
+                    ]
                     self.history_attn_prior = _tmp_attn_prior
 
             num_audio_tokens_to_predict = max_decoder_steps - self.overall_idx
@@ -2497,19 +2881,23 @@ class MagpieTTSModel(ModelPT):
             for idx in range(num_audio_tokens_to_predict):
                 audio_codes_embedded = self.embed_audio_tokens(self.audio_codes_input)
                 if context_tensors['additional_decoder_input'] is not None:
-                    _audio_codes_embedded = torch.cat([context_tensors['additional_decoder_input'], audio_codes_embedded], dim=1)
-                    _audio_codes_mask = torch.cat([context_tensors['additional_decoder_mask'], audio_codes_mask], dim=1)
+                    _audio_codes_embedded = torch.cat(
+                        [context_tensors['additional_decoder_input'], audio_codes_embedded], dim=1
+                    )
+                    _audio_codes_mask = torch.cat(
+                        [context_tensors['additional_decoder_mask'], audio_codes_mask], dim=1
+                    )
                 else:
                     _audio_codes_embedded = audio_codes_embedded
                     _audio_codes_mask = audio_codes_mask
-                
+
                 if apply_prior_to_layers is not None:
                     attn_prior = [None for _ in range(self.cfg.decoder.n_layers)]
                     for layer_idx in apply_prior_to_layers:
                         attn_prior[layer_idx] = self.history_attn_prior
                 else:
                     attn_prior = self.history_attn_prior
-                
+
                 if self.model_type == 'multi_encoder_context_tts':
                     attn_prior = [attn_prior, None]
 
@@ -2517,11 +2905,11 @@ class MagpieTTSModel(ModelPT):
                     # Combine conditional and unconditional inputs into one batch
                     if isinstance(context_tensors['cond'], list):
                         cfg_cond = [
-                            torch.cat([cond_item, dummy_cond_item], dim=0) 
+                            torch.cat([cond_item, dummy_cond_item], dim=0)
                             for cond_item, dummy_cond_item in zip(context_tensors['cond'], dummy_cond)
                         ]
                         cfg_cond_mask = [
-                            torch.cat([cond_mask_item, dummy_cond_mask_item], dim=0) 
+                            torch.cat([cond_mask_item, dummy_cond_mask_item], dim=0)
                             for cond_mask_item, dummy_cond_mask_item in zip(
                                 context_tensors['cond_mask'], dummy_cond_mask
                             )
@@ -2529,11 +2917,17 @@ class MagpieTTSModel(ModelPT):
                     else:
                         cfg_cond = torch.cat([context_tensors['cond'], dummy_cond], dim=0)
                         cfg_cond_mask = torch.cat([context_tensors['cond_mask'], dummy_cond_mask], dim=0)
-                    cfg_audio_codes_embedded = torch.cat([_audio_codes_embedded, _audio_codes_embedded], dim=0)  # B, T', E
+                    cfg_audio_codes_embedded = torch.cat(
+                        [_audio_codes_embedded, _audio_codes_embedded], dim=0
+                    )  # B, T', E
                     cfg_audio_codes_mask = torch.cat([_audio_codes_mask, _audio_codes_mask], dim=0)
                     if dummy_additional_decoder_input is not None:
-                        cfg_audio_codes_embedded[batch_size:, :dummy_additional_decoder_input.size(1)] = dummy_additional_decoder_input
-                        cfg_audio_codes_mask[batch_size:, :dummy_additional_decoder_input.size(1)] = dummy_addition_dec_mask
+                        cfg_audio_codes_embedded[batch_size:, : dummy_additional_decoder_input.size(1)] = (
+                            dummy_additional_decoder_input
+                        )
+                        cfg_audio_codes_mask[batch_size:, : dummy_additional_decoder_input.size(1)] = (
+                            dummy_addition_dec_mask
+                        )
 
                     combined_logits, attn_probs, _ = self.forward(
                         dec_input_embedded=cfg_audio_codes_embedded,
@@ -2541,9 +2935,9 @@ class MagpieTTSModel(ModelPT):
                         cond=cfg_cond,
                         cond_mask=cfg_cond_mask,
                         attn_prior=attn_prior,
-                        multi_encoder_mapping=context_tensors['multi_encoder_mapping']
+                        multi_encoder_mapping=context_tensors['multi_encoder_mapping'],
                     )
-                    
+
                     cond_logits = combined_logits[:batch_size]
                     uncond_logits = combined_logits[batch_size:]
                     all_code_logits = (1 - cfg_scale) * uncond_logits + cfg_scale * cond_logits
@@ -2555,14 +2949,18 @@ class MagpieTTSModel(ModelPT):
                         cond=context_tensors['cond'],
                         cond_mask=context_tensors['cond_mask'],
                         attn_prior=attn_prior,
-                        multi_encoder_mapping=context_tensors['multi_encoder_mapping']
+                        multi_encoder_mapping=context_tensors['multi_encoder_mapping'],
                     )
 
                 if apply_attention_prior:
-                    cross_attention_scores, all_heads_cross_attn_scores = self.get_cross_attention_scores(attn_probs) # B, text_timesteps
+                    cross_attention_scores, all_heads_cross_attn_scores = self.get_cross_attention_scores(
+                        attn_probs
+                    )  # B, text_timesteps
                     alignment_attention_scores = cross_attention_scores
                     if estimate_alignment_from_layers is not None:
-                        alignment_attention_scores, _ = self.get_cross_attention_scores(attn_probs, filter_layers=estimate_alignment_from_layers) # B, text_timesteps
+                        alignment_attention_scores, _ = self.get_cross_attention_scores(
+                            attn_probs, filter_layers=estimate_alignment_from_layers
+                        )  # B, text_timesteps
                     cross_attention_scores_all_timesteps.append(cross_attention_scores)
                     all_heads_cross_attn_scores_all_timesteps.append(all_heads_cross_attn_scores)
 
@@ -2577,7 +2975,12 @@ class MagpieTTSModel(ModelPT):
                     )
                     self.last_attended_timesteps.append(text_time_step_attended)
 
-                    self.history_attn_prior, self.unfinished_texts, self.finished_texts_counter, chunk_end_has_reached = self.construct_streaming_inference_prior(
+                    (
+                        self.history_attn_prior,
+                        self.unfinished_texts,
+                        self.finished_texts_counter,
+                        chunk_end_has_reached,
+                    ) = self.construct_streaming_inference_prior(
                         prior_epsilon=prior_epsilon,
                         cross_attention_scores=cross_attention_scores,
                         text_lens=context_tensors['text_lens'],
@@ -2599,30 +3002,49 @@ class MagpieTTSModel(ModelPT):
                         # We should allow EOS to be predicted now.
                         self.unfinished_texts[key] = False
 
-                finished_items = {k: v for k, v in self.finished_texts_counter.items() if v >= 15} # Items that have been close to the end for atleast 20 timesteps
+                finished_items = {
+                    k: v for k, v in self.finished_texts_counter.items() if v >= 15
+                }  # Items that have been close to the end for atleast 20 timesteps
                 unifinished_items = {k: v for k, v in self.unfinished_texts.items() if v}
 
-                all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
-                audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
-                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
+                all_code_logits_t = all_code_logits[:, -1, :]  # (B, num_codebooks * num_tokens_per_codebook)
+                audio_codes_next = self.sample_codes_from_logits(
+                    all_code_logits_t,
+                    temperature=temperature,
+                    topk=topk,
+                    unfinished_items=unifinished_items,
+                    finished_items=finished_items,
+                )  # (B, num_codebooks)
+                all_codes_next_argmax = self.sample_codes_from_logits(
+                    all_code_logits_t,
+                    temperature=0.01,
+                    unfinished_items=unifinished_items,
+                    finished_items=finished_items,
+                )  # (B, num_codebooks)
 
                 for item_idx in range(batch_size):
                     if item_idx not in self.end_indices:
                         eos_in_pred_tokens_argmax = (all_codes_next_argmax[item_idx] == self.audio_eos_id).any().item()
                         eos_in_pred_tokens_multinomial = (audio_codes_next[item_idx] == self.audio_eos_id).any().item()
                         if (eos_in_pred_tokens_argmax or eos_in_pred_tokens_multinomial) and end_of_text:
-                            print("End detected for item {} at local timestep {} and overall timestep {}".format(item_idx, idx, self.overall_idx))
+                            print(
+                                "End detected for item {} at local timestep {} and overall timestep {}".format(
+                                    item_idx, idx, self.overall_idx
+                                )
+                            )
                             self.end_indices[item_idx] = self.overall_idx
 
                 all_predictions.append(audio_codes_next)
-                
-                self.audio_codes_input = torch.cat([self.audio_codes_input, audio_codes_next.unsqueeze(-1)], dim=-1) # (B, C, T')
+
+                self.audio_codes_input = torch.cat(
+                    [self.audio_codes_input, audio_codes_next.unsqueeze(-1)], dim=-1
+                )  # (B, C, T')
                 self.audio_codes_lens = self.audio_codes_lens + 1
                 audio_codes_mask = get_mask_from_lengths(self.audio_codes_lens)
                 if len(self.end_indices) == batch_size:
                     print("All ends reached")
                     break
-            
+
                 self.overall_idx += 1
 
                 if not end_of_text and chunk_end_has_reached:
@@ -2638,14 +3060,12 @@ class MagpieTTSModel(ModelPT):
                     cross_attention_maps_current, headwise_cross_attention_maps = self.get_inference_attention_plots(
                         cross_attention_scores_all_timesteps,
                         all_heads_cross_attn_scores_all_timesteps,
-                        context_tensors['text_lens'],  
+                        context_tensors['text_lens'],
                         predicted_codes_lens,
                         batch_size,
-                        compute_all_heads_attn_maps
+                        compute_all_heads_attn_maps,
                     )
                     cross_attention_maps.extend(cross_attention_maps_current)
                 return predicted_codes, predicted_codes_lens, cross_attention_maps, headwise_cross_attention_maps
             else:
                 return predicted_codes, predicted_codes_lens
-                
-                

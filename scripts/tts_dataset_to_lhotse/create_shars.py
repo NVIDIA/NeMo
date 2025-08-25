@@ -11,26 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from pathlib import Path
+import argparse
+import csv
 import json
 import os
-import argparse
 import shutil
-import csv
-import soundfile as sf
+from pathlib import Path
+
 ### from nemo.collections.tts.models import AudioCodecModel
 import librosa
-import torch
 import numpy as np
-from tqdm import tqdm
-from matplotlib import pyplot as plt
-
-from lhotse import CutSet, SupervisionSegment, Recording, AudioSource
+import soundfile as sf
+import torch
+from lhotse import AudioSource, CutSet, Recording, SupervisionSegment
+from lhotse.array import Array, TemporalArray
+from lhotse.audio import RecordingSet
 from lhotse.cut.base import Cut
 from lhotse.features.base import Features, FeatureSet
-from lhotse.array import TemporalArray, Array
 from lhotse.shar.writers import AudioTarWriter
-from lhotse.audio import RecordingSet
+from matplotlib import pyplot as plt
+from tqdm import tqdm
+
 
 def json_reader(filename):
     with open(filename) as f:

@@ -13,13 +13,16 @@
 # limitations under the License.
 
 from __future__ import annotations
+
 from enum import Enum
-from nemo.utils.enum import PrettyStrEnum
+
 import torch
+from torch import Tensor
+
 from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
-from torch import Tensor
 from nemo.core.classes.module import NeuralModule
+from nemo.utils.enum import PrettyStrEnum
 
 
 class LocalTransformerType(PrettyStrEnum):

@@ -18,8 +18,8 @@ from omegaconf import OmegaConf, open_dict
 
 from nemo.collections.tts.models import (
     MagpieTTSModel,
-    MagpieTTSModelOfflinePODataGen,
     MagpieTTSModelOfflinePO,
+    MagpieTTSModelOfflinePODataGen,
     MagpieTTSModelOnlinePO,
 )
 from nemo.core.config import hydra_runner
