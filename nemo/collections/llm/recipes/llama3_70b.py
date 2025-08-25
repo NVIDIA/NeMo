@@ -397,7 +397,7 @@ def finetune_performance_optimizations(
         recipe.peft.target_modules = ['linear_qkv']
         recipe.trainer.strategy.ddp = run.Config(
             DistributedDataParallelConfig,
-            check_for_nan_in_grad=True,
+            check_for_nan_in_grad=False,
             check_for_large_grads = False
         )
         recipe.trainer.callbacks.append(
