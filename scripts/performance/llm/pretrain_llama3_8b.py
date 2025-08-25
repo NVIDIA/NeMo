@@ -80,6 +80,7 @@ def override_recipe_configs(
         use_user_buffer_registration=use_user_buffer_registration,
         use_sharp=use_sharp,
         keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
+        use_te_op_fuser=args.use_te_op_fuser or use_mcore_fsdp,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name

@@ -401,5 +401,12 @@ def parse_cli_args():
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "--use_te_op_fuser",
+        help="Enable Transformer Engine's operation fuser. This feature is experimental and disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
 
     return parser

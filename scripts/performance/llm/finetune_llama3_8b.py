@@ -89,6 +89,7 @@ def override_recipe_configs(
         use_user_buffer_registration=args.use_user_buffer_registration,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
         use_sharp=args.use_sharp,
+        use_te_op_fuser=args.use_te_op_fuser or use_mcore_fsdp,
     )
     recipe = set_exp_logging_configs(
         recipe,
