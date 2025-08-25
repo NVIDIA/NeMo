@@ -258,42 +258,42 @@ def create_combined_violin_plots(dataset_metrics: dict, metric_keys: List[str], 
 
 
 def run_inference(
-        hparams_file,
-        checkpoint_file,
-        nemo_file,
-        datasets,
-        out_dir,
-        temperature,
-        topk,
-        codecmodel_path,
-        use_cfg,
-        cfg_scale,
-        batch_size,
-        sv_model,
-        asr_model_name,
-        num_repeats=1,
-        apply_attention_prior=False,
-        attention_prior_epsilon=1e-3,
-        attention_prior_lookahead_window=10,
-        estimate_alignment_from_layers=None,
-        apply_prior_to_layers=None,
-        start_prior_after_n_audio_steps=10,
-        confidence_level=0.95,
-        use_local_transformer=False,
-        maskgit_n_steps=3,
-        maskgit_noise_scale=0.0,
-        maskgit_fixed_schedule=None,
-        maskgit_sampling_type=None,
-        legacy_codebooks=False,
-        legacy_text_conditioning=False,
-        clean_up_disk=False,
-        hparams_file_from_wandb=False,
-        log_exp_name=False,
-        compute_fcd=False,
-        violin_plot_metrics=['cer', 'pred_context_ssim'],
-        eos_detection_method=None,
-        ignore_finished_sentence_tracking=False
-    ):
+    hparams_file,
+    checkpoint_file,
+    nemo_file,
+    datasets,
+    out_dir,
+    temperature,
+    topk,
+    codecmodel_path,
+    use_cfg,
+    cfg_scale,
+    batch_size,
+    sv_model,
+    asr_model_name,
+    num_repeats=1,
+    apply_attention_prior=False,
+    attention_prior_epsilon=1e-3,
+    attention_prior_lookahead_window=10,
+    estimate_alignment_from_layers=None,
+    apply_prior_to_layers=None,
+    start_prior_after_n_audio_steps=10,
+    confidence_level=0.95,
+    use_local_transformer=False,
+    maskgit_n_steps=3,
+    maskgit_noise_scale=0.0,
+    maskgit_fixed_schedule=None,
+    maskgit_sampling_type=None,
+    legacy_codebooks=False,
+    legacy_text_conditioning=False,
+    clean_up_disk=False,
+    hparams_file_from_wandb=False,
+    log_exp_name=False,
+    compute_fcd=False,
+    violin_plot_metrics=['cer', 'pred_context_ssim'],
+    eos_detection_method=None,
+    ignore_finished_sentence_tracking=False,
+):
     # Load model
     if hparams_file is not None and checkpoint_file is not None:
         model_cfg = OmegaConf.load(hparams_file)
@@ -491,7 +491,7 @@ def run_inference(
                     maskgit_fixed_schedule=maskgit_fixed_schedule,
                     maskgit_sampling_type=maskgit_sampling_type,
                     ignore_finished_sentence_tracking=ignore_finished_sentence_tracking,
-                    eos_detection_method=eos_detection_method
+                    eos_detection_method=eos_detection_method,
                 )
 
                 all_rtf_metrics.append(rtf_metrics)
@@ -654,7 +654,19 @@ def main():
     parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=0)
     parser.add_argument('--topk', type=int, default=80)
     parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--eos_detection_method', type=str, default="argmax_or_multinomial_any", choices=["argmax_any", "argmax_or_multinomial_any", "argmax_all", "argmax_or_multinomial_all", "argmax_zero_cb", "argmax_or_multinomial_zero_cb"])
+    parser.add_argument(
+        '--eos_detection_method',
+        type=str,
+        default="argmax_or_multinomial_any",
+        choices=[
+            "argmax_any",
+            "argmax_or_multinomial_any",
+            "argmax_all",
+            "argmax_or_multinomial_all",
+            "argmax_zero_cb",
+            "argmax_or_multinomial_zero_cb",
+        ],
+    )
     # Parameters for evaluation
     parser.add_argument('--sv_model', type=str, default="titanet")  # titanet, wavlm
     parser.add_argument(
@@ -729,7 +741,7 @@ def main():
         compute_fcd=compute_fcd,
         violin_plot_metrics=args.violin_plot_metrics,
         eos_detection_method=args.eos_detection_method,
-        ignore_finished_sentence_tracking=args.ignore_finished_sentence_tracking
+        ignore_finished_sentence_tracking=args.ignore_finished_sentence_tracking,
     )
 
     # Mode 1: Run inference from provided hparams and checkpoint files

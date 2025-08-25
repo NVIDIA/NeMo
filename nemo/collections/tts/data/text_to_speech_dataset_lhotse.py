@@ -149,7 +149,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         text_conditioning_tokenizer_name: str = None,
         tokenizer_config: DictConfig = None,
         text_context_remapping: Dict[str, str] = None,
-        text_context_remapping_prob: float = 0.0
+        text_context_remapping_prob: float = 0.0,
     ):
         super().__init__()
         self.sample_rate = sample_rate
@@ -378,7 +378,9 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                         if self.dataset_type == 'train' and random.random() < self.text_context_remapping_prob:
                             # Only remap during training. Give the exact text context during inference.
                             context_text = self.text_context_remapping[context_text]
-                    context_text_tokens = self.text_tokenizer.encode(context_text, self.text_conditioning_tokenizer_name)
+                    context_text_tokens = self.text_tokenizer.encode(
+                        context_text, self.text_conditioning_tokenizer_name
+                    )
                     has_text_context = True
                 else:
                     context_text_tokens = self.text_tokenizer.encode(

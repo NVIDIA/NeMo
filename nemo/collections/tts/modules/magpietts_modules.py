@@ -35,11 +35,13 @@ class LocalTransformerType(PrettyStrEnum):
     AR = "autoregressive"
     MASKGIT = "maskgit"
 
+
 class EOSDetectionMethod(PrettyStrEnum):
     """
     Enum for the type of local transformer to use in the MagpieTTS model.
     These strings are the values allowed in the YAML config file.
     """
+
     ARGMAX_ANY = "argmax_any"
     ARGMAX_OR_MULTINOMIAL_ANY = "argmax_or_multinomial_any"
     ARGMAX_ALL = "argmax_all"
@@ -60,12 +62,21 @@ class EOSDetectionMethod(PrettyStrEnum):
 
     @staticmethod
     def sampling_type(detection_method: EOSDetectionMethod):
-        if detection_method in [EOSDetectionMethod.ARGMAX_ANY, EOSDetectionMethod.ARGMAX_ALL, EOSDetectionMethod.ARGMAX_ZERO_CB]:
+        if detection_method in [
+            EOSDetectionMethod.ARGMAX_ANY,
+            EOSDetectionMethod.ARGMAX_ALL,
+            EOSDetectionMethod.ARGMAX_ZERO_CB,
+        ]:
             return "argmax"
-        elif detection_method in [EOSDetectionMethod.ARGMAX_OR_MULTINOMIAL_ANY, EOSDetectionMethod.ARGMAX_OR_MULTINOMIAL_ALL, EOSDetectionMethod.ARGMAX_OR_MULTINOMIAL_ZERO_CB]:
+        elif detection_method in [
+            EOSDetectionMethod.ARGMAX_OR_MULTINOMIAL_ANY,
+            EOSDetectionMethod.ARGMAX_OR_MULTINOMIAL_ALL,
+            EOSDetectionMethod.ARGMAX_OR_MULTINOMIAL_ZERO_CB,
+        ]:
             return "argmax_or_multinomial"
         else:
             raise ValueError(f"Invalid EOS detection method: {detection_method}")
+
 
 class SpecialAudioToken(Enum):
     """

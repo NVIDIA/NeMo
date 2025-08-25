@@ -384,7 +384,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
         context_duration_min: float = 3.0,
         context_duration_max: float = 10.0,
         text_context_remapping: Dict[str, str] = None,
-        text_context_remapping_prob: float = 0.0
+        text_context_remapping_prob: float = 0.0,
     ):
         super().__init__(
             dataset_meta=dataset_meta,

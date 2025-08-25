@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import os
 import random
 import time
-import json
 from functools import partial
 from typing import List, Optional
 
@@ -38,8 +38,8 @@ from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
 from nemo.collections.tts.modules.magpietts_modules import (
     CharAwareSubwordEncoder,
-    LocalTransformerType,
     EOSDetectionMethod,
+    LocalTransformerType,
     SpecialAudioToken,
     cosine_schedule,
 )
@@ -178,8 +178,7 @@ class MagpieTTSModel(ModelPT):
         self.pad_context_text_to_max_duration = self.model_type in ['decoder_context_tts', 'decoder_ce']
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
 
-
-        # Below args (text_context_remapping_json, text_context_remapping_prob) are 
+        # Below args (text_context_remapping_json, text_context_remapping_prob) are
         # for combining multiple context_texts into a single one during training.
         # Eg. if we want to treat Emma_neutral and Emma_conversational as one speaker,
         # we can create an override dict {'Emma_neutral' : 'Emma', 'Emma_conversational' : 'Emma'}
@@ -2017,14 +2016,20 @@ class MagpieTTSModel(ModelPT):
         Returns:
             index (within the frame stack) of the first frame with EOS, or `None` if no EOS is found
         """
-        eos_mask = (codes == self.audio_eos_id)  # (codebooks, frame_stacking_factor)
+        eos_mask = codes == self.audio_eos_id  # (codebooks, frame_stacking_factor)
         detection_type = EOSDetectionMethod.detection_type(eos_detection_method)
         if detection_type == "any":
-            eos_per_frame = eos_mask.any(dim=0)  # (frame_stacking_factor,) - True if any codebook has EOS in this frame
+            eos_per_frame = eos_mask.any(
+                dim=0
+            )  # (frame_stacking_factor,) - True if any codebook has EOS in this frame
         elif detection_type == "all":
-            eos_per_frame = eos_mask.all(dim=0)  # (frame_stacking_factor,) - True if all codebooks have EOS in this frame
+            eos_per_frame = eos_mask.all(
+                dim=0
+            )  # (frame_stacking_factor,) - True if all codebooks have EOS in this frame
         elif detection_type == "zero_cb":
-            eos_per_frame = eos_mask[:1,:].any(dim=0)  # (frame_stacking_factor,) - True if zeroth codebook has EOS in this frame
+            eos_per_frame = eos_mask[:1, :].any(
+                dim=0
+            )  # (frame_stacking_factor,) - True if zeroth codebook has EOS in this frame
         else:
             raise ValueError(f"Invalid EOS detection method: {eos_detection_method}")
         # find first frame with EOS
@@ -2043,35 +2048,34 @@ class MagpieTTSModel(ModelPT):
             return min(argmax_eos_frame, multinomial_eos_frame)
         else:
             raise ValueError(f"Invalid EOS detection method: {eos_detection_method}")
-            
 
     def infer_batch(
-            self,
-            batch,
-            max_decoder_steps=500,
-            temperature=0.7,
-            topk=80,
-            use_cfg=False,
-            cfg_scale=1.0,
-            return_cross_attn_probs=False,
-            apply_attention_prior=False,
-            prior_epsilon=1e-5,
-            lookahead_window_size=10,
-            estimate_alignment_from_layers=None,
-            apply_prior_to_layers=None,
-            start_prior_after_n_audio_steps=10,
-            compute_all_heads_attn_maps=False,
-            use_local_transformer_for_inference=False,
-            use_LT_kv_cache=True,
-            maskgit_n_steps=3,
-            maskgit_noise_scale=0.0,
-            maskgit_fixed_schedule=None,
-            maskgit_dynamic_cfg_scale=False,
-            maskgit_sampling_type=None,
-            ignore_finished_sentence_tracking=False,
-            eos_detection_method="argmax_or_multinomial_any",
-            ):
-        
+        self,
+        batch,
+        max_decoder_steps=500,
+        temperature=0.7,
+        topk=80,
+        use_cfg=False,
+        cfg_scale=1.0,
+        return_cross_attn_probs=False,
+        apply_attention_prior=False,
+        prior_epsilon=1e-5,
+        lookahead_window_size=10,
+        estimate_alignment_from_layers=None,
+        apply_prior_to_layers=None,
+        start_prior_after_n_audio_steps=10,
+        compute_all_heads_attn_maps=False,
+        use_local_transformer_for_inference=False,
+        use_LT_kv_cache=True,
+        maskgit_n_steps=3,
+        maskgit_noise_scale=0.0,
+        maskgit_fixed_schedule=None,
+        maskgit_dynamic_cfg_scale=False,
+        maskgit_sampling_type=None,
+        ignore_finished_sentence_tracking=False,
+        eos_detection_method="argmax_or_multinomial_any",
+    ):
+
         eos_detection_method = EOSDetectionMethod(eos_detection_method)
         with torch.no_grad():
             start_time = time.time()
@@ -2233,7 +2237,9 @@ class MagpieTTSModel(ModelPT):
                     finished_items = {}
                     unfinished_items = {}
                 else:
-                    finished_items = {k: v for k, v in finished_texts_counter.items() if v >= 20} # Items that have been close to the end for atleast 20 timesteps
+                    finished_items = {
+                        k: v for k, v in finished_texts_counter.items() if v >= 20
+                    }  # Items that have been close to the end for atleast 20 timesteps
                     unfinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :]  # (B, num_codebooks * num_tokens_per_codebook)
@@ -2287,9 +2293,11 @@ class MagpieTTSModel(ModelPT):
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
-                        end_frame_index = self.detect_eos(audio_codes_next[item_idx], all_codes_next_argmax[item_idx], eos_detection_method)
+                        end_frame_index = self.detect_eos(
+                            audio_codes_next[item_idx], all_codes_next_argmax[item_idx], eos_detection_method
+                        )
                         if end_frame_index != float('inf'):
-                            global_index = idx * self.frame_stacking_factor +  end_frame_index
+                            global_index = idx * self.frame_stacking_factor + end_frame_index
                             end_indices[item_idx] = global_index
                             print(f"End detected for item {item_idx} at decoder timestep: {idx}")
 
