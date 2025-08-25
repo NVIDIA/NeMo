@@ -396,9 +396,7 @@ def finetune_performance_optimizations(
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
         recipe.peft.target_modules = ['linear_qkv']
         recipe.trainer.strategy.ddp = run.Config(
-            DistributedDataParallelConfig,
-            check_for_nan_in_grad=False,
-            check_for_large_grads = False
+            DistributedDataParallelConfig, check_for_nan_in_grad=False, check_for_large_grads=False
         )
         recipe.trainer.callbacks.append(
             run.Config(
