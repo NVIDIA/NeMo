@@ -114,7 +114,7 @@ def trainer(
         ckpt_parallel_load=True,
         ddp=run.Config(
             DistributedDataParallelConfig,
-            check_for_nan_in_grad=True,
+            check_for_nan_in_grad=False,
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
@@ -395,6 +395,11 @@ def finetune_performance_optimizations(
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 5
         recipe.peft.target_modules = ['linear_qkv']
+        recipe.trainer.strategy.ddp = run.Config(
+            DistributedDataParallelConfig,
+            check_for_nan_in_grad=False,
+            check_for_large_grads=False,
+        )
         recipe.trainer.callbacks.append(
             run.Config(
                 MegatronCommOverlapCallback,
