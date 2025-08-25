@@ -1675,7 +1675,6 @@ class MagpieTTSModel(ModelPT):
 
     def get_most_attended_text_timestep(self, alignment_attention_scores, last_attended_timesteps,
                                    text_lens, lookahead_window_size, attended_timestep_counter, batch_size, left_offset=0):
-                                   text_lens, lookahead_window_size, attended_timestep_counter, batch_size, left_offset=0):
         """
         Returns the most attended timestep for each batch item
         """
