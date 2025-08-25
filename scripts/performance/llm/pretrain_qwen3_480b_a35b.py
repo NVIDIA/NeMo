@@ -95,6 +95,14 @@ def override_recipe_configs(
     recipe.model.config.recompute_method = None
     recipe.model.config.recompute_num_layers = None
 
+    recipe.trainer.strategy.account_for_embedding_in_pipeline_split = True
+    recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
+
+    if args.use_localrun:
+        recipe.model.config.num_layers = 2
+        recipe.model.config.num_moe_experts = 8
+
+
     return recipe
 
 
@@ -102,10 +110,22 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
+    # kwargs = get_user_configs(args.gpu.lower(), "pre_train", "qwen3", "235b_a22b", args)
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "qwen3", "480b_a35b", args)
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, _, _, _ = kwargs[
         0:13
     ]
+    if args.use_localrun:
+        num_nodes = 1
+        mbs = 1
+        gbs = 32
+        tp_size = 1
+        pp_size = 2
+        cp_size = 1
+        vp_size = 2
+        ep_size = 4
+        etp_size = 1
+        enable_cuda_graphs = False
 
     recipe = override_recipe_configs(
         args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs
@@ -116,22 +136,25 @@ if __name__ == "__main__":
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    executor = slurm_executor(
-        args.gpu.lower(),
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars={},
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-        network='sharp' if args.use_sharp else None,
-    )
+    if args.use_localrun:
+        executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
+    else:
+        executor = slurm_executor(
+            args.gpu.lower(),
+            args.account,
+            args.partition,
+            args.log_dir,
+            num_nodes,
+            args.gpus_per_node,
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars={},
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
+        )
 
     if args.gpu.lower() in ['b200', 'gb200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
         del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
@@ -142,6 +165,11 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+    
+    if args.use_localrun:
+        run.run(recipe, executor=executor, plugins=plugins, name=exp_name)
+        exit()
+
 
     with run.Experiment(exp_name) as exp:
         exp.add(
