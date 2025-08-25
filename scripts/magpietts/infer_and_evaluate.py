@@ -43,6 +43,7 @@ EVALUATION_DATASETS = (
     "riva_hard_digits,riva_hard_letters,riva_hard_money,riva_hard_short,vctk,libritts_seen,libritts_test_clean"
 )
 
+
 def setup_argument_parser():
     """Setup and return the argument parser for the streaming inference script."""
     parser = argparse.ArgumentParser(description='Experiment Evaluation')
@@ -96,6 +97,7 @@ def setup_argument_parser():
         help="Which metrics to add the violin plot.",
     )
     return parser
+
 
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
@@ -221,7 +223,6 @@ def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png:
 
     plt.tight_layout()
     plt.savefig(output_png, format="png", bbox_inches="tight")
-
 
 
 def run_inference(
@@ -561,7 +562,7 @@ def run_inference(
         measurements = [m['cer_cumulative'] for m in metrics_n_repeated]
         cer_current = np.mean(measurements)
         cer_per_dataset.append(cer_current)
-        
+
     # Average across datasets
     ssim = np.mean(ssim_per_dataset)
     cer = np.mean(cer_per_dataset)

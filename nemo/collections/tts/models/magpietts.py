@@ -2057,7 +2057,6 @@ class MagpieTTSModel(ModelPT):
 
         return _attn_prior, unfinished_texts, finished_texts_counter, chunk_end_has_reached
 
-    
     def get_inference_attention_plots(
         self,
         cross_attention_scores_all_timesteps,
