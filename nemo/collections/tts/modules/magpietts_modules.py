@@ -13,13 +13,16 @@
 # limitations under the License.
 
 from __future__ import annotations
+
 from enum import Enum
-from nemo.utils.enum import PrettyStrEnum
+
 import torch
+from torch import Tensor
+
 from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
-from torch import Tensor
 from nemo.core.classes.module import NeuralModule
+from nemo.utils.enum import PrettyStrEnum
 
 
 class LocalTransformerType(PrettyStrEnum):
@@ -98,11 +101,12 @@ class SpecialAudioToken(Enum):
                                     * Set to `False` when internally generating tokens in MagpieTTS sampling
                                     * Set to `True` when checking validity of tokens to be returned to user
                                       or given to the codec for decoding
-        """        
+        """
         all_special_tokens = list(SpecialAudioToken)
         if not forbid_audio_eos:
             all_special_tokens.remove(SpecialAudioToken.AUDIO_EOS)
         return [SpecialAudioToken.get_index(token, base_codebook_size) for token in all_special_tokens]
+
 
 def cosine_schedule(x: torch.Tensor):
     """
@@ -110,6 +114,7 @@ def cosine_schedule(x: torch.Tensor):
     Used for MaskGit mask scheduling.
     """
     return torch.cos(x * (torch.pi / 2))
+
 
 def build_vocabs(subword_vocab: dict, subword_padding_idx: int, special_vocab: dict = None) -> tuple[dict, dict]:
     """
@@ -126,7 +131,7 @@ def build_vocabs(subword_vocab: dict, subword_padding_idx: int, special_vocab: d
         char_vocab: A dictionary mapping character ids to their corresponding characters.
     """
     org_char_vocab = {subword: subword_id for subword, subword_id in subword_vocab.items() if len(subword) == 1}
-    
+
     # Add special tokens directly to char vocab
     if special_vocab is not None:
         for special_token, special_token_id in special_vocab.items():
@@ -140,20 +145,21 @@ def build_vocabs(subword_vocab: dict, subword_padding_idx: int, special_vocab: d
     subword_id_to_char_ids = {
         subword_id: tuple(char_vocab[char] for char in subword) for subword, subword_id in subword_vocab.items()
     }
-    
+
     # Creating mapping from subword ids of special tokens to their char ids
     if special_vocab is not None:
         for special_token, special_token_id in special_vocab.items():
             if special_token in subword_id_to_char_ids:
                 raise ValueError(f"Special token {special_token} already exists in the subword id Vocabulary.")
             subword_id_to_char_ids[special_token_id] = (char_vocab[special_token],)
-        
+
     assert max(subword_id_to_char_ids) == len(subword_id_to_char_ids) - 1
-    
+
     # Always add padding token to the end of the vocab (this is the convention used in the original code)
     subword_id_to_char_ids[subword_padding_idx] = (len(char_vocab),)
-    
+
     return subword_id_to_char_ids, char_vocab
+
 
 class CharAwareSubwordEncoder(NeuralModule):
     """
@@ -161,6 +167,7 @@ class CharAwareSubwordEncoder(NeuralModule):
     This module takes subword ids as input, maps them to character ids, and then applies a transformer encoder to the character embeddings.
     The output is a tensor of shape (batch_size, max_subword_length, d_embed).
     """
+
     def __init__(self, d_embed: int, llm_tokenizer_vocab: dict, subword_padding_idx: int, special_vocab: dict = None):
         """
         Args:
@@ -173,8 +180,10 @@ class CharAwareSubwordEncoder(NeuralModule):
                 eg. special_vocab = {'<BOS>': 30001, '<EOS>': 30002}
         """
         super().__init__()
-        self.subword_id_to_char_ids, self.char_vocab = build_vocabs(llm_tokenizer_vocab, subword_padding_idx, special_vocab)
-        self.embed_tokens = torch.nn.Embedding(self.vocab_size+1, d_embed, padding_idx=self.vocab_size)
+        self.subword_id_to_char_ids, self.char_vocab = build_vocabs(
+            llm_tokenizer_vocab, subword_padding_idx, special_vocab
+        )
+        self.embed_tokens = torch.nn.Embedding(self.vocab_size + 1, d_embed, padding_idx=self.vocab_size)
         self.encoder = transformer_2501.Transformer(
             n_layers=1,
             d_model=d_embed,
@@ -182,7 +191,7 @@ class CharAwareSubwordEncoder(NeuralModule):
             sa_n_heads=8,
             kernel_size=1,
             max_length_causal_mask=256,
-            use_learnable_pos_emb=True
+            use_learnable_pos_emb=True,
         )
 
     @property
@@ -226,14 +235,11 @@ class CharAwareSubwordEncoder(NeuralModule):
         char_mask = get_mask_from_lengths(char_lengths)
         char_emb = self.embed_tokens(char_ids)
         # char emb has the shape  [B*T, N, channels], where N is the max number of chars tokens decoded from bpe tokens
-        x = self.encoder(
-            x=char_emb,
-            x_mask=char_mask
-        )['output']
+        x = self.encoder(x=char_emb, x_mask=char_mask)['output']
 
         # Get average embedding over the chars
         mean_emb = ((x / char_mask.unsqueeze(-1).sum(1, keepdim=True)) * char_mask.unsqueeze(-1)).sum(1)
         subword_emb = torch.zeros((subword_mask.size(0), subword_mask.size(1), mean_emb.size(-1)), device=device)
         subword_emb[subword_mask.unsqueeze(-1).expand(-1, -1, mean_emb.size(-1))] = mean_emb.view(-1)
-        
+
         return subword_emb

@@ -40,6 +40,7 @@ from lightning.pytorch.trainer.connectors.checkpoint_connector import _Checkpoin
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
+from nemo.collections.common.callbacks.ipl_epoch_stopper import IPLEpochStopper
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
@@ -52,6 +53,7 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
+from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
 get_current_global_batch_size, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
     "megatron.core.num_microbatches_calculator", "get_current_global_batch_size"
@@ -111,6 +113,29 @@ class EarlyStoppingParams:
     divergence_threshold: Optional[float] = None
     check_on_train_epoch_end: Optional[bool] = None
     log_rank_zero_only: bool = False
+
+
+@dataclass
+class IPLEpochStopperParams:
+    """
+    Parameters for the IPLEpochStopper callback used in iterative pseudo-label training.
+
+    This is part of the TopIPL pipeline, a semi-supervised training method for ASR
+    that uses iterative pseudo-labeling (IPL) — periodically stopping training to generate
+    pseudo-labels for unlabeled data and fine-tuning the model on them.
+
+    For more details, see:
+    🔗 Top-IPL: Top-N Pseudo-Label Averaging for Iterative ASR Training
+    https://arxiv.org/abs/2506.07659
+
+    Attributes:
+        enable_stop (bool): If True, enables the stopping behavior in the callback.
+        stop_every_n_epochs (int): Specifies how many epochs to train before stopping.
+    """
+
+    # Flag that allows stopping
+    enable_stop: bool = True
+    stop_every_n_epochs: int = 1
 
 
 @dataclass
@@ -234,8 +259,12 @@ class ExpManagerConfig:
     create_checkpoint_callback: Optional[bool] = True
     checkpoint_callback_params: Optional[CallbackParams] = field(default_factory=lambda: CallbackParams())
     create_early_stopping_callback: Optional[bool] = False
+    create_ipl_epoch_stopper_callback: Optional[bool] = False
     early_stopping_callback_params: Optional[EarlyStoppingParams] = field(
         default_factory=lambda: EarlyStoppingParams()
+    )
+    ipl_epoch_stopper_callback_params: Optional[IPLEpochStopperParams] = field(
+        default_factory=lambda: IPLEpochStopperParams()
     )
     create_preemption_callback: Optional[bool] = True
     # Additional exp_manager arguments
@@ -340,8 +369,12 @@ class TimingCallback(Callback):
         """
         self._on_batch_end("train_step_timing", pl_module)
         if self.log_tokens_per_sec:
+            if "text" in batch:
+                batch['tokens'] = batch['text']
             tokens_per_gpu = (
-                get_current_global_batch_size() * batch["tokens"].shape[1] / torch.distributed.get_world_size()
+                (get_current_global_batch_size() // trainer.accumulate_grad_batches)
+                * batch["tokens"].shape[1]
+                / torch.distributed.get_world_size()
             )
             pl_module.log(
                 "tokens_per_sec_per_gpu",
@@ -695,6 +728,10 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         early_stop_callback = EarlyStopping(**cfg.early_stopping_callback_params)
         trainer.callbacks.append(early_stop_callback)
 
+    if cfg.create_ipl_epoch_stopper_callback:
+        ipl_epoch_stopper_callback = IPLEpochStopper(**cfg.ipl_epoch_stopper_callback_params)
+        trainer.callbacks.append(ipl_epoch_stopper_callback)
+
     if cfg.create_checkpoint_callback:
         configure_checkpointing(
             trainer,
@@ -905,7 +942,8 @@ def check_resume(
 
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank
         # to avoid throttling S3.
-        if is_global_rank_zero() or not is_s3_url(dirpath):
+
+        if is_global_rank_zero() or not (is_s3_url(dirpath) and is_multistorageclient_url(dirpath)):
             checkpoint_dir_exists = False
             if is_s3_url(dirpath):
                 checkpoint_dir = dirpath
@@ -917,6 +955,17 @@ def check_resume(
                     all_keys = S3Utils.find_files_with_suffix(checkpoint_dir, suffix=None, return_key_only=False)
                     end_checkpoints = [k for k in all_keys if k.endswith('end.ckpt')]
                     last_checkpoints = [k for k in all_keys if k.endswith('last.ckpt')]
+                else:
+                    end_checkpoints = []
+                    last_checkpoints = []
+            elif is_multistorageclient_url(dirpath):
+                msc = import_multistorageclient()
+                checkpoint_dir = dirpath
+                all_keys = msc.glob(f"{dirpath}**/*.ckpt")
+                checkpoint_dir_exists = True if all_keys else False
+                if all_keys:
+                    end_checkpoints = sorted([k for k in all_keys if k.endswith('end.ckpt')], reverse=True)
+                    last_checkpoints = sorted([k for k in all_keys if k.endswith('last.ckpt')], reverse=True)
                 else:
                     end_checkpoints = []
                     last_checkpoints = []

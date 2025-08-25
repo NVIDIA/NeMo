@@ -487,10 +487,6 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
 class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
 
-    logging.warning(
-        "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
-    )
-
     def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]], use_feat: bool = False):
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
@@ -642,6 +638,9 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
         OmegaConf.set_struct(cfg, True)
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
+        logging.warning(
+            "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
+        )
         self._update_decoder_config(cfg.labels, cfg.decoder)
         if hasattr(cfg, 'is_regression_task') and cfg.is_regression_task is not None:
             self.is_regression_task = cfg.is_regression_task
@@ -1042,18 +1041,26 @@ class EncDecRegressionModel(_EncDecBaseModel):
         OmegaConf.set_struct(cfg, True)
 
 
-class EncDecFrameClassificationModel(EncDecClassificationModel):
-    @property
-    def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"outputs": NeuralType(('B', 'T', 'C'), LogitsType())}
+class EncDecFrameClassificationModel(_EncDecBaseModel):
+    """
+    EncDecFrameClassificationModel is a model that performs classification on each frame of the input audio.
+    The default config (i.e., marblenet_3x2x64_20ms.yaml) outputs 20ms frames.
+    """
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.num_classes = len(cfg.labels)
         self.eval_loop_cnt = 0
         self.ratio_threshold = cfg.get('ratio_threshold', 0.2)
+        if cfg.get("is_regression_task", False):
+            raise ValueError("EndDecClassificationModel requires the flag is_regression_task to be set as false")
+
         super().__init__(cfg=cfg, trainer=trainer)
         self.decoder.output_types = self.output_types
         self.decoder.output_types_for_export = self.output_types
+
+    @property
+    def output_types(self) -> Optional[Dict[str, NeuralType]]:
+        return {"outputs": NeuralType(('B', 'T', 'C'), LogitsType())}
 
     @classmethod
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
@@ -1065,6 +1072,32 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         )
         results.append(model)
         return results
+
+    def _setup_preprocessor(self):
+        return EncDecClassificationModel.from_config_dict(self._cfg.preprocessor)
+
+    def _setup_encoder(self):
+        return EncDecClassificationModel.from_config_dict(self._cfg.encoder)
+
+    def _setup_decoder(self):
+        return EncDecClassificationModel.from_config_dict(self._cfg.decoder)
+
+    def _update_decoder_config(self, labels, cfg):
+        """
+        Update the number of classes in the decoder based on labels provided.
+
+        Args:
+            labels: The current labels of the model
+            cfg: The config of the decoder which will be updated.
+        """
+        OmegaConf.set_struct(cfg, False)
+
+        if 'params' in cfg:
+            cfg.params.num_classes = len(labels)
+        else:
+            cfg.num_classes = len(labels)
+
+        OmegaConf.set_struct(cfg, True)
 
     def _setup_metrics(self):
         self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
@@ -1227,13 +1260,25 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         self._macro_accuracy.update(preds=metric_logits, target=metric_labels)
         stats = self._macro_accuracy._final_state()
 
-        return {
+        output = {
             f'{tag}_loss': loss_value,
             f'{tag}_correct_counts': correct_counts,
             f'{tag}_total_counts': total_counts,
             f'{tag}_acc_micro': acc,
             f'{tag}_acc_stats': stats,
         }
+
+        if tag == 'val':
+            if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
+                self.validation_step_outputs[dataloader_idx].append(output)
+            else:
+                self.validation_step_outputs.append(output)
+        else:
+            if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
+                self.test_step_outputs[dataloader_idx].append(output)
+            else:
+                self.test_step_outputs.append(output)
+        return output
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
         val_loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()

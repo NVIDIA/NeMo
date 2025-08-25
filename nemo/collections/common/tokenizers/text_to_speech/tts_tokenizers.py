@@ -1134,7 +1134,7 @@ class AggregatedTTSTokenizer:
         elif hasattr(first_tokenizer, "pad"):  # Defined in BaseTokenizer subclasses
             self.pad = first_tokenizer.pad
         else:
-           raise ValueError("AggregatedTTSTokenizer could not find a padding token in the first tokenizer")
+            raise ValueError("AggregatedTTSTokenizer could not find a padding token in the first tokenizer")
 
     def encode(self, text: str, tokenizer_name: str = None) -> List[int]:
         tokenizer = self.tokenizers[tokenizer_name]
@@ -1144,4 +1144,3 @@ class AggregatedTTSTokenizer:
     def decode(self, tokens: List[int], tokenizer_name: str = None) -> str:
         tokenizer = self.tokenizers[tokenizer_name]
         return tokenizer.decode([token - self.tokenizer_offsets[tokenizer_name] for token in tokens])
-

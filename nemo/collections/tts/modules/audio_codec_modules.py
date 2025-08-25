@@ -55,6 +55,8 @@ except ModuleNotFoundError:
 
 
 from contextlib import contextmanager
+
+
 @contextmanager
 def default_precision(dtype=torch.float32):
     default_dtype = torch.get_default_dtype()
@@ -63,6 +65,7 @@ def default_precision(dtype=torch.float32):
         yield
     finally:
         torch.set_default_dtype(default_dtype)
+
 
 def get_padding(kernel_size: int, dilation: int = 1) -> int:
     return (kernel_size * dilation - dilation) // 2
@@ -682,7 +685,6 @@ class Conv1dNorm(NeuralModule):
             self.activation = CodecActivation(activation=activation, channels=out_channels)
         else:
             self.activation = torch.nn.Identity()
-
 
     @property
     def input_types(self):
@@ -1423,8 +1425,8 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
         """Returns the size of the codebook for each group."""
         return self.fsqs[0].codebook_size
 
-    #@property
-    #def codebook_size(self):
+    # @property
+    # def codebook_size(self):
     #    """Returns the size of the implicit codebook."""
     #    return self.codebook_size_per_group**self.num_groups
 
@@ -1507,8 +1509,7 @@ class GroupFiniteScalarQuantizer(VectorQuantizerBase):
         },
     )
     def codes_to_indices(self, codes: torch.Tensor, input_len: torch.Tensor) -> torch.Tensor:
-        """Converts a code vector to indices.
-        """
+        """Converts a code vector to indices."""
         codes_rearrange = rearrange(codes, 'B D T -> D B T')
         codes_grouped = codes_rearrange.chunk(self.num_groups, dim=0)
         indices = []
@@ -2371,7 +2372,7 @@ class STFTProcessor(NeuralModule):
             win_length=self.win_length,
             window=self.window,
             return_complex=True,
-            center=False
+            center=False,
         )
         fft_mag = torch.abs(fft)
         fft_mag_log = torch.log(fft_mag + self.log_guard)
@@ -2594,7 +2595,7 @@ class STFTResidualBlock(NeuralModule):
             out_channels=filters,
             kernel_size=down_sample_kernel_size,
             stride=self.down_sample_rate,
-            activation=activation
+            activation=activation,
         )
 
         n_fft, hop_length, win_length = resolution
@@ -2624,7 +2625,7 @@ class STFTResidualBlock(NeuralModule):
     def output_types(self):
         return {
             "out": NeuralType(('B', 'C', 'T'), EncodedRepresentation()),
-            "out_len": NeuralType(tuple('B'), LengthsType())
+            "out_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @typecheck()
@@ -2670,7 +2671,7 @@ class DownSampleResidualBlock(NeuralModule):
             out_channels=filters,
             kernel_size=down_sample_kernel_size,
             stride=self.down_sample_rate,
-            activation=activation
+            activation=activation,
         )
         self.res_block = ResidualBlockV2(
             channels=filters, filters=filters, kernel_size=kernel_size, activation=activation
@@ -2682,16 +2683,13 @@ class DownSampleResidualBlock(NeuralModule):
 
     @property
     def input_types(self):
-        return {
-            "inputs": NeuralType(('B', 'C', 'T'), VoidType()),
-            "input_len": NeuralType(tuple('B'), LengthsType())
-        }
+        return {"inputs": NeuralType(('B', 'C', 'T'), VoidType()), "input_len": NeuralType(tuple('B'), LengthsType())}
 
     @property
     def output_types(self):
         return {
             "out": NeuralType(('B', 'C', 'T'), EncodedRepresentation()),
-            "out_len": NeuralType(tuple('B'), LengthsType())
+            "out_len": NeuralType(tuple('B'), LengthsType()),
         }
 
     @typecheck()
@@ -2737,16 +2735,10 @@ class MultiResolutionSTFTEncoder(NeuralModule):
         input_dim = n_fft // 2 + 1
         self.pre_spec_processor = STFTProcessor(n_fft=n_fft, win_length=win_length, hop_length=hop_length)
         self.pre_conv = Conv1dNorm(
-            in_channels=input_dim,
-            out_channels=input_filters,
-            kernel_size=kernel_size,
-            activation=activation
+            in_channels=input_dim, out_channels=input_filters, kernel_size=kernel_size, activation=activation
         )
         self.pre_res_block = ResidualBlockV2(
-            channels=input_filters,
-            filters=input_filters,
-            kernel_size=kernel_size,
-            activation=activation
+            channels=input_filters, filters=input_filters, kernel_size=kernel_size, activation=activation
         )
         input_dim = input_filters
         self.stft_blocks = nn.ModuleList([])
@@ -2766,22 +2758,18 @@ class MultiResolutionSTFTEncoder(NeuralModule):
             down_sample_rate_list = len(down_sample_filter_list) * [2]
 
         self.down_sample_blocks = nn.ModuleList([])
-        for (filters, down_sample_rate) in zip(down_sample_filter_list, down_sample_rate_list):
+        for filters, down_sample_rate in zip(down_sample_filter_list, down_sample_rate_list):
             down_sample_block = DownSampleResidualBlock(
                 channels=input_dim,
                 filters=filters,
                 down_sample_rate=down_sample_rate,
                 kernel_size=kernel_size,
-                activation=activation
+                activation=activation,
             )
             self.down_sample_blocks.append(down_sample_block)
             input_dim = filters
 
-        self.post_conv = Conv1dNorm(
-            in_channels=input_dim,
-            out_channels=out_dim,
-            kernel_size=kernel_size
-        )
+        self.post_conv = Conv1dNorm(in_channels=input_dim, out_channels=out_dim, kernel_size=kernel_size)
 
     def remove_weight_norm(self):
         self.encoder.remove_weight_norm()
@@ -2807,9 +2795,7 @@ class MultiResolutionSTFTEncoder(NeuralModule):
         encoded = self.pre_res_block(inputs=encoded, input_len=encoded_len)
 
         for stft_block in self.stft_blocks:
-            encoded, encoded_len = stft_block(
-                inputs=encoded, input_len=encoded_len, audio=audio, audio_len=audio_len
-            )
+            encoded, encoded_len = stft_block(inputs=encoded, input_len=encoded_len, audio=audio, audio_len=audio_len)
 
         for down_sample_block in self.down_sample_blocks:
             encoded, encoded_len = down_sample_block(inputs=encoded, input_len=encoded_len)
@@ -2873,5 +2859,7 @@ class VectorQuantizerIndexConverter(NeuralModule):
     def convert_new_to_original(self, audio_tokens, audio_lens):
         audio_tokens_rearrange = rearrange(audio_tokens, 'B C T -> C B T')
         audio_codes = self.vector_quantizer_new.decode(indices=audio_tokens_rearrange, input_len=audio_lens)
-        audio_tokens_original = self.vector_quantizer_original.codes_to_indices(codes=audio_codes, input_len=audio_lens)
+        audio_tokens_original = self.vector_quantizer_original.codes_to_indices(
+            codes=audio_codes, input_len=audio_lens
+        )
         return audio_tokens_original

@@ -239,8 +239,12 @@ class Attention(torch.nn.Module):
                 if self.make_prior_window_strict:
                     # Make sure attention scores are lowest (eps) where prior is zero.
                     min_score = torch.log(torch.tensor(eps)).to(attn_score_log.device)
-                    attn_score_log = attn_score_log.masked_fill(attn_prior == 0, min_score) # Wherever prior is zero, set scores to eps.
-                    attn_score_log = torch.clamp(attn_score_log, min=min_score) # Make sure scores are not less than eps.
+                    attn_score_log = attn_score_log.masked_fill(
+                        attn_prior == 0, min_score
+                    )  # Wherever prior is zero, set scores to eps.
+                    attn_score_log = torch.clamp(
+                        attn_score_log, min=min_score
+                    )  # Make sure scores are not less than eps.
                 attn_prob = F.softmax(attn_score_log, dim=-1)
             else:
                 attn_prob = F.softmax(attn_score, dim=-1)

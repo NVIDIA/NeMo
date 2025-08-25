@@ -48,7 +48,6 @@ from typing import Optional, Tuple
 import librosa
 import matplotlib.pylab as plt
 import numpy as np
-import seaborn as sns
 import torch
 from numba import jit, prange
 
@@ -135,9 +134,7 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
 
 
 def get_mask_from_lengths(
-    lengths: Optional[torch.Tensor] = None,
-    x: Optional[torch.Tensor] = None,
-    pad_to_factor: Optional[int] = None
+    lengths: Optional[torch.Tensor] = None, x: Optional[torch.Tensor] = None, pad_to_factor: Optional[int] = None
 ) -> torch.Tensor:
     """Constructs binary mask from a 1D torch tensor of input lengths
 
@@ -521,17 +518,6 @@ def plot_alignment_to_numpy_for_speechllm(
                 for tick in xticks:
                     new_xticks.append(f"{tick+phoneme_seq[1]:.0f}")
                 ax.set_xticklabels(new_xticks)
-
-    plt.tight_layout()
-    fig.canvas.draw()
-    data = save_figure_to_numpy(fig)
-    plt.close()
-    return data
-
-
-def plot_codec_to_numpy(codes, title=''):
-    fig, ax = plt.subplots(figsize=(10, 3))
-    sns.heatmap(codes, ax=ax)
 
     plt.tight_layout()
     fig.canvas.draw()

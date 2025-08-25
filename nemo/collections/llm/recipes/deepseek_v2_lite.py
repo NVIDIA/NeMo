@@ -20,12 +20,14 @@ import nemo_run as run
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV2LiteConfig
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.deepseek import trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "deepseek_v2_lite"
@@ -90,7 +92,8 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
-            tensor_parallelism=4,
+            tensor_parallelism=1,
+            expert_parallelism=8,
             num_nodes=num_nodes,
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
@@ -101,6 +104,8 @@ def pretrain_recipe(
         resume=default_resume(),
     )
 
+    deepep_callback = run.Config(DeepEPCallback)
+    recipe.trainer.callbacks.append(deepep_callback)
     return recipe
 
 
@@ -153,10 +158,7 @@ def finetune_recipe(
         seq_length = 2048
 
     if num_nodes is None:
-        if peft_scheme is None or peft_scheme.lower() == 'none':
-            num_nodes = 16
-        elif peft_scheme.lower() in ['lora', 'dora']:
-            num_nodes = 2
+        num_nodes = 1
 
     recipe = default_finetune_recipe(
         model(), "deepseek-ai/DeepSeek-V2-Lite", dir, name, num_nodes, num_gpus_per_node, packed_sequence
@@ -183,6 +185,6 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        raise ValueError("Packed sequence for DeepSeek is not yet supported. Please set packed_sequence=False.")
-
+        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
+        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
     return recipe

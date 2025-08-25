@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ def prune_gpt_model(
     """
     assert HAVE_MODELOPT, "nvidia-modelopt is required to prune the model."
     if pruning_config.drop_layers:
-        mtp.plugins.megatron.drop_mcore_gpt_layers(model, layers_to_drop=pruning_config.drop_layers)
+        mtp.plugins.drop_mcore_gpt_layers(model, layers_to_drop=pruning_config.drop_layers)
     else:
         assert data_module is not None, "data_module is required to prune the model."
         assert trainer is not None, "trainer is required to prune the model."
@@ -130,7 +130,11 @@ def save_pruned_model(trainer: nl.Trainer, save_path: str) -> None:
     # TODO: trainer.save_checkpoint(save_path) doesnt seem to save metadata.json or .metadata files!
     weight_path = ckpt_to_weights_subdir(save_path, is_saving=True)
     weight_path.mkdir(parents=True, exist_ok=True)
-    dist_checkpointing.save(trainer.strategy.megatron_parallel.sharded_state_dict(), weight_path)
+    dist_checkpointing.save(
+        trainer.strategy.megatron_parallel.sharded_state_dict(),
+        weight_path,
+        content_metadata=trainer.strategy.sharded_state_dict_metadata,
+    )
 
     if is_global_rank_zero():
         TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(save_path), yaml_attrs=["model"])

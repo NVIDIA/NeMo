@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ DATA_PATH = ''
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
-    parser.add_argument('--model', default='deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B')
-    parser.add_argument('--nodes', type=int, default=2)
+    parser.add_argument('--model', default='nvidia/Llama-3_3-Nemotron-Super-49B-v1')
+    parser.add_argument('--nodes', type=int, default=4)
     parser.add_argument('--devices', type=int, default=8)
     parser.add_argument('--max-steps', type=int, default=200)
     parser.add_argument(
@@ -175,7 +175,10 @@ def main():
     )
 
     recipe.trainer.strategy = run.Config(
-        nl.FSDP2Strategy, data_parallel_size=args.nodes * args.devices, tensor_parallel_size=1
+        nl.FSDP2Strategy,
+        data_parallel_size=1,
+        tensor_parallel_size=1,
+        context_parallel_size=32,
     )
     recipe.trainer.plugins = None
 

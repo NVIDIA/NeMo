@@ -399,7 +399,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
             max_duration=max_duration,
             volume_norm=volume_norm,
         )
-        self.bos_id = bos_id # TODO @xueyang: this should be removed since no other places used it.
+        self.bos_id = bos_id  # TODO @xueyang: this should be removed since no other places used it.
         self.eos_id = eos_id
         self.audio_bos_id = audio_bos_id
         self.audio_eos_id = audio_eos_id
@@ -621,7 +621,7 @@ class MagpieTTSDataset(TextToSpeechDataset):
             example['raw_text'] = data.manifest_entry['original_text']
         else:
             example['raw_text'] = data.text
-            
+
         example['language'] = data.manifest_entry.get('language', 'en')
 
         if "reward" in data.manifest_entry:

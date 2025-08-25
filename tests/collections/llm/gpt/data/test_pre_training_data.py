@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -112,3 +112,17 @@ def test_validate_dataset_asset_accessibility_file_is_none(tokenizer, trainer):
         raised_exception = True
 
     assert raised_exception == True, "Expected to raise a ValueError"
+
+
+def test_object_storage_cache_path(tokenizer):
+    data = PreTrainingDataModule(
+        paths=[f"msc://default{DATA_PATH}"],
+        seq_length=512,
+        micro_batch_size=2,
+        global_batch_size=2,
+        tokenizer=tokenizer,
+        object_storage_cache_path="/tmp/object_storage_cache_path",
+    )
+
+    assert data.build_kwargs["object_storage_cache_path"] == "/tmp/object_storage_cache_path"
+    assert data.build_kwargs["mmap_bin_files"] == False

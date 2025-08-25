@@ -18,28 +18,31 @@ import json
 import os
 import shutil
 import time
-from typing import List
-from pathlib import Path
 from functools import partial
+from pathlib import Path
+from typing import List
 
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scipy.stats as stats
 import scripts.magpietts.evalset_config as evalset_config
 import scripts.magpietts.evaluate_generated_audio as evaluate_generated_audio
-import numpy as np
-import scipy.stats as stats
 import soundfile as sf
 import torch
 from omegaconf.omegaconf import OmegaConf, open_dict
 from PIL import Image
-import matplotlib.pyplot as plt
-import pandas as pd
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
+from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer, IPATokenizer
 from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
 from nemo.collections.tts.models import MagpieTTSModel
-from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import AggregatedTTSTokenizer, IPATokenizer
 
 # EVALUATION_DATASETS is the full list of datasets for evaluation of a new model.
-EVALUATION_DATASETS = "riva_hard_digits,riva_hard_letters,riva_hard_money,riva_hard_short,vctk,libritts_seen,libritts_test_clean"
+EVALUATION_DATASETS = (
+    "riva_hard_digits,riva_hard_letters,riva_hard_money,riva_hard_short,vctk,libritts_seen,libritts_test_clean"
+)
+
 
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
@@ -53,8 +56,9 @@ def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0
         metrics[key] = "{:.4f} +/- {:.4f}".format(mean, confidence_interval)
     return metrics
 
+
 def update_config(model_cfg, codecmodel_path, legacy_codebooks=False, legacy_text_conditioning=False):
-    ''' helper function to rename older yamls from t5 to magpie '''
+    '''helper function to rename older yamls from t5 to magpie'''
     model_cfg.codecmodel_path = codecmodel_path
     if hasattr(model_cfg, 'text_tokenizer'):
         # Backward compatibility for models trained with absolute paths in text_tokenizer
@@ -84,7 +88,9 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False, legacy_tex
     if legacy_codebooks:
         # Added to address backward compatibility arising from
         #  https://github.com/blisc/NeMo/pull/64
-        print("WARNING: Using legacy codebook indices for backward compatibility. Should only be used with old checkpoints.")
+        print(
+            "WARNING: Using legacy codebook indices for backward compatibility. Should only be used with old checkpoints."
+        )
         num_audio_tokens_per_codebook = model_cfg.num_audio_tokens_per_codebook
         model_cfg.forced_num_all_tokens_per_codebook = num_audio_tokens_per_codebook
         model_cfg.forced_audio_eos_id = num_audio_tokens_per_codebook - 1
@@ -103,6 +109,7 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False, legacy_tex
     else:
         sample_rate = None
     return model_cfg, sample_rate
+
 
 def update_ckpt(state_dict):
     new_state_dict = {}
@@ -126,6 +133,7 @@ def delete_old_generated_files(output_dir):
     for f in glob.glob(f"{output_dir}/predicted_audio*.wav"):
         os.remove(f)
 
+
 def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png: str):
     # Create dataframe from list of dicts
     df = pd.DataFrame(metrics)
@@ -139,9 +147,7 @@ def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png:
         assert column in df
         # Create empty lists to store the parts objects for each DataFrame
         # Plot the violin plots for each DataFrame
-        axs[i].violinplot(
-            df[column], showmedians=True, positions=[i], widths=0.5
-        )
+        axs[i].violinplot(df[column], showmedians=True, positions=[i], widths=0.5)
 
         axs[i].set_title(column)
         axs[i].set_xticks([i])
@@ -151,14 +157,7 @@ def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png:
         # Calculate and display the mean value for each DataFrame
         mean = df[column].mean()
         sem = df[column].sem()
-        axs[i].plot(
-            i,
-            mean,
-            "o",
-            color="red",
-            markersize=4,
-            label="Mean (95%CI)"
-        )
+        axs[i].plot(i, mean, "o", color="red", markersize=4, label="Mean (95%CI)")
 
         label_numeric = f"{mean:.2f}±{1.96 * sem:.2f}"
         axs[i].text(i + 0.06, mean, label_numeric, ha="center", va="top")
@@ -174,7 +173,7 @@ def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png:
 def create_combined_violin_plots(dataset_metrics: dict, metric_keys: List[str], output_png: str):
     """
     Create box plots comparing multiple datasets for each metric in a single figure.
-    
+
     Args:
         dataset_metrics: Dictionary where keys are dataset names and values are lists of metric dictionaries
         metric_keys: List of metric names to plot
@@ -184,25 +183,25 @@ def create_combined_violin_plots(dataset_metrics: dict, metric_keys: List[str], 
     datasets = list(dataset_metrics.keys())
     num_datasets = len(datasets)
     num_metrics = len(metric_keys)
-    
+
     # Create figure with subplots for each metric
     fig, axs = plt.subplots(1, num_metrics, figsize=(num_metrics * 6, 6))
-    
+
     # Handle case where there's only one metric (axs won't be an array)
     if num_metrics == 1:
         axs = [axs]
-    
+
     # Define colors for different datasets
     colors = plt.cm.Set3(np.linspace(0, 1, num_datasets))
-    
+
     for metric_idx, metric in enumerate(metric_keys):
         ax = axs[metric_idx]
-        
+
         # Collect data for all datasets for this metric
         all_data = []
         positions = []
         dataset_labels = []
-        
+
         for dataset_idx, dataset in enumerate(datasets):
             df = pd.DataFrame(dataset_metrics[dataset])
             if metric in df.columns:
@@ -210,26 +209,32 @@ def create_combined_violin_plots(dataset_metrics: dict, metric_keys: List[str], 
                 all_data.append(data)
                 positions.append(dataset_idx + 1)
                 dataset_labels.append(dataset)
-        
+
         # Create box plots
         if all_data:
-            bp = ax.boxplot(all_data, positions=positions, widths=0.6, patch_artist=True,
-                           showmeans=True, meanline=False, meanprops={'marker': 'o', 'markerfacecolor': 'red', 
-                           'markeredgecolor': 'red', 'markersize': 6})
-            
+            bp = ax.boxplot(
+                all_data,
+                positions=positions,
+                widths=0.6,
+                patch_artist=True,
+                showmeans=True,
+                meanline=False,
+                meanprops={'marker': 'o', 'markerfacecolor': 'red', 'markeredgecolor': 'red', 'markersize': 6},
+            )
+
             # Color the box plots
             for i, patch in enumerate(bp['boxes']):
                 patch.set_facecolor(colors[i])
                 patch.set_alpha(0.7)
-            
+
             # Add mean labels for each dataset
             for i, (data, pos) in enumerate(zip(all_data, positions)):
                 mean = data.mean()
                 sem = data.sem()
-                
+
                 label_numeric = f"{mean:.3f}±{1.96 * sem:.3f}"
                 ax.text(pos + 0.1, mean, label_numeric, ha="left", va="center", fontsize=8)
-        
+
         # Set labels and title
         ax.set_title(f"{metric.upper()}", fontsize=12, fontweight='bold')
         ax.set_xticks(positions)
@@ -237,14 +242,14 @@ def create_combined_violin_plots(dataset_metrics: dict, metric_keys: List[str], 
         ax.grid(True, linestyle="dotted", alpha=0.7)
         ax.set_xlabel("Dataset")
         ax.set_ylabel(metric)
-        
+
         # Set y-axis limit for CER metrics
         if 'cer' in metric.lower():
             ax.set_ylim(0, 0.3)
-    
+
     # Add overall title
     fig.suptitle("Performance Comparison Across Datasets", fontsize=14, fontweight='bold')
-    
+
     # Adjust layout and save
     plt.tight_layout()
     plt.savefig(output_png, format="png", bbox_inches="tight", dpi=300)
@@ -299,7 +304,9 @@ def run_inference(
             model_cfg = model_cfg.value
 
         with open_dict(model_cfg):
-            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks, legacy_text_conditioning)
+            model_cfg, cfg_sample_rate = update_config(
+                model_cfg, codecmodel_path, legacy_codebooks, legacy_text_conditioning
+            )
 
         model = MagpieTTSModel(cfg=model_cfg)
         model.use_kv_cache_for_inference = True
@@ -313,7 +320,9 @@ def run_inference(
     elif nemo_file is not None:
         model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
         with open_dict(model_cfg):
-            model_cfg, cfg_sample_rate = update_config(model_cfg, codecmodel_path, legacy_codebooks, legacy_text_conditioning)
+            model_cfg, cfg_sample_rate = update_config(
+                model_cfg, codecmodel_path, legacy_codebooks, legacy_text_conditioning
+            )
         model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
@@ -345,7 +354,7 @@ def run_inference(
             f"{attention_prior_epsilon}_{attention_prior_lookahead_window}_{start_prior_after_n_audio_steps}_"
             f"{''.join([str(l) for l in estimate_alignment_from_layers]) if estimate_alignment_from_layers is not None else 'None'}_"
             f"{''.join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else 'None'}_"
-    )
+        )
     checkpoint_name += (
         f"LT_{use_local_transformer}_"
         f"MaskGit_{maskgit_n_steps}_{maskgit_sampling_type}_{''.join([str(l) for l in maskgit_fixed_schedule]) if maskgit_fixed_schedule is not None else 'None'}_"
@@ -387,7 +396,7 @@ def run_inference(
         context_duration_max = model.cfg.get('context_duration_max', 5.0)
         if context_duration_min < 5.0 and context_duration_max > 5.0:
             context_duration_min = 5.0
-            context_duration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
+            context_duration_max = 5.0  # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
 
         dataset_filewise_metrics_all_repeats = []  # Store metrics for all repeats of this dataset
         for repeat_idx in range(num_repeats):
@@ -419,7 +428,9 @@ def run_inference(
                 context_duration_min=context_duration_min,
                 context_duration_max=context_duration_max,
             )
-            assert len(test_dataset) == len(manifest_records), f"Dataset length and manifest length should be the same. Dataset length: {len(test_dataset)}, Manifest length: {len(manifest_records)}"
+            assert len(test_dataset) == len(
+                manifest_records
+            ), f"Dataset length and manifest length should be the same. Dataset length: {len(test_dataset)}, Manifest length: {len(manifest_records)}"
 
             test_dataset.text_tokenizer = model.tokenizer
             # Set phoneme prob = 1 for g2p
@@ -430,7 +441,6 @@ def run_inference(
                 g2p = model.tokenizer.g2p
             if g2p is not None:
                 g2p.phoneme_probability = 1.0
-            
 
             test_data_loader = torch.utils.data.DataLoader(
                 test_dataset,
@@ -453,7 +463,15 @@ def run_inference(
                         batch_cuda[key] = batch[key]
 
                 st = time.time()
-                predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics, cross_attention_maps, _ = model.infer_batch(
+                (
+                    predicted_audio,
+                    predicted_audio_lens,
+                    predicted_codes,
+                    predicted_codes_lens,
+                    rtf_metrics,
+                    cross_attention_maps,
+                    _,
+                ) = model.infer_batch(
                     batch_cuda,
                     max_decoder_steps=440,
                     temperature=temperature,
@@ -484,11 +502,11 @@ def run_inference(
                     cross_attn_map_image.save(os.path.join(audio_dir, f"cross_attn_map_{item_idx}.png"))
 
                     predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
-                    predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
+                    predicted_audio_np = predicted_audio_np[: predicted_audio_lens[idx]]
                     audio_path = os.path.join(pred_audio_dir, f"predicted_audio_{item_idx}.wav")
                     sf.write(audio_path, predicted_audio_np, model.sample_rate)
                     codes_path = os.path.join(pred_audio_dir, f"predicted_codes_{item_idx}.pt")
-                    predicted_codes_current = predicted_codes[idx, :, :predicted_codes_lens[idx]] # C, T'
+                    predicted_codes_current = predicted_codes[idx, :, : predicted_codes_lens[idx]]  # C, T'
                     torch.save(predicted_codes_current, codes_path)
                     codec_file_paths.append(codes_path)
                     context_audio_path = manifest_records[item_idx].get('context_audio_filepath', None)
@@ -514,11 +532,13 @@ def run_inference(
                 language=language,
                 sv_model_type=sv_model,
                 asr_model_name=asr_model_name,
-                codecmodel_path=codecmodel_path if compute_fcd else None
+                codecmodel_path=codecmodel_path if compute_fcd else None,
             )
             metrics_n_repeated.append(metrics)
-            dataset_filewise_metrics_all_repeats.extend(filewise_metrics)  # Collect all filewise metrics for combined plot
-            
+            dataset_filewise_metrics_all_repeats.extend(
+                filewise_metrics
+            )  # Collect all filewise metrics for combined plot
+
             with open(os.path.join(eval_dir, f"{dataset}_metrics_{repeat_idx}.json"), "w") as f:
                 json.dump(metrics, f, indent=4)
 
@@ -547,14 +567,25 @@ def run_inference(
         # Store filewise metrics for this dataset for combined plotting
         all_datasets_filewise_metrics[dataset] = dataset_filewise_metrics_all_repeats
 
-        metric_keys = ['cer_filewise_avg', 'wer_filewise_avg', 'cer_cumulative', 'wer_cumulative',
-                       'ssim_pred_gt_avg', 'ssim_pred_context_avg', 'ssim_gt_context_avg',
-                       'ssim_pred_gt_avg_alternate', 'ssim_pred_context_avg_alternate', 'ssim_gt_context_avg_alternate',
-                       'cer_gt_audio_cumulative', 'wer_gt_audio_cumulative'
-                       ]
+        metric_keys = [
+            'cer_filewise_avg',
+            'wer_filewise_avg',
+            'cer_cumulative',
+            'wer_cumulative',
+            'ssim_pred_gt_avg',
+            'ssim_pred_context_avg',
+            'ssim_gt_context_avg',
+            'ssim_pred_gt_avg_alternate',
+            'ssim_pred_context_avg_alternate',
+            'ssim_gt_context_avg_alternate',
+            'cer_gt_audio_cumulative',
+            'wer_gt_audio_cumulative',
+        ]
         if compute_fcd:
             metric_keys.append('frechet_codec_distance')
-        metrics_mean_ci = compute_mean_and_confidence_interval(metrics_n_repeated, metric_keys, confidence=confidence_level)
+        metrics_mean_ci = compute_mean_and_confidence_interval(
+            metrics_n_repeated, metric_keys, confidence=confidence_level
+        )
         all_experiment_csv_with_ci = os.path.join(out_dir, "all_experiment_metrics_with_ci.csv")
         if not os.path.exists(all_experiment_csv_with_ci):
             with open(all_experiment_csv_with_ci, "w") as f:
@@ -571,7 +602,6 @@ def run_inference(
             f.write(data)
             print(f"Wrote metrics with CI for {checkpoint_name} and {dataset} to {all_experiment_csv_with_ci}")
 
-
         measurements = [m['ssim_pred_context_avg'] for m in metrics_n_repeated]
         ssim_current = np.mean(measurements)
         ssim_per_dataset.append(ssim_current)
@@ -583,7 +613,7 @@ def run_inference(
     if len(all_datasets_filewise_metrics) > 1:  # Only create combined plot if we have multiple datasets
         combined_output_png = os.path.join(out_dir, f"{checkpoint_name}_combined_violin_plot.png")
         create_combined_violin_plots(all_datasets_filewise_metrics, violin_plot_metrics, combined_output_png)
-    
+
     # Average across datasets
     ssim = np.mean(ssim_per_dataset)
     cer = np.mean(cer_per_dataset)
@@ -604,11 +634,17 @@ def main():
     parser.add_argument('--out_dir', type=str, default="/datap/misc/Evals/LocalTransformerAblations2")
     parser.add_argument('--temperature', type=float, default=0.6)
     parser.add_argument('--use_cfg', action='store_true')
-    parser.add_argument('--use_local_transformer', action='store_true', help="Enables use of local transformer for inference; applies to both Autoregressive and MaskGit sampling.")
+    parser.add_argument(
+        '--use_local_transformer',
+        action='store_true',
+        help="Enables use of local transformer for inference; applies to both Autoregressive and MaskGit sampling.",
+    )
     parser.add_argument('--maskgit_n_steps', type=int, default=3)
     parser.add_argument('--maskgit_noise_scale', type=float, default=0.0)
     parser.add_argument('--maskgit_fixed_schedule', type=int, nargs='+', default=None)
-    parser.add_argument('--maskgit_sampling_type', default=None, choices=["default", "causal", "purity_causal", "purity_default"])    
+    parser.add_argument(
+        '--maskgit_sampling_type', default=None, choices=["default", "causal", "purity_causal", "purity_default"]
+    )
     parser.add_argument('--cfg_scale', type=float, default=2.5)
     parser.add_argument('--apply_attention_prior', action='store_true')
     parser.add_argument('--attention_prior_epsilon', type=float, default=0.1)
@@ -620,8 +656,10 @@ def main():
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--eos_detection_method', type=str, default="argmax_or_multinomial_any", choices=["argmax_any", "argmax_or_multinomial_any", "argmax_all", "argmax_or_multinomial_all", "argmax_zero_cb", "argmax_or_multinomial_zero_cb"])
     # Parameters for evaluation
-    parser.add_argument('--sv_model', type=str, default="titanet") # titanet, wavlm
-    parser.add_argument('--asr_model_name', type=str, default="nvidia/parakeet-tdt-1.1b") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
+    parser.add_argument('--sv_model', type=str, default="titanet")  # titanet, wavlm
+    parser.add_argument(
+        '--asr_model_name', type=str, default="nvidia/parakeet-tdt-1.1b"
+    )  # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
@@ -630,9 +668,19 @@ def main():
     parser.add_argument('--clean_up_disk', action='store_true')
     parser.add_argument('--cer_target', type=float, default=None)
     parser.add_argument('--ssim_target', type=float, default=None)
-    parser.add_argument('--log_exp_name', action='store_true', help="Include the experiment name (derived from the checkpoint path) in the output folder name.")
+    parser.add_argument(
+        '--log_exp_name',
+        action='store_true',
+        help="Include the experiment name (derived from the checkpoint path) in the output folder name.",
+    )
     parser.add_argument('--disable_fcd', action='store_true', help="Disable Frechet Codec Distance computation")
-    parser.add_argument('--violin_plot_metrics', type=str, nargs='*', default=['cer','pred_context_ssim'], help="Which metrics to add the violin plot.")
+    parser.add_argument(
+        '--violin_plot_metrics',
+        type=str,
+        nargs='*',
+        default=['cer', 'pred_context_ssim'],
+        help="Which metrics to add the violin plot.",
+    )
     args = parser.parse_args()
 
     if args.datasets is None:
@@ -685,12 +733,19 @@ def main():
     )
 
     # Mode 1: Run inference from provided hparams and checkpoint files
-    if (args.hparams_files is not None) and (args.checkpoint_files is not None) and (args.hparams_files != "null") and (args.checkpoint_files != "null"):
+    if (
+        (args.hparams_files is not None)
+        and (args.checkpoint_files is not None)
+        and (args.hparams_files != "null")
+        and (args.checkpoint_files != "null")
+    ):
         hparam_files = args.hparams_files.split(",")
         checkpoint_files = args.checkpoint_files.split(",")
         print("Running inference for hparams files: ", hparam_files)
         print("Running inference for checkpoint files: ", checkpoint_files)
-        assert len(hparam_files) == len(checkpoint_files), "Number of hparams files and checkpoint files should be the same."
+        assert len(hparam_files) == len(
+            checkpoint_files
+        ), "Number of hparams files and checkpoint files should be the same."
         for hparams_file, checkpoint_file in zip(hparam_files, checkpoint_files):
             cer, ssim = run_inference_w_args(
                 hparams_file=hparams_file,

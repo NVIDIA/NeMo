@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 import numpy as np
 import pytest
 import torch
@@ -20,11 +22,24 @@ from nemo.collections.audio.losses.audio import (
     MAELoss,
     MSELoss,
     SDRLoss,
+    calculate_mae_batch,
+    calculate_mean,
     calculate_mse_batch,
     calculate_sdr_batch,
     convolution_invariant_target,
     scale_invariant_target,
 )
+
+try:
+    import importlib
+
+    importlib.import_module('torchaudio')
+
+    HAVE_TORCHAUDIO = True
+except ModuleNotFoundError:
+    HAVE_TORCHAUDIO = False
+
+from nemo.collections.audio.losses.maxine import CombinedLoss
 from nemo.collections.audio.parts.utils.audio import (
     calculate_sdr_numpy,
     convolution_invariant_target_numpy,
@@ -33,6 +48,123 @@ from nemo.collections.audio.parts.utils.audio import (
 
 
 class TestAudioLosses:
+    @pytest.mark.unit
+    @pytest.mark.parametrize('num_channels', [1, 4])
+    @pytest.mark.parametrize('use_mask', [True, False])
+    @pytest.mark.parametrize('use_input_length', [True, False])
+    def test_calculate_mean(self, num_channels: int, use_mask: bool, use_input_length: bool):
+        """Test mean calculation"""
+        batch_size = 8
+        num_samples = 50
+        num_batches = 10
+        random_seed = 42
+        eps = 1e-10
+        atol = 1e-6
+
+        rng = torch.Generator()
+        rng.manual_seed(random_seed)
+
+        for n in range(num_batches):
+
+            input_signal = torch.randn(size=(batch_size, num_channels, num_samples), generator=rng)
+            # Random input length
+            input_length = torch.randint(low=1, high=num_samples, size=(batch_size,), generator=rng)
+            # Corresponding mask
+            mask = torch.zeros(size=(batch_size, 1, num_samples))
+            for i in range(batch_size):
+                mask[i, :, : input_length[i]] = 1.0
+
+            if use_mask and use_input_length:
+                with pytest.raises(RuntimeError):
+                    calculate_mean(input_signal, mask=mask, input_length=input_length, eps=eps)
+                # Done with this test
+                continue
+
+            if use_mask:
+                uut = calculate_mean(input_signal, mask=mask, eps=eps)
+            elif use_input_length:
+                uut = calculate_mean(input_signal, input_length=input_length, eps=eps)
+            else:
+                uut = calculate_mean(input_signal, eps=eps)
+
+            # Calculate mean manually
+            for b in range(batch_size):
+                for c in range(num_channels):
+                    golden = torch.mean(
+                        input_signal[b, c, : input_length[b] if use_input_length or use_mask else num_samples]
+                    )
+                    assert torch.allclose(
+                        uut[b, c], golden, atol=atol
+                    ), f"Mean not matching for example {n}, channel {c}"
+
+    @pytest.mark.unit
+    def test_calculate_sdr_scale_and_convolution_invariant(self):
+        """Test SDR calculation with scale and conovolution invariant options."""
+        estimate = torch.randn(size=(1, 1, 100))
+        target = torch.randn(size=(1, 1, 100))
+
+        with pytest.raises(ValueError):
+            # using both scale and convolution invariant is not allowed
+            calculate_sdr_batch(estimate=estimate, target=target, scale_invariant=True, convolution_invariant=True)
+
+    @pytest.mark.unit
+    def test_calculate_mse_input_and_mask(self):
+        """Test MSE calculation with simultaneous input length and mask."""
+        estimate = torch.randn(size=(1, 1, 100))
+        target = torch.randn(size=(1, 1, 100))
+        input_length = torch.tensor([100])
+        mask = torch.ones(size=(1, 1, 100))
+
+        with pytest.raises(RuntimeError):
+            # using both input_length and mask is not allowed
+            calculate_mse_batch(estimate=estimate, target=target, input_length=input_length, mask=mask)
+
+    @pytest.mark.unit
+    def test_calculate_mse_invalid_dimensions(self):
+        """Test MSE calculation with unsupported dimensions."""
+        estimate = torch.randn(size=(1, 1, 100, 10))
+        target = torch.randn(size=(1, 1, 100))
+
+        with pytest.raises(AssertionError):
+            # mismatched dimensions are not allowed
+            calculate_mse_batch(estimate=estimate, target=target)
+
+        estimate = torch.randn(size=(1, 1, 100, 10, 20))
+        target = torch.randn(size=estimate.shape)
+
+        with pytest.raises(RuntimeError):
+            # dimensions larger than four are not allowed
+            calculate_mse_batch(estimate=estimate, target=target)
+
+    @pytest.mark.unit
+    def test_calculate_mae_input_and_mask(self):
+        """Test MAE calculation with simultaneous input length and mask."""
+        estimate = torch.randn(size=(1, 1, 100))
+        target = torch.randn(size=(1, 1, 100))
+        input_length = torch.tensor([100])
+        mask = torch.ones(size=(1, 1, 100))
+
+        with pytest.raises(RuntimeError):
+            # using both input_length and mask is not allowed
+            calculate_mae_batch(estimate=estimate, target=target, input_length=input_length, mask=mask)
+
+    @pytest.mark.unit
+    def test_calculate_mae_invalid_dimensions(self):
+        """Test MAE calculation with unsupported dimensions."""
+        estimate = torch.randn(size=(1, 1, 100, 10))
+        target = torch.randn(size=(1, 1, 100))
+
+        with pytest.raises(AssertionError):
+            # mismatched dimensions are not allowed
+            calculate_mae_batch(estimate=estimate, target=target)
+
+        estimate = torch.randn(size=(1, 1, 100, 10, 20))
+        target = torch.randn(size=estimate.shape)
+
+        with pytest.raises(RuntimeError):
+            # dimensions larger than four are not allowed
+            calculate_mae_batch(estimate=estimate, target=target)
+
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
     def test_sdr(self, num_channels: int):
@@ -357,7 +489,9 @@ class TestAudioLosses:
     @pytest.mark.unit
     @pytest.mark.parametrize('filter_length', [1, 32])
     @pytest.mark.parametrize('num_channels', [1, 4])
-    def test_target_calculation(self, num_channels: int, filter_length: int):
+    @pytest.mark.parametrize('use_mask', [True, False])
+    @pytest.mark.parametrize('use_input_length', [True, False])
+    def test_target_calculation(self, num_channels: int, filter_length: int, use_mask: bool, use_input_length: bool):
         """Test target calculation with scale and convolution invariance."""
         batch_size = 8
         max_num_samples = 50
@@ -379,18 +513,44 @@ class TestAudioLosses:
             # Limit calculation to random input_length samples
             input_length = _rng.integers(low=filter_length, high=max_num_samples, size=batch_size)
 
+            # Corresponding mask
+            mask = torch.zeros(size=(batch_size, 1, max_num_samples))
+            for i in range(batch_size):
+                mask[i, :, : input_length[i]] = 1.0
+
+            if use_mask and use_input_length:
+                with pytest.raises(RuntimeError):
+                    scale_invariant_target(
+                        estimate=torch.tensor(estimate),
+                        target=torch.tensor(target),
+                        input_length=torch.tensor(input_length),
+                        mask=mask,
+                    )
+
+                with pytest.raises(RuntimeError):
+                    convolution_invariant_target(
+                        estimate=torch.tensor(estimate),
+                        target=torch.tensor(target),
+                        input_length=torch.tensor(input_length),
+                        mask=mask,
+                        filter_length=filter_length,
+                    )
+
+                # Done with this test
+                continue
+
             # UUT
             si_target = scale_invariant_target(
                 estimate=torch.tensor(estimate),
                 target=torch.tensor(target),
-                input_length=torch.tensor(input_length),
-                mask=None,
+                input_length=torch.tensor(input_length) if use_input_length else None,
+                mask=mask if use_mask else None,
             )
             ci_target = convolution_invariant_target(
                 estimate=torch.tensor(estimate),
                 target=torch.tensor(target),
-                input_length=torch.tensor(input_length),
-                mask=None,
+                input_length=torch.tensor(input_length) if use_input_length else None,
+                mask=mask if use_mask else None,
                 filter_length=filter_length,
             )
 
@@ -398,7 +558,11 @@ class TestAudioLosses:
                 assert torch.allclose(ci_target, si_target), f'SI and CI should match for filter_length=1'
 
             # Compare against numpy
-            for b, b_len in enumerate(input_length):
+            for b in range(batch_size):
+                # valid length for the current example
+                b_len = input_length[b] if use_input_length or use_mask else max_num_samples
+
+                # calculate reference target for each channel
                 for m in range(num_channels):
                     # Scale invariant reference
                     si_target_ref = scale_invariant_target_numpy(
@@ -470,6 +634,45 @@ class TestAudioLosses:
             assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
             ), f'SDRLoss not matching for example {n}'
+
+    @pytest.mark.unit
+    def test_sdr_scale_and_convolution_invariant(self):
+        """Test SDR calculation with scale and conovolution invariant options."""
+        with pytest.raises(ValueError):
+            # using both scale and convolution invariant is not allowed
+            SDRLoss(scale_invariant=True, convolution_invariant=True)
+
+    @pytest.mark.unit
+    def test_sdr_length_and_mask(self):
+        """Test SDR calculation with simultaneous input length and mask."""
+
+        estimate = torch.randn(size=(1, 1, 100))
+        target = torch.randn(size=(1, 1, 100))
+        input_length = torch.tensor([100])
+        mask = torch.ones(size=(1, 1, 100))
+
+        sdr_loss = SDRLoss(scale_invariant=False, convolution_invariant=False)
+
+        with pytest.raises(RuntimeError):
+            # using both input_length and mask is not allowed
+            sdr_loss(estimate=estimate, target=target, input_length=input_length, mask=mask)
+
+    @pytest.mark.unit
+    def test_sdr_invalid_weight(self):
+        """Test SDR with invalid weights."""
+        with pytest.raises(ValueError):
+            # negative weights are not allowed
+            SDRLoss(weight=[-1, 1])
+
+        with pytest.raises(ValueError):
+            # weights should sum to 1
+            SDRLoss(weight=[0.1, 0.1])
+
+    @pytest.mark.unit
+    def test_sdr_invalid_reduction(self):
+        """Test SDR with invalid reduction."""
+        with pytest.raises(ValueError):
+            SDRLoss(reduction='not-mean')
 
     @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
@@ -653,6 +856,35 @@ class TestAudioLosses:
             ), f'MSELoss not matching for example {n}'
 
     @pytest.mark.unit
+    def test_mse_invalid_weight(self):
+        """Test MSE with unsupported weights."""
+        with pytest.raises(ValueError):
+            # negative weights are not allowed
+            MSELoss(weight=[-1, 1])
+
+        with pytest.raises(ValueError):
+            # weights should sum to 1
+            MSELoss(weight=[0.1, 0.1])
+
+    @pytest.mark.unit
+    def test_mse_invalid_reduction(self):
+        """Test MSE with unsupported reduction."""
+        with pytest.raises(ValueError):
+            # unsupported reduction
+            MSELoss(reduction='not-mean')
+
+    @pytest.mark.unit
+    def test_mse_invalid_ndim(self):
+        """Test MSE with unsupported dimensions."""
+        with pytest.raises(ValueError):
+            # supports dimensions 3, 4
+            MSELoss(ndim=2)
+
+        with pytest.raises(ValueError):
+            # supports dimensions 3, 4
+            MSELoss(ndim=5)
+
+    @pytest.mark.unit
     @pytest.mark.parametrize('num_channels', [1, 4])
     @pytest.mark.parametrize('ndim', [3, 4])
     def test_mae(self, num_channels: int, ndim: int):
@@ -826,3 +1058,74 @@ class TestAudioLosses:
             assert np.allclose(
                 uut_mae_loss.cpu().detach().numpy(), golden_mae, atol=atol
             ), f'MAELoss not matching for example {n}'
+
+    @pytest.mark.unit
+    def test_mae_invalid_weight(self):
+        """Test MAE with invalid weights."""
+        with pytest.raises(ValueError):
+            # negative weights are not allowed
+            MAELoss(weight=[-1, 1])
+
+        with pytest.raises(ValueError):
+            # weights should sum to 1
+            MAELoss(weight=[0.1, 0.1])
+
+    @pytest.mark.unit
+    def test_mae_invalid_reduction(self):
+        """Test MAE with invalid reduction."""
+        with pytest.raises(ValueError):
+            # unsupported reduction
+            MAELoss(reduction='not-mean')
+
+    @pytest.mark.unit
+    def test_mae_invalid_ndim(self):
+        """Test MAE with invalid dimensions."""
+        with pytest.raises(ValueError):
+            # supports dimensions 3, 4
+            MAELoss(ndim=2)
+
+        with pytest.raises(ValueError):
+            # supports dimensions 3, 4
+            MAELoss(ndim=5)
+
+    @pytest.mark.unit
+    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
+    def test_maxine_combined_loss(self, test_data_dir):
+        INPUT_LOCATION = os.path.join(test_data_dir, 'audio', 'maxine', 'input.bin')
+        ATOL = 1e-2
+
+        GOLDEN_VALUES = [
+            ((1, 0, 0, True, True), 80.0),
+            ((0, 1, 0, True, True), 1.9749),
+            ((0, 0, 1, True, True), 19.2192),
+            ((1, 1, 1, True, True), 101.1941),
+        ]
+        batch_size = 16
+
+        for value in GOLDEN_VALUES:
+            config, golden = value
+            sisnr_wt, asr_wt, spec_wt, use_asr, use_spec = config
+
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+            loss_instance = CombinedLoss(
+                sample_rate=16000,
+                fft_length=1920,
+                hop_length=480,
+                num_mels=320,
+                sisnr_loss_weight=sisnr_wt,
+                asr_loss_weight=asr_wt,
+                spectral_loss_weight=spec_wt,
+                use_asr_loss=use_asr,
+                use_mel_spec=use_spec,
+            ).to(device)
+
+            input_data = torch.tensor(np.fromfile(INPUT_LOCATION, np.float32))
+            input_data = input_data.repeat(batch_size).reshape((batch_size, 1, -1))
+            input_data = input_data.to(device)
+
+            estimate = torch.tensor(np.zeros(input_data.shape, np.float32)).reshape((batch_size, 1, -1)).to(device)
+
+            loss = loss_instance.forward(estimate=estimate, target=input_data).cpu()
+
+            assert np.allclose(loss, golden, atol=ATOL)

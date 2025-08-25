@@ -15,8 +15,8 @@
 import pytest
 import torch
 
-from nemo.collections.tts.modules.fcd_metric import FrechetCodecDistance
 from nemo.collections.tts.models import AudioCodecModel
+from nemo.collections.tts.modules.fcd_metric import FrechetCodecDistance
 
 
 class TestFrechetCodecDistance:

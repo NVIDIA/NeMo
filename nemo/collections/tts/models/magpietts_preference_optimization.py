@@ -32,6 +32,7 @@ from nemo.utils import logging
 try:
     import torchaudio
     from torchaudio.pipelines import SQUIM_OBJECTIVE
+
     HAVE_TORCHAUDIO = True
 except ImportError:
     HAVE_TORCHAUDIO = False
@@ -48,14 +49,19 @@ class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         if cfg.get('pref_set_language', "en") == "en":
-            self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-ctc-0.6b")
+            self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(
+                model_name="nvidia/parakeet-ctc-0.6b"
+            )
             self.eval_asr_model.freeze()
 
-        self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
+        self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
+            model_name='titanet_large'
+        )
         self.eval_speaker_verification_model.freeze()
 
         if cfg.get('load_whisper_model', False):
             from transformers import WhisperForConditionalGeneration, WhisperProcessor
+
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
             self.whisper_model.eval()
@@ -73,14 +79,14 @@ class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
                 temperature=temperature,
                 topk=topk,
                 use_cfg=use_cfg,
-                cfg_scale=cfg_scale
+                cfg_scale=cfg_scale,
             )
             predicted_audio_paths = []
             audio_durations = []
             batch_invalid = False
             for idx in range(predicted_audio.size(0)):
                 predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
-                predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
+                predicted_audio_np = predicted_audio_np[: predicted_audio_lens[idx]]
                 item_idx = batch_idx * test_dl_batch_size + idx
                 # Save the predicted audio
                 log_dir = self.logger.log_dir
@@ -92,31 +98,54 @@ class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
                 sf.write(audio_path, predicted_audio_np, self.sample_rate)
 
                 predicted_codes_torch = predicted_codes[idx].cpu().type(torch.int16)
-                predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]]
-                torch.save(predicted_codes_torch, os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'))
+                predicted_codes_torch = predicted_codes_torch[:, : predicted_codes_lens[idx]]
+                torch.save(
+                    predicted_codes_torch,
+                    os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'),
+                )
                 predicted_audio_paths.append(audio_path)
 
                 if not batch_invalid:
                     with torch.no_grad():
                         try:
                             if self.cfg.get("pref_set_language", "en") == "en":
-                                pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))
-                                pred_transcripts = [ process_text_for_cer(transcript.text) for transcript in pred_transcripts ]
+                                pred_transcripts = self.eval_asr_model.transcribe(
+                                    predicted_audio_paths, batch_size=len(predicted_audio_paths)
+                                )
+                                pred_transcripts = [
+                                    process_text_for_cer(transcript.text) for transcript in pred_transcripts
+                                ]
                             else:
                                 pred_transcripts = []
                                 for audio_path in predicted_audio_paths:
-                                    transcript = transcribe_with_whisper(audio_path, self.cfg.pref_set_language, self.whisper_processor, self.whisper_model, self.device)
+                                    transcript = transcribe_with_whisper(
+                                        audio_path,
+                                        self.cfg.pref_set_language,
+                                        self.whisper_processor,
+                                        self.whisper_model,
+                                        self.device,
+                                    )
                                     pred_transcripts.append(transcript)
 
-                                pred_transcripts = [process_text_for_cer(transcript) for transcript in pred_transcripts]
+                                pred_transcripts = [
+                                    process_text_for_cer(transcript) for transcript in pred_transcripts
+                                ]
                         except Exception as e:
-                            assert (predicted_audio_lens[idx] < 1000).any(), f"Expected short audio file to be the only cause of ASR errors, but got error with lengths {predicted_audio_lens}"
+                            assert (
+                                predicted_audio_lens[idx] < 1000
+                            ).any(), f"Expected short audio file to be the only cause of ASR errors, but got error with lengths {predicted_audio_lens}"
                             logging.warning(f"Exception during ASR transcription: {e}")
-                            logging.warning(f"Skipping processing of the batch; generating metrics indicating a WER of 100% and Speaker Similarity of 0.0")
+                            logging.warning(
+                                f"Skipping processing of the batch; generating metrics indicating a WER of 100% and Speaker Similarity of 0.0"
+                            )
                             batch_invalid = True
-                            continue # don't break since we want to continue building audio durations list
-                        pred_speaker_embeddings = get_speaker_embeddings_from_filepaths(predicted_audio_paths, self.eval_speaker_verification_model, self.device)
-                        gt_speaker_embeddings = get_speaker_embeddings_from_filepaths(batch['audio_filepaths'], self.eval_speaker_verification_model, self.device)
+                            continue  # don't break since we want to continue building audio durations list
+                        pred_speaker_embeddings = get_speaker_embeddings_from_filepaths(
+                            predicted_audio_paths, self.eval_speaker_verification_model, self.device
+                        )
+                        gt_speaker_embeddings = get_speaker_embeddings_from_filepaths(
+                            batch['audio_filepaths'], self.eval_speaker_verification_model, self.device
+                        )
 
             for idx in range(predicted_audio.size(0)):
                 if not batch_invalid:
@@ -139,20 +168,23 @@ class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
                     cer_gt = 1.0
                     wer_gt = 1.0
                     spk_similarity = 0.0
-                    pred_transcript = "<INVALID>" # do not change this string; subsequent processing relies on it
+                    pred_transcript = "<INVALID>"  # do not change this string; subsequent processing relies on it
                     gt_transcript = process_text_for_cer(batch['raw_texts'][idx])
 
                 item_metrics = {
                     'cer_gt': float(cer_gt),
                     'wer_gt': float(wer_gt),
-                    'duration' : audio_durations[idx],
+                    'duration': audio_durations[idx],
                     'spk_similarity': float(spk_similarity),
                     'pred_transcript': pred_transcript,
                     'gt_transcript': gt_transcript,
                 }
 
-                with open(os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_metrics.json'), 'w') as f:
+                with open(
+                    os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_metrics.json'), 'w'
+                ) as f:
                     json.dump(item_metrics, f)
+
 
 class MagpieTTSModelOfflinePO(MagpieTTSModel):
     """
@@ -160,6 +192,7 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
     offline preference optimization (DPO, IPO, RPO).
     Set cfg.model.dpo_loss_type to 'dpo', 'ipo', or 'rpo' to use the corresponding loss.
     """
+
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         ref_model_cfg = copy.deepcopy(cfg)
@@ -168,7 +201,9 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
             ref_model_cfg.validation_ds = None
         self._reference_model = MagpieTTSModel(cfg=ref_model_cfg)
         print("Loading reference model from checkpoint")
-        self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict'])
+        self._reference_model.load_state_dict(
+            torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict']
+        )
         self._reference_model.freeze()
         self._reference_model._no_state_dict = True
         print("Reference model loaded and frozen")
@@ -199,17 +234,20 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
         else:
             return (per_token_logps * loss_mask).sum(-1)
 
-    def preference_loss(self, policy_chosen_logps,
-                    policy_rejected_logps,
-                    reference_chosen_logps,
-                    reference_rejected_logps,
-                    chosen_gt_rewards=None,
-                    rejected_gt_rewards=None,
-                    beta=0.2,
-                    gt_reward_scale=1.0,
-                    label_smoothing=0,
-                    loss_type="dpo",
-                    reference_free=False):
+    def preference_loss(
+        self,
+        policy_chosen_logps,
+        policy_rejected_logps,
+        reference_chosen_logps,
+        reference_rejected_logps,
+        chosen_gt_rewards=None,
+        rejected_gt_rewards=None,
+        beta=0.2,
+        gt_reward_scale=1.0,
+        label_smoothing=0,
+        loss_type="dpo",
+        reference_free=False,
+    ):
         """Compute the DPO loss for a batch of policy and reference model log probabilities.
         Referenced From: https://github.com/eric-mitchell/direct-preference-optimization/blob/main/trainers.py
         Args:
@@ -239,7 +277,7 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
         # logits is the same as rewards_delta in NeMo aligner: https://github.com/NVIDIA/NeMo-Aligner/blob/0b5bffeb78a8316dd57e0816a2a9544540f0c8dd/nemo_aligner/models/nlp/gpt/megatron_gpt_dpo_model.py#L241
 
         if loss_type == "ipo":
-            losses = (logits - 1/(2 * beta)) ** 2  # Eq. 17 of https://arxiv.org/pdf/2310.12036v2.pdf
+            losses = (logits - 1 / (2 * beta)) ** 2  # Eq. 17 of https://arxiv.org/pdf/2310.12036v2.pdf
         elif loss_type == "rpo":
             # https://github.com/NVIDIA/NeMo-Aligner/blob/0b5bffeb78a8316dd57e0816a2a9544540f0c8dd/nemo_aligner/models/nlp/gpt/megatron_gpt_dpo_model.py#L241
             logbeta_hat_chosen = torch.nn.functional.logsigmoid(beta * logits)
@@ -247,17 +285,18 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
             gt_rewards_delta = gt_reward_scale * (chosen_gt_rewards - rejected_gt_rewards)
             logalpha_hat_chosen = torch.nn.functional.logsigmoid(gt_rewards_delta)
             logalpha_hat_rejected = torch.nn.functional.logsigmoid(-gt_rewards_delta)
-            losses = (
-                torch.exp(logalpha_hat_chosen) * (logalpha_hat_chosen - logbeta_hat_chosen)
-                + torch.exp(logalpha_hat_rejected) * (logalpha_hat_rejected - logbeta_hat_rejected)
-            )
+            losses = torch.exp(logalpha_hat_chosen) * (logalpha_hat_chosen - logbeta_hat_chosen) + torch.exp(
+                logalpha_hat_rejected
+            ) * (logalpha_hat_rejected - logbeta_hat_rejected)
         elif loss_type == "rpo_sq":
             gt_rewards_delta = gt_reward_scale * (chosen_gt_rewards - rejected_gt_rewards)
             losses = (beta * logits - gt_rewards_delta) ** 2
         elif loss_type == "dpo":
             # Eq. 3 https://ericmitchell.ai/cdpo.pdf; label_smoothing=0 gives original DPO (Eq. 7 of https://arxiv.org/pdf/2305.18290.pdf)
             F = torch.nn.functional
-            losses = -F.logsigmoid(beta * logits) * (1 - label_smoothing) - F.logsigmoid(-beta * logits) * label_smoothing
+            losses = (
+                -F.logsigmoid(beta * logits) * (1 - label_smoothing) - F.logsigmoid(-beta * logits) * label_smoothing
+            )
         else:
             raise NotImplementedError("loss type {} is not implemented".format(loss_type))
 
@@ -289,14 +328,26 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
             ref_codebook_logits_chosen = reference_model_output_chosen['logits'][:, :, si:ei]
             ref_codebook_logits_rejected = reference_model_output_rejected['logits'][:, :, si:ei]
 
-            codebook_labels_chosen = model_output_chosen['audio_codes_target'][:,codebook_idx]
-            codebook_labels_rejected = model_output_rejected['audio_codes_target'][:,codebook_idx]
+            codebook_labels_chosen = model_output_chosen['audio_codes_target'][:, codebook_idx]
+            codebook_labels_rejected = model_output_rejected['audio_codes_target'][:, codebook_idx]
 
-            codebook_log_probs_chosen = self._get_batch_logps(codebook_logits_chosen, codebook_labels_chosen, model_output_chosen['loss_mask'][:,codebook_idx])
-            codebook_log_probs_rejected = self._get_batch_logps(codebook_logits_rejected, codebook_labels_rejected, model_output_rejected['loss_mask'][:,codebook_idx])
+            codebook_log_probs_chosen = self._get_batch_logps(
+                codebook_logits_chosen, codebook_labels_chosen, model_output_chosen['loss_mask'][:, codebook_idx]
+            )
+            codebook_log_probs_rejected = self._get_batch_logps(
+                codebook_logits_rejected, codebook_labels_rejected, model_output_rejected['loss_mask'][:, codebook_idx]
+            )
             with torch.no_grad():
-                ref_codebook_log_probs_chosen = self._get_batch_logps(ref_codebook_logits_chosen, codebook_labels_chosen, reference_model_output_chosen['loss_mask'][:,codebook_idx])
-                ref_codebook_log_probs_rejected = self._get_batch_logps(ref_codebook_logits_rejected, codebook_labels_rejected, reference_model_output_rejected['loss_mask'][:,codebook_idx])
+                ref_codebook_log_probs_chosen = self._get_batch_logps(
+                    ref_codebook_logits_chosen,
+                    codebook_labels_chosen,
+                    reference_model_output_chosen['loss_mask'][:, codebook_idx],
+                )
+                ref_codebook_log_probs_rejected = self._get_batch_logps(
+                    ref_codebook_logits_rejected,
+                    codebook_labels_rejected,
+                    reference_model_output_rejected['loss_mask'][:, codebook_idx],
+                )
 
             if chosen_policy_logprobs is None:
                 chosen_policy_logprobs = codebook_log_probs_chosen
@@ -359,12 +410,14 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
         val_sft_loss = dpo_outputs['sft_loss']
         val_alignment_loss = dpo_outputs['alignment_loss']
 
-        self.validation_step_outputs.append({
-            'val_loss': val_loss,
-            'val_pref_loss': val_pref_loss,
-            'val_sft_loss': val_sft_loss,
-            'val_alignment_loss': val_alignment_loss,
-        })
+        self.validation_step_outputs.append(
+            {
+                'val_loss': val_loss,
+                'val_pref_loss': val_pref_loss,
+                'val_sft_loss': val_sft_loss,
+                'val_alignment_loss': val_alignment_loss,
+            }
+        )
 
     def on_validation_epoch_end(self):
         def collect(key):
@@ -388,11 +441,13 @@ class MagpieTTSModelOfflinePO(MagpieTTSModel):
             self.log("val_alignment_loss", val_alignment_loss, prog_bar=True, sync_dist=True)
         self.validation_step_outputs.clear()
 
+
 class MagpieTTSModelOnlinePO(MagpieTTSModel):
     """
     MagpieTTS_Model_OnlinePO is a class that extends MagpieTTS_Model to support
     online preference optimization (GRPO).
     """
+
     def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
         super().__init__(cfg, trainer)
         # Copy cfg
@@ -401,31 +456,39 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             ref_model_cfg.train_ds = None
             ref_model_cfg.validation_ds = None
 
-        self.reference_free = self.cfg.get('reference_free', False) # True means we dont use the reference model
+        self.reference_free = self.cfg.get('reference_free', False)  # True means we dont use the reference model
         if not self.reference_free:
             self._reference_model = MagpieTTSModel(cfg=ref_model_cfg)
             print("Loading reference model from checkpoint")
-            self._reference_model.load_state_dict(torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict'])
+            self._reference_model.load_state_dict(
+                torch.load(cfg.reference_model_ckpt_path, map_location="cpu", weights_only=False)['state_dict']
+            )
             self._reference_model.freeze()
             self._reference_model._no_state_dict = True
             print("Reference model loaded and frozen")
 
         if cfg.get('reward_asr_model', "nemo") == "nemo":
-            self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(model_name="nvidia/parakeet-ctc-0.6b")
+            self.eval_asr_model = nemo_asr.models.EncDecRNNTBPEModel.from_pretrained(
+                model_name="nvidia/parakeet-ctc-0.6b"
+            )
             self.eval_asr_model.freeze()
         elif cfg.get('reward_asr_model', "nemo") == "whisper":
             from transformers import WhisperForConditionalGeneration, WhisperProcessor
+
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
             self.whisper_model.eval()
         else:
             raise ValueError(f"Unknown reward_asr_model: {cfg.reward_asr_model}")
 
-        self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(model_name='titanet_large')
+        self.eval_speaker_verification_model = nemo_asr.models.EncDecSpeakerLabelModel.from_pretrained(
+            model_name='titanet_large'
+        )
         self.eval_speaker_verification_model.freeze()
 
         if cfg.get('load_whisper_model', False):
             from transformers import WhisperForConditionalGeneration, WhisperProcessor
+
             self.whisper_processor = WhisperProcessor.from_pretrained("openai/whisper-large-v3")
             self.whisper_model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-large-v3")
             self.whisper_model.eval()
@@ -434,10 +497,12 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         if use_pesq:
             assert HAVE_TORCHAUDIO, "torchaudio is required for PESQ reward"
             self.squim_objective_model = SQUIM_OBJECTIVE.get_model()
-        
+
         self.loss_type = self.cfg.get('loss_type', 'grpo')
         if self.loss_type not in ['grpo', 'dr_grpo']:
-            raise ValueError(f"Received loss_type of {self.loss_type}, but the model only accepts one of ['grpo', 'dr_grpo']")
+            raise ValueError(
+                f"Received loss_type of {self.loss_type}, but the model only accepts one of ['grpo', 'dr_grpo']"
+            )
         self.scale_rewards = self.cfg.get('scale_rewards', True)
         self.max_decoder_steps = self.cfg.get('max_decoder_steps', 430)
         # If the best record in the group is above this threshold, we will not use that group for training
@@ -446,17 +511,22 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         # If the worst record in the group exceeds this threshold, we will not use that group for training
         # Setting this to 1.0, because we clamp the ASR rewards to be in [0, 1] for OnlinePO
         self.worst_cer_threshold = self.cfg.get('worst_cer_threshold', 1.0)
-        
 
     def state_dict(self, destination=None, prefix='', keep_vars=False):
         state_dict = super().state_dict(destination, prefix, keep_vars)
-        keys_substrings_to_exclude = ['_speaker_verification_model', '_codec_model', '_reference_model',
-                                      'eval_asr_model',  'eval_speaker_verification_model', 'whisper_model']
+        keys_substrings_to_exclude = [
+            '_speaker_verification_model',
+            '_codec_model',
+            '_reference_model',
+            'eval_asr_model',
+            'eval_speaker_verification_model',
+            'whisper_model',
+        ]
         for key in list(state_dict.keys()):
             if any([substring in key for substring in keys_substrings_to_exclude]):
                 del state_dict[key]
         return state_dict
-    
+
     def _get_per_token_logps(self, logits, labels, loss_mask):
         """Compute the log probabilities of the given labels under the given logits.
 
@@ -482,7 +552,9 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             repeated_batch[key] = repeated_value
         return repeated_batch
 
-    def generate_and_reward(self, batch, num_generations_per_item, mode='train', use_local_transformer_for_inference=False):
+    def generate_and_reward(
+        self, batch, num_generations_per_item, mode='train', use_local_transformer_for_inference=False
+    ):
         batch_repeated = self.repeat_items_in_batch(batch, num_generations_per_item)
         temperature = self.cfg.get('inference_temperature', 0.7)
         topk = self.cfg.get('inference_topk', 80)
@@ -494,7 +566,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             # Randomly set use_cfg based on the given probability
             use_cfg = random.random() < self.cfg.inference_cfg_prob
             cfg_scale = self.cfg.get('inference_cfg_scale', 1.0)
-        
+
         predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, _ = self.infer_batch(
             batch_repeated,
             max_decoder_steps=self.max_decoder_steps,
@@ -503,13 +575,13 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             use_cfg=use_cfg,
             cfg_scale=cfg_scale,
             use_local_transformer_for_inference=use_local_transformer_for_inference,
-            use_LT_kv_cache=False, # We don't use KV caching for local transformer in GRPO due to issues.
+            use_LT_kv_cache=False,  # We don't use KV caching for local transformer in GRPO due to issues.
         )
         predicted_audio_paths = []
         audio_durations = []
         for idx in range(predicted_audio.size(0)):
             predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
-            predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
+            predicted_audio_np = predicted_audio_np[: predicted_audio_lens[idx]]
             if predicted_audio_np.shape[0] < 1000:
                 # Corner case to handle short audio files
                 predicted_audio_np = np.pad(predicted_audio_np, (0, 1000 - predicted_audio_np.shape[0]))
@@ -523,25 +595,35 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             sf.write(audio_path, predicted_audio_np, self.sample_rate)
 
             predicted_codes_torch = predicted_codes[idx].cpu().type(torch.int16)
-            predicted_codes_torch = predicted_codes_torch[:, :predicted_codes_lens[idx]] # C, T
-            torch.save(predicted_codes_torch, os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'))
+            predicted_codes_torch = predicted_codes_torch[:, : predicted_codes_lens[idx]]  # C, T
+            torch.save(
+                predicted_codes_torch,
+                os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_codes.pt'),
+            )
             predicted_audio_paths.append(audio_path)
 
         with torch.no_grad():
             if self.cfg.get("reward_asr_model", "nemo") == "nemo":
-                pred_transcripts = self.eval_asr_model.transcribe(predicted_audio_paths, batch_size=len(predicted_audio_paths))
-                pred_transcripts = [ process_text_for_cer(transcript.text) for transcript in pred_transcripts ]
+                pred_transcripts = self.eval_asr_model.transcribe(
+                    predicted_audio_paths, batch_size=len(predicted_audio_paths)
+                )
+                pred_transcripts = [process_text_for_cer(transcript.text) for transcript in pred_transcripts]
             elif self.cfg.get("reward_asr_model", "nemo") == "whisper":
                 pred_transcripts = []
                 for item_idx, audio_path in enumerate(predicted_audio_paths):
                     language = batch_repeated['languages'][item_idx]
-                    transcript = transcribe_with_whisper(audio_path, language, self.whisper_processor, self.whisper_model, self.device)
+                    transcript = transcribe_with_whisper(
+                        audio_path, language, self.whisper_processor, self.whisper_model, self.device
+                    )
                     pred_transcripts.append(transcript)
                 pred_transcripts = [process_text_for_cer(transcript) for transcript in pred_transcripts]
 
-            pred_speaker_embeddings = get_speaker_embeddings_from_filepaths(predicted_audio_paths, self.eval_speaker_verification_model, self.device)
-            gt_speaker_embeddings = get_speaker_embeddings_from_filepaths(batch_repeated['audio_filepaths'], self.eval_speaker_verification_model, self.device)
-
+            pred_speaker_embeddings = get_speaker_embeddings_from_filepaths(
+                predicted_audio_paths, self.eval_speaker_verification_model, self.device
+            )
+            gt_speaker_embeddings = get_speaker_embeddings_from_filepaths(
+                batch_repeated['audio_filepaths'], self.eval_speaker_verification_model, self.device
+            )
 
         batch_metrics = []
         cer_reward_weight = self.cfg.get('cer_reward_weight', 0.5)
@@ -572,23 +654,27 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             item_metrics = {
                 'cer_gt': float(cer_gt),
                 'wer_gt': float(wer_gt),
-                'duration' : audio_durations[idx],
+                'duration': audio_durations[idx],
                 'spk_similarity': float(spk_similarity),
                 'pred_transcript': pred_transcript,
                 'gt_transcript': gt_transcript,
                 'codes_len': predicted_codes_lens[idx].item(),
-                'pesq' : pesq_hyp if use_pesq else 0.0,
+                'pesq': pesq_hyp if use_pesq else 0.0,
             }
-            with open(os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_metrics.json'), 'w') as f:
+            with open(
+                os.path.join(audio_dir, f'predicted_audioRank{self.global_rank}_{item_idx}_metrics.json'), 'w'
+            ) as f:
                 json.dump(item_metrics, f)
 
             batch_metrics.append(item_metrics)
 
         num_groups = len(batch['audio_filepaths'])
 
-        best_ssim_achievable = self.cfg.get("best_ssim_achievable", 0.9) # Examples with this speaker similarity or higher will have SSIM reward of 1
-        mean_cer_dataset = self.cfg.get("mean_cer_dataset", 0.1) # CER equal to this value will have reward of 0.5
-        mean_ssim_dataset = self.cfg.get("mean_ssim_dataset", 0.6) # SSIM equal to this value will have reward of 0.5
+        best_ssim_achievable = self.cfg.get(
+            "best_ssim_achievable", 0.9
+        )  # Examples with this speaker similarity or higher will have SSIM reward of 1
+        mean_cer_dataset = self.cfg.get("mean_cer_dataset", 0.1)  # CER equal to this value will have reward of 0.5
+        mean_ssim_dataset = self.cfg.get("mean_ssim_dataset", 0.6)  # SSIM equal to this value will have reward of 0.5
         all_groups_mean_reward = 0.0
         all_groups_std_reward = 0.0
         group_validities = []
@@ -606,18 +692,20 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 # Reward for best CER and best speaker similarity should be 1
                 item_cer = batch_metrics[idx]['cer_gt']
                 item_ssim = batch_metrics[idx]['spk_similarity']
-                item_cer = min( max(item_cer, 0.0), 1.0)
-                item_ssim = max( min(item_ssim, best_ssim_achievable), 0.0)
+                item_cer = min(max(item_cer, 0.0), 1.0)
+                item_ssim = max(min(item_ssim, best_ssim_achievable), 0.0)
                 item_pesq = batch_metrics[idx]['pesq']
                 group_best_cer = min(group_best_cer, item_cer)
                 group_worst_cer = max(group_worst_cer, item_cer)
-                    
+
                 if item_cer <= mean_cer_dataset:
-                    cer_reward = 0.5 + 0.5 * (mean_cer_dataset - item_cer) / mean_cer_dataset # 0.5 to 1
+                    cer_reward = 0.5 + 0.5 * (mean_cer_dataset - item_cer) / mean_cer_dataset  # 0.5 to 1
                 else:
-                    cer_reward = 0.5 - 0.5 * (item_cer - mean_cer_dataset) / (1 - mean_cer_dataset) # 0 to 0.5
+                    cer_reward = 0.5 - 0.5 * (item_cer - mean_cer_dataset) / (1 - mean_cer_dataset)  # 0 to 0.5
                 if item_ssim >= mean_ssim_dataset:
-                    spk_similarity_reward = 0.5 + 0.5 * (item_ssim - mean_ssim_dataset) / (best_ssim_achievable - mean_ssim_dataset)
+                    spk_similarity_reward = 0.5 + 0.5 * (item_ssim - mean_ssim_dataset) / (
+                        best_ssim_achievable - mean_ssim_dataset
+                    )
                 else:
                     spk_similarity_reward = 0.5 - 0.5 * (mean_ssim_dataset - item_ssim) / (mean_ssim_dataset)
                 if use_pesq:
@@ -625,26 +713,47 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 else:
                     pesq_reward = 0.0
 
-                batch_metrics[idx]['reward'] = cer_reward * cer_reward_weight + spk_similarity_reward * ssim_reward_weight + pesq_reward * pesq_reward_weight
+                batch_metrics[idx]['reward'] = (
+                    cer_reward * cer_reward_weight
+                    + spk_similarity_reward * ssim_reward_weight
+                    + pesq_reward * pesq_reward_weight
+                )
 
-                if (batch_metrics[idx]['codes_len'] >= 425) or (batch_metrics[idx]['codes_len'] <= 3): # TODO: Remove hardcoded lengths
+                if (batch_metrics[idx]['codes_len'] >= 425) or (
+                    batch_metrics[idx]['codes_len'] <= 3
+                ):  # TODO: Remove hardcoded lengths
                     # This means it did not complete the sentence or generated an extremely short sentence
                     batch_metrics[idx]['reward'] = 0.0
-                print("Item idx: ", idx, " CER: ", item_cer, " SSIM: ", item_ssim, " Reward: ", batch_metrics[idx]['reward'], " Codes len: ", batch_metrics[idx]['codes_len'])
+                print(
+                    "Item idx: ",
+                    idx,
+                    " CER: ",
+                    item_cer,
+                    " SSIM: ",
+                    item_ssim,
+                    " Reward: ",
+                    batch_metrics[idx]['reward'],
+                    " Codes len: ",
+                    batch_metrics[idx]['codes_len'],
+                )
                 batch_metrics[idx]['cer_reward'] = cer_reward
                 batch_metrics[idx]['spk_similarity_reward'] = spk_similarity_reward
                 batch_metrics[idx]['pesq_reward'] = pesq_reward
                 mean_reward += batch_metrics[idx]['reward']
                 group_rewards.append(batch_metrics[idx]['reward'])
-            
-            if (group_best_cer > self.best_cer_threshold):
+
+            if group_best_cer > self.best_cer_threshold:
                 is_group_valid = False
-                print(f"Group {group_idx} has best CER {group_best_cer} which is above the threshold {self.best_cer_threshold}. Group is invalid.")
-            
-            if (group_worst_cer > self.worst_cer_threshold):
+                print(
+                    f"Group {group_idx} has best CER {group_best_cer} which is above the threshold {self.best_cer_threshold}. Group is invalid."
+                )
+
+            if group_worst_cer > self.worst_cer_threshold:
                 is_group_valid = False
-                print(f"Group {group_idx} has worst CER {group_worst_cer} which is above the threshold {self.worst_cer_threshold}. Group is invalid.")
-            
+                print(
+                    f"Group {group_idx} has worst CER {group_worst_cer} which is above the threshold {self.worst_cer_threshold}. Group is invalid."
+                )
+
             for _ in range(num_generations_per_item):
                 group_validities.append(is_group_valid)
 
@@ -662,7 +771,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         advantages = [x['advantage'] for x in batch_metrics]
         advantages = torch.tensor(advantages, device=self.device)
         print("Mean reward: ", all_groups_mean_reward)
-        
+
         group_validities = torch.tensor(group_validities, device=self.device)
         return {
             'mean_reward': torch.tensor(all_groups_mean_reward, device=self.device),
@@ -674,7 +783,6 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             'advantages': advantages,
             'group_validities': group_validities,
         }
-
 
     def process_batch_online_po(self, batch, n_generations_per_item, mode='train'):
         use_kv_cache_during_online_po = self.cfg.get("use_kv_cache_during_online_po", False)
@@ -688,14 +796,14 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         if use_local_transformer_prob > 0.0 and mode == 'train':
             use_local_transformer_for_inference = random.random() < use_local_transformer_prob
             logits_key = 'local_transformer_logits'
-            
+
         with torch.no_grad():
             self.eval()
             generated_codes_and_metrics = self.generate_and_reward(
                 batch,
                 n_generations_per_item,
                 mode,
-                use_local_transformer_for_inference=use_local_transformer_for_inference
+                use_local_transformer_for_inference=use_local_transformer_for_inference,
             )
             self.train()
 
@@ -704,19 +812,29 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             self.decoder.reset_cache(use_cache=False)
 
         batch_repeated = generated_codes_and_metrics['batch_repeated']
-        predicted_codes = generated_codes_and_metrics['predicted_codes'] # B, 8, T
-        predicted_codes_lens = generated_codes_and_metrics['predicted_codes_lens'] # B
-        predicted_codes = predicted_codes[:,:,:predicted_codes_lens.max()]
+        predicted_codes = generated_codes_and_metrics['predicted_codes']  # B, 8, T
+        predicted_codes_lens = generated_codes_and_metrics['predicted_codes_lens']  # B
+        predicted_codes = predicted_codes[:, :, : predicted_codes_lens.max()]
 
-        advantages = generated_codes_and_metrics['advantages'] # B
+        advantages = generated_codes_and_metrics['advantages']  # B
         # Add extra tokens for BOS and EOS
-        bos_tensor = torch.full((predicted_codes.size(0), predicted_codes.size(1), 1), self.audio_bos_id, dtype=predicted_codes.dtype, device=predicted_codes.device)
-        padding_tensor = torch.full((predicted_codes.size(0), predicted_codes.size(1), 1), 0, dtype=predicted_codes.dtype, device=predicted_codes.device)
+        bos_tensor = torch.full(
+            (predicted_codes.size(0), predicted_codes.size(1), 1),
+            self.audio_bos_id,
+            dtype=predicted_codes.dtype,
+            device=predicted_codes.device,
+        )
+        padding_tensor = torch.full(
+            (predicted_codes.size(0), predicted_codes.size(1), 1),
+            0,
+            dtype=predicted_codes.dtype,
+            device=predicted_codes.device,
+        )
         predicted_codes = torch.cat([bos_tensor, predicted_codes, padding_tensor], dim=2)
         for idx in range(predicted_codes.size(0)):
-            predicted_codes[idx, :, predicted_codes_lens[idx]+1] = self.audio_eos_id # Accounts for BOS
+            predicted_codes[idx, :, predicted_codes_lens[idx] + 1] = self.audio_eos_id  # Accounts for BOS
         batch_repeated['audio_codes'] = predicted_codes
-        batch_repeated['audio_codes_lens'] = predicted_codes_lens + 2 # Accounts for BOS and EOS
+        batch_repeated['audio_codes_lens'] = predicted_codes_lens + 2  # Accounts for BOS and EOS
         if 'audio' in batch_repeated:
             del batch_repeated['audio']
         if 'audio_lens' in batch_repeated:
@@ -731,32 +849,50 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         total_loss = None
         total_kl = None
         for codebook_idx in range(self.num_audio_codebooks):
-            policy_codebook_loss_mask = policy_model_outputs['loss_mask'][:,codebook_idx,:]
-            reference_codebook_loss_mask = reference_model_output['loss_mask'][:,codebook_idx,:] if not self.reference_free else None
+            policy_codebook_loss_mask = policy_model_outputs['loss_mask'][:, codebook_idx, :]
+            reference_codebook_loss_mask = (
+                reference_model_output['loss_mask'][:, codebook_idx, :] if not self.reference_free else None
+            )
             si = codebook_idx * self.num_all_tokens_per_codebook
             ei = si + self.num_all_tokens_per_codebook
-            
-            codebook_logits = policy_model_outputs[logits_key][:, :, si:ei] # B, T, C
-            codebook_labels = batch_repeated['audio_codes'][:,codebook_idx,1:]
-            
-            per_token_codebook_log_probs = self._get_per_token_logps(codebook_logits, codebook_labels, policy_codebook_loss_mask)
-            per_token_loss = -(torch.exp(per_token_codebook_log_probs - per_token_codebook_log_probs.detach()) * advantages.unsqueeze(1))
-            group_validities = generated_codes_and_metrics['group_validities'] # B * n_generations_per_item
-            per_token_loss = per_token_loss * group_validities.unsqueeze(1) # B, T
+
+            codebook_logits = policy_model_outputs[logits_key][:, :, si:ei]  # B, T, C
+            codebook_labels = batch_repeated['audio_codes'][:, codebook_idx, 1:]
+
+            per_token_codebook_log_probs = self._get_per_token_logps(
+                codebook_logits, codebook_labels, policy_codebook_loss_mask
+            )
+            per_token_loss = -(
+                torch.exp(per_token_codebook_log_probs - per_token_codebook_log_probs.detach())
+                * advantages.unsqueeze(1)
+            )
+            group_validities = generated_codes_and_metrics['group_validities']  # B * n_generations_per_item
+            per_token_loss = per_token_loss * group_validities.unsqueeze(1)  # B, T
 
             if not self.reference_free:
                 with torch.no_grad():
                     ref_codebook_logits = reference_model_output[logits_key][:, :, si:ei]
-                    per_token_ref_codebook_log_probs = self._get_per_token_logps(ref_codebook_logits, codebook_labels, reference_codebook_loss_mask)
+                    per_token_ref_codebook_log_probs = self._get_per_token_logps(
+                        ref_codebook_logits, codebook_labels, reference_codebook_loss_mask
+                    )
                     # https://github.com/huggingface/trl/blob/ffcb9f4aee725a2bd072d0387afe68a4b1c7967c/trl/trainer/grpo_trainer.py#L703
-                per_token_codebook_kl = torch.exp(per_token_ref_codebook_log_probs - per_token_codebook_log_probs) - (per_token_ref_codebook_log_probs - per_token_codebook_log_probs) - 1
+                per_token_codebook_kl = (
+                    torch.exp(per_token_ref_codebook_log_probs - per_token_codebook_log_probs)
+                    - (per_token_ref_codebook_log_probs - per_token_codebook_log_probs)
+                    - 1
+                )
                 per_token_loss = per_token_loss + self.cfg.grpo_beta * per_token_codebook_kl
-                codebook_kl_loss_mean = ((per_token_codebook_kl * policy_codebook_loss_mask).sum(dim=1) / policy_codebook_loss_mask.sum(dim=1)).mean()
+                codebook_kl_loss_mean = (
+                    (per_token_codebook_kl * policy_codebook_loss_mask).sum(dim=1)
+                    / policy_codebook_loss_mask.sum(dim=1)
+                ).mean()
             else:
                 codebook_kl_loss_mean = torch.tensor(0.0, device=self.device)
 
             if self.loss_type == "grpo":
-                codebook_loss = ((per_token_loss * policy_codebook_loss_mask).sum(dim=1) / policy_codebook_loss_mask.sum(dim=1)).mean()
+                codebook_loss = (
+                    (per_token_loss * policy_codebook_loss_mask).sum(dim=1) / policy_codebook_loss_mask.sum(dim=1)
+                ).mean()
             elif self.loss_type == "dr_grpo":
                 # https://github.com/huggingface/trl/blob/main/trl/trainer/grpo_trainer.py
                 total_tokens = per_token_loss.shape[0] * self.max_decoder_steps
@@ -772,7 +908,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
                 total_kl += codebook_kl_loss_mean
 
         total_loss /= self.num_audio_codebooks
-        
+
         return {
             'mean_reward': generated_codes_and_metrics['mean_reward'],
             'std_reward': generated_codes_and_metrics['std_reward'],
@@ -798,13 +934,15 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         val_loss = po_outputs['loss']
         val_kl_loss = po_outputs['kl_loss']
 
-        self.validation_step_outputs.append({
-            'mean_reward': mean_reward,
-            'std_reward': po_outputs['std_reward'],
-            'val_loss': val_loss,
-            'val_kl_loss': val_kl_loss,
-            'batch_metrics': batch_metrics,
-        })
+        self.validation_step_outputs.append(
+            {
+                'mean_reward': mean_reward,
+                'std_reward': po_outputs['std_reward'],
+                'val_loss': val_loss,
+                'val_kl_loss': val_kl_loss,
+                'batch_metrics': batch_metrics,
+            }
+        )
 
     def on_validation_epoch_end(self):
         def collect(key):
@@ -844,7 +982,6 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
         self.validation_step_outputs.clear()
 
 
-
 # Utility functions
 def process_text_for_cer(input_text):
     """
@@ -873,31 +1010,34 @@ def process_text_for_cer(input_text):
 
     return single_space_text
 
+
 def get_speaker_embeddings_from_filepaths(filepaths, speaker_verification_model, device):
-        audio_batch = []
-        audio_lengths = []
-        for filepath in filepaths:
-            audio, sr = sf.read(filepath)
-            if sr != 16000:
-                audio = librosa.core.resample(audio, orig_sr=sr, target_sr=16000)
-            audio_tensor = torch.tensor(audio, dtype=torch.float32, device=device)
-            audio_batch.append(audio_tensor)
-            audio_lengths.append(audio_tensor.size(0))
+    audio_batch = []
+    audio_lengths = []
+    for filepath in filepaths:
+        audio, sr = sf.read(filepath)
+        if sr != 16000:
+            audio = librosa.core.resample(audio, orig_sr=sr, target_sr=16000)
+        audio_tensor = torch.tensor(audio, dtype=torch.float32, device=device)
+        audio_batch.append(audio_tensor)
+        audio_lengths.append(audio_tensor.size(0))
 
-        batch_audio_lens = torch.tensor(audio_lengths, device=device).long()
-        max_audio_len = int(batch_audio_lens.max().item())
-        audio_batch = stack_tensors(audio_batch, max_lens=[max_audio_len])
+    batch_audio_lens = torch.tensor(audio_lengths, device=device).long()
+    max_audio_len = int(batch_audio_lens.max().item())
+    audio_batch = stack_tensors(audio_batch, max_lens=[max_audio_len])
 
-        _, speaker_embeddings = speaker_verification_model.forward(
-            input_signal=audio_batch,
-            input_signal_length=batch_audio_lens
-        )
+    _, speaker_embeddings = speaker_verification_model.forward(
+        input_signal=audio_batch, input_signal_length=batch_audio_lens
+    )
 
-        return speaker_embeddings
+    return speaker_embeddings
+
 
 def transcribe_with_whisper(audio_filepath, language, whisper_processor, whisper_model, device):
     speech_array, sampling_rate = librosa.load(audio_filepath, sr=16000)
-    forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
+    forced_decoder_ids = (
+        whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
+    )
     inputs = whisper_processor(speech_array, sampling_rate=sampling_rate, return_tensors="pt").input_features
     inputs = inputs.to(device)
     with torch.no_grad():

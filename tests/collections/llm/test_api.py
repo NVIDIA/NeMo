@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import tempfile
 
 import nemo_run as run
 import pytest
@@ -172,3 +174,35 @@ class TestValidateConfig:
             model.config.num_moe_experts = 3
             trainer.strategy.expert_model_parallel_size = 2
             _validate_config(model, data, trainer)
+
+
+class TestImportCkpt:
+
+    def test_output_path_exists_no_overwrite(self):
+        """Test that an error is raised when the output path exists and overwrite is set to False."""
+
+        with pytest.raises(FileExistsError), tempfile.TemporaryDirectory() as output_path:
+            llm.import_ckpt(
+                model=llm.LlamaModel(config=llm.Llama32Config1B()),
+                source="hf://meta-llama/Llama-3.2-1B",
+                output_path=output_path,
+                overwrite=False,
+            )
+
+
+class TestExportCkpt:
+
+    def test_output_path_exists_no_overwrite(self):
+        """Test that an error is raised when the output path exists and overwrite is set to False."""
+
+        with (
+            pytest.raises(FileExistsError),
+            tempfile.TemporaryDirectory() as output_path,
+            tempfile.TemporaryDirectory() as path,
+        ):
+            llm.export_ckpt(
+                path=path,
+                target="hf",
+                output_path=output_path,
+                overwrite=False,
+            )

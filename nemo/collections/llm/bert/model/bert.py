@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,10 +21,11 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 import torch
 from torch import nn
 
-from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.common.tokenizers import AutoTokenizer, TokenizerSpec
 from nemo.collections.llm.bert.model.base import BertConfig, BertModel
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.pytorch.utils import dtype_from_hf
 from nemo.utils import logging
 
 if TYPE_CHECKING:
@@ -247,6 +248,9 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             add_pooler=self.type != 'masked',
             share_embeddings_and_output_weights=True,
             num_tokentypes=2,
+            fp16=(dtype_from_hf(source) == torch.float16),
+            bf16=(dtype_from_hf(source) == torch.bfloat16),
+            params_dtype=dtype_from_hf(source),
         )
         return output
 
@@ -259,8 +263,8 @@ class HuggingFaceBertExporter(io.ModelConnector[BertModel, "BertModel"]):
         from transformers import BertModel
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
-            return BertModel.from_config(self.config, torch_dtype=dtype)
+        with no_init_weights():
+            return BertModel._from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
         source, _ = self.nemo_load(str(self))
@@ -297,17 +301,25 @@ class HuggingFaceBertExporter(io.ModelConnector[BertModel, "BertModel"]):
             "encoder.layers.*.post_mlp_layernorm.bias": "encoder.layer.*.output.LayerNorm.bias",
         }
 
+        if source.config.add_pooler:
+            mapping.update(
+                {
+                    "pooler.dense.weight": "pooler.dense.weight",
+                    "pooler.dense.bias": "pooler.dense.bias",
+                }
+            )
+
         return io.apply_transforms(
             source,
             target,
             mapping=mapping,
-            transforms=[_export_qkv, _export_embedding],
+            transforms=[_export_qkv, _export_qkv_bias, _export_embedding],
         )
 
     @property
     def config(self) -> "HFBertConfig":
         """Generate HF Config based on NeMo config"""
-        source: BertConfig = io.load_context(str(self)).model.config
+        source: BertConfig = io.load_context(str(self), subpath="model.config")
 
         from transformers import BertConfig as HFBertConfig
 
@@ -319,6 +331,7 @@ class HuggingFaceBertExporter(io.ModelConnector[BertModel, "BertModel"]):
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             layer_norm_eps=source.layernorm_epsilon,
+            vocab_size=self.tokenizer.vocab_size,
         )
 
 
@@ -336,7 +349,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
 
     head_num = megatron_config.num_attention_heads
     hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -345,7 +360,7 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     k = k.view(*new_q_tensor_shape)
     v = v.view(*new_q_tensor_shape)
 
-    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
+    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:]).to(dtype=q.dtype)
     for i in range(head_num):
         qkv_weights = torch.cat((qkv_weights, q[i : i + 1, :, :]))
         qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
@@ -368,7 +383,9 @@ def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
-    head_size = megatron_config.kv_channels
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
 
     new_q_tensor_shape_bias = (head_num, head_size)
 
@@ -376,7 +393,7 @@ def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
     bias_k = kb.view(*new_q_tensor_shape_bias)
     bias_v = vb.view(*new_q_tensor_shape_bias)
 
-    qkv_biases = torch.empty((0, head_size))
+    qkv_biases = torch.empty((0, head_size)).to(dtype=qb.dtype)
     for i in range(head_num):
         qkv_biases = torch.cat((qkv_biases, bias_q[i : i + 1]))
         qkv_biases = torch.cat((qkv_biases, bias_k[i : i + 1]))
@@ -400,7 +417,7 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
             embedding.size(1),
             dtype=embedding.dtype,
             device=embedding.device,
-        )
+        ).to(dtype=embedding.dtype)
         # Concatenate the two tensors along rows
         padded_embedding = torch.cat((embedding, zeros_to_add), dim=0)
         return padded_embedding
@@ -441,7 +458,9 @@ def _import_qkv_2(ctx: io.TransformCTX, q, k, v):
 
     head_num = megatron_config.num_attention_heads
     hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
 
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -450,7 +469,7 @@ def _import_qkv_2(ctx: io.TransformCTX, q, k, v):
     k = k.view(*new_q_tensor_shape)
     v = v.view(*new_q_tensor_shape)
 
-    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:])
+    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:]).to(dtype=q.dtype)
     for i in range(head_num):
         qkv_weights = torch.cat((qkv_weights, q[i : i + 1, :, :]))
         qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
@@ -473,7 +492,9 @@ def _import_qkv_bias_2(ctx: io.TransformCTX, qb, kb, vb):
     megatron_config = ctx.target.config
 
     head_num = megatron_config.num_attention_heads
-    head_size = megatron_config.kv_channels
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
 
     new_q_tensor_shape_bias = (head_num, head_size)
 
@@ -481,7 +502,7 @@ def _import_qkv_bias_2(ctx: io.TransformCTX, qb, kb, vb):
     bias_k = kb.view(*new_q_tensor_shape_bias)
     bias_v = vb.view(*new_q_tensor_shape_bias)
 
-    qkv_biases = torch.empty((0, head_size))
+    qkv_biases = torch.empty((0, head_size)).to(dtype=qb.dtype)
     for i in range(head_num):
         qkv_biases = torch.cat((qkv_biases, bias_q[i : i + 1]))
         qkv_biases = torch.cat((qkv_biases, bias_k[i : i + 1]))
@@ -505,7 +526,7 @@ def _import_embedding_2(ctx: io.TransformCTX, embedding):
             embedding.size(1),
             dtype=embedding.dtype,
             device=embedding.device,
-        )
+        ).to(dtype=embedding.dtype)
         # Concatenate the two tensors along rows
         padded_embedding = torch.cat((embedding, zeros_to_add), dim=0)
         return padded_embedding
@@ -528,7 +549,10 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     num_query_groups = head_num  # BERT Does not use GQA
     heads_per_group = head_num // num_query_groups
     hidden_size = megatron_config.hidden_size
-    head_size = megatron_config.kv_channels
+
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
@@ -562,7 +586,9 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     head_num = megatron_config.num_attention_heads
     num_query_groups = head_num  # BERT does not use GQA
     heads_per_group = head_num // num_query_groups
-    head_size = megatron_config.kv_channels
+    head_size = getattr(
+        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+    )
     qkv_total_dim = head_num + 2 * num_query_groups
 
     qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
