@@ -1708,7 +1708,6 @@ class MagpieTTSModel(ModelPT):
     def construct_inference_prior(self, prior_epsilon, cross_attention_scores,
                                   text_lens, text_time_step_attended, attended_timestep_counter,
                                   unfinished_texts, finished_texts_counter, end_indices, lookahead_window_size, batch_size):
-                                  unfinished_texts, finished_texts_counter, end_indices, lookahead_window_size, batch_size):
         # Attn prior for the next timestep
         _attn_prior = torch.zeros(cross_attention_scores.shape[0], 1, cross_attention_scores.shape[1]) + prior_epsilon
         _attn_prior = _attn_prior.to(cross_attention_scores.device)
