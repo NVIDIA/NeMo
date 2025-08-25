@@ -16,8 +16,6 @@ import random
 import time
 from typing import List, Optional
 from functools import partial
-import numpy as np
-from typing import List
 import soundfile as sf
 import torch
 import wandb
@@ -1685,20 +1683,14 @@ class MagpieTTSModel(ModelPT):
                 # This is probably an attention sink! Move to the next timestep
                 last_attended_timestep += 1
             last_attended_timestep_in_this_window = last_attended_timestep - left_offset
-            last_attended_timestep_in_this_window = last_attended_timestep - left_offset
             window_size = lookahead_window_size
-            window_end = min(last_attended_timestep_in_this_window + window_size, text_lens[bidx] - 3) # Ignore the last 3 timesteps
-            item_attention_scores = alignment_attention_scores[bidx,last_attended_timestep_in_this_window:window_end]
             window_end = min(last_attended_timestep_in_this_window + window_size, text_lens[bidx] - 3) # Ignore the last 3 timesteps
             item_attention_scores = alignment_attention_scores[bidx,last_attended_timestep_in_this_window:window_end]
             if item_attention_scores.size(0) == 0:
                 # This means the sentence has ended
                 attended_timestep = text_lens[bidx] - 1 + left_offset
-                attended_timestep = text_lens[bidx] - 1 + left_offset
             else:
                 attended_timestep = item_attention_scores.argmax().item() + last_attended_timestep
-            if not isinstance(attended_timestep, int):
-                attended_timestep = attended_timestep.item()
             if not isinstance(attended_timestep, int):
                 attended_timestep = attended_timestep.item()
             text_time_step_attended.append(attended_timestep)
@@ -1722,16 +1714,11 @@ class MagpieTTSModel(ModelPT):
                     _attn_prior[bidx, 0, text_time_step_attended[bidx]] = 1.0 # Slightly bias to continue moving forward. Not very important.
                     for ind in range(1, lookahead_window_size + 1):
                         _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+ind, _text_len - 1) ] = 1.0
-                    _attn_prior[bidx, 0, max(1, text_time_step_attended[bidx]-1)] = 1.0 # Slight exposure to history for better pronounciation. Not very important.
-                    _attn_prior[bidx, 0, text_time_step_attended[bidx]] = 1.0 # Slightly bias to continue moving forward. Not very important.
-                    for ind in range(1, lookahead_window_size + 1):
-                        _attn_prior[bidx, 0, min(text_time_step_attended[bidx]+ind, _text_len - 1) ] = 1.0
 
                 # Penalize timesteps that have been attended to more than 10 times
                 for _timestep in attended_timestep_counter[bidx]:
                     if attended_timestep_counter[bidx][_timestep] >= 10:
                         # This means the timestep has been attended to more than 10 times (To avoid getting stuck)
-                        _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
                         _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
 
                 unfinished_texts[bidx] = False
@@ -1740,7 +1727,6 @@ class MagpieTTSModel(ModelPT):
                     if bidx not in end_indices:
                         unfinished_texts[bidx] = True
 
-                if text_time_step_attended[bidx] >= text_lens[bidx] - 2 or bidx in end_indices:
                 if text_time_step_attended[bidx] >= text_lens[bidx] - 2 or bidx in end_indices:
                     if bidx not in finished_texts_counter:
                         finished_texts_counter[bidx] = 0
