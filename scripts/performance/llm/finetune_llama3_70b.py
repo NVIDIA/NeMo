@@ -35,7 +35,13 @@ from ..helpers import (
     set_exp_logging_configs,
     set_primary_perf_configs,
 )
-from ..utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata, prepare_squad_dataset_experiment
+from ..utils import (
+    get_comm_overlap_callback_idx,
+    hf_tokenizer,
+    import_ckpt_experiment,
+    isfile_train_pack_metadata,
+    prepare_squad_dataset_experiment,
+)
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-70B"
 
@@ -77,7 +83,7 @@ def override_recipe_configs(
         # to reduce the sequence length.
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=2048)
     else:
-        recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)    
+        recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
 
     recipe = set_primary_perf_configs(
         recipe,
@@ -114,9 +120,9 @@ def override_recipe_configs(
     )
 
     # data module configs
-    #if args.use_hf_tokenizer:
+    # if args.use_hf_tokenizer:
     #    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    #else:
+    # else:
     #    recipe.data.tokenizer = run.Config(
     #        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
     #    )
