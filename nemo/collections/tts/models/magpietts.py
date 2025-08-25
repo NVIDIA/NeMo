@@ -1736,7 +1736,7 @@ class MagpieTTSModel(ModelPT):
                         _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
 
                 unfinished_texts[bidx] = False
-                if text_time_step_attended[bidx] < text_lens[bidx] - 5:
+                if text_time_step_attended[bidx] < text_lens[bidx] - 3:
                     # This means the sentence has not ended
                     if bidx not in end_indices:
                         unfinished_texts[bidx] = True
