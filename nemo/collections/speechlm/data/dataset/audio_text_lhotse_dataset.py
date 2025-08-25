@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
         default_context: str = "listen to the audio",
         context_key: str = "context",
         default_context_key: str = "default_context",
+        answer_key: str = "answer",
         answer_only_loss: bool = True,
         is_train: bool = False,
     ):
@@ -79,6 +80,7 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
         self.default_context = default_context
         self.context_key = context_key
         self.default_context_key = default_context_key
+        self.answer_key = answer_key
         self.answer_only_loss = answer_only_loss
         self.is_train = is_train
 
@@ -153,6 +155,21 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
             context = getattr(cut, self.default_context_key)
         else:
             context = self.default_context
+
+        if hasattr(cut, self.answer_key):
+            answer = getattr(cut, self.answer_key)
+        else:
+            answer = cut.supervisions[0].text
+
+        if context is None:
+            raise ValueError(
+                f"Context is None for cut {cut}, please double check the `context_key` and the actual content of that field in your data"
+            )
+        if answer is None:
+            raise ValueError(
+                f"Answer is None for cut {cut}, please double check the `answer_key` and the actual content of that field in your data"
+            )
+
         sample = NeMoMultimodalConversation(
             id=cut.id,
             turns=[
@@ -167,7 +184,7 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
                 ),
                 TextTurn(
                     role="assistant",
-                    value=cut.supervisions[0].text,
+                    value=answer,
                 ),
             ],
         )

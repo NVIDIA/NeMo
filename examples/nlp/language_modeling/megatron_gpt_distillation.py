@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -126,6 +126,10 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
         """Model depends on pipeline paralellism."""
         if not self.mcore_gpt:
             raise AssertionError("ModelOpt Distillation only supports MCore model edition.")
+
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
 
         model = MCoreGPTModel(
             config=self.transformer_config,

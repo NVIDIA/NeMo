@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,6 +29,8 @@ class SpeechLMAutoResume(AutoResume):
     """
     Wrapper for AutoResume to get rid of requirement on restore_config.
     """
+
+    adapter_path: Optional[str] = None
 
     def _maybe_get_adapter_path(self, checkpoint: Path) -> Optional[Path]:
         if self.adapter_path:
@@ -64,13 +66,10 @@ class SpeechLMAutoResume(AutoResume):
                 checkpoint = maybe_weights_path
 
         if checkpoint:
-            if self.adapter_path:
-                return AdapterPath(Path(self.adapter_path), base_model_path=checkpoint)
+            adapter_meta_path = checkpoint / ADAPTER_META_FILENAME
+            if adapter_meta_path.exists():
+                return AdapterPath(checkpoint, base_model_path=checkpoint)
             else:
-                adapter_meta_path = checkpoint / ADAPTER_META_FILENAME
-                if adapter_meta_path.exists():
-                    return AdapterPath(checkpoint, base_model_path=checkpoint)
-                else:
-                    return Path(checkpoint)
+                return Path(checkpoint)
 
         return None

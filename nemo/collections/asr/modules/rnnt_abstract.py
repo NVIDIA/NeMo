@@ -276,13 +276,51 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         raise NotImplementedError()
 
     @classmethod
+    def batch_aggregate_states_beam(
+        cls,
+        src_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
+        batch_size: int,
+        beam_size: int,
+        indices: torch.Tensor,
+        dst_states: Optional[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
+        """
+        Aggregates decoder states based on the given indices.
+        Args:
+            src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]): source states of
+                shape `([L x (batch_size * beam_size, H)], [L x (batch_size * beam_size, H)])`
+            batch_size (int): The size of the batch.
+            beam_size (int): The size of the beam.
+            indices (torch.Tensor): A tensor of shape `(batch_size, beam_size)` containing
+                the indices in beam that map the source states to the destination states.
+            dst_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): If provided, the method
+                updates these tensors in-place.
+        Returns:
+            tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]: aggregated states
+        """
+
+        raise NotImplementedError()
+
+    @classmethod
     def batch_replace_states_mask(
         cls,
-        src_states: list[torch.Tensor],
-        dst_states: list[torch.Tensor],
+        src_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
+        dst_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
         mask: torch.Tensor,
+        other_src_states: Optional[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]] = None,
     ):
-        """Replace states in dst_states with states from src_states using the mask, in a way that does not synchronize with the CPU"""
+        """
+        Replaces states in `dst_states` with states from `src_states` based on the given `mask`.
+
+        Args:
+            mask (torch.Tensor): When True, selects values from `src_states`, otherwise `out` or `other_src_states`(if provided).
+            src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]): Values selected at indices where `mask` is True.
+            dst_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): The output states.
+            other_src_states (tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor], optional): Values selected at indices where `mask` is False.
+
+        Note:
+            This operation is performed without CPU-GPU synchronization by using `torch.where`.
+        """
         raise NotImplementedError()
 
     @classmethod
@@ -290,14 +328,32 @@ class AbstractRNNTDecoder(NeuralModule, ABC):
         cls,
         src_states: list[torch.Tensor],
         dst_states: list[torch.Tensor],
+        batch_size: int | None = None,
     ):
         """Replace states in dst_states with states from src_states"""
         raise NotImplementedError()
 
-    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+    @classmethod
+    def clone_state(
+        cls, states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
+        """Return copy of the states"""
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
         """
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def batch_unsplit_states(
+        cls, batch_states: list[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]], device=None, dtype=None
+    ) -> tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]:
+        """
+        Concatenate a batch of decoder state to a packed state. Inverse of `batch_split_states`.
         """
         raise NotImplementedError()
 

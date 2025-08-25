@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ from nemo.collections.vlm.vision.base import (
     HFCLIPVisionConfig,
     MultimodalProjectorConfig,
 )
-from nemo.collections.vlm.vision.clip_vit import CLIPViTL_14_336_Config
+from nemo.collections.vlm.vision.clip_vit import CLIPViTL_14_336_Config, CLIPViTModel
 from nemo.collections.vlm.vision.intern_vit import (
     InternViT_6B_448px_Config,
     InternViT_300M_448px_Config,
@@ -37,4 +37,5 @@ __all__ = [
     "InternViTModel",
     "InternViT_300M_448px_Config",
     "InternViT_6B_448px_Config",
+    "CLIPViTModel",
 ]

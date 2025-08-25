@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,11 @@
 
 from unittest.mock import ANY, MagicMock, patch
 
+import pytest
 import torch
 from torch import nn
 
+from nemo.core.optim import MainParamsOptimizerWrapper
 from nemo.lightning import MegatronStrategy, _strategy_lib  # , DataConfig
 
 
@@ -30,6 +32,62 @@ class WithCopy(nn.Identity):
         return WithCopy()
 
 
+class Optimizer:
+    def state_dict(self):
+        return {
+            "param_groups": [{"params": torch.nn.Parameter(torch.randn(3, 3, device='cuda', dtype=torch.float32))}],
+            "state": {0: {}, 1: {}},
+        }
+
+    def load_state_dict(self, state_dict):
+        return self.state_dict()
+
+    @property
+    def param_groups(self):
+        params = torch.nn.Parameter(torch.randn(3, 3, device='cuda', dtype=torch.float32))
+        params.requires_grad = True
+
+        return [{'params': [params], 'is_expert': True}]
+
+
+class OptimizerWrapper(MainParamsOptimizerWrapper):
+    def __init_(self, optimizer):
+        super().__init__(optimizer)
+
+
+class DummyOptimizer:
+    def __init__(self):
+        self._custom_amp_unscale_grads = True
+        self.step_called = False
+
+    def unscale_grads(self, *args):
+        print("Dummy unscale_grads called with:", args)
+
+    def step(self, *args, **kwargs):
+        print("Dummy optimizer step called.")
+        self.step_called = True
+        return "step_result"
+
+
+class Model:
+    def __init__(self, prefix="", metadata=None):
+        self.prefix = prefix
+        self.metadta = metadata
+
+    def sharded_state_dict(self, prefix="", metadata=None):
+        return dict(test="test")
+
+
+def make_optimizer_state():
+    found_inf_values = {"cuda:0": 0.0}  # Default: no infs found
+
+    return {
+        "found_inf_per_device": {
+            device: torch.tensor(val, dtype=torch.float32, device="cuda") for device, val in found_inf_values.items()
+        }
+    }
+
+
 def test_set_model_parallel_attributes() -> None:
     strategy = MegatronStrategy(
         pipeline_model_parallel_size=2,
@@ -41,7 +99,9 @@ def test_set_model_parallel_attributes() -> None:
 
     class DummyModel:
         def __init__(self):
-            self.config = TransformerConfig(hidden_size=128, num_attention_heads=2, num_layers=2, num_moe_experts=2)
+            self.config = TransformerConfig(
+                hidden_size=128, num_attention_heads=2, num_layers=2, num_moe_experts=2, add_bias_linear=False
+            )
 
         def configure_model(self):
             pass
@@ -79,10 +139,7 @@ def test_init_parallel_ranks() -> None:
     mock_parallel_config.context_parallel_size = 2
     mock_parallel_config.expert_model_parallel_size = 2
     mock_parallel_config.expert_tensor_parallel_size = None
-    mock_parallel_config.encoder_tensor_model_parallel_size = 0
-    mock_parallel_config.encoder_pipeline_model_parallel_size = 0
     mock_parallel_config.tp_comm_overlap = False
-    mock_parallel_config.pipeline_model_parallel_split_rank = None
     mock_parallel_config.use_te_rng_tracker = False
 
     _strategy_lib.init_parallel_ranks(
@@ -102,9 +159,6 @@ def test_init_parallel_ranks() -> None:
         "virtual_pipeline_model_parallel_size": 4,
         "context_parallel_size": 2,
         "expert_model_parallel_size": 2,
-        "pipeline_model_parallel_split_rank": None,
-        "encoder_pipeline_model_parallel_size": 0,
-        "encoder_tensor_model_parallel_size": 0,
         "use_fp8": False,
         "init_mpi_proc_group": False,
     }
@@ -126,7 +180,7 @@ def test_init_model_parallel(mock_mpu, *args):
     app_state.model_parallel_size = 1
     app_state.tensor_model_parallel_size = 2
     app_state.pipeline_model_parallel_size = 1
-    app_state.pipeline_model_parallel_split_rank = None
+    app_state.pipeline_model_parallel_comm_backend = None
     app_state.context_parallel_size = 2
     app_state.expert_model_parallel_size = 2
     app_state.expert_tensor_parallel_size = 1
@@ -142,13 +196,15 @@ def test_init_model_parallel(mock_mpu, *args):
         tensor_model_parallel_size=2,
         pipeline_model_parallel_size=1,
         virtual_pipeline_model_parallel_size=None,
-        pipeline_model_parallel_split_rank=None,
-        encoder_pipeline_model_parallel_size=None,
-        encoder_tensor_model_parallel_size=None,
+        pipeline_model_parallel_comm_backend=None,
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
+        use_sharp=False,
         order="tp-cp-ep-dp-pp",
+        num_distributed_optimizer_instances=1,
+        nccl_communicator_config_path=None,
+        create_gloo_process_groups=True,
     )
 
 
@@ -161,7 +217,7 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
     app_state.model_parallel_size = 1
     app_state.tensor_model_parallel_size = 2
     app_state.pipeline_model_parallel_size = 1
-    app_state.pipeline_model_parallel_split_rank = None
+    app_state.pipeline_model_parallel_comm_backend = None
     app_state.context_parallel_size = 2
     app_state.expert_model_parallel_size = 2
     app_state.expert_tensor_parallel_size = 1
@@ -179,14 +235,49 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
         tensor_model_parallel_size=2,
         pipeline_model_parallel_size=1,
         virtual_pipeline_model_parallel_size=None,
-        pipeline_model_parallel_split_rank=None,
-        encoder_pipeline_model_parallel_size=None,
-        encoder_tensor_model_parallel_size=None,
+        pipeline_model_parallel_comm_backend=None,
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
+        use_sharp=False,
         order="tp-cp-ep-pp-dp",
+        num_distributed_optimizer_instances=1,
+        nccl_communicator_config_path=None,
+        create_gloo_process_groups=True,
     )
+
+
+@pytest.mark.run_only_on('GPU')
+def test_optimizer_sharded_state_dict():
+    model = Model()
+    optimizer = Optimizer()
+    optimizer = OptimizerWrapper(optimizer)
+    optimizer_state_dict = _strategy_lib.optimizer_sharded_state_dict(model, optimizer, sharding_type="test")
+
+    assert optimizer_state_dict['fp32_from_fp16_params'] == [[]]
+
+
+@pytest.mark.run_only_on('GPU')
+@patch('torch.distributed.is_initialized', return_value=True)
+@patch('megatron.core.parallel_state')
+def test_grad_scaler(mock_mpu, *args):
+    scaler = _strategy_lib.GradScaler()
+    optimizer = DummyOptimizer()
+
+    scaler._unscale_grads_(optimizer)
+
+    optimizer_state = make_optimizer_state()
+    scaler._maybe_opt_step(optimizer, optimizer_state)
+
+    state_dict = scaler.state_dict()
+    assert type(state_dict) is dict
+
+    scaler.load_state_dict(state_dict)
+
+    try:
+        scaler.update()
+    except AssertionError:
+        pass
 
 
 # TODO @chcui uncomment after fabric API is merged

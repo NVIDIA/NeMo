@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -174,7 +174,10 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
                 self.preserve_alignments = self.cfg.beam.get('preserve_alignments', False)
 
         if strategy in ['greedy', 'greedy_batch']:
-
+            if self.cfg.greedy.get('ngram_lm_model') is not None:
+                raise ValueError(
+                    "Greedy strategy cannot be used with ngram_lm_model. Use beam strategy with beam=1 instead."
+                )
             self.decoding = TransformerAEDGreedyInfer(
                 transformer_decoder=self.transformer_decoder,
                 log_softmax_module=self.log_softmax_module,
@@ -199,6 +202,10 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
                 max_generation_delta=self.cfg.beam.get('max_generation_delta', -1),
                 return_best_hypothesis=self.cfg.beam.get('return_best_hypothesis', True),
                 preserve_alignments=self.preserve_alignments,
+                ngram_lm_model=self.cfg.beam.get('ngram_lm_model', None),
+                ngram_lm_alpha=self.cfg.beam.get('ngram_lm_alpha', 0.0),
+                boosting_tree=self.cfg.beam.get('boosting_tree', None),
+                boosting_tree_alpha=self.cfg.beam.get('boosting_tree_alpha', 0.0),
             )
 
         else:
@@ -295,7 +302,7 @@ class AbstractMultiTaskDecoding(ConfidenceMixin):
             if type(prediction) != list:
                 prediction = prediction.tolist()
 
-            hypothesis = self.decode_tokens_to_str(prediction)
+            hypothesis = self.decode_ids_to_str(prediction)
 
             if self.compute_hypothesis_token_set:
                 hypotheses_list[ind].tokens = self.decode_ids_to_tokens(prediction)
@@ -511,7 +518,23 @@ class MultiTaskDecoding(AbstractMultiTaskDecoding):
         if isinstance(self.decoding, AEDBeamInfer):
             self.decoding.set_decoding_type('subword')
 
-    def decode_tokens_to_str(self, tokens: List[int]) -> str:
+    def decode_tokens_to_str(self, tokens: List[str], lang: Optional[str] = None) -> str:
+        """
+        Implemented by subclass in order to decoder a token str into a string.
+
+        Args:
+            tokens: List of str representing the tokens.
+
+        Returns:
+            A decoded string.
+        """
+        if lang is not None:
+            hypothesis = self.tokenizer.tokens_to_text(tokens, lang)
+        else:
+            hypothesis = self.tokenizer.tokens_to_text(tokens)
+        return hypothesis
+
+    def decode_ids_to_str(self, tokens: List[int]) -> str:
         """
         Implemented by subclass in order to decoder a token list into a string.
 
