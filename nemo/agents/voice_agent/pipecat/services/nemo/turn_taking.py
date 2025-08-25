@@ -129,7 +129,7 @@ class NeMoTurnTakingService(FrameProcessor):
         language: Language = Language.EN_US,
         use_vad: bool = True,
         use_diar: bool = False,
-        max_buffer_size: int = 5,
+        max_buffer_size: int = 3,
         backchannel_phrases: List[str] = DEFAULT_BACKCHANNEL_PHRASES,
         bot_stop_delay: float = 0.5,
         **kwargs,
@@ -249,8 +249,7 @@ class NeMoTurnTakingService(FrameProcessor):
                     direction=FrameDirection.UPSTREAM,
                 )
                 self._have_sent_user_started_speaking = False  # treat it as if the user is not speaking
-                completed_text = ""
-                self._user_speaking_buffer = ""
+                self._user_speaking_buffer = ""  # discard backchannel string and reset the buffer
             else:
                 # if bot is not speaking, the backchannel string is not considered a backchannel phrase
                 # user is still speaking, so we append the text segment to the buffer
@@ -422,36 +421,3 @@ class NeMoTurnTakingService(FrameProcessor):
             self._user_speaking_buffer = f"<speaker_{new_speaker_id}> {self._user_speaking_buffer}"
         logger.debug(f"Speaker changed from {last_speaker_id} to {new_speaker_id}")
         self._current_speaker_id = new_speaker_id
-
-
-class NeMoTextTurnTakingService(NeMoTurnTakingService):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    async def _handle_transcription(
-        self, frame: TranscriptionFrame | InterimTranscriptionFrame, direction: FrameDirection
-    ):
-        text_segment = frame.text
-        if self._vad_user_speaking:
-            self._user_speaking_buffer = " " + text_segment
-            is_backchannel = self.is_backchannel(self._user_speaking_buffer)
-            # num_words = len(self._user_speaking_buffer.strip().split())
-            if isinstance(frame, TranscriptionFrame):
-                logger.debug(f"Completed user turn detected: `{self._user_speaking_buffer}`")
-                if is_backchannel:
-                    logger.debug(f"Backchannel detected: `{self._user_speaking_buffer}`")
-                    self._user_speaking_buffer = ""
-                    self._have_sent_user_started_speaking = False
-                    return
-
-                logger.debug(f"Completed user turn: `{self._user_speaking_buffer}`")
-                completed_text = self._user_speaking_buffer
-                await self._handle_completed_text(completed_text, direction)
-                await self._handle_user_interruption(UserStoppedSpeakingFrame())
-                self._have_sent_user_started_speaking = False
-                self._user_speaking_buffer = ""
-
-            elif isinstance(frame, InterimTranscriptionFrame):
-                logger.debug(f"InterimTranscription Detected: `{self._user_speaking_buffer}`")
-        else:
-            logger.debug(f"User is not speaking, ignoring text segment: `{text_segment}`")
