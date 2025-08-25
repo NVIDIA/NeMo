@@ -177,6 +177,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
+        window_size: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
@@ -191,6 +192,7 @@ class _GreedyRNNTInfer(Typing, ConfidenceMethodMixin):
         if max_symbols_per_step is not None and max_symbols_per_step <= 0:
             raise ValueError(f"Expected max_symbols_per_step > 0 (or None), got {max_symbols_per_step}")
         self.max_symbols = max_symbols_per_step
+        self.window_size = window_size
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
 
@@ -538,6 +540,8 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         max_symbols_per_step: Optional int. The maximum number of symbols that can be added
             to a sequence in a single time step; if set to None then there is
             no limit.
+        window_size: optional lookahead window size for WIND algorithm.
+            Currently implemented only for label-looping decoding (loop_labels=True)
         preserve_alignments: Bool flag which preserves the history of alignments generated during
             greedy decoding (sample / batched). When set to true, the Hypothesis will contain
             the non-null value for `alignments` in it. Here, `alignments` is a List of List of
@@ -607,6 +611,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         joint_model: rnnt_abstract.AbstractRNNTJoint,
         blank_index: int,
         max_symbols_per_step: Optional[int] = None,
+        window_size: Optional[int] = None,
         preserve_alignments: bool = False,
         preserve_frame_confidence: bool = False,
         confidence_method_cfg: Optional[DictConfig] = None,
@@ -620,6 +625,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             joint_model=joint_model,
             blank_index=blank_index,
             max_symbols_per_step=max_symbols_per_step,
+            window_size=window_size,
             preserve_alignments=preserve_alignments,
             preserve_frame_confidence=preserve_frame_confidence,
             confidence_method_cfg=confidence_method_cfg,
@@ -640,6 +646,7 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
                     joint=self.joint,
                     blank_index=self._blank_index,
                     max_symbols_per_step=self.max_symbols,
+                    window_size=self.window_size,
                     preserve_alignments=preserve_alignments,
                     preserve_frame_confidence=preserve_frame_confidence,
                     confidence_method_cfg=confidence_method_cfg,
@@ -2417,6 +2424,7 @@ class GreedyRNNTInferConfig:
     """Greedy RNNT Infer Config"""
 
     max_symbols_per_step: Optional[int] = 10
+    window_size: Optional[int] = None
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     tdt_include_token_duration: bool = False
@@ -2437,6 +2445,7 @@ class GreedyBatchedRNNTInferConfig:
     """Greedy Batched RNNT Infer Config"""
 
     max_symbols_per_step: Optional[int] = 10
+    window_size: Optional[int] = None
     preserve_alignments: bool = False
     preserve_frame_confidence: bool = False
     tdt_include_token_duration: bool = False
