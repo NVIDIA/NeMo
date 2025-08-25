@@ -287,6 +287,11 @@ class VQASampleEncoder(BaseSampleEncoder):
 
         # Iterate through the answers and compute labels for each answer
         for answer in answers:
+
+            # Avoid extra prefix space from tokenizer
+            if hasattr(self.tokenizer, 'add_prefix_space'):
+                self.tokenizer.add_prefix_space = False
+
             # Encode the answer with the stop string
             answer = self.process_answer_str(answer, stop_str)
             answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False, return_tensors="pt")[0]
