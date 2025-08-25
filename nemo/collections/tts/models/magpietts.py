@@ -613,7 +613,7 @@ class MagpieTTSModel(ModelPT):
         # Randomly replaces some codes with the MASK_TOKEN with a proportion following the cosine schedule.
         # Codes: (B, C, T)
         mask = self.maskgit_create_random_mask(codes)
-        ## replace some tokens with MASK_TOKEN
+        # replace some tokens with MASK_TOKEN
         codes_with_mask = torch.where(mask, self.mask_token_id, codes)
         return codes_with_mask, mask
 
@@ -815,7 +815,7 @@ class MagpieTTSModel(ModelPT):
                 actual_batch_size = topk_indices.size(0) // 2
                 assert (
                     topk_indices[actual_batch_size:] == topk_indices[:actual_batch_size]
-                ).all(), f"Topk indices are not the same for conditional and unconditional codes"
+                ).all(), "Topk indices are not the same for conditional and unconditional codes"
 
             # replace masks of the top-k confident codebooks with the codes that were sampled for them
             unmasked_codes = torch.gather(sampled_codes, dim=1, index=topk_indices)
@@ -915,7 +915,7 @@ class MagpieTTSModel(ModelPT):
         codes = sampled_codes
         assert not (
             codes == self.mask_token_id
-        ).any(), f"Codes contain mask tokens after completion of MaskGit sampling"
+        ).any(), "Codes contain mask tokens after completion of MaskGit sampling"
 
         # break stacked groups of frames into individual frames
         codes = codes.reshape(B, self.frame_stacking_factor, self.num_audio_codebooks).permute(
@@ -1644,7 +1644,7 @@ class MagpieTTSModel(ModelPT):
         local_transformer_logits = None
         if self.local_transformer_type != LocalTransformerType.NO_LT:
             if self.local_transformer_type == LocalTransformerType.MASKGIT:
-                ## Maskgit ##
+                # Maskgit
                 # randomly replace some positions with MASK_TOKEN
                 audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target_unstacked)
                 # TODO @rfejgin: the very last position might be padding but the local transformer might look at it as part of
@@ -1660,7 +1660,7 @@ class MagpieTTSModel(ModelPT):
                     frame_stacking_factor=self.frame_stacking_factor,
                 )
             else:
-                ## Autoregressive ##
+                # Autoregressive
                 assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
                 local_transformer_logits = self.compute_local_transformer_logits(
                     dec_out[:, dec_context_size:, :], audio_codes_target_unstacked, targets_offset_by_one=False
@@ -1823,7 +1823,7 @@ class MagpieTTSModel(ModelPT):
                             [batch_output['aligner_attn_soft']],
                             audio_codes_lens_target,
                             text_lens,
-                            prefix=f"val/aligner_encoder_attn",
+                            prefix="val/aligner_encoder_attn",
                         )
                     )
 
@@ -1833,7 +1833,7 @@ class MagpieTTSModel(ModelPT):
                             [batch_output['aligner_attn_hard'].unsqueeze(1)],
                             audio_codes_lens_target,
                             text_lens,
-                            prefix=f"val/aligner_encoder_attn_hard",
+                            prefix="val/aligner_encoder_attn_hard",
                         )
                     )
 
@@ -1900,7 +1900,7 @@ class MagpieTTSModel(ModelPT):
             item_attention_scores = alignment_attention_scores[bidx, last_attended_timestep:window_end]
             if item_attention_scores.size(0) == 0:
                 # This means the sentence has ended
-                attended_timestep = text_lens[bidx] - 1
+                attended_timestep = text_lens[bidx].item() - 1
             else:
                 attended_timestep = item_attention_scores.argmax().item() + last_attended_timestep
             text_time_step_attended.append(attended_timestep)
@@ -1974,7 +1974,9 @@ class MagpieTTSModel(ModelPT):
         predicted_codes_lens,
         batch_size,
         compute_all_heads_attn_maps,
+        last_attended_timestep,
     ):
+        last_attended_timestep = np.array(last_attended_timestep).T
         cross_attention_scores_all_timesteps = torch.stack(
             cross_attention_scores_all_timesteps, dim=2
         )  # B, text_timesteps, T'
@@ -1991,7 +1993,10 @@ class MagpieTTSModel(ModelPT):
             item_cross_attention_scores = cross_attention_scores_all_timesteps[
                 bidx, : text_lens[bidx], : predicted_codes_lens[bidx]
             ]
-            cross_attn_np = plot_alignment_to_numpy(item_cross_attention_scores.cpu().numpy())
+            cross_attn_np = plot_alignment_to_numpy(
+                item_cross_attention_scores.cpu().numpy(),
+                attended=last_attended_timestep[bidx, : predicted_codes_lens[bidx]],
+            )
             cross_attention_maps.append(cross_attn_np)
             item_all_head_cross_attn_maps = []
             if compute_all_heads_attn_maps:
@@ -2000,7 +2005,8 @@ class MagpieTTSModel(ModelPT):
                         bidx, : text_lens[bidx], : predicted_codes_lens[bidx]
                     ]
                     headwise_cross_attn_np = plot_alignment_to_numpy(
-                        item_headwise_cross_attention_scores.cpu().numpy()
+                        item_headwise_cross_attention_scores.cpu().numpy(),
+                        attended=last_attended_timestep[bidx, : predicted_codes_lens[bidx]],
                     )
                     item_all_head_cross_attn_maps.append(headwise_cross_attn_np)
                 headwise_cross_attention_maps.append(item_all_head_cross_attn_maps)
@@ -2343,6 +2349,7 @@ class MagpieTTSModel(ModelPT):
                     predicted_codes_lens,
                     text.size(0),
                     compute_all_heads_attn_maps,
+                    last_attended_timesteps,
                 )
                 return (
                     predicted_audio,
@@ -2378,7 +2385,7 @@ class MagpieTTSModel(ModelPT):
                 is_tb = isinstance(logger, TensorBoardLogger)
                 if not is_wandb and not is_tb:
                     raise ValueError(
-                        f"Invalid logger type for audio logging: {type(logger)}. Only `WandbLogger` and `TensorBoardLogger` are supported."
+                        "Invalid logger type for audio logging: {type(logger)}. Only `WandbLogger` and `TensorBoardLogger` are supported."
                     )
 
                 for idx in range(predicted_audio.size(0)):
@@ -2388,8 +2395,8 @@ class MagpieTTSModel(ModelPT):
 
                     if is_wandb:
                         log_dict = {
-                            f"test/predicted_audio": wandb.Audio(
-                                predicted_audio_np, sample_rate=self.sample_rate, caption=f"Predicted Audio"
+                            "test/predicted_audio": wandb.Audio(
+                                predicted_audio_np, sample_rate=self.sample_rate, caption="Predicted Audio"
                             ),
                         }
                         logger.experiment.log(log_dict, step=item_idx)
