@@ -39,6 +39,7 @@ from nemo.collections.tts.modules.magpietts_modules import (
     CharAwareSubwordEncoder,
     SpecialAudioToken,
     LocalTransformerType,
+    EOSDetectionMethod,
     cosine_schedule,
 )
 from nemo.collections.tts.parts.utils.helpers import (
@@ -1735,7 +1736,7 @@ class MagpieTTSModel(ModelPT):
                         _attn_prior[bidx, 0, :_timestep+1] = prior_epsilon
 
                 unfinished_texts[bidx] = False
-                if text_time_step_attended[bidx] < text_lens[bidx] - 3:
+                if text_time_step_attended[bidx] < text_lens[bidx] - 5:
                     # This means the sentence has not ended
                     if bidx not in end_indices:
                         unfinished_texts[bidx] = True
@@ -1776,7 +1777,7 @@ class MagpieTTSModel(ModelPT):
 
         return cross_attention_maps, headwise_cross_attention_maps
 
-    def find_eos_frame_index(self, codes) -> Optional[int]:
+    def find_eos_frame_index(self, codes, eos_detection_method) -> Optional[int]:
         """
         Checks for EOS in the predicted codes. Returns the index of the first frame within the frame stack
         that contains an EOS token across any codebook, or `None` if no EOS is found.
@@ -1786,12 +1787,32 @@ class MagpieTTSModel(ModelPT):
             index (within the frame stack) of the first frame with EOS, or `None` if no EOS is found
         """
         eos_mask = (codes == self.audio_eos_id)  # (codebooks, frame_stacking_factor)
-        eos_per_frame = eos_mask.any(dim=0)  # (frame_stacking_factor,) - True if any codebook has EOS in this frame
+        detection_type = EOSDetectionMethod.detection_type(eos_detection_method)
+        if detection_type == "any":
+            eos_per_frame = eos_mask.any(dim=0)  # (frame_stacking_factor,) - True if any codebook has EOS in this frame
+        elif detection_type == "all":
+            eos_per_frame = eos_mask.all(dim=0)  # (frame_stacking_factor,) - True if all codebooks have EOS in this frame
+        elif detection_type == "zero_cb":
+            eos_per_frame = eos_mask[:1,:].any(dim=0)  # (frame_stacking_factor,) - True if zeroth codebook has EOS in this frame
+        else:
+            raise ValueError(f"Invalid EOS detection method: {eos_detection_method}")
         # find first frame with EOS
         if eos_per_frame.any():
             # return index of the first frame with EOS
             return eos_per_frame.nonzero()[0].item()
-        return None
+        return float('inf')
+
+    def detect_eos(self, audio_codes_multinomial, audio_codes_argmax, eos_detection_method):
+        sampling_type = EOSDetectionMethod.sampling_type(eos_detection_method)
+        if sampling_type == "argmax":
+            return self.find_eos_frame_index(audio_codes_argmax, eos_detection_method)
+        elif sampling_type == "argmax_or_multinomial":
+            argmax_eos_frame = self.find_eos_frame_index(audio_codes_argmax, eos_detection_method)
+            multinomial_eos_frame = self.find_eos_frame_index(audio_codes_multinomial, eos_detection_method)
+            return min(argmax_eos_frame, multinomial_eos_frame)
+        else:
+            raise ValueError(f"Invalid EOS detection method: {eos_detection_method}")
+            
 
     def infer_batch(
             self,
@@ -1815,7 +1836,12 @@ class MagpieTTSModel(ModelPT):
             maskgit_noise_scale=0.0,
             maskgit_fixed_schedule=None,
             maskgit_dynamic_cfg_scale=False,
-            maskgit_sampling_type=None):
+            maskgit_sampling_type=None,
+            ignore_finished_sentence_tracking=False,
+            eos_detection_method="argmax_or_multinomial_any",
+            ):
+        
+        eos_detection_method = EOSDetectionMethod(eos_detection_method)
         with torch.no_grad():
             start_time = time.time()
             self.decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
@@ -1961,8 +1987,12 @@ class MagpieTTSModel(ModelPT):
                         batch_size=batch_size
                     )
 
-                finished_items = {k: v for k, v in finished_texts_counter.items() if v >= 20} # Items that have been close to the end for atleast 20 timesteps
-                unfinished_items = {k: v for k, v in unfinished_texts.items() if v}
+                if ignore_finished_sentence_tracking:
+                    finished_items = {}
+                    unfinished_items = {}
+                else:
+                    finished_items = {k: v for k, v in finished_texts_counter.items() if v >= 20} # Items that have been close to the end for atleast 20 timesteps
+                    unfinished_items = {k: v for k, v in unfinished_texts.items() if v}
 
                 all_code_logits_t = all_code_logits[:, -1, :] # (B, num_codebooks * num_tokens_per_codebook)
                 if use_local_transformer_for_inference:
@@ -2002,15 +2032,9 @@ class MagpieTTSModel(ModelPT):
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
-                        # check for EOS (including within the frame stack)
-                        eos_frame_multinomial = self.find_eos_frame_index(audio_codes_next[item_idx])
-                        eos_frame_argmax = self.find_eos_frame_index(all_codes_next_argmax[item_idx])                        
-                        eos_frame_multinomial = eos_frame_multinomial if eos_frame_multinomial is not None else float('inf')
-                        eos_frame_argmax = eos_frame_argmax if eos_frame_argmax is not None else float('inf')
-                        # pick minimum of the two
-                        frame_index = min(eos_frame_multinomial, eos_frame_argmax)
-                        if frame_index != float('inf'):
-                            global_index = idx * self.frame_stacking_factor +  frame_index 
+                        end_frame_index = self.detect_eos(audio_codes_next[item_idx], all_codes_next_argmax[item_idx], eos_detection_method)
+                        if end_frame_index != float('inf'):
+                            global_index = idx * self.frame_stacking_factor +  end_frame_index 
                             end_indices[item_idx] = global_index
                             print(f"End detected for item {item_idx} at decoder timestep: {idx}")
 

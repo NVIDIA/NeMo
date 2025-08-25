@@ -285,7 +285,8 @@ def run_inference(
         hparams_file_from_wandb=False,
         log_exp_name=False,
         compute_fcd=False,
-        violin_plot_metrics=['cer', 'pred_context_ssim']
+        violin_plot_metrics=['cer', 'pred_context_ssim'],
+        eos_detection_method=None
     ):
     # Load model
     if hparams_file is not None and checkpoint_file is not None:
@@ -348,6 +349,7 @@ def run_inference(
         f"LT_{use_local_transformer}_"
         f"MaskGit_{maskgit_n_steps}_{maskgit_sampling_type}_{''.join([str(l) for l in maskgit_fixed_schedule]) if maskgit_fixed_schedule is not None else 'None'}_"
         f"SV_{sv_model}"
+        f"EOS_{eos_detection_method}"
     )
 
     dataset_meta_info = evalset_config.dataset_meta_info
@@ -467,7 +469,9 @@ def run_inference(
                     maskgit_n_steps=maskgit_n_steps,
                     maskgit_noise_scale=maskgit_noise_scale,
                     maskgit_fixed_schedule=maskgit_fixed_schedule,
-                    maskgit_sampling_type=maskgit_sampling_type
+                    maskgit_sampling_type=maskgit_sampling_type,
+                    ignore_finished_sentence_tracking=True,
+                    eos_detection_method=eos_detection_method
                 )
 
                 all_rtf_metrics.append(rtf_metrics)
@@ -612,6 +616,7 @@ def main():
     parser.add_argument('--start_prior_after_n_audio_steps', type=int, default=0)
     parser.add_argument('--topk', type=int, default=80)
     parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--eos_detection_method', type=str, default="argmax_or_multinomial_any", choices=["argmax_any", "argmax_or_multinomial_any", "argmax_all", "argmax_or_multinomial_all", "argmax_zero_cb", "argmax_or_multinomial_zero_cb"])
     # Parameters for evaluation
     parser.add_argument('--sv_model', type=str, default="titanet") # titanet, wavlm
     parser.add_argument('--asr_model_name', type=str, default="nvidia/parakeet-tdt-1.1b") # stt_en_conformer_transducer_large, nvidia/parakeet-ctc-0.6b
@@ -671,7 +676,8 @@ def main():
         hparams_file_from_wandb=args.hparams_file_from_wandb,
         log_exp_name=args.log_exp_name,
         compute_fcd=compute_fcd,
-        violin_plot_metrics=args.violin_plot_metrics
+        violin_plot_metrics=args.violin_plot_metrics,
+        eos_detection_method=args.eos_detection_method
     )
 
     # Mode 1: Run inference from provided hparams and checkpoint files
