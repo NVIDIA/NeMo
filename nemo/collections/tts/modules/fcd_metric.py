@@ -38,6 +38,7 @@ class CodecEmbedder(nn.Module):
     Embeds audio codec codes into the codec's continuous embedding space.
     Accepts as input either a batch of codes or a path to an audio file.
     """
+
     def __init__(self, codec: AudioCodecModel):
         super().__init__()
         self.codec = codec
@@ -54,12 +55,11 @@ class CodecEmbedder(nn.Module):
         """
         Encodes an audio file into audio codec codes.
         """
-        audio_segment = AudioSegment.from_file(
-            audio_path, target_sr=self.codec.sample_rate)
+        audio_segment = AudioSegment.from_file(audio_path, target_sr=self.codec.sample_rate)
         assert np.issubdtype(audio_segment.samples.dtype, np.floating)
         audio_min = audio_segment.samples.min()
         audio_max = audio_segment.samples.max()
-        eps = 0.01 # certain ways of normalizing audio can result in samples that are slightly outside of [-1, 1]
+        eps = 0.01  # certain ways of normalizing audio can result in samples that are slightly outside of [-1, 1]
         if audio_min < (-1.0 - eps) or audio_max > (1.0 + eps):
             logging.warning(f"Audio samples are not normalized: min={audio_min}, max={audio_max}")
         samples = torch.tensor(audio_segment.samples, device=self.codec.device).unsqueeze(0)
@@ -174,9 +174,11 @@ class FrechetCodecDistance(Metric):
             return
 
         if codes.shape[1] != self.model.codec.num_codebooks:
-            logging.warning(f"\nFCD metric received a batch of codes of shape {codes.shape}, but the model has {self.model.codec.num_codebooks} codebooks - skipping update\n")
+            logging.warning(
+                f"\nFCD metric received a batch of codes of shape {codes.shape}, but the model has {self.model.codec.num_codebooks} codebooks - skipping update\n"
+            )
             return
-        
+
         # Dequantize the codes to a continuous representation
         embeddings = self.model.codes_to_embedding(
             codes, codes_len

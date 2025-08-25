@@ -39,9 +39,7 @@ def json_reader(filename):
             yield json.loads(line)
 
 
-def create_shar_from_manifest(
-    manifest, audio_root_path, out_shar_dir, shard_size=1000
-):
+def create_shar_from_manifest(manifest, audio_root_path, out_shar_dir, shard_size=1000):
     in_manifest = list(json_reader(manifest))
     print(f"...loaded {manifest} # of datapoints {len(in_manifest)}")
     num_shard = int(len(in_manifest) / shard_size)
@@ -87,7 +85,6 @@ def create_shar_from_manifest(
         # Language target
         target_language.append(language)
 
-
     print("Done extracting data from manifest")
     print(len(user_recordings))
     cuts = CutSet.from_manifests(recordings=RecordingSet.from_recordings(user_recordings))
@@ -123,21 +120,18 @@ def create_shar_from_manifest(
     out_shar_dir.mkdir(parents=True, exist_ok=True)
     shard_size = shard_size
     assert len(user_recordings) % shard_size != 0, "Lhotse breaks if feat_list is a multiple of shard_size"
-    exported = cuts.to_shar(
-        out_shar_dir, fields={"recording": "wav"}, num_jobs=4, shard_size=shard_size
-    )
+    exported = cuts.to_shar(out_shar_dir, fields={"recording": "wav"}, num_jobs=4, shard_size=shard_size)
     print(f"...share created")
 
     print(f"...Exporting target_audio to tar files")
     for i, path in tqdm(enumerate(exported["cuts"])):
         path = path[0]
         out_path = path.replace("cuts", "target_audio").replace(".jsonl.gz", ".tar")
-        with AudioTarWriter(
-            out_path, shard_size=None, format="flac"
-        ) as writer:
+        with AudioTarWriter(out_path, shard_size=None, format="flac") as writer:
             for cut in CutSet.from_file(path):
                 writer.write(cut.id, cut.target_audio.load_audio(), manifest=cut.target_audio, sampling_rate=22050)
     print(f"...Exported target_audio to tar files")
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -175,7 +169,6 @@ def main():
         shard_size=args.shard_size,
     )
 
+
 if __name__ == "__main__":
     main()
-
-
