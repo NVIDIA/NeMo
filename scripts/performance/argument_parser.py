@@ -403,8 +403,7 @@ def parse_cli_args():
     )
     parser.add_argument(
         "--use_te_op_fuser",
-        help="Use TE op fuser for the MLP part. This optimization only works with non-moe models "
-        "and FSDP enabled. Disabled by default",
+        help="Enable Transformer Engine's operation fuser. This feature is experimental and disabled by default",
         type=bool_arg,
         required=False,
         default=None,
