@@ -515,6 +515,7 @@ class HFGPTOSSExporter(io.ModelConnector[GPTOSSModel, "AutoModelForCausalLM"]):
             num_local_experts=source.num_moe_experts,
         )
 
+
 @io.model_exporter(GPTOSSModel, "hf-peft")
 class HFLlamaPEFTExporter(HFGPTOSSExporter):
     """Exporter for converting NeMo GPT-OSS models with PEFT adapters to Hugging Face format.
@@ -691,6 +692,7 @@ class HFLlamaPEFTExporter(HFGPTOSSExporter):
             lora_dropout=self.peft_obj.dropout,
             use_dora=isinstance(self.peft_obj, DoRA),
         )
+
 
 __all__ = [
     "GPTOSSConfig",
