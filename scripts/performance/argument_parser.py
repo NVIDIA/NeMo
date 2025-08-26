@@ -170,7 +170,7 @@ def parse_cli_args():
     )
     nemo_home_msg = [
         "Sets env var `NEMO_HOME` (on compute node using sbatch script)- directory where NeMo searches",
-        "for models and checkpoints. This saves a lot of time (especially for bigger models) if checkpoints already",
+        "for models and datasets. This saves a lot of time (especially for bigger models) if checkpoints already",
         f"exist here. Missing files will be downloaded here from HuggingFace. Defaults to {DEFAULT_NEMO_HOME}",
     ]
     parser.add_argument(
@@ -379,8 +379,24 @@ def parse_cli_args():
         required=False,
     )
     parser.add_argument(
+        "-dcdfr",
+        "--dump_config_diff_from_base_recipe",
+        help="Dump the config diff from the base recipe. Defaults to False",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+    parser.add_argument(
         "--keep_fsdp_fp8_transpose_cache",
         help="Keep FSDP FP8 transpose cache. Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-vb",
+        "--enable_vboost",
+        help="Enable VBoost which steers more power towards tensor cores. Disabled by default",
         type=bool_arg,
         required=False,
         default=None,
