@@ -30,7 +30,6 @@ try:
     from nv_one_logger.training_telemetry.integration.pytorch_lightning import (
         TimeEventCallback as OneLoggerNeMoCallback,
     )
-    from nv_one_logger.training_telemetry.v1_adapter import V1CompatibleExporter
 
     HAVE_ONELOGGER = True
 except (ImportError, ModuleNotFoundError):
@@ -153,7 +152,7 @@ def init_one_logger() -> None:
     The function reads:
     - Whether OneLogger is enabled
     - Initialization configuration
-    - WandB configuration
+    - Exporters are configured via entry points
     """
     global _ONELOGGER_CALLBACK
     global HAVE_ONELOGGER
@@ -174,16 +173,8 @@ def init_one_logger() -> None:
         init_config = get_onelogger_init_config()
         one_logger_config = OneLoggerConfig(**init_config)
 
-        # Get WandB configuration
-        exporter = V1CompatibleExporter(
-            one_logger_config=one_logger_config,
-            async_mode=False,
-        )
-
-        # Configure the provider without exporter (this automatically calls on_app_start)
-        TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_exporter(
-            exporter.exporter
-        ).configure_provider()
+        # Configure the provider with entry-point exporters (automatically calls on_app_start)
+        TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_export_config().configure_provider()
         _ONELOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
     except Exception:
         HAVE_ONELOGGER = False
