@@ -102,7 +102,6 @@ def override_recipe_configs(
         recipe.model.config.num_layers = 2
         recipe.model.config.num_moe_experts = 8
 
-
     return recipe
 
 
@@ -165,11 +164,10 @@ if __name__ == "__main__":
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
-    
+
     if args.use_localrun:
         run.run(recipe, executor=executor, plugins=plugins, name=exp_name)
         exit()
-
 
     with run.Experiment(exp_name) as exp:
         exp.add(

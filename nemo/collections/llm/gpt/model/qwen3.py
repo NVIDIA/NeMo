@@ -173,6 +173,7 @@ class Qwen3Config480B_A35B(Qwen3MoEConfig):
     """
     Config for Qwen 3 480B-A35B: https://huggingface.co/Qwen/Qwen3-480B-A35B
     """
+
     num_layers: int = 62
     hidden_size: int = 6144
     num_attention_heads: int = 96
