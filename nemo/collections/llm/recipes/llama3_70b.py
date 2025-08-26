@@ -114,7 +114,7 @@ def trainer(
         ckpt_parallel_load=True,
         ddp=run.Config(
             DistributedDataParallelConfig,
-            check_for_nan_in_grad=False,
+            check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
             overlap_grad_reduce=True,
             overlap_param_gather=True,
