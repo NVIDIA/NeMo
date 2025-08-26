@@ -1,6 +1,7 @@
 # Fine-Tuning Embedding Models with NeMo
 
 This repository offers comprehensive scripts and instructions for fine-tuning embedding models using NVIDIA NeMo. It covers dataset preparation, model import from Hugging Face, fine-tuning on multi-GPU setups, and experiment monitoring.
+This repo also have an E2E notebook to run all scripts together.
 
 ## 📂 Repository Structure
 
@@ -12,6 +13,7 @@ This repository offers comprehensive scripts and instructions for fine-tuning em
 ├── import_llama1b.py        # Import LLaMA-3.2-1B HF model into NeMo
 ├── finetune_e5.py           # Fine-tune E5 on dataset
 └── finetune_llama1b.py      # Fine-tune LLaMA on dataset
+└── Embedding-Finetuning.ipynb      # E2E notebook to Fine-tune to finetune with the dataset
 ```
 
 ## 🎯 Workflow Overview
