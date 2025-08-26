@@ -182,6 +182,10 @@ def qwen3(config: FLOPSConfig):
         )
     )
 
+    mlp_ffn_hidden_size = config.ffn_hs
+    if hasattr(config, "moe_ffn_hidden_size") and config.moe_ffn_hidden_size is not None:
+        mlp_ffn_hidden_size = config.moe_ffn_hidden_size * config.moe_router_topk
+
     # mlp flops
     mlp_flops = (
         3
