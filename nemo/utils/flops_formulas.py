@@ -195,7 +195,7 @@ def qwen3(config: FLOPSConfig):
         * seq_len
         * hidden_size
         * (1 + gated_linear_multiplier)
-        * (config.moe_ffn_hidden_size * config.moe_router_topk)  # MoE layers
+        * mlp_ffn_hidden_size
     )
 
     # vocab flops
