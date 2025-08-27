@@ -430,6 +430,8 @@ def set_primary_perf_configs(
     nccl_communicator_config_path: str = None,
     keep_fsdp_fp8_transpose_cache: Optional[bool] = None,
     use_te_op_fuser: Optional[bool] = None,
+    use_te_act_func: Optional[bool] = None,
+    act_func_fp8_input_store: Optional[bool] = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
     # nemo.lightning.Trainer configs
@@ -473,6 +475,13 @@ def set_primary_perf_configs(
             recipe.model.config.use_transformer_engine_op_fuser = True
         else:
             logging.warning("use_transformer_engine_op_fuser is not supported for this version of MCORE.")
+
+    # te activation function for MLP part
+    recipe.model.config.use_te_activation_func = use_te_act_func or False
+    assert (
+        not act_func_fp8_input_store
+    ) or use_te_act_func, "act_func_fp8_input_store requires use_te_act_func to be True"
+    recipe.model.config.activation_func_fp8_input_store = act_func_fp8_input_store or False
 
     recipe = set_perf_optimization_configs(
         recipe=recipe,
