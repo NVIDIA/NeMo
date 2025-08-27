@@ -468,7 +468,6 @@ def set_primary_perf_configs(
 
     # te op fuser for MLP part
     if use_te_op_fuser:
-        assert use_mcore_fsdp == True, "use_te_op_fuser does not work with DDP and requires use_mcore_fsdp to be True"
         assert recipe.model.config.num_moe_experts is None, "use_te_op_fuser is not supported for MOE models"
         if hasattr(recipe.model.config, "use_transformer_engine_op_fuser"):
             recipe.model.config.use_transformer_engine_op_fuser = True
