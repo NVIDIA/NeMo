@@ -453,6 +453,11 @@ def distill(
     )
     model.__io__ = _student_model.__io__
 
+    if resume is None:
+        resume = AutoResume()
+    if resume.restore_config is None:
+        resume.restore_config = nl.RestoreConfig(path=student_model_path)
+
     return train(
         model=model,
         data=data,
@@ -1188,7 +1193,7 @@ def generate(
     )
 
     if trainer.strategy.expert_model_parallel_size > 1:
-        gathered_results = results_on_this_dp_rank
+        gathered_results = [r.generated_text if text_only else r for r in results_on_this_dp_rank]
     else:
         gathered_results = [None] * dp_size
 
