@@ -63,7 +63,7 @@ if __name__ == "__main__":
         "NEMO_MODELS_CACHE": "/lustre/fsw/portfolios/coreai/users/zhiyul/nemo",   # cache path
     }
     executor = None
-    use_slurm = False
+    use_slurm = True
     if use_slurm:
         executor = run.SlurmExecutor(
             account=SLURM_ACCOUNT,
