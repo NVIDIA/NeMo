@@ -66,7 +66,23 @@ def tokenize_dataset(
         is_test=True,
         **dataset_kwargs,
     )
-    return np.array([dataset[i] for i in range(len(dataset))])
+
+    # Convert dataset to numpy array and ensure all sequences respect max_seq_length
+    dataset_array = []
+    for i in range(len(dataset)):
+        item = dataset[i]
+        # Ensure input_ids doesn't exceed max_seq_length
+        if len(item["input_ids"]) > max_seq_length:
+            logging.warning(f"Sequence length {len(item['input_ids'])} exceeds maximum {max_seq_length}. Truncating.")
+            item["input_ids"] = item["input_ids"][:max_seq_length]
+            # Also truncate other fields if they exist and have the same length
+            if "labels" in item and len(item["labels"]) > max_seq_length:
+                item["labels"] = item["labels"][:max_seq_length]
+            if "loss_mask" in item and len(item["loss_mask"]) > max_seq_length:
+                item["loss_mask"] = item["loss_mask"][:max_seq_length]
+        dataset_array.append(item)
+    
+    return np.array(dataset_array)
 
 
 def prepare_packed_sequence_data(
