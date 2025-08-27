@@ -39,6 +39,8 @@ Example usage:
         --processing-chunk-size ${CHUNK_SIZE} \
         --audio-format ${AUDIO_FORMAT} \
         --log-level ${LOG_LEVEL} \
+        --shuffle \
+        --shuffle-seed 42 \
     2>&1 | tee ./log/create_lhotse_shar_from_nemo_manifest.stdout
 
 Expected output:
@@ -63,6 +65,7 @@ import itertools
 import logging
 import math
 import os
+import random
 import re
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
@@ -237,6 +240,42 @@ def process_manifest_entry(entry: Dict[str, Any], audio_base_dir: Path) -> Tuple
     except Exception as e:
         logging.error(f"Skipping entry due to error during metadata processing: {entry}: {e}", exc_info=True)
         return None
+
+
+def shuffle_jsonl_file(input_path: Path, seed: int = None) -> Path:
+    """
+    Shuffle lines in a JSONL file and write to a shuffled copy.
+
+    Args:
+        input_path: Path to the original JSONL file
+        seed: Random seed for reproducible shuffling
+
+    Returns:
+        Path to the shuffled file
+    """
+    if seed is not None:
+        random.seed(seed)
+
+    logging.info(f"Reading and shuffling manifest entries from {input_path}")
+
+    # Read all lines into memory
+    with open(input_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    logging.info(f"Loaded {len(lines)} entries, now shuffling...")
+
+    # Shuffle the lines
+    random.shuffle(lines)
+
+    # Create output path with "_shuffled" suffix
+    shuffled_path = input_path.parent / f"{input_path.stem}_shuffled{input_path.suffix}"
+
+    # Write shuffled content
+    with open(shuffled_path, 'w', encoding='utf-8') as f:
+        f.writelines(lines)
+
+    logging.info(f"Shuffled manifest written to: {shuffled_path}")
+    return shuffled_path
 
 
 def chunked_iterator(iterable, chunk_size):
@@ -425,6 +464,17 @@ def main():
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set the logging level for the main process and workers.",
     )
+    parser.add_argument(
+        "--shuffle",
+        action="store_true",
+        help="Shuffle the manifest entries before processing.",
+    )
+    parser.add_argument(
+        "--shuffle-seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducible shuffling (only used if --shuffle is enabled).",
+    )
 
     args = parser.parse_args()
 
@@ -441,8 +491,15 @@ def main():
     target_recordings_dir.mkdir(parents=True, exist_ok=True)
     context_recordings_dir.mkdir(parents=True, exist_ok=True)
 
-    logging.info(f"Reading NeMo manifest lazily from: {args.manifest_path}")
-    manifest_iterable = load_jsonl(args.manifest_path)
+    # Handle shuffling if requested
+    if args.shuffle:
+        logging.info(f"Shuffling manifest entries from: {args.manifest_path}")
+        shuffled_manifest_path = shuffle_jsonl_file(args.manifest_path, seed=args.shuffle_seed)
+        manifest_iterable = load_jsonl(shuffled_manifest_path)
+        logging.info(f"Using shuffled manifest for processing: {shuffled_manifest_path}")
+    else:
+        logging.info(f"Reading NeMo manifest lazily from: {args.manifest_path}")
+        manifest_iterable = load_jsonl(args.manifest_path)
 
     logging.info(
         f"Processing manifest in chunks of {args.processing_chunk_size} using {args.num_jobs} parallel workers..."
