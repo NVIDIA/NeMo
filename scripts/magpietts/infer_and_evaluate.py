@@ -132,6 +132,8 @@ def delete_old_generated_files(output_dir):
         os.remove(f)
     for f in glob.glob(f"{output_dir}/predicted_audio*.wav"):
         os.remove(f)
+    for f in glob.glob(f"{output_dir}/cross_attn_map_*.png"):
+        os.remove(f)
 
 
 def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png: str):
