@@ -56,7 +56,6 @@ def with_onelogger_components(func):
     def wrapper(*args, **kwargs):
         with (
             patch('nemo.lightning.one_logger_callback.OneLoggerConfig') as mock_config,
-            patch('nemo.lightning.one_logger_callback.V1CompatibleExporter') as mock_exporter,
             patch('nemo.lightning.one_logger_callback.OneLoggerNeMoCallback') as mock_callback,
             patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider,
             patch('nemo.lightning.one_logger_callback.get_onelogger_init_config') as mock_get_config,

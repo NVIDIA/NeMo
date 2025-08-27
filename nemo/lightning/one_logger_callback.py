@@ -39,7 +39,6 @@ except (ImportError, ModuleNotFoundError):
     OneLoggerConfig = None
     TrainingTelemetryConfig = None
     OneLoggerNeMoCallback = None
-    V1CompatibleExporter = None
 
 from lightning.pytorch import Trainer
 
