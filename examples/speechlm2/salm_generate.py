@@ -27,7 +27,7 @@ from transformers import GenerationConfig
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
 from nemo.collections.common.data.lhotse.cutset import cut_to_conversation, guess_parse_cutset
 from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
-from nemo.collections.common.data.lhotse.text_adapters import TextTurn, AudioTurn
+from nemo.collections.common.data.lhotse.text_adapters import AudioTurn, TextTurn
 from nemo.collections.speechlm2 import SALM, SALMDataset
 from nemo.collections.speechlm2.models.salm_asr_decoder import SALMWithAsrDecoder
 from nemo.core.config import hydra_runner

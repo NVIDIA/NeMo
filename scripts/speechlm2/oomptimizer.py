@@ -576,7 +576,7 @@ def _override_prepare_inputs(self, batch: dict) -> dict:
     audio = torch.randn(B, n_samples, device=input_embs.device, dtype=torch.float32)
     audio_lens = torch.tensor([n_samples] * B, device=input_embs.device)
     audio_embs, _ = self.perception(input_signal=audio, input_signal_length=audio_lens)
-    input_embs[:, :audio_embs.shape[1]] = audio_embs
+    input_embs[:, : audio_embs.shape[1]] = audio_embs
 
     return {
         "input_embeds": input_embs,

@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import random
 import warnings
 from collections import defaultdict
-from typing import Any
 from pathlib import Path
-import random
+from typing import Any
 
 import torch
+from lhotse import fastcopy
+from lhotse.serialization import SequentialJsonlWriter
 from lightning import LightningModule
 from omegaconf import DictConfig, open_dict
 from peft import PeftModel
@@ -35,6 +37,9 @@ from torch.distributed.tensor.parallel import (
 from transformers import GenerationConfig
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
+from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
+from nemo.collections.common.data.lhotse.text_adapters import TextTurn
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.salm_dataset import left_collate_vectors
@@ -52,11 +57,6 @@ from nemo.collections.speechlm2.parts.pretrained import (
 )
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
-from nemo.collections.common.data.lhotse.text_adapters import TextTurn
-from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
-from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
-from lhotse import fastcopy
-from lhotse.serialization import SequentialJsonlWriter
 
 
 class SALMWithAsrDecoder(LightningModule, HFHubMixin):
@@ -92,6 +92,7 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             assert init_from_path.is_dir(), "init_from_path must be a directory containing HF checkpoint"
             logging.warning(f"Loading pretrained weights from {str(init_from_path)}")
             from safetensors import safe_open
+
             tensors = {}
             with safe_open(init_from_path / "model.safetensors", framework="pt") as f:
                 for k in f.keys():
@@ -329,7 +330,7 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         for name, dataset_batch in batch.items():
             if dataset_batch is None:
                 continue  # some dataset is exhausted
-            
+
             try:
                 inputs = self.prepare_inputs(dataset_batch)
                 forward_outputs = self(inputs["input_embeds"], attention_mask=inputs["attention_mask"])
@@ -361,9 +362,13 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             # Run autoregressive generation and collect results (writing happens at epoch end)
             if self.cfg.get("val_save_path", None) is not None:
                 convs_no_answer = [strip_response_if_any(conv) for conv in dataset_batch["conversations"]]
-                convs_no_answer = [tokenize_with_prompt(conv, self.tokenizer, self.cfg.prompt_format) for conv in convs_no_answer]
+                convs_no_answer = [
+                    tokenize_with_prompt(conv, self.tokenizer, self.cfg.prompt_format) for conv in convs_no_answer
+                ]
                 answer_ids = self.generate(
-                    prompts=left_collate_vectors([c.input_ids for c in convs_no_answer], padding_value=self.text_pad_id).to(self.device),
+                    prompts=left_collate_vectors(
+                        [c.input_ids for c in convs_no_answer], padding_value=self.text_pad_id
+                    ).to(self.device),
                     audios=dataset_batch["audios"].to(self.device, non_blocking=True),
                     audio_lens=dataset_batch["audio_lens"].to(self.device, non_blocking=True),
                     generation_config=GenerationConfig(
@@ -493,8 +498,8 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             token_embeds = self.embed_tokens(tokens_to_embed)
             # TODO: temporary workaround to perform batch_size=1 inference for audio encoder
             #   due to accuracy issues at bs>1
-            #audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
-            #audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
+            # audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
+            # audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
 
             encoded, encoded_len = self.perception.forward_encoder(input_signal=audios, input_signal_length=audio_lens)
             asr_hyps = self.perception.transcribe_encoded(encoded=encoded, encoded_len=encoded_len)
@@ -637,9 +642,9 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             llm.lm_head = fully_shard(llm.lm_head, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
-            #self.perception.modality_adapter = fully_shard(self.perception.modality_adapter, **fsdp_config)
-            #self.perception.asr.preprocessor = fully_shard(self.perception.asr.preprocessor **fsdp_config)
-            #self.perception.asr.encoder = fully_shard(self.perception.asr.encoder, **fsdp_config)
+            # self.perception.modality_adapter = fully_shard(self.perception.modality_adapter, **fsdp_config)
+            # self.perception.asr.preprocessor = fully_shard(self.perception.asr.preprocessor **fsdp_config)
+            # self.perception.asr.encoder = fully_shard(self.perception.asr.encoder, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
             register_fsdp_forward_method(self.perception, "forward_encoder")
             register_fsdp_forward_method(self.perception, "transcribe_encoded")
@@ -687,6 +692,7 @@ def parse_hyp(answer: torch.Tensor, eos_tokens: list[int]):
         return answer
     end = end[0]
     return answer[:end]
+
 
 def strip_response_if_any(
     conversation: NeMoMultimodalConversation,
