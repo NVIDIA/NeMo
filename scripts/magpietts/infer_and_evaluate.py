@@ -132,6 +132,8 @@ def delete_old_generated_files(output_dir):
         os.remove(f)
     for f in glob.glob(f"{output_dir}/predicted_audio*.wav"):
         os.remove(f)
+    for f in glob.glob(f"{output_dir}/cross_attn_map_*.png"):
+        os.remove(f)
 
 
 def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png: str):
@@ -499,7 +501,7 @@ def run_inference(
                 print(f"Time taken for inference: {et-st}", predicted_audio.size())
                 for idx in range(predicted_audio.size(0)):
                     cross_attn_map_image = Image.fromarray(cross_attention_maps[idx])
-                    cross_attn_map_image.save(os.path.join(audio_dir, f"cross_attn_map_{item_idx}.png"))
+                    cross_attn_map_image.save(os.path.join(pred_audio_dir, f"cross_attn_map_{item_idx}.png"))
 
                     predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                     predicted_audio_np = predicted_audio_np[: predicted_audio_lens[idx]]

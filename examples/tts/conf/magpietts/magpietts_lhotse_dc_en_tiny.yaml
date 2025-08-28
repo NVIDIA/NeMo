@@ -114,7 +114,7 @@ model:
     d_model: 512
     d_ffn: 2048
     sa_n_heads: 8
-    kernel_size: 1
+    kernel_size: 3
     p_dropout: 0.1
     p_dropout_out: 0.0
     has_xattn: false
