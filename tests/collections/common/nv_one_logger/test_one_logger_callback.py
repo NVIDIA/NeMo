@@ -68,10 +68,6 @@ def with_onelogger_components(func):
             mock_provider_instance = MagicMock()
             mock_provider.instance.return_value = mock_provider_instance
 
-            mock_exporter_instance = MagicMock()
-            mock_exporter_instance.exporter = MagicMock()
-            mock_exporter.return_value = mock_exporter_instance
-
             mock_callback_instance = MagicMock()
             mock_callback.return_value = mock_callback_instance
 
@@ -84,8 +80,6 @@ def with_onelogger_components(func):
                 **kwargs,
                 mock_config=mock_config,
                 mock_config_instance=mock_config_instance,
-                mock_exporter=mock_exporter,
-                mock_exporter_instance=mock_exporter_instance,
                 mock_callback=mock_callback,
                 mock_callback_instance=mock_callback_instance,
                 mock_provider=mock_provider,
@@ -233,8 +227,6 @@ class TestOneLoggerCallback:
         mock_get_config,
         mock_config,
         mock_config_instance,
-        mock_exporter,
-        mock_exporter_instance,
         mock_callback,
         mock_callback_instance,
         mock_provider,
@@ -249,9 +241,7 @@ class TestOneLoggerCallback:
 
         mock_get_config.assert_called_once()
         mock_config.assert_called_once_with(**mock_config_data)
-        mock_exporter.assert_called_once_with(one_logger_config=mock_config_instance, async_mode=False)
         mock_provider_instance.with_base_config.assert_called_once_with(mock_config_instance)
-        mock_provider_instance.with_exporter.assert_called_once_with(mock_exporter_instance.exporter)
 
     @pytest.mark.unit
     @with_onelogger_enabled
@@ -438,8 +428,6 @@ class TestOneLoggerCallback:
         mock_get_config,
         mock_config,
         mock_config_instance,
-        mock_exporter,
-        mock_exporter_instance,
         mock_callback,
         mock_callback_instance,
         mock_provider,
