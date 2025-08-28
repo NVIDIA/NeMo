@@ -119,6 +119,7 @@ model:
     has_xattn: true
     xa_d_memory: 768
     xa_n_heads: 1
+    xa_d_head: 128
     is_causal: true
     apply_norm_to_cond: true
     apply_norm_out: true
