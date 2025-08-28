@@ -159,7 +159,7 @@ class MagpieTTSModelOfflinePODataGen(MagpieTTSModel):
                             ).any(), f"Expected short audio file to be the only cause of ASR errors, but got error with lengths {predicted_audio_lens}"
                             logging.warning(f"Exception during ASR transcription: {e}")
                             logging.warning(
-                                f"Skipping processing of the batch; generating metrics indicating a WER of 100% and Speaker Similarity of 0.0"
+                                "Skipping processing of the batch; generating metrics indicating a WER of 100% and Speaker Similarity of 0.0"
                             )
                             batch_invalid = True
                             continue  # don't break since we want to continue building audio durations list
