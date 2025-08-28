@@ -18,7 +18,9 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.timestamp_utils import get_segment_offsets, get_words_offsets
 
 
-def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsampling_factor, window_stride, decoding, is_rnnt=False):
+def merge_parallel_chunks(
+    hypotheses, encoded_len, model, timestamps, subsampling_factor, window_stride, decoding, is_rnnt=False
+):
     """
     Merges hypotheses from parallel chunks into a single hypothesis with proper text,
     token sequences, and timestamps.
@@ -78,7 +80,14 @@ def merge_parallel_chunks(hypotheses, encoded_len, model, timestamps, subsamplin
             for i, x in enumerate(encoded_len.tolist(), start=1)
         ]
         merged_hypotheses = join_timestamp_and_add_word_and_segment_level_timestamps(
-            merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, decoding, merged_tokens, is_rnnt
+            merged_hypotheses,
+            hypotheses,
+            chunk_offsets,
+            subsampling_factor,
+            window_stride,
+            decoding,
+            merged_tokens,
+            is_rnnt,
         )
 
     return merged_hypotheses
@@ -98,15 +107,16 @@ def join_y_sequence(merged_hypothesis, hypotheses):
     merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
     return merged_hypothesis
 
+
 def update_timestamps(char_timestamps, hypotheses, decoding, is_rnnt=False):
     """
     Generate word and segment timestamps from character timestamps.
-    
+
     Args:
         char_timestamps: Character-level timestamp data
         merged_hypotheses: Hypothesis to update with timestamps
         decoding: Decoding instance for token-to-string conversion
-    
+
     Returns:
         Hypothesis: Updated merged_hypotheses with word and segment timestamps
     """
@@ -137,7 +147,14 @@ def update_timestamps(char_timestamps, hypotheses, decoding, is_rnnt=False):
 
 
 def join_timestamp_and_add_word_and_segment_level_timestamps(
-    merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, decoding, merged_tokens=None, is_rnnt=False
+    merged_hypotheses,
+    hypotheses,
+    chunk_offsets,
+    subsampling_factor,
+    window_stride,
+    decoding,
+    merged_tokens=None,
+    is_rnnt=False,
 ):
     """
     Combine character-level timestamps from chunks and generate word/segment timestamps.
@@ -161,6 +178,7 @@ def join_timestamp_and_add_word_and_segment_level_timestamps(
     )
 
     return update_timestamps(char_timestamps, merged_hypotheses, decoding, is_rnnt)[0]
+
 
 def join_char_level_timestamps(
     hypotheses,
@@ -273,7 +291,9 @@ def merge_all_hypotheses(hypotheses_list, timestamps, subsampling_factor, chunk_
     return all_merged_hypotheses
 
 
-def merge_hypotheses_of_same_audio(hypotheses_list, timestamps, subsampling_factor, chunk_duration_seconds=3600, is_rnnt=False):
+def merge_hypotheses_of_same_audio(
+    hypotheses_list, timestamps, subsampling_factor, chunk_duration_seconds=3600, is_rnnt=False
+):
     """
     Merge hypotheses from the same audio source into a single hypothesis.
     Used for combining results when long audio is split into hour-long segments
@@ -297,7 +317,7 @@ def merge_hypotheses_of_same_audio(hypotheses_list, timestamps, subsampling_fact
             timestamp_dict = {'word': [], 'segment': []}
     else:
         timestamp_dict = []
-        
+
     merged_hypothesis = Hypothesis(
         score=0.0,
         y_sequence=torch.tensor([]),
@@ -430,13 +450,12 @@ def merge_hypotheses_of_same_audio(hypotheses_list, timestamps, subsampling_fact
                         else:
                             merged_char_timestamps.append(char_info)
 
-
         # Set the merged timestamps
         if timestamps:
             if is_rnnt:
                 merged_hypothesis.timestamp['char'] = merged_char_timestamps
-            merged_hypothesis.timestamp['word']= merged_word_timestamps
-            merged_hypothesis.timestamp['segment']= merged_segment_timestamps
+            merged_hypothesis.timestamp['word'] = merged_word_timestamps
+            merged_hypothesis.timestamp['segment'] = merged_segment_timestamps
     elif len(hypotheses_list) == 1 and timestamps:
         if is_rnnt:
             merged_hypothesis.timestamp['char'] = hypotheses_list[0].timestamp['char']

@@ -72,12 +72,12 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
                 )
                 for c in cuts
             ]
-            
+
             # Chunk the audio
             new_audio = []
             new_audio_lens = []
             new_tokens = []
-            
+
             for i in range(audio.shape[0]):
                 waveform = audio[i, : audio_lens[i]]
                 # Split the waveform into chunks and get their lengths
@@ -86,7 +86,7 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
                 new_audio_lens.extend(chunk_lens)
                 # Replicate the same tokens for each chunk
                 new_tokens.extend([original_tokens[i]] * len(chunks))
-            
+
             # Stack all chunks into a batch
             audio = torch.stack(new_audio)
             audio_lens = torch.tensor(new_audio_lens, dtype=torch.long)
@@ -103,10 +103,10 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
                 )
                 for c in cuts
             ]
-        
+
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=0)
-        
+
         if self.return_cuts:
             return audio, audio_lens, tokens, token_lens, cuts.drop_in_memory_data()
         return audio, audio_lens, tokens, token_lens

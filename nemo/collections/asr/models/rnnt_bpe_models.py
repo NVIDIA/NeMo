@@ -512,7 +512,7 @@ class EncDecRNNTBPEModel(EncDecRNNTModel, ASRBPEMixin):
             # Adding this to support processing audio files of arbitrary length by chunking them into hour-long segments.
             config.cut_into_windows_duration = 3600
             config.cut_into_windows_hop = 3600
-            
+
         if config.get("use_lhotse"):
             return get_lhotse_dataloader_from_config(
                 config,
