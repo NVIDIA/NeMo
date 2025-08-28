@@ -36,6 +36,7 @@ from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_li
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
 from nemo.collections.common.data.dataset import ConcatDataset
+from nemo.collections.common.data.blendable_dataset import BlendableDataset
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     TextProcessing,
@@ -44,13 +45,6 @@ from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     get_num_samples_from_files,
     maybe_cast_to_list,
 )
-
-try:
-    from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-except (ImportError, ModuleNotFoundError):
-    from abc import ABC
-
-    BlendableDataset = ABC
 
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging, logging_mode
