@@ -24,6 +24,7 @@ _ACCESS_ENABLED = {_DEFAULT_ACCESS_GUID: False}
 
 
 def set_access_cfg(cfg: DictConfig, guid: Optional[str] = None):
+    print("TEST")
     if cfg is None or not isinstance(cfg, DictConfig):
         raise TypeError(f"cfg must be a DictConfig")
     global _ACCESS_CFG
