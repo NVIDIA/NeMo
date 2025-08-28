@@ -14,7 +14,9 @@
 
 """Blendable dataset."""
 
+import os
 import time
+import subprocess
 
 import numpy as np
 import torch
@@ -53,7 +55,8 @@ class BlendableDataset(torch.utils.data.Dataset):
             from nemo.collections.common.data import helpers
         except ImportError:
             raise ImportError(
-                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+                'Could not compile megatron dataset C++ helper functions and therefore '
+                'cannot import helpers python file.'
             )
 
         helpers.build_blending_indices(
@@ -128,9 +131,11 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
 
         self.ds_index = np.array(ds_index, dtype=np.uint32)
         self.ds_index_size = np.array([(self.ds_index == i).sum() for i in range(num_datasets)], dtype=np.uint32)
-        assert (
-            self.ds_index_size > 0
-        ).all(), f"Some datasets have no samples in the blendable dataset, increase weight_bins or the offending weight. ds_index_size = {self.ds_index_size}"
+        assert (self.ds_index_size > 0).all(), (
+            "Some datasets have no samples in the blendable dataset, "
+            "increase weight_bins or the offending weight. "
+            f"ds_index_size = {self.ds_index_size}"
+        )
         self.ds_bias = np.array(ds_bias, dtype=np.uint32)
 
         self.ds_size = np.array([len(ds) for ds in datasets], dtype=np.uint32)
@@ -163,6 +168,7 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
         plt.ion()
 
         class DS(torch.utils.data.Dataset):
+            """ """
             def __init__(self, size, data):
                 self.size = size
                 self.data = data

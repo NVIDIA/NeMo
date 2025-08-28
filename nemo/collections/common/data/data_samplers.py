@@ -67,8 +67,8 @@ class BaseMegatronSampler:
                 )
         if pad_samples_to_global_batch_size and global_batch_size is None:
             raise RuntimeError(
-                f"`pad_samples_to_global_batch_size` can be `True` only when "
-                f"`global_batch_size` is set to an integer value"
+                "`pad_samples_to_global_batch_size` can be `True` only when "
+                "`global_batch_size` is set to an integer value"
             )
 
         # Keep a copy of input params for later use.
@@ -83,7 +83,8 @@ class BaseMegatronSampler:
         self.pad_samples_to_global_batch_size = pad_samples_to_global_batch_size
 
         logging.info(
-            f'Instantiating MegatronPretrainingSampler with total_samples: {total_samples} and consumed_samples: {consumed_samples}'
+            f'Instantiating MegatronPretrainingSampler with total_samples: {total_samples} '
+            f'and consumed_samples: {consumed_samples}'
         )
 
     def __len__(self):
@@ -179,8 +180,9 @@ class MegatronPretrainingRandomSampler(BaseMegatronSampler):
         ), "`MegatronPretrainingRandomSampler` does not support sample padding"
         if (not drop_last) and self.micro_batch_times_data_parallel_size > 1:
             raise RuntimeError(
-                "`MegatronPretrainingRandomSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
-                  please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
+                "`MegatronPretrainingRandomSampler` does not support drop_last=False when \
+                  micro_batch_size * data_parallel_size > 1. Please reduce your MBS and data parallelism to 1 \
+                  if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
             )
         self.last_batch_size = self.total_samples % self.micro_batch_times_data_parallel_size
         self.seed = seed
@@ -319,10 +321,12 @@ class BaseMegatronBatchSampler:
 
     @property
     def global_batch_size(self) -> int:
+        """ """
         return self._global_batch_size
 
     @global_batch_size.setter
     def global_batch_size(self, new_global_batch_size: int) -> None:
+        """ """
         warnings.warn("`self.update_global_batch_size(new_global_batch_size)` is recommended.")
         self.update_global_batch_size(new_global_batch_size=new_global_batch_size)
 
@@ -347,6 +351,7 @@ class MegatronPretrainingBatchSampler(BaseMegatronBatchSampler):
     """ """
 
     def get_start_end_idx(self) -> Tuple[int, int]:
+        """ """
         start_idx = self.data_parallel_rank * self._global_batch_size_on_this_data_parallel_rank
         end_idx = start_idx + self._global_batch_size_on_this_data_parallel_rank
         return start_idx, end_idx
@@ -423,8 +428,9 @@ class MegatronPretrainingRandomBatchSampler(BaseMegatronBatchSampler):
         ), "`MegatronPretrainingRandomBatchSampler` does not support sample padding"
         if (not drop_last) and self.micro_batch_times_data_parallel_size > 1:
             raise RuntimeError(
-                "`MegatronPretrainingRandomBatchSampler` does not support drop_last=False when micro_batch_size * data_parallel_size > 1. \
-                  please reduce your MBS and data parallelism to 1 if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
+                "`MegatronPretrainingRandomBatchSampler` does not support drop_last=False \
+                  when micro_batch_size * data_parallel_size > 1. Please reduce your MBS and data parallelism to 1 \
+                  if you want to use drop_last=False, or switch to drop_last=True to avoid this error"
             )
         self.last_batch_size = self.total_samples % self._global_batch_size
         self.seed = seed

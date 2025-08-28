@@ -16,7 +16,7 @@ import abc
 import logging
 import os
 from itertools import chain
-from typing import List, Literal, Optional, Tuple
+from typing import List, Literal, Optional
 
 import torch
 from lightning.pytorch.overrides.distributed import _IndexBatchSamplerWrapper
