@@ -535,7 +535,7 @@ def sqa_cut_to_conversation(
         return cut
     turns = [
         TextTurn(value=cut.question, role="user"),
-        AudioTurn(cut=cut, role="user", audio_locator_tag=audio_locator_tag, text=cut.text),
+        AudioTurn(cut=cut, role="user", audio_locator_tag=audio_locator_tag, text=getattr(cut, "text", "")),
         TextTurn(value=cut.answer, role="assistant"),
     ]
     if hasattr(cut, "context"):
