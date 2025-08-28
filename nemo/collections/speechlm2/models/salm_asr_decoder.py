@@ -11,11 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import random
 import warnings
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 import torch
+from lhotse import fastcopy
+from lhotse.serialization import SequentialJsonlWriter
 from lightning import LightningModule
 from omegaconf import DictConfig, open_dict
 from peft import PeftModel
@@ -33,6 +37,9 @@ from torch.distributed.tensor.parallel import (
 from transformers import GenerationConfig
 
 from nemo.collections.asr.models import ASRModel
+from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
+from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
+from nemo.collections.common.data.lhotse.text_adapters import TextTurn
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.salm_dataset import left_collate_vectors
@@ -66,15 +73,35 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         self.tokenizer = AutoTokenizer(self.cfg.pretrained_llm, use_fast=True)
         self.tokenizer.add_special_tokens({"additional_special_tokens": [self.audio_locator_tag]})
         self.llm = load_pretrained_hf(self.cfg.pretrained_llm, pretrained_weights=self.cfg.pretrained_weights)
+        if not hasattr(self.llm, "model") and hasattr(self.llm, "backbone"):
+            type(self.llm).model = property(lambda self: self.backbone)
+        if not hasattr(self.llm.model, "embed_tokens") and hasattr(self.llm.model, "embeddings"):
+            self.llm.model.embed_tokens = self.llm.model.embeddings
         # Note: we have to "move out" the token embedding outside of LLM to avoid
         #       messing up FSDP/TP hooks.
         self.embed_tokens = self.llm.model.embed_tokens
         del self.llm.model.embed_tokens
-        maybe_install_lora(self)
 
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
         setup_speech_encoder_with_asr(self, pretrained_weights=self.cfg.pretrained_weights)
         assert isinstance(self.perception, AudioTranscriptionPerceptionModule)
+
+        # Load pretrained weights if provided
+        if (init_from_path := self.cfg.get("init_from_path", None)) is not None:
+            init_from_path = Path(init_from_path)
+            assert init_from_path.is_dir(), "init_from_path must be a directory containing HF checkpoint"
+            logging.warning(f"Loading pretrained weights from {str(init_from_path)}")
+            from safetensors import safe_open
+
+            tensors = {}
+            with safe_open(init_from_path / "model.safetensors", framework="pt") as f:
+                for k in f.keys():
+                    tensors[k] = f.get_tensor(k)
+            missing_keys, unexpected_keys = self.load_state_dict(tensors, strict=False)
+            logging.warning(f"Missing keys: {missing_keys}")
+            logging.warning(f"Unexpected keys: {unexpected_keys}")
+
+        maybe_install_lora(self)
 
         self._use_fsdp = False
         self._use_tp = False
@@ -163,6 +190,10 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             input_signal=batch["audios"], input_signal_length=batch["audio_lens"]
         )
         asr_hyps = self.perception.transcribe_encoded(encoded=encoded, encoded_len=encoded_len)
+        # During training, we randomly drop the transcript
+        for hyp in asr_hyps:
+            if self.training and random.random() < self.cfg.get("asr_transcript_drop_prob", 0.0):
+                hyp.text = ""
         asr_tokens = [
             torch.as_tensor(self.tokenizer.text_to_ids(f">> {hyp.text} <<" if hyp.text else ">> <<"))
             for hyp in asr_hyps
@@ -246,6 +277,9 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         self._partial_val_losses = defaultdict(list)
         self._partial_accuracies = defaultdict(list)
 
+        # collect generations per validation set (per-rank)
+        self._val_generations = defaultdict(list)
+
     def on_validation_epoch_end(self) -> None:
         val_losses = []
         for name, vals in self._partial_val_losses.items():
@@ -264,32 +298,97 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
         self._partial_val_losses.clear()
         self._partial_accuracies.clear()
 
+        # Gather and write generations to a single file per dataset (rank 0 only)
+        if self.cfg.get("val_save_path", None) is not None:
+            dist = torch.distributed
+            if dist.is_available() and dist.is_initialized():
+                world_size = dist.get_world_size()
+                gathered = [None for _ in range(world_size)]
+                dist.all_gather_object(gathered, dict(self._val_generations))
+                is_global_zero = dist.get_rank() == 0
+            else:
+                gathered = [dict(self._val_generations)]
+                is_global_zero = True
+
+            if is_global_zero:
+                merged = defaultdict(list)
+                for per_rank_dict in gathered:
+                    for name, items in per_rank_dict.items():
+                        merged[name].extend(items)
+
+                val_save_path = Path(self.cfg.val_save_path) / f"{self.global_step:06d}"
+                val_save_path.mkdir(parents=True, exist_ok=True)
+                for name, items in merged.items():
+                    out_path = val_save_path / f"{name}.jsonl"
+                    with SequentialJsonlWriter(out_path) as writer:
+                        for obj in items:
+                            writer.write(obj)
+
+        self._val_generations.clear()
+
     def validation_step(self, batch: dict, batch_idx: int):
         for name, dataset_batch in batch.items():
             if dataset_batch is None:
                 continue  # some dataset is exhausted
-            inputs = self.prepare_inputs(dataset_batch)
-            forward_outputs = self(inputs["input_embeds"], attention_mask=inputs["attention_mask"])
-            num_frames = (inputs["target_ids"] != -100).long().sum()
-            with loss_parallel():
-                loss = (
-                    torch.nn.functional.cross_entropy(
-                        forward_outputs["logits"].flatten(0, 1),
-                        inputs["target_ids"].flatten(0, 1),
-                        reduction="sum",
-                        ignore_index=-100,
+
+            try:
+                inputs = self.prepare_inputs(dataset_batch)
+                forward_outputs = self(inputs["input_embeds"], attention_mask=inputs["attention_mask"])
+                num_frames = (inputs["target_ids"] != -100).long().sum()
+                with loss_parallel():
+                    loss = (
+                        torch.nn.functional.cross_entropy(
+                            forward_outputs["logits"].flatten(0, 1),
+                            inputs["target_ids"].flatten(0, 1),
+                            reduction="sum",
+                            ignore_index=-100,
+                        )
+                        / num_frames
                     )
-                    / num_frames
+
+                preds = forward_outputs["logits"].argmax(dim=-1).view(-1)
+                refs = inputs["target_ids"].reshape(-1)
+                preds = preds[refs != -100]
+                refs = refs[refs != -100]
+                accuracy = preds.eq(refs).float().mean()
+
+                self._partial_accuracies[name].append(accuracy)
+                self._partial_val_losses[name].append(loss)
+
+            except Exception as e:
+                # Skip the dataset if there is an error, e.g., the dataset does not have answers
+                logging.warning_once(f"Error in validation step for dataset {name}: {e}")
+
+            # Run autoregressive generation and collect results (writing happens at epoch end)
+            if self.cfg.get("val_save_path", None) is not None:
+                convs_no_answer = [strip_response_if_any(conv) for conv in dataset_batch["conversations"]]
+                convs_no_answer = [
+                    tokenize_with_prompt(conv, self.tokenizer, self.cfg.prompt_format) for conv in convs_no_answer
+                ]
+                answer_ids = self.generate(
+                    prompts=left_collate_vectors(
+                        [c.input_ids for c in convs_no_answer], padding_value=self.text_pad_id
+                    ).to(self.device),
+                    audios=dataset_batch["audios"].to(self.device, non_blocking=True),
+                    audio_lens=dataset_batch["audio_lens"].to(self.device, non_blocking=True),
+                    generation_config=GenerationConfig(
+                        max_new_tokens=128,
+                        bos_token_id=self.text_bos_id,
+                        eos_token_id=[self.text_eos_id],
+                        pad_token_id=self.text_pad_id,
+                        do_sample=False,
+                        num_beams=1,  # greedy decoding
+                    ),
                 )
-
-            preds = forward_outputs["logits"].argmax(dim=-1).view(-1)
-            refs = inputs["target_ids"].reshape(-1)
-            preds = preds[refs != -100]
-            refs = refs[refs != -100]
-            accuracy = preds.eq(refs).float().mean()
-
-            self._partial_accuracies[name].append(accuracy)
-            self._partial_val_losses[name].append(loss)
+                answer_ids = answer_ids.cpu()
+                answer_ids = [parse_hyp(ans, [self.text_eos_id]) for ans in answer_ids]
+                batch_answers = [self.tokenizer.ids_to_text(ans) for ans in answer_ids]
+                for conv, ans in zip(convs_no_answer, batch_answers):
+                    conv.turns.append(TextTurn(role="assistant", value=ans))
+                    for k, v in list(conv.custom.items()):
+                        if isinstance(v, torch.Tensor):
+                            del conv.custom[k]
+                    self._val_generations[name].append(conv.to_dict())
 
     def on_test_epoch_start(self) -> None:
         return self.on_validation_epoch_start()
@@ -399,8 +498,8 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             token_embeds = self.embed_tokens(tokens_to_embed)
             # TODO: temporary workaround to perform batch_size=1 inference for audio encoder
             #   due to accuracy issues at bs>1
-            #audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
-            #audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
+            # audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
+            # audio_embeds = [audio_embeds[i, :elen] for i, elen in enumerate(audio_embed_lens)]
 
             encoded, encoded_len = self.perception.forward_encoder(input_signal=audios, input_signal_length=audio_lens)
             asr_hyps = self.perception.transcribe_encoded(encoded=encoded, encoded_len=encoded_len)
@@ -543,9 +642,9 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
             self.embed_tokens = fully_shard(self.embed_tokens, **fsdp_config)
             llm.lm_head = fully_shard(llm.lm_head, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
-            #self.perception.modality_adapter = fully_shard(self.perception.modality_adapter, **fsdp_config)
-            #self.perception.asr.preprocessor = fully_shard(self.perception.asr.preprocessor **fsdp_config)
-            #self.perception.asr.encoder = fully_shard(self.perception.asr.encoder, **fsdp_config)
+            # self.perception.modality_adapter = fully_shard(self.perception.modality_adapter, **fsdp_config)
+            # self.perception.asr.preprocessor = fully_shard(self.perception.asr.preprocessor **fsdp_config)
+            # self.perception.asr.encoder = fully_shard(self.perception.asr.encoder, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
             register_fsdp_forward_method(self.perception, "forward_encoder")
             register_fsdp_forward_method(self.perception, "transcribe_encoded")
@@ -585,3 +684,20 @@ def setup_speech_encoder_with_asr(model: torch.nn.Module, pretrained_weights: bo
     from nemo.collections.common.parts.optional_cuda_graphs import WithOptionalCudaGraphs
 
     WithOptionalCudaGraphs.disable_cuda_graphs_recursive(model.perception.asr, attribute_path="decoding.decoding")
+
+
+def parse_hyp(answer: torch.Tensor, eos_tokens: list[int]):
+    end = torch.isin(answer, torch.tensor(eos_tokens)).nonzero(as_tuple=True)[0]
+    if end.numel() == 0:
+        return answer
+    end = end[0]
+    return answer[:end]
+
+
+def strip_response_if_any(
+    conversation: NeMoMultimodalConversation,
+) -> NeMoMultimodalConversation:
+    turns = conversation.turns
+    while turns[-1].role == "assistant":
+        turns = turns[:-1]
+    return fastcopy(conversation, turns=turns)

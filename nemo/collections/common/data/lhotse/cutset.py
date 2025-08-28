@@ -293,6 +293,7 @@ def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool
             shuffle_shards=config.shuffle,
             shard_seed=config.shard_seed,
             system_prompt=config.get("tags", {}).get("system_prompt"),
+            context=config.get("tags", {}).get("context"),
         )
     )
     if not config.get("force_finite", False):
@@ -522,6 +523,50 @@ def read_lhotse_as_conversation(config) -> tuple[CutSet, bool]:
     return cuts, is_tarred
 
 
+def sqa_cut_to_conversation(
+    cut: Cut, audio_locator_tag: str, token_equivalent_duration: float
+) -> NeMoMultimodalConversation:
+    """
+    Converts a lhotse Cut representing a SQA example into a NeMoMultimodalConversation.
+
+    The ``cut`` is expected to have ``question`` and ``answer`` fields.
+    """
+    if isinstance(cut, NeMoMultimodalConversation):
+        return cut
+    turns = [
+        TextTurn(value=cut.question, role="user"),
+        AudioTurn(cut=cut, role="user", audio_locator_tag=audio_locator_tag, text=getattr(cut, "text", "")),
+        TextTurn(value=cut.answer, role="assistant"),
+    ]
+    if hasattr(cut, "context"):
+        turns = [TextTurn(value=cut.context, role="user")] + turns
+    if hasattr(cut, "system_prompt"):
+        turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
+    return NeMoMultimodalConversation(
+        id=cut.id,
+        turns=turns,
+        token_equivalent_duration=token_equivalent_duration,
+        custom=cut.custom,
+    )
+
+
+@data_type_parser(["sqa_as_conversation"])
+def read_sqa_as_conversation(config) -> tuple[CutSet, bool]:
+    cuts, is_tarred = read_cutset_from_config(config)
+    # Attach extra tags to every utterance dynamically, if provided.
+    # We need to attach them before cuts are converted to conversations.
+    if (extra_tags := config.get("tags")) is not None:
+        cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
+    cuts = cuts.map(
+        partial(
+            sqa_cut_to_conversation,
+            audio_locator_tag=config.audio_locator_tag,
+            token_equivalent_duration=config.token_equivalent_duration,
+        )
+    )
+    return cuts, is_tarred
+
+
 def _strip_timestamps(
     text: str, _TIMESTAMP_PATTERN=re.compile(r"<\|\d+\|>"), _SPACE_PATTERN=re.compile(r"\s+")
 ) -> str:
@@ -584,6 +629,8 @@ def s2s_cut_to_conversation(
             logging.warning(f"Speaker '{turn_speaker}' not found in user or agent roles for cut {cut.id}")
             return FailedConversion()
         idx += 1
+    if hasattr(cut, "context"):
+        turns = [TextTurn(value=cut.context, role="user")] + turns
     if hasattr(cut, "system_prompt"):
         turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
     return NeMoMultimodalConversation(

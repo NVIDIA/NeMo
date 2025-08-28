@@ -29,7 +29,7 @@ from lhotse.custom import CustomFieldMixin
 from lhotse.cut import Cut
 from lhotse.dataset.collation import collate_matrices, collate_vectors
 from lhotse.dataset.dataloading import resolve_seed
-from lhotse.serialization import load_jsonl
+from lhotse.serialization import decode_json_line, deserialize_item, load_jsonl, open_best
 from lhotse.shar import AudioTarWriter, JsonlShardWriter
 from lhotse.utils import Pathlike, is_valid_url
 
@@ -408,6 +408,7 @@ def collate_conversation_audio_fault_tolerant(
 
     * ``conversations`` CutSet of NeMoMultimodalConversations that were successfully loaded.
     """
+    from lhotse.cut import MultiCut
 
     audios = []
     all_cuts = []
@@ -418,9 +419,12 @@ def collate_conversation_audio_fault_tolerant(
             conv_audios = []
             conv_cuts = []
             for cut in conversation.list_cuts():
+                if isinstance(cut, MultiCut):
+                    cut = cut.to_mono(mono_downmix=True)
                 conv_audios.append(torch.as_tensor(cut.load_audio()).squeeze())
                 conv_cuts.append(cut)
         except AudioLoadingError:
+            logging.warning(f"Skipping conversation because it failed to load audio: {conversation.to_dict()}")
             continue
         else:
             audios.extend(conv_audios)
@@ -518,6 +522,7 @@ class NeMoMultimodalConversationJsonlAdapter:
     shuffle_shards: bool = False
     shard_seed: Union[int, Literal["trng", "randomized"]] = "trng"
     system_prompt: str | None = None
+    context: str | None = None
 
     def __post_init__(self):
         self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
@@ -576,6 +581,8 @@ class NeMoMultimodalConversationJsonlAdapter:
                     )
                     for turn in data["conversations"]
                 ]
+                if self.context is not None and turns[0].role == "user" and isinstance(turns[0], AudioTurn):
+                    turns = [TextTurn(role="user", value=self.context)] + turns
                 if self.system_prompt is not None and turns[0].role != "system":
                     turns = [TextTurn(role="system", value=self.system_prompt)] + turns
                 yield NeMoMultimodalConversation(
@@ -610,6 +617,8 @@ class NeMoMultimodalConversationJsonlAdapter:
                     )
                     for turn in data["conversations"]
                 ]
+                if self.context is not None and turns[0].role == "user" and isinstance(turns[0], AudioTurn):
+                    turns = [TextTurn(role="user", value=self.context)] + turns
                 if self.system_prompt is not None and turns[0].role != "system":
                     turns = [TextTurn(role="system", value=self.system_prompt)] + turns
                 yield NeMoMultimodalConversation(
@@ -820,7 +829,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
         Detects audio placeholders (<sound>, <speech>) and creates appropriate audio/text turns.
         """
         conversations = []
-        audio_path = data.get("sound") or data.get("ori_sound")
+        audio_path = data.get("sound") or data.get("ori_sound") or data.get("speech")
 
         for turn in data["conversations"]:
             # Map ShareGPT roles to standard roles
@@ -876,7 +885,12 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                     cut = cuts.popleft()
                 else:
                     # Load audio from file path
-                    cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
+                    if is_valid_url(turn["value"]):
+                        # prefetch remote data to memory to avoid doing it once for metadata read and second time for audio loading
+                        data = open_best(turn["value"], "rb").read()
+                        cut = Recording.from_bytes(data, recording_id=turn["value"]).to_cut()
+                    else:
+                        cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
 
                 turns.append(
                     AudioTurn(
