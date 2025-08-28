@@ -187,7 +187,6 @@ def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_siz
         recipe.trainer.strategy.ddp.average_in_collective = False
     recipe.trainer.strategy.ddp.keep_fp8_transpose_cache = False
 
-
     try:
         recipe.trainer.strategy.ddp.keep_fp8_transpose_cache = False
     except:
@@ -408,9 +407,7 @@ def set_perf_optimization_configs(
         recipe.trainer.strategy.ddp.nccl_ub = bool(use_user_buffer_registration)
         recipe.trainer.strategy.ddp.fsdp_double_buffer = bool(use_fsdp_double_buffer)
         try:
-            recipe.trainer.strategy.ddp.keep_fp8_transpose_cache = bool(
-                keep_fsdp_fp8_transpose_cache
-            )
+            recipe.trainer.strategy.ddp.keep_fp8_transpose_cache = bool(keep_fsdp_fp8_transpose_cache)
         except:
             recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = bool(
                 keep_fsdp_fp8_transpose_cache
