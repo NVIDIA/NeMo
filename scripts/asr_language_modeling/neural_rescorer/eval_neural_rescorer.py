@@ -57,7 +57,7 @@ try:
     from nemo.collections.nlp.models.language_modeling import TransformerLMModel
 except (ImportError, ModuleNotFoundError):
     TransformerLMModel = ABC
-    
+
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
 from nemo.utils import logging
 

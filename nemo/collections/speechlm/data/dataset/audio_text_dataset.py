@@ -35,8 +35,8 @@ from nemo.collections.asr.data.audio_to_text import (
 from nemo.collections.asr.data.audio_to_text_dataset import convert_to_config_list, get_chain_dataset
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
-from nemo.collections.common.data.dataset import ConcatDataset
 from nemo.collections.common.data.blendable_dataset import BlendableDataset
+from nemo.collections.common.data.dataset import ConcatDataset
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     TextProcessing,
@@ -45,7 +45,6 @@ from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import (
     get_num_samples_from_files,
     maybe_cast_to_list,
 )
-
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging, logging_mode
 from nemo.utils import webdataset as wds

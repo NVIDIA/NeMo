@@ -204,6 +204,7 @@ def add_megatron_sampler(
         )
     elif dataloader_type == 'batch':
         from nemo.collections.common.data.data_samplers import MegatronPretrainingBatchSampler
+
         batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataloader.dataset),
             consumed_samples=consumed_samples,
