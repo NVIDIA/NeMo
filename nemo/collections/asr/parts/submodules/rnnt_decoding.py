@@ -1057,10 +1057,14 @@ class AbstractRNNTDecoding(ConfidenceMixin):
             chars_tokens = []
             for char in offsets['char']:
                 if char != self.blank_id:  # ignore the RNNT Blank token
+                    chars_tokens_id = int(char)
                     chars_tokens.append(self.decode_ids_to_tokens([int(char)])[0])
                     chars_text.append(self.decode_ids_to_str([int(char)]))
             char_offsets[i]["char"] = chars_text
             encoded_char_offsets[i]["char"] = chars_tokens
+            #Providing this to get word offsets in merged hypotheses after chunking
+            char_offsets[i]["token"] = chars_tokens
+            char_offsets[i]["token_id"] = chars_tokens_id
 
         encoded_char_offsets, char_offsets = self._refine_timestamps(
             encoded_char_offsets, char_offsets, self.supported_punctuation

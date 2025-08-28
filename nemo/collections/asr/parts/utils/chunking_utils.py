@@ -98,6 +98,41 @@ def join_y_sequence(merged_hypothesis, hypotheses):
     merged_hypothesis.y_sequence = torch.cat([h.y_sequence for h in hypotheses])
     return merged_hypothesis
 
+def update_timestamps(char_timestamps, hypotheses, decoding):
+    """
+    Generate word and segment timestamps from character timestamps.
+    
+    Args:
+        char_timestamps: Character-level timestamp data
+        merged_hypotheses: Hypothesis to update with timestamps
+        decoding: Decoding instance for token-to-string conversion
+    
+    Returns:
+        Hypothesis: Updated merged_hypotheses with word and segment timestamps
+    """
+    # Create encoded_char_offsets for word/segment generation
+    encoded_char_offsets = []
+    for char_offset in char_timestamps:
+        enc_char_offset = char_offset.copy()
+        enc_char_offset['char'] = enc_char_offset.get('token')
+        encoded_char_offsets.append(enc_char_offset)
+
+    # Generate word-level timestamps from combined char timestamps
+    word_offsets = get_words_offsets(
+        char_offsets=char_timestamps,
+        decode_tokens_to_str=decoding.decode_tokens_to_str,
+        encoded_char_offsets=encoded_char_offsets,
+        supported_punctuation={',', '.', '!', '?'},
+    )
+
+    # Generate segment-level timestamps from word timestamps
+    segment_offsets = get_segment_offsets(word_offsets=word_offsets, segment_delimiter_tokens={'.', '!', '?', "..."})
+    # Update the merged hypothesis with word and segment timestamps
+    hypotheses.timestamp['word'] = word_offsets
+    hypotheses.timestamp['segment'] = segment_offsets
+
+    return [hypotheses]
+
 
 def join_timestamp_and_add_word_and_segment_level_timestamps(
     merged_hypotheses, hypotheses, chunk_offsets, subsampling_factor, window_stride, decoding, merged_tokens=None
@@ -122,29 +157,8 @@ def join_timestamp_and_add_word_and_segment_level_timestamps(
     char_timestamps = join_char_level_timestamps(
         hypotheses, chunk_offsets, subsampling_factor, window_stride, merged_tokens
     )
-    # Create encoded_char_offsets for word/segment generation
-    encoded_char_offsets = []
-    for char_offset in char_timestamps:
-        enc_char_offset = char_offset.copy()
-        enc_char_offset['char'] = enc_char_offset['token']
-        encoded_char_offsets.append(enc_char_offset)
 
-    # Generate word-level timestamps from combined char timestamps
-    word_offsets = get_words_offsets(
-        char_offsets=char_timestamps,
-        decode_tokens_to_str=decoding.decode_tokens_to_str,
-        encoded_char_offsets=encoded_char_offsets,
-        supported_punctuation={',', '.', '!', '?'},
-    )
-
-    # Generate segment-level timestamps from word timestamps
-    segment_offsets = get_segment_offsets(word_offsets=word_offsets, segment_delimiter_tokens={'.', '!', '?', "..."})
-    # Update the merged hypothesis with word and segment timestamps
-    merged_hypotheses.timestamp['word'] = word_offsets
-    merged_hypotheses.timestamp['segment'] = segment_offsets
-
-    return merged_hypotheses
-
+    return update_timestamps(char_timestamps, merged_hypotheses, decoding)[0]
 
 def join_char_level_timestamps(
     hypotheses,
