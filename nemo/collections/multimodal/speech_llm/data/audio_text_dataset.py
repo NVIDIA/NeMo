@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# flake8: noqa: F821
+
 import copy
 import io
 import math
@@ -877,7 +880,7 @@ def get_tarred_audio_text_dataset(
     if bucketing_weights:
         for idx, weight in enumerate(bucketing_weights):
             if not isinstance(weight, int) or weight <= 0:
-                raise ValueError(f"bucket weights must be positive integers")
+                raise ValueError("bucket weights must be positive integers")
 
     if len(manifest_filepaths) != len(tarred_audio_filepaths):
         raise ValueError(
@@ -885,7 +888,7 @@ def get_tarred_audio_text_dataset(
         )
 
     if 'labels' not in config:
-        logging.warning(f"dataset does not have explicitly defined labels")
+        logging.warning("dataset does not have explicitly defined labels")
 
     if 'max_utts' in config:
         raise ValueError('"max_utts" parameter is not supported for tarred datasets')
@@ -987,7 +990,7 @@ def get_concat_tarred_audio_text_dataset(
         datasets
     ):
         logging.info(
-            f"concat_sampling_probabilities is not provided or is not of the same size as datasets, using uniform sampling."
+            "concat_sampling_probabilities is not provided or is not of the same size as datasets, using uniform sampling."
         )
         concat_sampling_probabilities = [1.0 / len(datasets)] * len(datasets)
 
@@ -1082,7 +1085,7 @@ def get_audio_text_dataset_from_config(
         elif len(config.get('concat_sampling_probabilities', None)) != len(manifest_filepath):
             raise ValueError(
                 (
-                    f"concat_sampling_probabilities must be of the same size as manifest_filepath.",
+                    "concat_sampling_probabilities must be of the same size as manifest_filepath.",
                     f"Provided size {len(config.concat_sampling_probabilities)}, number of datasets {len(manifest_filepath)}",
                 )
             )

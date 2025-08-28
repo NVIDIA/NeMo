@@ -14,7 +14,6 @@
 import copy
 from pathlib import Path
 
-import omegaconf
 import torch
 from megatron.core import parallel_state
 from omegaconf.omegaconf import OmegaConf
