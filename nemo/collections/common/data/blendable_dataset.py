@@ -15,8 +15,8 @@
 """Blendable dataset."""
 
 import os
-import time
 import subprocess
+import time
 
 import numpy as np
 import torch
@@ -169,6 +169,7 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
 
         class DS(torch.utils.data.Dataset):
             """ """
+
             def __init__(self, size, data):
                 self.size = size
                 self.data = data
