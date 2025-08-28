@@ -391,9 +391,14 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 else:
                     super()._save_last_checkpoint(trainer, monitor_candidates)
             if self.save_context_on_train_end and not self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(
-                    ckpt_to_dir(self.last_model_path) / "context", yaml_attrs=["model"]
-                )
+                try:
+                    TrainerContext.from_trainer(trainer).io_dump(
+                        ckpt_to_dir(self.last_model_path) / "context", yaml_attrs=["model"]
+                    )
+                except Exception as e:
+                    logging.warning(
+                        f"Failed to dump training context on train end for checkpoint {self.last_model_path}: {e}"
+                    )
         # Call parent on_train_end() to save the -last checkpoint
         super().on_train_end(trainer, pl_module)
 
@@ -630,7 +635,12 @@ class ModelCheckpoint(PTLModelCheckpoint):
             trainer.save_checkpoint(filepath, save_weights_only, storage_options=storage_options)
 
             if self.always_save_context and is_global_rank_zero():
-                TrainerContext.from_trainer(trainer).io_dump(ckpt_to_dir(filepath) / "context", yaml_attrs=["model"])
+                try:
+                    TrainerContext.from_trainer(trainer).io_dump(
+                        ckpt_to_dir(filepath) / "context", yaml_attrs=["model"]
+                    )
+                except Exception as e:
+                    logging.warning(f"Failed to dump training context for checkpoint {filepath}: {e}")
 
             if self.async_save:
                 self._last_checkpoint_saved = filepath
