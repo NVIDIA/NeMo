@@ -516,6 +516,11 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         num_image_embeddings_per_tile: int = 576,
         seed: int = 1234,
     ) -> None:
+        if not hasattr(self, "_one_logger_init_started"):
+            from nemo.lightning.one_logger_callback import get_one_logger_callbacks
+
+            get_one_logger_callbacks("on_dataloader_init_start")
+
         super().__init__()
         if not isinstance(paths, (list, tuple)):
             paths = [paths]
@@ -575,6 +580,9 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             global_batch_size=global_batch_size,
             dataloader_type="cyclic",
         )
+
+        if not hasattr(self, "_one_logger_init_started"):
+            get_one_logger_callbacks("on_dataloader_init_end")
 
     def setup(self, stage: str = "") -> None:
         assert len(self.paths) == 1, "not yet support blend dataset in Neva 2.0!"

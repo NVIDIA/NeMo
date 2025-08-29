@@ -24,7 +24,7 @@ mtsp, _ = safe_import("modelopt.torch.speculative")
 
 try:
     ALGORITHMS = {
-        "eagle3": mtsp.EAGLE3_DEFAULT_CFG,
+        "eagle3": mtsp.EAGLE3_DEFAULT_CFG if hasattr(mtsp, "EAGLE3_DEFAULT_CFG") else None,
         # more TBD
     }
 except UnavailableError:
