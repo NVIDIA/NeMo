@@ -27,6 +27,7 @@ def get_parser():
     parser.add_argument("--output-path", type=str, default="/tmp/output_hf")
     parser.add_argument("--add-model-name", action="store_true", default=False)
     parser.add_argument("--hf-target-class", type=str, default="AutoModelForCausalLM")
+    parser.add_argument("--atol", type=float, default=1e-3)
     return parser
 
 
@@ -54,7 +55,7 @@ if __name__ == '__main__':
     ):
         assert name1 == name2, f'Parameter names do not match: {name1} != {name2}'
         assert torch.all(
-            torch.isclose(parameter1, parameter2, atol=1e-3)
+            torch.isclose(parameter1, parameter2, atol=args.atol)
         ).item(), f'Parameter weight do not match for {name1}'
 
     print('All weights matched.')
