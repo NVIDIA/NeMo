@@ -63,6 +63,7 @@ import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecRNNTBPEModel
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -72,6 +73,39 @@ from nemo.utils.trainer_utils import resolve_trainer_cfg
 @hydra_runner(config_path="experimental/contextnet_rnnt", config_name="config_rnnt_bpe")
 def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+
+    # Optional pre-build of SentencePiece tokenizer from YAML
+    # Allows specifying user_defined_symbols like [laugh], [sigh], etc.
+    if hasattr(cfg, 'tokenizer_build') and cfg.tokenizer_build is not None:
+        tb = cfg.tokenizer_build
+        required = ['data_file', 'output_dir', 'vocab_size']
+        missing = [k for k in required if k not in tb or tb[k] in (None, "")]
+        if missing:
+            raise ValueError(f"tokenizer_build is missing required keys: {missing}")
+
+        model_path, vocab_path = create_spt_model(
+            data_file=tb['data_file'],
+            vocab_size=int(tb['vocab_size']),
+            sample_size=int(tb.get('sample_size', -1)),
+            do_lower_case=bool(tb.get('do_lower_case', False)),
+            output_dir=str(tb['output_dir']),
+            tokenizer_type=str(tb.get('spe_type', 'unigram')),
+            character_coverage=float(tb.get('character_coverage', 1.0)),
+            train_extremely_large_corpus=bool(tb.get('train_extremely_large_corpus', False)),
+            max_sentencepiece_length=int(tb.get('max_sentencepiece_length', -1)),
+            control_symbols=tb.get('control_symbols', None),
+            user_defined_symbols=tb.get('user_defined_symbols', None),
+            byte_fallback=bool(tb.get('byte_fallback', False)),
+            split_digits=bool(tb.get('split_digits', False)),
+            split_by_whitespace=bool(tb.get('split_by_whitespace', True)),
+            split_by_unicode_script=bool(tb.get('split_by_unicode_script', True)),
+            remove_extra_whitespaces=bool(tb.get('remove_extra_whitespaces', False)),
+        )
+
+        # Point model tokenizer dir to the newly created tokenizer
+        if not hasattr(cfg, 'model') or not hasattr(cfg.model, 'tokenizer'):
+            raise ValueError("cfg.model.tokenizer must exist to set tokenizer.dir after tokenizer_build")
+        cfg.model.tokenizer.dir = str(tb['output_dir'])
 
     trainer = pl.Trainer(**resolve_trainer_cfg(cfg.trainer))
     exp_manager(trainer, cfg.get("exp_manager", None))

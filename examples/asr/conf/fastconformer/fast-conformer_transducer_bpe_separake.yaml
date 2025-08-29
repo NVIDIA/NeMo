@@ -1,0 +1,235 @@
+# FastConformer-Transducer-BPE config for "Separake": Parakeet arch with special event tokens.
+
+name: "FastConformer-Transducer-BPE-Separake"
+
+# Optional: initialize from pretrained (choose exactly one or leave unset)
+# init_from_pretrained_model: "nvidia/parakeet-rnnt-0.6b"
+# init_from_nemo_model: "/abs/path/to/model.nemo"
+# init_from_ptl_ckpt: "/abs/path/to/ckpt.ckpt"
+
+# Optional: build tokenizer before training (so you can specify user_defined_symbols)
+# tokenizer_build:
+#   data_file: /abs/path/to/train_text.txt
+#   output_dir: /abs/path/to/tok_dir
+#   vocab_size: 4096
+#   # Optional SPM args:
+#   sample_size: -1
+#   do_lower_case: false
+#   spe_type: unigram
+#   character_coverage: 1.0
+#   max_sentencepiece_length: -1
+#   train_extremely_large_corpus: false
+#   control_symbols: null
+#   user_defined_symbols: ["[laugh]","[sigh]","[applause]","[music]"]
+#   byte_fallback: false
+#   split_digits: false
+#   split_by_whitespace: true
+#   split_by_unicode_script: true
+#   remove_extra_whitespaces: false
+
+model:
+  sample_rate: 16000
+  compute_eval_loss: false
+  log_prediction: true
+  rnnt_reduction: 'mean_volume'
+  skip_nan_grad: false
+
+  model_defaults:
+    enc_hidden: ${model.encoder.d_model}
+    pred_hidden: 640
+    joint_hidden: 640
+
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: ${model.sample_rate}
+    batch_size: 16
+    shuffle: true
+    num_workers: 8
+    pin_memory: true
+    max_duration: 16.7
+    min_duration: 0.1
+    is_tarred: false
+    tarred_audio_filepaths: null
+    shuffle_n: 2048
+    bucketing_strategy: "fully_randomized"
+    bucketing_batch_size: null
+
+  validation_ds:
+    manifest_filepath: ???
+    sample_rate: ${model.sample_rate}
+    batch_size: 16
+    shuffle: false
+    use_start_end_token: false
+    num_workers: 8
+    pin_memory: true
+
+  test_ds:
+    manifest_filepath: null
+    sample_rate: ${model.sample_rate}
+    batch_size: 16
+    shuffle: false
+    use_start_end_token: false
+    num_workers: 8
+    pin_memory: true
+
+  # Train tokenizer with user_defined_symbols: [laugh],[sigh],[applause],[music]
+  tokenizer:
+    dir: ???
+    type: bpe
+    # Use custom tokenizer to keep spaces before '[' and ']'
+    custom_tokenizer:
+      _target_: nemo.collections.common.tokenizers.parakeet_special_tokenizer.ParakeetBPETokenizer
+      model_path: ${model.tokenizer.dir}/tokenizer.model
+
+  preprocessor:
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    sample_rate: ${model.sample_rate}
+    normalize: "per_feature"
+    window_size: 0.025
+    window_stride: 0.01
+    window: "hann"
+    features: 80
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+    pad_to: 0
+
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 2
+    time_masks: 10
+    freq_width: 27
+    time_width: 0.05
+
+  encoder:
+    _target_: nemo.collections.asr.modules.ConformerEncoder
+    feat_in: ${model.preprocessor.features}
+    feat_out: -1
+    n_layers: 17
+    d_model: 512
+
+    subsampling: dw_striding
+    subsampling_factor: 8
+    subsampling_conv_channels: 256
+    causal_downsampling: false
+
+    reduction: null
+    reduction_position: null
+    reduction_factor: 1
+
+    ff_expansion_factor: 4
+
+    self_attention_model: rel_pos
+    n_heads: 8
+    att_context_size: [-1, -1]
+    att_context_style: regular
+    xscaling: true
+    untie_biases: true
+    pos_emb_max_len: 5000
+    use_pytorch_sdpa: false
+    use_pytorch_sdpa_backends: []
+
+    conv_kernel_size: 9
+    conv_norm_type: 'batch_norm'
+    conv_context_size: null
+
+    dropout: 0.1
+    dropout_pre_encoder: 0.1
+    dropout_emb: 0.0
+    dropout_att: 0.1
+
+    stochastic_depth_drop_prob: 0.0
+    stochastic_depth_mode: linear
+    stochastic_depth_start_layer: 1
+
+  decoder:
+    _target_: nemo.collections.asr.modules.RNNTDecoder
+    normalization_mode: null
+    random_state_sampling: false
+    blank_as_pad: true
+    prednet:
+      pred_hidden: ${model.model_defaults.pred_hidden}
+      pred_rnn_layers: 1
+      t_max: null
+      dropout: 0.2
+
+  joint:
+    _target_: nemo.collections.asr.modules.RNNTJoint
+    log_softmax: null
+    preserve_memory: false
+    fuse_loss_wer: true
+    fused_batch_size: 4
+    jointnet:
+      joint_hidden: ${model.model_defaults.joint_hidden}
+      activation: "relu"
+      dropout: 0.2
+
+  decoding:
+    strategy: "greedy_batch"
+    greedy:
+      max_symbols: 10
+    beam:
+      beam_size: 2
+      return_best_hypothesis: False
+      score_norm: true
+      tsd_max_sym_exp: 50
+      alsd_max_target_len: 2.0
+
+  loss:
+    loss_name: "default"
+    warprnnt_numba_kwargs:
+      fastemit_lambda: 0.0
+      clamp: -1.0
+
+  optim:
+    name: adamw
+    lr: 5e-3
+    betas: [0.9, 0.98]
+    weight_decay: 1e-3
+    sched:
+      name: CosineAnnealing
+      warmup_steps: 15000
+      warmup_ratio: null
+      min_lr: 5e-4
+
+trainer:
+  devices: -1
+  num_nodes: 1
+  max_epochs: 500
+  max_steps: -1
+  val_check_interval: 1.0
+  accelerator: auto
+  strategy:
+    _target_: lightning.pytorch.strategies.DDPStrategy
+    gradient_as_bucket_view: true
+  accumulate_grad_batches: 1
+  gradient_clip_val: 0.0
+  precision: 32
+  log_every_n_steps: 10
+  enable_progress_bar: True
+  num_sanity_val_steps: 0
+  check_val_every_n_epoch: 1
+  sync_batchnorm: true
+  enable_checkpointing: False
+  logger: false
+  benchmark: false
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  checkpoint_callback_params:
+    monitor: "val_wer"
+    mode: "min"
+    save_top_k: 5
+    always_save_nemo: True
+  resume_from_checkpoint: null
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null
+
+
