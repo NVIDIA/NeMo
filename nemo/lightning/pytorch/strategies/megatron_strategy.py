@@ -383,18 +383,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         elif fsdp is not None:
             raise ValueError(f'Invalid DDP type: {fsdp}, please choose from ["megatron", "pytorch"].')
 
-        if ddp == "megatron":
-            self.ddp_config = DistributedDataParallelConfig(check_for_nan_in_grad=True)
-        elif isinstance(ddp, DistributedDataParallelConfig):
-            self.ddp_config = ddp
-        elif ddp == "pytorch":
-            if self._fsdp is not None:
-                raise ValueError("Please set ddp to megatron to use FSDP.")
-            self.ddp_config = None
-            self.no_ddp_communication_hook = False
-        else:
-            raise ValueError(f"Invalid DDP type: {ddp}")
-
         if self.ckpt_load_optimizer and self.ckpt_load_main_params:
             raise ValueError("ckpt_load_optimizer and ckpt_load_main_params cannot be both set to True.")
 
