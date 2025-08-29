@@ -517,7 +517,7 @@ class HFGPTOSSExporter(io.ModelConnector[GPTOSSModel, "AutoModelForCausalLM"]):
 
 
 @io.model_exporter(GPTOSSModel, "hf-peft")
-class HFLlamaPEFTExporter(HFGPTOSSExporter):
+class HFGPTOSSPEFTExporter(HFGPTOSSExporter):
     """Exporter for converting NeMo GPT-OSS models with PEFT adapters to Hugging Face format.
 
     This class extends HFLlamaExporter to handle Parameter-Efficient Fine-Tuning (PEFT)
@@ -589,22 +589,16 @@ class HFLlamaPEFTExporter(HFGPTOSSExporter):
 
         # linear_proj and linear_fc2 prefixes
         p_proj = "self_attention.linear_proj.adapter"
-        p_fc2 = "mlp.experts.experts.linear_fc2.adapter"
+        p_fc2 = "mlp.experts.linear_fc2.adapter"
 
         # linear_qkv and linear_fc1 prefixes
         p_qkv = "self_attention.linear_qkv.adapter"
-        p_fc1 = "mlp.experts.experts.linear_fc1.adapter"
+        p_fc1 = "mlp.experts.linear_fc1.adapter"
 
         mapping = {
             # linear_proj
             f"{pn}*.{p_proj}.linear_in.weight": f"{ph}*.self_attn.o_proj.lora_A.default.weight",
             f"{pn}*.{p_proj}.linear_out.weight": f"{ph}*.self_attn.o_proj.lora_B.default.weight",
-            # linear fc1 (hf has an unintuitive key name)
-            f"{pn}*.{p_fc1}.linear_in.weight": f"{ph}*.mlp.experts.base_layer.lora_A.weight",
-            f"{pn}*.{p_fc1}.linear_out.weight": f"{ph}*.mlp.experts.base_layer.lora_B.weight",
-            # linear_fc2 (hf has an unintuitive key name)
-            f"{pn}*.{p_fc2}.linear_in.weight": f"{ph}*.mlp.experts.lora_A.weight",
-            f"{pn}*.{p_fc2}.linear_out.weight": f"{ph}*.mlp.experts.lora_B.weight",
         }
         transforms = []
 
@@ -645,6 +639,33 @@ class HFLlamaPEFTExporter(HFGPTOSSExporter):
                 ]
             )
 
+        # TE grouped linear
+        num_experts = source.config.num_moe_experts
+        transforms.extend(
+            [
+                io.state_transform(
+                    source_key=f"{pn}*.{p_fc1}.linear_in.weight",
+                    target_key=f"{ph}*.mlp.experts.base_layer.lora_A.default.weight",
+                    fn=lambda x: x.repeat(num_experts, 1),
+                ),
+                io.state_transform(
+                    source_key=f"{pn}*.{p_fc1}.linear_out.weight",
+                    target_key=f"{ph}*.mlp.experts.base_layer.lora_B.default.weight",
+                    fn=lambda x: _uninterleave(x).repeat(1, num_experts),
+                ),
+                io.state_transform(
+                    source_key=f"{pn}*.{p_fc2}.linear_in.weight",
+                    target_key=f"{ph}*.mlp.experts.lora_A.default.weight",
+                    fn=lambda x: x.repeat(num_experts, 1),
+                ),
+                io.state_transform(
+                    source_key=f"{pn}*.{p_fc2}.linear_out.weight",
+                    target_key=f"{ph}*.mlp.experts.lora_B.default.weight",
+                    fn=lambda x: x.repeat(1, num_experts),
+                ),
+            ]
+        )
+
         return io.apply_transforms(
             source,
             target,
@@ -682,12 +703,17 @@ class HFLlamaPEFTExporter(HFGPTOSSExporter):
 
         # Infer HF target modules from NeMo target modules
         hf_target_modules = []
+        hf_target_parameters = []
         for tm in self.peft_obj.target_modules:
-            hf_target_modules.extend(NEMO2HF[tm])
+            if tm in ('linear_fc1', 'linear_fc2'):
+                hf_target_parameters.extend(NEMO2HF[tm])
+            else:
+                hf_target_modules.extend(NEMO2HF[tm])
 
         return LoraConfig(
             r=self.peft_obj.dim,
             target_modules=hf_target_modules,
+            target_parameters=hf_target_parameters,
             lora_alpha=self.peft_obj.alpha,
             lora_dropout=self.peft_obj.dropout,
             use_dora=isinstance(self.peft_obj, DoRA),
