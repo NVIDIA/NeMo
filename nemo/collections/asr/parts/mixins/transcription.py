@@ -704,9 +704,9 @@ class ASRTranscriptionMixin(TranscriptionMixin):
             for audio_file in audio_files:
                 if isinstance(audio_file, str):
                     entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                    fp.write(json.dumps(entry) + '\n')
+                    fp.write(json.dumps(entry, ensure_ascii=False) + '\n')
                 elif isinstance(audio_file, dict):
-                    fp.write(json.dumps(audio_file) + '\n')
+                    fp.write(json.dumps(audio_file, ensure_ascii=False) + '\n')
                 else:
                     raise ValueError(
                         f"Input `audio` is of type {type(audio_file)}. "
