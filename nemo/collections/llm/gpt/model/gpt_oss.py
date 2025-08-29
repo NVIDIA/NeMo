@@ -639,33 +639,6 @@ class HFGPTOSSPEFTExporter(HFGPTOSSExporter):
                 ]
             )
 
-        # TE grouped linear
-        num_experts = source.config.num_moe_experts
-        transforms.extend(
-            [
-                io.state_transform(
-                    source_key=f"{pn}*.{p_fc1}.linear_in.weight",
-                    target_key=f"{ph}*.mlp.experts.base_layer.lora_A.default.weight",
-                    fn=lambda x: x.repeat(num_experts, 1),
-                ),
-                io.state_transform(
-                    source_key=f"{pn}*.{p_fc1}.linear_out.weight",
-                    target_key=f"{ph}*.mlp.experts.base_layer.lora_B.default.weight",
-                    fn=lambda x: _uninterleave(x).repeat(1, num_experts),
-                ),
-                io.state_transform(
-                    source_key=f"{pn}*.{p_fc2}.linear_in.weight",
-                    target_key=f"{ph}*.mlp.experts.lora_A.default.weight",
-                    fn=lambda x: x.repeat(num_experts, 1),
-                ),
-                io.state_transform(
-                    source_key=f"{pn}*.{p_fc2}.linear_out.weight",
-                    target_key=f"{ph}*.mlp.experts.lora_B.default.weight",
-                    fn=lambda x: x.repeat(1, num_experts),
-                ),
-            ]
-        )
-
         return io.apply_transforms(
             source,
             target,
@@ -703,17 +676,17 @@ class HFGPTOSSPEFTExporter(HFGPTOSSExporter):
 
         # Infer HF target modules from NeMo target modules
         hf_target_modules = []
-        hf_target_parameters = []
         for tm in self.peft_obj.target_modules:
             if tm in ('linear_fc1', 'linear_fc2'):
-                hf_target_parameters.extend(NEMO2HF[tm])
+                raise ValueError(f"target module {tm} is not supported in LoRA export because the"
+                                 f"NeMo implementation is not interchangeable with the HF "
+                                 f"implementation.")
             else:
                 hf_target_modules.extend(NEMO2HF[tm])
 
         return LoraConfig(
             r=self.peft_obj.dim,
             target_modules=hf_target_modules,
-            target_parameters=hf_target_parameters,
             lora_alpha=self.peft_obj.alpha,
             lora_dropout=self.peft_obj.dropout,
             use_dora=isinstance(self.peft_obj, DoRA),
