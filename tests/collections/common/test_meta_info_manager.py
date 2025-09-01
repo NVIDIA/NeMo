@@ -23,7 +23,7 @@ from nemo.utils.meta_info_manager import (
     _should_enable_for_current_rank,
     get_nemo_v1_callback_config,
     get_nemo_v2_callback_config,
-    get_onelogger_init_config,
+    get_one_logger_init_config,
 )
 
 
@@ -31,10 +31,10 @@ class TestMetaInfoManager:
     """Test cases for meta_info_manager module functions."""
 
     @pytest.mark.unit
-    def test_get_onelogger_init_config(self):
-        """Test get_onelogger_init_config returns correct minimal configuration."""
+    def test_get_one_logger_init_config(self):
+        """Test get_one_logger_init_config returns correct minimal configuration."""
         with patch.dict(os.environ, {"SLURM_JOB_NAME": "test_job", "WORLD_SIZE": "4"}):
-            config = get_onelogger_init_config()
+            config = get_one_logger_init_config()
 
             assert isinstance(config, dict)
             assert config["application_name"] == "nemo-application"
@@ -44,10 +44,10 @@ class TestMetaInfoManager:
             assert config["error_handling_strategy"] == "propagate_exceptions"
 
     @pytest.mark.unit
-    def test_get_onelogger_init_config_no_slurm(self):
-        """Test get_onelogger_init_config when SLURM_JOB_NAME is not set."""
+    def test_get_one_logger_init_config_no_slurm(self):
+        """Test get_one_logger_init_config when SLURM_JOB_NAME is not set."""
         with patch.dict(os.environ, {"WORLD_SIZE": "1"}, clear=True):
-            config = get_onelogger_init_config()
+            config = get_one_logger_init_config()
 
             assert config["session_tag_or_fn"] == "nemo-run"
             assert config["world_size_or_fn"] == 1

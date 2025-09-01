@@ -18,10 +18,10 @@
 import os
 from typing import Any, Dict
 
-enable_onelogger = True
+enable_one_logger = True
 
 
-def get_onelogger_init_config() -> Dict[str, Any]:
+def get_one_logger_init_config() -> Dict[str, Any]:
     """Generate minimal configuration for OneLogger initialization.
 
     This function provides the absolute minimal configuration needed for OneLogger initialization.
