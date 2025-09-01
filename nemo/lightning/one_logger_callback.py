@@ -52,7 +52,7 @@ from nemo.utils.meta_info_manager import (
 # Export all symbols for testing and usage
 __all__ = [
     'hook_class_init_with_callbacks',
-    'get_one_logger_callbacks',
+    'call_one_logger_callback',
     'update_one_logger_config',
     'get_current_time_msec',
     'init_one_logger',
@@ -71,7 +71,7 @@ def get_current_time_msec() -> float:
     return time.time() * 1000
 
 
-def _get_one_logger_callbacks_function(name: str):
+def _call_one_logger_callbacks_function(name: str):
     """Get the OneLogger callback function without calling it.
 
     Args:
@@ -92,15 +92,15 @@ def _get_one_logger_callbacks_function(name: str):
 
 
 # Wrapper functions for OneLogger callbacks
-def get_one_logger_callbacks(name: str, *args, **kwargs):
-    """Get and call the OneLogger callbacks module if available.
+def call_one_logger_callback(name: str, *args, **kwargs):
+    """Call a OneLogger callback function if available.
 
     Args:
         name: The name of the callback to call
         *args: Positional arguments to pass to the callback
         **kwargs: Keyword arguments to pass to the callback
     """
-    function = _get_one_logger_callbacks_function(name)
+    function = _call_one_logger_callbacks_function(name)
     return function(*args, **kwargs)
 
 
@@ -132,9 +132,9 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
         # Mark this instance as being initialized
         self._one_logger_init_started = True
 
-        get_one_logger_callbacks(start_callback, start_time_msec=get_current_time_msec())
+        call_one_logger_callback(start_callback, start_time_msec=get_current_time_msec())
         result = original_init(self, *args, **kwargs)
-        get_one_logger_callbacks(end_callback, finish_time_msec=get_current_time_msec())
+        call_one_logger_callback(end_callback, finish_time_msec=get_current_time_msec())
         return result
 
     # Mark as wrapped to prevent double wrapping
