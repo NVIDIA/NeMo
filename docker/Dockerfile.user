@@ -1,6 +1,10 @@
 # syntax=docker/dockerfile:1
 # check=skip=InvalidDefaultArgInFrom
-ARG BASE_IMAGE_WITH_TAG=nemo:latest
+
+# Installed NeMo version: 2.4.0 (== 2.4.0rc3)
+# Please find the official doc to see the installed versions.
+# https://docs.nvidia.com/nemo-framework/user-guide/latest/softwarecomponentversions.html
+ARG BASE_IMAGE_WITH_TAG=nvcr.io/nvidia/nemo:25.07
 
 FROM ${BASE_IMAGE_WITH_TAG} AS base
 
