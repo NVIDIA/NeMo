@@ -292,8 +292,6 @@ class ExpManagerConfig:
     fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
     # logs TFLOPs per sec per gpu
     log_tflops_per_sec_per_gpu: Optional[bool] = True
-    # OneLogger configuration
-    enable_onelogger: Optional[bool] = True
 
 
 class TimingCallback(Callback):

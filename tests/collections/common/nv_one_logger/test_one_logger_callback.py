@@ -27,30 +27,30 @@ from nemo.lightning.one_logger_callback import (
 
 
 # Decorators for cleaner test setup
-def with_onelogger_enabled(func):
+def with_one_logger_enabled(func):
     """Decorator to enable OneLogger for a test."""
 
     def wrapper(*args, **kwargs):
         with (
-            patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', True),
-            patch('nemo.lightning.one_logger_callback.enable_onelogger', True),
+            patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True),
+            patch('nemo.lightning.one_logger_callback.enable_one_logger', True),
         ):
             return func(*args, **kwargs)
 
     return wrapper
 
 
-def with_onelogger_disabled(func):
+def with_one_logger_disabled(func):
     """Decorator to disable OneLogger for a test."""
 
     def wrapper(*args, **kwargs):
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONELOGGER', False):
+        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', False):
             return func(*args, **kwargs)
 
     return wrapper
 
 
-def with_onelogger_components(func):
+def with_one_logger_components(func):
     """Decorator to mock all OneLogger components."""
 
     def wrapper(*args, **kwargs):
@@ -58,7 +58,7 @@ def with_onelogger_components(func):
             patch('nemo.lightning.one_logger_callback.OneLoggerConfig') as mock_config,
             patch('nemo.lightning.one_logger_callback.OneLoggerNeMoCallback') as mock_callback,
             patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider,
-            patch('nemo.lightning.one_logger_callback.get_onelogger_init_config') as mock_get_config,
+            patch('nemo.lightning.one_logger_callback.get_one_logger_init_config') as mock_get_config,
         ):
 
             # Setup common mocks
@@ -105,15 +105,15 @@ class TestOneLoggerCallback:
         assert isinstance(time2, float)
 
     @pytest.mark.unit
-    @with_onelogger_disabled
-    def test_get_onelogger_callbacks_no_onelogger(self):
+    @with_one_logger_disabled
+    def test_get_one_logger_callbacks_no_one_logger(self):
         """Test get_one_logger_callbacks when OneLogger is not available."""
         result = get_one_logger_callbacks("test_callback")
         assert result is None
 
     @pytest.mark.unit
-    @with_onelogger_enabled
-    def test_get_onelogger_callbacks_with_onelogger(self):
+    @with_one_logger_enabled
+    def test_get_one_logger_callbacks_with_one_logger(self):
         """Test get_one_logger_callbacks when OneLogger is available."""
         with patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
             mock_callback = MagicMock(return_value="callback_result")
@@ -124,8 +124,8 @@ class TestOneLoggerCallback:
             mock_callback.assert_called_once()
 
     @pytest.mark.unit
-    @with_onelogger_enabled
-    def test_get_onelogger_callbacks_attribute_error(self):
+    @with_one_logger_enabled
+    def test_get_one_logger_callbacks_attribute_error(self):
         """Test get_one_logger_callbacks handles AttributeError gracefully."""
         with patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
             mock_cb.test_callback = None
@@ -135,7 +135,7 @@ class TestOneLoggerCallback:
                 get_one_logger_callbacks("test_callback")
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_hook_class_init_with_callbacks_no_init(self):
         """Test hook_class_init_with_callbacks with class that has no __init__ method."""
 
@@ -148,7 +148,7 @@ class TestOneLoggerCallback:
         assert TestClass.__init__._one_logger_wrapped is True
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_hook_class_init_with_callbacks(self):
         """Test hook_class_init_with_callbacks successfully wraps __init__ method."""
 
@@ -164,7 +164,7 @@ class TestOneLoggerCallback:
         assert TestClass.__init__._one_logger_wrapped is True
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_hook_class_init_with_callbacks_double_wrap(self):
         """Test hook_class_init_with_callbacks handles double wrapping gracefully."""
 
@@ -179,7 +179,7 @@ class TestOneLoggerCallback:
         assert TestClass.__init__._one_logger_wrapped is True
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_hook_class_init_with_callbacks_inheritance(self):
         """Test hook_class_init_with_callbacks works with inheritance."""
 
@@ -190,6 +190,7 @@ class TestOneLoggerCallback:
         class DerivedClass(BaseClass):
             def __init__(self, value=0, extra=0):
                 super().__init__(value)
+                super().__init__(value)
                 self.extra = extra
 
         hook_class_init_with_callbacks(DerivedClass, "start_callback", "end_callback")
@@ -199,8 +200,8 @@ class TestOneLoggerCallback:
         assert not hasattr(BaseClass.__init__, '_one_logger_wrapped')
 
     @pytest.mark.unit
-    @with_onelogger_disabled
-    def test_hook_class_init_with_callbacks_no_onelogger(self):
+    @with_one_logger_disabled
+    def test_hook_class_init_with_callbacks_no_one_logger(self):
         """Test hook_class_init_with_callbacks when OneLogger is not available."""
 
         class TestClass:
@@ -214,14 +215,14 @@ class TestOneLoggerCallback:
         assert not hasattr(TestClass.__init__, '_one_logger_wrapped')
 
     @pytest.mark.unit
-    @with_onelogger_disabled
-    def test_init_one_logger_no_onelogger(self):
+    @with_one_logger_disabled
+    def test_init_one_logger_no_one_logger(self):
         """Test init_one_logger when OneLogger is not available."""
         init_one_logger()  # Should not raise any exceptions
 
     @pytest.mark.unit
-    @with_onelogger_enabled
-    @with_onelogger_components
+    @with_one_logger_enabled
+    @with_one_logger_components
     def test_init_one_logger_success(
         self,
         mock_get_config,
@@ -244,14 +245,14 @@ class TestOneLoggerCallback:
         mock_provider_instance.with_base_config.assert_called_once_with(mock_config_instance)
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_init_one_logger_disabled(self):
         """Test init_one_logger when OneLogger is disabled."""
-        with patch('nemo.lightning.one_logger_callback.enable_onelogger', False):
+        with patch('nemo.lightning.one_logger_callback.enable_one_logger', False):
             init_one_logger()  # Should not raise any exceptions
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_init_one_logger_already_configured(self):
         """Test init_one_logger when already configured."""
         with patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider:
@@ -262,7 +263,7 @@ class TestOneLoggerCallback:
             init_one_logger()  # Should not reconfigure
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_update_one_logger_config_nemo_v1(self):
         """Test update_one_logger_config with NeMo v1 configuration."""
         with (
@@ -289,7 +290,7 @@ class TestOneLoggerCallback:
             mock_provider_instance.set_training_telemetry_config.assert_called_once_with(mock_config_instance)
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_update_one_logger_config_nemo_v2(self):
         """Test update_one_logger_config with NeMo v2 configuration."""
         with (
@@ -316,17 +317,17 @@ class TestOneLoggerCallback:
             mock_provider_instance.set_training_telemetry_config.assert_called_once_with(mock_config_instance)
 
     @pytest.mark.unit
-    @with_onelogger_disabled
-    def test_update_one_logger_config_no_onelogger(self):
+    @with_one_logger_disabled
+    def test_update_one_logger_config_no_one_logger(self):
         """Test update_one_logger_config when OneLogger is not available."""
         update_one_logger_config("v1", MagicMock())  # Should not raise any exceptions
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_update_one_logger_config_disabled(self):
         """Test update_one_logger_config when OneLogger is disabled."""
         with (
-            patch('nemo.lightning.one_logger_callback.enable_onelogger', False),
+            patch('nemo.lightning.one_logger_callback.enable_one_logger', False),
             patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider,
             patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig') as mock_config_class,
         ):
@@ -362,7 +363,7 @@ class TestOneLoggerCallback:
             update_one_logger_config("v1", mock_trainer)  # Should not raise any exceptions
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_update_one_logger_config_invalid_version(self):
         """Test update_one_logger_config with invalid version."""
         with (
@@ -402,7 +403,7 @@ class TestOneLoggerCallback:
             update_one_logger_config("invalid", mock_trainer)
 
     @pytest.mark.unit
-    @with_onelogger_enabled
+    @with_one_logger_enabled
     def test_update_one_logger_config_exception_handling(self):
         """Test update_one_logger_config exception handling."""
         with (
@@ -421,8 +422,8 @@ class TestOneLoggerCallback:
                 update_one_logger_config("v1", MagicMock())
 
     @pytest.mark.unit
-    @with_onelogger_enabled
-    @with_onelogger_components
+    @with_one_logger_enabled
+    @with_one_logger_components
     def test_init_one_logger_world_size_in_init_config(
         self,
         mock_get_config,
