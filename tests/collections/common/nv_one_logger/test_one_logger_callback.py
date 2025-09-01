@@ -19,7 +19,7 @@ import pytest
 
 from nemo.lightning.one_logger_callback import (
     get_current_time_msec,
-    get_one_logger_callbacks,
+    call_one_logger_callback,
     hook_class_init_with_callbacks,
     init_one_logger,
     update_one_logger_config,
@@ -106,33 +106,33 @@ class TestOneLoggerCallback:
 
     @pytest.mark.unit
     @with_one_logger_disabled
-    def test_get_one_logger_callbacks_no_one_logger(self):
-        """Test get_one_logger_callbacks when OneLogger is not available."""
-        result = get_one_logger_callbacks("test_callback")
+    def test_call_one_logger_callback_no_one_logger(self):
+        """Test call_one_logger_callback when OneLogger is not available."""
+        result = call_one_logger_callback("test_callback")
         assert result is None
 
     @pytest.mark.unit
     @with_one_logger_enabled
-    def test_get_one_logger_callbacks_with_one_logger(self):
-        """Test get_one_logger_callbacks when OneLogger is available."""
+    def test_call_one_logger_callback_with_one_logger(self):
+        """Test call_one_logger_callback when OneLogger is available."""
         with patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
             mock_callback = MagicMock(return_value="callback_result")
             mock_cb.test_callback = mock_callback
 
-            result = get_one_logger_callbacks("test_callback")
+            result = call_one_logger_callback("test_callback")
             assert result == "callback_result"
             mock_callback.assert_called_once()
 
     @pytest.mark.unit
     @with_one_logger_enabled
-    def test_get_one_logger_callbacks_attribute_error(self):
-        """Test get_one_logger_callbacks handles AttributeError gracefully."""
+    def test_call_one_logger_callback_attribute_error(self):
+        """Test call_one_logger_callback handles AttributeError gracefully."""
         with patch('nemo.lightning.one_logger_callback.CB') as mock_cb:
             mock_cb.test_callback = None
             del mock_cb.test_callback
 
             with pytest.raises(AttributeError, match="OneLogger has no attribute test_callback"):
-                get_one_logger_callbacks("test_callback")
+                call_one_logger_callback("test_callback")
 
     @pytest.mark.unit
     @with_one_logger_enabled
