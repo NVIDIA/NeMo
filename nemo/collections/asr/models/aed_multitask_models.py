@@ -644,6 +644,19 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         Supported Datasets:
             -   :class:`~nemo.collections.asr.data.audio_to_text_lhotse_prompted.PromptedAudioToTextLhotseDataset`
         """
+        # Check if validation should be skipped
+        if val_data_config is None:
+            logging.info("Validation data config is None. Skipping validation data setup.")
+            self._validation_dl = None
+            return
+            
+        # Check if manifest_filepath is None or empty
+        manifest_filepath = val_data_config.get('manifest_filepath', None)
+        if manifest_filepath is None or (isinstance(manifest_filepath, (list, tuple)) and not manifest_filepath):
+            logging.info("Validation manifest_filepath is None or empty. Skipping validation data setup.")
+            self._validation_dl = None
+            return
+            
         if 'shuffle' not in val_data_config:
             val_data_config['shuffle'] = False
 
@@ -660,6 +673,19 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         Supported Datasets:
             -   :class:`~nemo.collections.asr.data.audio_to_text_lhotse_prompted.PromptedAudioToTextLhotseDataset`
         """
+        # Check if test should be skipped
+        if test_data_config is None:
+            logging.info("Test data config is None. Skipping test data setup.")
+            self._test_dl = None
+            return
+            
+        # Check if manifest_filepath is None or empty
+        manifest_filepath = test_data_config.get('manifest_filepath', None)
+        if manifest_filepath is None or (isinstance(manifest_filepath, (list, tuple)) and not manifest_filepath):
+            logging.info("Test manifest_filepath is None or empty. Skipping test data setup.")
+            self._test_dl = None
+            return
+            
         if 'shuffle' not in test_data_config:
             test_data_config['shuffle'] = False
 

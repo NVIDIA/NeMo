@@ -13,6 +13,7 @@
 # limitations under the License.
 import logging
 import math
+import os
 import random
 import tarfile
 from collections import deque
@@ -482,11 +483,46 @@ def default_multimodal_conversation_prompt_format_fn(example: NeMoMultimodalConv
         key=lambda turn: turn["role"],
     )
     turns = [(k, list(v)) for k, v in turns]
-    turns = [
-        {"role": role, "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)}}
-        for role, turn_grp in turns
-    ]
-    return prompt.encode_dialog(turns)
+    formatted_turns = []
+    
+    for role, turn_grp in turns:
+        message = " ".join(t["slots"]["message"] for t in turn_grp if t["slots"]["message"])
+        
+        # Use appropriate slot names based on role and prompt format
+        if hasattr(prompt, 'NAME') and prompt.NAME in ['canary', 'canary2']:
+            if role == "user":
+                slots = {
+                    "message": message,
+                    "source_lang": "en",  # Default source language
+                    "target_lang": "en",  # Default target language  
+                    "task": "asr",        # Default task (transcribe)
+                    "pnc": "yes",         # Default punctuation and capitalization
+                    prompt.PROMPT_LANGUAGE_SLOT: "spl_tokens",  # Use special tokenizer for user prompts
+                }
+                # Add Canary2-specific slots if needed
+                if prompt.NAME == 'canary2':
+                    slots.update({
+                        "decodercontext": "",
+                        "emotion": "<|emo:undefined|>",
+                        "itn": "<|noitn|>", 
+                        "timestamp": "<|notimestamp|>",
+                        "diarize": "<|nodiarize|>",
+                    })
+            elif role == "assistant":
+                # Assistant role uses 'text' slot in Canary format
+                slots = {
+                    "text": message,
+                    prompt.PROMPT_LANGUAGE_SLOT: "en",  # Use target language for assistant responses
+                }
+            else:
+                slots = {"message": message}
+        else:
+            # For non-Canary formats, use 'message' slot
+            slots = {"message": message}
+        
+        formatted_turns.append({"role": role, "slots": slots})
+    
+    return prompt.encode_dialog(formatted_turns)
 
 
 @dataclass
@@ -691,6 +727,8 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                     recording, audio_path = next(tar)
                     audio_path = str(audio_path)
                     cut = recording.to_cut()
+                    if audio_path == os.path.basename(turn['value']):
+                        turn['value'] = audio_path
                     assert (
                         audio_path == turn['value']
                     ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}"

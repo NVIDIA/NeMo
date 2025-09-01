@@ -54,6 +54,7 @@ from nemo.collections.common.data.lhotse.sampling import (
     TokenPerTokenFilter,
 )
 from nemo.collections.common.data.prompt_fn import apply_prompt_format_fn
+from nemo.collections.common.data.lhotse.text_adapters import NeMoMultimodalConversation
 from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
 from nemo.utils import logging
@@ -761,6 +762,11 @@ def tokenize(example, tokenizer):
         for s in example.supervisions:
             if s.text is not None:
                 s.tokens = np.asarray(tokenizer(s.text, s.language))
+    elif isinstance(example, NeMoMultimodalConversation):
+        # NeMoMultimodalConversation objects are handled by prompt formatting, not direct tokenization
+        # They will be tokenized later in the prompt formatting step
+        # Following speechlm approach: return the example unchanged
+        return example
     elif hasattr(example, "tokenize") and callable(example.tokenize):
         example = example.tokenize(tokenizer)
     else:

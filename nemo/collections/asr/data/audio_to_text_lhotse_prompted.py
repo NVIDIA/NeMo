@@ -49,7 +49,7 @@ class PromptedAudioToTextMiniBatch:
 class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     """
     This dataset is based on :class:`~nemo.collections.asr.data.audio_to_text_lhotse.LhotseSpeechToTextBpeDataset`.
-    It is a Lhotse-style dataset that converts a mini-batch of Cuts into tensors.
+    It is a Lhotse-style dataset that converts a mini-batch of Cuts or NeMoMultimodalConversation objects into tensors.
     The main difference from ``LhotseSpeechToTextBpeDataset`` is that we introduce
     a special prompt format for multitask encoder-decoder models.
 
@@ -61,6 +61,12 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
     Tokenized utterances will be extended with special prompt tokens according to ``prompt_format_fn`` logic.
     We support cuts with multiple supervision segments -- their tokenized texts will be concatenated before we add the prompt tokens.
     This is useful, for example, in code-switched scenarios where each segment is spoken in a different language.
+
+    NeMoMultimodalConversation Support:
+    This dataset now supports NeMoMultimodalConversation objects from ShareGPT format data.
+    When the input contains NeMoMultimodalConversation objects instead of regular Cut objects,
+    the dataset will automatically handle the multimodal conversation structure, extracting
+    audio from AudioTurn objects and processing them appropriately.
 
     Chunking:
     If `enable_chunking` is True, each audio sample is split into optimally sized chunks
@@ -81,8 +87,18 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         self.prompt = prompt
         self.enable_chunking = enable_chunking
 
-    def __getitem__(self, cuts: CutSet) -> PromptedAudioToTextMiniBatch:
-        audio, audio_lens, cuts = self.load_audio(cuts)
+    def __getitem__(self, cuts: CutSet) -> Optional[PromptedAudioToTextMiniBatch]:
+        # Check if we have NeMoMultimodalConversation objects or regular Cut objects
+        if cuts and isinstance(cuts[0], NeMoMultimodalConversation):
+            # Handle NeMoMultimodalConversation objects
+            audio, audio_lens, cuts = collate_conversation_audio_fault_tolerant(cuts)
+            
+            # Return None if all conversations failed to load (similar to speechlm2 approach)
+            if not cuts:
+                return None
+        else:
+            # Handle regular Cut objects
+            audio, audio_lens, cuts = self.load_audio(cuts)
 
         # Will work if batch_size is set to 1.
         if self.enable_chunking:
@@ -227,11 +243,16 @@ def _drop_in_memory_data(
     cuts: CutSet,
     _fields=frozenset(MixedCut.__dataclass_fields__.keys()),
 ) -> CutSet:
-    """Workaround for an edge case in cuts.drop_in_memory_data() on MixedCut with Lhotse<1.29.0"""
+    """Workaround for an edge case in cuts.drop_in_memory_data() on MixedCut with Lhotse<1.29.0
+    Also handles NeMoMultimodalConversation objects which don't have drop_in_memory_data method."""
     ans = []
     for c in cuts:
+        # Handle NeMoMultimodalConversation objects - they don't have drop_in_memory_data method
+        if isinstance(c, NeMoMultimodalConversation):
+            # For conversations, we just return them as-is since they don't store audio in memory
+            ans.append(c)
         # Not a mixed cut or a mixed cut that wasn't assigned any extra attributes.
-        if not isinstance(c, MixedCut) or _fields.issuperset(c.__dict__.keys()):
+        elif not isinstance(c, MixedCut) or _fields.issuperset(c.__dict__.keys()):
             ans.append(c.drop_in_memory_data())
         else:
             extra_attrs = {k: v for k, v in c.__dict__.items() if k not in _fields}

@@ -50,6 +50,8 @@ def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bo
 
     Returns a tuple of ``CutSet`` and a boolean indicating whether the data is tarred (True) or not (False).
     """
+    print("read_cutset_from_config"*10)
+    print(config)
     # First, check if the dataset is specified in the new configuration format and use it if possible.
     if not isinstance(config, DictConfig):
         config = DictConfig(config)
