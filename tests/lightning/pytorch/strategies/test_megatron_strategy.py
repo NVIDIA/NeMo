@@ -16,7 +16,31 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from megatron.core.distributed import DistributedDataParallelConfig
+
 from nemo.lightning.pytorch.strategies import MegatronStrategy
+
+
+def get_metadata(
+    ckpt_save_pre_mcore_014: bool = None,
+    ckpt_parallel_save_optim: bool = None,
+    ckpt_optim_fully_reshardable: bool = None,
+) -> dict:
+    if ckpt_save_pre_mcore_014:
+        metadata = {'singleton_local_shards': False}
+        if ckpt_parallel_save_optim:
+            metadata ['distrib_optim_sharding_type'] = 'fully_sharded_model_space'
+        else:
+            metadata['distrib_optim_sharding_type'] = 'dp_zero_gather_scatter'
+    else:
+        metadata = {'singleton_local_shards': True}
+        if ckpt_optim_fully_reshardable:
+            metadata['distrib_optim_sharding_type'] = 'fully_reshardable'
+            metadata['distrib_optim_fully_reshardable_mem_efficient'] = False
+        else:
+            metadata['distrib_optim_sharding_type'] = 'dp_reshardable'
+
+    return metadata
 
 
 class TestMegatronStrategy:
@@ -67,3 +91,24 @@ class TestMegatronStrategy:
         checkpoint = {"other": 123}
         strategy.load_model_state_dict(checkpoint)
         strategy.optimizers[0].reload_model_params.assert_called_once_with(checkpoint)
+    
+    def test_sharded_state_dict_metadata(self):
+        strategy = MegatronStrategy(ckpt_save_pre_mcore_014=False, ckpt_parallel_save_optim=True)
+
+        ddp = DistributedDataParallelConfig(use_distributed_optimizer=True)
+
+        strategy = MegatronStrategy(ckpt_save_pre_mcore_014=True, ckpt_parallel_save_optim=True, ddp=ddp)
+        metadata = strategy.sharded_state_dict_metadata
+        assert metadata == get_metadata(ckpt_save_pre_mcore_014=True, ckpt_parallel_save_optim=True)
+
+        strategy = MegatronStrategy(ckpt_save_pre_mcore_014=True, ddp=ddp)
+        metadata = strategy.sharded_state_dict_metadata
+        assert metadata == get_metadata(ckpt_save_pre_mcore_014=True)
+
+        strategy = MegatronStrategy(ckpt_optim_fully_reshardable=True, ddp=ddp)
+        metadata = strategy.sharded_state_dict_metadata
+        assert metadata == get_metadata(ckpt_optim_fully_reshardable=True)
+
+        strategy = MegatronStrategy(ddp=ddp)
+        metadata = strategy.sharded_state_dict_metadata
+        assert metadata == get_metadata()
