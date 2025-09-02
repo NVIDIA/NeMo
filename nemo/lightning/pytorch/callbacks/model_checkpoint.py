@@ -573,7 +573,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
             ValueError: (mcore) async_save with EMA not supported
             ValueError: (mcore) Async save requires async compatible CheckpointIO
         """
-        # Call OneLogger checkpoint start callback
+        # Notify OneLogger of checkpoint start for telemetry tracking and performance monitoring
         call_one_logger_callback("on_save_checkpoint_start", global_step=trainer.global_step)
 
         from nemo.utils.get_rank import is_global_rank_zero
@@ -606,7 +606,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                     rank_zero_info(f"Saving EMA weights to separate checkpoint {filepath}")
                 super()._save_checkpoint(trainer, filepath)
             self.remove_checkpoint_unfinished_marker(filepath, barrier_before=True)
-            # Call OneLogger checkpoint success callback
+            # Notify OneLogger of successful EMA checkpoint completion
             call_one_logger_callback("on_save_checkpoint_success", global_step=trainer.global_step)
         else:
             # Determine whether to include optimizer states in the checkpoint
@@ -647,9 +647,9 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 logging.info(f'Scheduled async checkpoint save for {filepath}')
             else:
                 finalize_fn()
-                # Call OneLogger checkpoint success callback for sync checkpointing
+                # Notify OneLogger of successful sync checkpoint completion
                 call_one_logger_callback("on_save_checkpoint_success", global_step=trainer.global_step)
-            # Call OneLogger checkpoint end callback
+            # Always notify OneLogger that checkpointing phase is complete for consistent telemetry tracking
             call_one_logger_callback("on_save_checkpoint_end")
 
     def _get_finalize_save_checkpoint_callback(
@@ -674,7 +674,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
                 return
 
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
-            # Call OneLogger checkpoint success callback for async checkpointing
+            # Notify OneLogger of successful async checkpoint completion
             call_one_logger_callback("on_save_checkpoint_success", global_step=trainer.global_step)
 
             if str(filepath) in self.ckpts_to_link:

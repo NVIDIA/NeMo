@@ -51,7 +51,7 @@ class FNMixin:
     """
 
     def __init_subclass__(cls, **kwargs):
-        # Add OneLogger timing hooks for LightningModule subclasses
+        # Add OneLogger timing hooks for LightningModule subclasses to enable telemetry tracking
         try:
             import lightning.pytorch as pl
 

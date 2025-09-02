@@ -189,7 +189,7 @@ class IOMixin:
     def __init_subclass__(cls):
         _io_register_serialization(cls)
 
-        # Add OneLogger timing hooks for data modules
+        # Add OneLogger timing hooks for data modules to enable telemetry tracking
         try:
             import lightning.pytorch as pl
 
