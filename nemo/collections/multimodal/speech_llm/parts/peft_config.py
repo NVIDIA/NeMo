@@ -37,7 +37,6 @@ from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters imp
     LoraDenseAttentionAdapterConfig,
     LoraHto4HAdapterConfig,
     LoraKQVAdapterConfig,
-    LoraKQVAdapterWeightTyingConfig,
     LoraMoe4HtoHAdapterConfig,
     LoraMoeHto4HAdapterConfig,
     LoraUnfusedHto4HAdapterConfig,

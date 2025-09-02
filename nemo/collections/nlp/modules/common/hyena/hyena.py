@@ -31,6 +31,9 @@
 # https://github.com/HazyResearch/safari/blob/flashfftconv/src/models/sequence/hyena.py
 # https://github.com/athms/mad-lab/blob/main/mad/model/layers/hyena.py
 
+# flake8: noqa
+# pylint: skip-file
+
 from dataclasses import dataclass
 from typing import Union, Optional
 

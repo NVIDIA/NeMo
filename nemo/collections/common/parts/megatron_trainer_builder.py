@@ -17,7 +17,6 @@ from typing import Optional, Union
 
 from lightning.fabric.utilities.exceptions import MisconfigurationException
 from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import ModelSummary
 from lightning.pytorch.plugins.environments import TorchElasticEnvironment
 from omegaconf import DictConfig, open_dict
 
