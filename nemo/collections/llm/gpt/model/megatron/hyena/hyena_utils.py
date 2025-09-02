@@ -57,8 +57,8 @@ try:
     from subquadratic_ops.b2b_causal_conv1d import b2b_causal_conv1d
     from subquadratic_ops.causal_conv1d import causal_conv1d
     from subquadratic_ops.fft_causal_conv1d import fft_causal_conv1d
-    from subquadratic_ops.implicit_filter import implicit_filter
     from subquadratic_ops.fft_causal_conv1d import short_fft_is_available as is_fused_supported
+    from subquadratic_ops.implicit_filter import implicit_filter
 except ImportError:
 
     def causal_conv1d(*args, **kwargs):
@@ -540,12 +540,13 @@ class ImplicitModalFilter(nn.Module):
             self.t = None
         else:
             # Do not register into buffer, so it doesn't cast to BF16!
-            self.t = torch.arange(L_cache, dtype=torch.float32, device=self.device).view(
-                1, 1, -1
-            )  # 1, 1, L_cache
+            self.t = torch.arange(L_cache, dtype=torch.float32, device=self.device).view(1, 1, -1)  # 1, 1, L_cache
 
         with get_cuda_rng_tracker().fork():
-            gamma = torch.rand(self.d_model, order, dtype=torch.float32, device=self.device) * (gamma_max - gamma_min) + gamma_min
+            gamma = (
+                torch.rand(self.d_model, order, dtype=torch.float32, device=self.device) * (gamma_max - gamma_min)
+                + gamma_min
+            )
             gamma = gamma.log()
             self.gamma = nn.Parameter(gamma)
 

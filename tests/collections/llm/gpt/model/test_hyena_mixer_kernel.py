@@ -14,8 +14,8 @@
 # limitations under the License.
 
 
-import copy
 import contextlib
+import copy
 import importlib.util
 import os
 
@@ -25,6 +25,7 @@ import torch.distributed as dist
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+
 from nemo.collections.llm.gpt.model.hyena import HyenaNVTestConfig, HyenaTestConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec_no_te
@@ -232,8 +233,16 @@ def test_implicit_filter(mixer_kernel_hyena_only: MixerModuleWrapper):
     # Verify forward pass output properties
     assert filter_output is not None, "Filter output should not be None"
     assert reference_output is not None, "Reference filter output should not be None"
-    assert filter_output.shape == (1, filter_obj.d_model, L), f"Filter output should have shape (1, {filter_obj.d_model}, {L}), got {filter_output.shape}"
-    assert reference_output.shape == (1, filter_obj.d_model, L), f"Reference filter output should have shape (1, {filter_obj.d_model}, {L}), got {reference_output.shape}"
+    assert filter_output.shape == (
+        1,
+        filter_obj.d_model,
+        L,
+    ), f"Filter output should have shape (1, {filter_obj.d_model}, {L}), got {filter_output.shape}"
+    assert reference_output.shape == (
+        1,
+        filter_obj.d_model,
+        L,
+    ), f"Reference filter output should have shape (1, {filter_obj.d_model}, {L}), got {reference_output.shape}"
 
     # Compare forward outputs between the two implementations
     torch.testing.assert_close(filter_output, reference_output, msg=f"Filter outputs do not match for L={L}")
