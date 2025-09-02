@@ -1058,7 +1058,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer
         )
         force_pre_mcore_014 = not is_torch_min_version("2.6a0")
-        print(force_pre_mcore_014)
         if force_pre_mcore_014:
             logging.warning(
                 f"PyTorch version {get_torch_version()} below 2.6 detected."
