@@ -31,9 +31,9 @@ try:
         TimeEventCallback as OneLoggerNeMoCallback,
     )
 
-    HAVE_ONE_LOGGER = True
+    _HAVE_ONE_LOGGER = True
 except (ImportError, ModuleNotFoundError):
-    HAVE_ONE_LOGGER = False
+    _HAVE_ONE_LOGGER = False
     CB = None
     TrainingTelemetryProvider = None
     OneLoggerConfig = None
@@ -56,7 +56,6 @@ __all__ = [
     'update_one_logger_config',
     'get_current_time_msec',
     'init_one_logger',
-    'HAVE_ONE_LOGGER',
 ]
 
 _ONE_LOGGER_CALLBACK = None
@@ -83,12 +82,12 @@ def _call_one_logger_callbacks_function(name: str):
     def _noop(*args, **kwargs):
         pass
 
-    if not HAVE_ONE_LOGGER:
+    if not _HAVE_ONE_LOGGER:
         return _noop
     if hasattr(CB, name):
         return getattr(CB, name)
     else:
-        raise AttributeError(f"OneLogger has no attribute {name}")
+        raise AttributeError(f"Invalid one_logger callback name: {name}")
 
 
 # Wrapper functions for OneLogger callbacks
@@ -112,7 +111,7 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
         start_callback (str): The name of the callback to call at the start of __init__.
         end_callback (str): The name of the callback to call at the end of __init__.
     """
-    if not HAVE_ONE_LOGGER or not hasattr(cls, '__init__'):
+    if not _HAVE_ONE_LOGGER or not hasattr(cls, '__init__'):
         return
 
     original_init = cls.__init__
@@ -154,9 +153,9 @@ def init_one_logger() -> None:
     - Exporters are configured via entry points
     """
     global _ONE_LOGGER_CALLBACK
-    global HAVE_ONE_LOGGER
+    global _HAVE_ONE_LOGGER
 
-    if not HAVE_ONE_LOGGER:
+    if not _HAVE_ONE_LOGGER:
         return
 
     # Check if OneLogger is enabled
@@ -178,7 +177,7 @@ def init_one_logger() -> None:
         ).with_export_config().configure_provider()
         _ONE_LOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
     except Exception:
-        HAVE_ONE_LOGGER = False
+        _HAVE_ONE_LOGGER = False
 
 
 def update_one_logger_config(
@@ -198,7 +197,7 @@ def update_one_logger_config(
         kwargs: Additional keyword arguments to pass to the telemetry config generator.
     """
     # Check if TrainingTelemetryProvider is already configured
-    if not HAVE_ONE_LOGGER or not TrainingTelemetryProvider.instance().one_logger_ready:
+    if not _HAVE_ONE_LOGGER:
         return
 
     if nemo_version == 'v1':
@@ -223,7 +222,7 @@ def update_one_logger_config(
         if not has_one_logger_callback and _ONE_LOGGER_CALLBACK is not None:
             # Create the callback with metadata
             one_logger_callback = _ONE_LOGGER_CALLBACK
-            trainer.callbacks.append(one_logger_callback)
+            trainer.callbacks.insert(0, one_logger_callback)
 
 
 # Initialize OneLogger when this module is imported

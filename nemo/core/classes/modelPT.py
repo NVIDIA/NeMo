@@ -478,7 +478,7 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
-        # OneLogger hook for checkpoint loading start
+        # Notify OneLogger of checkpoint loading start for telemetry tracking
         call_one_logger_callback('on_load_checkpoint_start')
 
         if save_restore_connector is None:
@@ -514,7 +514,7 @@ class ModelPT(LightningModule, Model):
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
 
-        # OneLogger hook for checkpoint loading end
+        # Notify OneLogger of checkpoint loading completion for telemetry tracking
         call_one_logger_callback('on_load_checkpoint_end')
 
         return instance
@@ -533,7 +533,7 @@ class ModelPT(LightningModule, Model):
         Loads ModelPT from checkpoint, with some maintenance of restoration.
         For documentation, please refer to LightningModule.load_from_checkpoint() documentation.
         """
-        # OneLogger hook for checkpoint loading start
+        # Notify OneLogger of checkpoint loading start for telemetry tracking
         call_one_logger_callback('on_load_checkpoint_start')
 
         checkpoint = None
@@ -552,7 +552,7 @@ class ModelPT(LightningModule, Model):
         finally:
             cls._set_model_restore_state(is_being_restored=False)
 
-        # OneLogger hook for checkpoint loading end
+        # Notify OneLogger of checkpoint loading completion for telemetry tracking
         call_one_logger_callback('on_load_checkpoint_end')
 
         return checkpoint

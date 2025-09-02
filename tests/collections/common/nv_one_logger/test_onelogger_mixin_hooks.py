@@ -30,7 +30,7 @@ class TestOneLoggerMixinHooks:
         """Test that __init_subclass__ hooks callbacks for LightningModule subclasses."""
 
         # Mock OneLogger to be available
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             # Create a test class that inherits from FNMixin and LightningModule
             class FakeModel(FNMixin, LightningModule):
                 def __init__(self, value=0):
@@ -46,7 +46,7 @@ class TestOneLoggerMixinHooks:
         """Test that __init_subclass__ doesn't hook callbacks when OneLogger is not available."""
 
         # Mock OneLogger to be unavailable
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', False):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', False):
             # Create a test class that inherits from FNMixin and LightningModule
             class FakeModel(FNMixin, LightningModule):
                 def __init__(self, value=0):
@@ -61,7 +61,7 @@ class TestOneLoggerMixinHooks:
         """Test that __init_subclass__ doesn't hook callbacks for non-LightningModule classes."""
 
         # Mock OneLogger to be available
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             # Create a test class that inherits from FNMixin but not LightningModule
             class FakeNonLightningModel(FNMixin, nn.Module):
                 def __init__(self, value=0):
@@ -75,7 +75,7 @@ class TestOneLoggerMixinHooks:
     def test_init_subclass_import_error_handling(self):
         """Test that __init_subclass__ handles import errors gracefully."""
         # Mock OneLogger to be available but make the import fail
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             with patch('nemo.lightning.one_logger_callback.hook_class_init_with_callbacks') as mock_hook:
                 # Mock the hook function to raise an import error
                 mock_hook.side_effect = ImportError("Failed to import hook function")
@@ -94,7 +94,7 @@ class TestOneLoggerMixinHooks:
     def test_init_subclass_hook_function_import_error(self):
         """Test that __init_subclass__ handles hook function import errors gracefully."""
         # Mock OneLogger to be available but make the hook function import fail
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             with patch('nemo.lightning.one_logger_callback.hook_class_init_with_callbacks') as mock_hook:
                 # Mock the hook function to raise an import error
                 mock_hook.side_effect = ImportError("Failed to import hook function")
@@ -114,7 +114,7 @@ class TestOneLoggerMixinHooks:
         """Test that the hooked callbacks are executed during model initialization."""
 
         # Mock OneLogger to be available
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             # Create a test class
             class FakeModel(FNMixin, LightningModule):
                 def __init__(self, value=0):
@@ -129,7 +129,7 @@ class TestOneLoggerMixinHooks:
         """Test that no callbacks are executed when OneLogger is not available."""
 
         # Mock OneLogger to be unavailable
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', False):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', False):
             # Create a test class
             class FakeModel(FNMixin, LightningModule):
                 def __init__(self, value=0):
@@ -148,7 +148,7 @@ class TestOneLoggerMixinHooks:
                 self.base_value = "base"
 
         # Mock OneLogger to be available
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             # Use proper inheritance order - LightningModule should come first for proper MRO
             class FakeModelWithMultipleInheritance(BaseClass, FNMixin, LightningModule):
                 def __init__(self, value=0):
@@ -167,7 +167,7 @@ class TestOneLoggerMixinHooks:
                 self.base_value = "base"
 
         # Mock OneLogger to be unavailable
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', False):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', False):
             # Use proper inheritance order - LightningModule should come first for proper MRO
             class FakeModelWithMultipleInheritance(BaseClass, FNMixin, LightningModule):
                 def __init__(self, value=0):
@@ -187,7 +187,7 @@ class TestOneLoggerMixinHooks:
         """Test that __init_subclass__ works correctly with classes that have no __init__ method."""
 
         # Mock OneLogger to be available
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             # Create a test class with no __init__ method
             class FakeModelNoInit(FNMixin, LightningModule):
                 pass
@@ -200,7 +200,7 @@ class TestOneLoggerMixinHooks:
         """Test that __init_subclass__ works correctly with classes that have no __init__ method when OneLogger is not available."""
 
         # Mock OneLogger to be unavailable
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', False):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', False):
             # Create a test class with no __init__ method
             class FakeModelNoInit(FNMixin, LightningModule):
                 pass
@@ -213,7 +213,7 @@ class TestOneLoggerMixinHooks:
         """Test that IOMixin hooks callbacks for LightningDataModule subclasses."""
 
         # Mock OneLogger to be available
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             # Create a test class that inherits from IOMixin and LightningDataModule
             # Note: IOMixin checks for LightningDataModule, so we need to inherit from both
             class FakeDataModule(IOMixin, LightningDataModule):
@@ -230,7 +230,7 @@ class TestOneLoggerMixinHooks:
         """Test that IOMixin doesn't hook callbacks when OneLogger is not available."""
 
         # Mock OneLogger to be unavailable
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', False):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', False):
             # Create a test class that inherits from IOMixin and LightningDataModule
             class FakeDataModule(IOMixin, LightningModule):
                 def __init__(self, value=0):
@@ -245,7 +245,7 @@ class TestOneLoggerMixinHooks:
         """Test that IOMixin doesn't hook callbacks for non-LightningDataModule classes."""
 
         # Mock OneLogger to be available
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             # Create a test class that inherits from IOMixin but not LightningDataModule
             class FakeNonDataModule(IOMixin, nn.Module):
                 def __init__(self, value=0):
@@ -259,7 +259,7 @@ class TestOneLoggerMixinHooks:
     def test_io_mixin_import_error_handling(self):
         """Test that IOMixin handles import errors gracefully."""
         # Mock OneLogger to be available but make the import fail
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             with patch('nemo.lightning.one_logger_callback.hook_class_init_with_callbacks') as mock_hook:
                 # Mock the hook function to raise an import error
                 mock_hook.side_effect = ImportError("Failed to import hook function")
@@ -278,7 +278,7 @@ class TestOneLoggerMixinHooks:
     def test_io_mixin_hook_function_import_error(self):
         """Test that IOMixin handles hook function import errors gracefully."""
         # Mock OneLogger to be available but make the hook function import fail
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True):
             with patch('nemo.lightning.one_logger_callback.hook_class_init_with_callbacks') as mock_hook:
                 # Mock the hook function to raise an import error
                 mock_hook.side_effect = ImportError("Failed to import hook function")

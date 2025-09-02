@@ -32,7 +32,7 @@ def with_one_logger_enabled(func):
 
     def wrapper(*args, **kwargs):
         with (
-            patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', True),
+            patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', True),
             patch('nemo.lightning.one_logger_callback.enable_one_logger', True),
         ):
             return func(*args, **kwargs)
@@ -44,7 +44,7 @@ def with_one_logger_disabled(func):
     """Decorator to disable OneLogger for a test."""
 
     def wrapper(*args, **kwargs):
-        with patch('nemo.lightning.one_logger_callback.HAVE_ONE_LOGGER', False):
+        with patch('nemo.lightning.one_logger_callback._HAVE_ONE_LOGGER', False):
             return func(*args, **kwargs)
 
     return wrapper

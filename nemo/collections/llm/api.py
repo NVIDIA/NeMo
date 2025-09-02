@@ -1260,7 +1260,7 @@ def _setup(
         task_config=getattr(train, "__io__", None),
     )
 
-    # Configure OneLogger callback
+    # Configure OneLogger for telemetry tracking during training
     update_one_logger_config(nemo_version='v2', trainer=trainer, data=data)
 
     if resume is not None:
