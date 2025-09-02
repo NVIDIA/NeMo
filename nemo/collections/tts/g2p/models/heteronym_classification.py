@@ -15,16 +15,16 @@
 
 import json
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
+from torch import Tensor
 from hydra.utils import instantiate
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 
 from nemo.collections.common.losses import CrossEntropyLoss
 from nemo.collections.nlp.modules.common import TokenClassifier
-from nemo.collections.nlp.parts.utils_funcs import tensor2list
 from nemo.collections.tts.g2p.data.heteronym_classification import HeteronymClassificationDataset
 from nemo.collections.tts.g2p.utils import get_heteronym_spans, get_wordid_to_phonemes, read_wordids
 from nemo.collections.tts.metrics.classification_report import ClassificationReport
@@ -39,6 +39,11 @@ except (ModuleNotFoundError, ImportError):
     NLP_AVAILABLE = False
 
 __all__ = ['HeteronymClassificationModel']
+
+
+def tensor2list(tensor: Tensor) -> List[Union[int, float]]:
+    """Converts tensor to a list"""
+    return tensor.detach().cpu().tolist()
 
 
 class HeteronymClassificationModel(NLPModel):
