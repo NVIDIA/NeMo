@@ -29,7 +29,7 @@ def get_metadata(
     if ckpt_save_pre_mcore_014:
         metadata = {'singleton_local_shards': False}
         if ckpt_parallel_save_optim:
-            metadata ['distrib_optim_sharding_type'] = 'fully_sharded_model_space'
+            metadata['distrib_optim_sharding_type'] = 'fully_sharded_model_space'
         else:
             metadata['distrib_optim_sharding_type'] = 'dp_zero_gather_scatter'
     else:
@@ -91,7 +91,7 @@ class TestMegatronStrategy:
         checkpoint = {"other": 123}
         strategy.load_model_state_dict(checkpoint)
         strategy.optimizers[0].reload_model_params.assert_called_once_with(checkpoint)
-    
+
     def test_sharded_state_dict_metadata(self):
         strategy = MegatronStrategy(ckpt_save_pre_mcore_014=False, ckpt_parallel_save_optim=True)
 
