@@ -170,7 +170,8 @@ class MegatronTrainerBuilder:
         """
         if callbacks is None:
             callbacks = []
-        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
+        # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False,
+        # CustomProgressBar is not appended to callbacks
         if 'enable_progress_bar' not in self.cfg.trainer or self.cfg.trainer.enable_progress_bar:
             callbacks.append(CustomProgressBar())
 
@@ -185,6 +186,7 @@ class MegatronTrainerBuilder:
         return callbacks
 
     def create_trainer(self, callbacks=None) -> Trainer:
+        """ """
         # Make a dummy train step if skip_train
         if self.cfg.model.get("skip_train", False):
             self.cfg.trainer.max_steps = 1
@@ -194,7 +196,8 @@ class MegatronTrainerBuilder:
                 self.cfg.trainer.num_sanity_val_steps = 0
             self.cfg.exp_manager.create_checkpoint_callback = False
 
-        # cfg.trainer.precision becomes None in Trainer if precision_plugins exist since both precision plugins and precision
+        # cfg.trainer.precision becomes None in Trainer if precision_plugins exist
+        # since both precision plugins and precision
         precision = self.cfg.trainer.precision
         strategy = self._training_strategy()
         plugins = self._plugins()
