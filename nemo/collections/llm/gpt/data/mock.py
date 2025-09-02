@@ -100,7 +100,7 @@ class MockDataModule(pl.LightningDataModule):
             rampup_batch_size=rampup_batch_size,
         )
 
-        call_one_logger_callbacks("on_dataloader_init_end")
+        call_one_logger_callback("on_dataloader_init_end")
 
     def setup(self, stage: str = "") -> None:
         """
