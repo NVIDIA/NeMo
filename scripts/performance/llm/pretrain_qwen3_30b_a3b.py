@@ -74,6 +74,8 @@ def override_recipe_configs(
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        use_te_act_func=args.use_te_act_func,
+        act_func_fp8_input_store=args.act_func_fp8_input_store,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "qwen3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name

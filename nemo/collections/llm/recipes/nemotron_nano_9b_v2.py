@@ -56,7 +56,7 @@ def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
         return run.Config(
             get_nmt_tokenizer,
             library='huggingface',
-            model_name="nvidia/NVIDIA-Nemotron-Nano-9B-v2",
+            model_name="nvidia/NVIDIA-Nemotron-Nano-9B-v2-Base",
             use_fast=True,
         )
 

@@ -100,6 +100,8 @@ def override_recipe_configs(
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        use_te_act_func=args.use_te_act_func,
+        act_func_fp8_input_store=args.act_func_fp8_input_store,
     )
 
     recipe = set_exp_logging_configs(
