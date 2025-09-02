@@ -25,7 +25,7 @@ from typing import Iterator, Literal, Optional, Sequence, Union
 import numpy as np
 import torch
 from lhotse import CutSet, Recording
-from lhotse.audio import AudioLoadingError
+from lhotse.audio import AudioLoadingError, AudioSource
 from lhotse.custom import CustomFieldMixin
 from lhotse.cut import Cut
 from lhotse.dataset.collation import collate_matrices, collate_vectors
@@ -38,12 +38,44 @@ from nemo.collections.common.data.lhotse.nemo_adapters import expand_sharded_fil
 from nemo.collections.common.data.prompt_fn import apply_prompt_format_fn, registered_prompt_format_fn
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
 from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
+from nemo.utils.data_utils import is_datastore_path
+
+import uuid
 
 """
 Formattable: mixin class with data fields for prompt formatter outputs and method for
 applying prompt formatters to derived data types.
 """
 
+from lhotse import Recording
+from lhotse.serialization import open_best
+
+
+def create_recording_from_path(audio_path: str, recording_id: str) -> Recording:
+    """
+    Create a Lhotse Recording from a local file path or a remote URL (s3:// or ais://).
+
+    Args:
+        audio_path: Path or URL to the audio file.
+        recording_id: Unique identifier for the recording.
+
+    Returns:
+        A Lhotse Recording object.
+
+    Raises:
+        FileNotFoundError: If the file cannot be accessed.
+        OSError: For filesystem or network errors.
+    """
+    if audio_path.startswith(("s3://", "ais://")):
+        try:
+            with open_best(audio_path, mode="rb") as f:
+                return Recording.from_bytes(f.read(), recording_id)
+        except Exception as e:
+            raise FileNotFoundError(
+                f"Could not load remote audio {recording_id}: {audio_path}"
+            ) from e
+
+    return Recording.from_file(audio_path, recording_id)
 
 class Formattable:
     def __init__(self):
@@ -418,6 +450,7 @@ def collate_conversation_audio_fault_tolerant(
         try:
             conv_audios = []
             conv_cuts = []
+            assert len(conversation.list_cuts()) > 0, "No cuts found in conversation"
             for cut in conversation.list_cuts():
                 conv_audios.append(torch.as_tensor(cut.load_audio()).squeeze())
                 conv_cuts.append(cut)
@@ -434,6 +467,10 @@ def collate_conversation_audio_fault_tolerant(
         return torch.tensor([]), torch.tensor([]), CutSet()
 
     audio_lens = torch.tensor([c.num_samples for c in all_cuts], dtype=torch.int64)
+    audios = [a.mean(axis=0) if len(a.shape) > 1 else a for a in audios]
+    
+    assert all([len(a.shape) == len(audios[0].shape) for i, a in enumerate(audios)]), "Different number of channels in audios in batch"
+
     if len(audios[0].shape) == 1:
         audios = collate_vectors(audios, padding_value=0.0)
     else:
@@ -630,22 +667,39 @@ class NeMoMultimodalConversationJsonlAdapter:
             for data in load_jsonl(path):
                 if self._should_skip(data):
                     continue
-                turns = [
-                    (
-                        TextTurn(
+                turns = []
+                skip_conversation = False
+                
+                for turn in data["conversations"]:
+                    if turn["type"] == "text":
+                        turns.append(TextTurn(
                             value=turn["value"],
                             role=turn["from"].lower(),
-                        )
-                        if turn["type"] == "text"
-                        else AudioTurn(
-                            cut=(cut := Recording.from_file(get_full_path(turn["value"], path)).to_cut()),
-                            text=cut.supervisions[0].text if cut.supervisions else None,
-                            role=turn["from"].lower(),
-                            audio_locator_tag=self.audio_locator_tag,
-                        )
-                    )
-                    for turn in data["conversations"]
-                ]
+                        ))
+                    else:  # audio turn
+                        try:
+                            cut = create_recording_from_path(get_full_path(turn["value"], path), data["id"]).to_cut()
+                            turns.append(AudioTurn(
+                                cut=cut,
+                                text=cut.supervisions[0].text if cut.supervisions else None,
+                                role=turn["from"].lower(),
+                                audio_locator_tag=self.audio_locator_tag,
+                            ))
+                        except (AudioLoadingError, FileNotFoundError, OSError) as e:
+                            logging.warning(f"Skipping entire conversation {data['id']} due to audio loading error: {turn['value']} - {e}")
+                            skip_conversation = True
+                            break  # Exit the loop immediately
+                
+                # Skip the entire conversation if any audio loading failed
+                if skip_conversation:
+                    continue
+                
+                # Ensure the conversation has at least one audio turn - NeMoMultimodalConversation must always have audio
+                has_audio_turns = any(isinstance(turn, AudioTurn) for turn in turns)
+                if not has_audio_turns:
+                    logging.warning(f"Skipping conversation {data['id']} - no audio turns found (NeMoMultimodalConversation requires audio)")
+                    continue
+                    
                 if self.system_prompt is not None and turns[0].role != "system":
                     turns = [TextTurn(role="system", value=self.system_prompt)] + turns
                 yield NeMoMultimodalConversation(
@@ -684,6 +738,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
     manifest_filepath: str | list[str]
     audio_locator_tag: str
     audio_placeholders: Union[str, list[str]] = None
+    audio_filepath_fields: Union[str, list[str]] = None  # NEW: configurable field names
     tarred_audio_filepaths: str | list[str] = None
     token_equivalent_duration: float = None
     shuffle_shards: bool = False
@@ -702,6 +757,12 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
             self.audio_placeholders = ["<sound>", "<speech>"]
         elif isinstance(self.audio_placeholders, str):
             self.audio_placeholders = [self.audio_placeholders]
+
+        # NEW: Handle audio filepath fields - default to current hardcoded values
+        if self.audio_filepath_fields is None:
+            self.audio_filepath_fields = ["sound", "ori_sound", "speech"]
+        elif isinstance(self.audio_filepath_fields, str):
+            self.audio_filepath_fields = [self.audio_filepath_fields]
 
     def __iter__(self) -> Iterator[NeMoMultimodalConversation]:
         if self.tarred_audio_filepaths is not None:
@@ -737,9 +798,22 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                     cuts.append(cut)
                 cuts = deque(cuts)
 
+                turns = self._create_turns(conversations, cuts, jsonl_path, data.get("id", str(uuid.uuid4())))
+                # Skip conversations if audio loading failed
+                if turns is None:
+
+                    logging.warning(f"Skipping conversation {data['id']} due to audio loading failure")
+                    continue
+                
+                # Ensure the conversation has at least one audio turn - NeMoMultimodalConversation must always have audio
+                has_audio_turns = any(isinstance(turn, AudioTurn) for turn in turns)
+                if not has_audio_turns:
+                    logging.warning(f"Skipping conversation {data['id']} - no audio turns found (NeMoMultimodalConversation requires audio)")
+                    continue
+                    
                 yield NeMoMultimodalConversation(
                     id=data["id"],
-                    turns=self._create_turns(conversations, cuts, jsonl_path),
+                    turns=turns,
                     token_equivalent_duration=self.token_equivalent_duration,
                 )
 
@@ -753,9 +827,21 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                 # Transform ShareGPT format to standard format
                 conversations = self._transform_sharegpt_conversations(data)
 
+                turns = self._create_turns(conversations, None, path, data.get("id", str(uuid.uuid4())))
+                # Skip conversations if audio loading failed
+                if turns is None:
+                    logging.warning(f"Skipping conversation {data['id']} due to audio loading failure")
+                    continue
+                
+                # Ensure the conversation has at least one audio turn - NeMoMultimodalConversation must always have audio
+                has_audio_turns = any(isinstance(turn, AudioTurn) for turn in turns)
+                if not has_audio_turns:
+                    logging.warning(f"Skipping conversation {data['id']} - no audio turns found (NeMoMultimodalConversation requires audio)")
+                    continue
+                    
                 yield NeMoMultimodalConversation(
                     id=data["id"],
-                    turns=self._create_turns(conversations, None, path),
+                    turns=turns,
                     token_equivalent_duration=self.token_equivalent_duration,
                 )
 
@@ -765,8 +851,14 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
         Detects audio placeholders (<sound>, <speech>) and creates appropriate audio/text turns.
         """
         conversations = []
-        audio_path = data.get("sound") or data.get("ori_sound")
-
+        
+        # Use configurable audio field names instead of hardcoded ones
+        audio_path = None
+        for field_name in self.audio_filepath_fields:
+            if field_name in data and data[field_name]:
+                audio_path = data[field_name]
+                break
+        
         for turn in data["conversations"]:
             # Map ShareGPT roles to standard roles
             role = "user" if turn["from"].lower() == "human" else "assistant"
@@ -807,30 +899,37 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
         return conversations
 
     def _create_turns(
-        self, conversations: list[dict], cuts: deque = None, manifest_path: str = None
-    ) -> list[Union[TextTurn, AudioTurn]]:
-        """Create TextTurn and AudioTurn objects from conversation data."""
+        self, conversations: list[dict], cuts: deque = None, manifest_path: str = None, id: str = None
+    ) -> list[Union[TextTurn, AudioTurn]] | None:
+        """Create TextTurn and AudioTurn objects from conversation data.
+        
+        Returns None if any audio loading fails to signal that the entire conversation should be skipped.
+        """
         turns = []
 
         for turn in conversations:
             if turn["type"] == "text":
                 turns.append(TextTurn(value=turn["value"], role=turn["from"].lower()))
             else:  # audio turn
-                if cuts is not None:
-                    # Using tarred audio
-                    cut = cuts.popleft()
-                else:
-                    # Load audio from file path
-                    cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
+                try:
+                    if cuts is not None:
+                        # Using tarred audio
+                        cut = cuts.popleft()
+                    else:
+                        # Load audio from file path
+                        cut = create_recording_from_path(get_full_path(turn["value"], manifest_path), id).to_cut()
 
-                turns.append(
-                    AudioTurn(
-                        cut=cut,
-                        text=cut.supervisions[0].text if cut.supervisions else None,
-                        role=turn["from"].lower(),
-                        audio_locator_tag=self.audio_locator_tag,
+                    turns.append(
+                        AudioTurn(
+                            cut=cut,
+                            text=cut.supervisions[0].text if cut.supervisions else None,
+                            role=turn["from"].lower(),
+                            audio_locator_tag=self.audio_locator_tag,
+                        )
                     )
-                )
+                except (AudioLoadingError, FileNotFoundError, OSError) as e:
+                    logging.warning(f"Audio loading failed: {turn['value']} - {e}. Entire conversation will be skipped.")
+                    return None  # Signal to skip the entire conversation
 
         return turns
 
