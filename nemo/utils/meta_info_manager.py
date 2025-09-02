@@ -167,7 +167,7 @@ def get_nemo_v1_callback_config(trainer: Any) -> Dict[str, Any]:
             global_batch_size = micro_batch_size * int(os.environ.get('WORLD_SIZE', 1))
         elif hasattr(model_cfg, 'train_ds') and hasattr(model_cfg.train_ds, 'bucket_batch_size'):
             # For ASR with bucketing, use the average batch size
-            # This is a temporary fix to support the bucketing 
+            # This is a temporary fix to support the bucketing
             bucket_batch_sizes = model_cfg.train_ds.bucket_batch_size
             # Handle both ListConfig and regular list types
             if hasattr(bucket_batch_sizes, '__len__') and len(bucket_batch_sizes) > 0:

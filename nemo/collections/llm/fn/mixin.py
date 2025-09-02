@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import lightning.pytorch as pl
 from torch import nn
 from typing_extensions import Self
-import lightning.pytorch as pl
 
 from nemo.collections.llm.fn import base as fn
 from nemo.utils import logging

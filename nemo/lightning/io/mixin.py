@@ -27,13 +27,13 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
+import lightning.pytorch as pl
 from cloudpickle import dump
 from cloudpickle import load as pickle_load
 from fiddle._src import config as config_lib
 from fiddle._src import partial
 from fiddle._src.experimental import serialization
 from typing_extensions import Self
-import lightning.pytorch as pl
 
 from nemo.lightning.io.artifact.base import Artifact
 from nemo.lightning.io.capture import IOProtocol

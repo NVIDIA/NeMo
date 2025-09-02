@@ -158,9 +158,7 @@ def init_one_logger() -> None:
     one_logger_config = OneLoggerConfig(**init_config)
 
     # Configure the provider with entry-point exporters (automatically calls on_app_start)
-    TrainingTelemetryProvider.instance().with_base_config(
-        one_logger_config
-    ).with_export_config().configure_provider()
+    TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_export_config().configure_provider()
     _ONE_LOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
 
 
