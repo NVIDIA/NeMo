@@ -122,15 +122,6 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
 
     @functools.wraps(original_init)
     def wrapped_init(self, *args, **kwargs):
-        # Check if this instance has already been initialized to prevent duplicate callbacks
-        # in inheritance chains
-        if hasattr(self, '_one_logger_init_started'):
-            # This instance is already being initialized, skip the callbacks
-            return original_init(self, *args, **kwargs)
-
-        # Mark this instance as being initialized
-        self._one_logger_init_started = True
-
         call_one_logger_callback(start_callback, start_time_msec=get_current_time_msec())
         result = original_init(self, *args, **kwargs)
         call_one_logger_callback(end_callback, finish_time_msec=get_current_time_msec())
