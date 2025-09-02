@@ -489,15 +489,6 @@ class HyenaNV40bConfig(Hyena40bConfig):
 
 
 @dataclass
-class Hyena1bARCLongContextConfig(Hyena1bConfig):
-    """The checkpoint from ARC requires padding to the FFN dim
-    due to constraintes from large TP size for training."""
-
-    ffn_hidden_size: int = 5376
-    seq_len_interpolation_factor: float = 128
-
-
-@dataclass
 class Hyena7bARCLongContextConfig(Hyena7bConfig):
     """The checkpoint from ARC requires padding to the FFN dim
     due to constraintes from large TP size for training."""
@@ -885,7 +876,6 @@ class HuggingFaceSavannaHyenaImporter(PyTorchHyenaImporter):
 HYENA_MODEL_OPTIONS: dict[str, Type[HyenaConfig]] = {
     "1b": Hyena1bConfig,
     "1b_nv": HyenaNV1bConfig,
-    "1b_arc_longcontext": Hyena1bARCLongContextConfig,
     "7b": Hyena7bConfig,
     "7b_arc_longcontext": Hyena7bARCLongContextConfig,
     "7b_nv": HyenaNV7bConfig,
@@ -905,7 +895,6 @@ __all__ = [
     "HyenaNV1bConfig",
     "Hyena40bConfig",
     "HyenaNV40bConfig",
-    "Hyena1bARCLongContextConfig",
     "Hyena7bARCLongContextConfig",
     "Hyena40bARCLongContextConfig",
     "HyenaTestConfig",

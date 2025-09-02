@@ -63,7 +63,6 @@ from nemo.collections.llm.gpt.model.gpt_oss import GPTOSSConfig, GPTOSSConfig20B
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.hf_llama_embedding import get_llama_bidirectional_hf_model
 from nemo.collections.llm.gpt.model.hyena import (
-    Hyena1bARCLongContextConfig,
     Hyena1bConfig,
     Hyena7bARCLongContextConfig,
     Hyena7bConfig,
@@ -332,7 +331,6 @@ __all__ = [
     "HyenaNV1bConfig",
     "Hyena7bConfig",
     "Hyena40bConfig",
-    "Hyena1bARCLongContextConfig",
     "Hyena7bARCLongContextConfig",
     "Hyena40bARCLongContextConfig",
     "HyenaNVTestConfig",
