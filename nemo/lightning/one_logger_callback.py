@@ -153,22 +153,15 @@ def init_one_logger() -> None:
     if not enable_one_logger:
         return
 
-    try:
-        # Check if OneLogger is already configured
-        if TrainingTelemetryProvider.instance().one_logger_ready:
-            return
+    # Get initialization configuration
+    init_config = get_one_logger_init_config()
+    one_logger_config = OneLoggerConfig(**init_config)
 
-        # Get initialization configuration
-        init_config = get_one_logger_init_config()
-        one_logger_config = OneLoggerConfig(**init_config)
-
-        # Configure the provider with entry-point exporters (automatically calls on_app_start)
-        TrainingTelemetryProvider.instance().with_base_config(
-            one_logger_config
-        ).with_export_config().configure_provider()
-        _ONE_LOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
-    except Exception:
-        _HAVE_ONE_LOGGER = False
+    # Configure the provider with entry-point exporters (automatically calls on_app_start)
+    TrainingTelemetryProvider.instance().with_base_config(
+        one_logger_config
+    ).with_export_config().configure_provider()
+    _ONE_LOGGER_CALLBACK = OneLoggerNeMoCallback(TrainingTelemetryProvider.instance())
 
 
 def update_one_logger_config(

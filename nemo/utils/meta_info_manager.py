@@ -18,6 +18,8 @@
 import os
 from typing import Any, Dict
 
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
+
 enable_one_logger = True
 
 
@@ -41,7 +43,7 @@ def get_one_logger_init_config() -> Dict[str, Any]:
     # Minimal configuration - required fields only
     init_config = {
         # Required fields (from OneLoggerConfig) - no defaults
-        "application_name": "nemo-application",
+        "application_name": "nemo",
         "session_tag_or_fn": session_tag,
         # Important fields with defaults - provide if available from config
         "enable_for_current_rank": _should_enable_for_current_rank(),
@@ -82,7 +84,6 @@ def _get_base_callback_config(
 
     world_size = int(os.environ.get('WORLD_SIZE', 1))
     max_steps = getattr(trainer, 'max_steps', 1)
-    # Use hardcoded value for log_every_n_steps instead of getting from trainer
     log_every_n_steps = getattr(trainer, 'log_every_n_steps', 10)
     micro_batch_size = global_batch_size // world_size
     # Get PERF_VERSION_TAG from environment
@@ -99,7 +100,7 @@ def _get_base_callback_config(
     is_validation_iterations_enabled = False
     save_checkpoint_strategy = "sync"
 
-    checkpoint_callbacks = [cb for cb in trainer.callbacks if 'Checkpoint' in type(cb).__name__]
+    checkpoint_callbacks = [cb for cb in trainer.callbacks if isinstance(cb, ModelCheckpoint)]
     is_save_checkpoint_enabled = len(checkpoint_callbacks) > 0
 
     val_check_interval = getattr(trainer, 'val_check_interval', -1)
@@ -166,6 +167,7 @@ def get_nemo_v1_callback_config(trainer: Any) -> Dict[str, Any]:
             global_batch_size = micro_batch_size * int(os.environ.get('WORLD_SIZE', 1))
         elif hasattr(model_cfg, 'train_ds') and hasattr(model_cfg.train_ds, 'bucket_batch_size'):
             # For ASR with bucketing, use the average batch size
+            # This is a temporary fix to support the bucketing 
             bucket_batch_sizes = model_cfg.train_ds.bucket_batch_size
             # Handle both ListConfig and regular list types
             if hasattr(bucket_batch_sizes, '__len__') and len(bucket_batch_sizes) > 0:
@@ -232,12 +234,6 @@ def _should_enable_for_current_rank() -> bool:
     Returns:
         True if OneLogger should be enabled for the current rank, False otherwise
     """
-    try:
-        rank = int(os.environ.get('RANK', 0))
-        world_size = int(os.environ.get('WORLD_SIZE', 1))
-
-        # Enable for rank 0 or the last rank (common pattern)
-        return rank == 0 or rank == world_size - 1
-    except (ValueError, TypeError):
-        # Default to True on invalid values (as expected by tests)
-        return True
+    rank = int(os.environ.get('RANK', 0))
+    # Enable for rank 0 or the last rank (common pattern)
+    return rank == 0
