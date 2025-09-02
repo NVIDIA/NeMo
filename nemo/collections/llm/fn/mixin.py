@@ -14,6 +14,7 @@
 
 from torch import nn
 from typing_extensions import Self
+import lightning.pytorch as pl
 
 from nemo.collections.llm.fn import base as fn
 from nemo.utils import logging
@@ -52,18 +53,12 @@ class FNMixin:
 
     def __init_subclass__(cls, **kwargs):
         # Add OneLogger timing hooks for LightningModule subclasses to enable telemetry tracking
-        try:
-            import lightning.pytorch as pl
+        if issubclass(cls, pl.LightningModule):
+            from nemo.lightning.one_logger_callback import hook_class_init_with_callbacks
 
-            if issubclass(cls, pl.LightningModule):
-                from nemo.lightning.one_logger_callback import hook_class_init_with_callbacks
+            hook_class_init_with_callbacks(cls, "on_model_init_start", "on_model_init_end")
 
-                hook_class_init_with_callbacks(cls, "on_model_init_start", "on_model_init_end")
-        except Exception:
-            # Continue gracefully if OneLogger hooks cannot be applied
-            pass
-        finally:
-            super().__init_subclass__(**kwargs)
+        super().__init_subclass__(**kwargs)
 
     def forall(self, func: fn.ModulePredicate, recurse: bool = False) -> bool:
         """

@@ -33,6 +33,7 @@ from fiddle._src import config as config_lib
 from fiddle._src import partial
 from fiddle._src.experimental import serialization
 from typing_extensions import Self
+import lightning.pytorch as pl
 
 from nemo.lightning.io.artifact.base import Artifact
 from nemo.lightning.io.capture import IOProtocol
@@ -190,18 +191,11 @@ class IOMixin:
         _io_register_serialization(cls)
 
         # Add OneLogger timing hooks for data modules to enable telemetry tracking
-        try:
-            import lightning.pytorch as pl
+        if issubclass(cls, pl.LightningDataModule):
+            from nemo.lightning.one_logger_callback import hook_class_init_with_callbacks
 
-            if issubclass(cls, pl.LightningDataModule):
-                from nemo.lightning.one_logger_callback import hook_class_init_with_callbacks
-
-                hook_class_init_with_callbacks(cls, "on_dataloader_init_start", "on_dataloader_init_end")
-        except Exception:
-            # Continue gracefully if OneLogger hooks cannot be applied
-            pass
-        finally:
-            super().__init_subclass__()
+            hook_class_init_with_callbacks(cls, "on_dataloader_init_start", "on_dataloader_init_end")
+        super().__init_subclass__()
 
     def io_transform_args(self, init_fn, *args, **kwargs) -> Dict[str, Any]:
         """
