@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import time
-from typing import List
+from pathlib import Path
+from typing import List, Optional, Union
 
+import yaml
 from loguru import logger
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
@@ -35,102 +37,17 @@ from pipecat.utils.time import time_now_iso8601
 
 from nemo.agents.voice_agent.pipecat.frames.frames import DiarResultFrame
 
-DEFAULT_BACKCHANNEL_PHRASES = [
-    "cool",
-    "huh",
-    "okay okay",
-    "mhmm",
-    "mmhmm",
-    'uhhuh',
-    'uhhuh okay',
-    'sure thing',
-    'uh huh',
-    'mm hmm',
-    'hmm',
-    'humm',
-    'absolutely',
-    'ah',
-    'all right',
-    'alright',
-    'but yeah',
-    'definitely',
-    'exactly',
-    'go ahead',
-    'good',
-    'great',
-    'great thanks',
-    'ha ha',
-    'hi',
-    'i know',
-    'i know right',
-    'i see',
-    'indeed',
-    'interesting',
-    'mhmm',
-    'mhmm mhmm',
-    'mhmm right',
-    'mhmm yeah',
-    'mhmm yes',
-    'nice',
-    'of course',
-    'oh',
-    'oh dear',
-    'oh man',
-    'oh okay',
-    'oh wow',
-    'oh yes',
-    'ok',
-    'ok thanks',
-    'okay',
-    'okay okay',
-    'okay thanks',
-    'perfect',
-    'really',
-    'right',
-    'right exactly',
-    'right right',
-    'right yeah',
-    'so yeah',
-    'sounds good',
-    'sure',
-    'thank you',
-    'thanks',
-    "that's awesome",
-    'thats right',
-    'thats true',
-    'true',
-    'uh-huh',
-    'uh-huh yeah',
-    'uhhuh',
-    'um-humm',
-    'well',
-    'what',
-    'wow',
-    'yeah',
-    'yeah i know',
-    'yeah i see',
-    'yeah mhmm',
-    'yeah okay',
-    'yeah right',
-    'yeah uh-huh',
-    'yeah yeah',
-    'yep',
-    'yes',
-    'yes please',
-    'yes yes',
-]
-
 
 class NeMoTurnTakingService(FrameProcessor):
     def __init__(
         self,
+        backchannel_phrases: Union[str, List[str]] = None,
         eou_string: str = "<EOU>",
         eob_string: str = "<EOB>",
         language: Language = Language.EN_US,
         use_vad: bool = True,
         use_diar: bool = False,
         max_buffer_size: int = 3,
-        backchannel_phrases: List[str] = DEFAULT_BACKCHANNEL_PHRASES,
         bot_stop_delay: float = 0.5,
         **kwargs,
     ):
@@ -141,7 +58,8 @@ class NeMoTurnTakingService(FrameProcessor):
         self.use_vad = use_vad
         self.use_diar = use_diar
         self.max_buffer_size = max_buffer_size
-        self.backchannel_phrases = backchannel_phrases
+
+        self.backchannel_phrases = self._load_backchannel_phrases(backchannel_phrases)
         self.backchannel_phrases_nopc = set([self.clean_text(phrase) for phrase in self.backchannel_phrases])
         self.bot_stop_delay = bot_stop_delay
         # internal data
@@ -155,6 +73,25 @@ class NeMoTurnTakingService(FrameProcessor):
         if not self.use_vad:
             # if vad is not used, we assume the user is always speaking
             self._vad_user_speaking = True
+
+    def _load_backchannel_phrases(self, backchannel_phrases: Optional[Union[str, List[str]]] = None):
+        if not backchannel_phrases:
+            return []
+
+        if isinstance(backchannel_phrases, str) and Path(backchannel_phrases).is_file():
+            logger.info(f"Loading backchannel phrases from file: {backchannel_phrases}")
+            if not Path(backchannel_phrases).exists():
+                raise FileNotFoundError(f"Backchannel phrases file not found: {backchannel_phrases}")
+            with open(backchannel_phrases, "r") as f:
+                backchannel_phrases = yaml.safe_load(f)
+            if not isinstance(backchannel_phrases, list):
+                raise ValueError(f"Backchannel phrases must be a list, got {type(backchannel_phrases)}")
+            logger.info(f"Loaded {len(backchannel_phrases)} backchannel phrases from file: {backchannel_phrases}")
+        elif isinstance(backchannel_phrases, list):
+            logger.info(f"Using backchannel phrases from list: {backchannel_phrases}")
+        else:
+            raise ValueError(f"Invalid backchannel phrases: {backchannel_phrases}")
+        return backchannel_phrases
 
     def clean_text(self, text: str) -> str:
         """

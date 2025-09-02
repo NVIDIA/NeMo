@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# NOTE: This file will be deprecated in the future, as the new inference pipeline will replace it.
 
 import math
 

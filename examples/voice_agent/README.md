@@ -15,11 +15,11 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 
 
 ## 💡 Upcoming Next
-- More accurate and noise-robust streaming ASR and diarization models.
+- More accurate and noise-robust streaming ASR models.
 - Faster EOU detection and backchannel handling (e.g., bot will not stop speaking when user is saying something like "uhuh", "wow", "i see").
-- Better streaming ASR and diarization pipeline.
+- Better streaming ASR and speaker diarization pipeline.
 - Better TTS model with more natural voice.
-- Joint ASR and diarization model.
+- Joint ASR and speaker diarization model.
 - Function calling, RAG, etc.
 
 
@@ -61,7 +61,7 @@ Alternatively, you can install the dependencies manually in an existing environm
 ```bash
 pip install -r requirements.txt
 ```
-The incompatability errors from pip can be ignored, if any.
+The incompatibility errors from pip can be ignored.
 
 ### Configure the server
 
@@ -119,13 +119,13 @@ Please refer to the HuggingFace webpage of each model to configure the model par
 
 ### 🎤 ASR 
 
-We use [cache-aware streaming FastConformer](https://arxiv.org/abs/2312.17279) to transcribe the user's speech. While new models are to be released, we use the existing English models for now:
+We use [cache-aware streaming FastConformer](https://arxiv.org/abs/2312.17279) to transcribe the user's speech into text. While new models will be released soon, we use the existing English models for now:
 - [stt_en_fastconformer_hybrid_large_streaming_80ms](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_en_fastconformer_hybrid_large_streaming_80ms)  (default)
 - [nvidia/stt_en_fastconformer_hybrid_large_streaming_multi](https://huggingface.co/nvidia/stt_en_fastconformer_hybrid_large_streaming_multi)
 
-### 💬 Diarization
+### 💬 Speaker Diarization
 
-We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the speaker for each user turn. As of now, we only support detecting 1 speaker for a single user turn, but different turns can be from different speakers, with a maximum of 4 speakers in the whole conversation. Currently supported models are:
+Speaker diarization aims to distinguish different speakers in the input speech audio. We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the speaker for each user turn. As of now, we only support detecting 1 speaker for a single user turn, but different turns can be from different speakers, with a maximum of 4 speakers in the whole conversation. Currently supported models are:
  - [nvidia/diar_streaming_sortformer_4spk-v2](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2) (default)
 
 
@@ -136,9 +136,16 @@ Please note that in some circumstances, the diarization model might not work wel
 We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to generate the speech for the LLM response, and it only supports English output. More TTS models will be supported in the future.
 
 
+### Turn-taking
+
+As the new turn-taking prediction model is not yet released, we use the VAD-based turn-taking prediction for now. You can set the `vad.stop_secs` to the desired value in `server/server_config.yaml` to control the amount of silence needed to indicate the end of a user's turn.
+
+Additionally, the voice agent support ignoring back-channel phrases while the bot is talking, which it means phrases such as "uh-huh", "yeah", "okay"  will not interrupt the bot while it's talking. To control the backchannel phrases to be used, you can set the `turn_taking.backchannel_phrases` to the desired list of phrases or a file path to a yaml file containing the list of phrases in `server/server_config.yaml`. Setting it to `null` will disable detecting the backchannel phrases, and that the VAD will interrupt the bot immediately when the user starts speaking.
+
+
 ## 📝 Notes & FAQ
 - Only one connection to the server is supported at a time, a new connection will disconnect the previous one, but the context will be preserved.
-- If directly loading from HuggingFace and got I/O erros, you can set `llm.model=<local_path>`, where the model is downloaded via somehing like `huggingface-cli download Qwen/Qwen3-8B --local-dir <local_path>`. Same for TTS models.
+- If directly loading from HuggingFace and got I/O erros, you can set `llm.model=<local_path>`, where the model is downloaded using a command like `huggingface-cli download Qwen/Qwen3-8B --local-dir <local_path>`. Same for TTS models.
 - The current ASR and diarization models are not noise-robust, you might need to use a noise-cancelling microphone or a quiet environment. But we will release better models soon.
 - The diarization model works best with speakers that have much more different voices from each other, while it might not work well on some accents due to the limited training data.
 - If you see errors like `SyntaxError: Unexpected reserved word` when running `npm run dev`, please update the Node.js version.

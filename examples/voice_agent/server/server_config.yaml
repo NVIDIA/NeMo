@@ -29,6 +29,7 @@ diar:
   frame_len_in_secs: 0.08  # default for FastConformer, do not change
 
 turn_taking:
+  backchannel_phrases: "./server/backchannel_phrases.yaml"  # set it to the actual path of the file, or specify a list of backchannel phrases here
   max_buffer_size: 2  # num of words more than this amount will interrupt the LLM immediately
   bot_stop_delay: 0.5  # in seconds, a delay between server and client audio output
 

@@ -107,6 +107,7 @@ diar_params = NeMoDiarInputParams(
 
 
 ### Turn taking
+TURN_TAKING_BACKCHANNEL_PHRASES = server_config.turn_taking.backchannel_phrases
 TURN_TAKING_MAX_BUFFER_SIZE = server_config.turn_taking.max_buffer_size
 TURN_TAKING_BOT_STOP_DELAY = server_config.turn_taking.bot_stop_delay
 
@@ -183,7 +184,8 @@ async def run_bot_websocket_server():
             vad_analyzer=vad_analyzer,
             session_timeout=None,  # Disable session timeout
             audio_in_sample_rate=SAMPLE_RATE,
-            can_create_user_frames=False,
+            can_create_user_frames=TURN_TAKING_BACKCHANNEL_PHRASES
+            is None,  # if backchannel phrases are disabled, we can use VAD to interrupt the bot immediately
             audio_out_10ms_chunks=TRANSPORT_AUDIO_OUT_10MS_CHUNKS,
         ),
         host="0.0.0.0",  # Bind to all interfaces
@@ -222,6 +224,7 @@ async def run_bot_websocket_server():
         use_diar=USE_DIAR,
         max_buffer_size=TURN_TAKING_MAX_BUFFER_SIZE,
         bot_stop_delay=TURN_TAKING_BOT_STOP_DELAY,
+        backchannel_phrases=TURN_TAKING_BACKCHANNEL_PHRASES,
     )
     logger.info("Turn taking service initialized")
 
