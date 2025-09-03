@@ -15,4 +15,3 @@ torch
 tqdm>=4.41.0
 wget
 wrapt
-nv-one-logger>=2.0.0
