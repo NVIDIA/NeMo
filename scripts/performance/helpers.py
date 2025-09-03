@@ -179,14 +179,15 @@ def set_mcore_fsdp_configs(recipe, comm_overlap_callback_idx: int | None, tp_siz
     """
     Set Mcore FSDP related configs.
     """
-    recipe.model.config.init_model_with_meta_device = True
+    if hasattr(recipe.model, 'config'):
+        recipe.model.config.gradient_accumulation_fusion = False
+        recipe.model.config.init_model_with_meta_device = True
     recipe.trainer.strategy.fsdp = "megatron"
     recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
     # At fp32 gradient, `recipe.trainer.strategy.ddp.gradient_reduce_div_fusion` is used for fusion
     if recipe.trainer.plugins.grad_reduce_in_fp32:
         recipe.trainer.strategy.ddp.average_in_collective = False
     recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
-    recipe.model.config.gradient_accumulation_fusion = False
     if (
         comm_overlap_callback_idx is not None
         and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute
@@ -274,7 +275,8 @@ def set_cuda_graph_configs(recipe, enable_cuda_graphs: bool, task: str):
     """
     Set CUDA graph related configs.
     """
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
+    if hasattr(recipe.model, 'config'):
+        recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
     if (
         task in ["none", "lora"]
@@ -364,7 +366,8 @@ def set_perf_optimization_configs(
     Set performance optimization related configs.
     """
     # enable cross entropy fusion with TE kernel
-    recipe.model.config.cross_entropy_fusion_impl = "te"
+    if hasattr(recipe.model, 'config'):
+        recipe.model.config.cross_entropy_fusion_impl = "te"
 
     if use_fsdp_double_buffer:
         assert use_mcore_fsdp == True, "use_fsdp_double_buffer requires use_mcore_fsdp to be True"
