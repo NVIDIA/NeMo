@@ -28,6 +28,7 @@ from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 
 from nemo.core import classes as nemo_classes  # to avoid circular import do not import ModelPT directly
+from nemo.lightning.io.artifact.file import robust_copy
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
@@ -467,7 +468,7 @@ class SaveRestoreConnector:
                     # Note uuid.uuid4().hex is guaranteed to be 32 character long
                     artifact_base_name = os.path.basename(artiitem.path)
                     artifact_uniq_name = f"{uuid.uuid4().hex}_{artifact_base_name}"
-                    shutil.copy2(artiitem.path, os.path.join(nemo_file_folder, artifact_uniq_name))
+                    robust_copy(artiitem.path, os.path.join(nemo_file_folder, artifact_uniq_name))
 
                     # Update artifacts registry
                     artiitem.hashed_path = "nemo:" + artifact_uniq_name
@@ -535,7 +536,7 @@ class SaveRestoreConnector:
                     for path in restoration_paths:
                         if self.model_extracted_dir:
                             for rel_path in artifact_rel_paths[path]:
-                                shutil.copy2(src=rel_path, dst=archive_dir)
+                                robust_copy(rel_path, archive_dir)
                         else:
                             self._unpack_nemo_file(
                                 path2file=path, out_folder=archive_dir, members=artifact_rel_paths[path]
@@ -549,7 +550,7 @@ class SaveRestoreConnector:
                             artifact_base_name = os.path.basename(artiitem.path)
                         # no need to hash here as we are in tarfile_artifacts which are already hashed
                         artifact_uniq_name = artifact_base_name
-                        shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
+                        robust_copy(artifact_base_name, os.path.join(nemo_file_folder, artifact_base_name))
 
                         # Update artifacts registry
                         new_artiitem = model_utils.ArtifactItem()

@@ -48,18 +48,22 @@ def pathize(s):
     return s
 
 
+def robust_copy(src: Union[Path, str], dst: Union[Path, str]) -> str:
+    try:
+        return shutil.copy2(src, dst)
+    except PermissionError:
+        # copy2 can fail on some filesystems due to metadata copy errors
+        # (e.g., permission errors on setting timestamps).
+        # In such cases, we fallback to a plain copy.
+        return shutil.copy(src, dst)
+
+
 def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union[Path, str]):
     relative_path = pathize(relative_dst) / pathize(src).name
     output = pathize(path) / relative_path
     if output.exists():
         raise FileExistsError(f"Dst file already exists {str(output)}")
-    try:
-        shutil.copy2(src, output)
-    except PermissionError:
-        # copy2 can fail on some filesystems due to metadata copy errors
-        # (e.g., permission errors on setting timestamps).
-        # In such cases, we fallback to a plain copy.
-        shutil.copy(src, output)
+    robust_copy(src, output)
     return relative_path
 
 

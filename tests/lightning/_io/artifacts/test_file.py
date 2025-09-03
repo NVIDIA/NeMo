@@ -17,48 +17,34 @@ from unittest.mock import patch
 
 import pytest
 
-from nemo.lightning.io.artifact.file import copy_file
+from nemo.lightning.io.artifact.file import robust_copy
 
 
-class TestCopyFile:
+class TestRobustCopy:
     @pytest.mark.unit
-    def test_copy_file_success(self, tmp_path):
-        """Tests that copy_file uses shutil.copy2 and does not fall back."""
+    def test_robust_copy_success(self, tmp_path):
+        """Tests that robust_copy uses shutil.copy2 and does not fall back."""
         src_file = tmp_path / "source.txt"
         src_file.write_text("test content")
-
-        dest_dir = tmp_path / "dest"
-        dest_dir.mkdir()
-
-        relative_dest = Path("relative_dest")
-        output_path = dest_dir / relative_dest / "source.txt"
+        dest_file = tmp_path / "dest.txt"
 
         with patch('nemo.lightning.io.artifact.file.shutil.copy2') as mock_copy2, patch(
             'nemo.lightning.io.artifact.file.shutil.copy'
         ) as mock_copy:
-            copy_file(src_file, dest_dir, relative_dest)
-
-            mock_copy2.assert_called_once_with(src_file, output_path)
+            robust_copy(src_file, dest_file)
+            mock_copy2.assert_called_once_with(src_file, dest_file)
             mock_copy.assert_not_called()
 
     @pytest.mark.unit
-    def test_copy_file_fallback_to_copy(self, tmp_path):
-        """Tests that copy_file falls back to shutil.copy if shutil.copy2 fails."""
+    def test_robust_copy_fallback(self, tmp_path):
+        """Tests that robust_copy falls back to shutil.copy if shutil.copy2 fails."""
         src_file = tmp_path / "source.txt"
         src_file.write_text("test content")
-
-        dest_dir = tmp_path / "dest"
-        dest_dir.mkdir()
-
-        relative_dest = Path("relative_dest")
-        output_path = dest_dir / relative_dest / "source.txt"
+        dest_file = tmp_path / "dest.txt"
 
         with patch(
             'nemo.lightning.io.artifact.file.shutil.copy2', side_effect=PermissionError("copy2 fails")
-        ) as mock_copy2, patch(
-            'nemo.lightning.io.artifact.file.shutil.copy'
-        ) as mock_copy:
-            copy_file(src_file, dest_dir, relative_dest)
-
-            mock_copy2.assert_called_once_with(src_file, output_path)
-            mock_copy.assert_called_once_with(src_file, output_path)
+        ) as mock_copy2, patch('nemo.lightning.io.artifact.file.shutil.copy') as mock_copy:
+            robust_copy(src_file, dest_file)
+            mock_copy2.assert_called_once_with(src_file, dest_file)
+            mock_copy.assert_called_once_with(src_file, dest_file)

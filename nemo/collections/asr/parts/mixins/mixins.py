@@ -24,6 +24,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import Tensor
 
 import nemo.collections.asr.models as asr_models
+from nemo.lightning.io.artifact.file import robust_copy
 from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASRAdapterModelMixin
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.utils import asr_module_utils
@@ -432,7 +433,7 @@ class ASRBPEMixin(ABC):
             # Check if the value is a filepath (new model init) or has `nemo:` in it (restored model)
             if isinstance(v, str) and os.path.exists(v):
                 # local file from first instantiation
-                loc = shutil.copy2(v, dir)
+                loc = robust_copy(v, dir)
                 logging.info(f"Saved {k} at {loc}")
 
             if isinstance(v, str) and v.startswith('nemo:'):
