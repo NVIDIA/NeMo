@@ -37,7 +37,7 @@ from ..helpers import (
     set_exp_logging_configs,
     set_primary_perf_configs,
 )
-from ..utils import get_comm_overlap_callback_idx
+from ..utils import get_comm_overlap_callback_idx, hf_tokenizer
 
 
 def override_recipe_configs(
