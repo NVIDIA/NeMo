@@ -52,7 +52,7 @@ class PromptEmbedding(NeuralModule, Exportable):
 
     Arugments:
         init_from_prompt_text: Whether to intialize prompt embeddings
-                               from from certain lm embeddings
+                               from certain lm embeddings
                                corresponding to a prompt string
         hidden_size: hidden size should match lm embedding size
         total_virtual_tokens: length of prompt initalized from torch init method

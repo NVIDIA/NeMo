@@ -68,7 +68,7 @@ class MockDataModule(pl.LightningDataModule):
         vocab_file: Optional[str] = None,
         merges_file: Optional[str] = None,
     ):
-        from from nemo.lightning.callback_group import CallbackGroup
+        from nemo.lightning.callback_group import CallbackGroup
 
         CallbackGroup.get_instance().on_dataloader_init_start()
 
