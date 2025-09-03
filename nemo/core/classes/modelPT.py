@@ -983,9 +983,7 @@ class ModelPT(LightningModule, Model):
                 self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
 
         if stage == 'fit':
-            CallbackGroup.get_instance().update_config(
-                nemo_version='v1', trainer=self._trainer
-            )
+            CallbackGroup.get_instance().update_config(nemo_version='v1', trainer=self._trainer)
 
     def train_dataloader(self):
         """

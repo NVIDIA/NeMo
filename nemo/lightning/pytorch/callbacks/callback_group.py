@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 from typing import Callable, List, Optional
 
-from lightning.pytorch.callbacks import Callback as PTLCallback
 from lightning.pytorch import Trainer
-import functools
+from lightning.pytorch.callbacks import Callback as PTLCallback
 
 
 class CallbackGroup:
@@ -169,9 +169,8 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
     wrapped_init._callback_group_wrapped = True
     cls.__init__ = wrapped_init
 
+
 # Eagerly create the singleton on import so that early callers can use it
 CallbackGroup.get_instance()
 
 __all__ = ['CallbackGroup', 'BaseCallback', 'hook_class_init_with_callbacks']
-
-

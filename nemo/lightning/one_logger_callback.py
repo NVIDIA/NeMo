@@ -17,15 +17,13 @@ OneLogger callback for NeMo training.
 
 This module provides a callback that integrates OneLogger telemetry with NeMo training.
 """
+from lightning.pytorch import Trainer
 from nv_one_logger.api.config import OneLoggerConfig
 from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
 from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
-from nv_one_logger.training_telemetry.integration.pytorch_lightning import (
-    TimeEventCallback as OneLoggerNeMoCallback,
-)
+from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeEventCallback as OneLoggerNeMoCallback
 
-from lightning.pytorch import Trainer
-from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup, BaseCallback
+from nemo.lightning.pytorch.callbacks.callback_group import BaseCallback, CallbackGroup
 from nemo.utils.meta_info_manager import (
     enable_one_logger,
     get_nemo_v1_callback_config,
@@ -48,7 +46,9 @@ class OneLoggerAdapterCallback(OneLoggerNeMoCallback, BaseCallback):
         # Configure provider from meta info
         init_config = get_one_logger_init_config()
         one_logger_config = OneLoggerConfig(**init_config)
-        TrainingTelemetryProvider.instance().with_base_config(one_logger_config).with_export_config().configure_provider()
+        TrainingTelemetryProvider.instance().with_base_config(
+            one_logger_config
+        ).with_export_config().configure_provider()
         # Initialize underlying OneLogger PTL callback
         super().__init__(TrainingTelemetryProvider.instance())
 
@@ -68,6 +68,7 @@ class OneLoggerAdapterCallback(OneLoggerNeMoCallback, BaseCallback):
 def init_one_logger() -> None:
     if enable_one_logger:
         CallbackGroup.get_instance().register(OneLoggerAdapterCallback())
+
 
 # Initialize on import
 init_one_logger()
