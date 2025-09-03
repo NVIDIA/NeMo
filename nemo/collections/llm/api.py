@@ -57,7 +57,7 @@ from nemo.lightning import (
 )
 from nemo.lightning.base import NEMO_MODELS_CACHE
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
-from nemo.lightning.one_logger_callback import call_one_logger_callback, update_one_logger_config
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 from nemo.lightning.pytorch.callbacks import PEFT, JitTransform, ModelTransform
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
@@ -137,7 +137,7 @@ def train(
     trainer.fit(model, data)
 
     # Track app end for NeMo v2 recipe-based applications
-    call_one_logger_callback("on_app_end")
+    CallbackGroup.get_instance().on_app_end()
 
     return app_state.exp_dir
 
@@ -1260,18 +1260,18 @@ def _setup(
         task_config=getattr(train, "__io__", None),
     )
 
-    # Configure OneLogger for telemetry tracking during training
-    update_one_logger_config(nemo_version='v2', trainer=trainer, data=data)
+    # Configure telemetry via CallbackGroup
+    CallbackGroup.get_instance().update_config(nemo_version='v2', trainer=trainer, data=data)
 
     if resume is not None:
-        call_one_logger_callback('on_load_checkpoint_start')
+        CallbackGroup.get_instance().on_load_checkpoint_start()
         resume.setup(trainer, model)
-        call_one_logger_callback('on_load_checkpoint_end')
+        CallbackGroup.get_instance().on_load_checkpoint_end()
 
     if optim:
-        call_one_logger_callback('on_optimizer_init_start')
+        CallbackGroup.get_instance().on_optimizer_init_start()
         optim.connect(model)
-        call_one_logger_callback('on_optimizer_init_end')
+        CallbackGroup.get_instance().on_optimizer_init_end()
     if tokenizer:  # TODO: Improve this
         _use_tokenizer(model, data, tokenizer)
 
