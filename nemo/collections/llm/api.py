@@ -36,6 +36,7 @@ from nemo.collections.llm.evaluation.api import (
     MisconfigurationError,
 )
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
+from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -1380,7 +1381,7 @@ def _validate_config(
                     assert (
                         model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
                     ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
-                if isinstance(data, FineTuningDataModule):
+                if isinstance(data, FineTuningDataModule or MockDataModule):
                     # check calculate_per_token_loss to be True
                     # check average_in_collective to be False
                     # for context parallel to solve the issue of nan loss on ranks with all tokens masked
