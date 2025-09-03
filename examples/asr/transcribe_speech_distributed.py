@@ -72,7 +72,7 @@ append_pred - optional. Allows you to add more than one prediction to an existin
 pred_name_postfix - optional. The name you want to be written for the current model
 Results are returned in a JSON manifest file.
 
-python transcribe_speech.py \
+CUDA_VISIBLE_DEVICES=1 python transcribe_speech_distributed.py \
     model_path=null \
     pretrained_name=null \
     audio_dir="<remove or path to folder of audio files>" \
@@ -86,7 +86,12 @@ python transcribe_speech.py \
     cuda=0 \
     amp=True \
     append_pred=False \
-    pred_name_postfix="<remove or use another model name for output filename>"
+    pred_name_postfix="<remove or use another model name for output filename>" \
+    split_size=10000 \
+    num_nodes=1 \
+    node_idx=0 \
+    num_gpus_per_node=1 \
+    gpu_idx=0
 """
 
 
