@@ -35,7 +35,13 @@ from ..helpers import (
     set_exp_logging_configs,
     set_primary_perf_configs,
 )
-from ..utils import get_comm_overlap_callback_idx, hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata
+from ..utils import (
+    get_comm_overlap_callback_idx,
+    hf_tokenizer,
+    import_ckpt_experiment,
+    isfile_train_pack_metadata,
+    prepare_squad_dataset_experiment,
+)
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-70B"
 
@@ -56,10 +62,13 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    enable_cuda_graphs: bool,
-    use_mcore_fsdp: bool,
-    recompute_layers: int,
-    activation_offload_layers: int,
+    num_layers: int,
+    hidden_size: int,
+    etp_size: int = None,
+    enable_cuda_graphs: bool = False,
+    use_mcore_fsdp: bool = False,
+    recompute_layers: int = 0,
+    activation_offload_layers: int = 0,
 ):
     """
     llama3 70b fine-tuning recipe aimed at achieving best possible performance.
@@ -89,15 +98,15 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
-        nccl_communicator_config_path=args.nccl_communicator_config_path,
-        use_user_buffer_registration=args.use_user_buffer_registration,
-        use_sharp=args.use_sharp,
     )
     recipe = set_exp_logging_configs(
         recipe,
@@ -111,17 +120,15 @@ def override_recipe_configs(
     )
 
     # data module configs
-    if args.use_hf_tokenizer:
-        recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
-    else:
-        recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
-        )
-        recipe.model.tokenizer = recipe.data.tokenizer
-    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
-        # flag is valid only for SquadDataModule
-        recipe.data.force_redownload = True
+    # if args.use_hf_tokenizer:
+    #    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+    # else:
+    #    recipe.data.tokenizer = run.Config(
+    #        get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
+    #    )
+    #    recipe.model.tokenizer = recipe.data.tokenizer
 
+    recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
@@ -150,6 +157,9 @@ def override_recipe_configs(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
+    sequence_length = 4096
+    if args.gpu.lower() == 'gb200':
+        sequence_length = 2048
 
     kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "llama3", "70b", args)
     (
@@ -161,66 +171,123 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        _,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:13]
+    ) = kwargs[0:15]
 
-    recipe = override_recipe_configs(
-        args,
-        num_nodes,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
-    )
+    recipe = None
+    custom_env_vars = {}
+    if args.skip_finetuning is not True:
+        # Configure experiment setup for finetuning (recipe, plugins, executor, etc)
+        exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_mbs{mbs}_gbs{gbs}"
+        base_name = splitext(basename(__file__))[0].replace("finetune_", "lora_")
+        exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
+        recipe = override_recipe_configs(
+            args,
+            num_nodes,
+            mbs,
+            gbs,
+            tp_size,
+            pp_size,
+            cp_size,
+            vp_size,
+            ep_size,
+            num_layers,
+            hidden_size,
+            etp_size,
+            enable_cuda_graphs,
+            use_mcore_fsdp,
+            recompute_layers,
+            activation_offload_layers,
+        )
+        plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
-    exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+        if args.gpu.lower() == 'gb200':
+            custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
 
-    executor = slurm_executor(
-        args.gpu.lower(),
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars={},
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-        network='sharp' if args.use_sharp else None,
-    )
+        if args.enable_nsys:
+            plugins.append(
+                NsysPlugin(
+                    start_step=args.profiling_start_step,
+                    end_step=args.profiling_stop_step,
+                    ranks=list(range(num_nodes * args.gpus_per_node)),
+                    nsys_gpu_metrics=args.profiling_gpu_metrics,
+                )
+            )
 
-    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
-    if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not None
-        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+        executor = slurm_executor(
+            args.gpu.lower(),
+            args.account,
+            args.partition,
+            args.log_dir,
+            num_nodes,
+            args.gpus_per_node,
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars=custom_env_vars,
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
+        )
+
+    else:
+        # If finetuning is skipped, set exp_name based on what operations will be performed
+        exp_config = ""
+        if args.skip_dataset_download is not True:
+            exp_config = "dataset_download"
+        if args.skip_import_checkpoint is not True:
+            if exp_config:
+                exp_config += "_import_checkpoint"
+            else:
+                exp_config = "import_checkpoint"
+        base_name = splitext(basename(__file__))[0].replace("finetune_", "sft_")
+        exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
+
+        executor = slurm_executor(
+            args.gpu.lower(),
+            args.account,
+            args.partition,
+            args.log_dir,
+            1,  # Single node for setup tasks
+            1,  # Single GPU for setup tasks
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars=custom_env_vars,
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
+        )
 
     with run.Experiment(exp_name) as exp:
-        if not SKIP_IMPORT:
+        if args.skip_import_checkpoint is not True:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
-        exp.add(
-            recipe,
-            executor=executor,
-            name=exp_name,
-            plugins=plugins,
-        )
+
+        if args.skip_dataset_download is not True:
+            exp.add(
+                *prepare_squad_dataset_experiment(
+                    executor,
+                    HF_MODEL_URI,
+                    seq_length=sequence_length,
+                )
+            )
+
+        if args.skip_finetuning is not True:
+            exp.add(
+                recipe,
+                executor=executor,
+                name=exp_name,
+                plugins=plugins,
+            )
 
         if not args.dryrun:
             exp.run(sequential=True, detach=True)
