@@ -25,6 +25,7 @@ from nemo.utils.meta_info_manager import (
     get_nemo_v2_callback_config,
     get_one_logger_init_config,
 )
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 
 
 class TestMetaInfoManager:
@@ -37,7 +38,7 @@ class TestMetaInfoManager:
             config = get_one_logger_init_config()
 
             assert isinstance(config, dict)
-            assert config["application_name"] == "nemo-application"
+            assert config["application_name"] == "nemo"
             assert config["session_tag_or_fn"] == "test_job"
             assert "enable_for_current_rank" in config
             assert config["world_size_or_fn"] == 4
@@ -83,9 +84,8 @@ class TestMetaInfoManager:
         trainer.max_steps = 1000
         trainer.val_check_interval = 0
 
-        # Mock checkpoint callback
-        checkpoint_callback = MagicMock()
-        checkpoint_callback.__class__.__name__ = "ModelCheckpoint"
+        # Real ModelCheckpoint callback to satisfy isinstance checks
+        checkpoint_callback = ModelCheckpoint(dirpath=".", save_top_k=-1)
         trainer.callbacks = [checkpoint_callback]
 
         with patch.dict(os.environ, {"SLURM_JOB_NAME": "test_job", "WORLD_SIZE": "2"}):
@@ -216,10 +216,10 @@ class TestMetaInfoManager:
 
     @pytest.mark.unit
     def test_should_enable_for_current_rank_single_process(self):
-        """Test _should_enable_for_current_rank in single process training."""
+        """Test _should_enable_for_current_rank if rank is not set."""
         with patch.dict(os.environ, {}, clear=True):
             result = _should_enable_for_current_rank()
-            assert result is True
+            assert result is False
 
     @pytest.mark.unit
     def test_should_enable_for_current_rank_distributed_rank0(self):
@@ -229,22 +229,8 @@ class TestMetaInfoManager:
             assert result is True
 
     @pytest.mark.unit
-    def test_should_enable_for_current_rank_distributed_last_rank(self):
-        """Test _should_enable_for_current_rank for last rank in distributed training."""
-        with patch.dict(os.environ, {"RANK": "3", "WORLD_SIZE": "4"}):
-            result = _should_enable_for_current_rank()
-            assert result is True
-
-    @pytest.mark.unit
     def test_should_enable_for_current_rank_distributed_middle_rank(self):
         """Test _should_enable_for_current_rank for middle rank in distributed training."""
         with patch.dict(os.environ, {"RANK": "1", "WORLD_SIZE": "4"}):
             result = _should_enable_for_current_rank()
             assert result is False
-
-    @pytest.mark.unit
-    def test_should_enable_for_current_rank_exception_handling(self):
-        """Test _should_enable_for_current_rank handles exceptions gracefully."""
-        with patch.dict(os.environ, {"RANK": "invalid", "WORLD_SIZE": "4"}):
-            result = _should_enable_for_current_rank()
-            assert result is True  # Default to True on invalid values

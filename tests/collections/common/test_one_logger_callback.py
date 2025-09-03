@@ -55,8 +55,8 @@ class TestOneLoggerNeMoCallback:
     @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
     @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
-    def test_init_configures_provider(self, mock_ptl_callback, mock_config_class, mock_get_config, mock_provider):
+    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
+    def test_init_configures_provider(self, mock_ptl_callback_init, mock_config_class, mock_get_config, mock_provider):
         """Test that __init__ properly configures the OneLogger provider."""
         # Setup mocks
         mock_init_config = {
@@ -73,10 +73,7 @@ class TestOneLoggerNeMoCallback:
 
         mock_provider_instance = MagicMock()
         mock_provider.instance.return_value = mock_provider_instance
-
-        mock_ptl_callback_instance = MagicMock()
-        mock_ptl_callback.return_value = mock_ptl_callback_instance
-
+        
         # Create callback instance
         callback = OneLoggerNeMoCallback()
 
@@ -86,7 +83,7 @@ class TestOneLoggerNeMoCallback:
         mock_provider_instance.with_base_config.assert_called_once_with(mock_config_instance)
         mock_provider_instance.with_base_config.return_value.with_export_config.assert_called_once()
         mock_provider_instance.with_base_config.return_value.with_export_config.return_value.configure_provider.assert_called_once()
-        mock_ptl_callback.assert_called_once_with(mock_provider_instance)
+        mock_ptl_callback_init.assert_called_once_with(mock_provider_instance)
 
     @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
     @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v1_callback_config')
@@ -458,16 +455,16 @@ class TestOneLoggerNeMoCallback:
         # and will raise import errors if they're not available
         with patch(
             'nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback',
-            side_effect=ImportError("OneLogger not available"),
+            side_effect=Exception("with_base_config can be called only before configure_provider is called."),
         ):
-            with pytest.raises(ImportError, match="OneLogger not available"):
+            with pytest.raises(Exception, match="with_base_config can be called only before configure_provider is called."):
                 OneLoggerNeMoCallback()
 
     @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
     @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
-    def test_init_provider_chain_calls(self, mock_ptl_callback, mock_config_class, mock_get_config, mock_provider):
+    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
+    def test_init_provider_chain_calls(self, mock_ptl_callback_init, mock_config_class, mock_get_config, mock_provider):
         """Test that the provider configuration chain is called in correct order."""
         # Setup mocks
         mock_get_config.return_value = {"application_name": "test"}
@@ -475,11 +472,10 @@ class TestOneLoggerNeMoCallback:
         mock_config_class.return_value = mock_config_instance
         mock_provider_instance = MagicMock()
         mock_provider.instance.return_value = mock_provider_instance
-        mock_ptl_callback.return_value = MagicMock()
-
+        
         # Create callback instance
-        callback = OneLoggerNeMoCallback()
-
+        OneLoggerNeMoCallback()
+        
         # Verify the provider configuration chain
         mock_provider_instance.with_base_config.assert_called_once_with(mock_config_instance)
         chain_result = mock_provider_instance.with_base_config.return_value
@@ -487,4 +483,4 @@ class TestOneLoggerNeMoCallback:
         chain_result.with_export_config.return_value.configure_provider.assert_called_once()
 
         # Verify PTL callback was initialized with provider instance
-        mock_ptl_callback.assert_called_once_with(mock_provider_instance)
+        mock_ptl_callback_init.assert_called_once_with(mock_provider_instance)
