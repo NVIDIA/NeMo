@@ -86,6 +86,7 @@ def fp16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
     cfg.fp8_amax_history_len = 1024
     cfg.fp8_amax_compute_algo = "max"
     cfg.fp8_param_gather = True
+    cfg.reuse_grad_buf_for_mxfp8_param_ag = True
     return cfg
 
 

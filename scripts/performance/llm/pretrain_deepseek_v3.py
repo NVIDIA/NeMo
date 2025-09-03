@@ -49,6 +49,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     etp_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
@@ -136,6 +138,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
@@ -168,6 +172,12 @@ def override_recipe_configs(
         )
     recipe.model.tokenizer = recipe.data.tokenizer
 
+    # Workaround for MXFP8 functionality issue
+    if args.compute_dtype == "fp8" and recipe.trainer.plugins.fp8_recipe == "mxfp8":
+        recipe.trainer.plugins.fp8_param_gather = False
+        recipe.trainer.strategy.ddp.reuse_grad_buf_for_mxfp8_param_ag = False
+        recipe.optim.config.reuse_grad_buf_for_mxfp8_param_ag = False
+
     return recipe
 
 
@@ -185,6 +195,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -194,7 +206,7 @@ if __name__ == "__main__":
         _,  # keep_fsdp_fp8_transpose_cache
         use_user_buffer_registration,
         use_sharp,
-    ) = kwargs[:17]
+    ) = kwargs[:19]
 
     recipe = override_recipe_configs(
         args,
@@ -206,6 +218,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -216,8 +230,28 @@ if __name__ == "__main__":
         use_sharp,
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+
+    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
+    custom_env_vars = {}
+
+    if args.gpu.lower() == 'gb200':
+        custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
+    if args.enable_nsys:
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+                nsys_gpu_metrics=args.profiling_gpu_metrics,
+            )
+        )
+
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     executor = slurm_executor(
         args.gpu.lower(),
@@ -229,20 +263,12 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=custom_env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
         network='sharp' if use_sharp else None,
     )
-
-    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
-
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
-    if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not None
-        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

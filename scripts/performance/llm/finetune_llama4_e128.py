@@ -63,6 +63,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     etp_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
@@ -91,6 +93,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
@@ -142,71 +146,124 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[0:13]
+    ) = kwargs[0:15]
 
-    recipe = override_recipe_configs(
-        args,
-        num_nodes,
-        mbs,
-        gbs,
-        tp_size,
-        pp_size,
-        cp_size,
-        vp_size,
-        ep_size,
-        etp_size,
-        enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
-    )
-    exp_config = (
-        f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
-    )
-    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+    recipe = None
+    custom_env_vars = {}
+    if args.skip_finetuning is not True:
+        # Configure experiment setup for finetuning (recipe, plugins, executor, etc)
+        exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_mbs{mbs}_gbs{gbs}"
+        base_name = splitext(basename(__file__))[0].replace("finetune_", "sft_")
+        exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
+        recipe = override_recipe_configs(
+            args,
+            num_nodes,
+            mbs,
+            gbs,
+            tp_size,
+            pp_size,
+            cp_size,
+            vp_size,
+            ep_size,
+            num_layers,
+            hidden_size,
+            etp_size,
+            enable_cuda_graphs,
+            use_mcore_fsdp,
+            recompute_layers,
+            activation_offload_layers,
+        )
+        plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
 
-    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
+        if args.gpu.lower() == 'gb200':
+            custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
 
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
-    if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not None
-        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+        if args.enable_nsys:
+            plugins.append(
+                NsysPlugin(
+                    start_step=args.profiling_start_step,
+                    end_step=args.profiling_stop_step,
+                    ranks=list(range(num_nodes * args.gpus_per_node)),
+                    nsys_gpu_metrics=args.profiling_gpu_metrics,
+                )
+            )
 
-    executor = slurm_executor(
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars={},
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-    )
+        executor = slurm_executor(
+            args.gpu.lower(),
+            args.account,
+            args.partition,
+            args.log_dir,
+            num_nodes,
+            args.gpus_per_node,
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars=custom_env_vars,
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
+        )
+
+    else:
+        # If finetuning is skipped, set exp_name based on what operations will be performed
+        exp_config = ""
+        if args.skip_dataset_download is not True:
+            exp_config = "dataset_download"
+        if args.skip_import_checkpoint is not True:
+            if exp_config:
+                exp_config += "_import_checkpoint"
+            else:
+                exp_config = "import_checkpoint"
+        base_name = splitext(basename(__file__))[0].replace("finetune_", "sft_")
+        exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
+
+        executor = slurm_executor(
+            args.gpu.lower(),
+            args.account,
+            args.partition,
+            args.log_dir,
+            1,  # Single node for setup tasks
+            1,  # Single GPU for setup tasks
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars=custom_env_vars,
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
+        )
 
     with run.Experiment(exp_name) as exp:
-        if not SKIP_IMPORT:
+        if args.skip_import_checkpoint is not True:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
-        if not SKIP_DATASET_DOWNLOAD:
+
+        if args.skip_dataset_download is not True:
             exp.add(
-                *prepare_squad_dataset_experiment(executor, HF_MODEL_URI, seq_length=4096, nemo_home=args.nemo_home)
+                *prepare_squad_dataset_experiment(
+                    executor,
+                    HF_MODEL_URI,
+                    seq_length=4096,
+                )
             )
-        exp.add(
-            recipe,
-            executor=executor,
-            name=exp_name,
-            plugins=plugins,
-        )
+
+        if args.skip_finetuning is not True:
+            exp.add(
+                recipe,
+                executor=executor,
+                name=exp_name,
+                plugins=plugins,
+            )
+
         if not args.dryrun:
             exp.run(sequential=True, detach=True)
         else:

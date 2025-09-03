@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from os.path import basename, splitext
 
 import nemo_run as run
@@ -42,6 +43,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
     recompute_layers: int,
@@ -52,7 +55,9 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    enable_tp_comm_overlap = os.environ.get("TP_COMM_OVERLAP", "True").lower() in ("1", "true", "yes")
+    recipe = pretrain_recipe(performance_mode=enable_tp_comm_overlap)
+
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -66,6 +71,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         use_fsdp_double_buffer=args.use_fsdp_double_buffer,
@@ -80,6 +87,8 @@ def override_recipe_configs(
         recipe, "pre_train", "llm", "nemotronh", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
     )
 
+    gpu_type = args.gpu.lower()
+
     # data module configs
     if args.use_hf_tokenizer:
         recipe.data.tokenizer = hf_tokenizer("nvidia/Nemotron-H-8B-Base-8K")
@@ -89,6 +98,7 @@ def override_recipe_configs(
         )
         recipe.model.tokenizer = recipe.data.tokenizer
 
+    recipe.model.config.attention_backend = "auto"
     return recipe
 
 
@@ -106,12 +116,14 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         _,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:13]
+    ) = kwargs[:15]
 
     recipe = override_recipe_configs(
         args,
@@ -123,14 +135,33 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+
+    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
+
+    custom_env_vars = {}
+
+    if args.gpu.lower() == 'gb200':
+        custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
+    if args.enable_nsys:
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+                nsys_gpu_metrics=args.profiling_gpu_metrics,
+            )
+        )
 
     executor = slurm_executor(
         args.gpu.lower(),
@@ -142,16 +173,11 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=custom_env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
     )
-
-    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
-
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
 
     with run.Experiment(exp_name) as exp:
         exp.add(

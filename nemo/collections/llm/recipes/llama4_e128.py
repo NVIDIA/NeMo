@@ -319,15 +319,9 @@ def finetune_recipe(
         packed_sequence,
     )
     if peft_scheme is None or peft_scheme.lower() == 'none':
-        recipe.trainer.strategy.tensor_model_parallel_size = 4
-        recipe.trainer.strategy.expert_tensor_model_parallel_size = 4
-        recipe.trainer.strategy.expert_model_parallel_size = 32
+        recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6
     elif peft_scheme.lower() in ['lora', 'dora']:
-        recipe.trainer.strategy.sequence_parallel = True
-        recipe.trainer.strategy.tensor_model_parallel_size = 8
-        recipe.trainer.strategy.expert_tensor_model_parallel_size = 8
-        recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.dim = 8
         recipe.peft.alpha = 16
@@ -397,9 +391,10 @@ def finetune_performance_optimizations(
     recipe.trainer.callbacks.append(
         run.Config(
             MegatronCommOverlapCallback,
-            tp_comm_overlap=False,
+            tp_comm_overlap=True,
         )
     )
+    recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
     recipe.trainer.callbacks.append(run.Config(TimingCallback))
     recipe.trainer.callbacks.append(
         run.Config(
