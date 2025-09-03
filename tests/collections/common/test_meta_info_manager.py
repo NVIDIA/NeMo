@@ -16,6 +16,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from omegaconf import OmegaConf
 
 from nemo.utils.meta_info_manager import (
@@ -25,7 +26,6 @@ from nemo.utils.meta_info_manager import (
     get_nemo_v2_callback_config,
     get_one_logger_init_config,
 )
-from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 
 
 class TestMetaInfoManager:

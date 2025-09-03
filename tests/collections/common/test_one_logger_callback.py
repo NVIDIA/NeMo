@@ -73,7 +73,7 @@ class TestOneLoggerNeMoCallback:
 
         mock_provider_instance = MagicMock()
         mock_provider.instance.return_value = mock_provider_instance
-        
+
         # Create callback instance
         callback = OneLoggerNeMoCallback()
 
@@ -457,14 +457,18 @@ class TestOneLoggerNeMoCallback:
             'nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback',
             side_effect=Exception("with_base_config can be called only before configure_provider is called."),
         ):
-            with pytest.raises(Exception, match="with_base_config can be called only before configure_provider is called."):
+            with pytest.raises(
+                Exception, match="with_base_config can be called only before configure_provider is called."
+            ):
                 OneLoggerNeMoCallback()
 
     @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
     @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
     @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
-    def test_init_provider_chain_calls(self, mock_ptl_callback_init, mock_config_class, mock_get_config, mock_provider):
+    def test_init_provider_chain_calls(
+        self, mock_ptl_callback_init, mock_config_class, mock_get_config, mock_provider
+    ):
         """Test that the provider configuration chain is called in correct order."""
         # Setup mocks
         mock_get_config.return_value = {"application_name": "test"}
@@ -472,10 +476,10 @@ class TestOneLoggerNeMoCallback:
         mock_config_class.return_value = mock_config_instance
         mock_provider_instance = MagicMock()
         mock_provider.instance.return_value = mock_provider_instance
-        
+
         # Create callback instance
         OneLoggerNeMoCallback()
-        
+
         # Verify the provider configuration chain
         mock_provider_instance.with_base_config.assert_called_once_with(mock_config_instance)
         chain_result = mock_provider_instance.with_base_config.return_value
