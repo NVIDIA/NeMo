@@ -83,6 +83,7 @@ def override_recipe_configs(
     )
 
     from nemo.collections.diffusion.models.flux.model import FluxConfig
+
     recipe.model.flux_params.flux_config = run.Config(
         FluxConfig,
         gradient_accumulation_fusion=False,
