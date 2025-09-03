@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from nemo.utils.callbacks.base_callback import BaseCallback
-from nemo.utils.callbacks.callback_group import CallbackGroup, hook_class_init_with_callbacks
+from nemo.utils.callback_group import CallbackGroup, hook_class_init_with_callbacks
 from nemo.utils.callbacks.cuda_graph import CUDAGraphCallback
 from nemo.utils.callbacks.nemo_model_checkpoint import NeMoModelCheckpoint
 from nemo.utils.callbacks.one_logger_callback import OneLoggerNeMoCallback

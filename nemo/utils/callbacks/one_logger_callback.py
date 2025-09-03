@@ -25,7 +25,6 @@ from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeE
 
 from nemo.utils.callbacks.base_callback import BaseCallback
 from nemo.utils.meta_info_manager import (
-    enable_one_logger,
     get_nemo_v1_callback_config,
     get_nemo_v2_callback_config,
     get_one_logger_init_config,
