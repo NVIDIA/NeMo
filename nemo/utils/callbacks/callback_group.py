@@ -1,8 +1,8 @@
 import functools
 from typing import Any, Callable, List, Optional
 
-from nemo.lightning.base_callback import BaseCallback
-from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
+from nemo.utils.callbacks.base_callback import BaseCallback
+from nemo.utils.callbacks.one_logger_callback import OneLoggerNeMoCallback
 
 
 class CallbackGroup:
@@ -108,5 +108,7 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
 CallbackGroup.get_instance()
 
 __all__ = ['CallbackGroup', 'hook_class_init_with_callbacks']
+
+
 
 

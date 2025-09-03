@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemo.lightning.one_logger_callback import (
+from nemo.utils.callbacks.one_logger_callback import (
     call_one_logger_callback,
     get_current_time_msec,
     hook_class_init_with_callbacks,
