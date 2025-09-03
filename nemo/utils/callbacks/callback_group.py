@@ -27,9 +27,7 @@ class CallbackGroup:
         return cls._instance
 
     def __init__(self) -> None:
-        self._callbacks: List[BaseCallback] = [
-            OneLoggerNeMoCallback() # TODO: this is hardcoded for now
-        ]
+        self._callbacks: List[BaseCallback] = [OneLoggerNeMoCallback()]  # TODO: this is hardcoded for now
 
     def update_config(self, nemo_version: str, trainer: Any, **kwargs) -> None:
         """Update configuration across all registered callbacks and attach them to trainer.
@@ -108,7 +106,3 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
 CallbackGroup.get_instance()
 
 __all__ = ['CallbackGroup', 'hook_class_init_with_callbacks']
-
-
-
-

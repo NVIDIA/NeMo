@@ -29,9 +29,9 @@ from lightning.pytorch.utilities import rank_zero_info
 
 from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
-from nemo.utils.callbacks.callback_group import CallbackGroup
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
+from nemo.utils.callbacks.callback_group import CallbackGroup
 
 
 class ModelCheckpoint(PTLModelCheckpoint):

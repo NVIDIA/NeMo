@@ -63,5 +63,3 @@ class OneLoggerNeMoCallback(OneLoggerPTLCallback, BaseCallback):
             config = get_nemo_v1_callback_config(trainer=trainer)
         training_telemetry_config = TrainingTelemetryConfig(**config)
         TrainingTelemetryProvider.instance().set_training_telemetry_config(training_telemetry_config)
-
-
