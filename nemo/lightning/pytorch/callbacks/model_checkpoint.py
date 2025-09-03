@@ -27,11 +27,11 @@ from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLM
 from lightning.pytorch.callbacks.model_checkpoint import _is_local_file_protocol
 from lightning.pytorch.utilities import rank_zero_info
 
+from nemo.lightning.callback_group import CallbackGroup
 from nemo.lightning.ckpt_utils import ckpt_to_dir
 from nemo.lightning.io.pl import TrainerContext
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
-from nemo.lightning.callback_group import CallbackGroup
 
 
 class ModelCheckpoint(PTLModelCheckpoint):
