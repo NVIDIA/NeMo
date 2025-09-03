@@ -454,7 +454,7 @@ class TestOneLoggerNeMoCallback:
         # This test verifies that the callback properly depends on external libraries
         # and will raise import errors if they're not available
         with patch(
-            'nemo.lightning.one_logger_callback.OneLoggerPTLCallback',
+            'nemo.lightning.one_logger_callback.OneLoggerPTLCallback.__init__',
             side_effect=Exception("with_base_config can be called only before configure_provider is called."),
         ):
             with pytest.raises(
