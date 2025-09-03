@@ -192,7 +192,7 @@ class IOMixin:
 
         # Add OneLogger timing hooks for data modules to enable telemetry tracking
         if issubclass(cls, pl.LightningDataModule):
-            from nemo.lightning.pytorch.callbacks.callback_group import hook_class_init_with_callbacks
+            from nemo.lightning.callback_group import hook_class_init_with_callbacks
 
             hook_class_init_with_callbacks(cls, "on_dataloader_init_start", "on_dataloader_init_end")
         super().__init_subclass__()
