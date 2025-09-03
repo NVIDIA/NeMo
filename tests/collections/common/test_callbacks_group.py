@@ -20,8 +20,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from lightning.pytorch.callbacks import Callback as PTLCallback
 
-from nemo.utils.callbacks.base_callback import BaseCallback
 from nemo.utils.callback_group import CallbackGroup, hook_class_init_with_callbacks
+from nemo.utils.callbacks.base_callback import BaseCallback
 
 
 def _fresh_group_module():
