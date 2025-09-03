@@ -15,7 +15,7 @@
 import functools
 from typing import Any, Callable, List, Optional
 
-from nemo.utils.callbacks.base_callback import BaseCallback
+from nemo.lightning.base_callback import BaseCallback
 
 
 class CallbackGroup:

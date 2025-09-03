@@ -20,8 +20,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from lightning.pytorch.callbacks import Callback as PTLCallback
 
-from nemo.utils.callbacks.base_callback import BaseCallback
-from nemo.utils.callbacks.one_logger_callback import OneLoggerNeMoCallback
+from nemo.lightning.base_callback import BaseCallback
+from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 
 
 class TestOneLoggerNeMoCallback:
@@ -30,10 +30,10 @@ class TestOneLoggerNeMoCallback:
     def test_inheritance(self):
         """Test that OneLoggerNeMoCallback properly inherits from both parent classes."""
         with (
-            patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback') as mock_ptl_callback,
-            patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider') as mock_provider,
-            patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config') as mock_get_config,
-            patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig') as mock_config_class,
+            patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback') as mock_ptl_callback,
+            patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider,
+            patch('nemo.lightning.one_logger_callback.get_one_logger_init_config') as mock_get_config,
+            patch('nemo.lightning.one_logger_callback.OneLoggerConfig') as mock_config_class,
         ):
 
             # Setup mocks
@@ -52,10 +52,10 @@ class TestOneLoggerNeMoCallback:
             assert isinstance(callback, BaseCallback)
             assert isinstance(callback, PTLCallback)
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
     def test_init_configures_provider(self, mock_ptl_callback_init, mock_config_class, mock_get_config, mock_provider):
         """Test that __init__ properly configures the OneLogger provider."""
         # Setup mocks
@@ -85,12 +85,12 @@ class TestOneLoggerNeMoCallback:
         mock_provider_instance.with_base_config.return_value.with_export_config.return_value.configure_provider.assert_called_once()
         mock_ptl_callback_init.assert_called_once_with(mock_provider_instance)
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v1_callback_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_v1(
         self,
         mock_ptl_callback,
@@ -126,12 +126,12 @@ class TestOneLoggerNeMoCallback:
         mock_telemetry_config_class.assert_called_once_with(**mock_v1_config)
         mock_provider_instance.set_training_telemetry_config.assert_called_once_with(mock_telemetry_config_instance)
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v2_callback_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_nemo_v2_callback_config')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_v2(
         self,
         mock_ptl_callback,
@@ -168,12 +168,12 @@ class TestOneLoggerNeMoCallback:
         mock_telemetry_config_class.assert_called_once_with(**mock_v2_config)
         mock_provider_instance.set_training_telemetry_config.assert_called_once_with(mock_telemetry_config_instance)
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v1_callback_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_unknown_version_defaults_to_v1(
         self,
         mock_ptl_callback,
@@ -209,12 +209,12 @@ class TestOneLoggerNeMoCallback:
         mock_telemetry_config_class.assert_called_once_with(**mock_v1_config)
         mock_provider_instance.set_training_telemetry_config.assert_called_once_with(mock_telemetry_config_instance)
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v2_callback_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_nemo_v2_callback_config')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_v2_without_data(
         self,
         mock_ptl_callback,
@@ -250,12 +250,12 @@ class TestOneLoggerNeMoCallback:
         mock_telemetry_config_class.assert_called_once_with(**mock_v2_config)
         mock_provider_instance.set_training_telemetry_config.assert_called_once_with(mock_telemetry_config_instance)
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v2_callback_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_nemo_v2_callback_config')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_v2_with_extra_kwargs(
         self,
         mock_ptl_callback,
@@ -296,15 +296,15 @@ class TestOneLoggerNeMoCallback:
 
     def test_export_all_symbols(self):
         """Test that __all__ contains the expected symbols."""
-        from nemo.utils.callbacks.one_logger_callback import __all__
+        from nemo.lightning.one_logger_callback import __all__
 
         assert 'OneLoggerNeMoCallback' in __all__
 
     @patch.dict(os.environ, {'EXP_NAME': 'test-experiment', 'WORLD_SIZE': '4'})
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_init_with_environment_variables(
         self, mock_ptl_callback, mock_config_class, mock_get_config, mock_provider
     ):
@@ -332,12 +332,12 @@ class TestOneLoggerNeMoCallback:
         assert call_args['session_tag_or_fn'] == 'test-experiment'
         assert call_args['world_size_or_fn'] == 4
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v1_callback_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_with_empty_config(
         self,
         mock_ptl_callback,
@@ -372,12 +372,12 @@ class TestOneLoggerNeMoCallback:
         mock_telemetry_config_class.assert_called_once_with(**{})
         mock_provider_instance.set_training_telemetry_config.assert_called_once_with(mock_telemetry_config_instance)
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v1_callback_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_provider_exception_handling(
         self,
         mock_ptl_callback,
@@ -412,12 +412,12 @@ class TestOneLoggerNeMoCallback:
         with pytest.raises(Exception, match="Provider error"):
             callback.update_config(nemo_version='v1', trainer=trainer)
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_nemo_v1_callback_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config')
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_config_exception_handling(
         self,
         mock_ptl_callback,
@@ -454,7 +454,7 @@ class TestOneLoggerNeMoCallback:
         # This test verifies that the callback properly depends on external libraries
         # and will raise import errors if they're not available
         with patch(
-            'nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback',
+            'nemo.lightning.one_logger_callback.OneLoggerPTLCallback',
             side_effect=Exception("with_base_config can be called only before configure_provider is called."),
         ):
             with pytest.raises(
@@ -462,10 +462,10 @@ class TestOneLoggerNeMoCallback:
             ):
                 OneLoggerNeMoCallback()
 
-    @patch('nemo.utils.callbacks.one_logger_callback.TrainingTelemetryProvider')
-    @patch('nemo.utils.callbacks.one_logger_callback.get_one_logger_init_config')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerConfig')
-    @patch('nemo.utils.callbacks.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
+    @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
+    @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
     def test_init_provider_chain_calls(
         self, mock_ptl_callback_init, mock_config_class, mock_get_config, mock_provider
     ):

@@ -20,16 +20,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 from lightning.pytorch.callbacks import Callback as PTLCallback
 
-from nemo.utils.callback_group import CallbackGroup, hook_class_init_with_callbacks
-from nemo.utils.callbacks.base_callback import BaseCallback
+from nemo.lightning.base_callback import BaseCallback
+from nemo.lightning.callback_group import CallbackGroup, hook_class_init_with_callbacks
 
 
 def _fresh_group_module():
-    """Import the callback_group module from nemo.utils."""
-    if 'nemo.utils.callback_group' in sys.modules:
-        del sys.modules['nemo.utils.callback_group']
+    """Import the callback_group module from nemo.lightning."""
+    if 'nemo.lightning.callback_group' in sys.modules:
+        del sys.modules['nemo.lightning.callback_group']
     # Stub out OneLoggerNeMoCallback to avoid importing external deps during tests
-    stub_one_logger_mod = types.ModuleType('nemo.utils.callbacks.one_logger_callback')
+    stub_one_logger_mod = types.ModuleType('nemo.lightning.one_logger_callback')
 
     class _StubOneLoggerCallback(BaseCallback):
         def __init__(self, *args, **kwargs):
@@ -40,8 +40,8 @@ def _fresh_group_module():
 
     setattr(stub_one_logger_mod, 'OneLoggerNeMoCallback', _StubOneLoggerCallback)
 
-    with patch.dict(sys.modules, {'nemo.utils.callbacks.one_logger_callback': stub_one_logger_mod}):
-        return importlib.import_module('nemo.utils.callback_group')
+    with patch.dict(sys.modules, {'nemo.lightning.one_logger_callback': stub_one_logger_mod}):
+        return importlib.import_module('nemo.lightning.callback_group')
 
 
 def test_base_callback_noops_do_not_raise():
