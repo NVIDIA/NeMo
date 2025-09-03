@@ -28,9 +28,10 @@ class TestRobustCopy:
         src_file.write_text("test content")
         dest_file = tmp_path / "dest.txt"
 
-        with patch('nemo.lightning.io.artifact.file.shutil.copy2') as mock_copy2, patch(
-            'nemo.lightning.io.artifact.file.shutil.copy'
-        ) as mock_copy:
+        with (
+            patch('nemo.lightning.io.artifact.file.shutil.copy2') as mock_copy2,
+            patch('nemo.lightning.io.artifact.file.shutil.copy') as mock_copy,
+        ):
             robust_copy(src_file, dest_file)
             mock_copy2.assert_called_once_with(src_file, dest_file)
             mock_copy.assert_not_called()
@@ -42,9 +43,12 @@ class TestRobustCopy:
         src_file.write_text("test content")
         dest_file = tmp_path / "dest.txt"
 
-        with patch(
-            'nemo.lightning.io.artifact.file.shutil.copy2', side_effect=PermissionError("copy2 fails")
-        ) as mock_copy2, patch('nemo.lightning.io.artifact.file.shutil.copy') as mock_copy:
+        with (
+            patch(
+                'nemo.lightning.io.artifact.file.shutil.copy2', side_effect=PermissionError("copy2 fails")
+            ) as mock_copy2,
+            patch('nemo.lightning.io.artifact.file.shutil.copy') as mock_copy,
+        ):
             robust_copy(src_file, dest_file)
             mock_copy2.assert_called_once_with(src_file, dest_file)
             mock_copy.assert_called_once_with(src_file, dest_file)

@@ -24,7 +24,6 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import Tensor
 
 import nemo.collections.asr.models as asr_models
-from nemo.lightning.io.artifact.file import robust_copy
 from nemo.collections.asr.parts.mixins.asr_adapter_mixins import ASRAdapterModelMixin
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.utils import asr_module_utils
@@ -34,6 +33,7 @@ from nemo.collections.asr.parts.utils.tokenizer_utils import (
     extract_punctuation_from_vocab,
 )
 from nemo.collections.common import tokenizers
+from nemo.lightning.io.artifact.file import robust_copy
 from nemo.utils import app_state, logging
 
 
