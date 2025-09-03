@@ -151,6 +151,7 @@ if __name__ == "__main__":
     sequence_length = 4096
     if args.gpu.lower() == 'gb200':
         sequence_length = 2048
+    finetuning_scheme = 'none' if args.finetuning == 'sft' else args.finetuning
 
     kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "llama3", "70b", args)
     (
@@ -176,7 +177,7 @@ if __name__ == "__main__":
     if args.skip_finetuning is not True:
         # Configure experiment setup for finetuning (recipe, plugins, executor, etc)
         exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_mbs{mbs}_gbs{gbs}"
-        base_name = splitext(basename(__file__))[0].replace("finetune_", "lora_")
+        base_name = splitext(basename(__file__))[0].replace("finetune_", f"{finetuning_scheme}_")
         exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
         recipe = override_recipe_configs(
             args,
@@ -238,7 +239,7 @@ if __name__ == "__main__":
                 exp_config += "_import_checkpoint"
             else:
                 exp_config = "import_checkpoint"
-        base_name = splitext(basename(__file__))[0].replace("finetune_", "sft_")
+        base_name = splitext(basename(__file__))[0].replace("finetune_", f"{finetuning_scheme}_")
         exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
 
         executor = slurm_executor(
