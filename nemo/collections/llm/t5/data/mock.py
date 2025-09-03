@@ -49,7 +49,7 @@ class MockDataModule(pl.LightningDataModule):
         persistent_workers: bool = False,
         create_attention_mask: bool = False,
     ):
-        from nemo.utils.callbacks.callback_group import CallbackGroup
+        from from nemo.lightning.callback_group import CallbackGroup
 
         CallbackGroup.get_instance().on_dataloader_init_start()
 
