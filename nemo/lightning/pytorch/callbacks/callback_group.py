@@ -32,7 +32,7 @@ class CallbackGroup:
     @classmethod
     def get_instance(cls) -> 'CallbackGroup':
         """Get the singleton instance of CallbackGroup.
-        
+
         Returns:
             CallbackGroup: The singleton instance.
         """
@@ -66,7 +66,7 @@ class CallbackGroup:
     @property
     def callbacks(self) -> List['BaseCallback']:
         """Get the list of registered callbacks.
-        
+
         Returns:
             List[BaseCallback]: List of registered callbacks.
         """
@@ -100,7 +100,7 @@ class BaseCallback(PTLCallback):
     # App lifecycle
     def on_app_start(self, *args, **kwargs) -> None:
         """Called when the application starts.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -109,7 +109,7 @@ class BaseCallback(PTLCallback):
 
     def on_app_end(self, *args, **kwargs) -> None:
         """Called when the application ends.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -119,7 +119,7 @@ class BaseCallback(PTLCallback):
     # Model lifecycle
     def on_model_init_start(self, *args, **kwargs) -> None:
         """Called when model initialization starts.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -128,7 +128,7 @@ class BaseCallback(PTLCallback):
 
     def on_model_init_end(self, *args, **kwargs) -> None:
         """Called when model initialization ends.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -138,7 +138,7 @@ class BaseCallback(PTLCallback):
     # Dataloader lifecycle
     def on_dataloader_init_start(self, *args, **kwargs) -> None:
         """Called when dataloader initialization starts.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -147,7 +147,7 @@ class BaseCallback(PTLCallback):
 
     def on_dataloader_init_end(self, *args, **kwargs) -> None:
         """Called when dataloader initialization ends.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -157,7 +157,7 @@ class BaseCallback(PTLCallback):
     # Optimizer lifecycle
     def on_optimizer_init_start(self, *args, **kwargs) -> None:
         """Called when optimizer initialization starts.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -166,7 +166,7 @@ class BaseCallback(PTLCallback):
 
     def on_optimizer_init_end(self, *args, **kwargs) -> None:
         """Called when optimizer initialization ends.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -176,7 +176,7 @@ class BaseCallback(PTLCallback):
     # Checkpoint lifecycle
     def on_load_checkpoint_start(self, *args, **kwargs) -> None:
         """Called when checkpoint loading starts.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -185,7 +185,7 @@ class BaseCallback(PTLCallback):
 
     def on_load_checkpoint_end(self, *args, **kwargs) -> None:
         """Called when checkpoint loading ends.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -194,7 +194,7 @@ class BaseCallback(PTLCallback):
 
     def on_save_checkpoint_start(self, *args, **kwargs) -> None:
         """Called when checkpoint saving starts.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -203,7 +203,7 @@ class BaseCallback(PTLCallback):
 
     def on_save_checkpoint_end(self, *args, **kwargs) -> None:
         """Called when checkpoint saving ends.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -212,7 +212,7 @@ class BaseCallback(PTLCallback):
 
     def on_save_checkpoint_success(self, *args, **kwargs) -> None:
         """Called when checkpoint saving succeeds.
-        
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.

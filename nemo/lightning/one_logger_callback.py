@@ -67,7 +67,7 @@ class OneLoggerNeMoCallback(OneLoggerPTLCallback, BaseCallback):
 
 def init_one_logger() -> None:
     """Initialize OneLogger callback if enabled.
-    
+
     Registers the OneLoggerNeMoCallback with the CallbackGroup singleton
     if OneLogger is enabled in the configuration.
     """
