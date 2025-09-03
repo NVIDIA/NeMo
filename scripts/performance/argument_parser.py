@@ -527,13 +527,4 @@ def parse_cli_args():
         default=0,
     )
 
-    parser.add_argument(
-        "-vb",
-        "--enable_vboost",
-        help="Enable VBoost which steers more power towards tensor cores. Disabled by default",
-        type=bool_arg,
-        required=False,
-        default=None,
-    )
-
     return parser
