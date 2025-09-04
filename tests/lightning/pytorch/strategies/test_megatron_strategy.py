@@ -112,3 +112,44 @@ class TestMegatronStrategy:
         strategy = MegatronStrategy(ddp=ddp)
         metadata = strategy.sharded_state_dict_metadata
         assert metadata == get_metadata()
+
+    def test_init_errors(self):
+        with pytest.raises(ValueError):
+            strategy = MegatronStrategy(ddp="pytorch", fsdp="fsdp")
+        
+        with pytest.raises(ValueError):
+            strategy = MegatronStrategy(ddp="test")
+        
+        with pytest.raises(NotImplementedError):
+            strategy = MegatronStrategy(fsdp="pytorch")
+        
+
+        ddp = DistributedDataParallelConfig(use_custom_fsdp=True)
+        strategy = MegatronStrategy(ddp=ddp, fsdp=None)
+
+        ddp = DistributedDataParallelConfig(use_custom_fsdp=False)
+        strategy = MegatronStrategy(ddp=ddp, fsdp="megatron")
+        
+        with pytest.raises(ValueError):
+            strategy = MegatronStrategy(fsdp="test")
+        
+    def test_process_dataloader(self):
+        strategy = MegatronStrategy()
+        strategy.process_dataloader(dataloader="test")
+    
+    def test_on_test_end(self):
+        strategy = MegatronStrategy()
+        strategy.model = [1, 2, 3]
+        with pytest.raises(AttributeError):
+            strategy.on_test_end()
+    
+    def test_update_step_kwargs(self):
+        strategy = MegatronStrategy()
+        with pytest.raises(AttributeError):
+            strategy._update_step_kwargs(1, kwargs={"forward_step": None}, step_name="first")
+        
+        with pytest.raises(AttributeError):
+            strategy._update_step_kwargs(1, kwargs={"data_step": None}, step_name="first")
+        
+        with pytest.raises(AttributeError):
+            strategy._update_step_kwargs(1, kwargs={"data_step": None, "forward_step": None}, step_name="first")
