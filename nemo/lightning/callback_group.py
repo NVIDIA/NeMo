@@ -16,6 +16,7 @@ import functools
 from typing import Any, Callable, List, Optional
 
 from nemo.lightning.base_callback import BaseCallback
+from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 
 
 class CallbackGroup:
@@ -40,7 +41,9 @@ class CallbackGroup:
         return cls._instance
 
     def __init__(self) -> None:
-        self._callbacks: List[BaseCallback] = []
+        self._callbacks: List[BaseCallback] = [
+            OneLoggerNeMoCallback()
+        ]
 
     def register(self, callback: BaseCallback) -> None:
         """Register a callback to the callback group.
