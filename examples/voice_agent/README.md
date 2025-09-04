@@ -10,13 +10,13 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 - Allow users to talk to most LLMs from HuggingFace with configurable prompts. 
 - Streaming speech recognition with low latency.
 - FastPitch-HiFiGAN TTS for fast audio response generation.
-- Speaker diarization up to 4 speakers across different turns.
+- Speaker diarization up to 4 speakers in different userturns.
 - WebSocket server for easy deployment.
 
 
 ## 💡 Upcoming Next
 - More accurate and noise-robust streaming ASR models.
-- Faster EOU detection and backchannel handling (e.g., bot will not stop speaking when user is saying something like "uhuh", "wow", "i see").
+- Faster EOU detection and handling backchannel phrases.
 - Better streaming ASR and speaker diarization pipeline.
 - Better TTS model with more natural voice.
 - Joint ASR and speaker diarization model.
@@ -130,7 +130,11 @@ We use [cache-aware streaming FastConformer](https://arxiv.org/abs/2312.17279) t
 
 ### 💬 Speaker Diarization
 
-Speaker diarization aims to distinguish different speakers in the input speech audio. We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the speaker for each user turn. As of now, we only support detecting 1 speaker for a single user turn, but different turns can be from different speakers, with a maximum of 4 speakers in the whole conversation. Currently supported models are:
+Speaker diarization aims to distinguish different speakers in the input speech audio. We use [streaming Sortformer](http://arxiv.org/abs/2507.18446) to detect the speaker for each user turn. 
+
+As of now, we only support detecting 1 speaker per user turn, but different turns come from different speakers, with a maximum of 4 speakers in the whole conversation. 
+
+Currently supported models are:
  - [nvidia/diar_streaming_sortformer_4spk-v2](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2) (default)
 
 
