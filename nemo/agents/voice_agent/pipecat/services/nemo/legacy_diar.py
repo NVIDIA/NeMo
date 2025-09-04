@@ -24,6 +24,7 @@ from nemo.collections.asr.models import SortformerEncLabelModel
 
 from nemo.collections.asr.modules.sortformer_modules import StreamingSortformerState
 
+
 @dataclass
 class DiarizationConfig:
     """Diarization configuration parameters for inference."""
