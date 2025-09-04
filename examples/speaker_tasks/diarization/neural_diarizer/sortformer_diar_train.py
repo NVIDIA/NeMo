@@ -23,8 +23,8 @@ from nemo.utils.exp_manager import exp_manager
 
 """
 Example training session (single node training)
-For training, you can use the following precisions:
-bf16, bf16-mixed, 32 - You can train with a bigger batchsize based on bf16(-mixed).
+For training, you can use the following precisions: 32, bf16 and bf16-mixed.
+You can train with a larger batch size using BF16 mixed precision.
 
 python ./sortformer_diar_train.py --config-path='../conf/neural_diarizer' \
     --config-name='sortformer_diarizer_hybrid_loss_4spk-v1.yaml' \
