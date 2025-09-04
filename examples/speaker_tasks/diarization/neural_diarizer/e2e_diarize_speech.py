@@ -82,7 +82,7 @@ class DiarizationConfig:
     no_der: bool = False
     out_rttm_dir: Optional[str] = None
     save_preds_tensors: bool = False
-    precision: str = "bf16" # 32, bf16
+    precision: str = "bf16" # 32, bf16, bf16-mixed
 
     # General configs
     session_len_sec: float = -1  # End-to-end diarization session length in seconds
