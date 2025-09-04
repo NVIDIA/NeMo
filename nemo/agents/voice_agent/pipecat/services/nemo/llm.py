@@ -17,6 +17,7 @@ import uuid
 from threading import Thread
 from typing import AsyncGenerator, List
 
+from jinja2.exceptions import TemplateError
 from loguru import logger
 from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
 from pipecat.frames.frames import LLMFullResponseEndFrame, LLMFullResponseStartFrame, LLMTextFrame
@@ -66,13 +67,32 @@ class HuggingFaceLLMLocalService:
 
         print(f"LLM apply_chat_template kwargs: {self.apply_chat_template_kwargs}")
 
+    def _maybe_fix_messages(self, messages: List[ChatCompletionMessageParam]) -> List[ChatCompletionMessageParam]:
+        """
+        Some LLMs like "nvidia/Llama-3.1-Nemotron-Nano-8B-v1" requires a user turn after the system prompt, this function is used to add a dummy user turn if the system prompt is followed by an assistant turn.
+        """
+        if messages[0]["role"] == "system" and messages[1]["role"] == "assistant":
+            message = {"role": "user", "content": "Hi"}
+            messages.insert(1, message)
+        return messages
+
     async def generate_stream(
         self, messages: List[ChatCompletionMessageParam], **kwargs
     ) -> AsyncGenerator[ChatCompletionChunk, None]:
+
         # Convert messages to prompt format
-        prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
-        )
+        try:
+            prompt = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
+            )
+        except TemplateError as e:
+            messages = self._maybe_fix_messages(messages)
+            prompt = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
+            )
+            logger.warning(
+                f"Got TemplateError: {e}. Tried to fix by adding a dummy user message. New messages: {messages}"
+            )
 
         logger.debug(f"LLM prompt: {prompt}")
 

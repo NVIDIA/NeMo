@@ -66,7 +66,7 @@ The incompatibility errors from pip can be ignored.
 ### Configure the server
 
 Edit the `server/server_config.yaml` file to configure the server, for example:
-- Changing the LLM and prompt you want to use, by either putting a local path to a text file or the whole prompt string. See `example_prompts/` for examples to start with. 
+- Changing the LLM and system prompt you want to use in `llm.model` and `llm.system_prompt`, by either putting a local path to a text file or the whole prompt string. See `example_prompts/` for examples to start with. 
 - Configure the LLM parameters, such as temperature, max tokens, etc.
 - Distribute different components to different GPUs if you have more than one.
 - Adjust VAD parameters for sensitivity and end-of-turn detection timeout.
@@ -121,6 +121,9 @@ Most LLMs from HuggingFace are supported. A few examples are:
 - [nvidia/Nemotron-Mini-4B-Instruct](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct)
 
 Please refer to the HuggingFace webpage of each model to configure the model parameters `llm.generation_kwargs` and `llm.apply_chat_template_kwargs` in `server/server_config.yaml` as needed.
+
+You can change the `llm.system_prompt` in `server/server_config.yaml` to configure the behavior of the LLM, by either putting a local path to a text file or the whole prompt string. See `example_prompts/` for examples to start with.
+
 
 ### 🎤 ASR 
 

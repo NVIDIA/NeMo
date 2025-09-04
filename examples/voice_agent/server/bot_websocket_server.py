@@ -66,7 +66,7 @@ logger.info(f"Server config: {server_config}")
 # Default Configuration
 SAMPLE_RATE = 16000  # Standard sample rate for speech recognition
 RAW_AUDIO_FRAME_LEN_IN_SECS = 0.016  # 16ms for websocket transport
-BOT_PROMPT = """
+SYSTEM_PROMPT = """
 You are a helpful AI agent named Lisa. 
 Start by greeting the user warmly and introducing yourself within one sentence. 
 Your answer should be concise and to the point.
@@ -114,13 +114,13 @@ TURN_TAKING_BOT_STOP_DELAY = server_config.turn_taking.bot_stop_delay
 
 ### LLM
 SYSTEM_ROLE = server_config.llm.get("system_role", "system")
-if server_config.get("bot_prompt", None) is not None:
-    bot_prompt = server_config.bot_prompt
-    if os.path.isfile(bot_prompt):
-        with open(bot_prompt, "r") as f:
-            bot_prompt = f.read()
-    BOT_PROMPT = bot_prompt
-logger.info(f"BOT_PROMPT: {BOT_PROMPT}")
+if server_config.llm.get("system_prompt", None) is not None:
+    system_prompt = server_config.llm.system_prompt
+    if os.path.isfile(system_prompt):
+        with open(system_prompt, "r") as f:
+            system_prompt = f.read()
+    SYSTEM_PROMPT = system_prompt
+logger.info(f"System prompt: {SYSTEM_PROMPT}")
 
 LLM_MODEL = server_config.llm.model
 LLM_DEVICE = server_config.llm.device
@@ -255,7 +255,7 @@ async def run_bot_websocket_server():
         [
             {
                 "role": SYSTEM_ROLE,
-                "content": BOT_PROMPT,
+                "content": SYSTEM_PROMPT,
             }
         ],
     )

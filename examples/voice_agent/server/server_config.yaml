@@ -1,7 +1,5 @@
-
-# bot_prompt: /path/to/prompt.txt  # or use path to a txt file that contains a long prompt, for example in `../example_prompts/fast_bite.txt`
-bot_prompt: "You are a helpful AI agent named Lisa. Start by greeting the user warmly and introducing yourself within one sentence. Your answer should be concise and to the point. You might also see speaker tags (<speaker_0>, <speaker_1>, etc.) in the user context. You should respond to the user based on the speaker tag and the context of that speaker. Do not include the speaker tags in your response, use them only to identify the speaker."
-
+# This is an example config for setting up a NeMo Voice Agent server.
+# Please refer to https://github.com/NVIDIA-NeMo/NeMo/tree/main/examples/voice_agent/README.md for more details
 
 transport:
   audio_out_10ms_chunks: 8  # use 4 as websocket default, but increasing to a larger number might have less glitches in TTS output
@@ -30,8 +28,8 @@ diar:
 
 turn_taking:
   backchannel_phrases: "./server/backchannel_phrases.yaml"  # set it to the actual path of the file, or specify a list of backchannel phrases here
-  max_buffer_size: 2  # num of words more than this amount will interrupt the LLM immediately
-  bot_stop_delay: 0.5  # in seconds, a delay between server and client audio output
+  max_buffer_size: 2  # num of words more than this amount will interrupt the LLM immediately if not backchannel phrases
+  bot_stop_delay: 0.5  # a delay in seconds allowed between server and client audio output, so that the BotStopSpeaking signal is handled not too far away from the actual time that the user hears all audio output
 
 llm:
   type: hf
@@ -39,6 +37,9 @@ llm:
   model: "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"  # model name for HF models, will be used via `AutoModelForCausalLM.from_pretrained()`
   device: "cuda"
   system_role: "system"  # role for system prompt, set it to `user` for models that do not support system prompt
+  # `system_prompt` is used as the sytem prompt to the LLM, please refer to differnt LLM webpage for spcial functions like enabling/disabling thinking
+  # system_prompt: /path/to/prompt.txt  # or use path to a txt file that contains a long prompt, for example in `../example_prompts/fast_bite.txt`
+  system_prompt: "You are a helpful AI agent named Lisa. Start by greeting the user warmly and introducing yourself within one sentence. Your answer should be concise and to the point. You might also see speaker tags (<speaker_0>, <speaker_1>, etc.) in the user context. You should respond to the user based on the speaker tag and the context of that speaker. Do not include the speaker tags in your response, use them only to identify the speaker. If a speaker provides their name, use their name when addressing their requests."
   apply_chat_template_kwargs: null  # please refer to the model page of each HF LLM model to set them correctly, by default `tokenize=False` and `add_generation_prompt=True` are applied
   generation_kwargs:  # kwargs that will be passed into model.generate() function of HF models
     temperature: 0.7  # LLM sampling params
@@ -52,5 +53,5 @@ tts:
   fastpitch_model: "nvidia/tts_en_fastpitch"
   hifigan_model: "nvidia/tts_hifigan"
   device: "cuda"
-  extra_separator: null  # additional punctuations to chunk LLM response into segments for faster TTS output, e.g., ","
+  extra_separator: ",?!"  # a string of additional punctuations to chunk LLM response into segments for faster TTS output, e.g., ",?!". Set to `null` to use default behavior
   think_tokens: ["<think>", "</think>"]  # specify them to avoid TTS for thinking process, set to `null` to allow thinking out loud
