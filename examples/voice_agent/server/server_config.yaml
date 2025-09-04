@@ -9,15 +9,15 @@ transport:
 vad:
   type: silero
   confidence: 0.6  # VAD threshold for detecting speech versus non-speech
-  start_secs: 0.1  # min amout of speech to trigger UserStartSpeaking
-  stop_secs: 0.8  # min about of silence to trigger UserStopSpeaking
+  start_secs: 0.1  # min amount of speech to trigger UserStartSpeaking
+  stop_secs: 0.8  # min amount of silence to trigger UserStopSpeaking
   min_volume: 0.4  # Microphone volumn threshold for VAD
 
 stt:
   type: nemo
   model: "stt_en_fastconformer_hybrid_large_streaming_80ms"
   device: "cuda"
-  att_context_size: [70, 1]
+  att_context_size: [70, 1] # left and right attention context sizes for streaming ASR
   frame_len_in_secs: 0.08  # default for FastConformer, do not change unless using other architechtures
 
 diar:
