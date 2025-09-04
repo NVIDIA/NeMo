@@ -401,5 +401,26 @@ def parse_cli_args():
         required=False,
         default=None,
     )
+    parser.add_argument(
+        "--use_te_op_fuser",
+        help="Enable Transformer Engine's operation fuser. This feature is experimental and disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--use_te_act_func",
+        help="Use TE activation function for the MLP part.",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--act_func_fp8_input_store",
+        help="Store input of activation function in FP8 (tensorwise recipe). Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=False,
+    )
 
     return parser
