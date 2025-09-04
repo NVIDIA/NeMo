@@ -41,9 +41,7 @@ class CallbackGroup:
         return cls._instance
 
     def __init__(self) -> None:
-        self._callbacks: List[BaseCallback] = [
-            OneLoggerNeMoCallback()
-        ]
+        self._callbacks: List[BaseCallback] = [OneLoggerNeMoCallback()]
 
     def register(self, callback: BaseCallback) -> None:
         """Register a callback to the callback group.
