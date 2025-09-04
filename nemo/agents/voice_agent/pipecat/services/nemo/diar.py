@@ -39,7 +39,9 @@ from nemo.agents.voice_agent.pipecat.services.nemo.legacy_diar import Diarizatio
 
 
 class NeMoDiarInputParams(BaseModel):
-    threshold: Optional[float] = 0.5
+    threshold: Optional[float] = (
+        0.4  # threshold value used to determine if a speaker exists or not, setting it to a lower value will increase the sensitivity of the diarization model
+    )
     language: Optional[Language] = Language.EN_US
     frame_len_in_secs: Optional[float] = 0.08  # 80ms for FastConformer model
     config_path: Optional[str] = None  # path to the Niva ASR config file

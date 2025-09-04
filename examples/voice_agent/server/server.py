@@ -72,6 +72,8 @@ async def main():
     try:
         if server_mode == "websocket_server":
             tasks.append(run_bot_websocket_server())
+        else:
+            raise ValueError(f"Invalid server mode: {server_mode}")
         config = uvicorn.Config(app, host="0.0.0.0", port=7860)
         server = uvicorn.Server(config)
         tasks.append(server.serve())

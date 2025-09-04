@@ -98,12 +98,17 @@ npm install
 npm run dev
 ```
 
+There should be a message in terminal showing the address and port of the client.
+
 ### Connect to the client via browser
 
-Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/`. You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button. 
+Open the client via browser: `http://[YOUR MACHINE IP ADDRESS]:5173/` (or whatever address and port is shown in the terminal where the client was launched). 
+
+You can mute/unmute your microphone via the "Mute" button, and reset the LLM context history and speaker cache by clicking the "Reset" button. 
 
 **If using chrome browser, you need to add `http://[YOUR MACHINE IP ADDRESS]:5173/` to the allow list via `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.**
 
+If you want to use a different port for client connection, you can modify `client/vite.config.js` to change the `port` variable.
 
 ## 📑 Supported Models
 
