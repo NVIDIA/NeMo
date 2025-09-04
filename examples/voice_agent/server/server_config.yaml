@@ -53,5 +53,8 @@ tts:
   fastpitch_model: "nvidia/tts_en_fastpitch"
   hifigan_model: "nvidia/tts_hifigan"
   device: "cuda"
-  extra_separator: ",?!"  # a string of additional punctuations to chunk LLM response into segments for faster TTS output, e.g., ",?!". Set to `null` to use default behavior
+  extra_separator:  # a list of additional punctuations to chunk LLM response into segments for faster TTS output, e.g., ",". Set to `null` to use default behavior 
+    - ","
+    - "?"
+    - "!"
   think_tokens: ["<think>", "</think>"]  # specify them to avoid TTS for thinking process, set to `null` to allow thinking out loud
