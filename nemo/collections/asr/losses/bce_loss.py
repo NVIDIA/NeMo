@@ -122,7 +122,7 @@ class BCELoss(Loss, Typing):
         elif self.class_normalization == 'none' or not self.class_normalization:
             binary_weight = torch.ones_like(labels).detach().clone()
             norm_weight = torch.ones_like(labels).detach().clone()
-        
+
         with torch.cuda.amp.autocast(enabled=enable_autocast):
             if self.reduction == 'sum':
                 loss = self.loss_f(probs, labels)

@@ -345,7 +345,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.model_path, map_location=map_location)
     else:
         raise ValueError("cfg.model_path must end with.ckpt or.nemo!")
-    
+
     diar_model._cfg.test_ds.session_len_sec = cfg.session_len_sec
     trainer = pl.Trainer(devices=device, accelerator=accelerator, precision=cfg.precision)
     diar_model.set_trainer(trainer)
@@ -411,7 +411,7 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         logging.info("No saved prediction tensors found. Running inference on the dataset...")
         with torch.inference_mode(), torch.autocast(device_type=diar_model.device.type, dtype=diar_model.dtype):
             diar_model.test_batch()
-        
+
         diar_model_preds_total_list = diar_model.preds_total_list
         if cfg.save_preds_tensors:
             torch.save(diar_model.preds_total_list, tensor_path)
