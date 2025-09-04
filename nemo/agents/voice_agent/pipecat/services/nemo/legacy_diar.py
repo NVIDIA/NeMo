@@ -22,23 +22,7 @@ from torch import Tensor
 from nemo.agents.voice_agent.pipecat.services.nemo.utils import CacheFeatureBufferer
 from nemo.collections.asr.models import SortformerEncLabelModel
 
-
-@dataclass
-class PostProcessingParams:
-    """
-    Postprocessing parameters for end-to-end speaker diarization models.
-    These parameters can significantly affect DER performance depending on the evaluation style and the dataset.
-    It is recommended to tune these parameters based on the evaluation style and the dataset
-    to achieve the desired DER performance.
-    """
-
-    onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
-    offset: float = 0.5  # Offset threshold for detecting the end of a speech
-    pad_onset: float = 0.0  # Adding durations before each speech segment
-    pad_offset: float = 0.0  # Adding durations after each speech segment
-    min_duration_on: float = 0.0  # Threshold for short speech segment deletion
-    min_duration_off: float = 0.0  # Threshold for small non-speech deletion
-
+from nemo.collections.asr.modules.sortformer_modules import StreamingSortformerState
 
 @dataclass
 class DiarizationConfig:
@@ -55,48 +39,6 @@ class DiarizationConfig:
     chunk_len: int = 6
     chunk_left_context: int = 1
     chunk_right_context: int = 7
-
-
-@dataclass
-class SortformerStreamingState:
-    """
-    A dataclass that holds the streaming state for the Sortformer diarization model.
-    This is based on the streaming state in SortformerEncLabelModel in NeMo.
-    """
-
-    spkcache: Optional[Tensor] = None
-    spkcache_lengths: Optional[Tensor] = None
-    spkcache_preds: Optional[Tensor] = None
-    fifo: Optional[Tensor] = None
-    fifo_lengths: Optional[Tensor] = None
-    fifo_preds: Optional[Tensor] = None
-    spk_perm: Optional[Tensor] = None
-
-    def to(self, device):
-        """
-        Move all tensors to the specified device.
-
-        Args:
-            device: The device to move the tensors to.
-
-        Returns:
-            SortformerStreamingState: The state with tensors moved to the specified device.
-        """
-        if self.spkcache is not None:
-            self.spkcache = self.spkcache.to(device)
-        if self.spkcache_lengths is not None:
-            self.spkcache_lengths = self.spkcache_lengths.to(device)
-        if self.spkcache_preds is not None:
-            self.spkcache_preds = self.spkcache_preds.to(device)
-        if self.fifo is not None:
-            self.fifo = self.fifo.to(device)
-        if self.fifo_lengths is not None:
-            self.fifo_lengths = self.fifo_lengths.to(device)
-        if self.fifo_preds is not None:
-            self.fifo_preds = self.fifo_preds.to(device)
-        if self.spk_perm is not None:
-            self.spk_perm = self.spk_perm.to(device)
-        return self
 
 
 class NeMoLegacyDiarService:
@@ -191,7 +133,7 @@ class NeMoLegacyDiarService:
         self.streaming_state = self.init_streaming_state(batch_size=1)
         self.total_preds = torch.zeros((1, 0, self.max_num_speakers), device=self.diarizer.device)
 
-    def init_streaming_state(self, batch_size: int = 1) -> SortformerStreamingState:
+    def init_streaming_state(self, batch_size: int = 1) -> StreamingSortformerState:
         """
         Initialize the streaming state for the diarization model.
 
@@ -206,28 +148,17 @@ class NeMoLegacyDiarService:
             batch_size=batch_size, async_streaming=self.diarizer.async_streaming, device=self.device
         )
 
-        # Convert SortformerStreamingState format
-        state = SortformerStreamingState(
-            spkcache=nemo_state.spkcache,
-            spkcache_lengths=nemo_state.spkcache_lengths,
-            spkcache_preds=nemo_state.spkcache_preds,
-            fifo=nemo_state.fifo,
-            fifo_lengths=nemo_state.fifo_lengths,
-            fifo_preds=nemo_state.fifo_preds,
-            spk_perm=nemo_state.spk_perm,
-        )
-
-        return state
+        return nemo_state
 
     def stream_step(
         self,
         processed_signal: Tensor,
         processed_signal_length: Tensor,
-        streaming_state: SortformerStreamingState,
+        streaming_state: StreamingSortformerState,
         total_preds: Tensor,
         left_offset: int = 0,
         right_offset: int = 0,
-    ) -> Tuple[SortformerStreamingState, Tensor]:
+    ) -> Tuple[StreamingSortformerState, Tensor]:
         """
         Execute a single streaming step for diarization.
 
@@ -249,24 +180,8 @@ class NeMoLegacyDiarService:
         if processed_signal_length.device != self.device:
             processed_signal_length = processed_signal_length.to(self.device)
 
-        # Make sure state is on the correct device
-        streaming_state = streaming_state.to(self.device)
-
         if total_preds is not None and total_preds.device != self.device:
             total_preds = total_preds.to(self.device)
-
-        # Convert SortformerStreamingState to NeMo's format
-        class NemoStreamingState:
-            def __init__(self, state):
-                self.spkcache = state.spkcache
-                self.spkcache_lengths = state.spkcache_lengths
-                self.spkcache_preds = state.spkcache_preds
-                self.fifo = state.fifo
-                self.fifo_lengths = state.fifo_lengths
-                self.fifo_preds = state.fifo_preds
-                self.spk_perm = state.spk_perm
-
-        nemo_streaming_state = NemoStreamingState(streaming_state)
 
         with (
             torch.amp.autocast(device_type=self.device, dtype=self.compute_dtype, enabled=self.use_amp),
@@ -275,10 +190,10 @@ class NeMoLegacyDiarService:
         ):
             try:
                 # Call the model's forward_streaming_step method
-                nemo_streaming_state, diar_pred_out_stream = self.diarizer.forward_streaming_step(
+                streaming_state, diar_pred_out_stream = self.diarizer.forward_streaming_step(
                     processed_signal=processed_signal,
                     processed_signal_length=processed_signal_length,
-                    streaming_state=nemo_streaming_state,
+                    streaming_state=streaming_state,
                     total_preds=total_preds,
                     left_offset=left_offset,
                     right_offset=right_offset,
@@ -292,15 +207,4 @@ class NeMoLegacyDiarService:
                 # Return the existing state and preds if there's an error
                 return streaming_state, total_preds
 
-        # Convert back to SortformerStreamingState format
-        new_streaming_state = SortformerStreamingState(
-            spkcache=nemo_streaming_state.spkcache,
-            spkcache_lengths=nemo_streaming_state.spkcache_lengths,
-            spkcache_preds=nemo_streaming_state.spkcache_preds,
-            fifo=nemo_streaming_state.fifo,
-            fifo_lengths=nemo_streaming_state.fifo_lengths,
-            fifo_preds=nemo_streaming_state.fifo_preds,
-            spk_perm=nemo_streaming_state.spk_perm,
-        )
-
-        return new_streaming_state, diar_pred_out_stream
+        return streaming_state, diar_pred_out_stream
