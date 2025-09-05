@@ -117,8 +117,9 @@ If you want to use a different port for client connection, you can modify `clien
 ### 🤖 LLM
 
 Most LLMs from HuggingFace are supported. A few examples are:
-- [nvidia/Llama-3.1-Nemotron-Nano-8B-v1](https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1) (default)
-- [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
+- [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct) (default)
+- [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)
+- [nvidia/Llama-3.1-Nemotron-Nano-8B-v1](https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1) 
 - [nvidia/Nemotron-Mini-4B-Instruct](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct)
 
 Please refer to the HuggingFace webpage of each model to configure the model parameters `llm.generation_kwargs` and `llm.apply_chat_template_kwargs` in `server/server_config.yaml` as needed.
@@ -158,7 +159,7 @@ Additionally, the voice agent support ignoring back-channel phrases while the bo
 
 ## 📝 Notes & FAQ
 - Only one connection to the server is supported at a time, a new connection will disconnect the previous one, but the context will be preserved.
-- If directly loading from HuggingFace and got I/O erros, you can set `llm.model=<local_path>`, where the model is downloaded using a command like `huggingface-cli download Qwen/Qwen3-8B --local-dir <local_path>`. Same for TTS models.
+- If directly loading from HuggingFace and got I/O erros, you can set `llm.model=<local_path>`, where the model is downloaded using a command like `huggingface-cli download Qwen/Qwen2.5-7B-Instruct --local-dir <local_path>`. Same for TTS models.
 - The current ASR and diarization models are not noise-robust, you might need to use a noise-cancelling microphone or a quiet environment. But we will release better models soon.
 - The diarization model works best with speakers that have much more different voices from each other, while it might not work well on some accents due to the limited training data.
 - If you see errors like `SyntaxError: Unexpected reserved word` when running `npm run dev`, please update the Node.js version.

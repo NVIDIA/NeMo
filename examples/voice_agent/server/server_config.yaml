@@ -34,7 +34,7 @@ turn_taking:
 llm:
   type: hf
   dtype: bfloat16  # torch.dtype for LLM
-  model: "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"  # model name for HF models, will be used via `AutoModelForCausalLM.from_pretrained()`
+  model: "Qwen/Qwen2.5-7B-Instruct"  # model name for HF models, will be used via `AutoModelForCausalLM.from_pretrained()`
   device: "cuda"
   system_role: "system"  # role for system prompt, set it to `user` for models that do not support system prompt
   # `system_prompt` is used as the sytem prompt to the LLM, please refer to differnt LLM webpage for spcial functions like enabling/disabling thinking
