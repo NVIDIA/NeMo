@@ -182,9 +182,8 @@ jobs:
           echo "id=$(uuidgen)" >> "$GITHUB_OUTPUT"
 
       - name: Checkout NeMo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
-          repository: NVIDIA/NeMo
           path: ${{ github.run_id }}/${{steps.uuid.outputs.id }}/NeMo
 
       - name: Run some checks
