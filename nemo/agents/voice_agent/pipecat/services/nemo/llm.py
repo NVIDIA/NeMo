@@ -50,22 +50,17 @@ class HuggingFaceLLMLocalService:
         )  # type: AutoModelForCausalLM
 
         self.generation_kwargs = generation_kwargs if generation_kwargs else DEFAULT_GENERATION_KWARGS
-        self.apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs else {}
-        print(f"LLM generation kwargs: {self.generation_kwargs}")
+        logger.debug(f"LLM generation kwargs: {self.generation_kwargs}")
 
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs else {}
         if "tokenize" in self.apply_chat_template_kwargs:
-            logger.warning(
-                f"`tokenize` is not configurable in apply_chat_template_kwargs, it will be ignored and forced to False"
-            )
+            if self.apply_chat_template_kwargs["tokenize"] is not False:
+                logger.warning(
+                    f"Found `tokenize=True` in apply_chat_template_kwargs, it will be ignored and forced to `False`"
+                )
             self.apply_chat_template_kwargs.pop("tokenize")
 
-        if "add_generation_prompt" in self.apply_chat_template_kwargs:
-            logger.warning(
-                f"`add_generation_prompt` is not configurable in apply_chat_template_kwargs, it will be ignored and forced to True"
-            )
-            self.apply_chat_template_kwargs.pop("add_generation_prompt")
-
-        print(f"LLM apply_chat_template kwargs: {self.apply_chat_template_kwargs}")
+        logger.debug(f"LLM apply_chat_template kwargs: {self.apply_chat_template_kwargs}")
 
     def _maybe_add_user_message(self, messages: List[ChatCompletionMessageParam]) -> List[ChatCompletionMessageParam]:
         """
@@ -111,11 +106,20 @@ class HuggingFaceLLMLocalService:
 
         return merged_messages
 
-    def _get_prompt_from_messages(self, messages: List[ChatCompletionMessageParam]):
+    def _apply_chat_template(self, messages: List[ChatCompletionMessageParam]) -> str:
+        """
+        Apply the chat template to the messages.
+        """
+        return self.tokenizer.apply_chat_template(messages, tokenize=False, **self.apply_chat_template_kwargs)
+
+    def _get_prompt_from_messages(self, messages: List[ChatCompletionMessageParam]) -> str:
+        """
+        Get the formatted prompt from the conversation history messages.
+        This function also tries to fix the messages if the LLM cannot handle consecutive turns of the same role,
+        or requires a user turn after the system prompt.
+        """
         try:
-            prompt = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
-            )
+            prompt = self._apply_chat_template(messages)
             return prompt
         except TemplateError as e:
             logger.warning(f"Got TemplateError: {e}.")
@@ -126,9 +130,7 @@ class HuggingFaceLLMLocalService:
             try:
                 messages = self._maybe_add_user_message(messages)
                 logger.debug(f"LLM messages after adding dummy user message: {messages}")
-                prompt = self.tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
-                )
+                prompt = self._apply_chat_template(messages)
                 return prompt
             except TemplateError as e:
                 logger.warning(f"Got TemplateError: {e}. Trying to fix by merging consecutive turns if possible.")
@@ -136,9 +138,7 @@ class HuggingFaceLLMLocalService:
         try:
             new_messages = self._maybe_merge_consecutive_turns(messages)
             logger.debug(f"LLM messages after merging consecutive user turns: {new_messages}")
-            prompt = self.tokenizer.apply_chat_template(
-                new_messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
-            )
+            prompt = self._apply_chat_template(new_messages)
             # Update the messages in place if successful
             messages.clear()
             messages.extend(new_messages)

@@ -1,6 +1,8 @@
 # NeMo Voice Agent
 
-A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the simplest way to create a voice agent using NVIDIA NeMo STT/TTS service and HuggingFace LLM. Everything is open-source and deployed locally so you can have your own voice agent. Feel free to explore the code and see how different speech technologies can be integrated with LLMs to create a seamless conversation experience. As of now, we only support English input and output, but more languages will be supported in the future.
+A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the simplest way to create a voice agent using NVIDIA NeMo STT/TTS service and HuggingFace LLM. Everything is open-source and deployed locally so you can have your own voice agent. Feel free to explore the code and see how different speech technologies can be integrated with LLMs to create a seamless conversation experience. 
+
+As of now, we only support English input and output, but more languages will be supported in the future.
 
 
 
@@ -116,7 +118,6 @@ If you want to use a different port for client connection, you can modify `clien
 
 Most LLMs from HuggingFace are supported. A few examples are:
 - [nvidia/Llama-3.1-Nemotron-Nano-8B-v1](https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1) (default)
-- [meta-llama/Meta-Llama-3-8B-Instruct](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
 - [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
 - [nvidia/Nemotron-Mini-4B-Instruct](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct)
 
