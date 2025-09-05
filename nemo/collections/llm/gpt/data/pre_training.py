@@ -390,6 +390,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         dataloader = WrappedDataLoader(
             mode=mode,
             dataset=dataset,
+            micro_batch_size=self.micro_batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
