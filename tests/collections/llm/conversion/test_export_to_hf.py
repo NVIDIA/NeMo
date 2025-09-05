@@ -27,7 +27,9 @@ def get_parser():
     parser.add_argument("--output-path", type=str, default="/tmp/output_hf")
     parser.add_argument("--add-model-name", action="store_true", default=False)
     parser.add_argument("--hf-target-class", type=str, default="AutoModelForCausalLM")
-    parser.add_argument("--allow-mismatch", nargs='*', default=[], help="List of parameter names to compare after casting to bfloat16")
+    parser.add_argument(
+        "--allow-mismatch", nargs='*', default=[], help="List of parameter names to compare after casting to bfloat16"
+    )
     return parser
 
 
