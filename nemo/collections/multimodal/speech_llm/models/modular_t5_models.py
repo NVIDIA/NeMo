@@ -48,8 +48,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     build_position_ids,
     get_iterator_k_split,
 )
-from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.common.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.mixins import adapter_mixins
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import AppState, logging, model_utils
@@ -87,6 +86,10 @@ __all__ = ["ModularizedAudioT5Model", "DecoderTextPromptModularizedAudioT5Model"
 
 
 default_inference_config = {'tokens_to_generate': 30}
+
+
+def get_last_rank():
+    return torch.distributed.get_world_size() - 1
 
 
 class ModularizedAudioT5Model(MegatronT5LoraModel):

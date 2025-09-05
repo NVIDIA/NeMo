@@ -27,7 +27,7 @@ from omegaconf import DictConfig, OmegaConf
 from nemo.collections.multimodal.speech_llm.models import modular_models
 from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import shift_tokens_by_multi_audios
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
+from nemo.collections.common.parts.nlp_overrides import NLPDDPStrategy
 
 
 class ModularAudioGPTModel(modular_models.ModularAudioGPTModel):

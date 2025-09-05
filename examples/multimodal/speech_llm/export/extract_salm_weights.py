@@ -20,14 +20,33 @@ import tempfile
 import torch
 from lightning.pytorch.trainer.trainer import Trainer
 from megatron.core import dist_checkpointing
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
+from typing import Dict
 
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
 from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
-from nemo.collections.nlp.parts.utils_funcs import load_state_dict_helper
+from nemo.collections.common.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
 from nemo.utils import logging
 from nemo.utils.model_utils import inject_model_parallel_rank
+
+
+def load_state_dict_helper(cls, cfg: DictConfig, trainer: Trainer, state_dict: Dict[str, torch.Tensor]):
+    """Load state_dict for converted community, for example, HuggingFace models."""
+    model = cls(cfg, trainer)
+
+    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    if missing_keys:
+        # Keys ending with '_extra_state' are related to Transformer Engine internals
+        missing_keys_non_extra = [key for key in missing_keys if not key.endswith("_extra_state")]
+        if missing_keys_non_extra:
+            logging.critical("Missing keys were detected during the load, something has gone wrong. Aborting.")
+            raise RuntimeError(f"Missing keys: \n{missing_keys_non_extra}")
+
+    if unexpected_keys:
+        logging.critical("Unexpected keys were detected which should not happen. Aborting.")
+        raise RuntimeError(f"Unexpected keys: \n{unexpected_keys}")
+
+    return model
 
 
 def get_config_and_state_dict_from_nemo(filepath, map_location, output_dir, sharded_state_dict=None):
