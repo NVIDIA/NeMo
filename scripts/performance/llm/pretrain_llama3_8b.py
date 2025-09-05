@@ -145,6 +145,14 @@ if __name__ == "__main__":
         use_sharp,
     )
 
+    # for saving checkpoints
+    recipe.log.log_dir = "/path/to/log"
+
+    # for loading checkpoints
+    recipe.resume.resume_if_exists = True
+    recipe.resume.resume_ignore_no_checkpoint = True
+    recipe.resume.restore_config.path = "/path/to/checkpoint"
+
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
