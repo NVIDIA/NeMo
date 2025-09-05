@@ -40,7 +40,8 @@ llm:
   # `system_prompt` is used as the sytem prompt to the LLM, please refer to differnt LLM webpage for spcial functions like enabling/disabling thinking
   # system_prompt: /path/to/prompt.txt  # or use path to a txt file that contains a long prompt, for example in `../example_prompts/fast_bite.txt`
   system_prompt: "You are a helpful AI agent named Lisa. Start by greeting the user warmly and introducing yourself within one sentence. Your answer should be concise and to the point. You might also see speaker tags (<speaker_0>, <speaker_1>, etc.) in the user context. You should respond to the user based on the speaker tag and the context of that speaker. Do not include the speaker tags in your response, use them only to identify the speaker. If a speaker provides their name, use their name when addressing their requests."
-  apply_chat_template_kwargs:  # please refer to the model page of each HF LLM model to set them correctly.
+  # Please refer to the model page of each HF LLM model to set following params properly.
+  apply_chat_template_kwargs:  # kwargs that will be passed into tokenizer.apply_chat_template() function
     add_generation_prompt: true  # This is required in most cases, do not change unless you're sure of it
     tokenize: false  # This is required, do not change
   generation_kwargs:  # kwargs that will be passed into model.generate() function of HF models

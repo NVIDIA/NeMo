@@ -118,6 +118,7 @@ If you want to use a different port for client connection, you can modify `clien
 
 Most LLMs from HuggingFace are supported. A few examples are:
 - [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct) (default)
+- [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B)
 - [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)
 - [nvidia/Llama-3.1-Nemotron-Nano-8B-v1](https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1) 
 - [nvidia/Nemotron-Mini-4B-Instruct](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct)
