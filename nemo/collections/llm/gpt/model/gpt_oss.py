@@ -35,8 +35,9 @@ from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
 if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
     from peft import AutoPeftModelForCausalLM, PeftConfig
+
+    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 quick_gelu, HAVE_QUICK_GELU = safe_import_from("megatron.core.fusions.fused_bias_geglu", "quick_gelu", alt=object)
 
@@ -535,6 +536,7 @@ class HFGPTOSSPEFTExporter(HFGPTOSSExporter):
             AutoPeftModelForCausalLM: Initialized HF PEFT model
         """
         from peft import get_peft_model
+
         from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
         from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
@@ -674,9 +676,11 @@ class HFGPTOSSPEFTExporter(HFGPTOSSExporter):
         hf_target_modules = []
         for tm in self.peft_obj.target_modules:
             if tm in ('linear_fc1', 'linear_fc2'):
-                raise ValueError(f"target module {tm} is not supported in LoRA export because the"
-                                 f"NeMo implementation is not interchangeable with the HF "
-                                 f"implementation.")
+                raise ValueError(
+                    f"target module {tm} is not supported in LoRA export because the"
+                    f"NeMo implementation is not interchangeable with the HF "
+                    f"implementation."
+                )
             else:
                 hf_target_modules.extend(NEMO2HF[tm])
 
