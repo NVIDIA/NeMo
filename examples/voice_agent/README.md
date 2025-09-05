@@ -162,6 +162,7 @@ Additionally, the voice agent support ignoring back-channel phrases while the bo
 - The diarization model works best with speakers that have much more different voices from each other, while it might not work well on some accents due to the limited training data.
 - If you see errors like `SyntaxError: Unexpected reserved word` when running `npm run dev`, please update the Node.js version.
 - If you see the error `Error connecting: Cannot read properties of undefined (reading 'enumerateDevices')`, it usually means the browser is not allowed to access the microphone. Please check the browser settings and add `http://[YOUR MACHINE IP ADDRESS]:5173/` to the allow list, e.g., via `chrome://flags/#unsafely-treat-insecure-origin-as-secure` for chrome browser.
+- If you see something like `node:internal/errors:496` when running `npm run dev`, remove the `client/node_modules` folder and run `npm install` again, then run `npm run dev` again.
 
 
 

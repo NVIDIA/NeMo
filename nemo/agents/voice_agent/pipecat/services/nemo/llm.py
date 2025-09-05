@@ -46,7 +46,7 @@ class HuggingFaceLLMLocalService:
         self.dtype = dtype
         self.tokenizer = AutoTokenizer.from_pretrained(model)
         self.model = AutoModelForCausalLM.from_pretrained(
-            model, device_map=device, torch_dtype=dtype
+            model, device_map=device, torch_dtype=dtype, trust_remote_code=True
         )  # type: AutoModelForCausalLM
 
         self.generation_kwargs = generation_kwargs if generation_kwargs else DEFAULT_GENERATION_KWARGS
@@ -67,32 +67,92 @@ class HuggingFaceLLMLocalService:
 
         print(f"LLM apply_chat_template kwargs: {self.apply_chat_template_kwargs}")
 
-    def _maybe_fix_messages(self, messages: List[ChatCompletionMessageParam]) -> List[ChatCompletionMessageParam]:
+    def _maybe_add_user_message(self, messages: List[ChatCompletionMessageParam]) -> List[ChatCompletionMessageParam]:
         """
         Some LLMs like "nvidia/Llama-3.1-Nemotron-Nano-8B-v1" requires a user turn after the system prompt, this function is used to add a dummy user turn if the system prompt is followed by an assistant turn.
         """
-        if messages[0]["role"] == "system" and messages[1]["role"] == "assistant":
+        if len(messages) > 1 and messages[0]["role"] == "system" and messages[1]["role"] == "assistant":
             message = {"role": "user", "content": "Hi"}
             messages.insert(1, message)
         return messages
+
+    def _maybe_merge_consecutive_turns(
+        self, messages: List[ChatCompletionMessageParam]
+    ) -> List[ChatCompletionMessageParam]:
+        """
+        Merge consecutive turns of the same role into a single turn, since some LLMs like "nvidia/Llama-3.1-Nemotron-Nano-8B-v1" do not support consecutive turns of the same role.
+        """
+        if not messages:
+            return messages
+
+        merged_messages = []
+        current_role = None
+        current_content = ""
+
+        for message in messages:
+            role = message["role"]
+            content = message["content"]
+
+            if role == current_role:
+                # Merge with previous message of same role
+                current_content += "; " + content
+            else:
+                # Save previous message if exists
+                if current_role is not None:
+                    merged_messages.append({"role": current_role, "content": current_content})
+
+                # Start new message
+                current_role = role
+                current_content = content
+
+        # Add the last message
+        if current_role is not None:
+            merged_messages.append({"role": current_role, "content": current_content})
+
+        return merged_messages
+
+    def _get_prompt_from_messages(self, messages: List[ChatCompletionMessageParam]):
+        try:
+            prompt = self.tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
+            )
+            return prompt
+        except TemplateError as e:
+            logger.warning(f"Got TemplateError: {e}.")
+
+        logger.debug(f"Input LLM messages: {messages}")
+        if len(messages) > 1 and messages[0]["role"] == "system" and messages[1]["role"] == "assistant":
+            logger.warning("Trying to fix by adding dummy user message after system prompt...")
+            try:
+                messages = self._maybe_add_user_message(messages)
+                logger.debug(f"LLM messages after adding dummy user message: {messages}")
+                prompt = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
+                )
+                return prompt
+            except TemplateError as e:
+                logger.warning(f"Got TemplateError: {e}. Trying to fix by merging consecutive turns if possible.")
+
+        try:
+            new_messages = self._maybe_merge_consecutive_turns(messages)
+            logger.debug(f"LLM messages after merging consecutive user turns: {new_messages}")
+            prompt = self.tokenizer.apply_chat_template(
+                new_messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
+            )
+            # Update the messages in place if successful
+            messages.clear()
+            messages.extend(new_messages)
+            return prompt
+        except Exception as e:
+            logger.warning(f"Got Exception: {e}, messages: {messages}")
+            raise e
 
     async def generate_stream(
         self, messages: List[ChatCompletionMessageParam], **kwargs
     ) -> AsyncGenerator[ChatCompletionChunk, None]:
 
         # Convert messages to prompt format
-        try:
-            prompt = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
-            )
-        except TemplateError as e:
-            messages = self._maybe_fix_messages(messages)
-            prompt = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True, **self.apply_chat_template_kwargs
-            )
-            logger.warning(
-                f"Got TemplateError: {e}. Tried to fix by adding a dummy user message. New messages: {messages}"
-            )
+        prompt = self._get_prompt_from_messages(messages)
 
         logger.debug(f"LLM prompt: {prompt}")
 
@@ -161,7 +221,7 @@ class HuggingFaceLLMService(OpenAILLMService):
                 and other information needed for the LLM interaction.
         """
         await self.push_frame(LLMFullResponseStartFrame())
-
+        cumulative_text = ""
         try:
             await self.start_ttfb_metrics()
             messages = context.get_messages()
@@ -169,12 +229,16 @@ class HuggingFaceLLMService(OpenAILLMService):
                 if chunk.choices[0].delta.content:
                     await self.stop_ttfb_metrics()
                     text = chunk.choices[0].delta.content
+                    cumulative_text += text
                     frame = LLMTextFrame(text)
                     await self.push_frame(frame)
         except Exception as e:
             logger.error(f"Error in _process_context: {e}", exc_info=True)
             raise
         finally:
+            cumulative_text = " ".join(cumulative_text.split()).strip()
+            if not cumulative_text:
+                logger.warning(f"LLM response is empty for context: {context}")
             await self.push_frame(LLMFullResponseEndFrame())
 
     async def get_chat_completions(
