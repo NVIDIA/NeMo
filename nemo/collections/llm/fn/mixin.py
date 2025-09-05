@@ -54,7 +54,7 @@ class FNMixin:
     def __init_subclass__(cls, **kwargs):
         # Add OneLogger timing hooks for LightningModule subclasses to enable telemetry tracking
         if issubclass(cls, pl.LightningModule):
-            from nemo.lightning.pytorch.callbacks.callback_group import hook_class_init_with_callbacks
+            from nemo.lightning.callback_group import hook_class_init_with_callbacks
 
             hook_class_init_with_callbacks(cls, "on_model_init_start", "on_model_init_end")
 

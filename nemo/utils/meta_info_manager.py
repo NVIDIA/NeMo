@@ -234,6 +234,6 @@ def _should_enable_for_current_rank() -> bool:
     Returns:
         True if OneLogger should be enabled for the current rank, False otherwise
     """
-    rank = int(os.environ.get('RANK', 0))
+    rank = int(os.environ.get('RANK', -1))
     # Enable for rank 0 or the last rank (common pattern)
     return rank == 0

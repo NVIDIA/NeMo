@@ -133,7 +133,7 @@ def hydra_runner(
                     config_name=config_name,
                 )
                 # Import here to avoid circular import
-                from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
+                from nemo.lightning.callback_group import CallbackGroup
 
                 CallbackGroup.get_instance().on_app_end()
 
