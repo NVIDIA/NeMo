@@ -36,6 +36,7 @@ from nemo.utils.import_utils import safe_import_from
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+    from peft import AutoPeftModelForCausalLM, PeftConfig
 
 quick_gelu, HAVE_QUICK_GELU = safe_import_from("megatron.core.fusions.fused_bias_geglu", "quick_gelu", alt=object)
 
@@ -587,13 +588,8 @@ class HFGPTOSSPEFTExporter(HFGPTOSSExporter):
         pn = "decoder.layers."
         ph = "base_model.model.model.layers."
 
-        # linear_proj and linear_fc2 prefixes
         p_proj = "self_attention.linear_proj.adapter"
-        p_fc2 = "mlp.experts.linear_fc2.adapter"
-
-        # linear_qkv and linear_fc1 prefixes
         p_qkv = "self_attention.linear_qkv.adapter"
-        p_fc1 = "mlp.experts.linear_fc1.adapter"
 
         mapping = {
             # linear_proj
