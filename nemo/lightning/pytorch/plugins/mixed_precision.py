@@ -70,6 +70,7 @@ class DtypeConfig:
     fp8: str = None
     fp8_recipe: str = "delayed"
     first_last_layers_bf16: bool = False
+    first_last_layers_mxfp8: bool = False
     fp8_margin: int = 0
     fp8_amax_history_len: int = 1
     fp8_amax_compute_algo: str = "most_recent"
@@ -78,6 +79,9 @@ class DtypeConfig:
     fp8_multi_head_attention: bool = False
     fp8_param: bool = True
     fp8_param_gather: bool = True
+    # fp4 related
+    fp4: str = None
+    fp4_recipe: str = "nvfp4"
     # FP16 Loss scaling
     loss_scale: float = (None,)
     initial_loss_scale: float = (None,)
@@ -86,6 +90,8 @@ class DtypeConfig:
     hysteresis: float = (None,)
     num_layers_at_start_in_bf16: int = 0
     num_layers_at_end_in_bf16: int = 0
+    num_layers_at_start_in_mxfp8: int = 0
+    num_layers_at_end_in_mxfp8: int = 0
     reuse_grad_buf_for_mxfp8_param_ag: bool = False
 
 
@@ -108,6 +114,7 @@ class MegatronMixedPrecision(Precision):
         fp8: str = None,
         fp8_recipe: str = "delayed",  # "tensorwise", "delayed", "mxfp8" (for Blackwell only)
         first_last_layers_bf16: bool = False,
+        first_last_layers_mxfp8: bool = False,
         fp8_margin: int = 0,
         fp8_amax_history_len: int = 1,
         fp8_amax_compute_algo: str = "most_recent",
@@ -116,6 +123,9 @@ class MegatronMixedPrecision(Precision):
         fp8_multi_head_attention: bool = False,
         fp8_params: bool = None,
         fp8_param_gather: bool = None,
+        # fp4 related
+        fp4: str = None,
+        fp4_recipe: str = "nvfp4",
         fp16_loss_scale: float = None,
         fp16_initial_loss_scale: float = 4294967296,
         fp16_min_loss_scale: float = 1.0,
@@ -123,6 +133,8 @@ class MegatronMixedPrecision(Precision):
         fp16_hysteresis: int = 2,
         num_layers_at_start_in_bf16: int = 0,
         num_layers_at_end_in_bf16: int = 0,
+        num_layers_at_start_in_mxfp8: int = 0,
+        num_layers_at_end_in_mxfp8: int = 0,
         reuse_grad_buf_for_mxfp8_param_ag: bool = False,
     ) -> None:
         if fp8_params is not None:
@@ -153,6 +165,7 @@ class MegatronMixedPrecision(Precision):
             fp8=fp8,
             fp8_recipe=fp8_recipe,
             first_last_layers_bf16=first_last_layers_bf16,
+            first_last_layers_mxfp8=first_last_layers_mxfp8,
             fp8_margin=fp8_margin,
             fp8_amax_history_len=fp8_amax_history_len,
             fp8_amax_compute_algo=fp8_amax_compute_algo,
@@ -161,8 +174,12 @@ class MegatronMixedPrecision(Precision):
             fp8_multi_head_attention=fp8_multi_head_attention,
             fp8_param=fp8_param_gather,
             fp8_param_gather=fp8_param_gather,
+            fp4=fp4,
+            fp4_recipe=fp4_recipe,
             num_layers_at_start_in_bf16=num_layers_at_start_in_bf16,
             num_layers_at_end_in_bf16=num_layers_at_end_in_bf16,
+            num_layers_at_start_in_mxfp8=num_layers_at_start_in_mxfp8,
+            num_layers_at_end_in_mxfp8=num_layers_at_end_in_mxfp8,
             reuse_grad_buf_for_mxfp8_param_ag=reuse_grad_buf_for_mxfp8_param_ag,
             # fp16 loss scale
             loss_scale=fp16_loss_scale,
