@@ -126,7 +126,7 @@ def test_callback_group_dynamic_dispatch_ignores_missing_methods():
 
 
 def test_hook_class_init_with_callbacks_wraps_and_emits(monkeypatch):
-    """Test hook wraps __init__ and emits start/end callbacks once."""
+    """Test inheritance-based hook via __init_subclass__ emits start/end once (e2e-style)."""
     mod = _fresh_group_module()
     group = mod.CallbackGroup.get_instance()
 
@@ -136,30 +136,40 @@ def test_hook_class_init_with_callbacks_wraps_and_emits(monkeypatch):
     monkeypatch.setattr(group, 'on_model_init_start', start)
     monkeypatch.setattr(group, 'on_model_init_end', end)
 
-    class Dummy:
+    class Base:
+        def __init_subclass__(subcls, **kwargs):
+            super().__init_subclass__(**kwargs)
+            # Mirror IOMixin: hook subclasses at definition time
+            mod.hook_class_init_with_callbacks(subcls, 'on_model_init_start', 'on_model_init_end')
+
+    class Child(Base):
         def __init__(self):
             self.x = 1
 
-    mod.hook_class_init_with_callbacks(Dummy, 'on_model_init_start', 'on_model_init_end')
-
-    d = Dummy()
-    assert d.x == 1
+    c = Child()
+    assert c.x == 1
     assert start.called
     assert end.called
-    # Flag indicating wrapping applied
-    assert getattr(Dummy.__init__, '_callback_group_wrapped', False) is True
+    # Flag indicating wrapping applied on the subclass
+    assert getattr(Child.__init__, '_callback_group_wrapped', False) is True
 
 
 def test_hook_class_init_with_callbacks_idempotent():
-    """Test hook is idempotent and does not re-wrap on repeated calls."""
+    """Test inheritance-based hook is idempotent and does not re-wrap on repeated calls."""
     mod = _fresh_group_module()
 
-    class Dummy:
+    class Base:
+        def __init_subclass__(subcls, **kwargs):
+            super().__init_subclass__(**kwargs)
+            mod.hook_class_init_with_callbacks(subcls, 'on_model_init_start', 'on_model_init_end')
+
+    class Child(Base):
         def __init__(self):
             pass
 
-    mod.hook_class_init_with_callbacks(Dummy, 'on_model_init_start', 'on_model_init_end')
-    first = Dummy.__init__
-    mod.hook_class_init_with_callbacks(Dummy, 'on_model_init_start', 'on_model_init_end')
-    second = Dummy.__init__
+    # Hook was applied via __init_subclass__ at class creation time
+    first = Child.__init__
+    # Attempt to apply again explicitly; should be a no-op
+    mod.hook_class_init_with_callbacks(Child, 'on_model_init_start', 'on_model_init_end')
+    second = Child.__init__
     assert first is second
