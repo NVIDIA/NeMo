@@ -516,7 +516,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         num_image_embeddings_per_tile: int = 576,
         seed: int = 1234,
     ) -> None:
-        from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
+        from nemo.lightning.callback_group import CallbackGroup
 
         CallbackGroup.get_instance().on_dataloader_init_start()
 

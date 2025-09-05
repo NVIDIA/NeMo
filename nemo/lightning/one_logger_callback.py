@@ -23,9 +23,8 @@ from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
 from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
 from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeEventCallback as OneLoggerPTLCallback
 
-from nemo.lightning.pytorch.callbacks.callback_group import BaseCallback, CallbackGroup
+from nemo.lightning.base_callback import BaseCallback
 from nemo.utils.meta_info_manager import (
-    enable_one_logger,
     get_nemo_v1_callback_config,
     get_nemo_v2_callback_config,
     get_one_logger_init_config,
@@ -63,17 +62,3 @@ class OneLoggerNeMoCallback(OneLoggerPTLCallback, BaseCallback):
             config = get_nemo_v1_callback_config(trainer=trainer)
         training_telemetry_config = TrainingTelemetryConfig(**config)
         TrainingTelemetryProvider.instance().set_training_telemetry_config(training_telemetry_config)
-
-
-def init_one_logger() -> None:
-    """Initialize OneLogger callback if enabled.
-
-    Registers the OneLoggerNeMoCallback with the CallbackGroup singleton
-    if OneLogger is enabled in the configuration.
-    """
-    if enable_one_logger:
-        CallbackGroup.get_instance().register(OneLoggerNeMoCallback())
-
-
-# Initialize on import
-init_one_logger()
