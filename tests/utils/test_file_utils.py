@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
-from nemo.lightning.io.artifact.file import robust_copy
+from nemo.utils.file_utils import robust_copy
 
 
 class TestRobustCopy:
@@ -28,8 +28,8 @@ class TestRobustCopy:
         dest_file = tmp_path / "dest.txt"
 
         with (
-            patch('nemo.lightning.io.artifact.file.shutil.copy2') as mock_copy2,
-            patch('nemo.lightning.io.artifact.file.shutil.copy') as mock_copy,
+            patch('nemo.utils.file_utils.shutil.copy2') as mock_copy2,
+            patch('nemo.utils.file_utils.shutil.copy') as mock_copy,
         ):
             robust_copy(src_file, dest_file)
             mock_copy2.assert_called_once_with(src_file, dest_file)
@@ -44,9 +44,9 @@ class TestRobustCopy:
 
         with (
             patch(
-                'nemo.lightning.io.artifact.file.shutil.copy2', side_effect=PermissionError("copy2 fails")
+                'nemo.utils.file_utils.shutil.copy2', side_effect=PermissionError("copy2 fails")
             ) as mock_copy2,
-            patch('nemo.lightning.io.artifact.file.shutil.copy') as mock_copy,
+            patch('nemo.utils.file_utils.shutil.copy') as mock_copy,
         ):
             robust_copy(src_file, dest_file)
             mock_copy2.assert_called_once_with(src_file, dest_file)

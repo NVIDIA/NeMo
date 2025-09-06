@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import os
-import shutil
 from pathlib import Path
 from typing import Union
+
 import fiddle as fdl
 
 from nemo.lightning.io.artifact.base import Artifact
+from nemo.utils.file_utils import robust_copy
 
 
 class PathArtifact(Artifact[Path]):
@@ -46,16 +47,6 @@ def pathize(s):
     if not isinstance(s, Path):
         return Path(s)
     return s
-
-
-def robust_copy(src: Union[Path, str], dst: Union[Path, str]) -> str:
-    try:
-        return shutil.copy2(src, dst)
-    except PermissionError:
-        # copy2 can fail on some filesystems due to metadata copy errors
-        # (e.g., permission errors on setting timestamps).
-        # In such cases, we fallback to a plain copy.
-        return shutil.copy(src, dst)
 
 
 def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union[Path, str]):

@@ -14,7 +14,6 @@
 
 import json
 import os
-import shutil
 import tarfile
 from abc import ABC, abstractmethod
 from typing import List
@@ -33,8 +32,8 @@ from nemo.collections.asr.parts.utils.tokenizer_utils import (
     extract_punctuation_from_vocab,
 )
 from nemo.collections.common import tokenizers
-from nemo.lightning.io.artifact.file import robust_copy
 from nemo.utils import app_state, logging
+from nemo.utils.file_utils import robust_copy
 
 
 class ASRBPEMixin(ABC):
