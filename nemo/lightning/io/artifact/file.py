@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import os
-import shutil
 from pathlib import Path
 from typing import Union
+
 import fiddle as fdl
 
 from nemo.lightning.io.artifact.base import Artifact
+from nemo.utils.file_utils import robust_copy
 
 
 class PathArtifact(Artifact[Path]):
@@ -53,7 +54,7 @@ def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union
     output = pathize(path) / relative_path
     if output.exists():
         raise FileExistsError(f"Dst file already exists {str(output)}")
-    shutil.copy2(src, output)
+    robust_copy(src, output)
     return relative_path
 
 
