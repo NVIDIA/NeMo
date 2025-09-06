@@ -12,12 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import re
-from typing import Optional
+from dataclasses import dataclass
+from typing import List, Optional
 
 import pandas as pd
 from tensorboard.backend.event_processing import event_accumulator
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 GPT_BASED_MODELS = [
     "gpt3",
@@ -29,6 +34,164 @@ GPT_BASED_MODELS = [
     "nemotron",
     "starcoder",
 ]
+
+
+@dataclass
+class BaseConfigResult:
+    """Base class for configuration results containing common parallelism and model parameters."""
+
+    model_name: str
+    model_size: int
+    seq_length: int
+    tp: int
+    pp: int
+    cp: int
+    ep: int
+    mbs: int
+    vp: Optional[int]
+    layers: int
+    hidden_size: int
+    ffn_hidden_size: int
+    gbs: int
+    num_nodes: int
+    gpus_per_node: int
+
+    @classmethod
+    def from_common_params(
+        cls,
+        model_name: str,
+        model_size: int,
+        seq_length: int,
+        tp: int,
+        pp: int,
+        cp: int,
+        ep: int,
+        mbs: int,
+        vp: Optional[int],
+        layers: int,
+        hidden_size: int,
+        ffn_hidden_size: int,
+        gbs: int,
+        num_nodes: int,
+        gpus_per_node: int,
+        **kwargs,
+    ):
+        """Create a base config result from common parameters."""
+        return cls(
+            model_name=model_name,
+            model_size=model_size,
+            seq_length=seq_length,
+            tp=tp,
+            pp=pp,
+            cp=cp,
+            ep=ep,
+            mbs=mbs,
+            vp=vp,
+            layers=layers,
+            hidden_size=hidden_size,
+            ffn_hidden_size=ffn_hidden_size,
+            gbs=gbs,
+            num_nodes=num_nodes,
+            gpus_per_node=gpus_per_node,
+            **kwargs,
+        )
+
+    def to_list(self) -> List:
+        """Convert base configuration to list format for backward compatibility with CSV export.
+
+        This method handles the common fields. Child classes should override this method
+        to add their specific fields at the end.
+        """
+        return [
+            self.model_name,
+            self.model_size,
+            self.seq_length,
+            self.tp,
+            self.pp,
+            self.cp,
+            self.ep,
+            self.mbs,
+            self.vp,
+            self.layers,
+            self.hidden_size,
+            self.ffn_hidden_size,
+            self.gbs,
+            self.num_nodes,
+            self.gpus_per_node,
+        ]
+
+    @classmethod
+    def get_csv_columns(cls) -> List[str]:
+        """Get the CSV column headers for the base configuration."""
+        return [
+            "Model Name",
+            "Model Size",
+            "Seq Length",
+            "TP",
+            "PP",
+            "CP",
+            "EP",
+            "MBS",
+            "VP",
+            "Num Layers",
+            "Hidden Size",
+            "FFN Hidden Size",
+            "GBS",
+            "Nodes",
+            "GPUs per Node",
+        ]
+
+
+@dataclass
+class PerformanceResult(BaseConfigResult):
+    """Structured class for performance results to replace confusing list indices."""
+
+    time_per_step: float
+    samples_per_second: float
+    tflops_per_gpu: float
+    tflops_total: float
+    descriptive_name: str
+
+    def to_list(self) -> List:
+        """Convert to list format for backward compatibility with CSV export."""
+        base_list = super().to_list()
+        return base_list + [
+            self.time_per_step,
+            self.samples_per_second,
+            self.tflops_per_gpu,
+            self.tflops_total,
+            self.descriptive_name,
+        ]
+
+    @classmethod
+    def get_csv_columns(cls) -> List[str]:
+        """Get the CSV column headers for performance results."""
+        base_columns = BaseConfigResult.get_csv_columns()
+        return base_columns + [
+            "Time per Step",
+            "Samples per Second",
+            "Model TFLOPS / GPU",
+            "Model TFLOPS Aggregate",
+            "Full Configuration Name",
+        ]
+
+
+@dataclass
+class ErrorResult(BaseConfigResult):
+    """Structured class for error results."""
+
+    error_message: str
+
+    def to_list(self) -> List:
+        """Convert to list format for backward compatibility with CSV export."""
+        base_list = super().to_list()
+        return base_list + [self.error_message]
+
+    @classmethod
+    def get_csv_columns(cls) -> List[str]:
+        """Get the CSV column headers for error results."""
+        base_columns = BaseConfigResult.get_csv_columns()
+        return base_columns + ["Error Message"]
 
 
 def get_results(
@@ -48,10 +211,13 @@ def get_results(
         log_file_prefix: (Optional[str]): prefix of log files.
     """
 
+    logger.info(f"Starting performance analysis for model: {train_config.model_type}")
+    logger.info(f"Logs directory: {path_to_save}")
+    logger.info(f"Log file prefix: {log_file_prefix}")
+
     # Define needed variables
     model_name = train_config.model_type
     model_size = train_config.model_size_in_b
-    global_batch_size = base_config.data.global_batch_size
     seq_length = base_config.data.seq_length
 
     vocab_size = train_config.vocab_size
@@ -65,89 +231,75 @@ def get_results(
     training_logs = path_to_save
     final_result_logs = path_to_save
 
-    result_columns = [
-        "Model Name",
-        "Model Size",
-        "Seq Length",
-        "TP",
-        "PP",
-        "CP",
-        "EP",
-        "MBS",
-        "VP",
-        "Num Layers",
-        "Hidden Size",
-        "FFN Hidden Size",
-        "GBS",
-        "Nodes",
-        "GPUs per Node",
-        "Time per Step",
-        "Samples per Second",
-        "Model TFLOPS / GPU",
-        "Model TFLOPS Aggregate",
-    ]
-    error_columns = [
-        "Model Name",
-        "Model Size",
-        "Seq Length",
-        "TP",
-        "PP",
-        "CP",
-        "EP",
-        "MBS",
-        "VP",
-        "Num Layers",
-        "Hidden Size",
-        "FFN Hidden Size",
-        "GBS",
-        "Nodes",
-        "GPUs per Node",
-        "Error Message",
-    ]
+    # Use generic column methods instead of hardcoded lists
+    result_columns = PerformanceResult.get_csv_columns()
+    error_columns = ErrorResult.get_csv_columns()
+
     result = []
     errors = []
+
+    performance_dict = {}
+
     training_logs = os.path.abspath(training_logs)
     error_files = find_tb_logs(training_logs, log_file_prefix)
     tb_files = find_tb_logs(training_logs, "events")
     dirs = [f.path for f in os.scandir(training_logs) if f.is_dir()]
 
+    logger.info(f"Found {len(dirs)} directories, {len(error_files)} error files, {len(tb_files)} tensorboard files")
+
+    # Track tensorboard processing errors
+    tb_errors = 0
+    tb_error_types = {}
+
     for error_file, tb_file, candidate_dir in zip(error_files, tb_files, dirs):
-        tp, pp, cp, ep, mbs, vp = get_config(candidate_dir)
-        error = find_error(error_file)
+        try:
+            tp, pp, cp, ep, mbs, vp, gbs = get_config(candidate_dir)
+        except Exception as e:
+            logger.warning(f"Skipping {candidate_dir}: {e}")
+            continue
+
+        error = find_error(error_file) if error_file else None
         if error:
             errors.append(
-                [
-                    model_name,
-                    model_size,
-                    seq_length,
-                    tp,
-                    pp,
-                    cp,
-                    ep,
-                    mbs,
-                    vp,
-                    layers,
-                    hs,
-                    ffn_hs,
-                    global_batch_size,
-                    num_nodes,
-                    gpus_per_node,
-                    error,
-                ]
+                ErrorResult.from_common_params(
+                    model_name=model_name,
+                    model_size=model_size,
+                    seq_length=seq_length,
+                    tp=tp,
+                    pp=pp,
+                    cp=cp,
+                    ep=ep,
+                    mbs=mbs,
+                    vp=vp,
+                    layers=layers,
+                    hidden_size=hs,
+                    ffn_hidden_size=ffn_hs,
+                    gbs=gbs,
+                    num_nodes=num_nodes,
+                    gpus_per_node=gpus_per_node,
+                    error_message=error,
+                )
             )
+
+        if not tb_file:
+            continue
 
         ea = event_accumulator.EventAccumulator(tb_file)
         ea.Reload()
+
         try:
             timing_list = ea.Scalars("train_step_timing in s")
+
             if len(timing_list) < 10:
                 continue
+
             timing_list = [x.value for x in timing_list[1:]]
             avg_global_step_time = round(sum(timing_list) / len(timing_list), 2)
-            samples_per_s = round(global_batch_size / avg_global_step_time, 2)
+            samples_per_s = round(gbs / avg_global_step_time, 2)
+
             m_tflops, m_tflops_gpu = calculate_tflops(
                 model_name=model_name,
-                gbs=global_batch_size,
+                gbs=gbs,
                 enc_seq_len=seq_length,
                 dec_seq_len=seq_length,
                 hs=hs,
@@ -158,56 +310,97 @@ def get_results(
                 gpus_per_node=gpus_per_node,
                 time_per_step=avg_global_step_time,
             )
-            result.append(
-                [
-                    model_name,
-                    model_size,
-                    seq_length,
-                    tp,
-                    pp,
-                    cp,
-                    ep,
-                    mbs,
-                    vp,
-                    layers,
-                    hs,
-                    ffn_hs,
-                    global_batch_size,
-                    num_nodes,
-                    gpus_per_node,
-                    avg_global_step_time,
-                    samples_per_s,
-                    m_tflops_gpu,
-                    m_tflops,
-                ]
+
+            vp_str = int(vp) if vp and str(vp).lower() != 'none' else 'None'
+            descriptive_name = (
+                f"{model_name}_"
+                f"{model_size}b_"
+                f"{num_nodes}nodes_"
+                f"tp_{tp}_pp_{pp}_cp_{cp}_ep_{ep}_"
+                f"mbs_{mbs}_"
+                f"vp_{vp_str}_"
+                f"seq_{seq_length}_"
+                f"gbs_{gbs}"
             )
+
+            result.append(
+                PerformanceResult.from_common_params(
+                    model_name=model_name,
+                    model_size=model_size,
+                    seq_length=seq_length,
+                    tp=tp,
+                    pp=pp,
+                    cp=cp,
+                    ep=ep,
+                    mbs=mbs,
+                    vp=vp,
+                    layers=layers,
+                    hidden_size=hs,
+                    ffn_hidden_size=ffn_hs,
+                    gbs=gbs,  # Use extracted GBS
+                    num_nodes=num_nodes,
+                    gpus_per_node=gpus_per_node,
+                    time_per_step=avg_global_step_time,
+                    samples_per_second=samples_per_s,
+                    tflops_per_gpu=m_tflops_gpu,
+                    tflops_total=m_tflops,
+                    descriptive_name=descriptive_name,
+                )
+            )
+
+            performance_dict[descriptive_name] = {
+                "m_tflops_gpu": m_tflops_gpu,
+                "time_per_global_step": avg_global_step_time,
+                "samples_per_s": samples_per_s,
+                "m_tflops": m_tflops,
+            }
+
+        except Exception as e:
+            tb_errors += 1
+            error_type = str(e)
+            tb_error_types[error_type] = tb_error_types.get(error_type, 0) + 1
+
+            # Only log the first few errors to avoid spam
+            if tb_errors <= 1:
+                logger.warning(f"Error processing at least one tensorboard file: {e}")
         finally:
             continue
 
-    result.sort(key=lambda x: x[15])
-    print(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
-    for i, res in enumerate(result):
-        print(f"Config #{i+1}: {res[-1]} TFLOPS per GPU with {res[15]:.4f}s per global step.")
-        if i + 1 == output_top_n:
-            break
+    # Log summary of tensorboard errors if any occurred
+    if tb_errors > 0:
+        logger.warning(f"Tensorboard processing completed with {tb_errors} errors:")
+        for error_type, count in tb_error_types.items():
+            logger.warning(f"  {error_type}: {count} occurrences")
 
-    top_config = (
-        f"{model_name}_{model_size}b_{num_nodes}nodes_tp_"
-        f"{result[0][3]}_pp_{result[0][4]}_cp_"
-        f"{result[0][5]}_ep_{result[0][6]}_mbs_"
-        f"{result[0][7]}_vp_{result[0][8]}"
-    )
-    print("\n==================================================")
-    print(f"Optimal config: {top_config} with {result[0][15]:.4f}s per global step.")
-    print("==================================================\n")
+    logger.info(f"Processing complete. Found {len(result)} successful results and {len(errors)} errors")
 
-    # Save results as a CSV file.
-    os.makedirs(final_result_logs, exist_ok=True)
-    result_df = pd.DataFrame(result, columns=result_columns)
-    result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
+    if result:
+        result.sort(key=lambda x: x.time_per_step)
+        logger.info(f"Top {min(output_top_n, len(result))} configs sorted from fastest to slowest:")
+        for i, res in enumerate(result):
+            logger.info(
+                f"Config #{i+1} - {res.descriptive_name}: {res.tflops_per_gpu:.4f} TFLOPS per GPU with {res.time_per_step:.4f}s per global step."
+            )
+            if i + 1 == output_top_n:
+                break
 
-    error_df = pd.DataFrame(errors, columns=error_columns)
-    error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
+        logger.info("\n==================================================")
+        logger.info(
+            f"Optimal config: {result[0].descriptive_name} with {result[0].time_per_step:.4f}s per global step."
+        )
+        logger.info("==================================================\n")
+
+        # Save results as a CSV file.
+        os.makedirs(final_result_logs, exist_ok=True)
+        result_df = pd.DataFrame([r.to_list() for r in result], columns=result_columns)
+        result_df.to_csv(os.path.join(final_result_logs, f"final_summary_{num_nodes}nodes.csv"), index=False)
+
+        error_df = pd.DataFrame([e.to_list() for e in errors], columns=error_columns)
+        error_df.to_csv(os.path.join(final_result_logs, f"failed_jobs_{num_nodes}nodes.csv"), index=False)
+    else:
+        logger.warning("No valid results found to process.")
+
+    return performance_dict
 
 
 def calculate_tflops(
@@ -304,16 +497,17 @@ def find_error(error_file: str, errors: list = ["CUDA out of memory"]):
 
 
 def get_config(run_name: str) -> tuple:
-    """Function that extract model parallelism parameters
+    """Function that extract model parallelism parameters including GBS
 
     Args:
         run_name (str): name of the run.
 
     Returns:
-        tuple: model parallelism parameters.
+        tuple: model parallelism parameters (tp, pp, cp, ep, mbs, vp, gbs).
     """
 
-    pattern = r'_(tp|pp|cp|ep|mbs|vp)_([^_]+)'
+    # Updated pattern to include gbs
+    pattern = r'_(tp|pp|cp|ep|mbs|vp|gbs)_([^_]+)'
 
     # Find all matches in the input string
     matches = re.findall(pattern, run_name)
@@ -321,14 +515,22 @@ def get_config(run_name: str) -> tuple:
     # Convert matches to a dictionary
     params = {param: value for param, value in matches}
 
-    return (
-        params["tp"],
-        params["pp"],
-        params["cp"],
-        params["ep"],
-        params["mbs"],
-        params["vp"],
-    )
+    # Convert string values to appropriate types
+    try:
+        tp = int(params.get("tp"))
+        pp = int(params.get("pp"))
+        cp = int(params.get("cp"))
+        ep = int(params.get("ep"))
+        mbs = int(params.get("mbs"))
+        vp = int(params["vp"]) if params.get("vp") not in [None, 'None'] else None
+        gbs = int(params.get("gbs"))
+
+    except (ValueError, KeyError, TypeError) as e:
+        raise ValueError(
+            f"Missing or invalid configuration parameters in '{run_name}': {e}. Expected integer values for all parallelism settings."
+        )
+
+    return (tp, pp, cp, ep, mbs, vp, gbs)
 
 
 def find_tb_logs(logs_dir: str, tb_prefix: str) -> list:
