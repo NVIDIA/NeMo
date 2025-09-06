@@ -12,28 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import modelopt.torch.opt as mto
+import modelopt.torch.speculative as mtsp
 import torch.nn as nn
 
 from nemo.collections.llm import GPTModel
 from nemo.utils import logging
-from nemo.utils.import_utils import UnavailableError, safe_import
 from nemo.utils.model_utils import unwrap_model
 
-mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
-mtsp, _ = safe_import("modelopt.torch.speculative")
-
-try:
-    ALGORITHMS = {
-        "eagle3": mtsp.EAGLE3_DEFAULT_CFG,
-        # more TBD
-    }
-except UnavailableError:
-    ALGORITHMS = {}
+ALGORITHMS = {
+    "eagle3": mtsp.EAGLE3_DEFAULT_CFG,
+    # more TBD
+}
 
 
 def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> nn.Module:
-    """
-    Transform a model to enable Speculative Decoding using Model Optimizer.
+    """Transform a model to enable Speculative Decoding using Model Optimizer.
 
     Args:
         model: The model to transform.
@@ -43,9 +37,6 @@ def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> n
     Returns:
         The transformed model.
     """
-    if not HAVE_MODELOPT:
-        raise ImportError("nvidia-modelopt is required to use Speculative Decoding")
-
     assert algorithm in ALGORITHMS, f"Invalid algorithm: {algorithm}. Choices: {ALGORITHMS.keys()}"
     mode_cfg = ALGORITHMS[algorithm]
     mode, cfg = mode_cfg["algorithm"], mode_cfg["config"]
@@ -70,9 +61,7 @@ def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> n
 
 
 def _has_same_speculative_decoding_state(model: nn.Module, mode: str) -> bool:
-    """
-    Check if the model has the same Speculative Decoding state as the incoming algorithm mode.
-    """
+    """Check if the model has the same Speculative Decoding state as the incoming algorithm mode."""
     from modelopt.torch.opt.mode import _ModeRegistryCls
 
     mode_registry = _ModeRegistryCls.get_registry_by_name("speculative")
