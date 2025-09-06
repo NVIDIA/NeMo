@@ -41,7 +41,7 @@ jobs:
             export NEMO_REPO
             export INSTALL_DIR=$(pwd)
 
-            bash docker/common/install_dep.sh --library all --mode install
+            bash docker/common/install_dep.sh --library "te,mcore,extra" --mode install
             pip install --no-cache-dir ".[all]"
           fi
 
@@ -78,7 +78,7 @@ jobs:
             pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
-            bash docker/common/install_dep.sh --library all --mode install
+            bash docker/common/install_dep.sh --library "te,mcore,extra" --mode install
             pip install --no-cache-dir ".[all]"
           fi
 
@@ -115,7 +115,7 @@ jobs:
             pip install -vvv ".[all]"
           else
             export INSTALL_DIR=$(pwd)
-            bash docker/common/install_dep.sh --library all --mode install
+            bash docker/common/install_dep.sh --library "te,mcore,extra" --mode install
             pip install --no-cache-dir ".[all]"
           fi
 
