@@ -43,9 +43,7 @@ class TestRobustCopy:
         dest_file = tmp_path / "dest.txt"
 
         with (
-            patch(
-                'nemo.utils.file_utils.shutil.copy2', side_effect=PermissionError("copy2 fails")
-            ) as mock_copy2,
+            patch('nemo.utils.file_utils.shutil.copy2', side_effect=PermissionError("copy2 fails")) as mock_copy2,
             patch('nemo.utils.file_utils.shutil.copy') as mock_copy,
         ):
             robust_copy(src_file, dest_file)
