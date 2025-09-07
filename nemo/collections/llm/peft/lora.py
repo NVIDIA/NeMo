@@ -108,6 +108,33 @@ if HAVE_TE_FUSED_LORA:
             main_branch = self._make_main_branch(**kwargs)
             lora_branch = self._make_lora_branch(**kwargs)
 
+            # Get submodule forward hooks
+            forward_pre_hooks = []
+            forward_post_hooks = []
+            for submodule in self.modules():
+                for hook in submodule._forward_pre_hooks.values():
+                    forward_pre_hooks.append((submodule, hook))
+                for hook in submodule._forward_hooks.values():
+                    forward_post_hooks.append((submodule, hook))
+
+            # Attempt to emulate submodule forward hooks if needed
+            # Note: Assume hooks do not interact with submodule inputs
+            # or outputs since they are internal to the op fuser.
+            if forward_pre_hooks:
+                def forward_pre_hook(module, *_) -> None:
+                    for submodule, hook in forward_pre_hooks:
+                        # Assume that hook does not interact with
+                        # input
+                        hook(submodule, None)
+                main_branch.register_forward_pre_hook(forward_pre_hook)
+            if forward_post_hooks:
+                def forward_post_hook(module, *_) -> None:
+                    for submodule, hook in forward_post_hooks:
+                        # Assume that hook does not interact with
+                        # input or output
+                        hook(submodule, None, None)
+                lora_branch.register_forward_hook(forward_post_hook)
+
             return main_branch, lora_branch
 
         def _make_main_branch(
