@@ -22,6 +22,18 @@ from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.core import create_sft_dataset
 from nemo.utils import logging
 from nemo.utils.sequence_packing_utils import create_hist, create_packing_strategy, fill_packing_strategy
+from multiprocessing import Pool
+import multiprocessing as mp
+from tqdm import tqdm
+
+
+_shared_dataset_for_tokenizing = None
+def _get_tokenized_item_from_shared_dataset(i):
+    return _shared_dataset_for_tokenizing[i]
+
+def _init_shared_dataset_worker(dataset):
+    global _shared_dataset_for_tokenizing
+    _shared_dataset_for_tokenizing = dataset
 
 
 def tokenize_dataset(
@@ -30,6 +42,7 @@ def tokenize_dataset(
     max_seq_length: int,
     seed: int,
     dataset_kwargs: Optional[dict],
+    tokenize_workers: Optional[int] = 1
 ):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
@@ -66,9 +79,13 @@ def tokenize_dataset(
         is_test=True,
         **dataset_kwargs,
     )
-    return np.array([dataset[i] for i in range(len(dataset))])
 
+    if tokenize_workers == 1:
+        return np.array([dataset[i] for i in range(len(dataset))])
 
+    with Pool(tokenize_workers, initializer=_init_shared_dataset_worker, initargs=(dataset,)) as pool:
+        return np.array(list(tqdm(pool.imap(_get_tokenized_item_from_shared_dataset, range(len(dataset))), total=len(dataset))))
+    
 def prepare_packed_sequence_data(
     input_path: Path,
     output_path: Path,
@@ -79,6 +96,7 @@ def prepare_packed_sequence_data(
     seed: Optional[int] = 0,
     packing_algorithm: str = "first_fit_shuffle",
     dataset_kwargs: dict = None,
+    tokenize_workers: Optional[int] = 1
 ):
     """
     Prepares a packed sequence dataset from a given input file and saves it to an output file.
@@ -98,7 +116,7 @@ def prepare_packed_sequence_data(
     """
 
     logging.info(f"Preparing packed sequence from {input_path}")
-    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed, dataset_kwargs)
+    dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed, dataset_kwargs, tokenize_workers)
     sequences, histogram = create_hist(dataset, max_seq_length)
 
     assignments, packing_metadata = create_packing_strategy(histogram, packed_sequence_size, packing_algorithm)
@@ -166,6 +184,11 @@ class PackedSequenceSpecs:
     pad_cu_seqlens: bool = False
     """
     If True, pad cu_seqlens to a constant size, which is required for use with cudagraphs.
+    """
+
+    tokenize_workers: int = 1
+    """
+    When tokenizing the dataset, how many parallel workers should be used
     """
 
     def __post_init__(self):
