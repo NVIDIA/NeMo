@@ -116,13 +116,16 @@ def convert_to_qwen2vl_content(user_input: str, image_pattern: str = '<image>', 
 
     return contents
 
+
 def tensor_to_pil(x: torch.Tensor) -> Image.Image:
-    # x: CHW 또는 HWC, float/half[0..1] 또는 uint8[0..255]
+    # TODO(wookyong): Profile this function and optimize it if necessary.
+
+    # x: CHW or HWC, float/half[0..1] or uint8[0..255]
     x = x.detach().cpu()
     if x.ndim == 3 and x.shape[0] in (1, 3):  # CHW -> HWC
         x = x.permute(1, 2, 0)
     if x.is_floating_point():
-        # [-1,1]도 방어
+        # Guard [-1,1]
         x = (x.clamp(-1, 1) + 1) / 2 if x.min() < 0 else x.clamp(0, 1)
         x = (x * 255.0).round().to(torch.uint8)
     elif x.dtype != torch.uint8:
@@ -132,6 +135,7 @@ def tensor_to_pil(x: torch.Tensor) -> Image.Image:
         arr = arr.squeeze(-1)
         return Image.fromarray(arr, mode="L")
     return Image.fromarray(arr, mode="RGB")
+
 
 def cook_chatml_sample(sample: dict) -> ChatMLSample:
     """

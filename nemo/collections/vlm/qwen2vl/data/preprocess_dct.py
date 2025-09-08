@@ -1,67 +1,53 @@
 #
 from typing import Optional, Union
+
 import numpy as np
-
-
-
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch_dct as dct
-
-
-from einops.layers.torch import Rearrange
 from einops import rearrange
-
-
-from transformers.models.qwen2_vl.image_processing_qwen2_vl import (
-    Qwen2VLImageProcessor as _Base,
-)
-from transformers.models.qwen2_vl.image_processing_qwen2_vl import smart_resize
-
-from transformers.image_processing_utils import BatchFeature
+from transformers.image_transforms import convert_to_rgb, resize, to_channel_dimension_format
 from transformers.image_utils import (
-    ChannelDimension, PILImageResampling, ImageInput,VideoInput,
-    OPENAI_CLIP_MEAN,
-    OPENAI_CLIP_STD,
     ChannelDimension,
     ImageInput,
     PILImageResampling,
+    VideoInput,
     get_image_size,
     infer_channel_dimension_format,
     is_scaled_image,
-    make_flat_list_of_images,
     make_list_of_images,
     to_numpy_array,
-    valid_images,
-    validate_preprocess_arguments,
-    )
+)
+from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageProcessor as _Base
+from transformers.models.qwen2_vl.image_processing_qwen2_vl import smart_resize
+from transformers.utils import logging
 
-from transformers.image_transforms import(
-    convert_to_rgb,
-    resize,
-    to_channel_dimension_format, ) 
-
-from transformers.utils import TensorType, logging
 
 logger = logging.get_logger(__name__)
 
-def patchfication(x):
 
+def patchfication(x):
     return rearrange(x, 'b c (h ph) (w pw) -> b c ph pw h w', ph=2, pw=2)
+
 
 def patchfication_nonbatch(x):
     return rearrange(x, 'c (h ph) (w pw) -> c ph pw h w', ph=2, pw=2)
 
+
 def rea(x):
     return rearrange(x, 'c h w ph pw -> c (h ph) (w pw)')
+
+
 def b_rea(x):
     return rearrange(x, 'b c h w ph pw -> b c (h ph) (w pw)')
 
+
 def rea_f(x):
-    return  rearrange(x, 'c (h ph) (w pw) -> c h w ph pw', ph=4, pw=4)
+    return rearrange(x, 'c (h ph) (w pw) -> c h w ph pw', ph=4, pw=4)
+
+
 def b_rea_f(x):
-    return  rearrange(x, 'b c (h ph) (w pw) -> b c h w ph pw', ph=4, pw=4)
+    return rearrange(x, 'b c (h ph) (w pw) -> b c h w ph pw', ph=4, pw=4)
 
 
 @torch.cuda.nvtx.range('process_channel')
@@ -70,13 +56,13 @@ def process_channel(channel, qmap):
     Dequantize and apply IDCT for each 8x8 block.
     """
     if len(channel.shape) == 5:
-        channel = channel[:,:,:,:,:] * qmap[None,None,None,:,:]#
+        channel = channel[:, :, :, :, :] * qmap[None, None, None, :, :]  #
         channel = dct.idct_2d(channel, norm='ortho')
-        channel =  rea(channel)
+        channel = rea(channel)
     elif len(channel.shape) == 6:
-        channel = channel[:,:,:,:,:,:] * qmap[:,None,None,None,:,:]
+        channel = channel[:, :, :, :, :, :] * qmap[:, None, None, None, :, :]
         channel = dct.idct_2d(channel, norm='ortho')
-        channel =  b_rea(channel)
+        channel = b_rea(channel)
     return channel
 
 
@@ -98,11 +84,9 @@ def split_rgb_to_ycbcr(rgb):
     cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b
     cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b
     try:
-        return y.unsqueeze(-3) , cb.unsqueeze(-3) , cr.unsqueeze(-3)
+        return y.unsqueeze(-3), cb.unsqueeze(-3), cr.unsqueeze(-3)
     except:
-        return np.expand_dims(y,axis=-3) , np.expand_dims(cb,axis=-3) ,np.expand_dims(cr,axis=-3)
-
-
+        return np.expand_dims(y, axis=-3), np.expand_dims(cb, axis=-3), np.expand_dims(cr, axis=-3)
 
 
 @torch.cuda.nvtx.range('process_channel_forward')
@@ -112,13 +96,14 @@ def process_channel_forward(channel):
     """
     if len(channel.shape) == 3:
         channel = rea_f(channel)
-        channel = dct.dct_2d(channel,norm='ortho')#*np.sqrt(2.0)
+        channel = dct.dct_2d(channel, norm='ortho')  # *np.sqrt(2.0)
     elif len(channel.shape) == 4:
         channel = b_rea_f(channel)
-        channel = dct.dct_2d(channel,norm='ortho')#*(32)#*np.sqrt(2.0)
+        channel = dct.dct_2d(channel, norm='ortho')  # *(32)#*np.sqrt(2.0)
     return channel
 
-def _is_torch(x): return isinstance(x, torch.Tensor)
+def _is_torch(x):
+    return isinstance(x, torch.Tensor)
 
 def _resize_2d(x, out_h, out_w, mode="nearest"):
     """2D/3D/4D -> 원하는 (H,W) 로 리사이즈. torch/np 모두 지원."""
@@ -138,7 +123,8 @@ def _resize_2d(x, out_h, out_w, mode="nearest"):
     else:
         # numpy: 최근접 리사이즈(정수배 가정) → stride 샘플링
         in_h, in_w = x.shape[-2], x.shape[-1]
-        sh = int(round(in_h / out_h)); sw = int(round(in_w / out_w))
+        sh = int(round(in_h / out_h))
+        sw = int(round(in_w / out_w))
         if sh <= 0 or sw <= 0 or in_h % sh or in_w % sw:
             raise ValueError(f"_resize_2d numpy: invalid scale {(in_h,in_w)}->{(out_h,out_w)}")
         if x.ndim == 2:          # (H,W)
@@ -154,11 +140,14 @@ def _resize_2d(x, out_h, out_w, mode="nearest"):
 def _cat(xs, axis):
     return torch.cat(xs, dim=axis) if _is_torch(xs[0]) else np.concatenate(xs, axis=axis)
 
+
 def _permute(x, order):
     return x.permute(*order) if _is_torch(x) else np.transpose(x, axes=order)
 
+
 def _reshape(x, shape):
     return x.reshape(*shape) if _is_torch(x) else np.reshape(x, shape)
+
 
 def _to_float(x):
     if _is_torch(x):
@@ -183,18 +172,18 @@ def rgb_to_spec_tokenize(img, mode=2):
         pass
     elif mode == 1:
         # 4:2:2  → (H, W/2)
-            cb = _resize_2d(cb, h, w // 2, mode="nearest")
-            cr = _resize_2d(cr, h, w // 2, mode="nearest")
+        cb = _resize_2d(cb, h, w // 2, mode="nearest")
+        cr = _resize_2d(cr, h, w // 2, mode="nearest")
     elif mode == 2:
         # 4:2:0  → (H/2, W/2)
-            cb = _resize_2d(cb, h // 2, w // 2, mode="nearest")
-            cr = _resize_2d(cr, h // 2, w // 2, mode="nearest")
+        cb = _resize_2d(cb, h // 2, w // 2, mode="nearest")
+        cr = _resize_2d(cr, h // 2, w // 2, mode="nearest")
     else:
         raise ValueError(f"Unknown mode={mode}")
 
     # --- channel processing ---
     # 형 일치 + float 보장 후 -128
-    y  = process_channel_forward(_to_float(y)  - 128)
+    y = process_channel_forward(_to_float(y) - 128)
     cb = process_channel_forward(_to_float(cb) - 128)
     cr = process_channel_forward(_to_float(cr) - 128)
 
@@ -205,10 +194,10 @@ def rgb_to_spec_tokenize(img, mode=2):
         # 아래 permute/reshape는 원래 코드의 형태를 그대로 보존
         # y: (C,H,W) -> (C, ph, pw, nH, nW) 순을 (C,nH,nW,ph,pw)로 바꾼 뒤 패치 플랫
         y_ = _permute(y, (0, 3, 4, 1, 2)) if y.ndim == 5 else y  # 안전 처리(이미 patchified일 수 있으니)
-        y  = patchfication_nonbatch(_reshape(y_, (-1, h // 4, w // 4))).reshape(-1, h // 8, w // 8)
+        y = patchfication_nonbatch(_reshape(y_, (-1, h // 4, w // 4))).reshape(-1, h // 8, w // 8)
 
         cbcr_ = _permute(cbcr, (0, 3, 4, 1, 2)) if cbcr.ndim == 5 else cbcr
-        cbcr  = _reshape(cbcr_, (-1, h // 8, w // 8))
+        cbcr = _reshape(cbcr_, (-1, h // 8, w // 8))
 
         return _cat([y, cbcr], axis=0)
 
@@ -217,12 +206,12 @@ def rgb_to_spec_tokenize(img, mode=2):
         cbcr = _cat([cb, cr], axis=1)  # (N, 2C, H', W')
 
         y_ = _permute(y, (0, 1, 4, 5, 2, 3)) if y.ndim == 6 else y
-        y  = patchfication(
+        y = patchfication(
                 _reshape(y_, (y.shape[0], -1, h // 4, w // 4))
              ).reshape(y.shape[0], -1, h // 8, w // 8)
 
         cbcr_ = _permute(cbcr, (0, 1, 4, 5, 2, 3)) if cbcr.ndim == 6 else cbcr
-        cbcr  = _reshape(cbcr_, (y.shape[0], -1, h // 8, w // 8))
+        cbcr = _reshape(cbcr_, (y.shape[0], -1, h // 8, w // 8))
 
         return _cat([y, cbcr], axis=1)
 
@@ -339,7 +328,7 @@ class Qwen2VLImageProcessorDCT(_Base):
 
         patches = np.array(processed_images)
         patches = rgb_to_spec_tokenize(torch.Tensor(patches)).numpy()
-        resized_height, resized_width = resized_height//8, resized_width//8
+        resized_height, resized_width = resized_height // 8, resized_width // 8
         # patches = rgb_to_spec_tokenize((patches))#.numpy()
 
         # print(patches)
