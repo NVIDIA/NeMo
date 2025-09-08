@@ -402,7 +402,9 @@ class PreloadedSupervisedDataset(Dataset):
             return paths
 
         # Get image and video paths
-        images = source.get('images', [])
+        # images = source.get('images', [])
+        images = source.get('image', [])
+
         videos = source.get('videos', [])
 
         # Process image and video paths
@@ -464,32 +466,43 @@ class PreloadedSupervisedDataset(Dataset):
         ]
         """
 
-        roles = {"user": conv.roles[0], "assistant": conv.roles[1]}
+        # roles = {"user": conv.roles[0], "assistant": conv.roles[1]}
+        roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         # FIXME: Current implementation does not support system prompt in the data.
         # FIXME: Current implementation does not support tools in the data.
-        messages = source['messages']
+        # messages = source['messages']
+        messages = source['conversations']
+
         if source.get('system', None) is not None:
             conv.system = source['system']
 
         def _fix_roles(roles):
             if len(messages) < 2:
                 return roles
-            return {messages[0]["role"]: conv.roles[0], messages[1]["role"]: conv.roles[1]}
+            return {messages[0]["from"]: conv.roles[0],
+                     messages[1]["from"]: conv.roles[1]}
+            # return {messages[0]["role"]: conv.roles[0],
+            #          messages[1]["role"]: conv.roles[1]}
 
         roles = _fix_roles(roles)
 
         conv.messages = []
         for j, sentence in enumerate(messages):
-            role = roles[sentence["role"]]
+            role = roles[sentence["from"]]
+            # role = roles[sentence["role"]]
+
             assert role == conv.roles[j % 2], f"{j}"
-            conv.append_message(role, sentence["content"])
+            # conv.append_message(role, sentence["content"])
+            conv.append_message(role, sentence["value"])
 
         prompt = conv.get_prompt()
 
-        images = source.get('images', [])
+        # images = source.get('images', [])
+        images = source.get('image', [])
+
         videos = source.get('videos', [])
-        assert prompt.count("<image>") == len(images), f"{prompt.count('<image>')=} != {len(images)=}"
+        # assert prompt.count("<image>") == len(images), f"{prompt.count('<image>')=} != {len(images)=}"
         assert prompt.count("<video>") == len(videos), f"{prompt.count('<video>')=} != {len(videos)=}"
 
         image_block = "<|vision_start|><|image_pad|><|vision_end|>"
@@ -508,7 +521,8 @@ class PreloadedSupervisedDataset(Dataset):
         messages = conv.messages
         for i in range(len(messages)):
             role = messages[i][0]
-            if role == 'assistant':
+            if role == 'gpt':
+            # if role == 'assistant':
                 stop_str = getattr(conv, "stop_str", None)
 
                 answer = messages[i][1]

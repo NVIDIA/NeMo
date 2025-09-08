@@ -116,6 +116,22 @@ def convert_to_qwen2vl_content(user_input: str, image_pattern: str = '<image>', 
 
     return contents
 
+def tensor_to_pil(x: torch.Tensor) -> Image.Image:
+    # x: CHW 또는 HWC, float/half[0..1] 또는 uint8[0..255]
+    x = x.detach().cpu()
+    if x.ndim == 3 and x.shape[0] in (1, 3):  # CHW -> HWC
+        x = x.permute(1, 2, 0)
+    if x.is_floating_point():
+        # [-1,1]도 방어
+        x = (x.clamp(-1, 1) + 1) / 2 if x.min() < 0 else x.clamp(0, 1)
+        x = (x * 255.0).round().to(torch.uint8)
+    elif x.dtype != torch.uint8:
+        x = x.clamp(0, 255).to(torch.uint8)
+    arr = x.numpy()
+    if arr.shape[-1] == 1:
+        arr = arr.squeeze(-1)
+        return Image.fromarray(arr, mode="L")
+    return Image.fromarray(arr, mode="RGB")
 
 def cook_chatml_sample(sample: dict) -> ChatMLSample:
     """
@@ -127,13 +143,16 @@ def cook_chatml_sample(sample: dict) -> ChatMLSample:
     Returns:
         sample in ChatMLSample format
     """
-    imgs = sample.get('jpgs', None)
-    if imgs:
-        imgs = pickle.loads(imgs)
-        if isinstance(imgs, list) and len(imgs) > 0:
-            imgs = [Image.fromarray(d) for d in imgs]
-        else:
-            imgs = None
+    imgs = sample.get('jpg', None)
+    # print("imgs_incook",imgs)
+    if imgs is not None:
+        imgs = [tensor_to_pil(imgs)]
+
+        # imgs = pickle.loads(imgs)
+        # if isinstance(imgs, list) and len(imgs) > 0:
+        #     imgs = [Image.fromarray(d) for d in imgs]
+        # else:
+        #     imgs = None
     videos = sample.get('videos', None)
     if videos:
         videos = pickle.loads(videos)
@@ -198,15 +217,19 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         # NOTE: flatten all images
         #     Input of process_vision:
         processed_vision = process_vision(self.image_processor, sample.imgs, sample.videos)
+        # print('sampleimage:',sample)
         image_thw_grids = processed_vision['image_grid_thw']
+        # print('img_grids:',image_thw_grids,'\n')
         video_thw_grids = processed_vision['video_grid_thw']
         flattened_imgs = processed_vision['image_inputs']
         flattened_videos = processed_vision['video_inputs']
+        # print('flattened_imgs:',flattened_imgs)
 
         conversation = (
             json.loads(sample.conversation) if isinstance(sample.conversation, (str, bytes)) else sample.conversation
         )
-
+        # print('Conv::,',conversation)
+        # conversation = conversation['conversations']
         _from_system_ = 'from' in conversation[0]
         role_key = 'from' if 'from' in conversation[0] else 'role'
         content_key = 'value' if 'from' in conversation[0] else 'content'
@@ -322,6 +345,7 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         cur_x, cur_y = 0, 0
         for idx in indices:
             token_id = input_ids[idx]
+            # print('img_dx,::',image_thw_grids,image_thw_grids)
             if token_id == image_token_id:
                 size = image_thw_grids[image_idx].prod() // merge_length
                 image_idx += 1

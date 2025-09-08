@@ -71,7 +71,9 @@ def main(args):
 
     max_sequence_length = args.max_sequence_length
     tokenizer = AutoTokenizer(hf_model_name)
-    image_processor = Qwen2VLImageProcessor()
+    min_pixels,max_pixels = args.min_pixels, args.max_pixels
+    image_processor = Qwen2VLImageProcessor(min_pixels=min_pixels,
+                                            max_pixels=max_pixels)
     if args.data_type == "qwen2vl":
         # Data configuration
         data_config = Qwen2VLDataConfig(
@@ -285,6 +287,8 @@ if __name__ == "__main__":
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
     parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
+    parser.add_argument('--min_pixels',type=int,default=784,help="Minimum pixel numbers")
+    parser.add_argument('--max_pixels',type=int,default=50176,help="Maximum pixel numbers")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
     parser.add_argument('--enable_sp', action='store_true', help="enable sequence parallel")
     parser.add_argument(

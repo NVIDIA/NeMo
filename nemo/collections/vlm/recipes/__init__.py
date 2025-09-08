@@ -23,6 +23,7 @@ from nemo.collections.vlm.recipes import (
     llava_next_7b,
     mllama_11b,
     mllama_90b,
+    qwen2vl_2b,
 )
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "gemma3vl_4b",
     "gemma3vl_12b",
     "gemma3vl_27b",
+    "qwen2vl_2b",
 ]
