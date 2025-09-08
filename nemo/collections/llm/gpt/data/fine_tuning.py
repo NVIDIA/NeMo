@@ -132,7 +132,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                     seed=self.seed,
                     output_metadata_path=self.pack_metadata,
                     dataset_kwargs=self.dataset_kwargs,
-                    tokenize_workers=self.packed_sequence_specs.tokenize_workers
+                    tokenize_workers=self.packed_sequence_specs.tokenize_workers,
                 )
 
             if not self.validation_path_packed.is_file():
@@ -145,7 +145,7 @@ class FineTuningDataModule(pl.LightningDataModule):
                     seed=self.seed,
                     output_metadata_path=self.pack_metadata,
                     dataset_kwargs=self.dataset_kwargs,
-                    tokenize_workers=self.packed_sequence_specs.tokenize_workers
+                    tokenize_workers=self.packed_sequence_specs.tokenize_workers,
                 )
 
     def setup(self, stage: str):

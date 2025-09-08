@@ -22,6 +22,7 @@ from nemo.utils import logging
 
 PACKING_ALGOS = ["first_fit_decreasing", "first_fit_shuffle"]
 
+
 def find_first_bin_that_fits(bins: List[List[int]], bin_sums: List[int], s: int, bin_size: int) -> int:
     """
     Finds the first bin in a list of bins that has enough space to fit a sequence of size 's'.
