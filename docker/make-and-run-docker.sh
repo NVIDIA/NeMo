@@ -1,6 +1,8 @@
+# DO NOT TOUCH THIS FILE.
+
 # Usage (at the root of the repository):
 #  $ export MODEL_DIR=/path/to/my/models
-export DATASET_DIR=/data/cjss7894/load/Cambrian737k
+#  $ export DATASET_DIR=/path/to/my/datasets
 #  $ ./docker/make-and-run-docker.sh
 
 
