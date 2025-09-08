@@ -13,10 +13,13 @@
 # limitations under the License.
 
 import functools
+import contextlib
 from typing import Any, Callable, List, Optional
 
 from nemo.lightning.base_callback import BaseCallback
 from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
+
+from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
 
 
 class CallbackGroup:
@@ -92,6 +95,33 @@ class CallbackGroup:
                         method(*args, **kwargs)
 
         return dispatcher
+
+    def callback_context(self, start_callback: str, end_callback: str):
+        """
+        Returns a context manager that calls the specified start and end callbacks
+        on the CallbackGroup singleton before and after the code block.
+
+        Args:
+            start_callback (str): Name of the CallbackGroup method to call on entering.
+            end_callback (str): Name of the CallbackGroup method to call on exiting.
+
+        Usage:
+            with callback_context("on_model_init_start", "on_model_init_end"):
+                # code block
+        """
+
+        @contextlib.contextmanager
+        def _context():
+            span = getattr(self, start_callback)()
+            try:
+                yield span
+            except Exception as e:
+                if OneLoggerNeMoCallback in [cb.__class__ for cb in self._callbacks]:
+                    TrainingTelemetryProvider.instance().recorder.error(span=span, error_message=str(e), exception=e)
+            finally:
+                getattr(self, end_callback)()
+        return _context()
+
 
 
 def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) -> None:
