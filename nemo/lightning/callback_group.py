@@ -107,20 +107,29 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
 
     original_init = cls.__init__
 
-    if getattr(original_init, '_callback_group_wrapped', False):
+    # Idempotence guard: avoid wrapping the same __init__ multiple times (e.g., in multiple inheritance)
+    if getattr(original_init, '_init_wrapped_for_callbacks', False) or getattr(original_init, '_callback_group_wrapped', False):
         return
 
     @functools.wraps(original_init)
     def wrapped_init(self, *args, **kwargs):
+        # Reentrancy guard: avoid double-emitting hooks across super().__init__ chains
+        if getattr(self, '_callback_group_emitting_init_hooks', False):
+            # If we're already inside a wrapped __init__, just call the original
+            return original_init(self, *args, **kwargs)
+
+        setattr(self, '_in_wrapped_init', True)
         group = CallbackGroup.get_instance()
         if hasattr(group, start_callback):
             getattr(group, start_callback)()
         result = original_init(self, *args, **kwargs)
         if hasattr(group, end_callback):
             getattr(group, end_callback)()
+        # Ensure flag is reset even if __init__ raises
+        setattr(self, '_in_wrapped_init', False)
         return result
 
-    wrapped_init._callback_group_wrapped = True
+    wrapped_init._init_wrapped_for_callbacks = True
     cls.__init__ = wrapped_init
 
 
