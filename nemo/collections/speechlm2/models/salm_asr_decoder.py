@@ -36,7 +36,6 @@ from torch.distributed.tensor.parallel import (
 )
 from transformers import GenerationConfig
 
-from nemo.collections.asr.models import ASRModel
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
 from nemo.collections.common.data.lhotse.dataloader import tokenize_with_prompt
 from nemo.collections.common.data.lhotse.text_adapters import TextTurn
@@ -44,17 +43,11 @@ from nemo.collections.common.prompts import PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.speechlm2.data.salm_dataset import left_collate_vectors
 from nemo.collections.speechlm2.models.salm import _resolve_audios_in_prompt, replace_placeholders_and_build_targets
-from nemo.collections.speechlm2.modules import AudioPerceptionModule
 from nemo.collections.speechlm2.modules.perception import AudioTranscriptionPerceptionModule
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
-from nemo.collections.speechlm2.parts.pretrained import (
-    load_pretrained_hf,
-    load_pretrained_nemo,
-    move_embedding,
-    setup_speech_encoder,
-)
+from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, move_embedding
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 
@@ -491,11 +484,11 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
                 [formatter.encode_dialog(turns=prompt)["input_ids"] for prompt in prompts],
                 padding_value=self.text_pad_id,
             ).to(self.device)
+        tokens_to_embed = tokens.where(tokens != self.audio_locator_tag_id, 0)
+        token_embeds = self.embed_tokens(tokens_to_embed)
+
         if audios is not None:
-            # Audio + text input for generation.
-            # Prepare token embeddings and audio embeddings.
-            tokens_to_embed = tokens.where(tokens != self.audio_locator_tag_id, 0)
-            token_embeds = self.embed_tokens(tokens_to_embed)
+            # Process audio when available
             # TODO: temporary workaround to perform batch_size=1 inference for audio encoder
             #   due to accuracy issues at bs>1
             # audio_embeds, audio_embed_lens = self.perception(audios, audio_lens)
@@ -524,11 +517,12 @@ class SALMWithAsrDecoder(LightningModule, HFHubMixin):
                 replacements=audio_embeds,
                 target_ids=None,
             )
-            generation_inputs = {"inputs_embeds": input_embeds, "attention_mask": attention_mask}
         else:
-            # Text-only generation.
+            # Text-only with embeddings - no audio placeholders to replace
+            input_embeds = token_embeds
             attention_mask = tokens != self.text_pad_id
-            generation_inputs = {"input_ids": tokens, "attention_mask": attention_mask}
+
+        generation_inputs = {"inputs_embeds": input_embeds, "attention_mask": attention_mask}
         if generation_config is None:
             generation_config = GenerationConfig(
                 bos_token_id=self.text_bos_id,
