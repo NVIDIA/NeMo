@@ -108,7 +108,9 @@ def hook_class_init_with_callbacks(cls, start_callback: str, end_callback: str) 
     original_init = cls.__init__
 
     # Idempotence guard: avoid wrapping the same __init__ multiple times (e.g., in multiple inheritance)
-    if getattr(original_init, '_init_wrapped_for_callbacks', False) or getattr(original_init, '_callback_group_wrapped', False):
+    if getattr(original_init, '_init_wrapped_for_callbacks', False) or getattr(
+        original_init, '_callback_group_wrapped', False
+    ):
         return
 
     @functools.wraps(original_init)
