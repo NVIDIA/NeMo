@@ -125,17 +125,20 @@ def hydra_runner(
                 # argparse_wrapper = _argparse_wrapper(args)
                 argparse_wrapper = parsed_args
 
-                _run_hydra(
-                    args=argparse_wrapper,
-                    args_parser=args,
-                    task_function=task_function,
-                    config_path=config_path,
-                    config_name=config_name,
-                )
-                # Import here to avoid circular import
-                from nemo.lightning.callback_group import CallbackGroup
+                try:
+                    _run_hydra(
+                        args=argparse_wrapper,
+                        args_parser=args,
+                        task_function=task_function,
+                        config_path=config_path,
+                        config_name=config_name,
+                    )
+                finally:
+                    # Import here to avoid circular import
+                    from nemo.lightning.callback_group import CallbackGroup
 
-                CallbackGroup.get_instance().on_app_end()
+                    # Ensure on_app_end is called even if _run_hydra raises an exception
+                    CallbackGroup.get_instance().on_app_end()
 
         return wrapper
 

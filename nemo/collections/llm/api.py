@@ -134,10 +134,12 @@ def train(
         model_transform=model_transform,
     )
 
-    trainer.fit(model, data)
-
-    # Track app end for NeMo v2 recipe-based applications
-    CallbackGroup.get_instance().on_app_end()
+    try:
+        trainer.fit(model, data)
+    finally:
+        # Track app end for NeMo v2 recipe-based applications
+        # Ensure this is called even if trainer.fit() raises an exception
+        CallbackGroup.get_instance().on_app_end()
 
     return app_state.exp_dir
 
