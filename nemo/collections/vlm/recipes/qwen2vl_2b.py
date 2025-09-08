@@ -221,9 +221,8 @@ if __name__ == "__main__":
     recipe.trainer.max_steps = 10
     recipe.trainer.val_check_interval = 10
     recipe.trainer.limit_val_batches = 0.0
-    recipe.data.global_batch_size = 2
-    recipe.data.micro_batch_size = 1
-    
+    recipe.data.global_batch_size = 8
+
     recipe.trainer.strategy.tensor_model_parallel_size = 1
 
     executor = run.LocalExecutor(ntasks_per_node=2, launcher="torchrun", env_vars=env_vars)

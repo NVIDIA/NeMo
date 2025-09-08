@@ -5,6 +5,7 @@ import webdataset as wds
 from tqdm import tqdm
 from PIL import Image
 
+# FIXME(wookyong): Make the paths correct without hardcoding.
 llava_pretrain_dir = '/datasets'
 
 # Paths to the dataset files
@@ -37,5 +38,5 @@ with wds.ShardWriter(os.path.join(output, 'pretrain-%d.tar'), maxcount=10000) as
         }
         shard_writer.write(sample)
 
-print(f"Dataset successfully converted to wds")
+print("Dataset successfully converted to wds")
 

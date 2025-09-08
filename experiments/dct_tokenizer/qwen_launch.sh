@@ -5,8 +5,7 @@ NUM_PROC_PER_NODE=4  # Set the number of processes per node
 DATA_TYPE="energon"
 DATA_PATH="/datasets/wds"
 
-# LANGUAGE_MODEL_PATH="Qwen/Qwen2-VL-2B-Instruct"  # $NEMO_MODELS_CACHE=/models 
-LANGUAGE_MODEL_PATH="/home/cjss7894/.cache/nemo/models/Qwen/Qwen2-VL-2B-Instruct" # $NEMO_MODELS_CACHE=/models 
+LANGUAGE_MODEL_PATH="/models/Qwen/Qwen2-VL-2B-Instruct"
 
 # Parallelism configruration
 DEVICES=4
@@ -20,6 +19,7 @@ GBS=4
 #Pixel Nums
 MINPIXELS=784
 MAXPIXELS=43904
+
 # Exp logging path
 EXPERIMENT_NAME="Qwen2VL_finetune_2B${TP_SIZE}_CP${CP_SIZE}_MBS${MBS}_GBS${GBS}_seqpack"
 WANDB_PROJECT="Qwen2VL"
@@ -41,7 +41,7 @@ ARGS="--data_type $DATA_TYPE \
       --min_pixels $MINPIXELS\
       --max_pixels $MAXPIXELS\
       --restore_path $LANGUAGE_MODEL_PATH "
-      
+
 
 # Run the experiment with torchrun
 echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
@@ -49,6 +49,5 @@ echo "ARGS: $ARGS"
 echo "NUM_PROC_PER_NODE: ${NUM_PROC_PER_NODE}"
 echo $ARGS
 
-torchrun --nproc_per_node=$NUM_PROC_PER_NODE /workspace/scripts/vlm/qwen2vl_finetune.py $ARGS
-# torchrun --nproc_per_node=$NUM_PROC_PER_NODE ./llava_next_finetune.py $ARGS
- 
+torchrun --nproc_per_node=$NUM_PROC_PER_NODE \
+    /workspace/scripts/vlm/qwen2vl_finetune.py $ARGS
