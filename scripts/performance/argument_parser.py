@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import re
 
 from nemo_run.config import get_nemorun_home
 
@@ -72,9 +73,9 @@ def parse_cli_args():
     slurm_parser.add_argument(
         "--additional_slurm_params",
         type=str,
-        help="Additional SLURM parameters as key=value pairs separated by commas. "
-             "Example: 'nodelist=node001,node002,constraint=gpu' will add "
-             "#SBATCH --nodelist=node001,node002 and #SBATCH --constraint=gpu",
+        help="Additional SLURM parameters as key=value pairs. "
+             "Use semicolons (;) to separate parameters when values contain commas. "
+             "Examples: 'nodelist=node001,node002;constraint=gpu' or 'reservation=my_res;exclusive'",
         required=False,
         default=None,
     )
@@ -534,28 +535,57 @@ def parse_cli_args():
 
 def parse_additional_slurm_params(params_str):
     """
-    Parse additional SLURM parameters from a comma-separated string of key=value pairs.
+    Parse additional SLURM parameters from a string of key=value pairs.
+    
+    This function supports two formats:
+    1. Semicolon-separated: "key1=value1;key2=value2" (recommended for values with commas)
+    2. Space-separated: "key1=value1 key2=value2"
+    3. Comma-separated: "key1=value1,key2=value2" (works only if values don't contain commas)
     
     Args:
-        params_str (str): String in format "key1=value1,key2=value2"
+        params_str (str): String with parameters separated by semicolons, spaces, or commas
     
     Returns:
         dict: Dictionary of parameters, or None if params_str is None/empty
     
     Example:
-        parse_additional_slurm_params("nodelist=node001,node002,constraint=gpu")
+        parse_additional_slurm_params("nodelist=node001,node002;constraint=gpu")
         returns {"nodelist": "node001,node002", "constraint": "gpu"}
+        
+        parse_additional_slurm_params("nodelist=node001,node002 constraint=gpu")
+        returns {"nodelist": "node001,node002", "constraint": "gpu"}
+        
+        parse_additional_slurm_params("reservation=my_res,exclusive")
+        returns {"reservation": "my_res,exclusive"} (comma parsing - ambiguous case)
     """
     if not params_str:
         return None
     
     params = {}
-    for pair in params_str.split(','):
-        if '=' in pair:
-            key, value = pair.split('=', 1)  # Split only on first '=' to handle values with '='
+    
+    # Try semicolon separation first (most reliable for complex values)
+    if ';' in params_str:
+        separator = ';'
+        parts = params_str.split(separator)
+    # Try space separation next
+    elif ' ' in params_str:
+        separator = ' '
+        parts = params_str.split()
+    # Fall back to comma separation (legacy support)
+    else:
+        separator = ','
+        parts = params_str.split(separator)
+    
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+            
+        if '=' in part:
+            key, value = part.split('=', 1)
             params[key.strip()] = value.strip()
         else:
-            # Handle boolean flags (parameters without values)
-            params[pair.strip()] = True
+            # Boolean flag (no value)
+            params[part] = True
     
     return params if params else None
