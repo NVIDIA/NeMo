@@ -1866,7 +1866,8 @@ def moe_loss_tracker_ctx():
 @torch.no_grad()
 def aggregate_moe_loss_stats(loss_scale=1.0):
     with moe_loss_tracker_ctx():
-        tracker = parallel_state.get_moe_layer_wise_logging_tracker()
+        from megatron.core.transformer.moe.moe_utils import get_moe_layer_wise_logging_tracker
+        tracker = get_moe_layer_wise_logging_tracker()
         aux_losses = {k: v['values'].float() * loss_scale for k, v in tracker.items()}
         total_loss_dict = {}
         for name, loss_list in aux_losses.items():
