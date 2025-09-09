@@ -14,7 +14,7 @@
 
 import os
 import sys
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import nemo_run as run
 from nemo_run.config import get_nemorun_home
@@ -53,10 +53,18 @@ def slurm_executor(
     wandb_key: str = None,
     network: str = None,
     custom_bash_cmds: List[str] = None,
+    additional_slurm_params: Dict[str, Any] = None,
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
     and fine-tuning experiments
+    
+    Args:
+        additional_slurm_params: Dict[str, Any], optional
+            Additional SLURM parameters to pass to sbatch. These will be converted to #SBATCH directives.
+            Example: {"nodelist": "node001,node002", "constraint": "gpu"} will generate:
+                #SBATCH --nodelist=node001,node002
+                #SBATCH --constraint=gpu
     """
     PERF_ENV_VARS = {
         "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
@@ -141,6 +149,7 @@ def slurm_executor(
         segment=segment,
         network=network,
         launcher=launcher,
+        additional_parameters=additional_slurm_params,
     )
 
     return executor

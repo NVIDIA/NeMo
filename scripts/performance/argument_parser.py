@@ -69,6 +69,15 @@ def parse_cli_args():
         required=False,
         default="00:30:00",
     )
+    slurm_parser.add_argument(
+        "--additional_slurm_params",
+        type=str,
+        help="Additional SLURM parameters as key=value pairs separated by commas. "
+             "Example: 'nodelist=node001,node002,constraint=gpu' will add "
+             "#SBATCH --nodelist=node001,node002 and #SBATCH --constraint=gpu",
+        required=False,
+        default=None,
+    )
     runai_parser.add_argument(
         "-b",
         "--base_url",
@@ -521,3 +530,32 @@ def parse_cli_args():
     )
 
     return parser
+
+
+def parse_additional_slurm_params(params_str):
+    """
+    Parse additional SLURM parameters from a comma-separated string of key=value pairs.
+    
+    Args:
+        params_str (str): String in format "key1=value1,key2=value2"
+    
+    Returns:
+        dict: Dictionary of parameters, or None if params_str is None/empty
+    
+    Example:
+        parse_additional_slurm_params("nodelist=node001,node002,constraint=gpu")
+        returns {"nodelist": "node001,node002", "constraint": "gpu"}
+    """
+    if not params_str:
+        return None
+    
+    params = {}
+    for pair in params_str.split(','):
+        if '=' in pair:
+            key, value = pair.split('=', 1)  # Split only on first '=' to handle values with '='
+            params[key.strip()] = value.strip()
+        else:
+            # Handle boolean flags (parameters without values)
+            params[pair.strip()] = True
+    
+    return params if params else None
