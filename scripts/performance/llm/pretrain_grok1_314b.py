@@ -452,6 +452,10 @@ if __name__ == "__main__":
         network='sharp' if args.use_sharp else None,
     )
 
+
+    if enable_cuda_graphs and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+        del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
+
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,
