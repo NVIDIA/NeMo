@@ -21,8 +21,8 @@ import pytest
 from lightning.pytorch.callbacks import Callback as PTLCallback
 
 from nemo.lightning.base_callback import BaseCallback
-from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
 from nemo.lightning.one_logger_callback import (
+    OneLoggerNeMoCallback,
     _get_base_callback_config,
     _should_enable_for_current_rank,
     get_nemo_v1_callback_config,
