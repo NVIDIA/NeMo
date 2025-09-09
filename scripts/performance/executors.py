@@ -58,7 +58,7 @@ def slurm_executor(
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
     and fine-tuning experiments
-    
+
     Args:
         additional_slurm_params: Dict[str, Any], optional
             Additional SLURM parameters to pass to sbatch. These will be converted to #SBATCH directives.

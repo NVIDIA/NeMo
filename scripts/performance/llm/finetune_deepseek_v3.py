@@ -24,7 +24,7 @@ from nemo.lightning.pytorch.callbacks.megatron_enable_experimental_callback impo
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
-from ..argument_parser import parse_cli_args, parse_additional_slurm_params
+from ..argument_parser import parse_additional_slurm_params, parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, build_perf_env_plugin, get_user_configs, set_primary_perf_configs
 from ..utils import hf_tokenizer, import_ckpt_experiment, isfile_train_pack_metadata

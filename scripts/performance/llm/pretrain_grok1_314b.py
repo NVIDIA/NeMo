@@ -51,7 +51,7 @@ from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCal
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 from nemo.utils.exp_manager import TimingCallback
 
-from ..argument_parser import parse_cli_args, parse_additional_slurm_params
+from ..argument_parser import parse_additional_slurm_params, parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import (
     args_sanity_check,

@@ -73,8 +73,8 @@ def parse_cli_args():
         "--additional_slurm_params",
         type=str,
         help="Additional SLURM parameters as key=value pairs. "
-             "Use semicolons (;) to separate parameters when values contain commas. "
-             "Examples: 'nodelist=node001,node002;constraint=gpu' or 'reservation=my_res;exclusive'",
+        "Use semicolons (;) to separate parameters when values contain commas. "
+        "Examples: 'nodelist=node001,node002;constraint=gpu' or 'reservation=my_res;exclusive'",
         required=False,
         default=None,
     )
@@ -535,33 +535,33 @@ def parse_cli_args():
 def parse_additional_slurm_params(params_str):
     """
     Parse additional SLURM parameters from a string of key=value pairs.
-    
+
     This function handles different separator formats:
     1. Semicolon-separated: "key1=value1;key2=value2" (recommended for multiple parameters)
-    2. Space-separated: "key1=value1 key2=value2" 
+    2. Space-separated: "key1=value1 key2=value2"
     3. Single parameter: "key1=value1,value2" (no separators = single parameter)
-    
+
     Args:
         params_str (str): String with parameters
-    
+
     Returns:
         dict: Dictionary of parameters, or None if params_str is None/empty
-    
+
     Example:
         parse_additional_slurm_params("nodelist=node001,node002")
         returns {"nodelist": "node001,node002"}
-        
+
         parse_additional_slurm_params("nodelist=node001,node002;constraint=gpu")
         returns {"nodelist": "node001,node002", "constraint": "gpu"}
-        
+
         parse_additional_slurm_params("reservation=my_res;constraint=gpu")
         returns {"reservation": "my_res", "constraint": "gpu"}
     """
     if not params_str:
         return None
-    
+
     params = {}
-    
+
     # Try semicolon separation first (most reliable for complex values)
     if ';' in params_str:
         parts = params_str.split(';')
@@ -571,17 +571,17 @@ def parse_additional_slurm_params(params_str):
     # No separators found - treat as single parameter
     else:
         parts = [params_str]
-    
+
     for part in parts:
         part = part.strip()
         if not part:
             continue
-            
+
         if '=' in part:
             key, value = part.split('=', 1)
             params[key.strip()] = value.strip()
         else:
             # Boolean flag (no value)
             params[part] = True
-    
+
     return params if params else None

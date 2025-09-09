@@ -21,7 +21,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8
 from nemo.collections.vlm.recipes.llama4_omni_e16 import pretrain_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
-from ..argument_parser import parse_cli_args, parse_additional_slurm_params
+from ..argument_parser import parse_additional_slurm_params, parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
 
