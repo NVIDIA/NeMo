@@ -128,7 +128,23 @@ class TELayerNormColumnParallelLinearFp8(TELayerNormColumnParallelLinear):
     as required by TE.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sp_tp_enabled = self.tp_group is not None and self.tp_size > 1 and self.sequence_parallel
+
     def forward(self, x):  # pylint: disable=missing-function-docstring
+        if self.sp_tp_enabled:
+            # When doing SP X TP and TP > 1 then the output from the parent column parallel linear will be all gathered
+            #  across the sequence dimension, so padding is complicated per rank outside of linear. For now we just
+            #  require the case that no padding would be needed and raise an error otherwise.
+            L_full = x.shape[0] * self.tp_size
+            if L_full % 8 != 0:
+                raise ValueError(
+                    f"Input tensor length {L_full} is not divisible by 8, which is"
+                    f"required by TE for TP>1 since we can't pad in this case."
+                )
+            with te.fp8_autocast(enabled=True, fp8_recipe=set_format_recipe()):
+                return super().forward(x)
         return fp8_padded_forward(super(), self, x)
 
 
