@@ -22,7 +22,7 @@ from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin
 
-from ..argument_parser import parse_cli_args, parse_additional_slurm_params
+from ..argument_parser import parse_additional_slurm_params, parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import (
     args_sanity_check,
@@ -234,7 +234,7 @@ if __name__ == "__main__":
             nemo_home=args.nemo_home,
             wandb_key=args.wandb_key,
             network='sharp' if args.use_sharp else None,
-        additional_slurm_params=additional_slurm_params,
+            additional_slurm_params=additional_slurm_params,
         )
 
     with run.Experiment(exp_name) as exp:

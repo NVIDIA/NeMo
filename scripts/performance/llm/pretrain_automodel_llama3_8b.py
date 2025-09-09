@@ -21,7 +21,7 @@ from nemo.collections.llm.gpt.data.hf_dataset import HFMockDataModule
 from nemo.collections.llm.recipes import hf_auto_model_for_causal_lm
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
-from ..argument_parser import parse_cli_args, parse_additional_slurm_params
+from ..argument_parser import parse_additional_slurm_params, parse_cli_args
 from ..executors import slurm_executor
 from ..helpers import args_sanity_check, build_perf_env_plugin, get_user_configs
 
