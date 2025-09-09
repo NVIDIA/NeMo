@@ -21,7 +21,14 @@ import pytest
 from lightning.pytorch.callbacks import Callback as PTLCallback
 
 from nemo.lightning.base_callback import BaseCallback
-from nemo.lightning.one_logger_callback import OneLoggerNeMoCallback
+from nemo.lightning.one_logger_callback import (
+    OneLoggerNeMoCallback,
+    _get_base_callback_config,
+    _should_enable_for_current_rank,
+    get_nemo_v1_callback_config,
+    get_nemo_v2_callback_config,
+    get_one_logger_init_config,
+)
 
 
 class TestOneLoggerNeMoCallback:
@@ -84,6 +91,214 @@ class TestOneLoggerNeMoCallback:
         mock_provider_instance.with_base_config.return_value.with_export_config.assert_called_once()
         mock_provider_instance.with_base_config.return_value.with_export_config.return_value.configure_provider.assert_called_once()
         mock_ptl_callback_init.assert_called_once_with(mock_provider_instance)
+
+
+class TestOneLoggerCallback:
+    """Test cases for one_logger_callback utility functions."""
+
+    @pytest.mark.unit
+    def test_get_one_logger_init_config(self):
+        """Test get_one_logger_init_config returns correct minimal configuration."""
+        with patch.dict(os.environ, {"SLURM_JOB_NAME": "test_job", "WORLD_SIZE": "4"}):
+            config = get_one_logger_init_config()
+
+            assert isinstance(config, dict)
+            assert config["application_name"] == "nemo"
+            assert config["session_tag_or_fn"] == "test_job"
+            assert "enable_for_current_rank" in config
+            assert config["world_size_or_fn"] == 4
+            assert config["error_handling_strategy"] == "propagate_exceptions"
+
+    @pytest.mark.unit
+    def test_get_one_logger_init_config_no_slurm(self):
+        """Test get_one_logger_init_config when SLURM_JOB_NAME is not set."""
+        with patch.dict(os.environ, {"WORLD_SIZE": "1"}, clear=True):
+            config = get_one_logger_init_config()
+
+            assert config["session_tag_or_fn"] == "nemo-run"
+            assert config["world_size_or_fn"] == 1
+
+    @pytest.mark.unit
+    def test_get_base_callback_config(self):
+        """Test _get_base_callback_config with basic trainer setup."""
+        trainer = MagicMock()
+        trainer.max_steps = 1000
+        trainer.callbacks = []
+        trainer.val_check_interval = 1.0
+        trainer.strategy = None
+        trainer.log_every_n_steps = 10
+
+        with patch.dict(os.environ, {"SLURM_JOB_NAME": "test_job", "WORLD_SIZE": "4", "PERF_VERSION_TAG": "1.0.0"}):
+            config = _get_base_callback_config(trainer=trainer, global_batch_size=32, seq_length=512)
+
+            assert config["perf_tag_or_fn"] == "test_job_1.0.0_bf32_se512_ws4"
+            assert config["global_batch_size_or_fn"] == 32
+            assert config["micro_batch_size_or_fn"] == 8
+            assert config["seq_length_or_fn"] == 512
+            assert config["train_iterations_target_or_fn"] == 1000
+            assert config["train_samples_target_or_fn"] == 32000
+            assert config["log_every_n_train_iterations"] == 10
+            assert config["is_validation_iterations_enabled_or_fn"] is True
+            assert config["is_save_checkpoint_enabled_or_fn"] is False
+            assert config["save_checkpoint_strategy"] == "sync"
+
+    @pytest.mark.unit
+    def test_get_base_callback_config_with_checkpoint_callback(self):
+        """Test _get_base_callback_config when checkpoint callback is present."""
+        trainer = MagicMock()
+        trainer.max_steps = 1000
+        trainer.val_check_interval = 0
+
+        # Real ModelCheckpoint callback to satisfy isinstance checks
+        checkpoint_callback = ModelCheckpoint(dirpath=".", save_top_k=-1)
+        trainer.callbacks = [checkpoint_callback]
+
+        with patch.dict(os.environ, {"SLURM_JOB_NAME": "test_job", "WORLD_SIZE": "2"}):
+            config = _get_base_callback_config(trainer=trainer, global_batch_size=16, seq_length=256)
+
+            assert config["is_save_checkpoint_enabled_or_fn"] is True
+            assert config["is_validation_iterations_enabled_or_fn"] is False
+
+    @pytest.mark.unit
+    def test_get_base_callback_config_async_save(self):
+        """Test _get_base_callback_config with async save strategy."""
+        trainer = MagicMock()
+        trainer.max_steps = 1000
+        trainer.callbacks = []
+        trainer.val_check_interval = 0  # Set to 0 to avoid validation
+
+        # Mock strategy with async_save
+        strategy = MagicMock()
+        strategy.async_save = True
+        trainer.strategy = strategy
+
+        with patch.dict(os.environ, {"WORLD_SIZE": "1"}):
+            config = _get_base_callback_config(trainer=trainer, global_batch_size=8, seq_length=128)
+
+            assert config["save_checkpoint_strategy"] == "async"
+
+    @pytest.mark.unit
+    def test_get_base_callback_config_dict_strategy(self):
+        """Test _get_base_callback_config with dict strategy."""
+        trainer = MagicMock()
+        trainer.max_steps = 1000
+        trainer.callbacks = []
+        trainer.val_check_interval = 0  # Set to 0 to avoid validation
+        trainer.strategy = {"async_save": True}
+
+        with patch.dict(os.environ, {"WORLD_SIZE": "1"}):
+            config = _get_base_callback_config(trainer=trainer, global_batch_size=8, seq_length=128)
+
+            assert config["save_checkpoint_strategy"] == "async"
+
+    @pytest.mark.unit
+    def test_get_nemo_v1_callback_config(self):
+        """Test get_nemo_v1_callback_config with model configuration."""
+        trainer = MagicMock()
+        trainer.max_steps = 500
+        trainer.val_check_interval = 0  # Set to 0 to avoid validation
+
+        # Mock lightning module with config
+        pl_module = MagicMock()
+        pl_module.cfg = OmegaConf.create({"train_ds": {"batch_size": 8}, "encoder": {"d_model": 768}})
+        trainer.lightning_module = pl_module
+
+        with patch.dict(os.environ, {"WORLD_SIZE": "2"}):
+            config = get_nemo_v1_callback_config(trainer)
+
+            assert config["global_batch_size_or_fn"] == 16  # 8 * 2
+            assert config["seq_length_or_fn"] == 768
+            assert config["train_iterations_target_or_fn"] == 500
+
+    @pytest.mark.unit
+    def test_get_nemo_v1_callback_config_bucket_batch_size(self):
+        """Test get_nemo_v1_callback_config with bucket batch sizes (ASR case)."""
+        trainer = MagicMock()
+        trainer.max_steps = 1000
+        trainer.val_check_interval = 0  # Set to 0 to avoid validation
+
+        # Mock lightning module with bucket batch sizes
+        pl_module = MagicMock()
+        pl_module.cfg = OmegaConf.create({"train_ds": {"bucket_batch_size": [4, 8, 12]}, "encoder": {"d_model": 512}})
+        trainer.lightning_module = pl_module
+
+        with patch.dict(os.environ, {"WORLD_SIZE": "1"}):
+            config = get_nemo_v1_callback_config(trainer)
+
+            # Average bucket batch size is (4+8+12)/3 = 8
+            assert config["global_batch_size_or_fn"] == 8
+            assert config["seq_length_or_fn"] == 512
+
+    @pytest.mark.unit
+    def test_get_nemo_v1_callback_config_fallback(self):
+        """Test get_nemo_v1_callback_config with fallback values."""
+        trainer = MagicMock()
+        trainer.max_steps = 100
+        trainer.val_check_interval = 0  # Set to 0 to avoid validation
+
+        # Mock lightning module without required config
+        pl_module = MagicMock()
+        pl_module.cfg = OmegaConf.create({})
+        trainer.lightning_module = pl_module
+
+        config = get_nemo_v1_callback_config(trainer)
+
+        assert config["global_batch_size_or_fn"] == 1  # fallback
+        assert config["seq_length_or_fn"] == 1  # fallback
+        assert config["train_iterations_target_or_fn"] == 100
+
+    @pytest.mark.unit
+    def test_get_nemo_v2_callback_config(self):
+        """Test get_nemo_v2_callback_config with data module."""
+        trainer = MagicMock()
+        trainer.max_steps = 200
+        trainer.val_check_interval = 0  # Set to 0 to avoid validation
+
+        # Mock data module
+        data = MagicMock()
+        data.global_batch_size = 64
+        data.seq_length = 1024
+
+        with patch.dict(os.environ, {"WORLD_SIZE": "4"}):
+            config = get_nemo_v2_callback_config(trainer=trainer, data=data)
+
+            assert config["global_batch_size_or_fn"] == 64
+            assert config["seq_length_or_fn"] == 1024
+            assert config["train_iterations_target_or_fn"] == 200
+
+    @pytest.mark.unit
+    def test_get_nemo_v2_callback_config_no_data(self):
+        """Test get_nemo_v2_callback_config without data module."""
+        trainer = MagicMock()
+        trainer.max_steps = 300
+        trainer.val_check_interval = 0  # Set to 0 to avoid validation
+
+        config = get_nemo_v2_callback_config(trainer=trainer, data=None)
+
+        assert config["global_batch_size_or_fn"] == 1  # fallback
+        assert config["seq_length_or_fn"] == 1  # fallback
+        assert config["train_iterations_target_or_fn"] == 300
+
+    @pytest.mark.unit
+    def test_should_enable_for_current_rank_single_process(self):
+        """Test _should_enable_for_current_rank if rank is not set."""
+        with patch.dict(os.environ, {}, clear=True):
+            result = _should_enable_for_current_rank()
+            assert result is False
+
+    @pytest.mark.unit
+    def test_should_enable_for_current_rank_distributed_rank0(self):
+        """Test _should_enable_for_current_rank for rank 0 in distributed training."""
+        with patch.dict(os.environ, {"RANK": "0", "WORLD_SIZE": "4"}):
+            result = _should_enable_for_current_rank()
+            assert result is True
+
+    @pytest.mark.unit
+    def test_should_enable_for_current_rank_distributed_middle_rank(self):
+        """Test _should_enable_for_current_rank for middle rank in distributed training."""
+        with patch.dict(os.environ, {"RANK": "1", "WORLD_SIZE": "4"}):
+            result = _should_enable_for_current_rank()
+            assert result is False
 
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
     @patch('nemo.lightning.one_logger_callback.get_nemo_v1_callback_config')
