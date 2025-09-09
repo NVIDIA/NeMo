@@ -537,26 +537,26 @@ def parse_additional_slurm_params(params_str):
     """
     Parse additional SLURM parameters from a string of key=value pairs.
     
-    This function supports two formats:
-    1. Semicolon-separated: "key1=value1;key2=value2" (recommended for values with commas)
-    2. Space-separated: "key1=value1 key2=value2"
-    3. Comma-separated: "key1=value1,key2=value2" (works only if values don't contain commas)
+    This function handles different separator formats:
+    1. Semicolon-separated: "key1=value1;key2=value2" (recommended for multiple parameters)
+    2. Space-separated: "key1=value1 key2=value2" 
+    3. Single parameter: "key1=value1,value2" (no separators = single parameter)
     
     Args:
-        params_str (str): String with parameters separated by semicolons, spaces, or commas
+        params_str (str): String with parameters
     
     Returns:
         dict: Dictionary of parameters, or None if params_str is None/empty
     
     Example:
+        parse_additional_slurm_params("nodelist=node001,node002")
+        returns {"nodelist": "node001,node002"}
+        
         parse_additional_slurm_params("nodelist=node001,node002;constraint=gpu")
         returns {"nodelist": "node001,node002", "constraint": "gpu"}
         
-        parse_additional_slurm_params("nodelist=node001,node002 constraint=gpu")
-        returns {"nodelist": "node001,node002", "constraint": "gpu"}
-        
-        parse_additional_slurm_params("reservation=my_res,exclusive")
-        returns {"reservation": "my_res,exclusive"} (comma parsing - ambiguous case)
+        parse_additional_slurm_params("reservation=my_res;constraint=gpu")
+        returns {"reservation": "my_res", "constraint": "gpu"}
     """
     if not params_str:
         return None
@@ -565,16 +565,13 @@ def parse_additional_slurm_params(params_str):
     
     # Try semicolon separation first (most reliable for complex values)
     if ';' in params_str:
-        separator = ';'
-        parts = params_str.split(separator)
+        parts = params_str.split(';')
     # Try space separation next
     elif ' ' in params_str:
-        separator = ' '
         parts = params_str.split()
-    # Fall back to comma separation (legacy support)
+    # No separators found - treat as single parameter
     else:
-        separator = ','
-        parts = params_str.split(separator)
+        parts = [params_str]
     
     for part in parts:
         part = part.strip()
