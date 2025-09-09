@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import argparse
-import re
 
 from nemo_run.config import get_nemorun_home
 
