@@ -54,14 +54,19 @@ def apply_speculative_decoding(model: nn.Module, algorithm: str = "eagle3") -> n
     if unwrapped_model.config.virtual_pipeline_model_parallel_size is not None:
         raise ValueError("Speculative decoding is incompatible with virtual pipeline parallelism.")
 
-    # Adjust decoder head architecture if needed
+    # Adjust decoder head architecture
     if "eagle_architecture_config" in cfg:
+        # These ones are necessary
         cfg["eagle_architecture_config"]["hidden_size"] = unwrapped_model.config.hidden_size
         cfg["eagle_architecture_config"]["vocab_size"] = unwrapped_model.vocab_size
         cfg["eagle_architecture_config"]["draft_vocab_size"] = unwrapped_model.vocab_size
+        # These ones are optional but we copy base model's to scale memory usage reasonably
+        cfg["eagle_architecture_config"]["intermediate_size"] = unwrapped_model.config.ffn_hidden_size
+        cfg["eagle_architecture_config"]["num_attention_heads"] = unwrapped_model.config.num_attention_heads
+        cfg["eagle_architecture_config"]["num_key_value_heads"] = unwrapped_model.config.num_query_groups
 
     # Convert
-    logging.info(f"Converting to Speculative Decoding model with mode: {mode} and config:\n{cfg}")
+    logging.info(f"Converting to Speculative Decoding model with mode: '{mode}' and config:\n{cfg}")
     mtsp.convert(unwrapped_model, [(mode, cfg)])  # assumes in-place
 
     return model
