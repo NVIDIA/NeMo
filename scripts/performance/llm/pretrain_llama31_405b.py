@@ -51,13 +51,14 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    num_layers: int,
-    hidden_size: int,
-    etp_size: int = None,
-    enable_cuda_graphs: bool = False,
-    use_mcore_fsdp: bool = False,
-    recompute_layers: int = 0,
-    activation_offload_layers: int = 0,
+    enable_cuda_graphs: bool,
+    use_mcore_fsdp: bool,
+    recompute_layers: int,
+    activation_offload_layers: int,
+    recompute_modules: list,
+    keep_fsdp_fp8_transpose_cache: bool,
+    use_user_buffer_registration: bool,
+    use_sharp: bool,
 ):
     """
     llama3 405b pre-train recipe aimed at achieving best possible performance.
@@ -79,9 +80,6 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
-        num_layers,
-        hidden_size,
-        etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         use_fsdp_double_buffer=args.use_fsdp_double_buffer,
@@ -174,14 +172,18 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        num_layers,
-        hidden_size,
-        etp_size,
+        _,
+        _,
+        _,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:15]
+        recompute_modules,
+        keep_fsdp_fp8_transpose_cache,
+        use_user_buffer_registration,
+        use_sharp,
+    ) = kwargs[:19]
 
     recipe = override_recipe_configs(
         args,
@@ -193,13 +195,14 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        num_layers,
-        hidden_size,
-        etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
+        recompute_modules,
+        keep_fsdp_fp8_transpose_cache,
+        use_user_buffer_registration,
+        use_sharp,
     )
 
     exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
