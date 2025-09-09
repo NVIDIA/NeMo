@@ -51,6 +51,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
     recompute_layers: int,
@@ -80,6 +82,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers=num_layers,
+        hidden_size=hidden_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         use_fsdp_double_buffer=args.use_fsdp_double_buffer,
@@ -163,6 +167,7 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama31", "405b", args)
+
     (
         num_nodes,
         mbs,
@@ -172,8 +177,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        _,
-        _,
+        num_layers,
+        hidden_size,
         _,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -184,7 +189,7 @@ if __name__ == "__main__":
         use_user_buffer_registration,
         use_sharp,
     ) = kwargs[:19]
-
+    
     recipe = override_recipe_configs(
         args,
         num_nodes,
@@ -195,6 +200,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,

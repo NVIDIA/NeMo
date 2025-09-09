@@ -50,6 +50,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
     recompute_layers: int,
@@ -78,6 +80,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers=num_layers,
+        hidden_size=hidden_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         use_user_buffer_registration=use_user_buffer_registration,
@@ -144,8 +148,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        _,
-        _,
+        num_layers,
+        hidden_size,
         _,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -167,6 +171,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
@@ -176,8 +182,8 @@ if __name__ == "__main__":
         use_user_buffer_registration,
         use_sharp,
     )
-
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    
+    exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     if use_mcore_fsdp:
