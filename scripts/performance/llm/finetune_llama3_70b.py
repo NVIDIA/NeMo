@@ -18,12 +18,10 @@ import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
 import nemo_run as run
 
-from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama3_70b import finetune_recipe, model
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_h100_h8192_tp2_mbs1_seqlen4096_lora,
 )
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
 from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
 from ..argument_parser import parse_cli_args
@@ -39,17 +37,10 @@ from ..utils import (
     get_comm_overlap_callback_idx,
     hf_tokenizer,
     import_ckpt_experiment,
-    isfile_train_pack_metadata,
     prepare_squad_dataset_experiment,
 )
 
 HF_MODEL_URI = "meta-llama/Meta-Llama-3-70B"
-
-# Set this to True if checkpoint is available at 'NEMO_HOME'. If set to False,
-# extra Slurm job will be scheduled. In this case, if checkpoint is available
-# at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
-# downloaded from HuggingFace
-SKIP_IMPORT = False
 
 
 def override_recipe_configs(
@@ -103,10 +94,14 @@ def override_recipe_configs(
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
+        use_user_buffer_registration=args.use_user_buffer_registration,
+        use_sharp=args.use_sharp,
         recompute_layers=recompute_layers,
         activation_offload_layers=activation_offload_layers,
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
+        nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
         recipe,
@@ -119,7 +114,9 @@ def override_recipe_configs(
         args.wandb_job_name,
     )
 
+    # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
+
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
 
@@ -211,6 +208,9 @@ if __name__ == "__main__":
                     nsys_gpu_metrics=args.profiling_gpu_metrics,
                 )
             )
+        if args.enable_memory_profile:
+            assert args.memory_profile_out_path is not None
+            plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
         executor = slurm_executor(
             args.gpu.lower(),
