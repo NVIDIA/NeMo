@@ -97,6 +97,7 @@ class FluxConfig(TransformerConfig, io.IOMixin):
     use_cpu_initialization: bool = True
     gradient_accumulation_fusion: bool = False
     enable_cuda_graph: bool = False
+    share_cudagraph_io_buffers: bool = False
     use_te_rng_tracker: bool = False
     cuda_graph_warmup_steps: int = 2
 
@@ -216,7 +217,9 @@ class Flux(VisionModule):
                     layer_number=i,
                     context_pre_only=False,
                 )
-                for i in range(config.num_joint_layers)
+                # Layer numbers are 1-indexed
+                # See megatron.core.transformer.transformer_layer.get_transformer_layer_offset
+                for i in range(1, config.num_joint_layers + 1)
             ]
         )
 
@@ -227,7 +230,7 @@ class Flux(VisionModule):
                     submodules=get_flux_single_transformer_engine_spec().submodules,
                     layer_number=i,
                 )
-                for i in range(config.num_single_layers)
+                for i in range(1, config.num_single_layers + 1)
             ]
         )
 
@@ -329,6 +332,14 @@ class Flux(VisionModule):
         Returns:
             torch.Tensor: The final output tensor from the model after processing all inputs.
         """
+        if (
+            self.config.enable_cuda_graph
+            and self.config.cuda_graph_scope != "full_iteration"
+            and self.config.share_cudagraph_io_buffers
+            and (controlnet_double_block_samples or controlnet_single_block_samples)
+        ):
+            raise Exception("Sharing IO buffers in partial CUDA graph doesn't work with controlnet.")
+
         hidden_states = self.img_embed(img)
         encoder_hidden_states = self.txt_embed(txt)
 
