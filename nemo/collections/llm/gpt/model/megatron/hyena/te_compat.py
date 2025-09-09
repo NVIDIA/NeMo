@@ -122,7 +122,7 @@ class TELinearFp8(NoTP, TELinear):
         return fp8_padded_forward(super(), self, x)
 
 
-class TELayerNormColumnParallelLinearFp8(NoTP, TELayerNormColumnParallelLinear):
+class TELayerNormColumnParallelLinearFp8(TELayerNormColumnParallelLinear):
     """
     TELayerNormColumnParallelLinearFp8 that internally ensures fp8 padding
     as required by TE.
