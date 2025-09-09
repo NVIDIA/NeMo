@@ -133,8 +133,8 @@ def override_recipe_configs(
 if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
-    
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "70b", args) 
+
+    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama3", "70b", args)
     (
         num_nodes,
         mbs,
