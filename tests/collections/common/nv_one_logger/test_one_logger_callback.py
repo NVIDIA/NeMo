@@ -19,6 +19,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from lightning.pytorch.callbacks import Callback as PTLCallback
+from lightning.pytorch.callbacks import ModelCheckpoint
+from omegaconf import OmegaConf
 
 from nemo.lightning.base_callback import BaseCallback
 from nemo.lightning.one_logger_callback import (

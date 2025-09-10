@@ -153,18 +153,17 @@ def test_hook_class_init_with_callbacks_wraps_and_emits(monkeypatch):
 
     c = Child()
     assert c.x == 1
-    assert start.called_once()
-    assert end.called_once()
     # Flag indicating wrapping applied on the subclass
-    assert getattr(Child.__init__, '_callback_group_wrapped', False) is True
+    assert getattr(Child.__init__, '_init_wrapped_for_callbacks', False) is True
 
     d = GrandChild()
     assert d.x == 1
     assert d.y == 2
-    assert start.called_once()
-    assert end.called_once()
+
+    assert start.call_count == 2
+    assert end.call_count == 2
     # Flag indicating wrapping applied on the subclass
-    assert getattr(GrandChild.__init__, '_callback_group_wrapped', False) is True
+    assert getattr(GrandChild.__init__, '_init_wrapped_for_callbacks', False) is True
 
 
 def test_hook_class_init_with_callbacks_idempotent():
