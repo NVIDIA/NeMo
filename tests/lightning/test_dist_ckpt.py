@@ -150,7 +150,7 @@ class TestDistCkptIO:
         sync_last_ckpt = f"{sync_ckpt_dir}/checkpoints/{_get_last_checkpoint_dir(model)}"
         async_last_ckpt = f"{async_ckpt_dir}/checkpoints/{_get_last_checkpoint_dir(model)}"
         sharded_state_dict_metadata = sync_checkpoint_io.load_content_metadata(sync_last_ckpt)
-        assert sharded_state_dict_metadata == async_checkpoint_io.load_content_metadata(async_last_ckpt)
+        assert sharded_state_dict_metadata == async_checkpoint_io.checkpoint_io.load_content_metadata(async_last_ckpt)
 
         ## NOTE: model does not have `sharded_state_dict` attribute because
         ## this is after MegatronStrategy teardown
