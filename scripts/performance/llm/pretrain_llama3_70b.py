@@ -50,6 +50,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
     recompute_layers: int,
@@ -78,6 +80,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers=num_layers,
+        hidden_size=hidden_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         use_user_buffer_registration=use_user_buffer_registration,
@@ -144,6 +148,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         _,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -153,7 +159,7 @@ if __name__ == "__main__":
         keep_fsdp_fp8_transpose_cache,
         use_user_buffer_registration,
         use_sharp,
-    ) = kwargs[:17]
+    ) = kwargs[:19]
 
     recipe = override_recipe_configs(
         args,
@@ -165,6 +171,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
@@ -175,8 +183,17 @@ if __name__ == "__main__":
         use_sharp,
     )
 
-    exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+
+    if use_mcore_fsdp:
+        # Needed to enable CuDNN LN for FSDP overlap
+        env_vars = {"NVTE_NORM_FWD_USE_CUDNN": "1", "NVTE_NORM_BWD_USE_CUDNN": "1"}
+    else:
+        env_vars = {}
+
+    if args.gpu.lower() == 'gb200':
+        env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
 
     executor = slurm_executor(
         args.gpu.lower(),
@@ -188,7 +205,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
@@ -197,7 +214,14 @@ if __name__ == "__main__":
 
     plugins = [build_perf_env_plugin(args, pp_size=pp_size, user_buffer_registration=use_user_buffer_registration)]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=5, end_step=6))
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+                nsys_gpu_metrics=args.profiling_gpu_metrics,
+            )
+        )
     if args.enable_memory_profile:
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
