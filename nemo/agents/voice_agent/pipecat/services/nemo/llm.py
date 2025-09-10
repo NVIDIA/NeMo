@@ -15,7 +15,7 @@
 import time
 import uuid
 from threading import Thread
-from typing import AsyncGenerator, Dict, List, Mapping, Optional
+from typing import AsyncGenerator, List, Mapping, Optional
 
 from jinja2.exceptions import TemplateError
 from loguru import logger
