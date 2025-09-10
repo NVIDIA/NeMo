@@ -114,9 +114,6 @@ model:
         tone_prefix: "#"
         ascii_letter_prefix: ""
         ascii_letter_case: "upper"
-    multilingual_sentencepiece:
-      _target_: AutoTokenizer
-      pretrained_model: "bert-base-multilingual-uncased"
 
   train_ds:
     dataset:
