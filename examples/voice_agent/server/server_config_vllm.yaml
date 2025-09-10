@@ -53,7 +53,7 @@ turn_taking:
 # Note that you need at least 44GB of GPU memory to use this setting
 #
 # To launch the voice agent server with this config:
-# ``bash
+# ```bash
 # NEMO_PATH=???  # Use your local NeMo path for the latest version
 # export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 # export SERVER_CONFIG_PATH="/path/to/server_config_vllm.yaml"  # change where the server config is stored
