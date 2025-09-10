@@ -15,10 +15,12 @@
 import time
 import uuid
 from threading import Thread
-from typing import AsyncGenerator, List
+from typing import AsyncGenerator, Dict, List, Mapping, Optional
 
 from jinja2.exceptions import TemplateError
 from loguru import logger
+from omegaconf import DictConfig, OmegaConf
+from openai import AsyncStream, BadRequestError
 from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
 from pipecat.frames.frames import LLMFullResponseEndFrame, LLMFullResponseStartFrame, LLMTextFrame
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
@@ -33,35 +35,7 @@ DEFAULT_GENERATION_KWARGS = {
 }
 
 
-class HuggingFaceLLMLocalService:
-    def __init__(
-        self,
-        model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
-        device: str = "cuda:0",
-        dtype: str = "bfloat16",
-        generation_kwargs: dict = None,
-        apply_chat_template_kwargs: dict = None,
-    ):
-        self.device = device
-        self.dtype = dtype
-        self.tokenizer = AutoTokenizer.from_pretrained(model)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model, device_map=device, torch_dtype=dtype, trust_remote_code=True
-        )  # type: AutoModelForCausalLM
-
-        self.generation_kwargs = generation_kwargs if generation_kwargs else DEFAULT_GENERATION_KWARGS
-        logger.debug(f"LLM generation kwargs: {self.generation_kwargs}")
-
-        self.apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs else {}
-        if "tokenize" in self.apply_chat_template_kwargs:
-            if self.apply_chat_template_kwargs["tokenize"] is not False:
-                logger.warning(
-                    f"Found `tokenize=True` in apply_chat_template_kwargs, it will be ignored and forced to `False`"
-                )
-            self.apply_chat_template_kwargs.pop("tokenize")
-
-        logger.debug(f"LLM apply_chat_template kwargs: {self.apply_chat_template_kwargs}")
-
+class LLMUtilsMixin:
     def _maybe_add_user_message(self, messages: List[ChatCompletionMessageParam]) -> List[ChatCompletionMessageParam]:
         """
         Some LLMs like "nvidia/Llama-3.1-Nemotron-Nano-8B-v1" requires a user turn after the system prompt, this function is used to add a dummy user turn if the system prompt is followed by an assistant turn.
@@ -69,6 +43,8 @@ class HuggingFaceLLMLocalService:
         if len(messages) > 1 and messages[0]["role"] == "system" and messages[1]["role"] == "assistant":
             message = {"role": "user", "content": "Hi"}
             messages.insert(1, message)
+        elif len(messages) == 1 and messages[0]["role"] == "system":
+            messages.append({"role": "user", "content": "Hi"})
         return messages
 
     def _maybe_merge_consecutive_turns(
@@ -105,6 +81,38 @@ class HuggingFaceLLMLocalService:
             merged_messages.append({"role": current_role, "content": current_content})
 
         return merged_messages
+
+
+class HuggingFaceLLMLocalService(LLMUtilsMixin):
+    def __init__(
+        self,
+        model: str = "meta-llama/Meta-Llama-3-8B-Instruct",
+        device: str = "cuda:0",
+        dtype: str = "bfloat16",
+        thinking_budget: int = 0,
+        generation_kwargs: dict = None,
+        apply_chat_template_kwargs: dict = None,
+    ):
+        self.device = device
+        self.dtype = dtype
+        self.thinking_budget = thinking_budget
+        self.tokenizer = AutoTokenizer.from_pretrained(model)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model, device_map=device, torch_dtype=dtype, trust_remote_code=True
+        )  # type: AutoModelForCausalLM
+
+        self.generation_kwargs = generation_kwargs if generation_kwargs else DEFAULT_GENERATION_KWARGS
+        logger.debug(f"LLM generation kwargs: {self.generation_kwargs}")
+
+        self.apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs else {}
+        if "tokenize" in self.apply_chat_template_kwargs:
+            if self.apply_chat_template_kwargs["tokenize"] is not False:
+                logger.warning(
+                    f"Found `tokenize=True` in apply_chat_template_kwargs, it will be ignored and forced to `False`"
+                )
+            self.apply_chat_template_kwargs.pop("tokenize")
+
+        logger.debug(f"LLM apply_chat_template kwargs: {self.apply_chat_template_kwargs}")
 
     def _apply_chat_template(self, messages: List[ChatCompletionMessageParam]) -> str:
         """
@@ -193,6 +201,7 @@ class HuggingFaceLLMService(OpenAILLMService):
         model: str = "google/gemma-7b-it",
         device: str = "cuda",
         dtype: str = "bfloat16",
+        thinking_budget: int = 0,
         generation_kwargs: dict = None,
         apply_chat_template_kwargs: dict = None,
         **kwargs,
@@ -200,6 +209,7 @@ class HuggingFaceLLMService(OpenAILLMService):
         self._model_name = model
         self._device = device
         self._dtype = dtype
+        self._thinking_budget = thinking_budget
         self._generation_kwargs = generation_kwargs if generation_kwargs is not None else DEFAULT_GENERATION_KWARGS
         self._apply_chat_template_kwargs = apply_chat_template_kwargs if apply_chat_template_kwargs is not None else {}
         super().__init__(model=model, **kwargs)
@@ -209,6 +219,7 @@ class HuggingFaceLLMService(OpenAILLMService):
             model=self._model_name,
             device=self._device,
             dtype=self._dtype,
+            thinking_budget=self._thinking_budget,
             generation_kwargs=self._generation_kwargs,
             apply_chat_template_kwargs=self._apply_chat_template_kwargs,
         )
@@ -264,3 +275,137 @@ class HuggingFaceLLMService(OpenAILLMService):
         params.update(self._settings["extra"])
 
         return self._client.generate_stream(messages, **params)
+
+
+class VLLMService(OpenAILLMService, LLMUtilsMixin):
+    def __init__(
+        self,
+        *,
+        model: str,
+        api_key="None",
+        base_url="http://localhost:8000/v1",
+        organization="None",
+        project="None",
+        default_headers: Optional[Mapping[str, str]] = None,
+        params: Optional[OpenAILLMService.InputParams] = None,
+        thinking_budget: int = 0,
+        **kwargs,
+    ):
+        super().__init__(
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            organization=organization,
+            project=project,
+            default_headers=default_headers,
+            params=params,
+            **kwargs,
+        )
+        self._thinking_budget = thinking_budget
+        # TODO: handle thinking budget
+        logger.info(
+            f"VLLMService initialized with model: {model}, api_key: {api_key}, base_url: {base_url}, params: {params}, thinking_budget: {thinking_budget}"
+        )
+
+    async def get_chat_completions(
+        self, context: OpenAILLMContext, messages: List[ChatCompletionMessageParam]
+    ) -> AsyncStream[ChatCompletionChunk]:
+        """Get streaming chat completions from OpenAI API.
+
+        Args:
+            context: The LLM context containing tools and configuration.
+            messages: List of chat completion messages to send.
+
+        Returns:
+            Async stream of chat completion chunks.
+        """
+
+        params = {
+            "model": self.model_name,
+            "stream": True,
+            "messages": messages,
+            "tools": context.tools,
+            "tool_choice": context.tool_choice,
+            "stream_options": {"include_usage": True},
+            "frequency_penalty": self._settings["frequency_penalty"],
+            "presence_penalty": self._settings["presence_penalty"],
+            "seed": self._settings["seed"],
+            "temperature": self._settings["temperature"],
+            "top_p": self._settings["top_p"],
+            "max_tokens": self._settings["max_tokens"],
+            "max_completion_tokens": self._settings["max_completion_tokens"],
+        }
+
+        params.update(self._settings["extra"])
+
+        try:
+            chunks = await self._client.chat.completions.create(**params)
+        except BadRequestError as e:
+            logger.warning(
+                f"Error in get_chat_completions: {e}, trying to fix by adding dummy user message and merging consecutive turns if possible."
+            )
+            logger.debug(f"LLM messages before fixing: {messages}")
+            messages = self._maybe_add_user_message(messages)
+            messages = self._maybe_merge_consecutive_turns(messages)
+            logger.debug(f"LLM messages after fixing: {messages}")
+            params["messages"] = messages
+            chunks = await self._client.chat.completions.create(**params)
+
+        return chunks
+
+
+def get_llm_service_from_config(config: DictConfig) -> OpenAILLMService:
+    backend = config.type
+    assert backend in ["hf", "vllm"], f"Invalid backend: {backend}, only `hf` and `vllm` are supported."
+    if backend == "hf":
+        llm_model = config.model
+        llm_device = config.device
+        llm_dtype = config.dtype
+        llm_generation_kwargs = config.get("generation_kwargs", {})
+        if llm_generation_kwargs is not None:
+            llm_generation_kwargs = OmegaConf.to_container(llm_generation_kwargs)
+        llm_apply_chat_template_kwargs = config.get("apply_chat_template_kwargs", None)
+        if llm_apply_chat_template_kwargs is not None:
+            llm_apply_chat_template_kwargs = OmegaConf.to_container(llm_apply_chat_template_kwargs)
+        llm_thinking_budget = config.get("thinking_budget", 0)
+        return HuggingFaceLLMService(
+            model=llm_model,
+            device=llm_device,
+            dtype=llm_dtype,
+            generation_kwargs=llm_generation_kwargs,
+            apply_chat_template_kwargs=llm_apply_chat_template_kwargs,
+            thinking_budget=llm_thinking_budget,
+        )
+    elif backend == "vllm":
+        llm_model = config.get("model", "vllm_server")
+        llm_api_key = config.get("api_key", "None")
+        llm_base_url = config.get("base_url", "http://localhost:8000/v1")
+        llm_organization = config.get("organization", "None")
+        llm_project = config.get("project", "None")
+        llm_default_headers = config.get("default_headers", None)
+        llm_params = config.get("params", None)
+        if llm_params is not None:
+            # cast into OpenAILLMService.InputParams object
+            llm_params = OmegaConf.to_container(llm_params, resolve=True)
+            extra = llm_params.get("extra", None)
+            # ensure extra is a dictionary
+            if extra is None:
+                llm_params["extra"] = {}
+            elif not isinstance(extra, dict):
+                raise ValueError(f"extra must be a dictionary, got {type(extra)}")
+            llm_params = OpenAILLMService.InputParams(**llm_params)
+        else:
+            llm_params = OpenAILLMService.InputParams()
+        llm_thinking_budget = config.get("thinking_budget", 0)
+        return VLLMService(
+            model=llm_model,
+            api_key=llm_api_key,
+            base_url=llm_base_url,
+            organization=llm_organization,
+            project=llm_project,
+            default_headers=llm_default_headers,
+            params=llm_params,
+            thinking_budget=llm_thinking_budget,
+        )
+    else:
+        raise ValueError(f"Invalid LLM backend: {backend}")
