@@ -16,6 +16,7 @@
 # limitations under the License.
 
 from functools import lru_cache
+from re import L
 
 import transformer_engine.pytorch as te
 from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear, TELinear
@@ -31,6 +32,8 @@ def get_pad_tensor(*, pad_shape, dtype, device):
 
 def pad_to_multiple(x, multiple=8):
     """Pad tensor to make sequence length divisible by multiple."""
+    # TODO see if the batch size being a multiple of 8 is sufficient
+    # TODO explore use of `transformer_engine.pytorch.[Fp8Padding, Fp8Unpadding]` as used in megatron.core.fp8_utils
     seq_len, b, d = x.shape
     if seq_len % multiple == 0:
         return x
@@ -138,6 +141,8 @@ class TELayerNormColumnParallelLinearFp8(TELayerNormColumnParallelLinear):
             #  across the sequence dimension, so padding is complicated per rank outside of linear. For now we just
             #  require the case that no padding would be needed and raise an error otherwise.
             L_full = x.shape[0] * self.tp_size
+            # TODO see if the batch size being a multiple of 8 is also sufficient
+            # TODO see if transformer_engine.pytorch.[Fp8Padding, Fp8Unpadding] would handle the TP+SP case
             if L_full % 8 != 0:
                 raise ValueError(
                     f"Input tensor length {L_full} is not divisible by 8, which is"
