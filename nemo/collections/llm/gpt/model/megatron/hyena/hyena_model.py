@@ -27,7 +27,7 @@ from megatron.core.models.common.embeddings.language_model_embedding import Lang
 from megatron.core.models.common.embeddings.rotary_pos_embedding import RotaryEmbedding
 from megatron.core.models.common.language_module.language_module import LanguageModule
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.process_groups_config import ProcessGroupsCollection
+from megatron.core.process_groups_config import ProcessGroupCollection
 from megatron.core.quantization.utils import get_quant_config_or_none
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
@@ -74,7 +74,7 @@ class HyenaModel(LanguageModule):
         hyena_output_layer_init_method: str = None,
         remove_activation_post_first_layer: bool = True,
         add_attn_proj_bias: bool = True,
-        pgs_collection: Optional[ProcessGroupsCollection] = None,
+        pgs_collection: Optional[ProcessGroupCollection] = None,
         vp_stage: Optional[int] = None,
     ) -> None:
         # Check if super().__init__ accepts pgs_collection parameter
@@ -86,7 +86,7 @@ class HyenaModel(LanguageModule):
             super().__init__(config=transformer_config)
             # Store pgs_collection for use in submodules
             if pgs_collection is None:
-                pgs_collection = ProcessGroupsCollection.use_mpu_process_groups()
+                pgs_collection = ProcessGroupCollection.use_mpu_process_groups()
             self.pgs_collection = pgs_collection
             self.pp_group = pgs_collection.pp
 
