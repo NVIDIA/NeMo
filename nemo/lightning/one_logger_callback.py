@@ -32,9 +32,6 @@ from nemo.lightning.base_callback import BaseCallback
 # Export all symbols for testing and usage
 __all__ = ['OneLoggerNeMoCallback']
 
-# Enable OneLogger by default
-enable_one_logger = True
-
 
 def get_one_logger_init_config() -> Dict[str, Any]:
     """Generate minimal configuration for OneLogger initialization.

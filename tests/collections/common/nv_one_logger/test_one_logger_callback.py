@@ -82,7 +82,7 @@ class TestOneLoggerNeMoCallback:
         mock_provider.instance.return_value = mock_provider_instance
 
         # Create callback instance
-        callback = OneLoggerNeMoCallback()
+        OneLoggerNeMoCallback()
 
         # Verify initialization sequence
         mock_get_config.assert_called_once()
@@ -536,7 +536,7 @@ class TestOneLoggerCallback:
         mock_ptl_callback.return_value = MagicMock()
 
         # Create callback instance
-        callback = OneLoggerNeMoCallback()
+        OneLoggerNeMoCallback()
 
         # Verify that get_one_logger_init_config was called
         mock_get_config.assert_called_once()

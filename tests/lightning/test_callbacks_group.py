@@ -137,10 +137,10 @@ def test_hook_class_init_with_callbacks_wraps_and_emits(monkeypatch):
     monkeypatch.setattr(group, 'on_model_init_end', end)
 
     class Base:
-        def __init_subclass__(subcls, **kwargs):
+        def __init_subclass__(cls, **kwargs):
             super().__init_subclass__(**kwargs)
             # Mirror IOMixin: hook subclasses at definition time
-            mod.hook_class_init_with_callbacks(subcls, 'on_model_init_start', 'on_model_init_end')
+            mod.hook_class_init_with_callbacks(cls, 'on_model_init_start', 'on_model_init_end')
 
     class Child(Base):
         def __init__(self):
@@ -172,9 +172,9 @@ def test_hook_class_init_with_callbacks_idempotent():
     mod = _fresh_group_module()
 
     class Base:
-        def __init_subclass__(subcls, **kwargs):
+        def __init_subclass__(cls, **kwargs):
             super().__init_subclass__(**kwargs)
-            mod.hook_class_init_with_callbacks(subcls, 'on_model_init_start', 'on_model_init_end')
+            mod.hook_class_init_with_callbacks(cls, 'on_model_init_start', 'on_model_init_end')
 
     class Child(Base):
         def __init__(self):
