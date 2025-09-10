@@ -82,7 +82,7 @@ Edit the `server/server_config.yaml` file to configure the server, for example:
 Open a terminal and run the server via:
 
 ```bash
-NEMO_PATH=???  # Use your local NeMo path for the latest version
+NEMO_PATH=???  # Use your local NeMo path for the latest version from: https://github.com/NVIDIA-NeMo/NeMo
 export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 
 # export HF_TOKEN="hf_..."  # Use your own HuggingFace API token if needed, as some models may require.
@@ -103,8 +103,6 @@ vllm serve nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
 ```
 
 And you also need to change the `SERVER_CONFIG_PATH` to point to the `server/server_config_vllm.yaml` file when launching the voice agent server.
-
-
 
 
 
