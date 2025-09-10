@@ -173,7 +173,7 @@ if __name__ == "__main__":
     custom_env_vars = {}
     if args.skip_finetuning is not True:
         # Configure experiment setup for finetuning (recipe, plugins, executor, etc)
-        exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_mbs{mbs}_gbs{gbs}"
+        exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_mbs{mbs}_gbs{gbs}"
         base_name = splitext(basename(__file__))[0].replace("finetune_", f"{finetuning_scheme}_")
         exp_name = f"{base_name}_{args.compute_dtype}_{exp_config}"
         recipe = override_recipe_configs(
