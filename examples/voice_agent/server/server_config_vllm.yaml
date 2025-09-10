@@ -31,6 +31,18 @@ turn_taking:
   max_buffer_size: 2  # num of words more than this amount will interrupt the LLM immediately if not backchannel phrases
   bot_stop_delay: 0.5  # a delay in seconds allowed between server and client audio output, so that the BotStopSpeaking signal is handled not too far away from the actual time that the user hears all audio output
 
+
+# You need to first start the vllm server separately, before lauching the voice agent server.
+# Please refer to the corresponding model's homepage for how to do it.
+# If you use "nvidia/NVIDIA-Nemotron-Nano-9B-v2", please refer to https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2#use-it-with-vllm
+# or by:
+# ```bash
+# vllm serve nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
+#     --trust-remote-code \
+#     --max-num-seqs 64 \
+#     --mamba_ssm_cache_dtype float32  # lower precision will have worse accuracy for this model
+# ```
+# Note that you need at least 44GB of GPU memory to use this setting
 llm:
   type: vllm
   model: "nvidia/NVIDIA-Nemotron-Nano-9B-v2"  # this is just for logging, please setup the vllm server manually before starting the voice agent server
@@ -45,6 +57,7 @@ llm:
     extra: null  # additional model specific params can be specified as dict format
   system_role: "system"  # role for system prompt, set it to `user` for models that do not support system prompt
   # `system_prompt` is used as the sytem prompt to the LLM, please refer to differnt LLM webpage for spcial functions like enabling/disabling thinking
+  # It's recommended to disable thinking for faster response. For example, add "/no_think" at the end of the prompt if you use "nvidia/NVIDIA-Nemotron-Nano-9B-v2"
   # system_prompt: /path/to/prompt.txt  # or use path to a txt file that contains a long prompt, for example in `../example_prompts/fast_bite.txt`
   system_prompt: "You are a helpful AI agent named Lisa. Start by greeting the user warmly and introducing yourself within one sentence. Your answer should be concise and to the point. You might also see speaker tags (<speaker_0>, <speaker_1>, etc.) in the user context. You should respond to the user based on the speaker tag and the context of that speaker. Do not include the speaker tags in your response, use them only to identify the speaker. If a speaker provides their name, use their name when addressing their requests. /no_think"
 

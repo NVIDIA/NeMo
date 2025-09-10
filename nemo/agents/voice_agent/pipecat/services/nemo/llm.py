@@ -337,7 +337,10 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
         }
 
         params.update(self._settings["extra"])
+        chunks = await self._get_response_from_client(messages, params)
+        return chunks
 
+    async def _get_response_from_client(self, messages: List[ChatCompletionMessageParam], params: dict) -> str:
         try:
             chunks = await self._client.chat.completions.create(**params)
         except BadRequestError as e:
@@ -350,7 +353,6 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
             logger.debug(f"LLM messages after fixing: {messages}")
             params["messages"] = messages
             chunks = await self._client.chat.completions.create(**params)
-
         return chunks
 
 
