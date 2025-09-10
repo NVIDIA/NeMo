@@ -16,7 +16,6 @@
 # limitations under the License.
 
 from functools import lru_cache
-from re import L
 
 import transformer_engine.pytorch as te
 from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear, TELinear
