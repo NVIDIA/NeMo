@@ -416,6 +416,7 @@ dependencies:
     - urllib3==1.26.20
     - uvicorn==0.34.3
     - uvloop==0.21.0
+    - vllm==0.10.1.1
     - wandb==0.20.1
     - watchfiles==1.1.0
     - wcmatch==10.0

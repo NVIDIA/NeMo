@@ -5,4 +5,5 @@ onnxruntime
 pipecat-ai
 python-dotenv
 uvicorn
+vllm
 websockets

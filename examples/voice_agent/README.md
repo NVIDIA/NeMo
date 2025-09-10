@@ -91,6 +91,23 @@ export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 python ./server/server.py
 ```
 
+#### (Optional) Serve the LLM with vllm instead of HuggingFace
+
+If you want to use vllm to serve the LLM instead of the default HuggingFace implementation, you need to start the vllm server before launching the voice agnet server. For example, using `vllm` for [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2):
+
+```bash
+vllm serve nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
+    --trust-remote-code \
+    --max-num-seqs 64 \
+    --mamba_ssm_cache_dtype float32 
+```
+
+And you also need to change the `SERVER_CONFIG_PATH` to point to the `server/server_config_vllm.yaml` file when launching the voice agent server.
+
+
+
+
+
 ### Launch the client
 In another terminal on the server machine, start the client via:
 

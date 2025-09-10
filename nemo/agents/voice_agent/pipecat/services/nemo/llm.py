@@ -340,7 +340,9 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
         chunks = await self._get_response_from_client(messages, params)
         return chunks
 
-    async def _get_response_from_client(self, messages: List[ChatCompletionMessageParam], params: dict) -> str:
+    async def _get_response_from_client(
+        self, messages: List[ChatCompletionMessageParam], params: dict
+    ) -> AsyncStream[ChatCompletionChunk]:
         try:
             chunks = await self._client.chat.completions.create(**params)
         except BadRequestError as e:
