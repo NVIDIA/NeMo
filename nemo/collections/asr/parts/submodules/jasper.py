@@ -477,7 +477,11 @@ class SqueezeExcite(nn.Module):
             # Create sample mask - 1 represents value, 0 represents pad
             mask = self.make_pad_mask(lengths, max_audio_length=max_len, device=x.device)
             mask = ~mask  # 0 represents value, 1 represents pad
-            x = x.float()  # For stable AMP, SE must be computed at fp32.
+
+            # Commented out the below cast in v2.5.0 to fix dtype errors when running examples/asr/transcribe_speech.py on ASR models that use jasper.py encoder.
+            # Observed minimal changes in model outputs from this change.
+            # x = x.float()
+
             x = x.masked_fill(mask, 0.0)  # mask padded values explicitly to 0
             y = self._se_pool_step(x, mask)  # [B, C, 1]
             y = y.transpose(1, -1)  # [B, 1, C]
