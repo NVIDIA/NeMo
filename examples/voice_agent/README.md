@@ -91,9 +91,9 @@ export SERVER_CONFIG_PATH="/path/to/your/server_config.yaml"  # change where the
 python ./server/server.py
 ```
 
-#### (Optional) Serve the LLM with vllm instead of HuggingFace
+#### (Optional) Serving LLM with vLLM instead of HuggingFace
 
-If you want to use [vLLM](https://docs.vllm.ai/en/latest/) to serve the LLM instead of the default HuggingFace implementation, please refer to `server/server_config_vllm.yaml` file for how to setup the vLLM server. By default, the voice agent server will automatically start the vLLM server if it's not manually started yet. If you have already started the vLLM server on the default port 8000, the voice agent server will try to find another available port to host the vLLM server.
+If you want to use [vLLM](https://docs.vllm.ai/en/latest/) to serve the LLM instead of the default HuggingFace implementation, please refer to `server/server_config_vllm.yaml` for an example configuration. By default, the voice agent server will automatically start the vLLM server if it's not manually started yet. If you have already started the vLLM server on the default port 8000, the voice agent server will try to find another available port to host the vLLM server.
 
 
 
