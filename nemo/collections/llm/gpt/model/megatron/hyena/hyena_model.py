@@ -74,21 +74,21 @@ class HyenaModel(LanguageModule):
         hyena_output_layer_init_method: str = None,
         remove_activation_post_first_layer: bool = True,
         add_attn_proj_bias: bool = True,
-        pgs_collection: Optional[ProcessGroupCollection] = None,
+        pg_collection: Optional[ProcessGroupCollection] = None,
         vp_stage: Optional[int] = None,
     ) -> None:
-        # Check if super().__init__ accepts pgs_collection parameter
+        # Check if super().__init__ accepts pg_collection parameter
         super_init_signature = inspect.signature(super().__init__)
-        if 'pgs_collection' in super_init_signature.parameters:
-            super().__init__(config=transformer_config, pgs_collection=pgs_collection)
+        if 'pg_collection' in super_init_signature.parameters:
+            super().__init__(config=transformer_config, pg_collection=pg_collection)
         else:
-            # Older version of Megatron does not initialize pgs_collection yet.
+            # Older version of Megatron does not initialize pg_collection yet.
             super().__init__(config=transformer_config)
-            # Store pgs_collection for use in submodules
-            if pgs_collection is None:
-                pgs_collection = ProcessGroupCollection.use_mpu_process_groups()
-            self.pgs_collection = pgs_collection
-            self.pp_group = pgs_collection.pp
+            # Store pg_collection for use in submodules
+            if pg_collection is None:
+                pg_collection = ProcessGroupCollection.use_mpu_process_groups()
+            self.pg_collection = pg_collection
+            self.pp_group = pg_collection.pp
 
         self.transformer_config = transformer_config
         self.hyena_config = HyenaConfig()
@@ -131,7 +131,7 @@ class HyenaModel(LanguageModule):
                 vocab_size=self.vocab_size,
                 max_sequence_length=self.max_sequence_length,
                 position_embedding_type=position_embedding_type,
-                tp_group=self.pgs_collection.tp,
+                tp_group=self.pg_collection.tp,
             )
         # Cache for RoPE tensors which do not change between iterations.
         self.rotary_pos_emb_cache = {}
@@ -142,7 +142,7 @@ class HyenaModel(LanguageModule):
                 seq_len_interpolation_factor=seq_len_interpolation_factor,
                 rotary_base=rotary_base,
                 use_cpu_initialization=self.transformer_config.use_cpu_initialization,
-                cp_group=self.pgs_collection.cp,
+                cp_group=self.pg_collection.cp,
             )
 
         self.decoder = build_module(
@@ -154,7 +154,7 @@ class HyenaModel(LanguageModule):
             pre_process=self.pre_process,
             post_process=self.post_process,
             post_layer_norm=self.post_layer_norm,
-            pgs_collection=self.pgs_collection,
+            pg_collection=self.pg_collection,
         )
 
         # In some Hyena species, the published checkpoint has identity activations after the first
@@ -219,7 +219,7 @@ class HyenaModel(LanguageModule):
                 skip_bias_add=False,
                 gather_output=not self.parallel_output,
                 skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
-                tp_group=self.pgs_collection.tp,
+                tp_group=self.pg_collection.tp,
             )
             if self.config.add_bias_output:
                 self.output_layer.bias.data.zero_()

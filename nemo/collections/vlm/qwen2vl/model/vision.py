@@ -53,7 +53,7 @@ class Qwen25VLVisionTransformerBlock(TransformerBlock):
         post_layer_norm: bool = True,
         pre_process: bool = True,
         post_process: bool = True,
-        pgs_collection: ProcessGroupCollection = None,
+        pg_collection: ProcessGroupCollection = None,
         vp_stage: Optional[int] = None,
     ):
         super().__init__(
@@ -62,7 +62,7 @@ class Qwen25VLVisionTransformerBlock(TransformerBlock):
             post_layer_norm,
             pre_process,
             post_process,
-            pgs_collection,
+            pg_collection,
             vp_stage,
         )
 
