@@ -39,6 +39,7 @@ from pipecat.frames.frames import (
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.services.openai.llm import OpenAILLMService
 from transformers import AsyncTextIteratorStreamer, AutoModelForCausalLM, AutoTokenizer
+from vllm.config import ModelConfig as vllmModelConfig
 
 DEFAULT_GENERATION_KWARGS = {
     "max_new_tokens": 256,
@@ -346,7 +347,6 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
                 parsed_url = urlparse(base_url)
                 if parsed_url.port:
                     requested_port = parsed_url.port
-                    logger.info(f"Using port {requested_port} from provided base_url: {base_url}")
             except Exception as e:
                 logger.warning(
                     f"Could not parse port from base_url {base_url}: {e}, using port from vllm_server_params"
@@ -386,11 +386,23 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
                     continue
             raise RuntimeError(f"Could not find an available port starting from {start_port}")
 
+        def get_pid_on_port(port: int) -> Optional[int]:
+            for conn in psutil.net_connections(kind="inet"):
+                if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN:
+                    return conn.pid
+            return None
+
         def check_server_model(port: int) -> tuple[bool, str]:
             """Check if server is running on port and return (is_running, model_name)"""
             try:
                 response = requests.get(f"http://localhost:{port}/v1/models", timeout=5)
                 if response.status_code == 200:
+                    # get the PID for the server process
+                    pid = get_pid_on_port(port)
+                    if pid is not None:
+                        logger.warning(
+                            f"Found vLLM server process (PID: {pid}) on port {port}, you can use `lsof -i :{port}` to find the process and kill it if you want to start a new server."
+                        )
                     models_data = response.json()
                     if "data" in models_data and models_data["data"]:
                         served_model = models_data["data"][0].get("id", "")
@@ -629,7 +641,29 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
 
 def get_llm_service_from_config(config: DictConfig) -> OpenAILLMService:
     backend = config.type
-    assert backend in ["hf", "vllm"], f"Invalid backend: {backend}, only `hf` and `vllm` are supported."
+
+    # If backend is "auto", try to detect the best backend
+    if backend == "auto":
+        model_name = config.get("model")
+        if not model_name:
+            raise ValueError("Model name is required for LLM")
+
+        try:
+            _ = vllmModelConfig(model_name, trust_remote_code=True)
+            backend = "vllm"
+            logger.info(f"Auto-detected vLLM as the best backend for model {model_name}")
+        except Exception as e:
+            logger.info(
+                f"The LLM doesn't seem to be supported by vLLM yet (error: {e}), using HuggingFace as the best backend for model: {model_name}. If you are sure that the LLM is supported by vLLM, you can set `type: vllm` in the config file to force using vLLM."
+            )
+            backend = "hf"
+
+    assert backend in [
+        "hf",
+        "vllm",
+        "auto",
+    ], f"Invalid backend: {backend}, only `hf`, `vllm`, and `auto` are supported."
+
     if backend == "hf":
         llm_model = config.model
         llm_device = config.device
@@ -657,6 +691,12 @@ def get_llm_service_from_config(config: DictConfig) -> OpenAILLMService:
         llm_project = config.get("project", "None")
         llm_default_headers = config.get("default_headers", None)
         llm_params = config.get("params", None)
+        llm_dtype = config.dtype
+        vllm_server_params = config.get("vllm_server_params", None)
+        if vllm_server_params is not None:
+            if "dtype" not in vllm_server_params:
+                vllm_server_params = f"--dtype {llm_dtype} {vllm_server_params}"
+                logger.info(f"Adding dtype {llm_dtype} to vllm_server_params: {vllm_server_params}")
         if llm_params is not None:
             # cast into OpenAILLMService.InputParams object
             llm_params = OmegaConf.to_container(llm_params, resolve=True)
@@ -680,7 +720,7 @@ def get_llm_service_from_config(config: DictConfig) -> OpenAILLMService:
             params=llm_params,
             thinking_budget=llm_thinking_budget,
             start_vllm_on_init=config.get("start_vllm_on_init", False),
-            vllm_server_params=config.get("vllm_server_params", None),
+            vllm_server_params=vllm_server_params,
         )
     else:
         raise ValueError(f"Invalid LLM backend: {backend}")

@@ -5,7 +5,6 @@ A [Pipecat](https://github.com/pipecat-ai/pipecat) example demonstrating the sim
 As of now, we only support English input and output, but more languages will be supported in the future.
 
 
-
 ## ✨ Key Features
 
 - Open-source, local deployment, and flexible customization.
@@ -24,13 +23,16 @@ As of now, we only support English input and output, but more languages will be 
 - Joint ASR and speaker diarization model.
 - Function calling, RAG, etc.
 
+## Latest Updates
+- 2025-09-12: Add support for serving LLM with vLLM and auto-switch between vLLM and HuggingFace, add [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2) as default LLM.
+- 2025-09-05: First release of NeMo Voice Agent.
 
 
 ## 🚀 Quick Start
 
 ### Hardware requirements
 
-- A computer with at least one GPU. At least 18GB VRAM is recommended for using 8B LLMs, and 10GB VRAM for 4B LLMs.
+- A computer with at least one GPU. At least 20GB VRAM is recommended for using 8B LLMs, and 12GB VRAM for 4B LLMs.
 - A microphone connected to the computer.
 - A speaker connected to the computer.
 
@@ -69,7 +71,7 @@ The incompatibility errors from pip can be ignored.
 
 Edit the `server/server_config.yaml` file to configure the server, for example:
 - Changing the LLM and system prompt you want to use in `llm.model` and `llm.system_prompt`, by either putting a local path to a text file or the whole prompt string. See `example_prompts/` for examples to start with. 
-- Configure the LLM parameters, such as temperature, max tokens, etc.
+- Configure the LLM parameters, such as temperature, max tokens, etc. You may also need to change the HuggingFace or vLLM server parameters, depending on the LLM you are using. Please refer to the LLM's model page for details on the recommended parameters.
 - Distribute different components to different GPUs if you have more than one.
 - Adjust VAD parameters for sensitivity and end-of-turn detection timeout.
 
@@ -90,12 +92,6 @@ export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 export SERVER_CONFIG_PATH="/path/to/your/server_config.yaml"  # change where the server config is stored if you have a couple of different configs
 python ./server/server.py
 ```
-
-#### (Optional) Serving LLM with vLLM instead of HuggingFace
-
-If you want to use [vLLM](https://docs.vllm.ai/en/latest/) to serve the LLM instead of the default HuggingFace implementation, please refer to `server/server_config_vllm.yaml` for an example configuration. By default, the voice agent server will automatically start the vLLM server if it's not manually started yet. If you have already started the vLLM server on the default port 8000, the voice agent server will try to find another available port to host the vLLM server.
-
-
 
 ### Launch the client
 In another terminal on the server machine, start the client via:
@@ -123,13 +119,15 @@ If you want to use a different port for client connection, you can modify `clien
 ### 🤖 LLM
 
 Most LLMs from HuggingFace are supported. A few examples are:
-- [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct) (default)
+- [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2) (default)
+    - Please see `server/server_config.yaml` for how to use this model with vllm server.
+- [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
+    - Please see `server/server_config_qwen2.5.yaml` for how to use this model with vllm server.
 - [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B)
 - [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)
 - [nvidia/Llama-3.1-Nemotron-Nano-8B-v1](https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1) 
 - [nvidia/Nemotron-Mini-4B-Instruct](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct)
-- [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2)
-    - Please see `server/server_config_vllm.yaml` for how to use this model with vllm server.
+
 
 Please refer to the HuggingFace webpage of each model to configure the model parameters `llm.generation_kwargs` and `llm.apply_chat_template_kwargs` in `server/server_config.yaml` as needed.
 
