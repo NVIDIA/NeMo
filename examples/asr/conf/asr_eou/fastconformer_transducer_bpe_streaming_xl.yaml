@@ -195,7 +195,7 @@ model:
 
     prednet:
       pred_hidden: ${model.model_defaults.pred_hidden}
-      pred_rnn_layers: 1
+      pred_rnn_layers: 2
       t_max: null
       dropout: 0.2
 
