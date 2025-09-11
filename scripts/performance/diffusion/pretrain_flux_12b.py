@@ -48,7 +48,7 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    recipe = pretrain_recipe()
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -81,6 +81,21 @@ def override_recipe_configs(
         args.wandb_prj_name,
         args.wandb_job_name,
     )
+
+    from nemo.collections.diffusion.models.flux.model import FluxConfig
+
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig,
+        gradient_accumulation_fusion=False,
+    )
+    recipe.model.flux_params.t5_params = None
+    recipe.model.flux_params.clip_params = None
+    recipe.model.flux_params.vae_config = None
+
+    recipe.trainer.strategy.ddp.overlap_param_gather = True
+    recipe.trainer.strategy.ddp.overlap_grad_reduce = True
+    recipe.model.flux_params.flux_config.init_model_with_meta_device = True
+    recipe.model.flux_params.flux_config.cross_entropy_fusion_impl = "te"
 
     return recipe
 
