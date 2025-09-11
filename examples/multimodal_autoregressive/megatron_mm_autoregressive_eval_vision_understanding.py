@@ -31,7 +31,7 @@ from transformers import AutoModel, AutoTokenizer
 
 # pylint: disable=line-too-long
 from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
-from nemo.collections.nlp.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy
+from nemo.collections.common.parts.nlp_overrides import CustomProgressBar, NLPDDPStrategy
 from nemo.core.config import hydra_runner
 
 """

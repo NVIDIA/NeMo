@@ -54,8 +54,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import (
     get_iterator_k_split,
 )
 from nemo.collections.nlp.modules.common.text_generation_utils import get_computeprob_response
-from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank
+from nemo.collections.multimodal.speech_llm.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import adapter_mixins
@@ -91,6 +90,10 @@ __all__ = ["ModularAudioGPTModel", "CrossAttendModularAudioGPTModel"]
 
 
 default_inference_config = {'tokens_to_generate': 30}
+
+
+def get_last_rank():
+    return torch.distributed.get_world_size() - 1
 
 
 class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
