@@ -57,6 +57,7 @@ from megatron.core.optimizer import OptimizerConfig
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor, nn
 from typing_extensions import override
+from megatron.core.transformer.moe.moe_utils import get_moe_layer_wise_logging_tracker
 
 from nemo.utils.model_utils import check_lib_version
 
@@ -1866,8 +1867,7 @@ def moe_loss_tracker_ctx():
 @torch.no_grad()
 def aggregate_moe_loss_stats(loss_scale=1.0):
     with moe_loss_tracker_ctx():
-        from megatron.core.transformer.moe.moe_utils import get_moe_layer_wise_logging_tracker
-
+        
         tracker = get_moe_layer_wise_logging_tracker()
         aux_losses = {k: v['values'].float() * loss_scale for k, v in tracker.items()}
         total_loss_dict = {}
