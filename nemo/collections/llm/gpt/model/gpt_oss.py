@@ -83,7 +83,6 @@ class GPTOSSConfig(GPTConfig):
     glu_linear_offset: float = 1.0
     bias_activation_fusion: bool = True
     window_attn_skip_freq: Optional[Union[int, List[int]]] = 2  # alternative SWA/full
-    attention_backend: AttnBackend = AttnBackend.local  # currently only "local" is supported
     activation_func_clamp_value: Optional[float] = 7.0
 
 
