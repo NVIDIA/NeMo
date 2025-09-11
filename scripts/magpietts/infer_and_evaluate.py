@@ -226,6 +226,7 @@ def create_violin_plots(metrics: List[dict], metric_keys: List[str], output_png:
     plt.tight_layout()
     plt.savefig(output_png, format="png", bbox_inches="tight")
 
+
 def create_combined_violin_plots(dataset_metrics: dict, metric_keys: List[str], output_png: str):
     """
     Create box plots comparing multiple datasets for each metric in a single figure.
@@ -417,7 +418,7 @@ def run_inference(
     dataset_meta_info = evalset_config.dataset_meta_info
     ssim_per_dataset = []
     cer_per_dataset = []
-    all_datasets_filewise_metrics = {} # Store filewise metrics for all datasets for combined violin plot
+    all_datasets_filewise_metrics = {}  # Store filewise metrics for all datasets for combined violin plot
     for dataset in datasets:
         print(f"Evaluating dataset {dataset}")
         metrics_n_repeated = []
@@ -449,7 +450,7 @@ def run_inference(
             context_duration_min = 5.0
             context_duration_max = 5.0  # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
 
-        dataset_filewise_metrics_all_repeats = [] # Store metrics for all repeats of this dataset
+        dataset_filewise_metrics_all_repeats = []  # Store metrics for all repeats of this dataset
         for repeat_idx in range(num_repeats):
             pred_audio_dir = os.path.join(audio_dir, f"repeat_{repeat_idx}")
             os.makedirs(pred_audio_dir, exist_ok=True)
