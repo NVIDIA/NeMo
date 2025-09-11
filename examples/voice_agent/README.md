@@ -87,22 +87,13 @@ export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
 
 # export HF_TOKEN="hf_..."  # Use your own HuggingFace API token if needed, as some models may require.
 # export HF_HUB_CACHE="/path/to/your/huggingface/cache"  # change where HF cache is stored if you don't want to use the default cache
-# export SERVER_CONFIG_PATH="/path/to/your/server_config.yaml"  # change where the server config is stored if you have a couple of different configs
+export SERVER_CONFIG_PATH="/path/to/your/server_config.yaml"  # change where the server config is stored if you have a couple of different configs
 python ./server/server.py
 ```
 
 #### (Optional) Serve the LLM with vllm instead of HuggingFace
 
-If you want to use vllm to serve the LLM instead of the default HuggingFace implementation, you also need to start the vllm server manually. For example, using `vllm` for [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2):
-
-```bash
-vllm serve nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
-    --trust-remote-code \
-    --max-num-seqs 64 \
-    --mamba_ssm_cache_dtype float32 
-```
-
-And you also need to change the `SERVER_CONFIG_PATH` to point to the `server/server_config_vllm.yaml` file when launching the voice agent server.
+If you want to use [vLLM](https://docs.vllm.ai/en/latest/) to serve the LLM instead of the default HuggingFace implementation, please refer to `server/server_config_vllm.yaml` file for how to setup the vLLM server. By default, the voice agent server will automatically start the vLLM server if it's not manually started yet. If you have already started the vLLM server on the default port 8000, the voice agent server will try to find another available port to host the vLLM server.
 
 
 

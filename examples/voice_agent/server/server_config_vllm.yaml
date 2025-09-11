@@ -40,37 +40,27 @@ turn_taking:
   bot_stop_delay: 0.5  # a delay in seconds allowed between server and client audio output, so that the BotStopSpeaking signal is handled not too far away from the actual time that the user hears all audio output
 
 
-# You need to first start the vllm server separately, before lauching the voice agent server.
-# Please refer to the corresponding model's homepage for how to do it.
-# If you use "nvidia/NVIDIA-Nemotron-Nano-9B-v2", please refer to https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2#use-it-with-vllm
-# or by:
-# ```bash
-# vllm serve nvidia/NVIDIA-Nemotron-Nano-9B-v2 \
-#     --trust-remote-code \
-#     --max-num-seqs 64 \
-#     --mamba_ssm_cache_dtype float32  # lower precision will have worse accuracy for this model
-# ```
-# Note that you need at least 44GB of GPU memory to use this setting
-#
-# To launch the voice agent server with this config:
-# ```bash
-# NEMO_PATH=???  # Use your local NeMo path for the latest version
-# export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
-# export SERVER_CONFIG_PATH="/path/to/server_config_vllm.yaml"  # change where the server config is stored
-# python ./server/server.py
-# ```
 llm:
-  type: vllm
-  model: "nvidia/NVIDIA-Nemotron-Nano-9B-v2"  # this is just for logging, please setup the vllm server manually before starting the voice agent server
+  type: vllm  # The actual backend uses OpenAI API
+  model: "nvidia/NVIDIA-Nemotron-Nano-9B-v2"  # please refer to https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2#use-it-with-vllm
+  device: cuda  # which device to host vllm server
   api_key: "EMPTY"
-  base_url: "http://localhost:8000/v1"  # get this link from your vllm server first
+  base_url: "http://localhost:8000/v1"  
+  # Set `start_vllm_on_init` to automatically start vllm server if it's not manually started yet
+  start_vllm_on_init: true
+  # Specifying vllm_server_params with the parameters you want to pass to the vllm server command `vllm serve $model $vllm_server_params`
+  vllm_server_params: "--trust-remote-code --max-num-seqs 64 --mamba_ssm_cache_dtype float32"  
+  # `params` are the inference parameters that would be passed into OpenAI API, 
+  # please put additional model-specific parameters in `extra`
   params:
-    seed: 42
-    temperature: 0.6
-    top_k: null # currently ignored by openai client
-    top_p: 0.9
+    frequency_penalty: 0.0  # Penalty for frequent tokens (-2.0 to 2.0).
+    presence_penalty: 0.0  # Penalty for new tokens (-2.0 to 2.0).
+    seed: 42  # Random seed for deterministic outputs.
+    temperature: 0.6  # Sampling temperature (0.0 to 2.0).
+    top_k: null  # Top-k sampling parameter (currently ignored by OpenAI).
+    top_p: 0.9  # Top-p (nucleus) sampling parameter (0.0 to 1.0).
     max_completion_tokens: 256  # max number of tokens to generate
-    extra: null  # additional model specific params can be specified as dict format
+    extra: null  # additional model specific params can be specified in dict format
   system_role: "system"  # role for system prompt, set it to `user` for models that do not support system prompt
   # `system_prompt` is used as the sytem prompt to the LLM, please refer to differnt LLM webpage for spcial functions like enabling/disabling thinking
   # It's recommended to disable thinking for faster response. For example, add "/no_think" at the end of the prompt if you use "nvidia/NVIDIA-Nemotron-Nano-9B-v2"

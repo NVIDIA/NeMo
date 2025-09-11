@@ -13,18 +13,29 @@
 # limitations under the License.
 
 import asyncio
+import os
+import socket
+import subprocess
 import time
 import uuid
 from threading import Thread
 from typing import AsyncGenerator, List, Mapping, Optional
 
+import psutil
+import requests
 from jinja2.exceptions import TemplateError
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from openai import APITimeoutError, AsyncStream, BadRequestError
 from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
 from pipecat.adapters.services.open_ai_adapter import OpenAILLMInvocationParams
-from pipecat.frames.frames import LLMFullResponseEndFrame, LLMFullResponseStartFrame, LLMTextFrame
+from pipecat.frames.frames import (
+    CancelFrame,
+    EndFrame,
+    LLMFullResponseEndFrame,
+    LLMFullResponseStartFrame,
+    LLMTextFrame,
+)
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.services.openai.llm import OpenAILLMService
 from transformers import AsyncTextIteratorStreamer, AutoModelForCausalLM, AutoTokenizer
@@ -279,6 +290,7 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
         self,
         *,
         model: str,
+        device: str = "cuda",
         api_key="None",
         base_url="http://localhost:8000/v1",
         organization="None",
@@ -286,8 +298,18 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
         default_headers: Optional[Mapping[str, str]] = None,
         params: Optional[OpenAILLMService.InputParams] = None,
         thinking_budget: int = 0,
+        start_vllm_on_init: bool = False,
+        vllm_server_params: Optional[str] = None,
+        vllm_server_max_wait_time: int = 1800,
+        vllm_server_check_interval: int = 5,
         **kwargs,
     ):
+        self._device = device
+        self._vllm_server_max_wait_time = vllm_server_max_wait_time
+        self._vllm_server_check_interval = vllm_server_check_interval
+        if start_vllm_on_init:
+            base_url = self._start_vllm_server(model, vllm_server_params, base_url)
+
         super().__init__(
             model=model,
             api_key=api_key,
@@ -299,10 +321,263 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
             **kwargs,
         )
         self._thinking_budget = thinking_budget
+        self._vllm_server_params = vllm_server_params
+        self._start_vllm_on_init = start_vllm_on_init
+
         # TODO: handle thinking budget
         logger.info(
             f"VLLMService initialized with model: {model}, api_key: {api_key}, base_url: {base_url}, params: {params}, thinking_budget: {thinking_budget}"
         )
+
+    def _start_vllm_server(
+        self, model: str, vllm_server_params: Optional[str] = None, base_url: Optional[str] = None
+    ) -> str:
+        """
+        Start a vllm server and return the base url.
+        """
+
+        requested_port = None
+        # If base_url is provided, extract port from it
+        if base_url:
+            try:
+                # Extract port from base_url like "http://localhost:8003/v1"
+                from urllib.parse import urlparse
+
+                parsed_url = urlparse(base_url)
+                if parsed_url.port:
+                    requested_port = parsed_url.port
+                    logger.info(f"Using port {requested_port} from provided base_url: {base_url}")
+            except Exception as e:
+                logger.warning(
+                    f"Could not parse port from base_url {base_url}: {e}, using port from vllm_server_params"
+                )
+
+        # Parse port from vllm_server_params, default to 8000
+        if vllm_server_params:
+            params_list = vllm_server_params.split()
+            for i, param in enumerate(params_list):
+                if param == "--port" and i + 1 < len(params_list):
+                    try:
+                        param_port = int(params_list[i + 1])
+                        if requested_port is None:
+                            requested_port = param_port
+                        else:
+                            if param_port != requested_port:
+                                logger.warning(
+                                    f"Port {param_port} from vllm_server_params is different from base_url port {requested_port}, using new port {param_port}"
+                                )
+                                requested_port = param_port
+                        break
+                    except ValueError:
+                        logger.warning(f"Invalid port number: {params_list[i + 1]}, using default 8000")
+
+        if requested_port is None:
+            # try to use default port
+            requested_port = 8000
+
+        def find_available_port(start_port: int) -> int:
+            """Find an available port starting from start_port"""
+            for port in range(start_port, start_port + 100):  # Try up to 100 ports
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.bind(('localhost', port))
+                        return port
+                except OSError:
+                    continue
+            raise RuntimeError(f"Could not find an available port starting from {start_port}")
+
+        def check_server_model(port: int) -> tuple[bool, str]:
+            """Check if server is running on port and return (is_running, model_name)"""
+            try:
+                response = requests.get(f"http://localhost:{port}/v1/models", timeout=5)
+                if response.status_code == 200:
+                    models_data = response.json()
+                    if "data" in models_data and models_data["data"]:
+                        served_model = models_data["data"][0].get("id", "")
+                        return True, served_model
+                    return True, ""
+                return False, ""
+            except (requests.exceptions.RequestException, requests.exceptions.Timeout):
+                return False, ""
+
+        # First, check if vLLM server is already running on the requested port
+        is_running, served_model = check_server_model(requested_port)
+        if is_running:
+            if served_model == model:
+                final_base_url = f"http://localhost:{requested_port}/v1"
+                logger.info(f"vLLM server is already running at {final_base_url} with the correct model: {model}")
+                return final_base_url
+            else:
+                logger.warning(
+                    f"vLLM server on port {requested_port} is serving model '{served_model}' but we need '{model}'. Finding new port..."
+                )
+
+        # Find an available port for our model
+        port = find_available_port(requested_port)
+        if port != requested_port:
+            logger.info(f"Using port {port} instead of requested port {requested_port}")
+
+        final_base_url = f"http://localhost:{port}/v1"
+
+        # Check if there's already a vLLM process running on the same port and model
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.info['cmdline'] and any('vllm' in arg and 'serve' in arg for arg in proc.info['cmdline']):
+                    # Check if this process is using the same port and model
+                    cmdline_str = ' '.join(proc.info['cmdline'])
+                    if f"--port {port}" in cmdline_str:
+                        # Extract the model from the command line
+                        cmdline_parts = proc.info['cmdline']
+                        model_index = -1
+                        for i, arg in enumerate(cmdline_parts):
+                            if arg == "serve" and i + 1 < len(cmdline_parts):
+                                model_index = i + 1
+                                break
+
+                        if model_index != -1 and model_index < len(cmdline_parts):
+                            running_model = cmdline_parts[model_index]
+                            if running_model == model:
+                                logger.info(
+                                    f"Found existing vLLM server process (PID: {proc.info['pid']}) on port {port} serving model {model}"
+                                )
+                                # Wait a bit and check if it's responding
+                                time.sleep(2)
+                                is_running, served_model = check_server_model(port)
+                                if is_running and served_model == model:
+                                    logger.info(
+                                        f"Existing vLLM server is responding at {final_base_url} with correct model"
+                                    )
+                                    return final_base_url
+                                else:
+                                    logger.warning(
+                                        f"Existing vLLM process found on port {port} but not responding correctly, will start new server"
+                                    )
+                            else:
+                                logger.info(
+                                    f"Found vLLM process on port {port} but serving different model '{running_model}' (need '{model}'). Will start new server."
+                                )
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+
+        # Build the command with the determined port
+        cmd_parts = ["vllm", "serve", model]
+
+        # Parse and modify vllm_server_params to use the correct port
+        if vllm_server_params:
+            # parse the vllm_server_params and add the port to the command
+            params_list = vllm_server_params.split()
+            modified_params = []
+            i = 0
+            while i < len(params_list):
+                if params_list[i] == "--port" and i + 1 < len(params_list):
+                    # Replace the port with our determined port
+                    modified_params.extend(["--port", str(port)])
+                    i += 2  # Skip the original port value
+                else:
+                    modified_params.append(params_list[i])
+                    i += 1
+            cmd_parts.extend(modified_params)
+        else:
+            # Add port if vllm_server_params is not provided
+            cmd_parts.extend(["--port", str(port)])
+
+        logger.info(f"Starting vLLM server with command: {' '.join(cmd_parts)}")
+
+        # Set up environment variables for device configuration
+        env = os.environ.copy()
+        if self._device and self._device != "cpu":
+            # Extract CUDA device number if it's in format "cuda:0", "cuda:1", etc.
+            if self._device.startswith("cuda:"):
+                device_id = self._device.split(":")[1]
+                env["CUDA_VISIBLE_DEVICES"] = device_id
+                logger.info(f"Setting CUDA_VISIBLE_DEVICES={device_id}")
+            elif self._device == "cuda":
+                # Use default CUDA device (don't set CUDA_VISIBLE_DEVICES)
+                logger.info("Using default CUDA device")
+            else:
+                # For other device strings, try to extract device number
+                logger.warning(f"Unknown device format: {self._device}, using as-is")
+                env["CUDA_VISIBLE_DEVICES"] = self._device
+        elif self._device == "cpu":
+            env["CUDA_VISIBLE_DEVICES"] = ""
+            logger.info("Setting CUDA_VISIBLE_DEVICES='' to use CPU")
+
+        try:
+            # Start the vLLM server process with environment variables
+            process = subprocess.Popen(
+                cmd_parts,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                env=env,
+                preexec_fn=os.setsid if os.name != 'nt' else None,  # Create new process group
+            )
+
+            # Store the process for potential cleanup later
+            self._vllm_process = process
+
+            # Wait for server to start up
+            max_wait_time = self._vllm_server_max_wait_time
+            check_interval = self._vllm_server_check_interval
+            waited_time = 0
+
+            logger.info(f"Waiting for vLLM server to start on port {port}...")
+            while waited_time < max_wait_time:
+                is_running, served_model = check_server_model(port)
+                if is_running and served_model == model:
+                    logger.info(f"vLLM server started successfully at {final_base_url} serving model: {model}")
+                    return final_base_url
+                elif is_running and served_model != model:
+                    logger.warning(
+                        f"vLLM server started but serving wrong model '{served_model}' instead of '{model}'. Continuing to wait..."
+                    )
+
+                # Check if process is still running
+                if process.poll() is not None:
+                    # Process has terminated
+                    stdout, stderr = process.communicate()
+                    logger.error(f"vLLM server process terminated unexpectedly. stdout: {stdout}, stderr: {stderr}")
+                    raise RuntimeError(f"Failed to start vLLM server: {stderr}")
+
+                time.sleep(check_interval)
+                waited_time += check_interval
+                logger.debug(f"Still waiting for vLLM server on port {port}... ({waited_time}s)")
+
+            # If we get here, server didn't start in time
+            logger.error(f"vLLM server failed to start within {max_wait_time} seconds on port {port}")
+            process.terminate()
+            raise RuntimeError(f"vLLM server failed to start within {max_wait_time} seconds on port {port}")
+
+        except FileNotFoundError:
+            logger.error("vLLM not found. Please install vLLM: pip install vllm")
+            raise RuntimeError("vLLM not found. Please install vLLM: pip install vllm")
+        except Exception as e:
+            logger.error(f"Failed to start vLLM server: {e}")
+            self._stop_vllm_server()
+            raise e
+
+    def _stop_vllm_server(self):
+        if hasattr(self, '_vllm_process') and self._vllm_process:
+            logger.info(f"Stopping vLLM server process {self._vllm_process.pid}")
+            self._vllm_process.terminate()
+
+    async def stop(self, frame: EndFrame):
+        """Stop the LLM service.
+
+        Args:
+            frame: The end frame.
+        """
+        await super().stop(frame)
+        self._stop_vllm_server()
+
+    async def cancel(self, frame: CancelFrame):
+        """Cancel the LLM service.
+
+        Args:
+            frame: The cancel frame.
+        """
+        await super().cancel(frame)
+        self._stop_vllm_server()
 
     async def get_chat_completions(
         self, params_from_context: OpenAILLMInvocationParams
@@ -404,6 +679,8 @@ def get_llm_service_from_config(config: DictConfig) -> OpenAILLMService:
             default_headers=llm_default_headers,
             params=llm_params,
             thinking_budget=llm_thinking_budget,
+            start_vllm_on_init=config.get("start_vllm_on_init", False),
+            vllm_server_params=config.get("vllm_server_params", None),
         )
     else:
         raise ValueError(f"Invalid LLM backend: {backend}")
