@@ -93,7 +93,7 @@ python ./server/server.py
 
 #### (Optional) Serve the LLM with vllm instead of HuggingFace
 
-If you want to use vllm to serve the LLM instead of the default HuggingFace implementation, you need to start the vllm server before launching the voice agnet server. For example, using `vllm` for [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2):
+If you want to use vllm to serve the LLM instead of the default HuggingFace implementation, you also need to start the vllm server manually. For example, using `vllm` for [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2):
 
 ```bash
 vllm serve nvidia/NVIDIA-Nemotron-Nano-9B-v2 \

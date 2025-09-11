@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import time
 import uuid
 from threading import Thread
@@ -20,8 +21,9 @@ from typing import AsyncGenerator, List, Mapping, Optional
 from jinja2.exceptions import TemplateError
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
-from openai import AsyncStream, BadRequestError
+from openai import APITimeoutError, AsyncStream, BadRequestError
 from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
+from pipecat.adapters.services.open_ai_adapter import OpenAILLMInvocationParams
 from pipecat.frames.frames import LLMFullResponseEndFrame, LLMFullResponseStartFrame, LLMTextFrame
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.services.openai.llm import OpenAILLMService
@@ -253,7 +255,7 @@ class HuggingFaceLLMService(OpenAILLMService):
             await self.push_frame(LLMFullResponseEndFrame())
 
     async def get_chat_completions(
-        self, context: OpenAILLMContext, messages: List[ChatCompletionMessageParam]
+        self, params_from_context: OpenAILLMInvocationParams
     ) -> AsyncGenerator[ChatCompletionChunk, None]:
         """Create a streaming chat completion using HuggingFace model.
 
@@ -267,14 +269,9 @@ class HuggingFaceLLMService(OpenAILLMService):
             AsyncGenerator[ChatCompletionChunk]: A streaming response of chat completion
                 chunks that can be processed asynchronously.
         """
-        params = {
-            "max_tokens": self._settings["max_tokens"],
-            "temperature": self._settings["temperature"],
-            "top_p": self._settings["top_p"],
-        }
-        params.update(self._settings["extra"])
+        messages = params_from_context["messages"]
 
-        return self._client.generate_stream(messages, **params)
+        return self._client.generate_stream(messages)
 
 
 class VLLMService(OpenAILLMService, LLMUtilsMixin):
@@ -308,7 +305,7 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
         )
 
     async def get_chat_completions(
-        self, context: OpenAILLMContext, messages: List[ChatCompletionMessageParam]
+        self, params_from_context: OpenAILLMInvocationParams
     ) -> AsyncStream[ChatCompletionChunk]:
         """Get streaming chat completions from OpenAI API.
 
@@ -320,25 +317,22 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
             Async stream of chat completion chunks.
         """
 
-        params = {
-            "model": self.model_name,
-            "stream": True,
-            "messages": messages,
-            "tools": context.tools,
-            "tool_choice": context.tool_choice,
-            "stream_options": {"include_usage": True},
-            "frequency_penalty": self._settings["frequency_penalty"],
-            "presence_penalty": self._settings["presence_penalty"],
-            "seed": self._settings["seed"],
-            "temperature": self._settings["temperature"],
-            "top_p": self._settings["top_p"],
-            "max_tokens": self._settings["max_tokens"],
-            "max_completion_tokens": self._settings["max_completion_tokens"],
-        }
-
-        params.update(self._settings["extra"])
-        chunks = await self._get_response_from_client(messages, params)
-        return chunks
+        params = self.build_chat_completion_params(params_from_context)
+        messages = params_from_context["messages"]
+        if self._retry_on_timeout:
+            try:
+                chunks = await asyncio.wait_for(
+                    self._get_response_from_client(messages, params), timeout=self._retry_timeout_secs
+                )
+                return chunks
+            except (APITimeoutError, asyncio.TimeoutError):
+                # Retry, this time without a timeout so we get a response
+                logger.debug(f"{self}: Retrying chat completion due to timeout")
+                chunks = await self._get_response_from_client(messages, params)
+                return chunks
+        else:
+            chunks = await self._get_response_from_client(messages, params)
+            return chunks
 
     async def _get_response_from_client(
         self, messages: List[ChatCompletionMessageParam], params: dict
