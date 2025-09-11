@@ -428,6 +428,8 @@ def set_primary_perf_configs(
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
+    save_checkpoint: Optional[bool] = False,
+    load_checkpoint_path: Optional[str] = None,
     keep_fsdp_fp8_transpose_cache: Optional[bool] = None,
     use_te_op_fuser: Optional[bool] = None,
     use_te_act_func: Optional[bool] = None,
@@ -501,6 +503,39 @@ def set_primary_perf_configs(
         use_sharp=use_sharp,
         keep_fsdp_fp8_transpose_cache=keep_fsdp_fp8_transpose_cache,
     )
+
+    recipe.trainer.enable_checkpointing = save_checkpoint
+    recipe.trainer.val_check_interval = max_steps
+
+    if save_checkpoint:
+        recipe.trainer.callbacks.append(
+            run.Config(
+                ModelCheckpoint,
+                every_n_train_steps=max_steps,
+                dirpath=None,
+                save_top_k=1,
+                always_save_context=True,
+                save_optim_on_train_end=True,
+                save_context_on_train_end=True,
+            )
+        )
+
+    if recipe.trainer.enable_checkpointing or load_checkpoint_path is not None:
+        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = False
+
+    if load_checkpoint_path is not None:
+        recipe.resume = run.Config(
+            AutoResume,
+            resume_if_exists=True,
+            resume_ignore_no_checkpoint=False,
+            restore_config=run.Config(
+                nl.RestoreConfig,
+                path=load_checkpoint_path,
+                load_model_state=True,
+                load_optim_state=True,
+                load_artifacts=False,
+            ),
+        )
 
     return recipe
 
