@@ -133,8 +133,8 @@ model:
     _target_: nemo.collections.asr.modules.ConformerEncoder
     feat_in: ${model.preprocessor.features}
     feat_out: -1 # you may set it if you need different output size other than the default d_model
-    n_layers: 17
-    d_model: 512
+    n_layers: 24
+    d_model: 1024
     use_bias: false # whether to apply bias in the feedforward, MHA and convolution modules
 
     # Sub-sampling parameters
