@@ -124,8 +124,10 @@ Most LLMs from HuggingFace are supported. A few examples are:
 - [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2) (default)
     - Please use `server/server_configs/nemotron-nano-v2.yaml` as the server config.
 - [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
-    - Please use `server/server_configs/qwen2.5.yaml` as the server config.
+    - Please use `server/server_configs/qwen2.5-7B.yaml` as the server config.
 - [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B)
+    - Please use `server/server_configs/qwen3-8B.yaml` as the server config.
+    - Please use `server/server_configs/qwen3-8B_think.yaml` if you want to enable thinking mode.
 - [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)
 - [nvidia/Llama-3.1-Nemotron-Nano-8B-v1](https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1) 
 - [nvidia/Nemotron-Mini-4B-Instruct](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct)
@@ -138,6 +140,15 @@ Please refer to the homepage of each model to configure the model parameters:
 
 You can change the `llm.system_prompt` in `server/server_configs/default.yaml` to configure the behavior of the LLM, by either putting a local path to a text file or the whole prompt string. See `server/example_prompts/` for examples to start with.
 
+#### Thinking/reasoning Mode for LLMs
+
+A lot of LLMs support thinking/reasoning mode, which is useful for complex tasks, but it will create a long latency for the final answer. By default, we turn off the thinking/reasoning mode for all models for best latency.
+
+Different models may have different ways to support thinking/reasoning mode, please refer to the model's homepage for details on their thinking/reasoning mode support. Meanwhile, in many cases, they support enabling thinking/reasoning can be achieved by adding `/think` or `/no_think` to the end of the system prompt, and the thinking/reasoning content is wrapped by the tokens `["<think>", "</think>"]`. Some models may also support enabling thinking/reasoning by setting `llm.apply_chat_template_kwargs.enable_thinking=true/false` in the server config when `llm.type=hf`.
+
+If thinking/reasoning mode is enabled (e.g., in `server/server_configs/qwen3-8B_think.yaml`), the voice agnet server will print out the thinking/reasoning content so that you can see the process of the LLM thinking and still have a smooth conversation experience. The thinking/reasoning content will not go through the TTS process, so you will only hear the final answer, and this is achieved by specifying the pair of thinking tokens `tts.think_tokens=["<think>", "</think>"]` in the server config.
+
+For vLLM server, if you specify `--reasoning_parser` in `vllm_server_params`, the thinking/reasoning content will be filtered out and does not show up in the output.
 
 ### 🎤 ASR 
 

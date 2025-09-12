@@ -112,7 +112,7 @@ class HuggingFaceLLMLocalService(LLMUtilsMixin):
         self.thinking_budget = thinking_budget
         self.tokenizer = AutoTokenizer.from_pretrained(model)
         self.model = AutoModelForCausalLM.from_pretrained(
-            model, device_map=device, torch_dtype=dtype, trust_remote_code=True
+            model, device_map=device, dtype=dtype, trust_remote_code=True
         )  # type: AutoModelForCausalLM
 
         self.generation_kwargs = generation_kwargs if generation_kwargs else DEFAULT_GENERATION_KWARGS
@@ -392,14 +392,14 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
                     return conn.pid
             return None
 
-        def check_server_model(port: int) -> tuple[bool, str]:
+        def check_server_model(port: int, verbose: bool = False) -> tuple[bool, str]:
             """Check if server is running on port and return (is_running, model_name)"""
             try:
                 response = requests.get(f"http://localhost:{port}/v1/models", timeout=5)
                 if response.status_code == 200:
                     # get the PID for the server process
                     pid = get_pid_on_port(port)
-                    if pid is not None:
+                    if pid is not None and verbose:
                         logger.warning(
                             f"Found vLLM server process (PID: {pid}) on port {port}, you can use `lsof -i :{port}` to find the process and kill it if you want to start a new server."
                         )
@@ -413,7 +413,7 @@ class VLLMService(OpenAILLMService, LLMUtilsMixin):
                 return False, ""
 
         # First, check if vLLM server is already running on the requested port
-        is_running, served_model = check_server_model(requested_port)
+        is_running, served_model = check_server_model(requested_port, verbose=True)
         if is_running:
             if served_model == model:
                 final_base_url = f"http://localhost:{requested_port}/v1"

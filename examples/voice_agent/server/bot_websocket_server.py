@@ -60,6 +60,8 @@ SERVER_CONFIG_PATH = os.environ.get(
 )
 
 server_config = OmegaConf.load(SERVER_CONFIG_PATH)
+server_config = OmegaConf.to_container(server_config, resolve=True)
+server_config = OmegaConf.create(server_config)
 
 logger.info(f"Server config: {server_config}")
 
