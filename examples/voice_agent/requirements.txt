@@ -2,7 +2,10 @@ fastapi[all]
 huggingface-hub
 nemo-toolkit
 onnxruntime
-pipecat-ai
+pipecat-ai==0.0.84  # Newer versions may be incompatible with the voice agent server
 python-dotenv
+tokenizers
+transformers
 uvicorn
+vllm
 websockets
