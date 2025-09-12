@@ -56,7 +56,7 @@ from nemo.agents.voice_agent.pipecat.transports.network.websocket_server import 
 from nemo.agents.voice_agent.pipecat.utils.text.simple_text_aggregator import SimpleSegmentedTextAggregator
 
 SERVER_CONFIG_PATH = os.environ.get(
-    "SERVER_CONFIG_PATH", f"{os.path.dirname(os.path.abspath(__file__))}/server_config.yaml"
+    "SERVER_CONFIG_PATH", f"{os.path.dirname(os.path.abspath(__file__))}/server_configs/default.yaml"
 )
 
 server_config = OmegaConf.load(SERVER_CONFIG_PATH)

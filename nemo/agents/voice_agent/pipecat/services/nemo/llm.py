@@ -690,7 +690,7 @@ def get_llm_service_from_config(config: DictConfig) -> OpenAILLMService:
         llm_organization = config.get("organization", "None")
         llm_project = config.get("project", "None")
         llm_default_headers = config.get("default_headers", None)
-        llm_params = config.get("params", None)
+        llm_params = config.get("vllm_generation_params", None)
         llm_dtype = config.dtype
         vllm_server_params = config.get("vllm_server_params", None)
         if vllm_server_params is not None:

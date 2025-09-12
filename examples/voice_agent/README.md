@@ -32,7 +32,7 @@ As of now, we only support English input and output, but more languages will be 
 
 ### Hardware requirements
 
-- A computer with at least one GPU. At least 20GB VRAM is recommended for using 8B LLMs, and 12GB VRAM for 4B LLMs.
+- A computer with at least one GPU. At least 21GB VRAM is recommended for using 9B LLMs, and 13GB VRAM for 4B LLMs.
 - A microphone connected to the computer.
 - A speaker connected to the computer.
 
@@ -56,7 +56,7 @@ fnm use --install-if-missing 20
 Second, create a new conda environment with the dependencies:
 
 ```bash
-conda env create -f environment.yml
+conda env create -f environment.yaml
 ```
 
 Then you can activate the environment via `conda activate nemo-voice`.
@@ -69,9 +69,12 @@ The incompatibility errors from pip can be ignored.
 
 ### Configure the server
 
-Edit the `server/server_config.yaml` file to configure the server, for example:
-- Changing the LLM and system prompt you want to use in `llm.model` and `llm.system_prompt`, by either putting a local path to a text file or the whole prompt string. See `example_prompts/` for examples to start with. 
+If you want to just try the default server config, you can skip this step.
+
+Edit the `server/server_configs/default.yaml` file to configure the server as needed, for example:
+- Changing the LLM and system prompt you want to use in `llm.model` and `llm.system_prompt`, by either putting a local path to a text file or the whole prompt string. See `server/example_prompts/` for examples to start with. 
 - Configure the LLM parameters, such as temperature, max tokens, etc. You may also need to change the HuggingFace or vLLM server parameters, depending on the LLM you are using. Please refer to the LLM's model page for details on the recommended parameters.
+- If you know whether you want to use vLLM or HuggingFace, you can set `llm.type` to `vllm` or `hf` to force using vLLM or HuggingFace, respectively. Otherwise, it will automatically switch between the two based on the model's support. Please also remember to update the parameters of the chosen backend as well, by referring to the LLM's model page.
 - Distribute different components to different GPUs if you have more than one.
 - Adjust VAD parameters for sensitivity and end-of-turn detection timeout.
 
@@ -84,12 +87,11 @@ Edit the `server/server_config.yaml` file to configure the server, for example:
 Open a terminal and run the server via:
 
 ```bash
-NEMO_PATH=???  # Use your local NeMo path for the latest version from: https://github.com/NVIDIA-NeMo/NeMo
+NEMO_PATH=???  # Use your local NeMo path with the latest main branch from: https://github.com/NVIDIA-NeMo/NeMo
 export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
-
 # export HF_TOKEN="hf_..."  # Use your own HuggingFace API token if needed, as some models may require.
 # export HF_HUB_CACHE="/path/to/your/huggingface/cache"  # change where HF cache is stored if you don't want to use the default cache
-export SERVER_CONFIG_PATH="/path/to/your/server_config.yaml"  # change where the server config is stored if you have a couple of different configs
+# export SERVER_CONFIG_PATH="/path/to/your/server/config.yaml"  # change to the server config you want to use, otherwise it will use the default config in `server/server_configs/default.yaml`
 python ./server/server.py
 ```
 
@@ -120,18 +122,21 @@ If you want to use a different port for client connection, you can modify `clien
 
 Most LLMs from HuggingFace are supported. A few examples are:
 - [nvidia/NVIDIA-Nemotron-Nano-9B-v2](https://huggingface.co/nvidia/NVIDIA-Nemotron-Nano-9B-v2) (default)
-    - Please see `server/server_config.yaml` for how to use this model with vllm server.
+    - Please use `server/server_configs/nemotron-nano-v2.yaml` as the server config.
 - [Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
-    - Please see `server/server_config_qwen2.5.yaml` for how to use this model with vllm server.
+    - Please use `server/server_configs/qwen2.5.yaml` as the server config.
 - [Qwen/Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B)
 - [meta-llama/Llama-3.1-8B-Instruct](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct)
 - [nvidia/Llama-3.1-Nemotron-Nano-8B-v1](https://huggingface.co/nvidia/Llama-3.1-Nemotron-Nano-8B-v1) 
 - [nvidia/Nemotron-Mini-4B-Instruct](https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct)
 
 
-Please refer to the HuggingFace webpage of each model to configure the model parameters `llm.generation_kwargs` and `llm.apply_chat_template_kwargs` in `server/server_config.yaml` as needed.
+Please refer to the homepage of each model to configure the model parameters:
+- If `llm.type=hf`, please set `llm.generation_kwargs` and `llm.apply_chat_template_kwargs` in the server config as needed.
+- If `llm.type=vllm`, please set `llm.vllm_server_params` and `llm.vllm_generation_params`in the server config as needed.
+- If `llm.type=auto`, the server will first try to use vLLM, and if it fails, it will try to use HuggingFace. In this case, you need to make sure parameters for both backends are set properly.
 
-You can change the `llm.system_prompt` in `server/server_config.yaml` to configure the behavior of the LLM, by either putting a local path to a text file or the whole prompt string. See `example_prompts/` for examples to start with.
+You can change the `llm.system_prompt` in `server/server_configs/default.yaml` to configure the behavior of the LLM, by either putting a local path to a text file or the whole prompt string. See `server/example_prompts/` for examples to start with.
 
 
 ### 🎤 ASR 
@@ -150,7 +155,7 @@ Currently supported models are:
  - [nvidia/diar_streaming_sortformer_4spk-v2](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2) (default)
 
 
-Please note that in some circumstances, the diarization model might not work well in noisy environments, or it may confuse the speakers. In this case, you can disable the diarization by setting `diar.enabled` to `false` in `server/server_config.yaml`.
+Please note that in some circumstances, the diarization model might not work well in noisy environments, or it may confuse the speakers. In this case, you can disable the diarization by setting `diar.enabled` to `false` in `server/server_configs/default.yaml`.
 
 ### 🔉 TTS
 
@@ -159,9 +164,9 @@ We use [FastPitch-HiFiGAN](https://huggingface.co/nvidia/tts_en_fastpitch) to ge
 
 ### Turn-taking
 
-As the new turn-taking prediction model is not yet released, we use the VAD-based turn-taking prediction for now. You can set the `vad.stop_secs` to the desired value in `server/server_config.yaml` to control the amount of silence needed to indicate the end of a user's turn.
+As the new turn-taking prediction model is not yet released, we use the VAD-based turn-taking prediction for now. You can set the `vad.stop_secs` to the desired value in `server/server_configs/default.yaml` to control the amount of silence needed to indicate the end of a user's turn.
 
-Additionally, the voice agent support ignoring back-channel phrases while the bot is talking, which it means phrases such as "uh-huh", "yeah", "okay"  will not interrupt the bot while it's talking. To control the backchannel phrases to be used, you can set the `turn_taking.backchannel_phrases` to the desired list of phrases or a file path to a yaml file containing the list of phrases in `server/server_config.yaml`. Setting it to `null` will disable detecting the backchannel phrases, and that the VAD will interrupt the bot immediately when the user starts speaking.
+Additionally, the voice agent support ignoring back-channel phrases while the bot is talking, which it means phrases such as "uh-huh", "yeah", "okay"  will not interrupt the bot while it's talking. To control the backchannel phrases to be used, you can set the `turn_taking.backchannel_phrases` in the server config to the desired list of phrases or a file path to a yaml file containing the list of phrases. By default, it will use the phrases in `server/backchannel_phrases.yaml`. Setting it to `null` will disable detecting backchannel phrases, and that the VAD will interrupt the bot immediately when the user starts speaking.
 
 
 ## 📝 Notes & FAQ
