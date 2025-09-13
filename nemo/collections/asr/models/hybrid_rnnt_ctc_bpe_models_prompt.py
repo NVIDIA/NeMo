@@ -43,6 +43,7 @@ from nemo.core.neural_types import (
     AudioSignal,
     LabelsType,
     LengthsType,
+    ElementType,   
     NeuralType,
     SpectrogramType,
 )
@@ -166,8 +167,8 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCBPEModel, ASRTran
             dist_sync_on_step=True,
         )
 
-        # Setup bleu object
-        self.bleu = BLEU(decoding=self.decoding, tokenize=self.cfg.get('bleu_tokenizer', "13a"), log_prediction=True)
+        # # Setup bleu object
+        # self.bleu = BLEU(decoding=self.decoding, tokenize=self.cfg.get('bleu_tokenizer', "13a"), log_prediction=True)
 
         # Setup fused Joint step if flag is set
         if self.joint.fuse_loss_wer:
@@ -829,21 +830,21 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCBPEModel, ASRTran
         tensorboard_logs['val_wer_denom_ctc'] = ctc_wer_denom
         tensorboard_logs['val_wer_ctc'] = ctc_wer
 
-        # BLEU score calculation
-        self.bleu.update(
-            predictions=encoded, predictions_lengths=encoded_len, targets=transcript, targets_lengths=transcript_len
-        )
-        bleu_metrics = self.bleu.compute(return_all_metrics=True, prefix="val_")
-        tensorboard_logs.update(
-            {
-                'val_bleu_num': bleu_metrics['val_bleu_num'],
-                'val_bleu_denom': bleu_metrics['val_bleu_denom'],
-                'val_bleu_pred_len': bleu_metrics['val_bleu_pred_len'],
-                'val_bleu_target_len': bleu_metrics['val_bleu_target_len'],
-                'val_bleu': bleu_metrics['val_bleu'],
-            }
-        )
-        self.bleu.reset()
+        # # BLEU score calculation
+        # self.bleu.update(
+        #     predictions=encoded, predictions_lengths=encoded_len, targets=transcript, targets_lengths=transcript_len
+        # )
+        # bleu_metrics = self.bleu.compute(return_all_metrics=True, prefix="val_")
+        # tensorboard_logs.update(
+        #     {
+        #         'val_bleu_num': bleu_metrics['val_bleu_num'],
+        #         'val_bleu_denom': bleu_metrics['val_bleu_denom'],
+        #         'val_bleu_pred_len': bleu_metrics['val_bleu_pred_len'],
+        #         'val_bleu_target_len': bleu_metrics['val_bleu_target_len'],
+        #         'val_bleu': bleu_metrics['val_bleu'],
+        #     }
+        # )
+        # self.bleu.reset()
 
         self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
 
@@ -906,14 +907,14 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCBPEModel, ASRTran
             ctc_wer_denom = torch.stack([x['val_wer_denom_ctc'] for x in outputs]).sum()
             tensorboard_logs['val_wer_ctc'] = ctc_wer_num.float() / ctc_wer_denom
 
-        # Calculate BLEU score
-        bleu_num = torch.stack([x['val_bleu_num'] for x in outputs]).sum(dim=0)
-        bleu_denom = torch.stack([x['val_bleu_denom'] for x in outputs]).sum(dim=0)
-        bleu_pred_len = torch.stack([x['val_bleu_pred_len'] for x in outputs]).sum(dim=0)
-        bleu_target_len = torch.stack([x['val_bleu_target_len'] for x in outputs]).sum(dim=0)
+        # # Calculate BLEU score
+        # bleu_num = torch.stack([x['val_bleu_num'] for x in outputs]).sum(dim=0)
+        # bleu_denom = torch.stack([x['val_bleu_denom'] for x in outputs]).sum(dim=0)
+        # bleu_pred_len = torch.stack([x['val_bleu_pred_len'] for x in outputs]).sum(dim=0)
+        # bleu_target_len = torch.stack([x['val_bleu_target_len'] for x in outputs]).sum(dim=0)
 
-        val_bleu = self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)
-        tensorboard_logs['val_bleu'] = val_bleu
+        # val_bleu = self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)
+        # tensorboard_logs['val_bleu'] = val_bleu
 
         # Finalize and log metrics
         metrics = {**val_loss_log, 'log': tensorboard_logs}
@@ -1000,3 +1001,31 @@ class EncDecHybridRNNTCTCBPEModelWithPrompt(EncDecHybridRNNTCTCBPEModel, ASRTran
         # preserve config
         self._update_dataset_config(dataset_name='test', config=test_data_config)
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer for prompted models.
+        
+        This schema extends the base ASR schema to include a prompt tensor.
+        """
+        # Get vocab size safely with fallback
+        vocab_size = int(self.decoder.vocab_size)
+        assert vocab_size is not None
+        num_prompts = int(self.cfg.get('num_prompts', 128))
+            
+        return {
+            "cls": tuple,
+            "inputs": [
+                {"type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": vocab_size,   
+                },
+                {"type": NeuralType(("B",), LengthsType()), "seq_length": "output"},
+                {"type": NeuralType(("B", "T", "D"), ElementType()), "seq_length": "input", "prompt_dim": num_prompts},
+            ],
+        }

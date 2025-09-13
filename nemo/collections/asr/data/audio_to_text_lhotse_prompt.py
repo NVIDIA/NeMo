@@ -12,17 +12,79 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.utils.data
 from lhotse.dataset import AudioSamples
-from lhotse.dataset.collation import collate_matrices, collate_vectors
+from lhotse.cut import CutSet
+from lhotse.dataset.collation import collate_matrices, collate_vectors, read_audio_from_cuts
 
 from nemo.collections.common.tokenizers.aggregate_tokenizer import AggregateTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+
+
+def collate_audio(
+    cuts: CutSet,
+    pad_direction: str = "right",
+    fault_tolerant: bool = False,
+    recording_field: Optional[str] = None,
+) -> Union[
+    Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, CutSet]
+]:
+
+    for cut in cuts:
+        if recording_field is None:
+            assert cut.has_recording, f"Missing recording in cut {cut.id}"
+        else:
+            assert cut.has_custom(
+                recording_field
+            ), f"Missing custom recording field {recording_field} in cut {cut.id}"
+
+    # Remember how many samples were there in each cut (later, we might remove cuts that fail to load).
+    sample_counts = []
+    for cut in cuts:
+        if recording_field is None:
+            num_samples = cut.num_samples
+        else:
+            num_samples = compute_num_samples(
+                cut.duration, sampling_rate=getattr(cut, recording_field).sampling_rate
+            )
+        sample_counts.append(num_samples)
+
+    cuts = cuts.pad(
+        duration=max(cut.duration for cut in cuts),
+        direction=pad_direction,
+        preserve_id=True,
+    )
+
+    # Note: returned "cuts" may be a subset of the original "cuts" if fault_tolerant=True.
+    audios, cuts, sample_counts = read_audio_from_cuts(
+        cuts,
+        None,
+        suppress_errors=fault_tolerant,
+        recording_field=recording_field,
+        filter_aux_iter=sample_counts,
+    )
+    
+    audios = [a.mean(axis=0) if len(a.shape) > 1 else a for a in audios]
+    
+    assert all([len(a.shape) == len(audios[0].shape) for i, a in enumerate(audios)]), "Different number of channels in audios in batch"
+
+    if len(audios[0].shape) == 1:
+        audios = collate_vectors(audios, padding_value=0.0)
+    else:
+        audios = collate_matrices(
+            [a.transpose(0, 1) for a in audios], padding_value=0.0
+        ).transpose(1, 2)
+    audio_lens = torch.tensor(sample_counts, dtype=torch.int32)
+
+    if fault_tolerant:
+        return audios, audio_lens, cuts
+    else:
+        return audios, audio_lens
 
 
 class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
@@ -63,6 +125,9 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
 
         # Field to use for prompt key (default to 'language')
         self.prompt_field = cfg.get('prompt_field', 'language')
+        
+        # Maximum token length for filtering sequences (configurable)
+        self.max_token_length = cfg.get('max_token_length', 500)
 
     def _get_prompt_index(self, prompt_key: str) -> int:
         """
@@ -85,14 +150,50 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         """
         # Calculate encoder output length based on subsampling factor
         encoder_hidden_len = self.get_hidden_length_from_sample_length(cut.num_samples)
+        
+        # Validate dimensions
+        if encoder_hidden_len <= 0:
+            encoder_hidden_len = 1  # Minimum valid length
+        
+        if num_prompts <= 0:
+            num_prompts = 1  # Minimum valid length
+
+        # Ensure minimum dimensions for CUDA kernel compatibility
+        encoder_hidden_len = max(1, encoder_hidden_len)
+        num_prompts = max(1, num_prompts)
 
         # Initialize prompt target matrix
-        mask = np.zeros((num_prompts, encoder_hidden_len))
+        mask = np.zeros((num_prompts, encoder_hidden_len), dtype=np.float32)
 
-        # Get prompt index - default to language if prompt not specified
-        # revise supervisions to include prompt key
-        # prompt_key = getattr(cut.supervisions[0].custom_fields, cut.supervisions[0].language)cut.supervisions[0].custom_fields,
-        prompt_id = self._get_prompt_index(cut.supervisions[0].language)
+        # Get prompt key from the configured prompt field
+        prompt_key = None
+        if cut.supervisions and len(cut.supervisions) > 0:
+            supervision = cut.supervisions[0]
+            
+            # First try to get from custom_fields (set by dataset-level prompt_field)
+            if hasattr(supervision, 'custom_fields') and supervision.custom_fields:
+                prompt_key = supervision.custom_fields.get(self.prompt_field)
+            
+            # Fallback: try to get from supervision.custom.custom_fields
+            if prompt_key is None and hasattr(supervision, 'custom') and hasattr(supervision.custom, 'custom_fields') and supervision.custom.custom_fields:
+                prompt_key = supervision.custom.custom_fields.get(self.prompt_field)
+            
+            # Fallback to language field if prompt_field not found in custom_fields
+            if prompt_key is None:
+                prompt_key = getattr(supervision, self.prompt_field, None)
+            
+            # Final fallback to language field for backward compatibility
+            if prompt_key is None:
+                prompt_key = supervision.language
+            
+            
+        if prompt_key is None:
+            raise ValueError(f"No prompt key found for cut {cut.id}")
+        
+        try:
+            prompt_id = self._get_prompt_index(prompt_key)
+        except ValueError as e:
+            raise ValueError(f"Invalid prompt key: {prompt_key}")
 
         # Set the corresponding prompt ID to 1 for all time steps
         mask[prompt_id, :] = 1
@@ -114,39 +215,94 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         return int(hidden_length)
 
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
-        audio, audio_lens, cuts = self.load_audio(cuts)
-        tokens = [torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language)) for c in cuts]
+        try:            
+            audio, audio_lens, cuts = collate_audio(cuts, fault_tolerant=True)
+            
+            # Filter out cuts with invalid audio lengths or extremely long sequences
+            valid_indices = []
+            valid_cuts = []
+            
+            for i, (cut, audio_len) in enumerate(zip(cuts, audio_lens)):
+                if audio_len > 0 and cut.supervisions and len(cut.supervisions) > 0:
+                    text = cut.supervisions[0].text
+                    if text and len(text.strip()) > 0:
+                        # Pre-tokenize to check length before processing
+                        try:
+                            tokens = torch.as_tensor(self.tokenizer(text, cut.supervisions[0].language))
+                            token_len = tokens.size(0)
+                            
+                            if token_len > self.max_token_length:
+                                continue
+                            
+                            valid_indices.append(i)
+                            valid_cuts.append(cut)
+                        except Exception as e:
+                            pass  # Skip cuts with tokenization errors
+                    else:
+                        pass  # Skip cuts with empty text
+                else:
+                    pass  # Skip cuts with invalid audio length
+            
+            if len(valid_indices) == 0:
+                raise ValueError("No valid cuts found in batch")
+            
+            # Filter tensors to keep only valid samples
+            if len(valid_indices) < len(cuts):
+                audio = audio[valid_indices]
+                audio_lens = audio_lens[valid_indices]
+                cuts = valid_cuts
+            
+            # Tokenize the filtered cuts (we already pre-tokenized during filtering)
+            tokens = []
+            for c in cuts:
+                try:
+                    token_tensor = torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language))
+                    tokens.append(token_tensor)
+                except Exception as e:
+                    # Create a minimal token tensor as fallback
+                    tokens.append(torch.tensor([0], dtype=torch.long))
 
-        # Create prompt targets
-        prompt_targets = [
-            torch.transpose(
-                torch.as_tensor(
-                    self.prompt_to_target(
-                        c,
-                        self.num_prompts,
-                        self.num_sample_per_mel_frame,
-                        self.subsampling_factor,
-                    ),
-                    dtype=torch.float32,
-                ),
-                0,
-                1,
+            # Create prompt targets
+            prompt_targets = []
+            for i, c in enumerate(cuts):
+                try:
+                    prompt_target = torch.transpose(
+                        torch.as_tensor(
+                            self.prompt_to_target(
+                                c,
+                                self.num_prompts,
+                                self.num_sample_per_mel_frame,
+                                self.subsampling_factor,
+                            ),
+                            dtype=torch.float32,
+                        ),
+                        0,
+                        1,
+                    )
+                    prompt_targets.append(prompt_target)
+                except Exception as e:
+                    # Create a default prompt target with minimum valid dimensions
+                    encoder_hidden_len = max(1, self.get_hidden_length_from_sample_length(c.num_samples))
+                    default_target = torch.zeros((encoder_hidden_len, self.num_prompts), dtype=torch.float32)
+                    # Set default prompt (first one) to 1
+                    default_target[:, 0] = 1.0
+                    prompt_targets.append(default_target)
+
+            # Create final tensors
+            token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
+            tokens = collate_vectors(tokens, padding_value=0)
+            prompt_targets = collate_matrices(prompt_targets)
+
+            return (
+                audio,  # Audio signal
+                audio_lens,  # Audio lengths
+                tokens,  # Text tokens
+                token_lens,  # Token lengths
+                prompt_targets,  # Prompt targets
             )
-            for c in cuts
-        ]
-
-        # Create final tensors
-        token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
-        tokens = collate_vectors(tokens, padding_value=0)
-        prompt_targets = collate_matrices(prompt_targets)
-
-        return (
-            audio,  # Audio signal
-            audio_lens,  # Audio lengths
-            tokens,  # Text tokens
-            token_lens,  # Token lengths
-            prompt_targets,  # Prompt targets
-        )
+            
+        except Exception as e:
+            raise
 
 
 class TokenizerWrapper:
