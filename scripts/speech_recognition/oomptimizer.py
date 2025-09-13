@@ -26,7 +26,7 @@ from lhotse import compute_num_samples
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models.asr_model import ASRModel
-from nemo.core.neural_types import AudioSignal, ElementType, LabelsType, LengthsType, MaskType, NeuralType
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 
 
@@ -124,7 +124,6 @@ class ProfilingBatchGenerator:
         batch = []
         names = []
         for item in self.schema["inputs"]:
-            print(f"Item: {item}")
             nt = item["type"]
             if isinstance(nt, str) and nt == "constant":
                 if isinstance(val := item["value"], str) and val == "batch":
@@ -144,19 +143,7 @@ class ProfilingBatchGenerator:
                 tnsr = torch.randint(0, item["vocab_size"], size=(B, seq_length), device=self.device)
             elif isinstance(nt.elements_type, MaskType):
                 seq_length = select_seq_length[item["seq_length"]]
-                # Handle different MaskType tensor shapes based on axes
-                if len(nt.axes) == 3:  # (B, T, D) - 3D tensors like prompts
-                    prompt_dim = item.get("prompt_dim", 128)
-                    tnsr = torch.ones(B, seq_length, prompt_dim, device=self.device)
-                else:  # (B, T) - default 2D case
-                    tnsr = torch.ones(B, seq_length, device=self.device)
-            elif isinstance(nt.elements_type, ElementType):
-                seq_length = select_seq_length[item["seq_length"]]
-                if len(nt.axes) == 3:  # (B, T, D) - 3D tensors like prompts
-                    prompt_dim = item.get("prompt_dim", 128)
-                    tnsr = torch.ones(B, seq_length, prompt_dim, device=self.device)
-                else:  # (B, T) - default 2D case
-                    tnsr = torch.ones(B, seq_length, device=self.device)
+                tnsr = torch.ones(B, seq_length, device=self.device)
             else:
                 raise RuntimeError("Unexpected item in oomptimizer schema: {item}")
             batch.append(tnsr)

@@ -189,26 +189,6 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
                 tags:
                   src_lang: pl
                   tgt_lang: en
-    Example 3. Dataset-level prompt field configuration for Lhotse datasets::
-        input_cfg:
-          - corpus: Clotho-v2
-            manifest_filepath: /path/to/manifest.json
-            tarred_audio_filepaths: /path/to/audio.tar
-            type: nemo_tarred
-            prompt_field: audio_describe  # This will use "audio_describe" as the prompt value
-          - corpus: MusicCaps
-            manifest_filepath: /path/to/manifest2.json
-            tarred_audio_filepaths: /path/to/audio2.tar
-            type: nemo_tarred
-            prompt_field: audio_classify  # This will use "audio_classify" as the prompt value
-    Example 4. Force mono channel conversion::
-        input_cfg:
-          - type: group
-            force_mono: true  # Convert all audio to mono channel
-            input_cfg:
-              - type: nemo_tarred
-                manifest_filepath: /path/to/manifest.json
-                tarred_audio_filepaths: /path/to/audio.tar
     """
     propagate_attrs = {
         "shuffle": config.get("shuffle", False),
@@ -223,18 +203,8 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
         "force_map_dataset": config.get("force_map_dataset", False),
         "force_iterable_dataset": config.get("force_iterable_dataset", False),
-        "force_mono": config.get("force_mono", False),
     }
-    
-    # Handle case where input_cfg is a string path
-    input_cfg = config.input_cfg
-    if isinstance(input_cfg, str):
-        # Load the configuration from the file path
-        loaded_config = OmegaConf.load(input_cfg)
-        # Extract the input_cfg content from the loaded configuration
-        input_cfg = loaded_config.input_cfg
-    
-    cuts, is_tarred = parse_and_combine_datasets(input_cfg, propagate_attrs=propagate_attrs)
+    cuts, is_tarred = parse_and_combine_datasets(config.input_cfg, propagate_attrs=propagate_attrs)
     return cuts, is_tarred
 
 
@@ -256,12 +226,6 @@ def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     # Attach extra tags to every utterance dynamically, if provided.
     if (extra_tags := grp_cfg.get("tags")) is not None:
         cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
-    
-    # Attach prompt field information if provided
-    if (prompt := grp_cfg.get("prompt")) is not None:
-        # Use the prompt value itself as the prompt value
-        cuts = cuts.map(partial(attach_prompt_field, prompt_field="prompt", prompt_value=prompt), apply_fn=None)
-    
     return cuts, is_tarred
 
 
@@ -366,17 +330,6 @@ def attach_tags(cut, tags: dict):
     """Attach extra tags to a cut dynamically."""
     for key, val in tags.items():
         setattr(cut, key, val)
-    return cut
-
-
-def attach_prompt_field(cut, prompt_field: str, prompt_value: str):
-    """Attach prompt field information to a cut's supervision."""
-    if cut.supervisions:
-        supervision = cut.supervisions[0]
-        # Set the prompt field in the supervision's custom_fields
-        if not hasattr(supervision, 'custom_fields') or supervision.custom_fields is None:
-            supervision.custom_fields = {}
-        supervision.custom_fields[prompt_field] = prompt_value
     return cut
 
 
