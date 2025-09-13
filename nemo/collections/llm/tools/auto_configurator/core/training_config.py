@@ -12,11 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
+from nemo.collections.llm.tools.auto_configurator.core.performance_utils import (
+    apply_per_config_tp_comm_overlap_optimization,
+)
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 GPT_BASED_MODELS = [
     "gpt3",
@@ -31,25 +37,25 @@ GPT_BASED_MODELS = [
 ]
 
 
-def generate_grid_search_configs(
-    base_cfg: dict,
-    train_cfg: dict,
-) -> Tuple[dict, dict]:
+def generate_grid_search_configs(base_cfg: dict, train_cfg: dict, resource_shape: str) -> Tuple[dict, dict]:
     """Generates the grid of all possible configurations for the given model,
         and stores each different configuration in a yaml file.
 
     Args:
         base_cfg (dict): base configuration of the model to be trained.
         train_cfg (dict): train configuration of the model to be trained.
+        resource_shape (str): resource shape from AutoTuneArgs.
 
     Returns:
         dict: base config.
         dict: generated configs.
+        list: configs that match with base config.
     """
 
     model_name = train_cfg.model_type
     model_size_in_b = train_cfg.model_size_in_b
     path_to_logs = train_cfg.path_to_logs
+    virtual_pipeline_parallel_sizes = train_cfg.virtual_pipeline_model_parallel_sizes
 
     # 2 * num_layers is needed because of encoder/decoder architecture.
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
@@ -70,90 +76,136 @@ def generate_grid_search_configs(
     max_steps = train_cfg.max_steps_per_run
     num_nodes = train_cfg.num_nodes
     valid_tp_pp_list = []
+    # Generate valid TP, PP, CP, EP combinations first
     for tp in params.tp:
         for pp in params.pp:
             for cp in params.cp:
                 for ep in params.ep:
-                    for mbs in params.mbs:
-                        num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
-                        base_cfg.data.global_batch_size = params.gbs
-                        att_heads = base_cfg.model.config.num_attention_heads
-                        num_layers = base_cfg.model.config.num_layers
-                        model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
-                        mod_gbs = params.gbs % (mbs * num_gpus / model_parallelism)
-                        mod_att_heads = att_heads % tp
-                        mod_layers = (multiplier * num_layers) % pp
-                        mod_cp = cp if cp else 1
-                        mod_ep = ep if ep else 1
-                        if (
-                            mod_gbs == 0
-                            and mod_att_heads == 0
-                            and mod_layers == 0
-                            and (tp, pp, cp, ep) not in valid_tp_pp_list
-                            and (mod_cp // mod_ep == mod_cp or mod_ep // mod_cp == mod_ep)
-                            and params.min_model_parallel <= model_parallelism <= params.max_model_parallel
-                        ):
-                            valid_tp_pp_list.append((tp, pp, cp, ep))
+                    att_heads = base_cfg.model.config.num_attention_heads
+                    num_layers = base_cfg.model.config.num_layers
+                    model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
+                    mod_att_heads = att_heads % tp
+                    mod_layers = (multiplier * num_layers) % pp
+                    mod_cp = cp if cp else 1
+                    mod_ep = ep if ep else 1
+                    if (
+                        mod_att_heads == 0
+                        and mod_layers == 0
+                        and (tp, pp, cp, ep) not in valid_tp_pp_list
+                        and (mod_cp // mod_ep == mod_cp or mod_ep // mod_cp == mod_ep)
+                        and params.min_model_parallel <= model_parallelism <= params.max_model_parallel
+                    ):
+                        valid_tp_pp_list.append((tp, pp, cp, ep))
 
     # Generate grid search configs.
     configs = {}
+    logger.debug(f"Generating configs for {len(valid_tp_pp_list)} valid TP/PP/CP/EP combinations")
     for tp, pp, cp, ep in valid_tp_pp_list:
-        (
-            virtual_pipelines,
-            act_ckpt_layers,
-            num_micro_batches_partial_act_ckpt,
-            act_ckpt_layers_per_pipeline,
-        ) = _set_activations_checkpoint_params(
-            tp,
-            pp,
-            cp,
-            ep,
-            num_layers,
-            act_method,
-            multiplier,
-            model_size_in_b,
-            model_name,
-        )
-        for mbs in params.mbs:
-            kwargs = {
-                "base_cfg": base_cfg,
-                "act": None,
-                "num_mbs_act": None,
-                "act_per_pipe": None,
-                "tp": tp,
-                "pp": pp,
-                "cp": cp,
-                "ep": ep,
-                "virtual_pipelines": virtual_pipelines,
-                "mbs": mbs,
-                "max_steps": max_steps,
-                "num_nodes": num_nodes,
-                "path_to_logs": path_to_logs,
-                "model_name": model_name,
-                "model_size": model_size_in_b,
-            }
+        logger.debug(f"Processing TP={tp}, PP={pp}, CP={cp}, EP={ep}")
+        valid_virtual_pipelines = []
 
-            act_layers = None
-            if act_ckpt_layers[0] is not None:
-                if act_layers is not None and act_layers != "auto":
-                    act_ckpt_layers = act_layers
-                for act in act_ckpt_layers:
-                    for num_mbs_act in num_micro_batches_partial_act_ckpt:
-                        for act_per_pipe in act_ckpt_layers_per_pipeline:
-                            kwargs["act"] = act
-                            kwargs["num_mbs_act"] = num_mbs_act
-                            kwargs["act_per_pipe"] = act_per_pipe
-                            new_cfg = utils.modify_cfg(**kwargs)
-                            if new_cfg:  # Save candidate cfg.
-                                configs[new_cfg["name"]] = new_cfg
-            else:
-                new_cfg = utils.modify_cfg(**kwargs)
-                if new_cfg:  # Save candidate cfg.
-                    config_name = new_cfg["name"]
-                    configs[config_name] = new_cfg
+        if virtual_pipeline_parallel_sizes is not None:
+            for vp_size in virtual_pipeline_parallel_sizes:
+                if num_layers % (pp * vp_size) == 0:
+                    valid_virtual_pipelines.append(vp_size)
+        if not valid_virtual_pipelines:
+            (
+                calculated_virtual_pipelines,
+                act_ckpt_layers,
+                num_micro_batches_partial_act_ckpt,
+                act_ckpt_layers_per_pipeline,
+            ) = _set_activations_checkpoint_params(
+                tp,
+                pp,
+                cp,
+                ep,
+                num_layers,
+                act_method,
+                multiplier,
+                model_size_in_b,
+                model_name,
+            )
+            valid_virtual_pipelines = (
+                [calculated_virtual_pipelines] if calculated_virtual_pipelines is not None else [None]
+            )
+        else:
+            (
+                _,
+                act_ckpt_layers,
+                num_micro_batches_partial_act_ckpt,
+                act_ckpt_layers_per_pipeline,
+            ) = _set_activations_checkpoint_params(
+                tp,
+                pp,
+                cp,
+                ep,
+                num_layers,
+                act_method,
+                multiplier,
+                model_size_in_b,
+                model_name,
+            )
+        for virtual_pipelines in valid_virtual_pipelines:
+            for mbs in params.mbs:
+                for gbs in params.gbs:
+                    num_gpus = base_cfg.trainer.num_nodes * base_cfg.trainer.devices
+                    model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
+                    mod_gbs = gbs % (mbs * num_gpus / model_parallelism)
+                    if mod_gbs != 0:
+                        continue
 
-    print(f"\nAll candidate configurations created correctly. Total number of configs: {len(configs)}.\n")
-    return base_cfg, configs
+                    kwargs = {
+                        "base_cfg": base_cfg,
+                        "act": None,
+                        "num_mbs_act": None,
+                        "act_per_pipe": None,
+                        "tp": tp,
+                        "pp": pp,
+                        "cp": cp,
+                        "ep": ep,
+                        "virtual_pipelines": virtual_pipelines,
+                        "mbs": mbs,
+                        "gbs": gbs,
+                        "max_steps": max_steps,
+                        "num_nodes": num_nodes,
+                        "path_to_logs": path_to_logs,
+                        "model_name": model_name,
+                        "model_size": model_size_in_b,
+                    }
+
+                    act_layers = None
+                    if act_ckpt_layers[0] is not None:
+                        if act_layers is not None and act_layers != "auto":
+                            act_ckpt_layers = act_layers
+                        for act in act_ckpt_layers:
+                            for num_mbs_act in num_micro_batches_partial_act_ckpt:
+                                for act_per_pipe in act_ckpt_layers_per_pipeline:
+                                    kwargs["act"] = act
+                                    kwargs["num_mbs_act"] = num_mbs_act
+                                    kwargs["act_per_pipe"] = act_per_pipe
+                    new_cfg = utils.modify_cfg(**kwargs)  # returns None if config is not valid
+                    if new_cfg:  # Save candidate cfg.
+                        new_cfg = apply_per_config_tp_comm_overlap_optimization(new_cfg, base_cfg, resource_shape)
+                        configs[new_cfg["name"]] = new_cfg
+
+    matching_configs = []
+    # logic to find if , for tp, pp, cp, ep, virtual_pipelines, mbs, gbs, seq_len, any generated config matches with base config
+    for config_name, config in configs.items():
+        if (
+            config["tensor_model_parallel_size"] == base_cfg.trainer.strategy.tensor_model_parallel_size
+            and config["pipeline_model_parallel_size"] == base_cfg.trainer.strategy.pipeline_model_parallel_size
+            and config["context_parallel_size"] == base_cfg.trainer.strategy.context_parallel_size
+            and config["expert_model_parallel_size"] == base_cfg.trainer.strategy.expert_model_parallel_size
+            and config["virtual_pipeline_model_parallel_size"]
+            == base_cfg.trainer.strategy.virtual_pipeline_model_parallel_size
+            and config["micro_batch_size"] == base_cfg.data.micro_batch_size
+            and config["global_batch_size"] == base_cfg.data.global_batch_size
+            and config["seq_length"] == base_cfg.model.config.seq_length
+        ):
+            matching_configs.append(config_name)
+
+    logger.debug(f"Generated {len(configs)} total configurations")
+    return base_cfg, configs, matching_configs
 
 
 def _set_activations_checkpoint_params(
@@ -220,7 +272,7 @@ def _set_activations_checkpoint_params(
 
 @dataclass
 class GPT3GridSearch:
-    """Selects grid search space for TP, PP, CP, EP, MBS parameters for GPT-3 and 80GB GPUs.
+    """Selects grid search space for TP, PP, CP, EP, MBS, GBS parameters for GPT-3 and 80GB GPUs.
 
     Args:
         model_size_in_b (float): number of parameters in the model.
@@ -234,13 +286,12 @@ class GPT3GridSearch:
     seq_length: int
     gpu_memory_gb: int
 
-    tp = [1, 2, 4, 8]
-    pp = [1]
-    cp = [1]
-    ep = [1]
-    mbs = [1, 2, 4, 8]
-
-    gbs: int = 1024
+    tp: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    pp: List[int] = field(default_factory=lambda: [1])
+    cp: List[int] = field(default_factory=lambda: [1])
+    ep: List[int] = field(default_factory=lambda: [1])
+    mbs: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    gbs: List[int] = field(default_factory=lambda: [1024])
     min_model_parallel: int = 1
     max_model_parallel: int = 8
 
@@ -250,288 +301,287 @@ class GPT3GridSearch:
         model_size_in_b = self.model_size_in_b
         gpu_memory_gb = self.gpu_memory_gb
         seq_length = self.seq_length
-
         if gpu_memory_gb == 80:
             if seq_length == 2048:
                 if model_size_in_b <= 1.0:
                     self.tp = [1, 2]
-                    self.gbs = 256
+                    self.gbs = [256]
                 elif model_size_in_b <= 4.0:
                     self.tp = [1, 2, 4]
-                    self.gbs = 1024
+                    self.gbs = [1024]
                 elif model_size_in_b <= 8.0:
                     self.tp = [1, 2, 4]
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 13.0:
                     self.tp = [1, 2, 4, 8]
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 23.0:
                     self.tp = [1, 2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 4]
                     self.mbs = [1, 2, 4]
                     self.min_model_parallel = 4
                     self.max_model_parallel = 8
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 45.0:
                     self.tp = [2, 4, 8]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 4]
                     self.mbs = [1, 2, 4]
                     self.min_model_parallel = 8
                     self.max_model_parallel = 32
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 95:
                     self.tp = [2, 4, 8]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 8]
                     self.mbs = [1, 2, 4, 8]
                     self.min_model_parallel = 8
                     self.max_model_parallel = 64
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 130.0:
                     self.tp = [2, 4, 8]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 16]
                     self.mbs = [1, 2, 4, 8]
                     self.min_model_parallel = 16
                     self.max_model_parallel = 128
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 195.0:
                     self.tp = [8]
                     self.pp = [x for x in self.valid_pp if 4 <= x <= 16]
                     self.mbs = [1, 2, 4]
                     self.min_model_parallel = 32
                     self.max_model_parallel = 256
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 395.0:
                     self.tp = [8]
                     self.pp = [x for x in self.valid_pp if 8 <= x <= 32]
                     self.mbs = [1, 2, 4]
                     self.min_model_parallel = 64
                     self.max_model_parallel = 512
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 790.0:
                     self.tp = [8]
                     self.pp = [x for x in self.valid_pp if 8 <= x <= 100]
                     self.mbs = [1, 2, 4]
                     self.min_model_parallel = 128
                     self.max_model_parallel = 1024
-                    self.gbs = 2048
+                    self.gbs = [2048]
                 elif model_size_in_b <= 1100.0:
                     self.tp = [8]
                     self.pp = [x for x in self.valid_pp if 16 <= x <= 130]
                     self.mbs = [1, 2, 4]
                     self.min_model_parallel = 256
                     self.max_model_parallel = 2048
-                    self.gbs = 2048
+                    self.gbs = [2048]
             elif seq_length == 4096:
                 if model_size_in_b <= 1.0:
                     self.tp = [1, 2, 4]
                     self.mbs = [1, 2, 4, 8]
-                    self.gbs = 128
+                    self.gbs = [128]
                 elif model_size_in_b <= 4.0:
                     self.tp = [1, 2, 4]
                     self.mbs = [1, 2, 4, 8]
-                    self.gbs = 512
+                    self.gbs = [512]
                 elif model_size_in_b <= 8.0:
                     self.tp = [1, 2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1, 2, 4]
-                    self.gbs = 1024
+                    self.gbs = [1024]
                 elif model_size_in_b <= 13.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1, 2, 4]
-                    self.gbs = 1024
+                    self.gbs = [1024]
                 elif model_size_in_b <= 23.0:
                     self.tp = [4, 8]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1, 2]
                     self.min_model_parallel = 4
                     self.max_model_parallel = 16
-                    self.gbs = 1024
+                    self.gbs = [1024]
                 elif model_size_in_b <= 45.0:
                     self.tp = [4, 8]
                     self.pp = [x for x in self.valid_pp if 2 <= x <= 4]
                     self.mbs = [1, 2]
                     self.min_model_parallel = 8
                     self.max_model_parallel = 32
-                    self.gbs = 1024
+                    self.gbs = [1024]
                 elif model_size_in_b <= 95:
                     self.tp = [4, 8]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 8]
                     self.mbs = [1, 2]
                     self.min_model_parallel = 8
                     self.max_model_parallel = 64
-                    self.gbs = 1024
+                    self.gbs = [1024]
             elif seq_length == 8192:
                 if model_size_in_b <= 1.0:
                     self.tp = [1, 2]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1, 2, 4]
-                    self.gbs = 64
+                    self.gbs = [64]
                 elif model_size_in_b <= 4.0:
                     self.tp = [1, 2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1, 2, 4]
-                    self.gbs = 128
+                    self.gbs = [128]
                 elif model_size_in_b <= 8.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1, 2]
-                    self.gbs = 256
+                    self.gbs = [256]
                 elif model_size_in_b <= 13.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1, 2]
-                    self.gbs = 256
+                    self.gbs = [256]
                 elif model_size_in_b <= 23.0:
                     self.tp = [4, 8]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 4]
                     self.mbs = [1]
                     self.min_model_parallel = 8
                     self.max_model_parallel = 32
-                    self.gbs = 256
+                    self.gbs = [256]
                 elif model_size_in_b <= 45.0:
                     self.tp = [8]
                     self.pp = [x for x in self.valid_pp if 4 <= x <= 8]
                     self.mbs = [1]
                     self.min_model_parallel = 32
                     self.max_model_parallel = 64
-                    self.gbs = 256
+                    self.gbs = [256]
             elif seq_length == 16384:
                 if model_size_in_b <= 1.0:
                     self.tp = [2, 4]
                     self.mbs = [1, 2]
-                    self.gbs = 32
+                    self.gbs = [32]
                 elif model_size_in_b <= 4.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1]
-                    self.gbs = 64
+                    self.gbs = [64]
                 elif model_size_in_b <= 8.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1]
-                    self.gbs = 128
+                    self.gbs = [128]
                 elif model_size_in_b <= 13.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1]
-                    self.gbs = 128
+                    self.gbs = [128]
                 elif model_size_in_b <= 23.0:
                     self.tp = [4, 8]
                     self.pp = [x for x in self.valid_pp if 2 <= x <= 4]
                     self.mbs = [1]
                     self.min_model_parallel = 8
                     self.max_model_parallel = 32
-                    self.gbs = 128
+                    self.gbs = [128]
             elif seq_length == 32768:
                 if model_size_in_b <= 1.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1]
-                    self.gbs = 16
+                    self.gbs = [16]
                 elif model_size_in_b <= 4.0:
                     self.tp = [2, 4]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.mbs = [1]
-                    self.gbs = 32
+                    self.gbs = [32]
                 elif model_size_in_b <= 8.0:
                     self.tp = [4, 8]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.min_model_parallel = 4
                     self.max_model_parallel = 16
                     self.mbs = [1]
-                    self.gbs = 64
+                    self.gbs = [64]
                 elif model_size_in_b <= 13.0:
                     self.tp = [4, 8]
                     self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                     self.min_model_parallel = 4
                     self.max_model_parallel = 16
                     self.mbs = [1]
-                    self.gbs = 64
+                    self.gbs = [64]
                 elif model_size_in_b <= 23.0:
                     self.tp = [8]
                     self.pp = [x for x in self.valid_pp if 2 <= x <= 4]
                     self.mbs = [1]
                     self.min_model_parallel = 16
                     self.max_model_parallel = 32
-                    self.gbs = 64
+                    self.gbs = [64]
         elif gpu_memory_gb == 40:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2, 4]
                 self.mbs = [1, 2, 4, 8]
-                self.gbs = 256
+                self.gbs = [256]
             elif model_size_in_b <= 4.0:
                 self.tp = [1, 2, 4, 8]
                 self.mbs = [1, 2, 4, 8]
-                self.gbs = 1024
+                self.gbs = [1024]
             elif model_size_in_b <= 8.0:
                 self.tp = [2, 4, 8]
                 self.pp = [1, 2]
                 self.mbs = [1, 2, 4]
                 self.min_model_parallel = 2
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 13.0:
                 self.tp = [4, 8]
                 self.pp = [1, 2, 4]
                 self.mbs = [1, 2, 4]
                 self.min_model_parallel = 4
                 self.max_model_parallel = 32
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 23.0:
                 self.tp = [2, 4, 8]
                 self.pp = [x for x in self.valid_pp if 1 <= x <= 8]
                 self.min_model_parallel = 8
                 self.max_model_parallel = 64
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 45.0:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 1 <= x <= 12]
                 self.mbs = [1, 2, 4]
                 self.min_model_parallel = 16
                 self.max_model_parallel = 128
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 95:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 1 <= x <= 16]
                 self.mbs = [1, 2, 4]
                 self.min_model_parallel = 16
                 self.max_model_parallel = 256
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 130.0:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 2 <= x <= 26]
                 self.mbs = [1, 2]
                 self.min_model_parallel = 32
                 self.max_model_parallel = 512
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 195.0:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 2 <= x <= 32]
                 self.mbs = [1, 2]
                 self.min_model_parallel = 64
                 self.max_model_parallel = 1024
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 395.0:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 4 <= x <= 64]
                 self.mbs = [1, 2]
                 self.min_model_parallel = 128
                 self.max_model_parallel = 2048
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 790.0:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 8 <= x <= 128]
                 self.mbs = [1, 2]
                 self.min_model_parallel = 256
                 self.max_model_parallel = 4096
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 1100.0:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 8 <= x <= 192]
                 self.mbs = [1, 2]
                 self.min_model_parallel = 512
                 self.max_model_parallel = 8192
-                self.gbs = 2048
+                self.gbs = [2048]
 
 
 @dataclass
@@ -550,13 +600,13 @@ class T5GridSearch:
     gpu_memory_gb: int
     valid_pp: List[int]
 
-    tp = [1, 2, 4, 8]
-    pp = [1]
-    cp = [None]
-    ep = [None]
-    mbs = [1, 2, 4, 6, 8, 12, 16]
+    tp: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    pp: List[int] = field(default_factory=lambda: [1])
+    cp: List[int] = field(default_factory=lambda: [None])
+    ep: List[int] = field(default_factory=lambda: [None])
+    mbs: List[int] = field(default_factory=lambda: [1, 2, 4, 6, 8, 12, 16])
 
-    gbs: int = 1920
+    gbs: List[int] = field(default_factory=lambda: [1920])
     min_model_parallel: int = 1
     max_model_parallel: int = 8
 
@@ -570,109 +620,109 @@ class T5GridSearch:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2]
                 self.mbs = [16, 32, 64, 128]
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 4.0:
                 self.tp = [1, 2, 4]
                 self.mbs = [4, 6, 8, 12, 16, 24, 32, 48]
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 8.0:
                 self.tp = [2, 4, 8]
                 self.mbs = [4, 6, 8, 12, 16, 24, 32]
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 14.5:
                 self.tp = [4, 8]
                 self.mbs = [2, 4, 6, 8, 12, 16, 24]
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 25.9:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                 self.mbs = [1, 2, 4, 6, 8]
                 self.min_model_parallel = 4
                 self.max_model_parallel = 16
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 43.0:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 1 <= x <= 4]
                 self.mbs = [1, 2, 4, 6, 8]
                 self.min_model_parallel = 8
                 self.max_model_parallel = 32
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 85.5:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 2 <= x <= 8]
                 self.mbs = [1, 2, 4, 6, 8]
                 self.min_model_parallel = 16
                 self.max_model_parallel = 64
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 165.5:
                 self.tp = [8]
                 self.pp = [x for x in self.valid_pp if 4 <= x <= 16]
                 self.mbs = [1, 2, 4, 6]
                 self.min_model_parallel = 32
                 self.max_model_parallel = 128
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 250:
                 self.tp = [8]
                 self.pp = [x for x in self.valid_pp if 4 <= x <= 32]
                 self.mbs = [1, 2, 4, 6, 8]
                 self.min_model_parallel = 64
                 self.max_model_parallel = 256
-                self.gbs = 1920
+                self.gbs = [1920]
         elif gpu_memory_gb == 40:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2]
                 self.mbs = [16, 32, 64, 128]
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 4.0:
                 self.tp = [1, 2, 4]
                 self.mbs = [4, 8, 12, 16, 24, 32, 48]
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 8.0:
                 self.tp = [2, 4, 8]
                 self.mbs = [4, 6, 8, 12, 16, 24]
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 14.5:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 1 <= x <= 2]
                 self.mbs = [2, 4, 6, 8, 12, 16]
                 self.min_model_parallel = 4
                 self.max_model_parallel = 16
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 25.9:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 1 <= x <= 8]
                 self.mbs = [1, 2, 4, 6, 8]
                 self.min_model_parallel = 8
                 self.max_model_parallel = 32
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 43.0:
                 self.tp = [4, 8]
                 self.pp = [x for x in self.valid_pp if 1 <= x <= 8]
                 self.mbs = [1, 2, 4, 6, 8]
                 self.min_model_parallel = 16
                 self.max_model_parallel = 32
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 85.5:
                 self.tp = [8]
                 self.pp = [x for x in self.valid_pp if 2 <= x <= 8]
                 self.mbs = [1, 2, 4, 6, 8]
                 self.min_model_parallel = 32
                 self.max_model_parallel = 64
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 165.5:
                 self.tp = [8]
                 self.pp = [x for x in self.valid_pp if 4 <= x <= 32]
                 self.mbs = [1, 2, 4]
                 self.min_model_parallel = 64
                 self.max_model_parallel = 128
-                self.gbs = 1920
+                self.gbs = [1920]
             elif model_size_in_b <= 250:
                 self.tp = [8]
                 self.pp = [x for x in self.valid_pp if 8 <= x <= 64]
                 self.mbs = [1, 2, 4]
                 self.min_model_parallel = 128
                 self.max_model_parallel = 256
-                self.gbs = 1920
+                self.gbs = [1920]
 
 
 @dataclass
@@ -691,13 +741,13 @@ class BertGridSearch:
     gpu_memory_gb: int
     valid_pp: List[int]
 
-    tp = [1, 2, 4, 8]
-    pp = [1]
-    cp = [None]
-    ep = [None]
-    mbs = [1, 2, 4, 6, 8, 12, 16]
+    tp: List[int] = field(default_factory=lambda: [1, 2, 4, 8])
+    pp: List[int] = field(default_factory=lambda: [1])
+    cp: List[int] = field(default_factory=lambda: [None])
+    ep: List[int] = field(default_factory=lambda: [None])
+    mbs: List[int] = field(default_factory=lambda: [1, 2, 4, 6, 8, 12, 16])
 
-    gbs: int = 1920
+    gbs: List[int] = field(default_factory=lambda: [1920])
     min_model_parallel: int = 1
     max_model_parallel: int = 8
 
@@ -710,104 +760,104 @@ class BertGridSearch:
         if gpu_memory_gb == 80:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2]
-                self.gbs = 256
+                self.gbs = [256]
             elif model_size_in_b <= 4.0:
                 self.tp = [1, 2, 4]
-                self.gbs = 1024
+                self.gbs = [1024]
             elif model_size_in_b <= 8.0:
                 self.tp = [2, 4, 8]
                 self.min_model_parallel = 2
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 13.0:
                 self.tp = [2, 4, 8]
                 self.mbs = [1, 2, 3, 4, 6]
                 self.min_model_parallel = 2
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 25.0:
                 self.tp = [4, 8]
                 self.mbs = [1, 2, 3, 4]
                 self.min_model_parallel = 4
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 46.5:
                 self.tp = [4, 8]
                 self.pp = [1, 2, 4]
                 self.mbs = [1, 2, 3, 4]
                 self.min_model_parallel = 4
                 self.max_model_parallel = 16
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 87.5:
                 self.tp = [4, 8]
                 self.pp = [2, 4, 6, 8]
                 self.mbs = [1, 2, 3, 4]
                 self.min_model_parallel = 8
                 self.max_model_parallel = 32
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 165.5:
                 self.tp = [4, 8]
                 self.pp = [4, 6, 8, 16]
                 self.mbs = [2, 4, 6, 8]
                 self.min_model_parallel = 16
                 self.max_model_parallel = 128
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 250.5:
                 self.tp = [8]
                 self.pp = [4, 8, 16, 32]
                 self.mbs = [1, 2, 3, 4]
                 self.min_model_parallel = 32
                 self.max_model_parallel = 256
-                self.gbs = 2048
+                self.gbs = [2048]
             else:
                 raise ValueError("No BERT model larger than 250B parameters is supported.")
         elif gpu_memory_gb == 40:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2, 4]
-                self.gbs = 256
+                self.gbs = [256]
             elif model_size_in_b <= 4.0:
                 self.tp = [1, 2, 4, 8]
-                self.gbs = 1024
+                self.gbs = [1024]
             elif model_size_in_b <= 8.0:
                 self.tp = [2, 4, 8]
                 self.mbs = [1, 2, 4]
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 13.0:
                 self.tp = [2, 4, 8]
                 self.mbs = [1, 2, 4]
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 25.0:
                 self.tp = [2, 4, 8]
                 self.pp = [1, 2]
                 self.mbs = [1, 2, 4]
                 self.min_model_parallel = 2
                 self.max_model_parallel = 16
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 46.5:
                 self.tp = [4, 8]
                 self.pp = [1, 2, 4, 8]
                 self.mbs = [1, 2, 3]
                 self.min_model_parallel = 8
                 self.max_model_parallel = 32
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 87.5:
                 self.tp = [4, 8]
                 self.pp = [2, 4, 6, 8]
                 self.mbs = [1, 2, 3]
                 self.min_model_parallel = 16
                 self.max_model_parallel = 64
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 165.5:
                 self.tp = [8]
                 self.pp = [4, 6, 8, 16]
                 self.mbs = [1, 2]
                 self.min_model_parallel = 32
                 self.max_model_parallel = 256
-                self.gbs = 2048
+                self.gbs = [2048]
             elif model_size_in_b <= 250.5:
                 self.tp = [8]
                 self.pp = [8, 16, 32]
                 self.mbs = [1, 2]
                 self.min_model_parallel = 64
                 self.max_model_parallel = 512
-                self.gbs = 2048
+                self.gbs = [2048]
             else:
                 raise ValueError("No BERT model larger than 250B parameters is supported.")
 
@@ -819,7 +869,7 @@ def _calculate_tp_pp_mbs_grid(
     seq_length: int,
     train_cfg: dict,
 ) -> Tuple[int, int, int]:
-    """Selects grid search space for TP, PP, MBS parameters for any model,
+    """Selects grid search space for TP, PP, MBS, GBS parameters for any model,
         and calls the necessary heuristics function accordingly.
 
     Args:
@@ -843,7 +893,7 @@ def _calculate_tp_pp_mbs_grid(
     min_model_parallel_size = train_cfg.min_model_parallel_size
     max_model_parallel_size = train_cfg.max_model_parallel_size
     mbs_sizes = train_cfg.micro_batch_sizes
-    gbs_size = train_cfg.global_batch_size
+    gbs_sizes = train_cfg.global_batch_sizes
     gpu_memory_gb = train_cfg.gpu_memory_gb
     multiplier = 1 if model_name in GPT_BASED_MODELS else 2
     init_pp = [] if model_name in GPT_BASED_MODELS else [1]
@@ -871,7 +921,7 @@ def _calculate_tp_pp_mbs_grid(
     params.init_params()
 
     mode = train_cfg.mode
-    # Override the tp, pp, mbs search if indicated in the config params.
+    # Override the tp, pp, mbs, gbs search if indicated in the config params.
     if (tp_sizes is not None and tp_sizes != "auto") or mode == "finetune":
         params.tp = tp_sizes
     if (pp_sizes is not None and pp_sizes != "auto") or mode == "finetune":
@@ -881,9 +931,15 @@ def _calculate_tp_pp_mbs_grid(
     if (ep_sizes is not None and ep_sizes != "auto") or mode == "finetune":
         params.ep = ep_sizes
     if (mbs_sizes is not None and mbs_sizes != "auto") or mode == "finetune":
-        params.mbs = mbs_sizes
-    if (gbs_size is not None and gbs_size != "auto") or mode == "finetune":
-        params.gbs = gbs_size
+        if isinstance(mbs_sizes, list):
+            params.mbs = mbs_sizes
+        else:
+            params.mbs = [mbs_sizes]
+    if (gbs_sizes is not None and gbs_sizes != "auto") or mode == "finetune":
+        if isinstance(gbs_sizes, list):
+            params.gbs = gbs_sizes
+        else:
+            params.gbs = [gbs_sizes]
     if (min_model_parallel_size is not None and min_model_parallel_size != "auto") or mode == "finetune":
         params.min_model_parallel = min_model_parallel_size
     if (max_model_parallel_size is not None and max_model_parallel_size != "auto") or mode == "finetune":
