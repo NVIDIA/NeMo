@@ -16,6 +16,7 @@
 from typing import List
 
 import torch
+from torch import Tensor
 
 from nemo.collections.asr.inference.asr.asr_inference import ASRInference
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
@@ -62,21 +63,21 @@ class CTCInference(ASRInference):
         else:
             return self.asr_model.ctc_decoder.vocabulary
 
-    def get_subsampling_factor(self):
+    def get_subsampling_factor(self) -> int:
         """
         Returns:
             (int) subsampling factor for the ASR encoder model.
         """
         return self.asr_model.encoder.subsampling_factor
 
-    def get_logprobs(self, processed_signal: torch.Tensor, processed_signal_length: torch.Tensor) -> torch.Tensor:
+    def get_logprobs(self, processed_signal: Tensor, processed_signal_length: Tensor) -> Tensor:
         """
         Get log probabilities from the model. It is used for streaming inference.
         Args:
-            processed_signal: (torch.Tensor) processed signal. Shape is torch.Size([B, C, T]).
-            processed_signal_length: (torch.Tensor) processed signal length. Shape is torch.Size([B]).
+            processed_signal: (Tensor) processed signal. Shape is torch.Size([B, C, T]).
+            processed_signal_length: (Tensor) processed signal length. Shape is torch.Size([B]).
         Returns:
-            log_probs: (torch.Tensor) log probabilities. Shape is torch.Size([B, T, V+1]).
+            log_probs: (Tensor) log probabilities. Shape is torch.Size([B, T, V+1]).
         """
         if processed_signal.device != self.device:
             processed_signal = processed_signal.to(self.device)

@@ -13,9 +13,10 @@
 # limitations under the License.
 
 
-from typing import List
+from typing import List, Tuple
 
 import torch
+from torch import Tensor
 
 from nemo.collections.asr.inference.asr.asr_inference import ASRInference
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
@@ -56,21 +57,21 @@ class RNNTInference(ASRInference):
         """
         return self.asr_model.joint.vocabulary
 
-    def get_subsampling_factor(self):
+    def get_subsampling_factor(self) -> int:
         """
         Returns:
             (int) subsampling factor for the ASR encoder model.
         """
         return self.asr_model.encoder.subsampling_factor
 
-    def encode(self, processed_signal: torch.Tensor, processed_signal_length: torch.Tensor) -> torch.Tensor:
+    def encode(self, processed_signal: Tensor, processed_signal_length: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Get encoder output from the model. It is used for streaming inference.
         Args:
-            processed_signal: (torch.Tensor) processed signal. Shape is torch.Size([B, C, T]).
-            processed_signal_length: (torch.Tensor) processed signal length. Shape is torch.Size([B]).
+            processed_signal: (Tensor) processed signal. Shape is torch.Size([B, C, T]).
+            processed_signal_length: (Tensor) processed signal length. Shape is torch.Size([B]).
         Returns:
-            encoder_output: (torch.Tensor) encoder output. Shape is torch.Size([B, T, D]).
+            encoder_output: (Tensor) encoder output. Shape is torch.Size([B, T, D]).
         """
         if processed_signal.device != self.device:
             processed_signal = processed_signal.to(self.device)
@@ -91,12 +92,12 @@ class RNNTInference(ASRInference):
         encoded, encoded_len = forward_outs
         return encoded, encoded_len
 
-    def decode(self, encoded: torch.Tensor, encoded_len: torch.Tensor, partial_hypotheses: List) -> List:
+    def decode(self, encoded: Tensor, encoded_len: Tensor, partial_hypotheses: List) -> List:
         """
         RNNT decoding function
         Args:
-            encoded: (torch.Tensor) encoder output.
-            encoded_len: (torch.Tensor) encoder output length.
+            encoded: (Tensor) encoder output.
+            encoded_len: (Tensor) encoder output length.
             partial_hypotheses: (List) list of partial hypotheses for stateful decoding.
         Returns:
             (List) list of best hypotheses.
