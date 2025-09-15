@@ -490,7 +490,7 @@ class SqueezeExcite(nn.Module):
 
             y = torch.sigmoid(y)
             y = x * y
-        
+
         y = y.to(dtype)
         return y, lengths
 
