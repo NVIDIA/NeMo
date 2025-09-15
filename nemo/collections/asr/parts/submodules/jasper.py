@@ -478,9 +478,11 @@ class SqueezeExcite(nn.Module):
             mask = self.make_pad_mask(lengths, max_audio_length=max_len, device=x.device)
             mask = ~mask  # 0 represents value, 1 represents pad
 
-            # Commented out the below cast in v2.5.0 to fix dtype errors when running examples/asr/transcribe_speech.py on ASR models that use jasper.py encoder.
-            # Observed minimal changes in model outputs from this change.
-            # x = x.float()
+            # Ensure SE runs in FP32: cast fc weights and activations to float32
+            if self.fc[0].weight.dtype != torch.float32:
+                self.fc.float()
+            if x.dtype != torch.float32:
+                x = x.float()
 
             x = x.masked_fill(mask, 0.0)  # mask padded values explicitly to 0
             y = self._se_pool_step(x, mask)  # [B, C, 1]
@@ -494,6 +496,8 @@ class SqueezeExcite(nn.Module):
 
             y = torch.sigmoid(y)
             y = x * y
+            # Cast back to original dtype for downstream consistency
+            y = y.to(dtype)
         return y, lengths
 
     def _se_pool_step(self, x, mask):
