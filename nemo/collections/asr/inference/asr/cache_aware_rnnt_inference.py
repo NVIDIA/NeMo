@@ -25,6 +25,7 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
 class CacheAwareRNNTInference(CacheAwareASRInference):
+
     def __post_init__(self) -> None:
         """
         Additional post initialization step

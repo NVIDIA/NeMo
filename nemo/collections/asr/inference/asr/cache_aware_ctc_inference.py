@@ -24,6 +24,7 @@ from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 
 
 class CacheAwareCTCInference(CacheAwareASRInference):
+
     def __post_init__(self) -> None:
         """
         Additional post initialization step

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 from torch import Tensor
 
