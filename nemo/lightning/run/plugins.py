@@ -429,6 +429,13 @@ class PerfEnvPlugin(run.Plugin):
                         pytorch_cuda_alloc_conf.remove("expandable_segments:True")
                         executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"] = ",".join(pytorch_cuda_alloc_conf)
 
+            if task.model.config.enable_cuda_graph and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+                logging.warning(
+                    "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True is not currently compatible with"
+                    "CUDA graphs. Removing expandable_segments:True from the list."
+                )
+                del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
+
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):
             vboost_cmd = self.get_vboost_srun_cmd(executor.nodes, executor.tunnel.job_dir)
