@@ -9,7 +9,7 @@ ijson
 jieba
 markdown2
 matplotlib>=3.3.2
-megatron_core==0.5.0
+megatron_core>=0.12.0
 multi-storage-client>=0.21.0
 nltk>=3.6.5
 numpy<2  # tensorstore has an implicit compiled dependency on numpy<2
