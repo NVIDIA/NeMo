@@ -402,4 +402,13 @@ def parse_cli_args():
         default=None,
     )
 
+    # Control whether the launched experiment detaches from the terminal
+    parser.add_argument(
+        "--detach",
+        help="Detach from experiment. Default is True. Unset to keep the process running.",
+        type=bool_arg,
+        required=False,
+        default=True,
+    )
+
     return parser
