@@ -10,4 +10,3 @@ wandb
 webdataset>=0.2.86
 nv-one-logger-core>=2.0.0
 nv-one-logger-training-telemetry>=2.0.0
-nv-one-logger-wandb>=2.0.1
