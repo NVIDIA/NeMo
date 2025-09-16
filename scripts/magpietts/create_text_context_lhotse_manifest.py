@@ -87,10 +87,10 @@ from tqdm import tqdm
 def batch_replace_and_write(cut_filepath, new_cut_filepath, dataset_name):
     """
     Process a single Lhotse shard file by replacing audio context with text context.
-    
+
     This function loads a CutSet from a shard file, applies the text context transformation
     to each cut, and saves the modified CutSet to a new file.
-    
+
     Args:
         cut_filepath (str): Path to the input shard file (e.g., cuts.000000.jsonl.gz)
         new_cut_filepath (str): Path where the modified shard file will be saved
@@ -106,24 +106,24 @@ def batch_replace_and_write(cut_filepath, new_cut_filepath, dataset_name):
 def replace_audio_context_with_text_context(cut, dataset_name):
     """
     Replace audio context information with text context for a single cut.
-    
+
     This function extracts speaker and speaker suffix information from the supervision ID
     and creates a text-based context string. The parsing logic varies by dataset
     due to different ID formats.
-    
+
     Args:
         cut: A Lhotse Cut object containing audio and supervision information
         dataset_name (str): Name of the dataset, determines parsing logic:
             - "rivaLindyRodney": Uses items[4] as speaker suffix
             - "rivaEmmaMeganSeanTom": Extracts middle parts of items[4] split by "_"
             - "jhsdGtc20Amp20Keynote": Uses items[3] as speaker suffix
-    
+
     Returns:
         cut: The modified Cut object with updated custom context information
-        
+
     Raises:
         ValueError: If dataset_name is not one of the supported datasets
-        
+
     Example:
         For a cut with speaker "Rodney" and supervision ID "sup-rec-Rodney-44khz-CMU_HAPPY-RODNEY_CMU_HAPPY_000452",
         this might create context_text: "Speaker and Emotion: | Language:en Dataset:rivaLindyRodney Speaker:Rodney_CMU_HAPPY |"
@@ -156,21 +156,21 @@ def replace_audio_context_with_text_context(cut, dataset_name):
 def find_and_verify_shards(cuts_dir: str):
     """
     Find and validate all Lhotse shard files in the specified directory.
-    
+
     This function searches for shard files matching the pattern "cuts.*.jsonl.gz"
     and verifies that the shard indices are contiguous starting from 0. This ensures
     that all shards are present and properly numbered for processing.
-    
+
     Args:
         cuts_dir (str): Directory path containing the shard files
-        
+
     Returns:
         list[str]: Sorted list of paths to all shard files
-        
+
     Raises:
         FileNotFoundError: If no shard files are found matching the expected pattern
         ValueError: If shard indices are not contiguous or don't start from 0
-        
+
     Example:
         If cuts_dir contains files: cuts.000000.jsonl.gz, cuts.000001.jsonl.gz, cuts.000002.jsonl.gz
         Returns: ['/path/to/cuts.000000.jsonl.gz', '/path/to/cuts.000001.jsonl.gz', '/path/to/cuts.000002.jsonl.gz']
