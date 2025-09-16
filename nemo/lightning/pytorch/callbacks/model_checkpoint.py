@@ -675,7 +675,7 @@ class ModelCheckpoint(PTLModelCheckpoint):
 
             logging.info(f'Async checkpoint save for step {global_step} ({filepath}) finalized successfully.')
             # Notify callback group of successful async checkpoint completion
-            CallbackGroup.get_instance().on_save_checkpoint_success(global_step=trainer.global_step)
+            CallbackGroup.get_instance().on_save_checkpoint_success(global_step=global_step)
 
             if str(filepath) in self.ckpts_to_link:
                 self._link_checkpoint(trainer, filepath, self.ckpts_to_link.pop(filepath), override_async=True)
