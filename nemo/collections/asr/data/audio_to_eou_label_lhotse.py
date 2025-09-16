@@ -13,16 +13,14 @@
 # limitations under the License.
 
 import math
-import unicodedata
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch.utils.data
 from lhotse.cut import Cut, CutSet, MixedCut
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
-from lhotse.lazy import Dillable, LazyIteratorChain
 from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations
@@ -45,6 +43,13 @@ EOU_PROHIBITED_AUGMENTATIONS = ['random_segment']
 
 
 def first_supervised_cut(maybe_mixed_cut):
+    """
+    Get the first supervised cut from a mixed cut, skip the noise cut in case the noise cut has supervision.
+    Args:
+        maybe_mixed_cut: Cut or MixedCut
+    Returns:
+        Cut: The first supervised cut from the mixed cut
+    """
     if isinstance(maybe_mixed_cut, MixedCut):
         return [
             t.cut
@@ -56,6 +61,10 @@ def first_supervised_cut(maybe_mixed_cut):
 
 @dataclass
 class AudioToTextEOUBatch:
+    """
+    Data class for ASR-EOU batch.
+    """
+
     sample_ids: List | None = None
     audio_filepaths: List | None = None
     audio_signal: torch.Tensor | None = None
@@ -79,41 +88,6 @@ class RandomPaddingConfig:
     normal_std: float = 2.0  # standard deviation of normal distribution for padding duration
     pre_pad_duration: float = 0.2  # amount of left-padding when pad_distribution='constant'
     post_pad_duration: float = 3.0  # amount of right-padding when pad_distribution='constant'
-
-
-def unicode_to_ascii(text: str) -> str:
-    """
-    Converts text with accented or special Latin characters (e.g., ó, ñ, ū, ō)
-    into their closest ASCII equivalents.
-    """
-    # Normalize the string to NFKD to separate base characters from diacritics
-    normalized = unicodedata.normalize('NFKD', text)
-
-    # Encode to ASCII bytes, ignoring characters that can't be converted
-    ascii_bytes = normalized.encode('ascii', 'ignore')
-
-    # Decode back to string
-    ascii_text = ascii_bytes.decode('ascii')
-
-    return ascii_text
-
-
-def drop_pnc(text: str) -> str:
-    """
-    Clean the text by removing invalid characters and converting to lowercase.
-
-    :param text: Input text.
-    :return: Cleaned text.
-    """
-    valid_chars = "abcdefghijklmnopqrstuvwxyz'"
-    text = text.lower()
-    text = unicode_to_ascii(text)
-    text = text.replace(":", " ")
-    text = text.replace("-", " ")
-    text = text.replace("_", " ")
-    text = ''.join([c for c in text if c in valid_chars or c.isspace()])
-    text = ' '.join(text.split()).strip()
-    return text
 
 
 class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
@@ -200,7 +174,6 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         self.return_cuts = return_cuts
         self.eou_string = self.cfg.get('eou_string', EOU_STRING)
         self.eob_string = self.cfg.get('eob_string', EOB_STRING)
-        self.drop_pnc = self.cfg.get('drop_pnc', False)
         if cfg.get('check_tokenizer', True):
             self._check_special_tokens(tokenizer)
 
@@ -260,6 +233,9 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             )
 
     def _simple_getitem(self, cuts: CutSet) -> AudioToTextEOUBatch:
+        """
+        Simple getitem function when skipping all augmentations.
+        """
         audio, audio_lens, cuts = self.load_audio(cuts)
         if self.return_cuts:
             return audio, audio_lens, cuts
@@ -406,6 +382,14 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         return eou_targets
 
     def _get_frame_labels(self, cut: Cut, num_samples: int):
+        """
+        Get the frame-level EOU labels for a single audio segment.
+        Args:
+            cut: Cut object
+            num_samples: int, the number of samples in the audio segment
+        Returns:
+            eou_targets: torch.Tensor of EOU labels, shape [T]
+        """
         hidden_length = self._audio_len_to_frame_len(num_samples)
         if not "sou_time" in cut.custom or not "eou_time" in cut.custom:
             # assume only single speech segment
@@ -458,6 +442,13 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         return eou_targets
 
     def _get_text_tokens(self, cut: Cut):
+        """
+        Add EOU labels to the text and get the text tokens for a single audio segment.
+        Args:
+            cut: Cut object
+        Returns:
+            text_tokens: torch.Tensor of text tokens, shape [T]
+        """
         if not cut.has_custom("sou_time") or not cut.has_custom("eou_time") or not cut.has_custom("utterances"):
             # assume only single speech segment
             utterances = [cut.supervisions[0].text]
@@ -482,8 +473,6 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             if not text:
                 # skip empty utterances
                 continue
-            if self.drop_pnc:
-                text = drop_pnc(text)
             if self.add_eou_to_text:
                 eou_string = self.eob_string if is_backchannel[i] and not self.ignore_eob_label else self.eou_string
                 if self.add_sep_before_eou:
@@ -635,111 +624,3 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         audio_len = audio.size(0)
 
         return audio, audio_len
-
-
-def lhotse_asr_eou_cut_random_pad_transform(config: DictConfig, cut: Cut):
-    """
-    perform random padding to data
-    """
-    padding_cfg = OmegaConf.to_container(config, resolve=True)
-    padding_cfg = RandomPaddingConfig(**padding_cfg)
-    p = np.random.rand()
-    if not padding_cfg or p > padding_cfg.prob:
-        # do nothing
-        return cut
-
-    duration = cut.duration
-    # if already longer than the maximum duration, return the original audio
-    if duration >= padding_cfg.max_total_duration:
-        return cut
-
-    if isinstance(cut, MixedCut):
-        cut = cut.first_non_padding_cut
-    sou_time = cut.custom.get("sou_time", None)
-    if sou_time is None:
-        sou_time = [float(cut.start)]
-    elif not isinstance(sou_time, list):
-        sou_time = [sou_time]
-
-    eou_time = cut.custom.get("eou_time", None)
-    if eou_time is None:
-        eou_time = [float(cut.start) + duration]
-    elif not isinstance(eou_time, list):
-        eou_time = [eou_time]
-
-    cut.custom["origin_sou_time"] = sou_time
-    cut.custom["origin_eou_time"] = eou_time
-
-    max_padding_duration = max(0, padding_cfg.max_total_duration - duration)
-    padding_cfg.min_pre_pad_duration = max(padding_cfg.min_pre_pad_duration, padding_cfg.min_pad_duration)
-    padding_cfg.min_post_pad_duration = max(padding_cfg.min_post_pad_duration, padding_cfg.min_pad_duration)
-    if max_padding_duration <= padding_cfg.min_pre_pad_duration + padding_cfg.min_post_pad_duration:
-        min_padding_duration = 0
-    else:
-        min_padding_duration = padding_cfg.min_pre_pad_duration + padding_cfg.min_post_pad_duration
-
-    pre_padding_duration = None
-    post_padding_duration = None
-
-    if padding_cfg.pad_distribution == 'uniform':
-        total_padding_duration = np.random.uniform(min_padding_duration, max_padding_duration)
-    elif padding_cfg.pad_distribution == 'normal':
-        total_padding_duration = np.random.normal(padding_cfg.normal_mean, padding_cfg.normal_std)
-        total_padding_duration = max(min_padding_duration, min(max_padding_duration, total_padding_duration))
-    elif padding_cfg.pad_distribution == 'constant':
-        pass
-    else:
-        raise ValueError(
-            f"Unknown padding distribution: {padding_cfg.pad_distribution}, choices in ['uniform', 'normal', 'constant]"
-        )
-
-    if padding_cfg.pad_distribution == 'constant':
-        pre_padding_duration = padding_cfg.pre_pad_duration
-        post_padding_duration = padding_cfg.post_pad_duration
-    elif min_padding_duration == 0:
-        pre_padding_duration = total_padding_duration / 2
-        post_padding_duration = total_padding_duration / 2
-    else:
-        post_padding_duration = np.random.uniform(
-            padding_cfg.min_post_pad_duration, total_padding_duration - padding_cfg.min_pre_pad_duration
-        )
-        pre_padding_duration = total_padding_duration - post_padding_duration
-
-    if padding_cfg.max_pad_duration is not None:
-        pre_padding_duration = min(pre_padding_duration, padding_cfg.max_pad_duration)
-        post_padding_duration = min(post_padding_duration, padding_cfg.max_pad_duration)
-
-    sou_time = [t + pre_padding_duration for t in sou_time]
-    eou_time = [t + pre_padding_duration for t in sou_time]
-
-    cut_left_padded = cut.pad(duration=pre_padding_duration + duration, direction="left", preserve_id=True)
-    cut_both_padded = cut_left_padded.pad(
-        duration=cut_left_padded.duration + post_padding_duration, direction="right", preserve_id=True
-    )
-
-    cut_both_padded.first_non_padding_cut.custom["sou_time"] = sou_time
-    cut_both_padded.first_non_padding_cut.custom["eou_time"] = eou_time
-
-    return cut_both_padded
-
-
-class LazyLhotseEOURandomPadding(Dillable):
-    def __init__(self, cuts: CutSet, cfg: DictConfig) -> None:
-        self.source = cuts
-        self.cfg = cfg
-
-    def __iter__(self):
-        for cut in self.source:
-            yield lhotse_asr_eou_cut_random_pad_transform(config=self.cfg, cut=cut)
-
-    def __len__(self):
-        return len(self.source)
-
-    def __add__(self, other) -> "LazyIteratorChain":
-        return LazyIteratorChain(self, other)
-
-
-class LhotseEOURandomPadding(RandomPaddingConfig):
-    def __call__(self, cuts: CutSet) -> CutSet:
-        config = OmegaConf.create(self.__dict__)
-        return CutSet(LazyLhotseEOURandomPadding(cuts, config))

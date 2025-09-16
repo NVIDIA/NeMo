@@ -96,6 +96,7 @@ model:
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
 
+    ignore_eob_label: true  # ignore backchannel and treat them the same as EOU
     random_padding:
       prob: 0.99
       min_pad_duration: 1.0  # minimum duration of pre/post padding in seconds
@@ -111,11 +112,11 @@ model:
         min_level: -90
         max_level: -46
       gain:
-        prob: 0.5
+        prob: 0.2
         min_gain_dbfs: -10.0
         max_gain_dbfs: 10.0
       noise:
-        prob: 0.6
+        prob: 0.9
         manifest_path: ???
         min_snr_db: 0
         max_snr_db: 20
@@ -138,6 +139,7 @@ model:
     num_cuts_for_bins_estimate: 10000
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
+    ignore_eob_label: true  # ignore backchannel and treat them the same as EOU
 
   test_ds:
     manifest_filepath: null
@@ -156,6 +158,7 @@ model:
     num_cuts_for_bins_estimate: 10000
     bucket_buffer_size: 10000
     shuffle_buffer_size: 10000
+    ignore_eob_label: true  # ignore backchannel and treat them the same as EOU
 
   # You may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   # We recommend to use vocab size of 1024 with SPE Unigram for most languages
@@ -189,7 +192,7 @@ model:
     feat_out: -1 # you may set it if you need different output size other than the default d_model
     n_layers: 17
     d_model: 512
-    use_bias: True # whether to apply bias in the feedforward, MHA and convolution modules
+    use_bias: false # whether to apply bias in the feedforward, MHA and convolution modules
 
     # Sub-sampling parameters
     subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding
@@ -218,7 +221,7 @@ model:
     att_context_style: chunked_limited # regular or chunked_limited
     att_context_probs: null
 
-    xscaling: true # scales up the input embeddings by sqrt(d_model)
+    xscaling: false # scales up the input embeddings by sqrt(d_model)
     pos_emb_max_len: 5000
 
     # Convolution module's params
@@ -304,7 +307,7 @@ model:
       # FastEmit regularization: https://arxiv.org/abs/2010.11148
       # You may enable FastEmit to increase the accuracy and reduce the latency of the model for streaming
       # You may set it to lower values like 1e-3 for models with larger right context
-      fastemit_lambda: 5e-3  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
+      fastemit_lambda: 3e-2  # Recommended values to be in range [1e-4, 1e-2], 0.001 is a good start.
       clamp: -1.0  # if > 0, applies gradient clamping in range [-clamp, clamp] for the joint tensor only.
 
   optim:

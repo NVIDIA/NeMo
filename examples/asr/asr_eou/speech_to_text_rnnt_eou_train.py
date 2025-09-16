@@ -27,26 +27,22 @@ Example usage:
 ```bash
 #!/bin/bash
 
-NEMO_PATH=/home/heh/codes/nemo-eou
-export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
+TRAIN_MANIFEST=/path/to/train_manifest.json
+VAL_MANIFEST=/path/to/val_manifest.json
+NOISE_MANIFEST=/path/to/noise_manifest.json
 
-TRAIN_MANIFEST=/home/heh/codes/nemo-eou/nemo_experiments/turnGPT_TTS_data/daily_dialogue_test_tts.json
-VAL_MANIFEST=/home/heh/codes/nemo-eou/nemo_experiments/turnGPT_TTS_data/daily_dialogue_test_tts.json
-NOISE_MANIFEST=/home/heh/codes/nemo-eou/nemo_experiments/noise_manifest.json
+PRETRAINED_NEMO=/path/to/pretrained_model.nemo
+TOKENIZER_DIR=/path/to/tokenizer_dir
 
-PRETRAINED_NEMO=/media/data3/pretrained_models/nemo_asr/stt_en_fastconformer_hybrid_large_streaming_80ms_rnnt.nemo
-TOKENIZER_DIR=/media/data3/pretrained_models/nemo_asr/tokenizers/stt_en_fastconformer_hybrid_large_streaming_80ms_eou
-
-BATCH_DURATION=30
-NUM_WORKERS=0
-LIMIT_TRAIN_BATCHES=100
-VAL_CHECK_INTERVAL=100
+BATCH_SIZE=16
+NUM_WORKERS=8
+LIMIT_TRAIN_BATCHES=1000
+VAL_CHECK_INTERVAL=1000
 MAX_STEPS=1000000
 
-EXP_NAME=fastconformer_transducer_bpe_streaming_eou_debug
-
-SCRIPT=${NEMO_PATH}/examples/asr/asr_eou/speech_to_text_rnnt_eou.py
-CONFIG_PATH=${NEMO_PATH}/examples/asr/conf/fastconformer/cache_aware_streaming
+EXP_NAME=fastconformer_transducer_bpe_streaming_eou
+SCRIPT=${NEMO_PATH}/examples/asr/asr_eou/speech_to_text_rnnt_eou_train.py
+CONFIG_PATH=${NEMO_PATH}/examples/asr/conf/asr_eou
 CONFIG_NAME=fastconformer_transducer_bpe_streaming
 
 CUDA_VISIBLE_DEVICES=0 python $SCRIPT \
@@ -58,9 +54,9 @@ CUDA_VISIBLE_DEVICES=0 python $SCRIPT \
     model.train_ds.manifest_filepath=$TRAIN_MANIFEST \
     model.train_ds.augmentor.noise.manifest_path=$NOISE_MANIFEST \
     model.validation_ds.manifest_filepath=$VAL_MANIFEST \
-    model.train_ds.batch_duration=$BATCH_DURATION \
+    model.train_ds.batch_size=$BATCH_SIZE \
     model.train_ds.num_workers=$NUM_WORKERS \
-    model.validation_ds.batch_duration=$BATCH_DURATION \
+    model.validation_ds.batch_size=$BATCH_SIZE \
     model.validation_ds.num_workers=$NUM_WORKERS \
     ~model.test_ds \
     trainer.limit_train_batches=$LIMIT_TRAIN_BATCHES \
@@ -122,7 +118,6 @@ def setup_adapters(cfg: DictConfig, model: ASRModel):
         adapter_name = cfg.model.adapter.pop("adapter_name")
         adapter_type = cfg.model.adapter.pop("adapter_type")
         adapter_module_name = cfg.model.adapter.pop("adapter_module_name", None)
-        adapter_state_dict_name = cfg.model.adapter.pop("adapter_state_dict_name", None)
 
         # Resolve the config of the specified `adapter_type`
         if adapter_type not in cfg.model.adapter.keys():
@@ -202,7 +197,7 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
         )
 
     if not isinstance(pretrained_model, (EncDecRNNTBPEModel, EncDecHybridRNNTCTCBPEModel)):
-        raise ValueError(
+        raise TypeError(
             f"Pretrained model {pretrained_model.__class__} is not EncDecRNNTBPEModel or EncDecHybridRNNTCTCBPEModel."
         )
 
@@ -214,7 +209,7 @@ def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_pat
     decoder = model.decoder  # type: RNNTDecoder
     pretrained_decoder = pretrained_model.decoder  # type: RNNTDecoder
     if not isinstance(decoder, RNNTDecoder) or not isinstance(pretrained_decoder, RNNTDecoder):
-        raise ValueError(
+        raise TypeError(
             f"Decoder {decoder.__class__} is not RNNTDecoder or pretrained decoder {pretrained_decoder.__class__} is not RNNTDecoder."
         )
 
