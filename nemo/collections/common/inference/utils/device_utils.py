@@ -26,13 +26,13 @@ COMPUTE_DTYPE_MAP = {
 }
 
 
-def setup_device(device: str, device_id: int, compute_dtype: str) -> tuple[str, Optional[int], torch.dtype]:
+def setup_device(device: str, device_id: Optional[int], compute_dtype: str) -> tuple[str, int, torch.dtype]:
     """
     Set up the compute device for the model.
 
     Args:
         device: Requested device type ('cuda' or 'cpu').
-        device_id: Requested CUDA device ID.
+        device_id: Requested CUDA device ID (None for CPU).
         compute_dtype: Requested compute dtype.
 
     Returns:

@@ -35,8 +35,8 @@ class Word:
             text: The text content of the word
             start: Start time in seconds
             end: End time in seconds
-            conf: Confidence score (typically 0.0 to 1.0)
-            semiotic_class: Semantic classification of the word
+            conf: Confidence score [0.0, 1.0]
+            semiotic_class: Semiotic class of the word
             channel_id: Audio channel identifier
 
         Raises:
