@@ -629,6 +629,7 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel, ASREOUModelMixin):
         wer_denom = torch.stack([x[f'{mode}_wer_denom'] for x in outputs]).sum()
         tensorboard_logs = {**loss_log, f'{mode}_wer': wer_num.float() / wer_denom}
 
+        eou_metrics = {}
         if self.cfg.get('calculate_eou_metrics', True):
             eou_metrics = self._aggregate_eou_metrics(outputs, mode=mode)
         tensorboard_logs.update(eou_metrics)
