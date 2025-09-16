@@ -174,7 +174,7 @@ def get_pretrained_model_name(cfg: DictConfig) -> Optional[str]:
         return nemo_model_path
     if pretrained_name:
         return pretrained_name
-
+    return None
 
 def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_path: str, cfg: DictConfig):
     """
