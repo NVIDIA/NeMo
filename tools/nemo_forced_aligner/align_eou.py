@@ -524,12 +524,13 @@ def process_single_manifest(cfg: AlignmentConfig, model, buffered_chunk_params, 
                 continue
 
             # get sou/eou time
-            lines = [line.split() for line in open(item['segments_level_ctm_filepath'])]
-            start_time = min([float(line[2]) for line in lines])
-            end_time = max([float(line[2]) + float(line[3]) for line in lines])
-            input_manifest_lines[i]['sou_time'] = start_time
-            input_manifest_lines[i]['eou_time'] = end_time
-            output_manifest_lines.append(input_manifest_lines[i])
+            with open(item['segments_level_ctm_filepath']) as f:
+                lines = [line.split() for line in f]
+                start_time = min([float(line[2]) for line in lines])
+                end_time = max([float(line[2]) + float(line[3]) for line in lines])
+                input_manifest_lines[i]['sou_time'] = start_time
+                input_manifest_lines[i]['eou_time'] = end_time
+                output_manifest_lines.append(input_manifest_lines[i])
 
     with open(cfg.output_manifest_filepath, 'w') as f:
         for item in output_manifest_lines:
