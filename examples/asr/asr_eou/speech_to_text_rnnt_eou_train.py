@@ -176,6 +176,7 @@ def get_pretrained_model_name(cfg: DictConfig) -> Optional[str]:
         return pretrained_name
     return None
 
+
 def init_from_pretrained_nemo(model: EncDecRNNTBPEEOUModel, pretrained_model_path: str, cfg: DictConfig):
     """
     load the pretrained model from a .nemo file, taking into account the joint network

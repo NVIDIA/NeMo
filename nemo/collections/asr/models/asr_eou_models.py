@@ -301,7 +301,9 @@ class ASREOUModelMixin:
         return tensorboard_logs
 
     @rank_zero_only
-    def _maybe_save_predictions(self, outputs: List[Dict], mode: str = "val", dataloader_idx: int = 0) -> Optional[Path]:
+    def _maybe_save_predictions(
+        self, outputs: List[Dict], mode: str = "val", dataloader_idx: int = 0
+    ) -> Optional[Path]:
         """
         Save predictions to disk.
         Args:
