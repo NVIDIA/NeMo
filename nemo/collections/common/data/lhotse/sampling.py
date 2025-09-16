@@ -278,7 +278,11 @@ class ValidationStatusFilter:
         self.keep = keep
 
     def __call__(self, example) -> bool:
-        if isinstance(example, MonoCut) and example.has_custom("validation_status") and example.validation_status != self.keep:
+        if (
+            isinstance(example, MonoCut)
+            and example.has_custom("validation_status")
+            and example.validation_status != self.keep
+        ):
             return False
         else:
             return True
@@ -294,7 +298,11 @@ class CERFilter:
         self.max_cer = ifnone(max_cer, float("inf"))
 
     def __call__(self, example) -> bool:
-        if isinstance(example, MonoCut) and len(example.supervisions) > 0 and example.supervisions[0].has_custom("cer"):
+        if (
+            isinstance(example, MonoCut)
+            and len(example.supervisions) > 0
+            and example.supervisions[0].has_custom("cer")
+        ):
             return example.supervisions[0].cer <= self.max_cer
         else:
             return True
@@ -310,7 +318,11 @@ class ContextSpeakerSimilarityFilter:
         self.min_context_speaker_similarity = ifnone(min_context_speaker_similarity, -1)
 
     def __call__(self, example) -> bool:
-        if isinstance(example, MonoCut) and len(example.supervisions) > 0 and example.supervisions[0].has_custom("context_speaker_similarity"):
+        if (
+            isinstance(example, MonoCut)
+            and len(example.supervisions) > 0
+            and example.supervisions[0].has_custom("context_speaker_similarity")
+        ):
             return example.supervisions[0].context_speaker_similarity >= self.min_context_speaker_similarity
         else:
             return True
