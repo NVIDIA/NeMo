@@ -1,4 +1,3 @@
-
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +24,7 @@ from nemo.utils import logging
 
 @dataclass
 class AEDStreamingState:
-    decoder_input_ids: torch.Tensor = None  # tokens ids of initial canary prompt
+    decoder_input_ids: torch.Tensor = None  # tokens ids of initial AED model prompt
     tgt: torch.Tensor = None  # buffer with deocoded tokens ids
     decoding_step: int = -1  # current decoding step
     decoder_mems_list: list = None  # decoder caches, helps to reduce the memory usage
@@ -84,10 +83,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
             encoded_speech.dtype
         )
 
-        # initiall waitk lagging. Applicable for waitk and alignatt decoding policies. Control the start of the decoding process.
-        # if encoded_speech.size(-2) // self.frame_chunk_size < self.decoding_cfg.waitk_lagging and torch.any(
-        #     torch.logical_not(self.state.is_last_chunk_batch)
-        # ):
+        # initiall waitk lagging. Applicable for Wait-k and AlignAtt decoding policies. Control the start of the decoding process.
         if encoder_output_len.max() // self.frame_chunk_size < self.decoding_cfg.waitk_lagging and torch.any(
             torch.logical_not(self.state.is_last_chunk_batch)
         ):
@@ -110,7 +106,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     self.state.batch_idxs, self.state.current_context_lengths - 1
                 ].unsqueeze(-1)
 
-            active_samples_inner_loop = (
+            self.state.active_samples_inner_loop = (
                 torch.ones(self.state.batch_size, dtype=torch.bool, device=self.state.device) * self.state.active_samples
             )
             decoder_mems_list = self.state.decoder_mems_list
@@ -148,7 +144,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 # compute eos tokens mask
                 is_eos_tokens = next_tokens == self.asr_model.tokenizer.eos
                 # rearange active samples (inner loop) depends on eos prediction
-                active_samples_inner_loop *= torch.logical_not(is_eos_tokens)
+                self.state.active_samples_inner_loop *= torch.logical_not(is_eos_tokens)
                 # disable samples (upper loop) with eos and end of speech
                 eos_and_end_speech_mask = is_eos_tokens * self.state.is_last_chunk_batch
                 self.state.active_samples = self.state.active_samples * torch.logical_not(
@@ -167,36 +163,29 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     logging.info(f"[predicted token]        : {text_tokens}")
                     logging.info(f"[predicted token id]     : {next_tokens}")
 
-                if not torch.any(active_samples_inner_loop):
+                if not torch.any(self.state.active_samples_inner_loop):
                     if self.debug_mode:
                         logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
                     break
 
                 # write predicted tokens to the tgt tensor
                 torch.where(
-                    active_samples_inner_loop, next_tokens, self.state.eos_tokens, out=next_tokens
+                    self.state.active_samples_inner_loop, next_tokens, self.state.eos_tokens, out=next_tokens
                 )
                 self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths] = next_tokens
 
-                # canary_data.decoding_step = i
                 self.state.decoding_step += input_ids.size(-1)
-                # input_ids = next_tokens.unsqueeze(-1)
-                # input_ids = canary_data.tgt[canary_data.batch_idxs, canary_data.current_context_lengths].unsqueeze(-1)
 
                 # check for hallucinations
                 # TODO add more consequtive tokens? Now we are checking only 3 same tokens
-                hallucination_mask = torch.logical_and(
-                    self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths]
-                    == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 1],
-                    self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 1]
-                    == self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths - 2],
-                )
-                if torch.any(hallucination_mask):
-                    logging.info(f"!!! hallucination detected !!!")
-                    self.state.active_samples *= torch.logical_not(hallucination_mask)
-                    active_samples_inner_loop *= torch.logical_not(hallucination_mask)
 
-                self.state.current_context_lengths += active_samples_inner_loop
+                if self.decoding_cfg.hallucinations_detector:
+                    hallucination_mask = self.detect_hallucinations(self.state.tgt, self.state.batch_idxs, self.state.current_context_lengths)
+                    if torch.any(hallucination_mask):
+                        self.state.active_samples *= torch.logical_not(hallucination_mask)
+                        self.state.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
+
+                self.state.current_context_lengths += self.state.active_samples_inner_loop
                 input_ids = self.state.tgt[
                     self.state.batch_idxs, self.state.current_context_lengths - 1
                 ].unsqueeze(-1)
@@ -208,12 +197,12 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 if torch.any(samples_with_max_context_length * self.state.active_samples):
                     logging.info(f"!!! maximum context length reached !!!")
                     self.state.active_samples *= torch.logical_not(samples_with_max_context_length)
-                    active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
+                    self.state.active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
 
                 # zero out decoder_mems_list for non active samples
-                if torch.any(torch.logical_not(active_samples_inner_loop)):
+                if torch.any(torch.logical_not(self.state.active_samples_inner_loop)):
                     for j in range(len(decoder_mems_list)):
-                        decoder_mems_list[j][:, -1] *= active_samples_inner_loop.unsqueeze(-1)
+                        decoder_mems_list[j][:, -1] *= self.state.active_samples_inner_loop.unsqueeze(-1)
                 self.state.decoder_mems_list = decoder_mems_list
 
                 if self.debug_mode:

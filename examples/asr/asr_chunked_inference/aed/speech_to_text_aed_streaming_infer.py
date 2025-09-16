@@ -20,13 +20,13 @@ Wait-k policy predicts only one token per each new speech chunk that increases t
 In this case, it is unclear at what point you can forget part of the left context when recognizing with a limited buffer size.
 It is recommended to set the left context to the maximum possible value (infinite left context) for the Wait-k policy.
 
-AlignAtt policy predicts tokens according to the cross-attention condition.
+AlignAtt policy predicts tokens according to the cross-attention condition per each next token prediction.
 If the condition is met, then the audio size does not need to be increased, and the prediction of the next token continues.
 Otherwise, the audio buffer size needs to be increased. This policy shows lower latency in comparison with Wait-k.
-This policy is also suitable for window recognition (left context is fixed and not infinite), but you can lose accuracy in this case.
+This policy is also suitable for window recognition (left context is fixed and not infinite), but you can lose some accuracy in this case.
 
 Recommended settings for audio buffer:
-- streaming with 3s latency: 10-2-1 (10s left, 2s chunk, 1s right)
+- streaming with 1.5s latency: 10-1-0.5 (10s left, 1s chunk, 0.5s right)
 
 Example usage:
 
@@ -38,8 +38,8 @@ python speech_to_text_aed_streaming_infer.py \
     audio_dir="<optional path to folder of audio files>" \
     dataset_manifest="<optional path to manifest>" \
     output_filename="<optional output filename>" \
-    right_context_secs=1.0 \
-    chunk_secs=2.0 \
+    right_context_secs=0.5 \
+    chunk_secs=1.0 \
     left_context_secs=10.0 \
     batch_size=32 \
     clean_groundtruth_text=False \
@@ -153,8 +153,11 @@ class TranscriptionConfig:
     debug_mode: bool = False
 
 
-# TODO: is any other way to obtain data prompt without lhotse?
 def obtain_data_prompt(cfg, asr_model) -> torch.Tensor:
+    """
+    Obtain data prompt for decoder input.
+    """
+    # TODO: is any other way to obtain data prompt without lhotse?
     logging.info(f"Setup lhotse dataloader from {cfg.dataset_manifest}")
     filepaths, sorted_manifest_path = prepare_audio_data(cfg)
     filepaths = sorted_manifest_path if sorted_manifest_path is not None else filepaths
@@ -173,8 +176,6 @@ def obtain_data_prompt(cfg, asr_model) -> torch.Tensor:
     transcribe_cfg = override_cfg
 
     asr_model._transcribe_on_begin(filepaths, transcribe_cfg)
-
-    # import ipdb; ipdb.set_trace()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         transcribe_cfg._internal.temp_dir = tmpdir
@@ -203,8 +204,9 @@ def initialize_aed_model_state(
     Returns:
         Initialized AEDStreamingState object
     """
-    # initialize aed model state
+    # initialize AED model state
     model_state = AEDStreamingState(decoder_input_ids=decoder_input_ids, device=asr_model.device)
+    
     model_state.frame_chunk_size = context_encoder_frames.chunk
     model_state.batch_idxs = torch.arange(batch_size, dtype=torch.long, device=asr_model.device)
     model_state.current_context_lengths = torch.zeros_like(model_state.batch_idxs) + decoder_input_ids.size(-1)
@@ -228,7 +230,6 @@ def initialize_aed_model_state(
     model_state.avgpool2d = torch.nn.AvgPool2d(5, stride=1, padding=2, count_include_pad=False)
     model_state.batch_size = batch_size
     model_state.max_tokens_per_alignatt_step = model_state.max_tokens_per_one_second * int(cfg.chunk_secs + cfg.right_context_secs)
-    # import ipdb; ipdb.set_trace()
     
     return model_state
 
@@ -293,6 +294,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     logging.info(f"Inference will be done on device : {map_location} with compute_dtype: {compute_dtype}")
 
+    # setup ASR model
     asr_model, model_name = setup_model(cfg, map_location)
 
     model_cfg = copy.deepcopy(asr_model._cfg)
@@ -322,8 +324,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model = asr_model.to(asr_model.device)
     asr_model.to(compute_dtype)
 
-    # import ipdb; ipdb.set_trace()
-
     # Setup decoding strategy
     if hasattr(asr_model, 'change_decoding_strategy'):
         multitask_decoding = MultiTaskDecodingConfig()
@@ -350,8 +350,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0
     asr_model.eval()
-
-    # import ipdb; ipdb.set_trace()
 
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
 
@@ -479,7 +477,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     is_last_chunk_batch=torch.zeros_like(is_last_chunk_batch),
                 )
 
-                # model_state.is_last_chunk_batch = is_last_window_batch
                 model_state.is_last_chunk_batch = is_last_chunk_batch
 
                 # get processed signal
@@ -540,7 +537,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     i, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[i]
                 ]
                 transcription = asr_model.tokenizer.ids_to_text(transcription_idx.tolist()).strip()
-                # TODO: remove this
+                # if cfg.debug_mode:
+                #     logging.info(f"[pred_text] {i}: {transcription}")
                 logging.info(f"[pred_text] {i}: {transcription}")
                 all_hyps.append(transcription)
                 tokens_frame_alignment.append(model_state.tokens_frame_alignment[i])
