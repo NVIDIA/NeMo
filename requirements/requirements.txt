@@ -15,7 +15,3 @@ torch
 tqdm>=4.41.0
 wget
 wrapt
-nv-one-logger-core>=2.0.0
-nv-one-logger-training-telemetry>=2.0.0
-nv-one-logger-wandb>=2.0.1
-nv-one-logger-pytorch-lightning-integration>=2.0.0
