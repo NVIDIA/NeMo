@@ -612,7 +612,7 @@ class AEDStreamingDecodingConfig:
     max_tokens_per_alignatt_step: int = 30 # maximum number of tokens to be generated for each step of alignatt decoding policy (before the last speech chunk)
     max_generation_length: int = 512 # maximum number of tokens to be generated for each sample
     use_avgpool_for_alignatt: bool = False # use avgpool for alignatt
-    hallucinations_detector: bool = True # detect hallucinations in the predicted tokens
+    hallucinations_detector: bool = False # detect hallucinations in the predicted tokens
 
 
 @dataclass
