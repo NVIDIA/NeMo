@@ -301,16 +301,18 @@ class ASREOUModelMixin:
         return tensorboard_logs
 
     @rank_zero_only
-    def _maybe_save_predictions(self, outputs: List[Dict], mode: str = "val", dataloader_idx: int = 0):
+    def _maybe_save_predictions(self, outputs: List[Dict], mode: str = "val", dataloader_idx: int = 0) -> Optional[Path]:
         """
         Save predictions to disk.
         Args:
             outputs: list of outputs
             mode: mode of the model, either 'val' or 'test'
+        Returns:
+            Path object if predictions are saved, None otherwise.
         """
 
         if not self.cfg.get('save_pred_to_file', None):
-            return
+            return None
 
         output_file = Path(self.cfg.save_pred_to_file)
         output_file.parent.mkdir(parents=True, exist_ok=True)
