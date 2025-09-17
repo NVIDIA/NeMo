@@ -583,11 +583,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 num_params = _calc_number_of_params(list(self))
                 num_trainable_params = _calc_number_of_trainable_params(list(self))
 
-                msg = (
-                    f" > number of parameters on (tensor, pipeline) model parallel rank "
-                    f"({parallel_state.get_tensor_model_parallel_rank()} ,"
-                    f"{parallel_state.get_pipeline_model_parallel_rank()}): "
-                    f"{num_params}"
+                msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
+                    parallel_state.get_tensor_model_parallel_rank(),
+                    parallel_state.get_pipeline_model_parallel_rank(),
+                    num_params,
                 )
                 logging.info(msg)
 
