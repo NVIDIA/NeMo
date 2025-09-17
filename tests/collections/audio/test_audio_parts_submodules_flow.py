@@ -46,7 +46,9 @@ def test_euler_sampler_nfe(num_steps, estimator_target):
     estimator.register_forward_hook(counter_hook)
 
     flow = OptimalTransportFlow()
-    sampler = ConditionalFlowMatchingEulerSampler(estimator=estimator, num_steps=num_steps, estimator_target=estimator_target, flow=flow)
+    sampler = ConditionalFlowMatchingEulerSampler(
+        estimator=estimator, num_steps=num_steps, estimator_target=estimator_target, flow=flow
+    )
 
     b, c, d, l = 2, 3, 4, 5
     lengths = [5, 3]

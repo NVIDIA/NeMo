@@ -33,8 +33,16 @@ def convert_to_dictconfig(d):
         return DictConfig({k: convert_to_dictconfig(v) for k, v in d.items()})
     return d
 
+
 flow_matching_base_config_params = list(itertools.product([True, False], ["conditional_vector_field", "data"]))
-flow_matching_base_config_ids = [f"{ssl}__{target}" for ssl, target in itertools.product(["ssl_pretrain_masking", "no_ssl_pretrain_masking"], ["conditional_vector_field", "data"])]
+flow_matching_base_config_ids = [
+    f"{ssl}__{target}"
+    for ssl, target in itertools.product(
+        ["ssl_pretrain_masking", "no_ssl_pretrain_masking"], ["conditional_vector_field", "data"]
+    )
+]
+
+
 @pytest.fixture(params=flow_matching_base_config_params, ids=flow_matching_base_config_ids)
 def flow_matching_base_config(request):
     model = {
