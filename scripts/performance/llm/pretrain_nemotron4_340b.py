@@ -215,6 +215,9 @@ if __name__ == "__main__":
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
+    if enable_cuda_graphs and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+        del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
+
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,
