@@ -16,6 +16,7 @@ import json
 import os
 import torch
 from transformers import PreTrainedTokenizerBase
+from typing import Optional, Dict
 
 from nemo.core.classes import Dataset
 from nemo.utils import logging
@@ -38,6 +39,10 @@ class T5G2PDataset(Dataset):
         grapheme_field: str = "text_graphemes",
         phoneme_field: str = "text",
         with_labels: bool = True,
+        use_language_conditioning: bool = False,
+        language_field: str = "language",
+        language_tokens: Optional[Dict[str, str]] = None,
+        default_language: str = "en",
     ):
         """
         Dataset to train T5-based G2P generative model.
@@ -62,6 +67,10 @@ class T5G2PDataset(Dataset):
         self.max_target_len = max_target_len
         self.do_lower = do_lower
         self.with_labels = with_labels
+        self.use_language_conditioning = use_language_conditioning
+        self.language_field = language_field
+        self.language_tokens = language_tokens or {"en": "<en>", "es": "<es>", "fr": "<fr>", "de": "<de>"}
+        self.default_language = default_language
         self.data = []
 
         num_filtered = 0
@@ -76,6 +85,15 @@ class T5G2PDataset(Dataset):
                     graphemes = graphemes.lower()
 
                 if with_labels:
+                    # Add language conditioning if enabled
+                    if self.use_language_conditioning:
+                        language = item.get(self.language_field, self.default_language)
+                        if language in self.language_tokens:
+                            graphemes = f"{self.language_tokens[language]} {graphemes}"
+                        else:
+                            logging.warning(f"Language '{language}' not found in language_tokens, using default")
+                            graphemes = f"{self.language_tokens[self.default_language]} {graphemes}"
+                    
                     graphemes_len = len(self.tokenizer.tokenize(graphemes))
                     if graphemes_len > max_source_len:
                         num_filtered += 1
@@ -89,6 +107,14 @@ class T5G2PDataset(Dataset):
                         continue
                     self.data.append({"graphemes": graphemes, "phonemes": item[phoneme_field]})
                 else:
+                    # Add language conditioning for inference if enabled
+                    if self.use_language_conditioning:
+                        language = item.get(self.language_field, self.default_language)
+                        if language in self.language_tokens:
+                            graphemes = f"{self.language_tokens[language]} {graphemes}"
+                        else:
+                            graphemes = f"{self.language_tokens[self.default_language]} {graphemes}"
+                    
                     # truncate input graphemes for inference if the length exceeds max_source_len
                     graphemes_tokenized = self.tokenizer(graphemes)["input_ids"]
                     if len(graphemes_tokenized) > max_source_len:

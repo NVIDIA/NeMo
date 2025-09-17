@@ -332,6 +332,8 @@ class G2PModel(ModelPT, ABC):
         grapheme_field: str = "text_graphemes",
         batch_size: int = 32,
         num_workers: int = 0,
+        phoneme_field: str = "text",
+        language_field: str = "language",
         pred_field: Optional[str] = "pred_text",
     ) -> List[str]:
         """
@@ -354,6 +356,15 @@ class G2PModel(ModelPT, ABC):
             "batch_size": batch_size,
             "num_workers": num_workers,
         }
+        
+        # Add dataset configuration that matches what _setup_infer_dataloader expects
+        config["dataset"] = {
+            "grapheme_field": grapheme_field,
+            "phoneme_field": phoneme_field,  # default phoneme field
+            "language_field": language_field,  # default language field
+        }
+        
+
 
         all_preds = self._infer(DictConfig(config))
         with open(manifest_filepath, "r") as f_in:

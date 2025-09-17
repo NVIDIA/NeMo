@@ -29,6 +29,10 @@ from nemo.core.classes.exportable import Exportable
 from nemo.core.neural_types import LabelsType, LossType, MaskType, NeuralType, TokenIndex
 from nemo.utils import logging
 
+from torchmetrics.functional.text.bleu import _bleu_score_compute, _bleu_score_update
+from torchmetrics.text import SacreBLEUScore
+
+
 __all__ = ['T5G2PModel']
 
 
@@ -37,6 +41,10 @@ class T5G2PConfig:
     train_ds: Optional[Dict[Any, Any]] = None
     validation_ds: Optional[Dict[Any, Any]] = None
     test_ds: Optional[Dict[Any, Any]] = None
+    # Language conditioning parameters
+    use_language_conditioning: bool = False
+    language_tokens: Optional[Dict[str, str]] = None  # e.g., {"en": "<en>", "es": "<es>", "fr": "<fr>"}
+    default_language: str = "en"
 
 
 class T5G2PModel(G2PModel, Exportable):
@@ -74,6 +82,15 @@ class T5G2PModel(G2PModel, Exportable):
         self.max_source_len = cfg.get("max_source_len", self._tokenizer.model_max_length)
         self.max_target_len = cfg.get("max_target_len", self._tokenizer.model_max_length)
         self.do_lower = cfg.get("do_lower", False)
+        
+        # Language conditioning setup
+        self.use_language_conditioning = cfg.get("use_language_conditioning", False)
+        self.language_tokens = cfg.get("language_tokens", {"en": "<en>", "es": "<es>", "fr": "<fr>", "de": "<de>"})
+        self.default_language = cfg.get("default_language", "en")
+        
+        if self.use_language_conditioning:
+            # Add language tokens to tokenizer if they don't exist
+            self._add_language_tokens_to_tokenizer()
 
         # Ensure passed cfg is compliant with schema
         schema = OmegaConf.structured(T5G2PConfig)
@@ -88,6 +105,39 @@ class T5G2PModel(G2PModel, Exportable):
 
         # Load pretrained T5 model from HuggingFace
         self.model = T5ForConditionalGeneration.from_pretrained(self.model_name)
+        
+        # Resize model embeddings if language tokens were added
+        if self.use_language_conditioning and hasattr(self, '_resized_embeddings'):
+            self.model.resize_token_embeddings(len(self._tokenizer))
+
+    def _add_language_tokens_to_tokenizer(self):
+        """Add language tokens to the tokenizer if they don't already exist."""
+        if not self.language_tokens:
+            return
+            
+        tokens_to_add = []
+        for lang_code, token in self.language_tokens.items():
+            if token not in self._tokenizer.get_vocab():
+                tokens_to_add.append(token)
+        
+        if tokens_to_add:
+            self._tokenizer.add_tokens(tokens_to_add)
+            self._resized_embeddings = True
+            logging.info(f"Added language tokens to tokenizer: {tokens_to_add}")
+    
+    def _add_language_prefix(self, text: str, language: str = None) -> str:
+        """Add language prefix to input text."""
+        if not self.use_language_conditioning:
+            return text
+            
+        if language is None:
+            language = self.default_language
+            
+        if language not in self.language_tokens:
+            logging.warning(f"Language '{language}' not found in language_tokens, using default")
+            language = self.default_language
+            
+        return f"{self.language_tokens[language]} {text}"
 
     @typecheck()
     def forward(self, input_ids, attention_mask, labels):
@@ -115,14 +165,20 @@ class T5G2PModel(G2PModel, Exportable):
         Returns:
             A pytorch DataLoader.
         """
+
         dataset = T5G2PDataset(
             manifest_filepath=cfg.manifest_filepath,
             tokenizer=self._tokenizer,
             max_source_len=self._tokenizer.model_max_length,
             max_target_len=-1,
             do_lower=self.do_lower,
-            grapheme_field=cfg.get("grapheme_field", "text_graphemes"),
+            grapheme_field=cfg["dataset"].get("grapheme_field", "text_graphemes"),
+            phoneme_field=cfg["dataset"].get("phoneme_field", "text"),
             with_labels=False,
+            use_language_conditioning=self.use_language_conditioning,
+            language_field=cfg["dataset"].get("language_field", "language"),
+            language_tokens=self.language_tokens,
+            default_language=self.default_language,
         )
 
         return torch.utils.data.DataLoader(
@@ -187,8 +243,15 @@ class T5G2PModel(G2PModel, Exportable):
             skip_special_tokens=True,
         )
         generated_str, _, _ = self._generate_predictions(input_ids=input_ids, model_max_target_len=self.max_target_len)
+        
         per = word_error_rate(hypotheses=generated_str, references=labels_str, use_cer=True)
-        output = {f"{split}_loss": val_loss, 'per': per}
+
+        bleu_calculator = SacreBLEUScore(tokenize="13a", n_gram=4, lowercase=True, smooth="floor")
+        target = [[ref] for ref in labels_str]
+        bleu_score = bleu_calculator(generated_str, target)
+        
+        output = {f"{split}_loss": val_loss, 'per': per, 'bleu': bleu_score}
+
         if split == 'val':
             if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
                 self.validation_step_outputs[dataloader_idx].append(output)
@@ -226,8 +289,18 @@ class T5G2PModel(G2PModel, Exportable):
         # to save all PER values for each dataset in WANDB
         self.log(f"{split}_per_{dataloader_name}", avg_per)
 
-        logging.info(f"PER: {round(avg_per * 100, 2)}% {dataloader_name}, {len(outputs)}examples")
-        return {'loss': avg_loss}
+        avg_bleu = sum([x['bleu'] for x in outputs]) / len(outputs)
+        avg_bleu = float(avg_bleu.cpu().numpy())
+        self.log(f"{split}_bleu", avg_bleu)
+
+        # to save all BLEU values for each dataset in WANDB
+        self.log(f"{split}_bleu_{dataloader_name}", avg_bleu)
+
+        logging.info(f"PER: {round(avg_per * 100, 2)}%")
+        logging.info(f"BLEU: {round(avg_bleu, 2)}")
+        logging.info(f"{dataloader_name}, {len(outputs)}examples")
+        
+        return {'loss': avg_loss, 'per': avg_per, 'bleu': avg_bleu}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx=0):
         self.multi_validation_epoch_end(outputs, dataloader_idx, split="test")
@@ -257,9 +330,13 @@ class T5G2PModel(G2PModel, Exportable):
             max_source_len=self.max_source_len,
             max_target_len=self.max_target_len,
             do_lower=self.do_lower,
-            grapheme_field=cfg.get("grapheme_field", "text_graphemes"),
-            phoneme_field=cfg.get("phoneme_field", "text"),
+            grapheme_field=cfg["dataset"].get("grapheme_field", "text_graphemes"),
+            phoneme_field=cfg["dataset"].get("phoneme_field", "text"),
             with_labels=True,
+            use_language_conditioning=self.use_language_conditioning,
+            language_field=cfg["dataset"].get("language_field", "language"),
+            language_tokens=self.language_tokens,
+            default_language=self.default_language,
         )
 
         return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
@@ -315,6 +392,11 @@ class T5G2PModel(G2PModel, Exportable):
         """
         # par = next(self.fastpitch.parameters())
         sentence = "Kupil sem si bicikel in mu zamenjal stol."
+        
+        # Add language conditioning if enabled
+        if self.use_language_conditioning:
+            sentence = self._add_language_prefix(sentence, "sl")  # Slovenian example
+            
         input_ids = [sentence]
         input_encoding = self._tokenizer(
             input_ids,
@@ -331,3 +413,36 @@ class T5G2PModel(G2PModel, Exportable):
         )
         generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
         return tuple(generated_ids)
+    
+    def g2p_with_language(self, text: str, language: str = None) -> str:
+        """
+        Convert grapheme to phoneme with language conditioning.
+        
+        Args:
+            text: Input grapheme text
+            language: Language code (e.g., "en", "es", "fr")
+            
+        Returns:
+            Phoneme string
+        """
+        if self.use_language_conditioning:
+            text = self._add_language_prefix(text, language)
+        
+        input_encoding = self._tokenizer(
+            [text],
+            padding='longest',
+            max_length=self.max_source_len,
+            truncation=True,
+            return_tensors='pt',
+        )
+        
+        device = next(self.parameters()).device
+        input_ids = input_encoding.input_ids.to(device)
+        
+        with torch.no_grad():
+            generated_str, _, _ = self._generate_predictions(
+                input_ids=input_ids, 
+                model_max_target_len=self.max_target_len
+            )
+        
+        return generated_str[0] if generated_str else ""
