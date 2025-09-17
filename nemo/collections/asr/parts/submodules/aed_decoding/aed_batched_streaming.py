@@ -177,8 +177,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 self.state.decoding_step += input_ids.size(-1)
 
                 # check for hallucinations
-                # TODO add more consequtive tokens? Now we are checking only 3 same tokens
-
                 if self.decoding_cfg.hallucinations_detector:
                     hallucination_mask = self.detect_hallucinations(self.state.tgt, self.state.batch_idxs, self.state.current_context_lengths)
                     if torch.any(hallucination_mask):
@@ -205,9 +203,9 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                         decoder_mems_list[j][:, -1] *= self.state.active_samples_inner_loop.unsqueeze(-1)
                 self.state.decoder_mems_list = decoder_mems_list
 
+                # TODO: remove this after debugging
                 if self.debug_mode:
-                    # import ipdb; ipdb.set_trace()
-                    pass
+                    import ipdb; ipdb.set_trace()
 
         # alignatt streaming decoding policy
         elif self.decoding_cfg.streaming_policy == "alignatt":
@@ -264,6 +262,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     torch.argmax(xatt_scores[:, :, exclude_sink_frames:], dim=-1) + exclude_sink_frames
                 )
 
+                # we can try to smooth peaky xatt scores with avgpooling
                 if self.decoding_cfg.use_avgpool_for_alignatt:
                     average_pooling_xatt_scores = self.state.avgpool2d(xatt_scores[:, :, exclude_sink_frames:])
                     most_attended_idxs_avgpool = (
@@ -278,7 +277,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     most_attended_idxs = most_attended_idxs.squeeze(-1)
 
                 # aligatt condition (True -- continue decoding, False -- wait for more speech)
-                # TODO: consider only active samples
                 alignatt_condition = (
                     encoder_output_len - (most_attended_idxs + 1) >= self.decoding_cfg.alignatt_thr
                 )
@@ -303,7 +301,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     logging.info(f"[current_context_lengths]  : {self.state.current_context_lengths}")
                     logging.info(f"[predicted tokens]         : {text_token}")
                     logging.info(f"[predicted tokens id]      : {next_tokens}")
-                    # import ipdb; ipdb.set_trace()
 
                 # increase speech chunk if no active samples in the inner loop
                 if not torch.any(self.state.active_samples_inner_loop):
@@ -312,7 +309,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     break
 
                 # compute eos tokens mask
-                # TODO add a case of "." + EOS prediction. It is the important case for AST tasl with PC support
+                # TODO add a case of "." + EOS prediction for models with PC support?
                 is_eos_tokens = next_tokens == self.asr_model.tokenizer.eos
                 # rearange active samples (inner loop) depends on eos prediction
                 self.state.active_samples_inner_loop *= torch.logical_not(is_eos_tokens)
@@ -335,17 +332,13 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths] = next_tokens
 
                 # update tokens frame alignment based on current encoder step (this alignment is used for LAAL calculation)
-                # self.state.tokens_frame_alignment[self.state.batch_idxs, self.state.current_context_lengths] = (
-                #     encoded_speech.size(-2) + self.state.prev_encoder_shift # we need to add the real frame position in the audio signal
-                # )
                 self.state.tokens_frame_alignment[self.state.batch_idxs, self.state.current_context_lengths] = (
                     encoder_output_len + self.state.prev_encoder_shift # we need to add the real frame position in the audio signal
                 )
 
                 self.state.decoding_step += input_ids.size(-1)
 
-                # # check for hallucinations
-                # # TODO add more consequtive tokens? Now we are checking only 3 same tokens
+                # check for hallucinations
                 if self.decoding_cfg.hallucinations_detector:
                     hallucination_mask = self.detect_hallucinations(self.state.tgt, self.state.batch_idxs, self.state.current_context_lengths)
                     if torch.any(hallucination_mask):
@@ -369,7 +362,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
 
                 self.state.decoder_mems_list = decoder_mems_list
                 self.state.current_context_lengths += self.state.active_samples_inner_loop
-                # TODO model does not predicts any real tokens in the case of first EOS prediction
+                # TODO model does not predicts any real tokens in the case of first EOS prediction (rare case for batched decoding)
                 input_ids = self.state.tgt[
                     self.state.batch_idxs, self.state.current_context_lengths - 1
                 ].unsqueeze(-1)
@@ -396,13 +389,9 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                     logging.info(f"[predicted tokens]         : {text_token}")
                     logging.info(f"[predicted tokens id]: {next_tokens}")
 
-                
-                if self.debug_mode:
-                    pass
-                    # import ipdb; ipdb.set_trace()
-
                 if not torch.any(self.state.active_samples_inner_loop):
                     if self.debug_mode:
+                        # TODO: remove this after debugging
                         import ipdb; ipdb.set_trace()
                         logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
                     break
