@@ -80,10 +80,10 @@ def _import_qkv(transformer_config, q, k, v):
 
 flux_key_mapping = {
     'double_blocks': {
-        'norm1.linear.weight': 'adaln.adaLN_modulation.1.weight',
-        'norm1.linear.bias': 'adaln.adaLN_modulation.1.bias',
-        'norm1_context.linear.weight': 'adaln_context.adaLN_modulation.1.weight',
-        'norm1_context.linear.bias': 'adaln_context.adaLN_modulation.1.bias',
+        'norm1.linear.weight': 'adaln.linear.weight',
+        'norm1.linear.bias': 'adaln.linear.bias',
+        'norm1_context.linear.weight': 'adaln_context.linear.weight',
+        'norm1_context.linear.bias': 'adaln_context.linear.bias',
         'attn.norm_q.weight': 'self_attention.q_layernorm.weight',
         'attn.norm_k.weight': 'self_attention.k_layernorm.weight',
         'attn.norm_added_q.weight': 'self_attention.added_q_layernorm.weight',
@@ -102,8 +102,8 @@ flux_key_mapping = {
         'ff_context.net.2.bias': 'context_mlp.linear_fc2.bias',
     },
     'single_blocks': {
-        'norm.linear.weight': 'adaln.adaLN_modulation.1.weight',
-        'norm.linear.bias': 'adaln.adaLN_modulation.1.bias',
+        'norm.linear.weight': 'adaln.linear.weight',
+        'norm.linear.bias': 'adaln.linear.bias',
         'proj_mlp.weight': 'mlp.linear_fc1.weight',
         'proj_mlp.bias': 'mlp.linear_fc1.bias',
         # 'proj_out.weight': 'proj_out.weight',
@@ -217,9 +217,6 @@ def flux_transformer_converter(ckpt_path=None, transformer_config=None):
         )
 
         new_state_dict[f'single_blocks.{str(i)}.mlp.linear_fc2.bias'] = (
-            diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.bias'].detach().clone()
-        )
-        new_state_dict[f'single_blocks.{str(i)}.self_attention.linear_proj.bias'] = (
             diffuser_state_dict[f'single_transformer_blocks.{str(i)}.proj_out.bias'].detach().clone()
         )
 
