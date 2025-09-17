@@ -74,6 +74,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
     ) -> AEDStreamingState:
 
         self.state = prev_batched_state
+        self.state.encoder_output_len = encoder_output_len
 
         # prepare encoder embeddings for the decoding
         # enc_states = encoder_output.permute(0, 2, 1)
@@ -94,312 +95,324 @@ class GreedyBatchedStreamingAEDComputer(ABC):
 
         # wait-k streaming decoding policy
         elif self.decoding_cfg.streaming_policy == "waitk":
-            if self.state.decoding_step < 0:
-                # first decoding step
-                tgt, batch_size, _ = self.asr_model.decoding.decoding.greedy_search._prepare_for_search(
-                    self.state.decoder_input_ids,
-                    encoded_speech,
-                )
-                input_ids = tgt
-            else:
-                input_ids = self.state.tgt[
-                    self.state.batch_idxs, self.state.current_context_lengths - 1
-                ].unsqueeze(-1)
-
-            self.state.active_samples_inner_loop = (
-                torch.ones(self.state.batch_size, dtype=torch.bool, device=self.state.device) * self.state.active_samples
-            )
-            decoder_mems_list = self.state.decoder_mems_list
-
-            # define start and max generation lengths
-            start_from = self.state.decoding_step + 1
-            if torch.any(torch.logical_not(self.state.is_last_chunk_batch)):
-                # predict only one token per speech chunk if not the last one
-                max_generation_length = start_from + 1
-            else:
-                max_generation_length = self.decoding_cfg.max_generation_length
-
-            # inner deocding loop (with same speech chunk)
-            for i in range(start_from, max_generation_length):
-
-                if not decoder_mems_list:
-                    positional_indexes = torch.zeros_like(self.state.current_context_lengths)
-                else:
-                    positional_indexes = self.state.current_context_lengths - 1
-
-                logits, decoder_mems_list, xatt_scores_list = (
-                    self.asr_model.decoding.decoding.greedy_search._one_step_forward(
-                        input_ids,
-                        encoded_speech,
-                        encoder_input_mask,
-                        decoder_mems_list,
-                        positional_indexes,
-                        return_scores=False,
-                        return_xatt_scores=True,
-                    )
-                )
-                next_tokens = torch.argmax(logits[:, -1], dim=-1)
-                text_tokens = self.asr_model.tokenizer.ids_to_tokens(next_tokens.tolist())
-
-                # compute eos tokens mask
-                is_eos_tokens = next_tokens == self.asr_model.tokenizer.eos
-                # rearange active samples (inner loop) depends on eos prediction
-                self.state.active_samples_inner_loop *= torch.logical_not(is_eos_tokens)
-                # disable samples (upper loop) with eos and end of speech
-                eos_and_end_speech_mask = is_eos_tokens * self.state.is_last_chunk_batch
-                self.state.active_samples = self.state.active_samples * torch.logical_not(
-                    eos_and_end_speech_mask
-                )
-
-                if self.debug_mode:
-                    logging.info(f"-------------" * 5)
-                    logging.info(f"decoding step (i)        : {i}")
-                    logging.info(f"start_from               : {start_from}")
-                    logging.info(f"max_generation_length    : {max_generation_length}")
-                    logging.info(f"[encoder_output_len]     : {encoder_output_len}")
-                    logging.info(f"[is_last_chunk_batch]    : {self.state.is_last_chunk_batch}")
-                    logging.info(f"[active_samples]         : {self.state.active_samples}")
-                    logging.info(f"[current_context_lengths]: {self.state.current_context_lengths}")
-                    logging.info(f"[predicted token]        : {text_tokens}")
-                    logging.info(f"[predicted token id]     : {next_tokens}")
-
-                if not torch.any(self.state.active_samples_inner_loop):
-                    if self.debug_mode:
-                        logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
-                    break
-
-                # write predicted tokens to the tgt tensor
-                torch.where(
-                    self.state.active_samples_inner_loop, next_tokens, self.state.eos_tokens, out=next_tokens
-                )
-                self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths] = next_tokens
-
-                self.state.decoding_step += input_ids.size(-1)
-
-                # check for hallucinations
-                if self.decoding_cfg.hallucinations_detector:
-                    hallucination_mask = self.detect_hallucinations(self.state.tgt, self.state.batch_idxs, self.state.current_context_lengths)
-                    if torch.any(hallucination_mask):
-                        self.state.active_samples *= torch.logical_not(hallucination_mask)
-                        self.state.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
-
-                self.state.current_context_lengths += self.state.active_samples_inner_loop
-                input_ids = self.state.tgt[
-                    self.state.batch_idxs, self.state.current_context_lengths - 1
-                ].unsqueeze(-1)
-
-                # disable samples with maximum context length
-                samples_with_max_context_length = (
-                    self.state.current_context_lengths == self.decoding_cfg.max_generation_length - 1
-                )
-                if torch.any(samples_with_max_context_length * self.state.active_samples):
-                    logging.info(f"!!! maximum context length reached !!!")
-                    self.state.active_samples *= torch.logical_not(samples_with_max_context_length)
-                    self.state.active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
-
-                # zero out decoder_mems_list for non active samples
-                if torch.any(torch.logical_not(self.state.active_samples_inner_loop)):
-                    for j in range(len(decoder_mems_list)):
-                        decoder_mems_list[j][:, -1] *= self.state.active_samples_inner_loop.unsqueeze(-1)
-                self.state.decoder_mems_list = decoder_mems_list
-
-                # TODO: remove this after debugging
-                if self.debug_mode:
-                    import ipdb; ipdb.set_trace()
-
+            self.run_waitk_decoding_step(encoded_speech, encoder_input_mask)
         # alignatt streaming decoding policy
         elif self.decoding_cfg.streaming_policy == "alignatt":
-            if self.state.decoding_step < 0:
-                # first decoding step
-                tgt, batch_size, _ = self.asr_model.decoding.decoding.greedy_search._prepare_for_search(
-                    self.state.decoder_input_ids,
-                    encoded_speech,
-                )
-                input_ids = tgt
-                start_from = 0
-            else:
-                input_ids = self.state.tgt[
-                    self.state.batch_idxs, self.state.current_context_lengths - 1
-                ].unsqueeze(-1)
-                start_from = torch.min(self.state.current_context_lengths).item() - 1
-
-            decoder_mems_list = self.state.decoder_mems_list
-            self.state.steps_per_inner_loop = torch.zeros(self.state.batch_size, dtype=torch.long, device=self.state.device)
-            self.state.active_samples_inner_loop = (
-                torch.ones(self.state.batch_size, dtype=torch.bool, device=self.state.device) * self.state.active_samples
-            )
-
-            for i in range(start_from, self.state.max_generation_length):
-                # prepare positional indexes offset for attention decoder
-                if not decoder_mems_list:
-                    positional_indexes = torch.zeros_like(self.state.current_context_lengths)
-                else:
-                    positional_indexes = self.state.current_context_lengths - 1
-
-                logits, decoder_mems_list, xatt_scores_list = (
-                    self.asr_model.decoding.decoding.greedy_search._one_step_forward(
-                        input_ids,
-                        encoded_speech,
-                        encoder_input_mask,
-                        decoder_mems_list,
-                        positional_indexes,
-                        return_scores=False,
-                        return_xatt_scores=True,
-                    )
-                )
-
-                next_tokens = torch.argmax(logits[:, -1], dim=-1)
-                text_token = self.asr_model.tokenizer.ids_to_tokens(next_tokens.tolist())
-
-                # compute the most attended encoder token
-                xatt_scores = xatt_scores_list[self.decoding_cfg.xatt_scores_layer]
-                xatt_scores = torch.mean(xatt_scores, 1)
-                if i == 0 and xatt_scores.shape[-1] <= self.decoding_cfg.exclude_sink_frames:
-                    exclude_sink_frames = xatt_scores.shape[-1] // 2
-                else:
-                    exclude_sink_frames = self.decoding_cfg.exclude_sink_frames if self.state.prev_encoder_shift == 0 else 0
-                most_attended_idxs = (
-                    torch.argmax(xatt_scores[:, :, exclude_sink_frames:], dim=-1) + exclude_sink_frames
-                )
-
-                # we can try to smooth peaky xatt scores with avgpooling
-                if self.decoding_cfg.use_avgpool_for_alignatt:
-                    average_pooling_xatt_scores = self.state.avgpool2d(xatt_scores[:, :, exclude_sink_frames:])
-                    most_attended_idxs_avgpool = (
-                        torch.argmax(average_pooling_xatt_scores, dim=-1) + exclude_sink_frames
-                    )
-                    most_attended_idxs = most_attended_idxs_avgpool
-
-                # select the last attended token for each sample
-                if most_attended_idxs.size(-1) > 1:
-                    most_attended_idxs = most_attended_idxs[:, -1]
-                else:
-                    most_attended_idxs = most_attended_idxs.squeeze(-1)
-
-                # aligatt condition (True -- continue decoding, False -- wait for more speech)
-                alignatt_condition = (
-                    encoder_output_len - (most_attended_idxs + 1) >= self.decoding_cfg.alignatt_thr
-                )
-
-                # alignatt condition is always True for the last speech chunk
-                alignatt_condition += self.state.is_last_chunk_batch
-
-                # applay alignatt condition for inner loop
-                self.state.active_samples_inner_loop *= alignatt_condition
-
-                if self.debug_mode:
-                    logging.info(f"========================" * 5)
-                    logging.info(f"self.state.decoding_step   : {self.state.decoding_step}")
-                    logging.info(f"decoding step i            : {i}")
-                    logging.info(f"[encoded_speech.shape]     : {encoded_speech.shape}")
-                    logging.info(f"[encoder_output_len]       : {encoder_output_len}")
-                    logging.info(f"[positional_indexes]       : {positional_indexes}")
-                    logging.info(f"[most_attended_idxs]       : {most_attended_idxs}")
-                    logging.info(f"[is_last_chunk_batch]      : {self.state.is_last_chunk_batch}")
-                    logging.info(f"[active_samples]           : {self.state.active_samples}")
-                    logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
-                    logging.info(f"[current_context_lengths]  : {self.state.current_context_lengths}")
-                    logging.info(f"[predicted tokens]         : {text_token}")
-                    logging.info(f"[predicted tokens id]      : {next_tokens}")
-
-                # increase speech chunk if no active samples in the inner loop
-                if not torch.any(self.state.active_samples_inner_loop):
-                    if self.debug_mode:
-                        logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
-                    break
-
-                # compute eos tokens mask
-                # TODO add a case of "." + EOS prediction for models with PC support?
-                is_eos_tokens = next_tokens == self.asr_model.tokenizer.eos
-                # rearange active samples (inner loop) depends on eos prediction
-                self.state.active_samples_inner_loop *= torch.logical_not(is_eos_tokens)
-                # disable samples (upper loop) with eos and end of speech
-                eos_and_end_speech_mask = is_eos_tokens * self.state.is_last_chunk_batch
-                self.state.active_samples *= torch.logical_not(eos_and_end_speech_mask)
-
-                if not torch.any(self.state.active_samples_inner_loop):
-                    if self.debug_mode:
-                        logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
-                        logging.info(f"[active_samples]           : {self.state.active_samples}")
-                        logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
-                        logging.info(f"________________________")
-                    break
-
-                # write predicted tokens to the tgt tensor
-                torch.where(
-                    self.state.active_samples_inner_loop, next_tokens, self.state.eos_tokens, out=next_tokens
-                )
-                self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths] = next_tokens
-
-                # update tokens frame alignment based on current encoder step (this alignment is used for LAAL calculation)
-                self.state.tokens_frame_alignment[self.state.batch_idxs, self.state.current_context_lengths] = (
-                    encoder_output_len + self.state.prev_encoder_shift # we need to add the real frame position in the audio signal
-                )
-
-                self.state.decoding_step += input_ids.size(-1)
-
-                # check for hallucinations
-                if self.decoding_cfg.hallucinations_detector:
-                    hallucination_mask = self.detect_hallucinations(self.state.tgt, self.state.batch_idxs, self.state.current_context_lengths)
-                    if torch.any(hallucination_mask):
-                        self.state.active_samples *= torch.logical_not(hallucination_mask)
-                        self.state.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
-
-                # disable samples with maximum context length
-                samples_with_max_context_length = (
-                    self.state.current_context_lengths == self.state.max_generation_length - 1
-                )
-                if torch.any(samples_with_max_context_length * self.state.active_samples):
-                    logging.info(f"!!! maximum context length reached !!!")
-                    self.state.active_samples *= torch.logical_not(samples_with_max_context_length)
-                    self.state.active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
-
-                # zero out decoder_mems_list for non active samples
-                # TODO batched decoding works wrong if first token was EOS for one of the samples
-                if torch.any(torch.logical_not(self.state.active_samples_inner_loop)):
-                    for j in range(len(decoder_mems_list)):
-                        decoder_mems_list[j][:, -1] *= self.state.active_samples_inner_loop.unsqueeze(-1)
-
-                self.state.decoder_mems_list = decoder_mems_list
-                self.state.current_context_lengths += self.state.active_samples_inner_loop
-                # TODO model does not predicts any real tokens in the case of first EOS prediction (rare case for batched decoding)
-                input_ids = self.state.tgt[
-                    self.state.batch_idxs, self.state.current_context_lengths - 1
-                ].unsqueeze(-1)
-
-                # limit number of steps per inner loop if not end of speech
-                if self.state.max_tokens_per_alignatt_step is not None:
-                    self.state.steps_per_inner_loop += self.state.active_samples_inner_loop
-                    disable_samples_mask = self.state.steps_per_inner_loop >= self.state.max_tokens_per_alignatt_step
-                    disable_samples_mask *= torch.logical_not(self.state.is_last_chunk_batch)
-                    self.state.active_samples_inner_loop *= torch.logical_not(disable_samples_mask)
-
-                if self.debug_mode:
-                    logging.info(f"-------------" * 5)
-                    logging.info(f"self.state.decoding_step   : {self.state.decoding_step}")
-                    logging.info(f"decoding step i            : {i}")
-                    logging.info(f"[encoded_speech.shape]     : {encoded_speech.shape}")
-                    logging.info(f"[encoder_output_len]       : {encoder_output_len}")
-                    logging.info(f"[positional_indexes]       : {positional_indexes}")
-                    logging.info(f"[most_attended_idxs]       : {most_attended_idxs}")
-                    logging.info(f"[is_last_chunk_batch]      : {self.state.is_last_chunk_batch}")
-                    logging.info(f"[active_samples]           : {self.state.active_samples}")
-                    logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
-                    logging.info(f"[current_context_lengths]  : {self.state.current_context_lengths}")
-                    logging.info(f"[predicted tokens]         : {text_token}")
-                    logging.info(f"[predicted tokens id]: {next_tokens}")
-
-                if not torch.any(self.state.active_samples_inner_loop):
-                    if self.debug_mode:
-                        # TODO: remove this after debugging
-                        import ipdb; ipdb.set_trace()
-                        logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
-                    break
-
+            self.run_alignatt_decoding_step(encoded_speech, encoder_input_mask)
         else:
             raise ValueError("Canary streaming decoding supports only alignatt or waitk decodong policy")
-        
+
         return self.state
+
+
+    def run_waitk_decoding_step(self, encoded_speech, encoder_input_mask):
+        """
+        Run a decoding step for waith streaming policy.
+        """
+        if self.state.decoding_step < 0:
+            # first decoding step
+            tgt, batch_size, _ = self.asr_model.decoding.decoding.greedy_search._prepare_for_search(
+                self.state.decoder_input_ids,
+                encoded_speech,
+            )
+            input_ids = tgt
+        else:
+            input_ids = self.state.tgt[
+                self.state.batch_idxs, self.state.current_context_lengths - 1
+            ].unsqueeze(-1)
+
+        self.state.active_samples_inner_loop = (
+            torch.ones(self.state.batch_size, dtype=torch.bool, device=self.state.device) * self.state.active_samples
+        )
+        decoder_mems_list = self.state.decoder_mems_list
+
+        # define start and max generation lengths
+        start_from = self.state.decoding_step + 1
+        if torch.any(torch.logical_not(self.state.is_last_chunk_batch)):
+            # predict only one token per speech chunk if not the last one
+            max_generation_length = start_from + 1
+        else:
+            max_generation_length = self.decoding_cfg.max_generation_length
+
+        # inner deocding loop (with same speech chunk)
+        for i in range(start_from, max_generation_length):
+
+            if not decoder_mems_list:
+                positional_indexes = torch.zeros_like(self.state.current_context_lengths)
+            else:
+                positional_indexes = self.state.current_context_lengths - 1
+
+            logits, decoder_mems_list, xatt_scores_list = (
+                self.asr_model.decoding.decoding.greedy_search._one_step_forward(
+                    input_ids,
+                    encoded_speech,
+                    encoder_input_mask,
+                    decoder_mems_list,
+                    positional_indexes,
+                    return_scores=False,
+                    return_xatt_scores=True,
+                )
+            )
+            next_tokens = torch.argmax(logits[:, -1], dim=-1)
+            text_tokens = self.asr_model.tokenizer.ids_to_tokens(next_tokens.tolist())
+
+            # compute eos tokens mask
+            is_eos_tokens = next_tokens == self.asr_model.tokenizer.eos
+            # rearange active samples (inner loop) depends on eos prediction
+            self.state.active_samples_inner_loop *= torch.logical_not(is_eos_tokens)
+            # disable samples (upper loop) with eos and end of speech
+            eos_and_end_speech_mask = is_eos_tokens * self.state.is_last_chunk_batch
+            self.state.active_samples = self.state.active_samples * torch.logical_not(
+                eos_and_end_speech_mask
+            )
+
+            if self.debug_mode:
+                logging.info(f"-------------" * 5)
+                logging.info(f"decoding step (i)        : {i}")
+                logging.info(f"start_from               : {start_from}")
+                logging.info(f"max_generation_length    : {max_generation_length}")
+                logging.info(f"[encoder_output_len]     : {self.state.encoder_output_len}")
+                logging.info(f"[is_last_chunk_batch]    : {self.state.is_last_chunk_batch}")
+                logging.info(f"[active_samples]         : {self.state.active_samples}")
+                logging.info(f"[current_context_lengths]: {self.state.current_context_lengths}")
+                logging.info(f"[predicted token]        : {text_tokens}")
+                logging.info(f"[predicted token id]     : {next_tokens}")
+
+            if not torch.any(self.state.active_samples_inner_loop):
+                if self.debug_mode:
+                    logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
+                break
+
+            # write predicted tokens to the tgt tensor
+            torch.where(
+                self.state.active_samples_inner_loop, next_tokens, self.state.eos_tokens, out=next_tokens
+            )
+            self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths] = next_tokens
+
+            self.state.decoding_step += input_ids.size(-1)
+
+            # check for hallucinations
+            if self.decoding_cfg.hallucinations_detector:
+                hallucination_mask = self.detect_hallucinations(self.state.tgt, self.state.batch_idxs, self.state.current_context_lengths)
+                if torch.any(hallucination_mask):
+                    self.state.active_samples *= torch.logical_not(hallucination_mask)
+                    self.state.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
+
+            self.state.current_context_lengths += self.state.active_samples_inner_loop
+            input_ids = self.state.tgt[
+                self.state.batch_idxs, self.state.current_context_lengths - 1
+            ].unsqueeze(-1)
+
+            # disable samples with maximum context length
+            samples_with_max_context_length = (
+                self.state.current_context_lengths == self.decoding_cfg.max_generation_length - 1
+            )
+            if torch.any(samples_with_max_context_length * self.state.active_samples):
+                logging.info(f"!!! maximum context length reached !!!")
+                self.state.active_samples *= torch.logical_not(samples_with_max_context_length)
+                self.state.active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
+
+            # zero out decoder_mems_list for non active samples
+            if torch.any(torch.logical_not(self.state.active_samples_inner_loop)):
+                for j in range(len(decoder_mems_list)):
+                    decoder_mems_list[j][:, -1] *= self.state.active_samples_inner_loop.unsqueeze(-1)
+            self.state.decoder_mems_list = decoder_mems_list
+
+            # TODO: remove this after debugging
+            if self.debug_mode:
+                import ipdb; ipdb.set_trace()
+
+
+    def run_alignatt_decoding_step(self, encoded_speech, encoder_input_mask):
+        """
+        Run a decoding step for alignatt streaming policy.
+        """
+        if self.state.decoding_step < 0:
+            # first decoding step
+            tgt, batch_size, _ = self.asr_model.decoding.decoding.greedy_search._prepare_for_search(
+                self.state.decoder_input_ids,
+                encoded_speech,
+            )
+            input_ids = tgt
+            start_from = 0
+        else:
+            input_ids = self.state.tgt[
+                self.state.batch_idxs, self.state.current_context_lengths - 1
+            ].unsqueeze(-1)
+            start_from = torch.min(self.state.current_context_lengths).item() - 1
+
+        decoder_mems_list = self.state.decoder_mems_list
+        self.state.steps_per_inner_loop = torch.zeros(self.state.batch_size, dtype=torch.long, device=self.state.device)
+        self.state.active_samples_inner_loop = (
+            torch.ones(self.state.batch_size, dtype=torch.bool, device=self.state.device) * self.state.active_samples
+        )
+
+        for i in range(start_from, self.state.max_generation_length):
+            # prepare positional indexes offset for attention decoder
+            if not decoder_mems_list:
+                positional_indexes = torch.zeros_like(self.state.current_context_lengths)
+            else:
+                positional_indexes = self.state.current_context_lengths - 1
+
+            logits, decoder_mems_list, xatt_scores_list = (
+                self.asr_model.decoding.decoding.greedy_search._one_step_forward(
+                    input_ids,
+                    encoded_speech,
+                    encoder_input_mask,
+                    decoder_mems_list,
+                    positional_indexes,
+                    return_scores=False,
+                    return_xatt_scores=True,
+                )
+            )
+            next_tokens = torch.argmax(logits[:, -1], dim=-1)
+            text_token = self.asr_model.tokenizer.ids_to_tokens(next_tokens.tolist())
+
+            # compute the most attended encoder token
+            xatt_scores = xatt_scores_list[self.decoding_cfg.xatt_scores_layer]
+            xatt_scores = torch.mean(xatt_scores, 1)
+            if i == 0 and xatt_scores.shape[-1] <= self.decoding_cfg.exclude_sink_frames:
+                exclude_sink_frames = xatt_scores.shape[-1] // 2
+            else:
+                exclude_sink_frames = self.decoding_cfg.exclude_sink_frames if self.state.prev_encoder_shift == 0 else 0
+            most_attended_idxs = (
+                torch.argmax(xatt_scores[:, :, exclude_sink_frames:], dim=-1) + exclude_sink_frames
+            )
+
+            # we can try to smooth peaky xatt scores with avgpooling
+            if self.decoding_cfg.use_avgpool_for_alignatt:
+                average_pooling_xatt_scores = self.state.avgpool2d(xatt_scores[:, :, exclude_sink_frames:])
+                most_attended_idxs_avgpool = (
+                    torch.argmax(average_pooling_xatt_scores, dim=-1) + exclude_sink_frames
+                )
+                most_attended_idxs = most_attended_idxs_avgpool
+
+            # select the last attended token for each sample
+            if most_attended_idxs.size(-1) > 1:
+                most_attended_idxs = most_attended_idxs[:, -1]
+            else:
+                most_attended_idxs = most_attended_idxs.squeeze(-1)
+
+            # aligatt condition (True -- continue decoding, False -- wait for more speech)
+            alignatt_condition = (
+                self.state.encoder_output_len - (most_attended_idxs + 1) >= self.decoding_cfg.alignatt_thr
+            )
+
+            # alignatt condition is always True for the last speech chunk
+            alignatt_condition += self.state.is_last_chunk_batch
+
+            # applay alignatt condition for inner loop
+            self.state.active_samples_inner_loop *= alignatt_condition
+
+            if self.debug_mode:
+                logging.info(f"========================" * 5)
+                logging.info(f"self.state.decoding_step   : {self.state.decoding_step}")
+                logging.info(f"decoding step i            : {i}")
+                logging.info(f"[encoded_speech.shape]     : {encoded_speech.shape}")
+                logging.info(f"[encoder_output_len]       : {self.state.encoder_output_len}")
+                logging.info(f"[positional_indexes]       : {positional_indexes}")
+                logging.info(f"[most_attended_idxs]       : {most_attended_idxs}")
+                logging.info(f"[is_last_chunk_batch]      : {self.state.is_last_chunk_batch}")
+                logging.info(f"[active_samples]           : {self.state.active_samples}")
+                logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
+                logging.info(f"[current_context_lengths]  : {self.state.current_context_lengths}")
+                logging.info(f"[predicted tokens]         : {text_token}")
+                logging.info(f"[predicted tokens id]      : {next_tokens}")
+
+            # increase speech chunk if no active samples in the inner loop
+            if not torch.any(self.state.active_samples_inner_loop):
+                if self.debug_mode:
+                    logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
+                break
+
+            # compute eos tokens mask
+            # TODO add a case of "." + EOS prediction for models with PC support?
+            is_eos_tokens = next_tokens == self.asr_model.tokenizer.eos
+            # rearange active samples (inner loop) depends on eos prediction
+            self.state.active_samples_inner_loop *= torch.logical_not(is_eos_tokens)
+            # disable samples (upper loop) with eos and end of speech
+            eos_and_end_speech_mask = is_eos_tokens * self.state.is_last_chunk_batch
+            self.state.active_samples *= torch.logical_not(eos_and_end_speech_mask)
+
+            if not torch.any(self.state.active_samples_inner_loop):
+                if self.debug_mode:
+                    logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
+                    logging.info(f"[active_samples]           : {self.state.active_samples}")
+                    logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
+                    logging.info(f"________________________")
+                break
+
+            # write predicted tokens to the tgt tensor
+            torch.where(
+                self.state.active_samples_inner_loop, next_tokens, self.state.eos_tokens, out=next_tokens
+            )
+            self.state.tgt[self.state.batch_idxs, self.state.current_context_lengths] = next_tokens
+
+            # update tokens frame alignment based on current encoder step (this alignment is used for LAAL calculation)
+            self.state.tokens_frame_alignment[self.state.batch_idxs, self.state.current_context_lengths] = (
+                self.state.encoder_output_len + self.state.prev_encoder_shift # we need to add the real frame position in the audio signal
+            )
+
+            self.state.decoding_step += input_ids.size(-1)
+
+            # check for hallucinations
+            if self.decoding_cfg.hallucinations_detector:
+                hallucination_mask = self.detect_hallucinations(self.state.tgt, self.state.batch_idxs, self.state.current_context_lengths)
+                if torch.any(hallucination_mask):
+                    self.state.active_samples *= torch.logical_not(hallucination_mask)
+                    self.state.active_samples_inner_loop *= torch.logical_not(hallucination_mask)
+
+            # disable samples with maximum context length
+            samples_with_max_context_length = (
+                self.state.current_context_lengths == self.state.max_generation_length - 1
+            )
+            if torch.any(samples_with_max_context_length * self.state.active_samples):
+                logging.info(f"!!! maximum context length reached !!!")
+                self.state.active_samples *= torch.logical_not(samples_with_max_context_length)
+                self.state.active_samples_inner_loop *= torch.logical_not(samples_with_max_context_length)
+
+            # zero out decoder_mems_list for non active samples
+            # TODO batched decoding works wrong if first token was EOS for one of the samples
+            if torch.any(torch.logical_not(self.state.active_samples_inner_loop)):
+                for j in range(len(decoder_mems_list)):
+                    decoder_mems_list[j][:, -1] *= self.state.active_samples_inner_loop.unsqueeze(-1)
+
+            self.state.decoder_mems_list = decoder_mems_list
+            self.state.current_context_lengths += self.state.active_samples_inner_loop
+            # TODO model does not predicts any real tokens in the case of first EOS prediction (rare case for batched decoding)
+            input_ids = self.state.tgt[
+                self.state.batch_idxs, self.state.current_context_lengths - 1
+            ].unsqueeze(-1)
+
+            # limit number of steps per inner loop if not end of speech
+            if self.state.max_tokens_per_alignatt_step is not None:
+                self.state.steps_per_inner_loop += self.state.active_samples_inner_loop
+                disable_samples_mask = self.state.steps_per_inner_loop >= self.state.max_tokens_per_alignatt_step
+                disable_samples_mask *= torch.logical_not(self.state.is_last_chunk_batch)
+                self.state.active_samples_inner_loop *= torch.logical_not(disable_samples_mask)
+
+            if self.debug_mode:
+                logging.info(f"-------------" * 5)
+                logging.info(f"self.state.decoding_step   : {self.state.decoding_step}")
+                logging.info(f"decoding step i            : {i}")
+                logging.info(f"[encoded_speech.shape]     : {encoded_speech.shape}")
+                logging.info(f"[encoder_output_len]       : {self.state.encoder_output_len}")
+                logging.info(f"[positional_indexes]       : {positional_indexes}")
+                logging.info(f"[most_attended_idxs]       : {most_attended_idxs}")
+                logging.info(f"[is_last_chunk_batch]      : {self.state.is_last_chunk_batch}")
+                logging.info(f"[active_samples]           : {self.state.active_samples}")
+                logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
+                logging.info(f"[current_context_lengths]  : {self.state.current_context_lengths}")
+                logging.info(f"[predicted tokens]         : {text_token}")
+                logging.info(f"[predicted tokens id]: {next_tokens}")
+
+            if not torch.any(self.state.active_samples_inner_loop):
+                if self.debug_mode:
+                    # TODO: remove this after debugging
+                    import ipdb; ipdb.set_trace()
+                    logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
+                break
+
 
     def detect_hallucinations(self, tgt, batch_idxs, current_context_lengths):
 
