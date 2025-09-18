@@ -336,6 +336,22 @@ def attach_tags(cut, tags: dict):
     return cut
 
 
+def attach_prompt_field(cut, prompt_field: str, prompt_value: str):
+    """Attach prompt field information to a cut's supervision."""
+    if hasattr(cut, 'supervisions') and cut.supervisions:
+        supervision = cut.supervisions[0]
+        # Set the prompt field in the supervision's custom_fields
+        if not hasattr(supervision, 'custom_fields') or supervision.custom_fields is None:
+            supervision.custom_fields = {}
+        supervision.custom_fields[prompt_field] = prompt_value
+    
+    if not hasattr(cut, 'custom') or cut.custom is None:
+        cut.custom = {}
+    cut.custom[prompt_field] = prompt_value
+        
+    return cut
+
+
 @data_type_parser("group")
 def parse_and_combine_datasets(
     config_list: Union[list[DictConfig], ListConfig], propagate_attrs: dict
@@ -370,6 +386,8 @@ def parse_and_combine_datasets(
         if (w := item.get("weight")) is not None:
             weights.append(w)
 
+    print("Weights are successfully appended")
+    
     all_same_tarred_status = all(t == tarred_status[0] for t in tarred_status)
     if not all_same_tarred_status:
         if propagate_attrs["force_map_dataset"] or propagate_attrs["force_iterable_dataset"]:
@@ -537,11 +555,15 @@ def cut_to_conversation(
 
 @data_type_parser(["lhotse_as_conversation"])
 def read_lhotse_as_conversation(config) -> tuple[CutSet, bool]:
+    print("Here")
     cuts, is_tarred = read_cutset_from_config(config)
     # Attach extra tags to every utterance dynamically, if provided.
     # We need to attach them before cuts are converted to conversations.
     if (extra_tags := config.get("tags")) is not None:
         cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
+    if (prompt := config.get("prompt")) is not None:
+        print(f"Prompt: {prompt}")
+        cuts = cuts.map(partial(attach_prompt_field, prompt_field="prompt", prompt_value=prompt), apply_fn=None)
     cuts = cuts.map(
         partial(
             cut_to_conversation,

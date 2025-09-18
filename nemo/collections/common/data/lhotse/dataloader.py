@@ -228,6 +228,7 @@ def get_lhotse_dataloader_from_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
+    tdt_tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -261,10 +262,16 @@ def get_lhotse_dataloader_from_config(
             world_size=world_size,
             dataset=dataset,
             tokenizer=tokenizer,
+            tdt_tokenizer=tdt_tokenizer
         )
     else:
         return get_lhotse_dataloader_from_single_config(
-            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+            config=config, 
+            global_rank=global_rank, 
+            world_size=world_size, 
+            dataset=dataset, 
+            tokenizer=tokenizer, 
+            tdt_tokenizer=tdt_tokenizer
         )
 
 
@@ -274,6 +281,7 @@ def get_lhotse_dataloader_from_single_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
+    tdt_tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -304,7 +312,7 @@ def get_lhotse_dataloader_from_single_config(
     fix_random_seed(config.seed)
 
     sampler, use_iterable_dataset = get_lhotse_sampler_from_config(
-        config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+        config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer, tdt_tokenizer=tdt_tokenizer
     )
 
     # 4. Creating dataloader.
@@ -342,6 +350,7 @@ def get_lhotse_dataloader_from_multi_config(
     world_size: int,
     dataset: torch.utils.data.Dataset,
     tokenizer=None,
+    tdt_tokenizer=None,
 ) -> torch.utils.data.DataLoader:
     """
     Set up a Lhotse training dataloder.
@@ -460,7 +469,7 @@ def get_lhotse_dataloader_from_multi_config(
     return dloader
 
 
-def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None) -> tuple[CutSampler, bool]:
+def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None, tdt_tokenizer=None) -> tuple[CutSampler, bool]:
     """Create a CutSampler from a dataloader config."""
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, use_iterable_dataset = read_cutset_from_config(config)
@@ -491,6 +500,14 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
                 "possibly impacting the training speed if your tokenizer is very large."
                 "If the impact is noticable, set pretokenize=False in dataloader config."
                 "(note: that will disable token-per-second filtering and 2D bucketing features)"
+            )
+
+        # Add TDT tokenization before prompt formatting (for hybrid models)
+        if tdt_tokenizer is not None:
+            print("tdt tokenization is happening")
+            logging.info("Adding TDT tokenization before prompt formatting")
+            cuts = cuts.map(
+                partial(tokenize_with_tdt, tdt_tokenizer=tdt_tokenizer), apply_fn=None
             )
 
         if config.prompt_format is not None:
@@ -773,6 +790,38 @@ def tokenize(example, tokenizer):
         example = example.tokenize(tokenizer)
     else:
         raise RuntimeError(f"Unsupported type of example: {type(example)}")
+    return example
+
+
+def tokenize_with_tdt(example, tdt_tokenizer):
+    """Tokenize the example with TDT tokenizer for clean text (before prompt formatting)."""
+    from nemo.collections.common.data.lhotse.text_adapters import NeMoMultimodalConversation
+    
+    if isinstance(example, NeMoMultimodalConversation):
+        assert hasattr(example, 'custom') and example.custom is not None
+        if  example.custom is not None and \
+            example.custom.get("prompt") is not None and \
+            example.custom.get("prompt") != "transcribe":
+            print(f"Got prompt: {example.custom.get('prompt')}. Skipping TDT tokenization.")
+           
+            print(f"Skipping TDT tokenization for prompt: {example.custom.get('text')}")
+            return example
+        
+        if example.custom.get("prompt") == "transcribe":
+            print(f"Got prompt: {example.custom.get('prompt')}. Performing TDT tokenization.")
+            
+        # Extract raw text from conversation turns (without prompts)
+        for turn in example.turns:
+            if turn.role == "assistant":  # TextTurn
+                text=turn.value
+                
+        # Tokenize with TDT tokenizer
+        tdt_tokens = tdt_tokenizer.text_to_ids(text)
+        
+        # Store TDT tokenization on the conversation object
+        example.tdt_input_ids = tdt_tokens
+        example.tdt_input_ids_len = len(tdt_tokens)
+            
     return example
 
 
