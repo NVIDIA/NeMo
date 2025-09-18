@@ -215,7 +215,11 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
         return int(hidden_length)
 
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
-        try:            
+        try:
+            # Handle CutSet objects by converting to list
+            if hasattr(cuts, '__iter__') and not isinstance(cuts, (list, tuple)):
+                cuts = list(cuts)
+            
             audio, audio_lens, cuts = collate_audio(cuts, fault_tolerant=True)
             
             # Filter out cuts with invalid audio lengths or extremely long sequences
@@ -238,6 +242,9 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
                             valid_cuts.append(cut)
                         except Exception as e:
                             pass  # Skip cuts with tokenization errors
+                    elif text == "":
+                        valid_indices.append(i)
+                        valid_cuts.append(cut)
                     else:
                         pass  # Skip cuts with empty text
                 else:

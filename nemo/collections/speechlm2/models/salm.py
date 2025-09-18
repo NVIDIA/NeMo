@@ -17,6 +17,7 @@ from itertools import repeat
 from pathlib import Path
 from typing import Any, Optional
 
+from nemo.collections.asr.models.asr_model import ASRModel
 import torch
 from lhotse import CutSet
 from lightning import LightningModule
@@ -41,7 +42,7 @@ from nemo.collections.speechlm2.data.salm_dataset import left_collate_vectors
 from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
-from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, move_embedding, setup_speech_encoder
+from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, load_pretrained_nemo, move_embedding, setup_speech_encoder
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 
@@ -66,6 +67,7 @@ class SALM(LightningModule, HFHubMixin):
         del self.llm.model.embed_tokens
         maybe_install_lora(self)
 
+        self.asr_model = load_pretrained_nemo(ASRModel, self.cfg.pretrained_asr).eval()
         # Load the pretrained streaming ASR model and copy its parameters into the audio perception module.
         setup_speech_encoder(self, pretrained_weights=self.cfg.pretrained_weights)
 
@@ -152,7 +154,7 @@ class SALM(LightningModule, HFHubMixin):
         # Source audio encoding.
         # Input audio: (B, T_samples)
         # Audio embeddings: (B, T, H)
-        audio_embs, audio_emb_lens = self.perception(
+        _, _, audio_embs, audio_emb_lens = self.perception(
             input_signal=batch["audios"], input_signal_length=batch["audio_lens"]
         )
         audio_embs = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
@@ -233,7 +235,10 @@ class SALM(LightningModule, HFHubMixin):
             val_loss = torch.stack(vals).mean()
             self.log(f"val_loss_{name}", val_loss, on_epoch=True, sync_dist=True)
             val_losses.append(val_loss)
-        self.log("val_loss", torch.stack(val_losses).mean(), on_epoch=True, sync_dist=True)
+        if len(val_losses) > 0:
+            self.log("val_loss", torch.stack(val_losses).mean(), on_epoch=True, sync_dist=True)
+        else:
+            print(f"DEBUG on_validation_epoch_end: val_losses: {val_losses}")
 
         accuracies = []
         for name, accs in self._partial_accuracies.items():
