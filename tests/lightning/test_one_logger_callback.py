@@ -66,7 +66,9 @@ class TestOneLoggerNeMoCallback:
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
     @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
-    def test_init_configures_provider(self, mock_ptl_callback_init, mock_on_app_start, mock_config_class, mock_get_config, mock_provider):
+    def test_init_configures_provider(
+        self, mock_ptl_callback_init, mock_on_app_start, mock_config_class, mock_get_config, mock_provider
+    ):
         """Test that __init__ properly configures the OneLogger provider."""
         # Setup mocks
         mock_init_config = {

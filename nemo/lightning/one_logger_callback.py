@@ -23,10 +23,10 @@ from typing import Any, Dict
 from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nv_one_logger.api.config import OneLoggerConfig
+from nv_one_logger.training_telemetry.api.callbacks import on_app_start
 from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
 from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
 from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeEventCallback as OneLoggerPTLCallback
-from nv_one_logger.training_telemetry.api.callbacks import on_app_start
 
 from nemo.lightning.base_callback import BaseCallback
 
