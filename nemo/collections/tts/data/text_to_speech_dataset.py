@@ -355,6 +355,8 @@ class MagpieTTSDataset(TextToSpeechDataset):
         pad_context_text_to_max_duration: Whether to pad context text to max context audio frames.
         context_duration_min: Minimum duration of context audio in seconds.
         context_duration_max: Maximum duration of context audio in seconds.
+        text_context_remapping: Dict defining mapping of multiple text contexts to a single text context.
+        text_context_remapping_prob: Probability of remapping the original text context to a remapped text context.
     """
 
     def __init__(

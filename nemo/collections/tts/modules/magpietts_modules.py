@@ -38,7 +38,7 @@ class LocalTransformerType(PrettyStrEnum):
 
 class EOSDetectionMethod(PrettyStrEnum):
     """
-    Enum for the type of local transformer to use in the MagpieTTS model.
+    Enum for the EOS detection method to use in the MagpieTTS model.
     These strings are the values allowed in the YAML config file.
     """
 

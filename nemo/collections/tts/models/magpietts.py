@@ -16,7 +16,7 @@ import os
 import random
 import time
 from functools import partial
-from typing import List, Optional
+from typing import List, Union
 
 import numpy as np
 import soundfile as sf
@@ -2013,14 +2013,14 @@ class MagpieTTSModel(ModelPT):
 
         return cross_attention_maps, headwise_cross_attention_maps
 
-    def find_eos_frame_index(self, codes, eos_detection_method) -> Optional[int]:
+    def find_eos_frame_index(self, codes, eos_detection_method) -> Union[int, float]:
         """
         Checks for EOS in the predicted codes. Returns the index of the first frame within the frame stack
         that contains an EOS token across any codebook, or `None` if no EOS is found.
         Args:
             codes: (num_codebooks, frame_stacking_factor)
         Returns:
-            index (within the frame stack) of the first frame with EOS, or `None` if no EOS is found
+            index (within the frame stack) of the first frame with EOS, or `float('inf')` if no EOS is found
         """
         eos_mask = codes == self.audio_eos_id  # (codebooks, frame_stacking_factor)
         detection_type = EOSDetectionMethod.detection_type(eos_detection_method)
@@ -2044,7 +2044,17 @@ class MagpieTTSModel(ModelPT):
             return eos_per_frame.nonzero()[0].item()
         return float('inf')
 
-    def detect_eos(self, audio_codes_multinomial, audio_codes_argmax, eos_detection_method):
+    def detect_eos(self, audio_codes_multinomial, audio_codes_argmax, eos_detection_method) -> Union[int, float]:
+        """
+        Detects EOS in the predicted codes. Returns the index of the first frame within the frame stack
+        that triggers EOS detection, or `float('inf')` if no EOS is found.
+        Args:
+            audio_codes_multinomial: (num_codebooks, frame_stacking_factor) - Multinomial samples
+            audio_codes_argmax: (num_codebooks, frame_stacking_factor) - Argmax samples
+            eos_detection_method: EOS detection method
+        Returns:
+            index (within the frame stack) of the first frame with EOS, or `float('inf')` if no EOS is found
+        """
         sampling_type = EOSDetectionMethod.sampling_type(eos_detection_method)
         if sampling_type == "argmax":
             return self.find_eos_frame_index(audio_codes_argmax, eos_detection_method)
@@ -2081,7 +2091,6 @@ class MagpieTTSModel(ModelPT):
         ignore_finished_sentence_tracking=False,
         eos_detection_method="argmax_or_multinomial_any",
     ):
-
         eos_detection_method = EOSDetectionMethod(eos_detection_method)
         with torch.no_grad():
             start_time = time.time()
