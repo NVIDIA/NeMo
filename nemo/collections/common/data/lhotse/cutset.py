@@ -204,8 +204,23 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "force_map_dataset": config.get("force_map_dataset", False),
         "force_iterable_dataset": config.get("force_iterable_dataset", False),
         "slice_length": config.get("slice_length", None),
+        "force_mono": config.get("force_mono", False),
     }
-    cuts, is_tarred = parse_and_combine_datasets(config.input_cfg, propagate_attrs=propagate_attrs)
+    
+    # Handle case where input_cfg is a string path
+    input_cfg = config.input_cfg
+    print(f"Input cfg: {input_cfg}")
+    if isinstance(input_cfg, str):
+        # Load the configuration from the file path
+        loaded_config = OmegaConf.load(input_cfg)
+        print(f"Loaded config: {loaded_config}")
+        # Extract the input_cfg content from the loaded configuration
+        # Handle case where loaded_config is a list (first item contains input_cfg)
+        if isinstance(loaded_config, ListConfig) and len(loaded_config) > 0:
+            input_cfg = loaded_config[0].input_cfg
+        else:
+            input_cfg = loaded_config.input_cfg
+    cuts, is_tarred = parse_and_combine_datasets(input_cfg, propagate_attrs=propagate_attrs)
     return cuts, is_tarred
 
 
