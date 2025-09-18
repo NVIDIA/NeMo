@@ -20,8 +20,8 @@ import torch
 from nemo.collections.asr.inference.pnc.token_classification.punctuation_capitalization_model import (
     PunctuationCapitalizationModel,
 )
-from nemo.collections.common.inference.utils.device_utils import setup_device
-from nemo.collections.common.inference.utils.word import Word, join_words
+from nemo.collections.asr.inference.utils.device_utils import setup_device
+from nemo.collections.asr.inference.utils.word import Word, join_words
 
 
 class PunctuationCapitalizer:

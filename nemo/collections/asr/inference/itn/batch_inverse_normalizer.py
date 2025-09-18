@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Set, Tuple
 from joblib import Parallel, delayed
 
 from nemo.collections.asr.inference.itn.inverse_normalizer import AlignmentPreservingInverseNormalizer
-from nemo.collections.common.inference.utils.word import Word
+from nemo.collections.asr.inference.utils.word import Word
 
 
 def merge_punctuation_and_itn_tags(

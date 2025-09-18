@@ -27,7 +27,7 @@ from nemo.collections.asr.inference.stream.framing.request import (
     RequestType,
 )
 from nemo.collections.asr.inference.stream.framing.stream import Stream
-from nemo.collections.common.inference.utils.progressbar import ProgressBar
+from nemo.collections.asr.inference.utils.progressbar import ProgressBar
 
 
 class MultiStream:

@@ -17,7 +17,7 @@ import re
 from collections import OrderedDict
 from typing import List, Tuple
 
-from nemo.collections.common.inference.utils.constants import DEFAULT_SEMIOTIC_CLASS
+from nemo.collections.asr.inference.utils.constants import DEFAULT_SEMIOTIC_CLASS
 
 
 # Compile regex pattern once at module level for better performance

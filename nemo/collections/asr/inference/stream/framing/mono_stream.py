@@ -18,7 +18,7 @@ from typing import List
 import torch
 from nemo.collections.asr.inference.stream.framing.request import Frame, RequestOptions
 from nemo.collections.asr.inference.stream.framing.stream import Stream
-from nemo.collections.common.inference.utils.audio_io import read_audio
+from nemo.collections.asr.inference.utils.audio_io import read_audio
 
 
 class MonoStream(Stream):

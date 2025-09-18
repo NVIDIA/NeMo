@@ -15,7 +15,7 @@
 
 from typing import List, Set, Union
 
-from nemo.collections.common.inference.utils.constants import (
+from nemo.collections.asr.inference.utils.constants import (
     BIG_EPSILON,
     DEFAULT_SEMIOTIC_CLASS,
     SEP_REPLACEABLE_PUNCTUATION,
