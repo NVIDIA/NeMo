@@ -63,6 +63,7 @@ class TranscribeConfig:
     augmentor: Optional[DictConfig] = None
     timestamps: Optional[bool] = None  # returns timestamps for each word and segments if model supports punctuations
     verbose: bool = True
+    enable_chunking: bool = True
 
     # Utility
     partial_hypothesis: Optional[List[Any]] = None
