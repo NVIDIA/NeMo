@@ -80,6 +80,7 @@ ALLOWED_NEMO_SUBMODULE_PREFIXES = [
     "nemo.collections.common.parts.adapter_modules",
 ]
 
+
 def _is_target_allowed(target: str) -> bool:
     """Return True if the Hydra `_target_` should be allowed to be instantiated.
 
@@ -106,6 +107,7 @@ def _is_target_allowed(target: str) -> bool:
 
     # 4) allow model classes
     from nemo.core.classes.modelPT import ModelPT  # lazy import to avoid circular import
+
     SAFE_BASES = (torch.nn.Module, ModelPT)
     try:
         if issubclass(obj, SAFE_BASES):
