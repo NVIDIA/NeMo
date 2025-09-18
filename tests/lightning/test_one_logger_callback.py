@@ -43,6 +43,7 @@ class TestOneLoggerNeMoCallback:
             patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider') as mock_provider,
             patch('nemo.lightning.one_logger_callback.get_one_logger_init_config') as mock_get_config,
             patch('nemo.lightning.one_logger_callback.OneLoggerConfig') as mock_config_class,
+            patch('nemo.lightning.one_logger_callback.on_app_start') as mock_on_app_start,
         ):
 
             # Setup mocks
@@ -311,10 +312,12 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_v1(
         self,
         mock_ptl_callback,
+        mock_on_app_start,
         mock_config_class,
         mock_get_config,
         mock_telemetry_config_class,
@@ -352,10 +355,12 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_v2(
         self,
         mock_ptl_callback,
+        mock_on_app_start,
         mock_config_class,
         mock_get_config,
         mock_telemetry_config_class,
@@ -394,10 +399,12 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_unknown_version_defaults_to_v1(
         self,
         mock_ptl_callback,
+        mock_on_app_start,
         mock_config_class,
         mock_get_config,
         mock_telemetry_config_class,
@@ -435,10 +442,12 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_v2_without_data(
         self,
         mock_ptl_callback,
+        mock_on_app_start,
         mock_config_class,
         mock_get_config,
         mock_telemetry_config_class,
@@ -476,10 +485,12 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_v2_with_extra_kwargs(
         self,
         mock_ptl_callback,
+        mock_on_app_start,
         mock_config_class,
         mock_get_config,
         mock_telemetry_config_class,
@@ -525,9 +536,10 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_init_with_environment_variables(
-        self, mock_ptl_callback, mock_config_class, mock_get_config, mock_provider
+        self, mock_ptl_callback, mock_on_app_start, mock_config_class, mock_get_config, mock_provider
     ):
         """Test initialization with environment variables set."""
         # Setup mocks
@@ -558,10 +570,12 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_with_empty_config(
         self,
         mock_ptl_callback,
+        mock_on_app_start,
         mock_config_class,
         mock_get_config,
         mock_telemetry_config_class,
@@ -598,10 +612,12 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_provider_exception_handling(
         self,
         mock_ptl_callback,
+        mock_on_app_start,
         mock_config_class,
         mock_get_config,
         mock_telemetry_config_class,
@@ -638,10 +654,12 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryConfig')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback')
     def test_update_config_config_exception_handling(
         self,
         mock_ptl_callback,
+        mock_on_app_start,
         mock_config_class,
         mock_get_config,
         mock_telemetry_config_class,
