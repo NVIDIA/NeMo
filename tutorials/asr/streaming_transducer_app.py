@@ -30,6 +30,7 @@ ASR_HF_MODELS: list[str] = [
     "nvidia/parakeet-rnnt-1.1b",
     "nvidia/parakeet-tdt-1.1b",
     "nvidia/parakeet-tdt-0.6b-v2",
+    "nvidia/parakeet-tdt-0.6b-v3",
 ]
 
 audio_processing_lock = threading.Lock()
