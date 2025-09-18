@@ -75,11 +75,53 @@ ALLOWED_TARGET_PREFIXES = [
     "megatron.",
 ]
 
+ALLOWED_NEMO_SUBMODULE_PREFIXES = [
+    "nemo.collections.common.tokenizers",
+    "nemo.collections.common.parts.adapter_modules",
+]
 
-def _is_target_allowed(target_path: str) -> bool:
-    if not isinstance(target_path, str):
+
+def _is_target_allowed(target: str) -> bool:
+    """Return True if the Hydra `_target_` should be allowed to be instantiated.
+
+    Safety policy:
+      1) Quick prefix filter: target must start with an allowed prefix.
+      2) Resolve the target with hydra.utils.get_class.
+      3) It must be a class (not a function); functions are rejected.
+      4) Allow if subclass of a safe base (torch.nn.Module or ModelPT).
+      5) Otherwise allow only if the class comes from an explicitly whitelisted NeMo submodule.
+    """
+    # 1) cheap prefix check
+    if not any(target.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES):
         return False
-    return any(target_path.startswith(prefix) for prefix in ALLOWED_TARGET_PREFIXES)
+
+    # 2) resolve to object
+    try:
+        obj = hydra.utils.get_class(target)
+    except Exception:
+        return False
+
+    # 3) must be a class
+    if not isinstance(obj, type):
+        return False
+
+    # 4) allow model classes
+    from nemo.core.classes.modelPT import ModelPT  # lazy import to avoid circular import
+
+    SAFE_BASES = (torch.nn.Module, ModelPT)
+    try:
+        if issubclass(obj, SAFE_BASES):
+            return True
+    except TypeError:
+        return False
+
+    # 5) allow small, explicit list of safe NeMo submodules
+    module_name = getattr(obj, "__module__", "") or ""
+    if any(module_name.startswith(prefix) for prefix in ALLOWED_NEMO_SUBMODULE_PREFIXES):
+        return True
+
+    # otherwise disallow
+    return False
 
 
 def _validate_config_targets_recursive(config_node: Any):
