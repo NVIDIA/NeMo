@@ -207,7 +207,9 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     def __init__(
         self, bert_type='megatron', add_pooler=True, tokenizer: Optional["TokenizerSpec"] = None, *args, **kwargs
     ):
-        super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
+        orig_post_process = kwargs.pop('post_process', True)
+        super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs, post_process=False)
+        self.post_process = orig_post_process
         self.add_pooler = add_pooler
         self.bert_type = bert_type
         self.tokenizer = tokenizer
@@ -315,7 +317,9 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         if self.share_embeddings_and_output_weights:
             output_weight = self.shared_embedding_or_output_weight()
 
-        hidden_states_after_lm_head = self.lm_head(hidden_states=hidden_states)
+        hidden_states_after_lm_head = (
+            self.lm_head(hidden_states=hidden_states) if self.config.add_lm_head else hidden_states
+        )
         logits, _ = self.output_layer(hidden_states_after_lm_head, weight=output_weight)
 
         binary_logits = None
