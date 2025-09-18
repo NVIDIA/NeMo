@@ -50,15 +50,3 @@ class RecognizerType(Enum):
         choices = [choice.name for choice in cls]
         raise ValueError(f"Invalid recognizer type `{type_name}`: Need to be one of {choices}")
 
-
-class EnhancerType(Enum):
-    ENHANCEMENT_STREAMING = auto()
-
-    @classmethod
-    def from_str(cls, type_name: str) -> 'EnhancerType':
-        """Convert a string to an EnhancerType enum value."""
-        if type_name.lower() == "enhancement_streaming":
-            return EnhancerType.ENHANCEMENT_STREAMING
-
-        choices = [choice.name for choice in cls]
-        raise ValueError(f"Invalid enhancer type `{type_name}`: Need to be one of {choices}")
