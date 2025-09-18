@@ -64,8 +64,9 @@ class TestOneLoggerNeMoCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
-    def test_init_configures_provider(self, mock_ptl_callback_init, mock_config_class, mock_get_config, mock_provider):
+    def test_init_configures_provider(self, mock_ptl_callback_init, mock_on_app_start, mock_config_class, mock_get_config, mock_provider):
         """Test that __init__ properly configures the OneLogger provider."""
         # Setup mocks
         mock_init_config = {
@@ -92,7 +93,8 @@ class TestOneLoggerNeMoCallback:
         mock_provider_instance.with_base_config.assert_called_once_with(mock_config_instance)
         mock_provider_instance.with_base_config.return_value.with_export_config.assert_called_once()
         mock_provider_instance.with_base_config.return_value.with_export_config.return_value.configure_provider.assert_called_once()
-        mock_ptl_callback_init.assert_called_once_with(mock_provider_instance)
+        mock_ptl_callback_init.assert_called_once_with(mock_provider_instance, call_on_app_start=False)
+        mock_on_app_start.assert_called_once_with()
 
 
 class TestOneLoggerCallback:
@@ -682,9 +684,10 @@ class TestOneLoggerCallback:
     @patch('nemo.lightning.one_logger_callback.TrainingTelemetryProvider')
     @patch('nemo.lightning.one_logger_callback.get_one_logger_init_config')
     @patch('nemo.lightning.one_logger_callback.OneLoggerConfig')
+    @patch('nemo.lightning.one_logger_callback.on_app_start')
     @patch('nemo.lightning.one_logger_callback.OneLoggerPTLCallback.__init__', return_value=None)
     def test_init_provider_chain_calls(
-        self, mock_ptl_callback_init, mock_config_class, mock_get_config, mock_provider
+        self, mock_ptl_callback_init, mock_on_app_start, mock_config_class, mock_get_config, mock_provider
     ):
         """Test that the provider configuration chain is called in correct order."""
         # Setup mocks
@@ -703,5 +706,6 @@ class TestOneLoggerCallback:
         chain_result.with_export_config.assert_called_once()
         chain_result.with_export_config.return_value.configure_provider.assert_called_once()
 
-        # Verify PTL callback was initialized with provider instance
-        mock_ptl_callback_init.assert_called_once_with(mock_provider_instance)
+        # Verify PTL callback was initialized with provider instance and explicit on_app_start was called
+        mock_ptl_callback_init.assert_called_once_with(mock_provider_instance, call_on_app_start=False)
+        mock_on_app_start.assert_called_once_with()

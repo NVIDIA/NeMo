@@ -26,6 +26,7 @@ from nv_one_logger.api.config import OneLoggerConfig
 from nv_one_logger.training_telemetry.api.config import TrainingTelemetryConfig
 from nv_one_logger.training_telemetry.api.training_telemetry_provider import TrainingTelemetryProvider
 from nv_one_logger.training_telemetry.integration.pytorch_lightning import TimeEventCallback as OneLoggerPTLCallback
+from nv_one_logger.training_telemetry.api.callbacks import on_app_start
 
 from nemo.lightning.base_callback import BaseCallback
 
@@ -264,7 +265,9 @@ class OneLoggerNeMoCallback(OneLoggerPTLCallback, BaseCallback):
             one_logger_config
         ).with_export_config().configure_provider()
         # Initialize underlying OneLogger PTL callback
-        super().__init__(TrainingTelemetryProvider.instance())
+        super().__init__(TrainingTelemetryProvider.instance(), call_on_app_start=False)
+        # Explicitly signal application start after provider configuration
+        on_app_start()
 
     def update_config(self, nemo_version: str, trainer: Trainer, **kwargs) -> None:
         if nemo_version == 'v1':
