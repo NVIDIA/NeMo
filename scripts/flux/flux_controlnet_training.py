@@ -76,6 +76,7 @@ def flux_controlnet_training() -> run.Partial:
             MegatronFluxControlNetModel,
             flux_params=run.Config(FluxModelParams),
             flux_controlnet_config=run.Config(FluxControlNetConfig),
+            seed=42,
         ),
         data=flux_mock_datamodule(),
         trainer=run.Config(
@@ -92,7 +93,6 @@ def flux_controlnet_training() -> run.Partial:
                 pipeline_dtype=torch.bfloat16,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
-                    use_custom_fsdp=True,
                     data_parallel_sharding_strategy='optim_grads_params',
                     check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
@@ -162,7 +162,9 @@ def convergence_test(custom_fsdp=True) -> run.Partial:
         AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1, 2, 4, 4], attn_resolutions=[]
     )
     recipe.model.flux_params.device = 'cuda'
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, ckpt_path='/ckpts/transformer')
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig, ckpt_path='/ckpts/transformer', calculate_per_token_loss=False, gradient_accumulation_fusion=False
+    )
     recipe.model.flux_params.flux_config.do_convert_from_hf = True
     recipe.trainer.devices = 2
     recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
@@ -191,7 +193,11 @@ def fp8_test(custom_fsdp=True) -> run.Partial:
     )
     recipe.model.flux_params.device = 'cuda'
     recipe.model.flux_params.flux_config = run.Config(
-        FluxConfig, ckpt_path='/ckpts/nemo_flux_transformer.safetensors', guidance_embed=False
+        FluxConfig,
+        ckpt_path='/ckpts/nemo_flux_transformer.safetensors',
+        guidance_embed=False,
+        calculate_per_token_loss=False,
+        gradient_accumulation_fusion=False,
     )
     recipe.trainer.devices = 2
     recipe.data = flux_datamodule('/mingyuanm/dataset/fill50k/fill50k_tarfiles/')
@@ -229,7 +235,11 @@ def convergence_tp2() -> run.Partial:
     )
     recipe.model.flux_params.device = 'cuda'
     recipe.model.flux_params.flux_config = run.Config(
-        FluxConfig, ckpt_path='/ckpts/nemo_dist_ckpt/weights/', load_dist_ckpt=True
+        FluxConfig,
+        ckpt_path='/ckpts/nemo_dist_ckpt/weights/',
+        load_dist_ckpt=True,
+        calculate_per_token_loss=False,
+        gradient_accumulation_fusion=False,
     )
     recipe.trainer.devices = 2
     recipe.trainer.max_steps = 30000
@@ -292,7 +302,6 @@ def unit_test(custom_fsdp=True) -> run.Partial:
 def configure_custom_fsdp(recipe) -> run.Partial:
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
-        use_custom_fsdp=True,
         data_parallel_sharding_strategy='optim_grads_params',  # Custom FSDP
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,

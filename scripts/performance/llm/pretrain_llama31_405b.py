@@ -85,6 +85,9 @@ def override_recipe_configs(
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
+        use_te_op_fuser=args.use_te_op_fuser or use_mcore_fsdp,
+        use_te_act_func=args.use_te_act_func,
+        act_func_fp8_input_store=args.act_func_fp8_input_store,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -135,7 +138,7 @@ def override_recipe_configs(
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
     if use_mcore_fsdp and gpu_type == 'gb200':
-        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) / 64
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) // 64
 
     return recipe
 
@@ -220,7 +223,7 @@ if __name__ == "__main__":
         )
 
         if not args.dryrun:
-            exp.run(sequential=True, detach=True)
+            exp.run(sequential=True, detach=args.detach)
         else:
             exp.dryrun()
 
