@@ -116,6 +116,59 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
     def __getitem__(self, cuts) -> Tuple[torch.Tensor, ...]:
         audio, audio_lens, cuts = self.load_audio(cuts)
         tokens = [torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language)) for c in cuts]
+        try:
+            # Handle CutSet objects by converting to list
+            if hasattr(cuts, '__iter__') and not isinstance(cuts, (list, tuple)):
+                cuts = list(cuts)
+            
+            audio, audio_lens, cuts = collate_audio(cuts, fault_tolerant=True)
+            
+            # Filter out cuts with invalid audio lengths or extremely long sequences
+            valid_indices = []
+            valid_cuts = []
+            
+            for i, (cut, audio_len) in enumerate(zip(cuts, audio_lens)):
+                if audio_len > 0 and cut.supervisions and len(cut.supervisions) > 0:
+                    text = cut.supervisions[0].text
+                    if text and len(text.strip()) > 0:
+                        # Pre-tokenize to check length before processing
+                        try:
+                            tokens = torch.as_tensor(self.tokenizer(text, cut.supervisions[0].language))
+                            token_len = tokens.size(0)
+                            
+                            if token_len > self.max_token_length:
+                                continue
+                            
+                            valid_indices.append(i)
+                            valid_cuts.append(cut)
+                        except Exception as e:
+                            pass  # Skip cuts with tokenization errors
+                    elif text == "":
+                        valid_indices.append(i)
+                        valid_cuts.append(cut)
+                    else:
+                        pass  # Skip cuts with empty text
+                else:
+                    pass  # Skip cuts with invalid audio length
+            
+            if len(valid_indices) == 0:
+                raise ValueError("No valid cuts found in batch")
+            
+            # Filter tensors to keep only valid samples
+            if len(valid_indices) < len(cuts):
+                audio = audio[valid_indices]
+                audio_lens = audio_lens[valid_indices]
+                cuts = valid_cuts
+            
+            # Tokenize the filtered cuts (we already pre-tokenized during filtering)
+            tokens = []
+            for c in cuts:
+                try:
+                    token_tensor = torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language))
+                    tokens.append(token_tensor)
+                except Exception as e:
+                    # Create a minimal token tensor as fallback
+                    tokens.append(torch.tensor([0], dtype=torch.long))
 
         # Create prompt targets
         prompt_targets = [

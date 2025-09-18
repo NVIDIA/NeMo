@@ -68,8 +68,15 @@ class SALMDataset(torch.utils.data.Dataset):
     def __init__(self, tokenizer: AutoTokenizer) -> None:
         self.tokenizer = tokenizer
         self.pad_id = get_pad_id(tokenizer)
+        
+        print("ALLLLLERT")
+        print(self.pad_id)
 
     def __getitem__(self, conversations: CutSet) -> dict | None:
+        
+        print("ALLLLLERT")
+        for c in conversations:
+            print(c)
         # Note: the function call below may filter out some or all conversations due to audio loading issues.
         # If all conversations are filtered out, we'll return None, and expect users to wrap this dataset
         # in ``nemo.collections.common.data.fallback.FallbackDataset`` to use the previous mini-batch instead.
