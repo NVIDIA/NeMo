@@ -26,11 +26,17 @@ from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_fp8_h100_h16384_tp8_cp2_mbs1_seqlen8192,
 )
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..helpers import (
+    args_sanity_check,
+    build_perf_env_plugin,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+)
 from ..utils import dump_config_diff_from_base_recipe, get_comm_overlap_callback_idx, hf_tokenizer
 
 
@@ -79,6 +85,9 @@ def override_recipe_configs(
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         nccl_communicator_config_path=args.nccl_communicator_config_path,
+        use_te_op_fuser=args.use_te_op_fuser or use_mcore_fsdp,
+        use_te_act_func=args.use_te_act_func,
+        act_func_fp8_input_store=args.act_func_fp8_input_store,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "llama3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -129,7 +138,7 @@ def override_recipe_configs(
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
     if use_mcore_fsdp and gpu_type == 'gb200':
-        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) / 64
+        recipe.trainer.strategy.num_distributed_optimizer_instances = (num_nodes * 4) // 64
 
     return recipe
 
@@ -197,13 +206,8 @@ if __name__ == "__main__":
         network='sharp' if args.use_sharp else None,
     )
 
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        )
-    ]
+    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
+
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
     if args.enable_memory_profile:
@@ -219,7 +223,7 @@ if __name__ == "__main__":
         )
 
         if not args.dryrun:
-            exp.run(sequential=True, detach=True)
+            exp.run(sequential=True, detach=args.detach)
         else:
             exp.dryrun()
 

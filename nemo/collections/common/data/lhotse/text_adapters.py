@@ -523,6 +523,7 @@ class NeMoMultimodalConversationJsonlAdapter:
     shard_seed: Union[int, Literal["trng", "randomized"]] = "trng"
     system_prompt: str | None = None
     context: str | None = None
+    slice_length: int | None = None
 
     def __post_init__(self):
         self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
@@ -531,6 +532,7 @@ class NeMoMultimodalConversationJsonlAdapter:
             assert len(self.manifest_filepath) == len(
                 self.tarred_audio_filepaths
             ), f"{len(self.manifest_filepath)} != {len(self.tarred_audio_filepaths)}"
+        self.epoch = 0
 
     def __iter__(self) -> Iterator[NeMoMultimodalConversation]:
         if self.tarred_audio_filepaths is not None:
@@ -544,26 +546,44 @@ class NeMoMultimodalConversationJsonlAdapter:
             return False
         return bool(custom.get("_skipme", False))
 
+    def _get_rng(self) -> random.Random:
+        seed = resolve_seed(self.shard_seed) + self.epoch
+        return random.Random(seed)
+
     def _iter_tar(self):
         paths = list(zip(self.manifest_filepath, self.tarred_audio_filepaths))
+        rng = self._get_rng()
         if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
+            rng.shuffle(paths)
         for jsonl_path, tar_path in paths:
+            jsonl = load_jsonl(jsonl_path)
+            if self.slice_length is not None:
+                jsonl = list(jsonl)
             tar = iter(TarIterator(tar_path))
-            for data in load_jsonl(jsonl_path):
-                if self._should_skip(data):
-                    continue
+            slice_offset = (
+                rng.randint(0, len(jsonl) - self.slice_length)
+                if self.slice_length is not None and self.slice_length < len(jsonl)
+                else -1
+            )
+            cntr = 0
+            for idx, data in enumerate(jsonl):
                 audio_turns = [t for t in data["conversations"] if t["type"] == "audio"]
                 cuts = []
                 for turn in audio_turns:
                     recording, audio_path = next(tar)
                     audio_path = str(audio_path)
                     cut = recording.to_cut()
-                    assert (
-                        audio_path == turn['value']
-                    ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}.\nBad inputs in: {jsonl_path=} {tar_path=}"
+                    assert audio_path == turn['value'], (
+                        f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got "
+                        f"the following from tar {audio_path=}.\nBad inputs in: {jsonl_path=} {tar_path=}"
+                    )
                     cuts.append(cut)
+                if self._should_skip(data):
+                    continue  # Skip only after tar has been iterated, otherwise there will be data mismatch
+                if idx < slice_offset:
+                    continue
+                elif cntr == self.slice_length:
+                    break
                 cuts = deque(cuts)
                 turns = [
                     (
@@ -591,14 +611,21 @@ class NeMoMultimodalConversationJsonlAdapter:
                     token_equivalent_duration=self.token_equivalent_duration,
                     custom=data.get("custom"),
                 )
+                cntr += 1
+
+        self.epoch += 1
 
     def _iter_jsonl(self):
         paths = self.manifest_filepath
+        rng = self._get_rng()
         if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
+            rng.shuffle(paths)
         for path in paths:
-            for data in load_jsonl(path):
+            jsonl_iter = load_jsonl(path)
+            if self.shuffle_shards:
+                jsonl_iter = list(jsonl_iter)
+                rng.shuffle(jsonl_iter)
+            for data in jsonl_iter:
                 if self._should_skip(data):
                     continue
                 turns = [
@@ -627,6 +654,219 @@ class NeMoMultimodalConversationJsonlAdapter:
                     token_equivalent_duration=self.token_equivalent_duration,
                     custom=data.get("custom"),
                 )
+
+        self.epoch += 1
+
+
+@dataclass
+class NeMoMultimodalConversationShareGPTJsonlAdapter:
+    """
+    ``NeMoMultimodalConversationShareGPTJsonlAdapter`` is used to read a ShareGPT format multimodal
+    conversation JSONL and yield objects of type ``NeMoMultimodalConversation`` that can be sampled with Lhotse.
+
+    We expect the following ShareGPT schema (contained in a single line per example)::
+
+        {
+            "id": str,
+            "sound": str,  # path to audio file
+            "conversations": [
+                {
+                    "value": str,  # text message, may contain <sound> or <speech> placeholder
+                    "from": "human" | "gpt",
+                },
+                ...
+            ],
+            "ori_sound": str,  # optional original sound path
+        }
+
+    Audio placeholders (<sound>, <speech>) in conversation text will be replaced with the audio from the "sound" field.
+    By default, both <sound> and <speech> placeholders are supported.
+    """
+
+    manifest_filepath: str | list[str]
+    audio_locator_tag: str
+    audio_placeholders: Union[str, list[str]] = None
+    tarred_audio_filepaths: str | list[str] = None
+    token_equivalent_duration: float = None
+    shuffle_shards: bool = False
+    shard_seed: Union[int, Literal["trng", "randomized"]] = "trng"
+    slice_length: int | None = None
+
+    def __post_init__(self):
+        self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
+        if self.tarred_audio_filepaths is not None:
+            self.tarred_audio_filepaths = expand_sharded_filepaths(self.tarred_audio_filepaths)
+            assert len(self.manifest_filepath) == len(
+                self.tarred_audio_filepaths
+            ), f"{len(self.manifest_filepath)} != {len(self.tarred_audio_filepaths)}"
+
+        # Handle audio placeholders - default to both <sound> and <speech>
+        if self.audio_placeholders is None:
+            self.audio_placeholders = ["<sound>", "<speech>"]
+        elif isinstance(self.audio_placeholders, str):
+            self.audio_placeholders = [self.audio_placeholders]
+        self.epoch = 0
+
+    def __iter__(self) -> Iterator[NeMoMultimodalConversation]:
+        if self.tarred_audio_filepaths is not None:
+            yield from self._iter_tar()
+        else:
+            yield from self._iter_jsonl()
+
+    def _get_rng(self) -> random.Random:
+        seed = resolve_seed(self.shard_seed) + self.epoch
+        return random.Random(seed)
+
+    def _iter_tar(self):
+        paths = list(zip(self.manifest_filepath, self.tarred_audio_filepaths))
+        rng = self._get_rng()
+        if self.shuffle_shards:
+            rng.shuffle(paths)
+        for jsonl_path, tar_path in paths:
+            jsonl = load_jsonl(jsonl_path)
+            if self.slice_length is not None:
+                jsonl = list(jsonl)
+            tar = iter(TarIterator(tar_path))
+            slice_offset = (
+                rng.randint(0, len(jsonl) - self.slice_length)
+                if self.slice_length is not None and self.slice_length < len(jsonl)
+                else -1
+            )
+            cntr = 0
+            for idx, data in enumerate(jsonl):
+                # Transform ShareGPT format to standard format
+                conversations = self._transform_sharegpt_conversations(data)
+
+                # Extract audio data from tar if needed
+                audio_turns = [t for t in conversations if t["type"] == "audio"]
+                cuts = []
+                for turn in audio_turns:
+                    recording, audio_path = next(tar)
+                    audio_path = str(audio_path)
+                    cut = recording.to_cut()
+                    assert (
+                        audio_path == turn['value']
+                    ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}"
+                    # Update the duration in the turn data with actual audio duration
+                    turn["duration"] = cut.duration
+                    cuts.append(cut)
+                cuts = deque(cuts)
+
+                if idx < slice_offset:
+                    continue
+                elif cntr == self.slice_length:
+                    break
+
+                yield NeMoMultimodalConversation(
+                    id=data["id"],
+                    turns=self._create_turns(conversations, cuts, jsonl_path),
+                    token_equivalent_duration=self.token_equivalent_duration,
+                )
+                cntr += 1
+
+        self.epoch += 1
+
+    def _iter_jsonl(self):
+        paths = self.manifest_filepath
+        rng = self._get_rng()
+        if self.shuffle_shards:
+            rng.shuffle(paths)
+        for path in paths:
+            jsonl_iter = load_jsonl(path)
+            if self.shuffle_shards:
+                jsonl_iter = list(jsonl_iter)
+                rng.shuffle(jsonl_iter)
+            for data in jsonl_iter:
+                # Transform ShareGPT format to standard format
+                conversations = self._transform_sharegpt_conversations(data)
+
+                yield NeMoMultimodalConversation(
+                    id=data["id"],
+                    turns=self._create_turns(conversations, None, path),
+                    token_equivalent_duration=self.token_equivalent_duration,
+                )
+
+        self.epoch += 1
+
+    def _transform_sharegpt_conversations(self, data: dict) -> list[dict]:
+        """
+        Transform ShareGPT format conversations to standard format.
+        Detects audio placeholders (<sound>, <speech>) and creates appropriate audio/text turns.
+        """
+        conversations = []
+        audio_path = data.get("sound") or data.get("ori_sound")
+
+        for turn in data["conversations"]:
+            # Map ShareGPT roles to standard roles
+            role = "user" if turn["from"].lower() == "human" else "assistant"
+
+            # Check if this turn contains any audio placeholder
+            found_placeholder = None
+            for placeholder in self.audio_placeholders:
+                if placeholder in turn["value"]:
+                    found_placeholder = placeholder
+                    break
+
+            if found_placeholder:
+                # Split text around audio placeholder
+                parts = turn["value"].split(found_placeholder)
+
+                # Add text before audio (if any)
+                if parts[0].strip():
+                    conversations.append({"type": "text", "from": role.title(), "value": parts[0].strip()})
+
+                # Add audio turn
+                if audio_path:
+                    conversations.append(
+                        {
+                            "type": "audio",
+                            "from": role.title(),
+                            "value": audio_path,
+                            "duration": 0.0,  # Will be set when loading actual audio
+                        }
+                    )
+
+                # Add text after audio (if any)
+                if len(parts) > 1 and parts[1].strip():
+                    conversations.append({"type": "text", "from": role.title(), "value": parts[1].strip()})
+            else:
+                # Regular text turn
+                conversations.append({"type": "text", "from": role.title(), "value": turn["value"]})
+
+        return conversations
+
+    def _create_turns(
+        self, conversations: list[dict], cuts: deque = None, manifest_path: str = None
+    ) -> list[Union[TextTurn, AudioTurn]]:
+        """Create TextTurn and AudioTurn objects from conversation data."""
+        turns = []
+
+        for turn in conversations:
+            if turn["type"] == "text":
+                turns.append(TextTurn(value=turn["value"], role=turn["from"].lower()))
+            else:  # audio turn
+                if cuts is not None:
+                    # Using tarred audio
+                    cut = cuts.popleft()
+                else:
+                    # Load audio from file path
+                    if is_valid_url(turn["value"]):
+                        # prefetch remote data to memory to avoid doing it once for metadata read and second time for audio loading
+                        data = open_best(turn["value"], "rb").read()
+                        cut = Recording.from_bytes(data, recording_id=turn["value"]).to_cut()
+                    else:
+                        cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
+
+                turns.append(
+                    AudioTurn(
+                        cut=cut,
+                        text=cut.supervisions[0].text if cut.supervisions else None,
+                        role=turn["from"].lower(),
+                        audio_locator_tag=self.audio_locator_tag,
+                    )
+                )
+
+        return turns
 
 
 class TarIterator:
@@ -723,182 +963,3 @@ class NeMoMultimodalConversationTarWriter:
             Path(self.output_dir).mkdir(exist_ok=True)
         self.manifest_writer = JsonlShardWriter(f"{self.output_dir}/manifest_{self.shard_idx}.jsonl", shard_size=None)
         self.tar_writer = AudioTarWriter(f"{self.output_dir}/audio_{self.shard_idx}.tar", shard_size=None)
-
-
-@dataclass
-class NeMoMultimodalConversationShareGPTJsonlAdapter:
-    """
-    ``NeMoMultimodalConversationShareGPTJsonlAdapter`` is used to read a ShareGPT format multimodal
-    conversation JSONL and yield objects of type ``NeMoMultimodalConversation`` that can be sampled with Lhotse.
-    We expect the following ShareGPT schema (contained in a single line per example)::
-        {
-            "id": str,
-            "sound": str,  # path to audio file
-            "conversations": [
-                {
-                    "value": str,  # text message, may contain <sound> or <speech> placeholder
-                    "from": "human" | "gpt",
-                },
-                ...
-            ],
-            "ori_sound": str,  # optional original sound path
-        }
-    Audio placeholders (<sound>, <speech>) in conversation text will be replaced with the audio from the "sound" field.
-    By default, both <sound> and <speech> placeholders are supported.
-    """
-
-    manifest_filepath: str | list[str]
-    audio_locator_tag: str
-    audio_placeholders: Union[str, list[str]] = None
-    tarred_audio_filepaths: str | list[str] = None
-    token_equivalent_duration: float = None
-    shuffle_shards: bool = False
-    shard_seed: Union[int, Literal["trng", "randomized"]] = "trng"
-
-    def __post_init__(self):
-        self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
-        if self.tarred_audio_filepaths is not None:
-            self.tarred_audio_filepaths = expand_sharded_filepaths(self.tarred_audio_filepaths)
-            assert len(self.manifest_filepath) == len(
-                self.tarred_audio_filepaths
-            ), f"{len(self.manifest_filepath)} != {len(self.tarred_audio_filepaths)}"
-
-        # Handle audio placeholders - default to both <sound> and <speech>
-        if self.audio_placeholders is None:
-            self.audio_placeholders = ["<sound>", "<speech>"]
-        elif isinstance(self.audio_placeholders, str):
-            self.audio_placeholders = [self.audio_placeholders]
-
-    def __iter__(self) -> Iterator[NeMoMultimodalConversation]:
-        if self.tarred_audio_filepaths is not None:
-            yield from self._iter_tar()
-        else:
-            yield from self._iter_jsonl()
-
-    def _iter_tar(self):
-        paths = list(zip(self.manifest_filepath, self.tarred_audio_filepaths))
-        if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
-        for jsonl_path, tar_path in paths:
-            tar = iter(TarIterator(tar_path))
-            for data in load_jsonl(jsonl_path):
-                # Transform ShareGPT format to standard format
-                conversations = self._transform_sharegpt_conversations(data)
-
-                # Extract audio data from tar if needed
-                audio_turns = [t for t in conversations if t["type"] == "audio"]
-                cuts = []
-                for turn in audio_turns:
-                    recording, audio_path = next(tar)
-                    audio_path = str(audio_path)
-                    cut = recording.to_cut()
-                    assert (
-                        audio_path == turn['value']
-                    ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}"
-                    # Update the duration in the turn data with actual audio duration
-                    turn["duration"] = cut.duration
-                    cuts.append(cut)
-                cuts = deque(cuts)
-
-                yield NeMoMultimodalConversation(
-                    id=data["id"],
-                    turns=self._create_turns(conversations, cuts, jsonl_path),
-                    token_equivalent_duration=self.token_equivalent_duration,
-                )
-
-    def _iter_jsonl(self):
-        paths = self.manifest_filepath
-        if self.shuffle_shards:
-            seed = resolve_seed(self.shard_seed)
-            random.Random(seed).shuffle(paths)
-        for path in paths:
-            for data in load_jsonl(path):
-                # Transform ShareGPT format to standard format
-                conversations = self._transform_sharegpt_conversations(data)
-
-                yield NeMoMultimodalConversation(
-                    id=data["id"],
-                    turns=self._create_turns(conversations, None, path),
-                    token_equivalent_duration=self.token_equivalent_duration,
-                )
-
-    def _transform_sharegpt_conversations(self, data: dict) -> list[dict]:
-        """
-        Transform ShareGPT format conversations to standard format.
-        Detects audio placeholders (<sound>, <speech>) and creates appropriate audio/text turns.
-        """
-        conversations = []
-        audio_path = data.get("sound") or data.get("ori_sound") or data.get("speech")
-
-        for turn in data["conversations"]:
-            # Map ShareGPT roles to standard roles
-            role = "user" if turn["from"].lower() == "human" else "assistant"
-
-            # Check if this turn contains any audio placeholder
-            found_placeholder = None
-            for placeholder in self.audio_placeholders:
-                if placeholder in turn["value"]:
-                    found_placeholder = placeholder
-                    break
-
-            if found_placeholder:
-                # Split text around audio placeholder
-                parts = turn["value"].split(found_placeholder)
-
-                # Add text before audio (if any)
-                if parts[0].strip():
-                    conversations.append({"type": "text", "from": role.title(), "value": parts[0].strip()})
-
-                # Add audio turn
-                if audio_path:
-                    conversations.append(
-                        {
-                            "type": "audio",
-                            "from": role.title(),
-                            "value": audio_path,
-                            "duration": 0.0,  # Will be set when loading actual audio
-                        }
-                    )
-
-                # Add text after audio (if any)
-                if len(parts) > 1 and parts[1].strip():
-                    conversations.append({"type": "text", "from": role.title(), "value": parts[1].strip()})
-            else:
-                # Regular text turn
-                conversations.append({"type": "text", "from": role.title(), "value": turn["value"]})
-
-        return conversations
-
-    def _create_turns(
-        self, conversations: list[dict], cuts: deque = None, manifest_path: str = None
-    ) -> list[Union[TextTurn, AudioTurn]]:
-        """Create TextTurn and AudioTurn objects from conversation data."""
-        turns = []
-
-        for turn in conversations:
-            if turn["type"] == "text":
-                turns.append(TextTurn(value=turn["value"], role=turn["from"].lower()))
-            else:  # audio turn
-                if cuts is not None:
-                    # Using tarred audio
-                    cut = cuts.popleft()
-                else:
-                    # Load audio from file path
-                    if is_valid_url(turn["value"]):
-                        # prefetch remote data to memory to avoid doing it once for metadata read and second time for audio loading
-                        data = open_best(turn["value"], "rb").read()
-                        cut = Recording.from_bytes(data, recording_id=turn["value"]).to_cut()
-                    else:
-                        cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
-
-                turns.append(
-                    AudioTurn(
-                        cut=cut,
-                        text=cut.supervisions[0].text if cut.supervisions else None,
-                        role=turn["from"].lower(),
-                        audio_locator_tag=self.audio_locator_tag,
-                    )
-                )
-
-        return turns

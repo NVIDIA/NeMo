@@ -48,6 +48,7 @@ from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.accelerators import CPUAccelerator
 from lightning.pytorch.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
 from lightning.pytorch.loops.fetchers import _DataLoaderIterDataFetcher
+from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.strategies.ddp import DDPStrategy
 from lightning.pytorch.trainer.states import RunningStage, TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
@@ -364,20 +365,33 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         self._fsdp = None
 
-        if fsdp is None and self.ddp_config and self.ddp_config.use_custom_fsdp:
+        use_custom_fsdp = getattr(self.ddp_config, "use_custom_fsdp", False)
+        use_megatron_fsdp = getattr(self.ddp_config, "use_megatron_fsdp", False)
+        if fsdp is None and self.ddp_config and (use_custom_fsdp or use_megatron_fsdp):
             logging.warning(
-                "FSDP option is not set but ddp_config.use_custom_fsdp is set to true. "
+                "FSDP option is not set but ddp_config use megatron-fsdp is set to true. "
                 "Setting FSDP option to megatron"
             )
             fsdp = 'megatron'
+            if use_megatron_fsdp and self.save_ckpt_format != "fsdp_dtensor":
+                raise NotImplementedError(
+                    f"Megatron-FSDP checkpointing is not supported with {self.save_ckpt_format}."
+                )
 
         if fsdp == "pytorch":
             raise NotImplementedError("PyTorch FSDP2 is not supported with MegatronParallel.")
         elif fsdp == "megatron":
             self._fsdp = fsdp
-            if not self.ddp_config.use_custom_fsdp:
+            if hasattr(self.ddp_config, "use_custom_fsdp") and not use_custom_fsdp:
                 self.ddp_config.use_custom_fsdp = True
                 logging.warning("Setting ddp_config.use_custom_fsdp to True for MCore FSDP.")
+                logging.warning(
+                    "Deprecation Notice: `use_custom_fsdp` will be deprecated in M-Core 0.14. "
+                    "Please use `use_megatron_fsdp` instead."
+                )
+            elif hasattr(self.ddp_config, "use_megatron_fsdp") and not use_megatron_fsdp:
+                self.ddp_config.use_megatron_fsdp = True
+                logging.warning("Setting ddp_config.use_megatron_fsdp to True for MCore FSDP.")
             logging.info("FSDP option is set to MCore. Using MCore's Custom FSDP for DP.")
         elif fsdp is not None:
             raise ValueError(f'Invalid DDP type: {fsdp}, please choose from ["megatron", "pytorch"].')
@@ -715,6 +729,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         _optimizers_to_device(self.optimizers, self.root_device)
 
     @override
+    def on_validation_end(self) -> None:
+        "Runs after validation loop"
+        for model_chunk in self.model:
+            model_chunk.train()
+
+    @override
+    def on_test_end(self) -> None:
+        "Runs after test loop"
+        for model_chunk in self.model:
+            model_chunk.train()
+
+    @override
     def training_step(self, dataloader_iter, *args: Any, **kwargs: Any) -> STEP_OUTPUT:
         """Runs one training step"""
         assert self.lightning_module is not None
@@ -739,24 +765,39 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                     raise ValueError(f"Expected 'loss' in output dict, got {out.keys()}")
 
                 reduced_train_loss = out["loss"]
-
+            # pl_module.log () will trigger pageable H2D Memcpy which stalls CPU. Use pin_memory=True to avoid it
+            global_step = (
+                self.trainer.global_step
+                if (torch.is_tensor(self.trainer.global_step) and self.trainer.global_step.is_cuda)
+                else torch.tensor(self.trainer.global_step, pin_memory=True).to("cuda", non_blocking=True)
+            )
             self.lightning_module.log(
                 "global_step",
-                self.trainer.global_step,
+                global_step,
                 prog_bar=True,
                 batch_size=1,
             )
 
             self.lightning_module.log(
                 "step",
-                self.trainer.global_step,
+                global_step,
             )
 
             if self.log_memory_usage:
                 # maximum GPU memory that has been managed by the caching allocator
                 max_memory_reserved = torch.cuda.max_memory_reserved()
+                max_memory_reserved = (
+                    max_memory_reserved
+                    if (torch.is_tensor(max_memory_reserved) and max_memory_reserved.is_cuda)
+                    else torch.tensor(max_memory_reserved, pin_memory=True).to("cuda", non_blocking=True)
+                )
                 # maximum GPU memory that has been occupied by active tensors
                 max_memory_allocated = torch.cuda.max_memory_allocated()
+                max_memory_allocated = (
+                    max_memory_allocated
+                    if (torch.is_tensor(max_memory_allocated) and max_memory_allocated.is_cuda)
+                    else torch.tensor(max_memory_allocated, pin_memory=True).to("cuda", non_blocking=True)
+                )
                 self.lightning_module.log(
                     "max_memory_reserved",
                     max_memory_reserved,
@@ -774,6 +815,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 # p2p now, broadcast later at ckpt. only with pp, some ranks will log 0.0
                 # WHICH IS OK because we broadcast later at checkpoint time
                 _strategy_lib._sync_from_last_pipeline_stage(reduced_train_loss, broadcast=False)
+                reduced_train_loss = (
+                    reduced_train_loss
+                    if (torch.is_tensor(reduced_train_loss) and reduced_train_loss.is_cuda)
+                    else torch.tensor(reduced_train_loss, pin_memory=True).to("cuda", non_blocking=True)
+                )
                 self.lightning_module.log(
                     "reduced_train_loss", reduced_train_loss, prog_bar=True, batch_size=1, sync_dist=False
                 )
@@ -800,8 +846,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         if isinstance(optimizer, McoreDistributedOptimizer):
             optimizer_output, grad_norm, num_zeros_in_grad = optimizer_output
             if grad_norm is not None:
+                grad_norm = (
+                    grad_norm
+                    if (torch.is_tensor(grad_norm) and grad_norm.is_cuda)
+                    else torch.tensor(grad_norm, pin_memory=True).to("cuda", non_blocking=True)
+                )
                 self.lightning_module.log('grad_norm', grad_norm, batch_size=1)
             if num_zeros_in_grad is not None:
+                num_zeros_in_grad = (
+                    num_zeros_in_grad
+                    if (torch.is_tensor(num_zeros_in_grad) and num_zeros_in_grad.is_cuda)
+                    else torch.tensor(num_zeros_in_grad, pin_memory=True).to("cuda", non_blocking=True)
+                )
                 self.lightning_module.log('num_zeros_in_grad', num_zeros_in_grad, batch_size=1)
 
         return optimizer_output
@@ -879,10 +935,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         return kwargs
 
-    def optimizer_sharded_state_dict(self, is_loading=False):
+    def optimizer_sharded_state_dict(self, is_loading: bool = False, metadata: Optional[dict] = None):
         """
         Sharded state dictionary for an MainParamsOptimizerWrapper.
         Used to save and load the optimizer state when training with distributed_checkpoint.
+
+        Args:
+            is_loading (bool, optional): set to True if the sharded state dict is intended
+                for checkpoint loading (as opposed to saving). Defaults to False.
+            metadata (dict, optional): sharded state dict metadata passed from the framework.
+                Used to control the details of sharded state dict creation, in particular
+                the state dict format of the DistributedOptimizer with the flag
+                `distrib_optim_sharding_type`. Defaults to None (empty metadata).
 
         Returns
         -------
@@ -893,11 +957,69 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         # TODO: Fix when MainParamsOptimizerWrapper is not used
 
         optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)
-        sharding_type = "fully_sharded_model_space" if self.parallel_save_optim else "dp_zero_gather_scatter"
+        if metadata is None:
+            metadata = self.sharded_state_dict_metadata
+            logging.debug(
+                f'No sharded_state_dict metadata passed for the optimizer,'
+                f' using metadata for checkpoint save: {metadata}'
+            )
+        else:
+            logging.debug(f'Using passed sharded_state_dict metadata in the optimizer: {metadata}')
 
         return _strategy_lib.optimizer_sharded_state_dict(
-            self.megatron_parallel, optimizer, is_loading=is_loading, sharding_type=sharding_type
+            self.megatron_parallel,
+            optimizer,
+            is_loading=is_loading,
+            metadata=metadata,
         )
+
+    def _get_fsdp_dtensor_state_dict(
+        self,
+        raw_state_dict,
+        model_key="model",
+        optimizer_key="optimizer_states",
+    ):
+        from megatron.core.distributed.fsdp.src.megatron_fsdp.uneven_dtensor import (
+            preprocess_state_dict_for_uneven_dtensor,
+        )
+        from megatron.core.transformer.fsdp_dtensor_checkpoint import (
+            handle_fp8_extra_state_case,
+            handle_swiglu_in_state_dict,
+        )
+
+        state_dict = raw_state_dict.copy()
+        handle_fp8_extra_state_case(state_dict[model_key])
+        module = self.model[0].module
+        if getattr(module.config, "gated_linear_unit", False):
+            model_state_dict = state_dict[model_key].copy()
+            if optimizer_key in state_dict:
+                optimizer_state_dict = state_dict[optimizer_key].copy()
+            else:
+                optimizer_state_dict = {}
+            handle_swiglu_in_state_dict(module.module, model_state_dict, optimizer_state_dict)
+            state_dict[model_key] = model_state_dict
+            if optimizer_key in state_dict:
+                state_dict[optimizer_key] = optimizer_state_dict
+        preprocess_state_dict_for_uneven_dtensor(state_dict)
+
+        return state_dict
+
+    def _save_fsdp_dtensor_checkpoint(
+        self,
+        checkpoint: Dict[str, Any],
+        path,
+        storage_options,
+    ):
+        state_dict = self._get_fsdp_dtensor_state_dict(checkpoint)
+
+        torch.distributed.checkpoint.save(
+            state_dict,
+            storage_writer=torch.distributed.checkpoint.FileSystemWriter(path),
+        )
+        self._save_fsdp_dtensor_common_state(state_dict=state_dict, ckpt_dir=path)
+
+        if "finalize_fn" in storage_options:
+            storage_options["finalize_fn"]()
 
     @override
     def save_checkpoint(
@@ -929,10 +1051,26 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.ckpt_save_optimizer:
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
-        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+        if not storage_options:
+            storage_options = {}
+        storage_options['content_metadata'] = self.sharded_state_dict_metadata
+        if self.save_ckpt_format == "fsdp_dtensor":
+            checkpoint = checkpoint.copy()
+            if "optimizer" in checkpoint:
+                checkpoint["optimizer_states"] = checkpoint.pop("optimizer")[0]
+            checkpoint["model"] = checkpoint.pop("sharded_state_dict")
+            self._save_fsdp_dtensor_checkpoint(
+                checkpoint=checkpoint,
+                path=ckpt_to_dir(filepath),
+                storage_options=storage_options,
+            )
+            checkpoint_io = None
+        else:
+            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+            checkpoint_io = self.checkpoint_io
 
         # Save ModelOpt state too, if it exists.
-        save_modelopt_state(self.megatron_parallel, filepath, self.checkpoint_io)
+        save_modelopt_state(self.megatron_parallel, filepath, checkpoint_io)
 
     def should_restore_optimizer_states(self, selective_restore: bool = False) -> bool:
         """Determines whether to restore optimizer states or not"""
@@ -940,6 +1078,32 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             return self.restore_config.load_optim_state if self.restore_config else False
 
         return self.ckpt_load_optimizer
+
+    def _save_fsdp_dtensor_common_state(self, state_dict, ckpt_dir):
+        state_dict = state_dict.copy()
+        del state_dict["model"]
+        del state_dict["optimizer_states"]
+        torch.save(state_dict, os.path.join(ckpt_dir, "common.pt"))
+
+    def _load_fsdp_dtensor_common_state(self, ckpt_dir):
+        return torch.load(os.path.join(ckpt_dir, "common.pt"), weights_only=False)
+
+    def _load_fsdp_dtensor_checkpoint(self, path, sharded_state_dict, strict):
+        from torch.distributed.checkpoint import default_planner
+
+        state_dict = self._get_fsdp_dtensor_state_dict(sharded_state_dict)
+
+        planner = default_planner.DefaultLoadPlanner(allow_partial_load=not strict)
+        torch.distributed.checkpoint.load(
+            state_dict,
+            checkpoint_id=path,
+            planner=planner,
+        )
+        sharded_state_dict.update(self._load_fsdp_dtensor_common_state(ckpt_dir=path))
+        if "loops" in sharded_state_dict:
+            sharded_state_dict["fit_loop"] = sharded_state_dict["loops"]["fit_loop"]
+
+        return sharded_state_dict
 
     @override
     def load_checkpoint(self, checkpoint_path: Union[str, Path], selective_restore: bool = False) -> Dict[str, Any]:
@@ -960,22 +1124,38 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             sharded_state_context = nullcontext
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
+        if self.save_ckpt_format == "fsdp_dtensor":
+            sharded_sd_metadata = self.sharded_state_dict_metadata
+        else:
+            sharded_sd_metadata = self.unwrapped_checkpoint_io.load_content_metadata(checkpoint_path)
         sharded_state_dict = {}
         with sharded_state_context():
-            sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
+            sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict(metadata=sharded_sd_metadata)
 
         if restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
-                sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
+                sharded_state_dict["optimizer"] = [
+                    self.optimizer_sharded_state_dict(is_loading=True, metadata=sharded_sd_metadata)
+                ]
 
         strict = (
             self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
         )
 
         try:
-            checkpoint = self.checkpoint_io.load_checkpoint(
-                checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict
-            )
+            if self.save_ckpt_format == "fsdp_dtensor":
+                sharded_state_dict["model"] = sharded_state_dict.pop("state_dict")
+                if "optimizer" in sharded_state_dict:
+                    sharded_state_dict["optimizer_states"] = sharded_state_dict.pop("optimizer")[0]
+                checkpoint = self._load_fsdp_dtensor_checkpoint(
+                    path=ckpt_to_dir(checkpoint_path),
+                    sharded_state_dict=sharded_state_dict,
+                    strict=strict,
+                )
+            else:
+                checkpoint = self.checkpoint_io.load_checkpoint(
+                    checkpoint_path, sharded_state_dict=sharded_state_dict, strict=strict
+                )
         except CheckpointException as e:
             error_message = f"{e}\n{LOAD_ERROR}"
             raise RuntimeError(error_message)
@@ -988,6 +1168,20 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             return final_checkpoint
 
         return checkpoint
+
+    @property
+    def sharded_state_dict_metadata(self):
+        """Metadata used for sharded_state_dict generation during checkpoint save."""
+        metadata = {}
+        if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer:
+            use_megatron_fsdp = getattr(self.ddp_config, "use_megatron_fsdp", False)
+            if use_megatron_fsdp:
+                metadata["distrib_optim_sharding_type"] = "fsdp_dtensor"
+            elif self.parallel_save_optim:
+                metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
+            else:
+                metadata["distrib_optim_sharding_type"] = "dp_zero_gather_scatter"
+        return metadata
 
     def selective_restore(self) -> None:
         """Implements selective restoration of checkpoint"""
@@ -1023,6 +1217,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         from torch.distributed._tensor import DTensor, Shard
 
         mesh = DeviceMesh.from_group(parallel_state.get_data_parallel_group(), "cuda")
+
+        if self.save_ckpt_format == "fsdp_dtensor":
+            assert len(self.optimizers) == 1, "FSDP DTensor format requires a single optimizer."
+            self.optimizers[0].load_state_dict(checkpoint["optimizer_states"])
+            return
 
         optimizer_states = checkpoint["optimizer"]
         for optimizer, opt_state in zip(self.optimizers, optimizer_states):
@@ -1088,6 +1287,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     def checkpoint_io(self, io: CheckpointIO) -> None:
         """CheckpointIO setter"""
         self._checkpoint_io = io
+
+    @property
+    def unwrapped_checkpoint_io(self) -> CheckpointIO:
+        """Unwraps `checkpoint_io` from all wrappers."""
+        checkpoint_io = self.checkpoint_io
+        while isinstance(checkpoint_io, _WrappingCheckpointIO):
+            checkpoint_io = checkpoint_io.checkpoint_io
+        return checkpoint_io
 
     @property
     def current_epoch_step(self) -> int:

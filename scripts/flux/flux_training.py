@@ -75,10 +75,7 @@ def flux_training() -> run.Partial:
     """Flux Controlnet Training Config"""
     return run.Partial(
         llm.train,
-        model=run.Config(
-            MegatronFluxModel,
-            flux_params=run.Config(FluxModelParams),
-        ),
+        model=run.Config(MegatronFluxModel, flux_params=run.Config(FluxModelParams), seed=42),
         data=flux_mock_datamodule(),
         trainer=run.Config(
             nl.Trainer,
@@ -95,7 +92,6 @@ def flux_training() -> run.Partial:
                 gradient_accumulation_fusion=True,
                 ddp=run.Config(
                     DistributedDataParallelConfig,
-                    use_custom_fsdp=True,
                     data_parallel_sharding_strategy='optim_grads_params',
                     check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
@@ -207,6 +203,8 @@ def fp8_test(custom_fsdp=True) -> run.Partial:
         FluxConfig,
         num_joint_layers=5,
         num_single_layers=10,
+        calculate_per_token_loss=False,
+        gradient_accumulation_fusion=False,
     )
     recipe.data.global_batch_size = 8
     if custom_fsdp:
@@ -229,7 +227,6 @@ def fp8_test(custom_fsdp=True) -> run.Partial:
 def configure_custom_fsdp(recipe) -> run.Partial:
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
-        use_custom_fsdp=True,
         data_parallel_sharding_strategy='optim_grads_params',  # Custom FSDP
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
@@ -268,7 +265,13 @@ def unit_test(custom_fsdp=True) -> run.Partial:
         None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
     )
     recipe.model.flux_params.device = 'cuda'
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=1, num_single_layers=1)
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig,
+        num_joint_layers=1,
+        num_single_layers=1,
+        calculate_per_token_loss=False,
+        gradient_accumulation_fusion=False,
+    )
     recipe.data.global_batch_size = 1
     recipe.trainer.max_steps = 100
     return recipe
