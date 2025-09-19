@@ -67,6 +67,7 @@ from nemo.collections.asr.models.aed_multitask_models import parse_multitask_pro
 from nemo.collections.asr.parts.submodules.aed_decoding.aed_batched_streaming import (
     AEDStreamingState,
     GreedyBatchedStreamingAEDComputer,
+    initialize_aed_model_state,
 )
 from nemo.collections.asr.parts.submodules.multitask_decoding import (
     AEDStreamingDecodingConfig,
@@ -191,55 +192,6 @@ def obtain_data_prompt(cfg, asr_model) -> torch.Tensor:
         batch_example = next(iter(dataloader))
         batch_example = move_data_to_device(batch_example, transcribe_cfg._internal.device)
         return batch_example.prompt
-
-
-def initialize_aed_model_state(
-    cfg,
-    asr_model,
-    decoder_input_ids: torch.Tensor,
-    batch_size: int,
-    context_encoder_frames: ContextSize,
-) -> AEDStreamingState:
-    """
-    Initialize AED model state for streaming inference.
-
-    Args:
-        asr_model: ASR model instance (used for tokenizer and device)
-        decoder_input_ids: Prompt tensor for decoder input
-        batch_size: Batch size for inference
-        context_encoder_frames: Context size configuration
-
-    Returns:
-        Initialized AEDStreamingState object
-    """
-    # initialize AED model state
-    model_state = AEDStreamingState(decoder_input_ids=decoder_input_ids, device=asr_model.device)
-
-    model_state.frame_chunk_size = context_encoder_frames.chunk
-    model_state.batch_idxs = torch.arange(batch_size, dtype=torch.long, device=asr_model.device)
-    model_state.current_context_lengths = torch.zeros_like(model_state.batch_idxs) + decoder_input_ids.size(-1)
-    model_state.decoder_input_ids = decoder_input_ids[:batch_size]
-    model_state.tgt = torch.full(
-        [batch_size, model_state.max_generation_length],
-        asr_model.tokenizer.eos,
-        dtype=torch.long,
-        device=asr_model.device,
-    )
-    model_state.tgt[:, : model_state.decoder_input_ids.size(-1)] = model_state.decoder_input_ids
-    model_state.tokens_frame_alignment = torch.zeros_like(model_state.tgt)
-    model_state.active_samples = torch.ones(batch_size, dtype=torch.bool, device=asr_model.device)
-    model_state.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=asr_model.device)
-    model_state.right_context = context_encoder_frames.right
-    model_state.eos_tokens = torch.full(
-        [batch_size], asr_model.tokenizer.eos, dtype=torch.long, device=asr_model.device
-    )
-    model_state.avgpool2d = torch.nn.AvgPool2d(5, stride=1, padding=2, count_include_pad=False)
-    model_state.batch_size = batch_size
-    model_state.max_tokens_per_alignatt_step = model_state.max_tokens_per_one_second * int(
-        cfg.chunk_secs + cfg.right_context_secs
-    )
-
-    return model_state
 
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
@@ -426,11 +378,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
             # initialize aed model state
             model_state = initialize_aed_model_state(
-                cfg=cfg,
                 asr_model=asr_model,
                 decoder_input_ids=decoder_input_ids,
                 batch_size=batch_size,
                 context_encoder_frames=context_encoder_frames,
+                chunk_secs=cfg.chunk_secs,
+                right_context_secs=cfg.right_context_secs,
             )
 
             # decode audio by chunks

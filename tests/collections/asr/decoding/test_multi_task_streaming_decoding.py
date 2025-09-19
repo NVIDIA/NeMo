@@ -15,10 +15,12 @@
 import editdistance
 import pytest
 import torch
-from examples.asr.asr_chunked_inference.aed.speech_to_text_aed_streaming_infer import initialize_aed_model_state
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.parts.submodules.aed_decoding.aed_batched_streaming import GreedyBatchedStreamingAEDComputer
+from nemo.collections.asr.parts.submodules.aed_decoding.aed_batched_streaming import (
+    GreedyBatchedStreamingAEDComputer,
+    initialize_aed_model_state,
+)
 from nemo.collections.asr.parts.submodules.multitask_decoding import (
     AEDStreamingDecodingConfig,
     MultiTaskDecodingConfig,
@@ -126,11 +128,12 @@ def test_multi_task_streaming_decoding(
             )
 
             model_state = initialize_aed_model_state(
-                cfg=streaming_decoding_cfg,
                 asr_model=model,
                 decoder_input_ids=decoder_input_ids,
                 batch_size=local_batch_size,
                 context_encoder_frames=context_encoder_frames,
+                chunk_secs=streaming_decoding_cfg.chunk_secs,
+                right_context_secs=streaming_decoding_cfg.right_context_secs,
             )
 
             # decode encoder output by chunks, passing state between decoder invocations
