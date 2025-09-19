@@ -39,7 +39,7 @@ def partial_function_with_pos_and_key_args():
 
 
 class TestLoad:
-    @patch('nemo.lightning.one_logger_callback.update_one_logger_config')
+    @patch('nemo.lightning.callback_group.CallbackGroup.update_config')
     def test_reload_ckpt(self, mock_update_one_logger, tmpdir, partial_function_with_pos_and_key_args):
         # Mock the OneLogger callback update to prevent it from adding callbacks to the trainer
         # This avoids serialization issues with the trainer during checkpoint saving
