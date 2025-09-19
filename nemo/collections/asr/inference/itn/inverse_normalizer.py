@@ -23,7 +23,7 @@ import pynini
 from nemo_text_processing.inverse_text_normalization.inverse_normalize import InverseNormalizer, Normalizer
 from nemo_text_processing.text_normalization.en.graph_utils import INPUT_CASED, INPUT_LOWER_CASED
 
-from nemo.collections.asr.inference.itn.itn_utils import (
+from nemo.collections.asr.inference.utils.itn_utils import (
     DEFAULT_SEMIOTIC_CLASS,
     fallback_to_trivial_alignment,
     find_tokens,
