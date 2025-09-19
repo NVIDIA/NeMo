@@ -24,7 +24,6 @@ from nemo.collections.asr.inference.utils.constants import SENTENCEPIECE_UNDERSC
 from nemo.collections.asr.inference.utils.device_utils import setup_device
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
-from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_confidence_utils import get_confidence_aggregation_bank
 
@@ -36,7 +35,7 @@ class ASRInference:
     def __init__(
         self,
         model_name: str,
-        decoding_cfg: Union[CTCDecodingConfig, RNNTDecodingConfig, MultiTaskDecodingConfig],
+        decoding_cfg: Union[CTCDecodingConfig, RNNTDecodingConfig],
         device: str = 'cuda',
         device_id: int = 0,
         compute_dtype: str = 'bfloat16',
@@ -182,7 +181,7 @@ class ASRInference:
         """
         Reset the decoding strategy for the model.
         Args:
-            decoder_type: (str) decoding type either 'ctc', 'rnnt' or 'aed'.
+            decoder_type: (str) decoding type either 'ctc', 'rnnt'.
         """
         if isinstance(self.asr_model, EncDecHybridRNNTCTCModel):
             self.asr_model.change_decoding_strategy(decoding_cfg=None, decoder_type=decoder_type)
@@ -193,7 +192,7 @@ class ASRInference:
         """
         Set the decoding strategy for the model.
         Args:
-            decoder_type: (str) decoding type either 'ctc', 'rnnt' or 'aed'.
+            decoder_type: (str) decoding type either 'ctc', 'rnnt'.
         """
         if isinstance(self.asr_model, EncDecHybridRNNTCTCModel):
             self.asr_model.change_decoding_strategy(decoding_cfg=self.decoding_cfg, decoder_type=decoder_type)

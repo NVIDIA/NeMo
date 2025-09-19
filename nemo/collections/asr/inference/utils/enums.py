@@ -19,7 +19,6 @@ from enum import Enum, auto
 class ASRDecodingType(Enum):
     CTC = auto()
     RNNT = auto()
-    AED = auto()
 
     @classmethod
     def from_str(cls, type_name: str) -> 'ASRDecodingType':
@@ -28,24 +27,22 @@ class ASRDecodingType(Enum):
             return ASRDecodingType.CTC
         elif type_name.lower() == "rnnt":
             return ASRDecodingType.RNNT
-        elif type_name.lower() == "aed":
-            return ASRDecodingType.AED
 
         choices = [choice.name for choice in cls]
         raise ValueError(f"Invalid ASR decoding type `{type_name}`: Need to be one of {choices}")
 
 
 class RecognizerType(Enum):
-    BUFFERED_STREAMING = auto()
-    CACHE_AWARE_STREAMING = auto()
+    BUFFERED = auto()
+    CACHE_AWARE = auto()
 
     @classmethod
     def from_str(cls, type_name: str) -> 'RecognizerType':
         """Convert a string to a RecognizerType enum value."""
-        if type_name.lower() == "buffered_streaming":
-            return RecognizerType.BUFFERED_STREAMING
-        elif type_name.lower() == "cache_aware_streaming":
-            return RecognizerType.CACHE_AWARE_STREAMING
+        if type_name.lower() == "buffered":
+            return RecognizerType.BUFFERED
+        elif type_name.lower() == "cache_aware":
+            return RecognizerType.CACHE_AWARE
 
         choices = [choice.name for choice in cls]
         raise ValueError(f"Invalid recognizer type `{type_name}`: Need to be one of {choices}")
