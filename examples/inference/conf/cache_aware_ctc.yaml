@@ -60,7 +60,7 @@ text_postprocessor:
 
 
 # ========================
-# Pipeline settings
+# Recognizer settings
 # ========================
 matmul_precision: highest                     # Matrix multiplication precision: highest, high, medium
 recognizer_type: cache_aware                  # Recognizer type: buffered, cache_aware
