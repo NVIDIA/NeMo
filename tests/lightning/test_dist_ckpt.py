@@ -20,10 +20,10 @@ def set_env():
 
 
 from pathlib import Path
+from unittest.mock import patch
 
 import lightning.pytorch as pl
 import pytest
-from unittest.mock import patch
 import torch
 
 import nemo.lightning as nl

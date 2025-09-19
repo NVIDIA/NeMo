@@ -14,9 +14,9 @@
 
 import math
 import random
+from unittest.mock import MagicMock, patch
 
 import pytest
-from unittest.mock import patch, MagicMock
 import torch
 from lightning.pytorch.callbacks import Callback
 from megatron.core.optimizer import OptimizerConfig

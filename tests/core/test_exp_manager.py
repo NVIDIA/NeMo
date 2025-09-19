@@ -149,6 +149,7 @@ class TestExpManager:
     def _mock_onelogger_update_config(self):
         with patch('nemo.lightning.callback_group.CallbackGroup.update_config', return_value=None):
             yield
+
     @pytest.mark.unit
     def test_omegaconf(self):
         """Ensure omegaconf raises an error when an unexcepted argument is passed"""

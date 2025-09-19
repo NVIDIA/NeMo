@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import signal
 from functools import partial
 from typing import Any, Optional
 from unittest.mock import patch
-import signal
-import yaml
 
 import pytest
+import yaml
 from invoke.config import Config
 from invoke.context import Context
 
@@ -35,6 +35,7 @@ class MockContext(Context):
     def run(self, command: str, **kwargs: Any):
         kwargs["in_stream"] = False
         super().run(command, **kwargs)
+
 
 @pytest.fixture(autouse=True, scope="module")
 def _mock_onelogger_update_config():
