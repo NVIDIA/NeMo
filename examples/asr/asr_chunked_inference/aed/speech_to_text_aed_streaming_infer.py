@@ -84,7 +84,6 @@ from nemo.collections.asr.parts.utils.transcribe_utils import (
     compute_output_filename,
     prepare_audio_data,
     setup_model,
-    write_transcription,
 )
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.core.config import hydra_runner
@@ -483,7 +482,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 )
                 encoder_output_with_rc = encoder_output_with_rc.transpose(1, 2)  # [B, T, C]
                 # remove extra context from encoder_output (leave only frames corresponding to the chunk)
-                encoder_context = buffer.context_size.subsample(factor=encoder_frame2audio_samples)
                 encoder_context_batch = buffer.context_size_batch.subsample(factor=encoder_frame2audio_samples)
                 encoder_output = encoder_output_with_rc
                 encoder_output_len = encoder_context_batch.left + encoder_context_batch.chunk
@@ -563,6 +561,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # compute decoding latency (LAAL)
     if cfg.calculate_latency:
+        laal_list = None
         audio_encoder_fs = encoder_subsampling_factor * feature_stride_sec * 1000  # to ms
         if cfg.decoding.streaming_policy == "waitk":
             laal_list = decoding_computer.compute_waitk_lagging(

@@ -12,32 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-from typing import Optional
-
 import editdistance
 import pytest
 import torch
-import torch.nn.functional as F
-from examples.asr.asr_chunked_inference.aed.speech_to_text_aed_streaming_infer import (
-    initialize_aed_model_state,
-    obtain_data_prompt,
-)
-from omegaconf import open_dict
+from examples.asr.asr_chunked_inference.aed.speech_to_text_aed_streaming_infer import initialize_aed_model_state
 from tqdm.auto import tqdm
 
-from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules.aed_decoding.aed_batched_streaming import GreedyBatchedStreamingAEDComputer
 from nemo.collections.asr.parts.submodules.multitask_decoding import (
     AEDStreamingDecodingConfig,
     MultiTaskDecodingConfig,
 )
-from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
-    BatchedLabelLoopingState,
-    GreedyBatchedLabelLoopingComputerBase,
-)
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.asr.parts.utils.rnnt_utils import BatchedHyps, Hypothesis, batched_hyps_to_hypotheses
 from nemo.collections.asr.parts.utils.streaming_utils import ContextSize
 from tests.collections.asr.decoding.utils import load_audio, make_preprocessor_deterministic
 
@@ -160,15 +146,15 @@ def test_multi_task_streaming_decoding(
                     prev_batched_state=model_state,
                 )
             # get final results for each sample in the batch
-            for i in range(local_batch_size):
+            for j in range(local_batch_size):
                 transcription_idx = model_state.tgt[
-                    i, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[i]
+                    j, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[j]
                 ]
                 transcription = model.tokenizer.ids_to_text(transcription_idx.tolist()).strip()
                 all_hyps.append(transcription)
-                tokens_frame_alignment.append(model_state.tokens_frame_alignment[i])
+                tokens_frame_alignment.append(model_state.tokens_frame_alignment[j])
                 predicted_token_ids.append(
-                    model_state.tgt[i, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[i]]
+                    model_state.tgt[j, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[j]]
                 )
 
     # compare decoding results with reference transcripts
@@ -177,6 +163,7 @@ def test_multi_task_streaming_decoding(
 
     # compute latency
     audio_encoder_fs = 80  # in ms
+    laal_list = None
     if decoding_policy == "waitk":
         laal_list = decoding_computer.compute_waitk_lagging(
             manifest, predicted_token_ids, context_encoder_frames, audio_encoder_fs, BOW_PREFIX="\u2581"
@@ -190,5 +177,7 @@ def test_multi_task_streaming_decoding(
             audio_encoder_fs,
             BOW_PREFIX="\u2581",
         )
+    else:
+        raise ValueError(f"Decoding policy {decoding_policy} is not supported")
     laal = sum(laal_list) / len(laal_list)
     assert 300 <= laal <= 900 # Expected LAAL is between 300ms and 900ms depending on the decoding policy

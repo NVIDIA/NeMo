@@ -150,7 +150,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 )
             )
             next_tokens = torch.argmax(logits[:, -1], dim=-1)
-            text_tokens = self.asr_model.tokenizer.ids_to_tokens(next_tokens.tolist())
 
             # compute eos tokens mask
             is_eos_tokens = next_tokens == self.asr_model.tokenizer.eos
@@ -239,7 +238,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 )
             )
             next_tokens = torch.argmax(logits[:, -1], dim=-1)
-            text_token = self.asr_model.tokenizer.ids_to_tokens(next_tokens.tolist())
 
             # compute the most attended encoder token
             xatt_scores = xatt_scores_list[self.decoding_cfg.xatt_scores_layer]
