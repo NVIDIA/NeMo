@@ -14,13 +14,14 @@
 
 
 import math
-from typing import TYPE_CHECKING, List, Optional, Set
+from typing import List, Optional, Set
 
 import numpy as np
 import torch
 from omegaconf import DictConfig
 from torch import Tensor
 
+from nemo.collections.asr.inference.asr.cache_aware_ctc_inference import CacheAwareCTCInference
 from nemo.collections.asr.inference.stream.buffering.cache_feature_bufferer import BatchedCacheFeatureBufferer
 from nemo.collections.asr.inference.stream.decoders.greedy.greedy_ctc_decoder import CTCGreedyDecoder
 from nemo.collections.asr.inference.stream.endpointing.greedy.greedy_ctc_endpointing import CTCGreedyEndpointing
@@ -41,11 +42,6 @@ from nemo.collections.asr.inference.utils.recognizer_utils import (
     remove_leading_punctuation_spaces,
 )
 
-if TYPE_CHECKING:
-    from nemo.collections.asr.inference.asr.cache_aware_ctc_inference import CacheAwareCTCInference
-    from nemo.collections.asr.inference.itn.batch_inverse_normalizer import BatchAlignmentPreservingInverseNormalizer
-    from nemo.collections.asr.inference.pnc.punctuation_capitalizer import PunctuationCapitalizer
-
 
 class CacheAwareCTCSpeechRecognizer(BaseRecognizer):
 
@@ -53,8 +49,8 @@ class CacheAwareCTCSpeechRecognizer(BaseRecognizer):
         self,
         cfg: DictConfig,
         asr_model: CacheAwareCTCInference,
-        pnc_model: PunctuationCapitalizer = None,
-        itn_model: BatchAlignmentPreservingInverseNormalizer = None,
+        pnc_model: Optional["PunctuationCapitalizer"] = None,
+        itn_model: Optional["AlignmentPreservingInverseNormalizer"] = None,
     ):
 
         # ASR Related fields
@@ -111,7 +107,7 @@ class CacheAwareCTCSpeechRecognizer(BaseRecognizer):
         self.batch_size = self.streaming_cfg.batch_size
 
         self.context_manager = CacheAwareContextManager(
-            asr_model=self.asr_model, num_slots=self.batch_size, use_cache=self.use_cache
+            cache_aware_model=self.asr_model, num_slots=self.batch_size, use_cache=self.use_cache
         )
 
         # Feature Bufferer
@@ -167,10 +163,7 @@ class CacheAwareCTCSpeechRecognizer(BaseRecognizer):
         )
 
         # CTC greedy decoder
-        if cfg.ctc_decoder.strategy == "greedy":
-            self.ctc_decoder = CTCGreedyDecoder(vocabulary=self.vocabulary, conf_func=self.conf_func)
-        else:
-            raise ValueError(f"Unsupported CTC decoding strategy: {cfg.ctc_decoder.strategy}")
+        self.ctc_decoder = CTCGreedyDecoder(vocabulary=self.vocabulary, conf_func=self.conf_func)
         self.return_tail_result = cfg.return_tail_result
 
         # Endpointing

@@ -75,7 +75,7 @@ class CacheAwareContextManager:
             self.cache_last_channel,  # [17, B, 70, 512]
             self.cache_last_time,  # [17, B, 512, 8]
             self.cache_last_channel_len,  # B
-        ) = self.asr_model.get_initial_cache_state(self.num_slots)
+        ) = self.cache_aware_model.get_initial_cache_state(self.num_slots)
 
     def reset_slot(self, slot_idx: int) -> None:
         """

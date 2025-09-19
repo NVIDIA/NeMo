@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import Any, Optional, Union
 
 from omegaconf.dictconfig import DictConfig
 
@@ -25,10 +25,6 @@ from nemo.collections.asr.inference.utils.enums import ASRDecodingType, Recogniz
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.utils import logging
-
-if TYPE_CHECKING:
-    from nemo.collections.asr.inference.itn.batch_inverse_normalizer import BatchAlignmentPreservingInverseNormalizer
-    from nemo.collections.asr.inference.pnc.punctuation_capitalizer import PunctuationCapitalizer
 
 
 class BaseBuilder:
@@ -71,7 +67,7 @@ class BaseBuilder:
     @classmethod
     def _build_pnc(
         cls, cfg: DictConfig, asr_supports_pnc: bool, force_to_use_pnc_model: bool
-    ) -> Optional[PunctuationCapitalizer]:
+    ) -> Optional["PunctuationCapitalizer"]:
         """
         Build the PNC model based on the config.
         Args:
@@ -97,9 +93,9 @@ class BaseBuilder:
 
             if target_lang == "en":
                 # Do not remove this import. It is used to avoid megatron import when automatic punctuation is disabled.
-                from niva.core.pnc import NivaPunctuationCapitalizer
+                from nemo.collections.asr.inference.pnc.punctuation_capitalizer import PunctuationCapitalizer
 
-                pnc_model = NivaPunctuationCapitalizer(
+                pnc_model = PunctuationCapitalizer(
                     model_name=cfg.pnc.model_name,
                     device=cfg.pnc.device,
                     device_id=cfg.pnc.device_id,
@@ -113,26 +109,24 @@ class BaseBuilder:
     @classmethod
     def _build_itn(
         cls, cfg: DictConfig, input_is_lower_cased: bool
-    ) -> Optional[BatchAlignmentPreservingInverseNormalizer]:
+    ) -> Optional["AlignmentPreservingInverseNormalizer"]:
         """
         Build the ITN model based on the config.
         Args:
             cfg: (DictConfig) Config
             input_is_lower_cased: (bool) Whether the input is lower cased
         Returns:
-            (Optional[BatchAlignmentPreservingInverseNormalizer]) ITN model
+            (Optional[AlignmentPreservingInverseNormalizer]) ITN model
         """
         itn_model = None
         if not cfg.verbatim_transcripts:
             # Do not remove this import. It is used to avoid nemo_text_processing import when verbatim transcripts is enabled.
-            from nemo.collections.asr.inference.itn.batch_inverse_normalizer import (
-                BatchAlignmentPreservingInverseNormalizer,
-            )
+            from nemo.collections.asr.inference.itn.inverse_normalizer import AlignmentPreservingInverseNormalizer
 
             input_case = (
-                BatchAlignmentPreservingInverseNormalizer.LOWER_CASED
+                AlignmentPreservingInverseNormalizer.LOWER_CASED
                 if input_is_lower_cased
-                else BatchAlignmentPreservingInverseNormalizer.UPPER_CASED
+                else AlignmentPreservingInverseNormalizer.UPPER_CASED
             )
 
             target_lang = getattr(cfg, "lang", getattr(cfg, "target_lang", None))
@@ -144,7 +138,7 @@ class BaseBuilder:
             itn_cfg.input_case = input_case
             itn_cfg.cache_dir = cfg.cache_dir
 
-            itn_model = BatchAlignmentPreservingInverseNormalizer(
+            itn_model = AlignmentPreservingInverseNormalizer(
                 lang=itn_cfg.lang,
                 input_case=itn_cfg.input_case,
                 whitelist=itn_cfg.whitelist,

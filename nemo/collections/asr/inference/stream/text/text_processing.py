@@ -14,19 +14,14 @@
 
 
 from functools import partial
-import imp
-from typing import Callable, Dict, List, Set, Tuple, TYPE_CHECKING
+from typing import Callable, Dict, List, Set, Tuple, Optional
 
 from omegaconf import DictConfig
 
-from nemo.collections.asr.inference.stream.state import StreamingState
+from nemo.collections.asr.inference.stream.state.state import StreamingState
 from nemo.collections.asr.inference.utils.constants import POST_WORD_PUNCTUATION
 from nemo.collections.asr.inference.utils.word import Word, normalize_words_inplace
 from nemo.utils import logging
-
-if TYPE_CHECKING:
-    from nemo.collections.asr.inference.pnc.punctuation_capitalizer import PunctuationCapitalizer
-    from nemo.collections.asr.inference.itn.batch_inverse_normalizer import BatchAlignmentPreservingInverseNormalizer
 
 
 class StreamingTextPostprocessor:
@@ -42,8 +37,8 @@ class StreamingTextPostprocessor:
     def __init__(
         self,
         text_postprocessor_cfg: DictConfig,
-        pnc_model: PunctuationCapitalizer,
-        itn_model: BatchAlignmentPreservingInverseNormalizer,
+        pnc_model: Optional["PunctuationCapitalizer"],
+        itn_model: Optional["AlignmentPreservingInverseNormalizer"],
         asr_supported_puncts: Set,
         asr_supports_punctuation: bool,
         confidence_aggregator: Callable,

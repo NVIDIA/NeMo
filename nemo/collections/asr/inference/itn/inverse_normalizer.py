@@ -295,7 +295,7 @@ class AlignmentPreservingInverseNormalizer:
             return [], [], []
 
         # Tag the input text
-        tagged_text = self.tag(input_text, no_cache=True)
+        tagged_text = self.tag(input_text, no_cache=False)
 
         # Find the tokens in the tagged text
         tokens = find_tokens(tagged_text)

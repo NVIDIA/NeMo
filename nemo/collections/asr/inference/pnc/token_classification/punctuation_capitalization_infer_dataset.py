@@ -125,7 +125,7 @@ def get_features_infer(
         # Maximum number of word subtokens in segment. The first and the last tokens in segment are CLS and EOS
         length = max_seq_length - 2
         step = min(length - margin * 2, step)
-    logging.info(f'Max length: {max_seq_length}')
+    
     all_input_ids, all_segment_ids, all_subtokens_mask, all_input_mask, all_input_mask = [], [], [], [], []
     all_quantities_of_preceding_words, all_query_ids, all_is_first, all_is_last = [], [], [], []
     all_audio_queries, all_audio_lengths = [], []

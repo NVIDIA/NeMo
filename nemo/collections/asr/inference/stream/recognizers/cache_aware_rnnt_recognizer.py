@@ -14,13 +14,14 @@
 
 
 import math
-from typing import TYPE_CHECKING, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 import numpy as np
 import torch
 from omegaconf import DictConfig
 from torch import Tensor
 
+from nemo.collections.asr.inference.asr.cache_aware_rnnt_inference import CacheAwareRNNTInference
 from nemo.collections.asr.inference.stream.buffering.cache_feature_bufferer import BatchedCacheFeatureBufferer
 from nemo.collections.asr.inference.stream.decoders.greedy.greedy_rnnt_decoder import RNNTGreedyDecoder
 from nemo.collections.asr.inference.stream.endpointing.greedy.greedy_rnnt_endpointing import RNNTGreedyEndpointing
@@ -41,11 +42,6 @@ from nemo.collections.asr.inference.utils.recognizer_utils import (
 )
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
-if TYPE_CHECKING:
-    from nemo.collections.asr.inference.asr.cache_aware_rnnt_inference import CacheAwareRNNTInference
-    from nemo.collections.asr.inference.itn.batch_inverse_normalizer import BatchAlignmentPreservingInverseNormalizer
-    from nemo.collections.asr.inference.pnc.punctuation_capitalizer import PunctuationCapitalizer
-
 
 class CacheAwareRNNTSpeechRecognizer(BaseRecognizer):
 
@@ -53,8 +49,8 @@ class CacheAwareRNNTSpeechRecognizer(BaseRecognizer):
         self,
         cfg: DictConfig,
         asr_model: CacheAwareRNNTInference,
-        pnc_model: PunctuationCapitalizer = None,
-        itn_model: BatchAlignmentPreservingInverseNormalizer = None,
+        pnc_model: Optional["PunctuationCapitalizer"] = None,
+        itn_model: Optional["AlignmentPreservingInverseNormalizer"] = None,
     ):
 
         # ASR Related fields
@@ -111,7 +107,7 @@ class CacheAwareRNNTSpeechRecognizer(BaseRecognizer):
         self.batch_size = self.streaming_cfg.batch_size
 
         self.context_manager = CacheAwareContextManager(
-            asr_model=self.asr_model, num_slots=self.batch_size, use_cache=self.use_cache
+            cache_aware_model=self.asr_model, num_slots=self.batch_size, use_cache=self.use_cache
         )
 
         # Feature Bufferer

@@ -14,12 +14,13 @@
 
 
 import math
-from typing import TYPE_CHECKING, List, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 import torch
 from omegaconf import DictConfig
 from torch import Tensor
 
+from nemo.collections.asr.inference.asr.rnnt_inference import RNNTInference
 from nemo.collections.asr.inference.stream.buffering.audio_bufferer import BatchedAudioBufferer
 from nemo.collections.asr.inference.stream.buffering.feature_bufferer import BatchedFeatureBufferer
 from nemo.collections.asr.inference.stream.decoders.greedy.greedy_rnnt_decoder import ClippedRNNTGreedyDecoder
@@ -44,11 +45,6 @@ from nemo.collections.asr.inference.utils.recognizer_utils import (
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis as NemoHypothesis
 
-if TYPE_CHECKING:
-    from nemo.collections.asr.inference.asr.rnnt_inference import RNNTInference
-    from nemo.collections.asr.inference.itn.batch_inverse_normalizer import BatchAlignmentPreservingInverseNormalizer
-    from nemo.collections.asr.inference.pnc.punctuation_capitalizer import PunctuationCapitalizer
-
 
 class RNNTBufferedSpeechRecognizer(BaseRecognizer):
 
@@ -56,8 +52,8 @@ class RNNTBufferedSpeechRecognizer(BaseRecognizer):
         self,
         cfg: DictConfig,
         asr_model: RNNTInference,
-        pnc_model: PunctuationCapitalizer = None,
-        itn_model: BatchAlignmentPreservingInverseNormalizer = None,
+        pnc_model: Optional["PunctuationCapitalizer"] = None,
+        itn_model: Optional["AlignmentPreservingInverseNormalizer"] = None,
     ):
 
         # ASR Related fields
@@ -197,8 +193,8 @@ class RNNTBufferedSpeechRecognizer(BaseRecognizer):
         if self.padding_mode not in ["left", "right"]:
             raise ValueError(f"Unknown padding mode: {self.padding_mode}")
         self.right_padding = self.padding_mode == "right"
-        self.extra_padding_in_samples = int(self.chunk_size * self.sample_rate * 0.45)
-        self.extra_padding_in_samples = max(self.extra_padding_in_samples, 6400)
+        self.tail_padding_in_samples = int(self.chunk_size * self.sample_rate * 0.45)
+        self.tail_padding_in_samples = max(self.tail_padding_in_samples, 6400)
         self.zero_encoded = None
         if self.right_padding:
             self.zero_encoded = self.init_zero_enc()
@@ -683,6 +679,6 @@ class RNNTBufferedSpeechRecognizer(BaseRecognizer):
             device=self.device,
             pad_last_frame=True,
             right_pad_features=self.right_padding,
-            extra_padding_in_samples=self.extra_padding_in_samples,
+            tail_padding_in_samples=self.tail_padding_in_samples,
         )
         return request_generator

@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import math
-from typing import TYPE_CHECKING, List, Tuple
+from typing import List, Optional, Tuple
 
 import torch
 from omegaconf import DictConfig
 from torch import Tensor
 
+from nemo.collections.asr.inference.asr.ctc_inference import CTCInference
 from nemo.collections.asr.inference.stream.buffering.audio_bufferer import BatchedAudioBufferer
 from nemo.collections.asr.inference.stream.buffering.feature_bufferer import BatchedFeatureBufferer
 from nemo.collections.asr.inference.stream.decoders.greedy.greedy_ctc_decoder import ClippedCTCGreedyDecoder
@@ -41,11 +42,6 @@ from nemo.collections.asr.inference.utils.recognizer_utils import (
 )
 from nemo.collections.asr.models import ASRModel
 
-if TYPE_CHECKING:
-    from nemo.collections.asr.inference.asr.ctc_inference import CTCInference
-    from nemo.collections.asr.inference.itn.batch_inverse_normalizer import BatchAlignmentPreservingInverseNormalizer
-    from nemo.collections.asr.inference.pnc.punctuation_capitalizer import PunctuationCapitalizer
-
 
 class CTCBufferedSpeechRecognizer(BaseRecognizer):
 
@@ -53,8 +49,8 @@ class CTCBufferedSpeechRecognizer(BaseRecognizer):
         self,
         cfg: DictConfig,
         asr_model: CTCInference,
-        pnc_model: PunctuationCapitalizer = None,
-        itn_model: BatchAlignmentPreservingInverseNormalizer = None,
+        pnc_model: Optional["PunctuationCapitalizer"] = None,
+        itn_model: Optional["AlignmentPreservingInverseNormalizer"] = None,
     ):
 
         # ASR Related fields
