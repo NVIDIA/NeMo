@@ -18,7 +18,6 @@ from abc import abstractmethod, abstractproperty
 from dataclasses import dataclass, field, is_dataclass
 from typing import Dict, List, Optional, Set, Union
 
-import numpy as np
 import torch
 from omegaconf import OmegaConf
 
@@ -266,6 +265,7 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         if is_dataclass(decoding_cfg):
             decoding_cfg = OmegaConf.structured(decoding_cfg)
 
+        print(decoding_cfg)
         self.cfg = decoding_cfg
         self.blank_id = blank_id
         self.supported_punctuation = supported_punctuation
@@ -334,7 +334,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
         self._init_confidence(self.cfg.get('confidence_cfg', None))
 
         if model_type is TransducerModelType.TDT:
+            print("include durtions to true")
             self.tdt_include_token_duration = self.tdt_include_token_duration or self.compute_timestamps
+            print(self.tdt_include_token_duration, self.compute_timestamps)
             self._compute_offsets = self._compute_offsets_tdt
             self._refine_timestamps = self._refine_timestamps_tdt
 
@@ -454,6 +456,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     fusion_models_alpha=fusion_models_alpha,
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.TDT:
+                print("#"*10)
+                print(self.tdt_include_token_duration, self.compute_timestamps)
+                print("#"*10)
                 self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
                     decoder_model=decoder,
                     joint_model=joint,
@@ -1024,13 +1029,16 @@ class AbstractRNNTDecoding(ConfidenceMixin):
 
         # Correctly process the token ids to chars/subwords.
         for i, offsets in enumerate(char_offsets):
-            decoded_chars = []
+            chars_text = []
+            chars_tokens = []
             for char in offsets['char']:
                 # NB: if blank tokens are present, _refine_timestamps will not work properly
                 # as offests and encoded_offsets will not be 1:1 match
                 assert char != self.blank_id, "Offsets should not contain blank tokens"
-                decoded_chars.append(self.decode_tokens_to_str([int(char)]))
-            char_offsets[i]["char"] = decoded_chars
+                chars_tokens.append(self.decode_tokens_to_str([int(char)]))
+                chars_text.append(self.decode_ids_to_str([int(char)]))
+            char_offsets[i]["char"] = chars_text
+            encoded_char_offsets[i]["char"] = chars_tokens
 
         encoded_char_offsets, char_offsets = self._refine_timestamps(
             encoded_char_offsets, char_offsets, self.supported_punctuation
