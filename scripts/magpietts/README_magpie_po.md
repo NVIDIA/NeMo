@@ -195,7 +195,6 @@ python examples/tts/magpietts.py \
 batch_size=2 \
 +init_from_ptl_ckpt="/mountdir/checkpoints/magpie_checkpoints/shared_char_ipa_epoch285.ckpt" \
 +mode="onlinepo_train" \
-~model.text_tokenizers.multilingual_sentencepiece \
 +model.text_tokenizers.chartokenizer._target_=AutoTokenizer \
 +model.text_tokenizers.chartokenizer.pretrained_model="google/byt5-small" \
 max_epochs=20 \

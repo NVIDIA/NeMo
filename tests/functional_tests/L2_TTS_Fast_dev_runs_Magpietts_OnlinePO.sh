@@ -14,7 +14,6 @@
 coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/nemo examples/tts/magpietts.py \
     --config-name magpietts_multilingual_v1 \
     +mode="onlinepo_train" \
-    ~model.text_tokenizers.multilingual_sentencepiece \
     +model.text_tokenizers.english_chartokenizer._target_=AutoTokenizer \
     +model.text_tokenizers.english_chartokenizer.pretrained_model="google/byt5-small" \
     +model.text_tokenizers.spanish_chartokenizer._target_=AutoTokenizer \
