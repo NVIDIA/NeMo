@@ -162,7 +162,7 @@ def test_multi_task_streaming_decoding(
 
     # compare decoding results with reference transcripts
     ref_transcripts = [item['text'] for item in manifest]
-    assert editdistance.eval(ref_transcripts, all_hyps) <= len(ref_transcripts) * 0.1 # Expected WER is less than 10%
+    assert editdistance.eval(ref_transcripts, all_hyps) <= len(ref_transcripts) * 0.1  # Expected WER is less than 10%
 
     # compute latency
     audio_encoder_fs = 80  # in ms
@@ -183,4 +183,4 @@ def test_multi_task_streaming_decoding(
     else:
         raise ValueError(f"Decoding policy {decoding_policy} is not supported")
     laal = sum(laal_list) / len(laal_list)
-    assert 300 <= laal <= 900 # Expected LAAL is between 300ms and 900ms depending on the decoding policy
+    assert 300 <= laal <= 900  # Expected LAAL is between 300ms and 900ms depending on the decoding policy
