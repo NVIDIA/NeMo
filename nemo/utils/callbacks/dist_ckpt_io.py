@@ -58,21 +58,23 @@ except (ImportError, ModuleNotFoundError) as e:
         f" Exact error: {e}"
     )
 
+
 def configure_nccl_for_checkpointing():
     """Configure NCCL settings for large model checkpoint saving."""
     import os
-    
+
     # Increase NCCL timeout for large model checkpointing
     if not os.environ.get('NCCL_ASYNC_ERROR_HANDLING'):
         os.environ['NCCL_ASYNC_ERROR_HANDLING'] = '1'
-    
+
     # Set longer timeout (1 hour) for checkpoint operations
     if not os.environ.get('NCCL_BLOCKING_WAIT'):
         os.environ['NCCL_BLOCKING_WAIT'] = '1'
-    
+
     # Increase socket timeout
     if not os.environ.get('NCCL_SOCKET_TIMEOUT'):
         os.environ['NCCL_SOCKET_TIMEOUT'] = '3600000'
+
 
 @contextmanager
 def _debug_time(name: str):
@@ -304,13 +306,13 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         rank = torch.distributed.get_rank()
         iteration = _get_iteration_from_checkpoint(checkpoint)
-        
+
         # Configure NCCL for async saves to prevent timeouts
         if self.async_save:
             configure_nccl_for_checkpointing()
-        
+
         start_time = time()
-        
+
         try:
             async_save_request = dist_checkpointing.save(
                 sharded_state_dict=checkpoint,
@@ -331,7 +333,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 )
             else:
                 raise
-        
+
         end_time = time()
         log_parts = (
             "Global Checkpoint Save",
