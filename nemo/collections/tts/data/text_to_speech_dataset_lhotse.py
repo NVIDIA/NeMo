@@ -126,6 +126,8 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         tokenizer_config (Optional[DictConfig]): Configuration for the text tokenizers.
             Used for lazy initialization within workers. Must be provided if tokenizers
             are not set externally. Defaults to None.
+        text_context_remapping: Dict defining mapping of multiple text contexts to a single text context.
+        text_context_remapping_prob: Probability of remapping the original text context to a remapped text context.
     """
 
     def __init__(
@@ -379,7 +381,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                             # Only remap during training. Give the exact text context during inference.
                             context_text = self.text_context_remapping[context_text]
                     context_text_tokens = self.text_tokenizer.encode(
-                        context_text, self.text_conditioning_tokenizer_name
+                        context_text, tokenizer_name=self.text_conditioning_tokenizer_name
                     )
                     has_text_context = True
                 else:
