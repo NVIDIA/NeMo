@@ -726,9 +726,7 @@ class MagpieTTSModel(ModelPT):
             logits: (B, C, num_audio_tokens_per_codebook)
         """
         logits[
-            :,
-            :,
-            SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, forbid_audio_eos=forbid_audio_eos),
+            :, :, SpecialAudioToken.get_forbidden_tokens(self._codec_model.codebook_size, forbid_audio_eos=forbid_audio_eos),
         ] = float('-inf')
         return logits
 
@@ -986,8 +984,14 @@ class MagpieTTSModel(ModelPT):
         return all_preds
 
     def sample_codes_from_logits(
-        self, all_code_logits_t, temperature=0.7, topk=80, unfinished_items={}, finished_items={}
-    , forbid_audio_eos=False):
+        self,
+        all_code_logits_t,
+        temperature=0.7,
+        topk=80,
+        unfinished_items={},
+        finished_items={},
+        forbid_audio_eos=False,
+    ):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
         all_preds = [[] for _ in range(self.frame_stacking_factor)]
         for fs_index in range(self.frame_stacking_factor):
