@@ -113,6 +113,8 @@ def test_multi_task_streaming_decoding(
     manifest = read_manifest(an4_val_manifest_corrected)
 
     all_hyps = []
+    tokens_frame_alignment = []
+    predicted_token_ids = []
     decoding_computer = GreedyBatchedStreamingAEDComputer(
         model,
         frame_chunk_size=chunk_size,
@@ -154,6 +156,22 @@ def test_multi_task_streaming_decoding(
                 ]
                 transcription = model.tokenizer.ids_to_text(transcription_idx.tolist()).strip()
                 all_hyps.append(transcription)
+                tokens_frame_alignment.append(model_state.tokens_frame_alignment[i])
+                predicted_token_ids.append(model_state.tgt[i, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[i]])
 
+    # compare decoding results with reference transcripts
     ref_transcripts = [item['text'] for item in manifest]
     assert editdistance.eval(ref_transcripts, all_hyps) <= len(ref_transcripts) * 0.1
+
+    # compute latency
+    audio_encoder_fs = 80 # in ms
+    if decoding_policy == "waitk":
+        laal_list = decoding_computer.compute_waitk_lagging(
+            manifest, predicted_token_ids, context_encoder_frames, audio_encoder_fs, BOW_PREFIX="\u2581"
+        )
+    elif decoding_policy == "alignatt":
+        laal_list = decoding_computer.compute_alignatt_lagging(
+            manifest, predicted_token_ids, tokens_frame_alignment, context_encoder_frames, audio_encoder_fs, BOW_PREFIX="\u2581"
+        ) 
+    laal = sum(laal_list) / len(laal_list)
+    assert 300 <= laal <= 1000
