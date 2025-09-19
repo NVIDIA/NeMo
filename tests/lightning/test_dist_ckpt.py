@@ -20,6 +20,7 @@ def set_env():
 
 
 from pathlib import Path
+from unittest.mock import patch
 
 import lightning.pytorch as pl
 import pytest
@@ -59,6 +60,11 @@ def get_model_and_data(mbs=2, gbs=2):
 
 
 class TestDistCkptIO:
+
+    @pytest.fixture(autouse=True, scope="class")
+    def _mock_onelogger_update_config(self):
+        with patch('nemo.lightning.callback_group.CallbackGroup.update_config', return_value=None):
+            yield
 
     @pytest.mark.run_only_on('GPU')
     def test_dist_ckpt_io_called_for_mcore_models(self, tmp_path):

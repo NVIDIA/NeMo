@@ -13,6 +13,7 @@
 # limitations under the License.
 import os
 from typing import List, Optional
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -240,6 +241,11 @@ def teardown():
 
 
 class TestCkptStateRestoration:
+    @pytest.fixture(autouse=True, scope="class")
+    def _mock_onelogger_update_config(self):
+        with patch('nemo.lightning.callback_group.CallbackGroup.get_instance', return_value=MagicMock()):
+            yield
+
     @pytest.mark.run_only_on('GPU')
     def test_resume_optim_state(self, tmp_path):
         def train(n_steps, resume):
