@@ -456,9 +456,9 @@ class AbstractRNNTDecoding(ConfidenceMixin):
                     fusion_models_alpha=fusion_models_alpha,
                 )
             case TransducerDecodingStrategyType.GREEDY_BATCH, TransducerModelType.TDT:
-                print("#"*10)
+                print("#" * 10)
                 print(self.tdt_include_token_duration, self.compute_timestamps)
-                print("#"*10)
+                print("#" * 10)
                 self.decoding = rnnt_greedy_decoding.GreedyBatchedTDTInfer(
                     decoder_model=decoder,
                     joint_model=joint,

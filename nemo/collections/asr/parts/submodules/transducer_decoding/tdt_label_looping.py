@@ -249,7 +249,7 @@ class GreedyBatchedTDTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBase
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
-        
+
         # assert include_duration == True
 
         self.state = None
