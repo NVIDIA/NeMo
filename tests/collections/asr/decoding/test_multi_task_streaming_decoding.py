@@ -161,7 +161,7 @@ def test_multi_task_streaming_decoding(
 
     # compare decoding results with reference transcripts
     ref_transcripts = [item['text'] for item in manifest]
-    assert editdistance.eval(ref_transcripts, all_hyps) <= len(ref_transcripts) * 0.1
+    assert editdistance.eval(ref_transcripts, all_hyps) <= len(ref_transcripts) * 0.1 # Expected WER is less than 10%
 
     # compute latency
     audio_encoder_fs = 80 # in ms
@@ -174,4 +174,4 @@ def test_multi_task_streaming_decoding(
             manifest, predicted_token_ids, tokens_frame_alignment, context_encoder_frames, audio_encoder_fs, BOW_PREFIX="\u2581"
         ) 
     laal = sum(laal_list) / len(laal_list)
-    assert 300 <= laal <= 1000
+    assert 300 <= laal <= 900 # Expected LAAL is between 300ms and 900ms depending on the decoding policy
