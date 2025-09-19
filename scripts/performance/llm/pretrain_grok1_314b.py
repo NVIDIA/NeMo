@@ -87,7 +87,7 @@ def model() -> run.Config[pl.LightningModule]:
             num_query_groups=8,
             ffn_hidden_size=32768,
             max_position_embeddings=32768,
-            seq_length=8192,
+            seq_length=args.sequence_length,
             num_moe_experts=8,  # 8
             init_method_std=0.008,
         ),
@@ -264,7 +264,7 @@ def pretrain_recipe(
         trainer=trainer(
             num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
+        data=run.Config(MockDataModule, seq_length=args.sequence_length, global_batch_size=512, micro_batch_size=1),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),

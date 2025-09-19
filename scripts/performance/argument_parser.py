@@ -374,6 +374,14 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
+        "-sq",
+        "--sequence_length",
+        type=int,
+        help="Sets sequence length model size",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "-pss", "--profiling_start_step", type=int, help="Defines start step for profiling", required=False, default=46
     )
     parser.add_argument(
