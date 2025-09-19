@@ -48,7 +48,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
         asr_model: EncDecMultiTaskModel,
         frame_chunk_size: int,
         decoding_cfg: AEDStreamingDecodingConfig,
-        debug_mode: bool = False,
     ):
         """
         Init method.
@@ -56,7 +55,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
             asr_model: isntace of ASR model (Canary)
             frame_chunk_size: size of the frame chunk
             decoding_cfg: decoding configuration
-            debug_mode: debug mode
         """
         super().__init__()
 
@@ -64,7 +62,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
         self.frame_chunk_size = frame_chunk_size
         self.decoding_cfg = decoding_cfg
         self.state = AEDStreamingState()
-        self.debug_mode = debug_mode
 
     def __call__(
         self,
@@ -89,9 +86,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
             torch.logical_not(self.state.is_last_chunk_batch)
         ):
             # need to wait for more speech
-            if self.debug_mode:
-                logging.info(f"!!! need to accumulate more speech to start the decoding process !!!")
-                logging.info(f"[encoder_output_len]: {encoder_output_len}")
+            return self.state
 
         # wait-k streaming decoding policy
         elif self.decoding_cfg.streaming_policy == "waitk":
@@ -166,21 +161,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 eos_and_end_speech_mask
             )
 
-            if self.debug_mode:
-                logging.info(f"-------------" * 5)
-                logging.info(f"decoding step (i)        : {i}")
-                logging.info(f"start_from               : {start_from}")
-                logging.info(f"max_generation_length    : {max_generation_length}")
-                logging.info(f"[encoder_output_len]     : {self.state.encoder_output_len}")
-                logging.info(f"[is_last_chunk_batch]    : {self.state.is_last_chunk_batch}")
-                logging.info(f"[active_samples]         : {self.state.active_samples}")
-                logging.info(f"[current_context_lengths]: {self.state.current_context_lengths}")
-                logging.info(f"[predicted token]        : {text_tokens}")
-                logging.info(f"[predicted token id]     : {next_tokens}")
-
             if not torch.any(self.state.active_samples_inner_loop):
-                if self.debug_mode:
-                    logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
                 break
 
             # write predicted tokens to the tgt tensor
@@ -217,10 +198,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 for j in range(len(decoder_mems_list)):
                     decoder_mems_list[j][:, -1] *= self.state.active_samples_inner_loop.unsqueeze(-1)
             self.state.decoder_mems_list = decoder_mems_list
-
-            # TODO: remove this after debugging
-            if self.debug_mode:
-                import ipdb; ipdb.set_trace()
 
 
     def run_alignatt_decoding_step(self, encoded_speech, encoder_input_mask):
@@ -297,32 +274,14 @@ class GreedyBatchedStreamingAEDComputer(ABC):
             alignatt_condition = (
                 self.state.encoder_output_len - (most_attended_idxs + 1) >= self.decoding_cfg.alignatt_thr
             )
-
             # alignatt condition is always True for the last speech chunk
             alignatt_condition += self.state.is_last_chunk_batch
 
             # applay alignatt condition for inner loop
             self.state.active_samples_inner_loop *= alignatt_condition
 
-            if self.debug_mode:
-                logging.info(f"========================" * 5)
-                logging.info(f"self.state.decoding_step   : {self.state.decoding_step}")
-                logging.info(f"decoding step i            : {i}")
-                logging.info(f"[encoded_speech.shape]     : {encoded_speech.shape}")
-                logging.info(f"[encoder_output_len]       : {self.state.encoder_output_len}")
-                logging.info(f"[positional_indexes]       : {positional_indexes}")
-                logging.info(f"[most_attended_idxs]       : {most_attended_idxs}")
-                logging.info(f"[is_last_chunk_batch]      : {self.state.is_last_chunk_batch}")
-                logging.info(f"[active_samples]           : {self.state.active_samples}")
-                logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
-                logging.info(f"[current_context_lengths]  : {self.state.current_context_lengths}")
-                logging.info(f"[predicted tokens]         : {text_token}")
-                logging.info(f"[predicted tokens id]      : {next_tokens}")
-
             # increase speech chunk if no active samples in the inner loop
             if not torch.any(self.state.active_samples_inner_loop):
-                if self.debug_mode:
-                    logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
                 break
 
             # compute eos tokens mask
@@ -335,11 +294,6 @@ class GreedyBatchedStreamingAEDComputer(ABC):
             self.state.active_samples *= torch.logical_not(eos_and_end_speech_mask)
 
             if not torch.any(self.state.active_samples_inner_loop):
-                if self.debug_mode:
-                    logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
-                    logging.info(f"[active_samples]           : {self.state.active_samples}")
-                    logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
-                    logging.info(f"________________________")
                 break
 
             # write predicted tokens to the tgt tensor
@@ -391,26 +345,7 @@ class GreedyBatchedStreamingAEDComputer(ABC):
                 disable_samples_mask *= torch.logical_not(self.state.is_last_chunk_batch)
                 self.state.active_samples_inner_loop *= torch.logical_not(disable_samples_mask)
 
-            if self.debug_mode:
-                logging.info(f"-------------" * 5)
-                logging.info(f"self.state.decoding_step   : {self.state.decoding_step}")
-                logging.info(f"decoding step i            : {i}")
-                logging.info(f"[encoded_speech.shape]     : {encoded_speech.shape}")
-                logging.info(f"[encoder_output_len]       : {self.state.encoder_output_len}")
-                logging.info(f"[positional_indexes]       : {positional_indexes}")
-                logging.info(f"[most_attended_idxs]       : {most_attended_idxs}")
-                logging.info(f"[is_last_chunk_batch]      : {self.state.is_last_chunk_batch}")
-                logging.info(f"[active_samples]           : {self.state.active_samples}")
-                logging.info(f"[active_samples_inner_loop]: {self.state.active_samples_inner_loop}")
-                logging.info(f"[current_context_lengths]  : {self.state.current_context_lengths}")
-                logging.info(f"[predicted tokens]         : {text_token}")
-                logging.info(f"[predicted tokens id]: {next_tokens}")
-
             if not torch.any(self.state.active_samples_inner_loop):
-                if self.debug_mode:
-                    # TODO: remove this after debugging
-                    import ipdb; ipdb.set_trace()
-                    logging.info(f"!#! no active samples in inner loop, do next upper step !#!")
                 break
 
 

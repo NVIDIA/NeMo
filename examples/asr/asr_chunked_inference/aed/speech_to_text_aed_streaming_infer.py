@@ -401,7 +401,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         asr_model,
         frame_chunk_size=context_encoder_frames.chunk,
         decoding_cfg=cfg.decoding,
-        debug_mode=cfg.debug_mode,
     )
 
     with torch.no_grad(), torch.inference_mode():
@@ -444,7 +443,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             step_idx = 0
             # iterate over audio samples
             while left_sample < audio_batch.shape[1]:   
-            # while torch.any(torch.logical_not(is_last_chunk_batch)):
                 # add samples to buffer
                 chunk_length = min(right_sample, audio_batch.shape[1]) - left_sample # M + R context
                 is_last_chunk_batch = chunk_length >= rest_audio_lengths
@@ -454,21 +452,8 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     rest_audio_lengths,
                     torch.full_like(rest_audio_lengths, fill_value=chunk_length),
                 )
-                
                 is_last_window_batch = end_of_window_sample >= audio_batch_lengths
                 is_last_window_batch += is_last_chunk
-
-                if cfg.debug_mode:
-                    logging.info(f"*** encoder step {step_idx} ***")
-                    logging.info(f"chunk_length: {chunk_length}")
-                    logging.info(f"chunk_lengths_batch: {chunk_lengths_batch}")
-                    logging.info(f"end_of_window_sample: {end_of_window_sample}, {end_of_window_sample/audio_sample_rate:.2f}s")
-                    logging.info(f"right_sample: {right_sample}, {right_sample/audio_sample_rate:.2f}s")
-                    logging.info(f"is_last_chunk_batch: {is_last_chunk_batch}")
-                    logging.info(f"is_last_chunk: {is_last_chunk}")
-                    logging.info(f"is_last_window_batch: {is_last_window_batch}")
-                    logging.info(f"model_state.active_samples: {model_state.active_samples}")
-                    logging.info(f"rest_audio_lengths: {rest_audio_lengths}")
 
                 buffer.add_audio_batch_(
                     audio_batch[:, left_sample:right_sample],
@@ -483,36 +468,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 processed_signal, processed_signal_length = asr_model.preprocessor(
                     input_signal=buffer.samples, length=buffer.context_size_batch.total()
                 )
-                if cfg.debug_mode:
-                    logging.info(f"buffer.context_size_batch: {buffer.context_size_batch}")
-                    logging.info(f"buffer.context_size_batch.total(): {buffer.context_size_batch.total()}")
-                    logging.info(f"processed_signal: {processed_signal.shape}")
-                    logging.info(f"processed_signal_length: {processed_signal_length}")
                 # get encoder output using full buffer [left-chunk-right]
                 encoder_output_with_rc, encoder_output_len_with_rc = asr_model.encoder(
                     audio_signal=processed_signal, length=processed_signal_length
                 )
-
                 encoder_output_with_rc = encoder_output_with_rc.transpose(1, 2)  # [B, T, C]
-                if cfg.debug_mode:
-                    logging.info(f"encoder_output_with_rc: {encoder_output_with_rc.shape}")
-                    logging.info(f"encoder_output_len_with_rc: {encoder_output_len_with_rc}")
                 # remove extra context from encoder_output (leave only frames corresponding to the chunk)
                 encoder_context = buffer.context_size.subsample(factor=encoder_frame2audio_samples)
                 encoder_context_batch = buffer.context_size_batch.subsample(factor=encoder_frame2audio_samples)
-                # remove right context
-                # encoder_output = encoder_output_with_rc[:, : encoder_context.left + encoder_context.chunk]
                 encoder_output = encoder_output_with_rc
                 encoder_output_len = encoder_context_batch.left + encoder_context_batch.chunk
                 encoder_output_len = torch.where(is_last_chunk_batch, encoder_output_len_with_rc, encoder_output_len)
 
                 # keep track of the real frame position in the audio signal
                 model_state.prev_encoder_shift = max(end_of_window_sample//encoder_frame2audio_samples - context_encoder_frames.left - context_encoder_frames.chunk, 0)
-                
-                if cfg.debug_mode:
-                    logging.info(f"encoder_output: {encoder_output.shape}")
-                    logging.info(f"encoder_output_len: {encoder_output_len}")
-                    logging.info(f"model_state.prev_encoder_shift: {model_state.prev_encoder_shift}")
                 
                 # decode only chunk frames (controlled by encoder_context_batch.chunk)
                 model_state = decoding_computer(
@@ -527,19 +496,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 end_of_window_sample += context_samples.chunk # add next chunk
                 step_idx += 1
 
-                if cfg.debug_mode:
-                    logging.info(f"rest_audio_lengths: {rest_audio_lengths}")
-                    import ipdb; ipdb.set_trace()
-
             # get final results for each sample in the batch
             for i in range(batch_size):
                 transcription_idx = model_state.tgt[
                     i, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[i]
                 ]
                 transcription = asr_model.tokenizer.ids_to_text(transcription_idx.tolist()).strip()
-                # if cfg.debug_mode:
-                #     logging.info(f"[pred_text] {i}: {transcription}")
-                logging.info(f"[pred_text] {i}: {transcription}")
                 all_hyps.append(transcription)
                 tokens_frame_alignment.append(model_state.tokens_frame_alignment[i])
                 predicted_token_ids.append(model_state.tgt[i, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[i]])
