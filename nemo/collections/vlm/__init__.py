@@ -14,7 +14,7 @@
 
 # CLIP
 from nemo.collections.vlm.clip.data import ClipMockDataModule
-from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPConfigL14, CLIPModel
+from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPConfigL14, CLIPConfigL14_336, CLIPModel
 
 # Gemma3
 from nemo.collections.vlm.gemma3vl.model.base import Gemma3VLConfig, Gemma3VLModel
@@ -171,6 +171,7 @@ __all__ = [
     "CLIPModel",
     "LoRA",
     "CLIPConfigL14",
+    "CLIPConfigL14_336",
     "CLIPConfigB32",
     "ClipMockDataModule",
     "Llama4MockDataModule",
