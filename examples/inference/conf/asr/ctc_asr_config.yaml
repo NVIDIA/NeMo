@@ -1,0 +1,19 @@
+# ================================
+# CTC ASR Configuration
+# ================================
+
+model_name: nvidia/parakeet-ctc-1.1b           # Pre-trained CTC/hybrid model from NGC/HuggingFace or local .nemo file path
+
+# ========================
+# Device Configuration
+# ========================
+device: cuda                                   # Device for inference: 'cuda' or 'cpu'
+device_id: 0                                   # GPU device ID
+compute_dtype: bfloat16                        # Compute precision: 'bfloat16' for Ampere+, 
+                                               #                    'float16' for older GPUs 
+                                               #                    'float32'
+
+# ========================
+# Mixed Precision Settings
+# ========================
+use_amp: true                                  # Enable Automatic Mixed Precision

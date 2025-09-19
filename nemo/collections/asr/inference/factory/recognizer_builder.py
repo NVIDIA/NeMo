@@ -51,9 +51,9 @@ class RecognizerBuilder:
         """
         RecognizerBuilder.set_matmul_precision(cfg.matmul_precision)
         recognizer_type = RecognizerType.from_str(cfg.recognizer_type)
-        if recognizer_type is RecognizerType.BUFFERED_STREAMING:
+        if recognizer_type is RecognizerType.BUFFERED:
             builder = BufferedSpeechRecognizerBuilder
-        elif recognizer_type is RecognizerType.CACHE_AWARE_STREAMING:
+        elif recognizer_type is RecognizerType.CACHE_AWARE:
             builder = CacheAwareSpeechRecognizerBuilder
         else:
             raise ValueError(f"Invalid recognizer type: {cfg.recognizer_type}")

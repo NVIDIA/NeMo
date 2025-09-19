@@ -1,0 +1,79 @@
+# ================================
+# Default configurations
+# ================================
+defaults:
+  - _self_
+  - asr: cache_aware_asr_config               # ASR configuration
+  - pnc: punctuation_capitalization_config    # Punctuation & capitalization model config
+  - itn: inverse_normalization_config         # Inverse text normalization config
+
+
+# ========================
+# Confidence estimation
+# ========================
+confidence:
+  exclude_blank: true                         # Exclude blank tokens when calculating confidence
+  aggregation: min                            # Aggregation method for confidence across time steps
+  method_cfg:
+    name: entropy                             # Confidence estimation method: 'max_prob' or 'entropy'
+    entropy_type: tsallis                     
+    alpha: 0.5                                
+    entropy_norm: exp        
+
+
+# ========================
+# Endpointing settings
+# ========================
+endpointing:
+  stop_history_eou: 800                       # Time window (ms) for evaluating EoU
+  residue_tokens_at_end: 2                    # Number of residual tokens used for EoU
+
+
+# ========================
+# Streaming configuration
+# ========================
+streaming:
+  sample_rate: 16000                          # Audio sample rate in Hz
+  batch_size: 256                             # Number of audio frames per batch
+  word_boundary_tolerance: 4                  # Tolerance for word boundaries
+  att_context_size: [70,13]                   # Attention context size: [70,13],[70,6],[70,1],[70,0]
+  use_cache: true                             # Whether to use cache for streaming
+  use_feat_cache: true                        # Whether to cache mel-spec features, set false to re-calculate all mel-spec features in audio buffer
+  chunk_size_in_secs: null                    # Amount of audio to load for each streaming step, e.g., 0.08s for FastConformer. Set to `null` for using default size equal to 1+lookahead frames.
+  request_type: frame                         # Type of request: frame, only frame is supported for cache-aware streaming
+
+# ============================
+# Text postprocessing settings
+# ============================
+text_postprocessor:
+  force_to_use_pnc_model: false               # Force use of BERT based PnC restoration model
+  pnc:
+    left_padding_search_size: 45              # Look-back window (#words) for punctuation context
+    batch_size: 128                           # Batch size for PnC model inference
+    max_seq_length: 64                        # Max sequence length processed at once
+    step: 8                                   # Sliding step size
+    margin: 16                                # Overlap between windows to ensure smooth transitions
+  itn:
+    left_padding_size: 4                      # Padding size (#spans) for ITN context
+    batch_size: 32                            # Batch size for ITN inference
+    n_jobs: 16                                # Number of parallel jobs for ITN processing
+
+
+# ========================
+# Pipeline settings
+# ========================
+matmul_precision: highest                     # Matrix multiplication precision: highest, high, medium
+recognizer_type: cache_aware                  # Recognizer type: buffered, cache_aware
+asr_decoding_type: ctc                        # Decoding method: ctc or rnnt
+
+# ========================
+# Runtime arguments defined at runtime via command line
+# ========================
+audio_file: null                              # Path to audio file, directory, or manifest JSON
+output_filename: null                         # Path to output transcription JSON file
+output_ctm_dir: null                          # Directory to save CTM (time-aligned) output
+automatic_punctuation: false                  # Whether to apply punctuation & capitalization
+verbatim_transcripts: true                    # Whether to apply inverse text normalization
+cache_dir: null                               # Directory to store cache (e.g., .far files)
+lang: null                                    # Language code for ASR model
+return_tail_result: false                     # Whether to return the tail labels left in the right padded side of the buffer

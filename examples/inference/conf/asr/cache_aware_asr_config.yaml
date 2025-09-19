@@ -1,0 +1,19 @@
+# ================================
+# Cache-Aware ASR Configuration
+# ================================
+
+model_name: stt_en_fastconformer_hybrid_large_streaming_multi  # Pre-trained streaming model from NGC/HuggingFace or local .nemo file path
+
+# ========================
+# Device Configuration
+# ========================
+device: cuda                                   # Device for inference: 'cuda' or 'cpu'
+device_id: 0                                   # GPU device ID
+compute_dtype: bfloat16                        # Compute precision: 'bfloat16' for Ampere+, 
+                                               #                    'float16' for older GPUs 
+                                               #                    'float32'
+
+# ========================
+# Mixed Precision Settings
+# ========================
+use_amp: true                                  # Enable Automatic Mixed Precision

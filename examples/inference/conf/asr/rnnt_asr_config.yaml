@@ -1,0 +1,25 @@
+# ================================
+# RNNT ASR Configuration
+# ================================
+
+model_name: nvidia/parakeet-rnnt-1.1b          # Pre-trained RNNT/hybrid model from NGC/HuggingFace or local .nemo file path
+
+# ========================
+# Device Configuration
+# ========================
+device: cuda                                   # Device for inference: 'cuda' or 'cpu'
+device_id: 0                                   # GPU device ID
+compute_dtype: bfloat16                        # Compute precision: 'bfloat16' for Ampere+, 
+                                               #                    'float16' for older GPUs 
+                                               #                    'float32'
+
+# ========================
+# Mixed Precision Settings
+# ========================
+use_amp: true                                  # Enable Automatic Mixed Precision
+
+# ========================
+# Language Model Settings
+# ========================
+ngram_lm_model: ""                            # Path to ngram language model
+ngram_lm_alpha: 0.0                           # Alpha for language model

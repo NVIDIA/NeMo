@@ -1,0 +1,28 @@
+# ==========================================
+# Inverse Text Normalization Configuration
+# ==========================================
+
+# ========================
+# Input Processing Settings
+# ========================
+input_case: lower_cased                        # Input text case handling: 'lower_cased', 'cased'
+                                               # might be changed during runtime if the input to ITN is cased
+lang: "en"                                     # Language code for ITN processing
+                                               # might be changed during runtime based on the target language
+
+# ========================
+# Whitelist Configuration
+# ========================
+whitelist: null                               # Custom whitelist for ITN processing
+
+# ========================
+# Cache Configuration
+# ========================
+cache_dir: null                                # Directory for caching ITN models and data
+                                               # might be changed during runtime for fast build
+overwrite_cache: false                        # Whether to overwrite existing cache files
+
+# ========================
+# Processing Limits
+# ========================
+max_number_of_permutations_per_split: 729     # Maximum permutations allowed per text split during ITN processing

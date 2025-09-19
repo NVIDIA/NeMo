@@ -1,0 +1,88 @@
+# ================================
+# Default configurations
+# ================================
+defaults:
+  - _self_
+  - asr: ctc_asr_config                       # ASR configuration
+  - pnc: punctuation_capitalization_config    # Punctuation & capitalization model config
+  - itn: inverse_normalization_config         # Inverse text normalization config
+
+
+# ========================
+# Confidence estimation
+# ========================
+confidence:
+  exclude_blank: true                         # Exclude blank tokens when calculating confidence
+  aggregation: min                            # Aggregation method for confidence across time steps
+  method_cfg:
+    name: entropy                             # Confidence estimation method: 'max_prob' or 'entropy'
+    entropy_type: tsallis                     
+    alpha: 0.5                                
+    entropy_norm: exp                         
+
+# ========================
+# Endpointing settings
+# ========================
+endpointing:
+  stop_history_eou: 800                       # Time window (ms) for evaluating EoU
+  residue_tokens_at_end: 2                    # Number of residual tokens used for EoU
+
+
+# ========================
+# Streaming configuration
+# ========================
+streaming:
+  sample_rate: 16000                          # Audio sample rate in Hz
+  batch_size: 256                             # Number of audio frames per batch
+  left_padding_size: 1.6                      # Left padding duration in seconds
+  right_padding_size: 1.6                     # Right padding duration in seconds
+  chunk_size: 4.8                             # Audio chunk size in seconds
+  word_boundary_tolerance: 4                  # Tolerance for word boundaries
+  request_type: feature_buffer                # Type of request: frame or feature_buffer
+  padding_mode: right                         # Padding mode: left or right. How to pad frames to match the required buffer length
+
+
+# ============================
+# Text postprocessing settings
+# ============================
+text_postprocessor:
+  force_to_use_pnc_model: false               # Force use of BERT based PnC restoration model
+  pnc:
+    left_padding_search_size: 45              # Look-back window (#words) for punctuation context
+    batch_size: 128                           # Batch size for PnC model inference
+    max_seq_length: 64                        # Max sequence length processed at once
+    step: 8                                   # Sliding step size
+    margin: 16                                # Overlap between windows to ensure smooth transitions
+  itn:
+    left_padding_size: 4                      # Padding size (#spans) for ITN context
+    batch_size: 32                            # Batch size for ITN inference
+    n_jobs: 16                                # Number of parallel jobs for ITN processing
+
+
+
+# ========================
+# Recognizer settings
+# ========================
+matmul_precision: high                        # Matrix multiplication precision: highest, high, medium
+recognizer_type: buffered                     # Recognizer type: buffered, cache_aware
+asr_decoding_type: ctc                        # Decoding method: ctc or rnnt
+
+
+
+
+# ========================
+# Runtime arguments defined at runtime   via command line
+# ========================
+audio_file: null                              # Path to audio file, directory, or manifest JSON
+output_filename: null                         # Path to output transcription JSON file
+output_ctm_dir: null                          # Directory to save CTM (time-aligned) output
+automatic_punctuation: false                  # Whether to apply punctuation & capitalization
+verbatim_transcripts: true                    # Whether to apply inverse text normalization
+cache_dir: null                               # Directory to store cache (e.g., .far files)
+lang: null                                    # Language code for ASR model
+return_tail_result: false                     # Whether to return the tail labels left in the right padded side of the buffer
+
+
+
+
+

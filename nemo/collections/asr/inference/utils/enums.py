@@ -46,4 +46,3 @@ class RecognizerType(Enum):
 
         choices = [choice.name for choice in cls]
         raise ValueError(f"Invalid recognizer type `{type_name}`: Need to be one of {choices}")
-

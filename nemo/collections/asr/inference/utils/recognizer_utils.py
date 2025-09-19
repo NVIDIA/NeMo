@@ -15,7 +15,7 @@
 
 import re
 from functools import partial
-from typing import Set, Tuple
+from typing import Iterable, List, Set, Tuple, Union
 
 import torch
 from omegaconf import DictConfig, open_dict
@@ -219,3 +219,22 @@ def adjust_vad_segments(vad_segments: torch.Tensor, left_padding_size: float) ->
     adjusted_segments[:, 0] = torch.clamp(adjusted_segments[:, 0], min=0.0)
 
     return adjusted_segments
+
+
+def seconds_to_frames(
+    seconds: Union[float, int, Iterable[float | int]], model_stride_in_secs: float
+) -> Union[int, List[int]]:
+    """
+    Convert seconds to frames.
+    Args:
+        seconds: (float | int | Iterable[float | int]) Time in seconds
+        model_stride_in_secs: (float) Stride of the model in seconds
+    Returns:
+        (int | List[int]) Number of frames
+    """
+    if isinstance(seconds, (float, int)):
+        return int(seconds / model_stride_in_secs)
+    elif isinstance(seconds, Iterable):
+        return [int(s / model_stride_in_secs) for s in seconds]
+
+    raise ValueError(f"Invalid type for seconds: {type(seconds)}")
