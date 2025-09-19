@@ -20,14 +20,13 @@ from typing import List, Set, Union
 import torch
 from omegaconf import open_dict
 
+from nemo.collections.asr.inference.utils.constants import SENTENCEPIECE_UNDERSCORE
+from nemo.collections.asr.inference.utils.device_utils import setup_device
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.multitask_decoding import MultiTaskDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.asr_confidence_utils import get_confidence_aggregation_bank
-
-from nemo.collections.asr.inference.utils.constants import SENTENCEPIECE_UNDERSCORE
-from nemo.collections.asr.inference.utils.device_utils import setup_device
 
 SUPPORTED_CONFIDENCE_AGGREGATORS = get_confidence_aggregation_bank()
 

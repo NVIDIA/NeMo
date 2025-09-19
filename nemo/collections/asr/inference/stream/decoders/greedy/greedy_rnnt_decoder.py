@@ -18,7 +18,7 @@ from typing import Callable, Dict, List, Tuple
 import torch
 
 from nemo.collections.asr.inference.stream.decoders.greedy.greedy_decoder import GreedyDecoder
-from nemo.collections.asr.inference.utils.normalization import normalize_log_probs
+from nemo.collections.asr.inference.utils.recognizer_utils import normalize_log_probs
 
 
 class RNNTGreedyDecoder(GreedyDecoder):

@@ -13,32 +13,11 @@
 # limitations under the License.
 
 
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 from torch import Tensor
 
 from nemo.collections.asr.inference.asr.asr_inference import ASRInference
-
-
-class CacheAwareContext:
-    def __init__(
-        self,
-        cache_last_channel: Optional[Tensor] = None,
-        cache_last_time: Optional[Tensor] = None,
-        cache_last_channel_len: Optional[Tensor] = None,
-    ):
-        self.cache_last_channel = cache_last_channel
-        self.cache_last_time = cache_last_time
-        self.cache_last_channel_len = cache_last_channel_len
-
-    def set_cache_last_channel(self, cache_last_channel: Tensor) -> None:
-        self.cache_last_channel = cache_last_channel
-
-    def set_cache_last_time(self, cache_last_time: Tensor) -> None:
-        self.cache_last_time = cache_last_time
-
-    def set_cache_last_channel_len(self, cache_last_channel_len: Tensor) -> None:
-        self.cache_last_channel_len = cache_last_channel_len
 
 
 class CacheAwareASRInference(ASRInference):
