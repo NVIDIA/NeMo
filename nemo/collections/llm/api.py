@@ -42,7 +42,7 @@ from nemo.collections.llm.modelopt import (
     PruningConfig,
     QuantizationConfig,
     Quantizer,
-    prune_gpt_model,
+    prune_language_model,
     save_pruned_model,
     set_modelopt_spec_if_exists_in_ckpt,
     setup_trainer_and_restore_model_with_modelopt_spec,
@@ -310,6 +310,8 @@ def prune(
     num_nodes: int = 1,
     tp_size: int = 1,
     pp_size: int = 1,
+    num_layers_in_first_pipeline_stage: int | None = None,
+    num_layers_in_last_pipeline_stage: int | None = None,
     num_train_samples: int = 1024,
     data: pl.LightningDataModule | None = None,
     tokenizer_path: str | None = None,
@@ -327,6 +329,8 @@ def prune(
         tp_size (int): The tensor parallel size.
         pp_size (int): The pipeline parallel size.
         num_train_samples (int): Number of training samples for importance estimation using forward pass.
+        num_layers_in_first_pipeline_stage (int): The number of layers in the first pipeline stage.
+        num_layers_in_last_pipeline_stage (int): The number of layers in the last pipeline stage.
         data (pl.LightningDataModule): The data module for forward pass.
             Required if not dropping layers.
         tokenizer_path (str): Path to the tokenizer if not using model's tokenizer.
@@ -362,6 +366,8 @@ def prune(
         model_path=nemo_checkpoint,
         tensor_model_parallel_size=tp_size,
         pipeline_model_parallel_size=pp_size,
+        num_layers_in_first_pipeline_stage=num_layers_in_first_pipeline_stage,
+        num_layers_in_last_pipeline_stage=num_layers_in_last_pipeline_stage,
         devices=devices,
         num_nodes=num_nodes,
         inference_only=True,
@@ -371,7 +377,7 @@ def prune(
         trainer_kwargs={"max_steps": steps, "limit_val_batches": steps, "val_check_interval": steps},
         model_config_overrides={"sequence_parallel": False},
     )
-    prune_gpt_model(model, pruning_config, data, trainer)
+    prune_language_model(model, pruning_config, data, trainer)
     save_pruned_model(trainer, save_path)
 
     console = Console()
@@ -448,6 +454,11 @@ def distill(
         distillation_config_path=distillation_config_path,
     )
     model.__io__ = _student_model.__io__
+
+    if resume is None:
+        resume = AutoResume()
+    if resume.restore_config is None:
+        resume.restore_config = nl.RestoreConfig(path=student_model_path)
 
     return train(
         model=model,
@@ -603,12 +614,6 @@ def deploy(
     enable_flash_decode: bool = True,
     legacy_ckpt: bool = False,
 ):
-    warnings.warn(
-        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
-        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     """
     Deploys nemo model on a PyTriton server either "in-framework" or by converting to trtllm depending on the backend.
     This deploy method is intended to be used for evaluation.
@@ -656,6 +661,12 @@ def deploy(
             the trtllm backend).
         legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False
     """
+    warnings.warn(
+        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     import os
 
     import uvicorn
@@ -797,12 +808,6 @@ def evaluate(
     eval_cfg: EvaluationConfig = EvaluationConfig(type="gsm8k"),
     adapter_cfg: AdapterConfig | None = None,
 ) -> dict:
-    warnings.warn(
-        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
-        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
-        DeprecationWarning,
-        stacklevel=2,
-    )
     """
     Evaluates nemo model deployed on PyTriton server using nvidia-lm-eval
 
@@ -813,6 +818,12 @@ def evaluate(
         adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.
             Default: None.
     """
+    warnings.warn(
+        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:
@@ -1184,7 +1195,7 @@ def generate(
     )
 
     if trainer.strategy.expert_model_parallel_size > 1:
-        gathered_results = results_on_this_dp_rank
+        gathered_results = [r.generated_text if text_only else r for r in results_on_this_dp_rank]
     else:
         gathered_results = [None] * dp_size
 
