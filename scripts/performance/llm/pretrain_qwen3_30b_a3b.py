@@ -16,15 +16,21 @@ from os.path import basename, splitext
 
 import nemo_run as run
 
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.collections.llm.recipes.qwen3_30b_a3b import pretrain_recipe
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.callbacks.moe_token_drop import MegatronTokenDropCallback
-from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin
 
 from ..argument_parser import parse_cli_args
 from ..executors import slurm_executor
-from ..helpers import args_sanity_check, get_user_configs, set_exp_logging_configs, set_primary_perf_configs
+from ..helpers import (
+    args_sanity_check,
+    build_perf_env_plugin,
+    get_user_configs,
+    set_exp_logging_configs,
+    set_primary_perf_configs,
+)
+from ..utils import dump_config_diff_from_base_recipe
 
 
 def override_recipe_configs(
@@ -62,9 +68,14 @@ def override_recipe_configs(
         ep_size,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
+        use_mcore_fsdp=args.use_mcore_fsdp,
+        use_fsdp_double_buffer=args.use_fsdp_double_buffer,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
+        fp8_recipe=args.fp8_recipe,
+        use_te_act_func=args.use_te_act_func,
+        act_func_fp8_input_store=args.act_func_fp8_input_store,
     )
     recipe = set_exp_logging_configs(
         recipe, "pre_train", "llm", "qwen3", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
@@ -72,11 +83,6 @@ def override_recipe_configs(
 
     recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
     recipe.trainer.callbacks.append(run.Config(MegatronCommOverlapCallback, tp_comm_overlap=True))
-
-    # compute dtype configs
-    if args.compute_dtype.lower() == "fp8":
-        recipe.trainer.plugins = bf16_with_fp8_mixed()
-        recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     recipe.model.config.cross_entropy_fusion_impl = "te"
     recipe.model.config.cross_entropy_loss_fusion = True
@@ -131,13 +137,7 @@ if __name__ == "__main__":
     if args.gpu.lower() in ['b200', 'gb200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
         del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
 
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        ),
-    ]
+    plugins = [build_perf_env_plugin(args, pp_size=pp_size)]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6, gen_shape=True))
     if args.enable_memory_profile:
@@ -153,6 +153,13 @@ if __name__ == "__main__":
         )
 
         if not args.dryrun:
-            exp.run(sequential=True, detach=True)
+            exp.run(sequential=True, detach=args.detach)
         else:
             exp.dryrun()
+
+    if args.dump_config_diff_from_base_recipe:
+        output_dir = exp.jobs[0].executor.job_dir
+        # dump difference from base recipe
+        base_recipe = pretrain_recipe()
+        file_name = f"diff_from_base_recipe_{args.compute_dtype}.diff"
+        dump_config_diff_from_base_recipe(base_recipe, recipe, output_dir, file_name=file_name)

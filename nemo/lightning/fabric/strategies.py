@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, nullcontext
 from datetime import timedelta
 from typing import (
     TYPE_CHECKING,
@@ -47,15 +47,20 @@ from megatron.core.optimizer import OptimizerConfig
 from torch import Tensor, nn
 from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
 from torch.nn import Module
+from torch.nn.parallel import DistributedDataParallel
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from typing_extensions import override
 
 from nemo.lightning import _strategy_lib
 from nemo.lightning.fabric.conversion import to_fabric
-from nemo.lightning.io.pl import MegatronCheckpointIO
+from nemo.lightning.io.pl import MegatronCheckpointIO, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
 from nemo.lightning.pytorch.strategies import MegatronStrategy
+from nemo.utils.import_utils import safe_import
+from nemo.utils.model_utils import unwrap_model
+
+mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 
 if TYPE_CHECKING:
     from nemo.lightning.pytorch.plugins.data_sampler import DataSampler
@@ -347,6 +352,9 @@ class FabricMegatronStrategy(DDPStrategy):
                 state key, where its filter will be applied to the ``state_dict`` generated.
 
         """
+        if not storage_options:
+            storage_options = {}
+        storage_options['content_metadata'] = self.sharded_state_dict_metadata
         state = self._convert_stateful_objects_in_state(state, filter=(filter_dict or {}))
         self.checkpoint_io.save_checkpoint(checkpoint=state, path=path, storage_options=storage_options)
 
@@ -361,25 +369,46 @@ class FabricMegatronStrategy(DDPStrategy):
         """
         if isinstance(state, Optimizer):
             raise NotImplementedError("Optimizer loading is not supported, pass it as a dict including the model")
+        unwrapped_model = unwrap_model(state["state_dict"])
 
+        from nemo.collections.vlm.llama4.model.base import Llama4OmniBaseModel
+
+        if HAVE_MODELOPT and isinstance(unwrapped_model, Llama4OmniBaseModel):
+            # If present, first restore and modify the model according to the ModelOpt state.
+            # Avoid quantizers being added to teacher model if model is a distillation model.
+            core_model = unwrapped_model.language_model
+            with core_model.hide_teacher_model() if hasattr(core_model, "hide_teacher_model") else nullcontext():
+                mto.plugins.restore_sharded_modelopt_state(
+                    [core_model], ckpt_to_weights_subdir(path, is_saving=False), prefix="module.language_model."
+                )
+            if mto.ModeloptStateManager.is_converted(core_model):
+                print("Restored Model-Optimizer state from checkpoint.")
         torch.cuda.empty_cache()
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
+        sharded_sd_metadata = self.unwrapped_checkpoint_io.load_content_metadata(path)
         sharded_state_dict = {}
         if isinstance(state, Module):
-            sharded_state_dict["state_dict"] = state.sharded_state_dict()
+            sharded_state_dict["state_dict"] = state.sharded_state_dict(metadata=sharded_sd_metadata)
         elif strict:
-            sharded_state_dict["state_dict"] = state["state_dict"].sharded_state_dict()
+            if isinstance(state['state_dict'], DistributedDataParallel):
+                state["state_dict"] = state['state_dict'].module
+            sharded_state_dict["state_dict"] = state["state_dict"].sharded_state_dict(metadata=sharded_sd_metadata)
             if "optimizer" in state:
                 sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(
-                    state["state_dict"], state["optimizer"], is_loading=True
+                    state["state_dict"],
+                    state["optimizer"],
+                    is_loading=True,
+                    metadata=sharded_sd_metadata,
                 )
         else:
             for obj in state.items():
                 if isinstance(obj, Module):
-                    sharded_state_dict["state_dict"] = obj.sharded_state_dict()
+                    sharded_state_dict["state_dict"] = obj.sharded_state_dict(metadata=sharded_sd_metadata)
                 elif isinstance(obj, Optimizer):
-                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(obj, is_loading=True)
+                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(
+                        obj, is_loading=True, metadata=sharded_sd_metadata
+                    )
 
         checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
 
@@ -409,6 +438,14 @@ class FabricMegatronStrategy(DDPStrategy):
         Load the module state dict.
         """
         _strategy_lib.load_model_state_dict(module, state_dict, strict=strict)
+
+    @property
+    def sharded_state_dict_metadata(self):
+        """Metadata used for sharded_state_dict generation during checkpoint save."""
+        metadata = {}
+        if isinstance(self.ddp_config, DistributedDataParallelConfig) and self.ddp_config.use_distributed_optimizer:
+            metadata["distrib_optim_sharding_type"] = "fully_sharded_model_space"
+        return metadata
 
     @contextmanager
     def megatron_context(self) -> Generator[None, None, None]:
@@ -451,6 +488,14 @@ class FabricMegatronStrategy(DDPStrategy):
             self._checkpoint_io.checkpoint_io = MegatronCheckpointIO()
 
         return self._checkpoint_io
+
+    @property
+    def unwrapped_checkpoint_io(self) -> CheckpointIO:
+        """Unwraps `checkpoint_io` from all wrappers."""
+        checkpoint_io = self.checkpoint_io
+        while isinstance(checkpoint_io, _WrappingCheckpointIO):
+            checkpoint_io = checkpoint_io.checkpoint_io
+        return checkpoint_io
 
     @property
     def parallelism(self):

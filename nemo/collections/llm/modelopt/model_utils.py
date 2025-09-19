@@ -18,6 +18,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import lightning.pytorch as L
+import modelopt.torch.opt as mto
 import torch
 import torch.nn as nn
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
@@ -31,8 +32,6 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 from nemo.utils.model_utils import unwrap_model
-
-mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
 
 _, HAVE_TE = safe_import("transformer_engine")
 if HAVE_TE:
@@ -55,27 +54,6 @@ if TYPE_CHECKING:
 __all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
 
 
-def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
-    """Set model.config.transformer_layer_spec to modelopt spec."""
-    logging.info("Setting model.config.transformer_layer_spec to gpt_modelopt_spec")
-    assert isinstance(model_cfg, llm.GPTConfig), "model_cfg must be a GPTConfig"
-    try:
-        from functools import partial
-
-        from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
-
-        modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm)
-    except ImportError:
-        # Older spec: Will be deprecated, doesnt support DeepSeek
-        from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
-
-        modelopt_spec = get_gpt_layer_modelopt_spec(
-            num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm
-        )
-    model_cfg.transformer_layer_spec = modelopt_spec
-    return model_cfg
-
-
 def _set_gpt_mamba_modelopt_spec(
     model_cfg: Union[llm.GPTConfig, llm.SSMConfig]
 ) -> Union[llm.GPTConfig, llm.SSMConfig]:
@@ -92,7 +70,11 @@ def _set_gpt_mamba_modelopt_spec(
     logging.info("Setting model layer specification to the modelopt layer spec")
 
     if isinstance(model_cfg, llm.GPTConfig):
-        model_cfg.transformer_layer_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
+        model_cfg.transformer_layer_spec = partial(
+            get_gpt_modelopt_spec,
+            remap_te_layernorm=True,
+            local_core_attention=getattr(model_cfg, "softmax_type", "vanilla") != "vanilla",
+        )
     elif isinstance(model_cfg, llm.SSMConfig):
         model_cfg.mamba_stack_spec = partial(get_mamba_stack_modelopt_spec, remap_te_layernorm=True)
     else:
@@ -198,6 +180,7 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     )
 
     model = nl.io.load_context(path=ckpt_to_context_subdir(model_path), subpath="model")
+
     _set_gpt_mamba_modelopt_spec(model.config)
     for k, v in model_config_overrides.items():
         logging.info(f"Overriding model.config.{k} to {v}")
@@ -234,8 +217,6 @@ def restore_modelopt_state(
         path (str): The path to the checkpoint.
         trainer (pl.Trainer): The trainer object, in case path not provided.
     """
-    if not HAVE_MODELOPT:
-        return
     if not path:
         if trainer is None:
             return
@@ -254,6 +235,7 @@ def restore_modelopt_state(
         mto.plugins.restore_sharded_modelopt_state(
             [core_model],
             ckpt_to_weights_subdir(path, is_saving=False),
+            prefix="module.",
         )
     if mto.ModeloptStateManager.is_converted(core_model):
         logging.info("Restored Model Optimizer state from checkpoint.")
@@ -273,9 +255,6 @@ def save_modelopt_state(model: "MegatronParallel", path: str, checkpoint_io: "Ch
         path (str): The path to the checkpoint.
         checkpoint_io (CheckpointIO): The checkpoint IO object from MegatronStrategy.
     """
-    if not HAVE_MODELOPT:
-        return
-
     # Save ModelOpt state too, if it exists.
     core_model = unwrap_model(model)
     if not mto.ModeloptStateManager.is_converted(core_model):

@@ -86,7 +86,8 @@ def test_bf16_with_mxfp8_mixed_config():
     # Check FP8 specific settings
     assert config.fp8 == "hybrid"
     assert config.fp8_recipe == "mxfp8"
-    assert config.fp8_param_gather is False
+    assert config.fp8_param_gather is True
+    assert config.reuse_grad_buf_for_mxfp8_param_ag is True
 
 
 def test_fp16_with_mxfp8_mixed_config():
@@ -98,7 +99,8 @@ def test_fp16_with_mxfp8_mixed_config():
     # Check FP8 specific settings
     assert config.fp8 == "hybrid"
     assert config.fp8_recipe == "mxfp8"
-    assert config.fp8_param_gather is False
+    assert config.fp8_param_gather is True
+    assert config.reuse_grad_buf_for_mxfp8_param_ag is True
 
 
 def test_bf16_with_fp8_current_scaling_mixed_config():

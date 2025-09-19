@@ -32,7 +32,8 @@ _model_flops_map = {
     "llama2": flops_formulas.llama2,
     "llama3": flops_formulas.llama3,
     "llama4": flops_formulas.llama3,  # TODO: add llama4 flops formulas
-    "nemotron": flops_formulas.nemotron,
+    "nemotron3": flops_formulas.nemotron,
+    "nemotron4": flops_formulas.nemotron,
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,
     "hyena": hyena,
@@ -40,6 +41,7 @@ _model_flops_map = {
     "transformer": flops_formulas.transformer,
     "qwen3": flops_formulas.qwen3,
     "nemotronh": flops_formulas.nemotronh,
+    "gpt_oss": flops_formulas.gpt_oss,
 }
 
 
@@ -118,6 +120,13 @@ class FLOPsMeasurementCallback(Callback):
             config_kwargs['mamba_head_dim'] = self.model_cfg.mamba_head_dim
             config_kwargs['mamba_num_groups'] = self.model_cfg.mamba_num_groups
             config_kwargs['mamba_num_heads'] = self.model_cfg.mamba_num_heads
+
+        if self.model_cfg.window_size is not None:
+            config_kwargs["window_size"] = self.model_cfg.window_size
+        if getattr(self.model_cfg, "window_attn_skip_freq", None) is not None:
+            config_kwargs["window_attn_skip_freq"] = self.model_cfg.window_attn_skip_freq
+        if self.model_cfg.kv_channels is not None:
+            config_kwargs["kv_channels"] = self.model_cfg.kv_channels
 
         self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 

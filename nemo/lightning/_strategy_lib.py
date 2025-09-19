@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 class SharedStateDictProtocol(Protocol):
     """ """
 
-    def sharded_state_dict(self, prefix=""):
+    def sharded_state_dict(self, prefix="", metadata: Optional[dict] = None):
         """ """
         ...
 
@@ -91,10 +91,7 @@ def init_parallel_ranks(
         pipeline_model_parallel_comm_backend=parallel_config.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=parallel_config.virtual_pipeline_model_parallel_size,
         context_parallel_size=parallel_config.context_parallel_size,
-        encoder_tensor_model_parallel_size=getattr(parallel_config, "encoder_tensor_model_parallel_size", 0),
-        encoder_pipeline_model_parallel_size=getattr(parallel_config, "encoder_pipeline_model_parallel_size", 0),
         seed=seed,
-        pipeline_model_parallel_split_rank=getattr(parallel_config, "pipeline_model_parallel_split_rank", None),
         use_fp8=fp8,
         init_mpi_proc_group=getattr(parallel_config, "tp_comm_overlap", False)
         and getattr(parallel_config, "tp_comm_bootstrap_backend", None) == 'mpi',
@@ -103,6 +100,7 @@ def init_parallel_ranks(
         use_tp_pp_dp_mapping=getattr(parallel_config, "use_tp_pp_dp_mapping", False),
         num_distributed_optimizer_instances=getattr(parallel_config, "num_distributed_optimizer_instances", 1),
         nccl_communicator_config_path=getattr(parallel_config, "nccl_communicator_config_path", None),
+        use_gloo_process_groups=getattr(parallel_config, "use_gloo_process_groups", True),
         # apex_transformer_log_level=self.cfg.get('apex_transformer_log_level', 30),
     )
 
@@ -127,10 +125,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 tensor_model_parallel_size=app_state.tensor_model_parallel_size,
                 pipeline_model_parallel_size=app_state.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size=app_state.virtual_pipeline_model_parallel_size,
-                pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
                 pipeline_model_parallel_comm_backend=app_state.pipeline_model_parallel_comm_backend,
-                encoder_pipeline_model_parallel_size=app_state.encoder_pipeline_model_parallel_size,
-                encoder_tensor_model_parallel_size=app_state.encoder_tensor_model_parallel_size,
                 context_parallel_size=app_state.context_parallel_size,
                 expert_model_parallel_size=app_state.expert_model_parallel_size,
                 expert_tensor_parallel_size=app_state.expert_tensor_parallel_size,
@@ -138,6 +133,7 @@ def init_model_parallel(model: Optional[nn.Module] = None) -> None:
                 order="tp-cp-ep-pp-dp" if app_state.use_tp_pp_dp_mapping else "tp-cp-ep-dp-pp",
                 num_distributed_optimizer_instances=app_state.num_distributed_optimizer_instances,
                 nccl_communicator_config_path=app_state.nccl_communicator_config_path,
+                create_gloo_process_groups=app_state.use_gloo_process_groups,
             )
 
             # assert that fake tp and pp rank match after model parallel init
@@ -457,12 +453,24 @@ def enable_nvidia_optimizations() -> None:
 def optimizer_sharded_state_dict(
     model: SharedStateDictProtocol,
     optimizer: "Optimizable",
-    is_loading=False,
-    sharding_type='fully_sharded_model_space',
+    is_loading: bool = False,
+    sharding_type: Optional[str] = None,
+    metadata: Optional[dict] = None,
 ) -> Dict[str, torch.Tensor]:
     """
     Sharded state dictionary for an MainParamsOptimizerWrapper.
     Used to save and load the optimizer state when training with distributed_checkpoint.
+
+    Args:
+        model (SharedStateDictProtocol): model with a `sharded_state_dict` method
+        optimizer (Optimizable): optimizer to get the state dict of
+        is_loading (bool, optional): set to True if the sharded state dict is intended
+            for checkpoint loading (as opposed to saving). Defaults to False.
+        sharding_type (str, optional): deprecated, use metadata flags instead.
+        metadata (dict, optional): sharded state dict metadata passed from the framework.
+            Used to control the details of sharded state dict creation, in particular
+            the state dict format of the DistributedOptimizer with the flag
+            `distrib_optim_sharding_type`. Defaults to None (empty metadata).
 
     Returns
     -------
@@ -479,16 +487,25 @@ def optimizer_sharded_state_dict(
     from nemo.core.optim import MainParamsOptimizerWrapper
     from nemo.core.optim.optimizers import init_optimizer_states
 
-    model_sharded_state_dict = model.sharded_state_dict()
+    model_sharded_state_dict = model.sharded_state_dict(metadata=metadata)
 
     # remove _extra_state
     model_sharded_state_dict = {
         key: value for key, value in model_sharded_state_dict.items() if not key.endswith("_extra_state")
     }
 
+    if sharding_type is not None:
+        logging.warning("sharding_type is deprecated, please use `metadata['distrib_optim_sharding_type']` instead")
+        if metadata is None:
+            metadata = {}
+        if 'distrib_optim_sharding_type' not in metadata:
+            metadata["distrib_optim_sharding_type"] = sharding_type
+
     if hasattr(optimizer, "sharded_state_dict"):
         return optimizer.sharded_state_dict(
-            model_sharded_state_dict, is_loading=is_loading, sharding_type=sharding_type
+            model_sharded_state_dict,
+            is_loading=is_loading,
+            metadata=metadata,
         )
 
     if not isinstance(optimizer, MainParamsOptimizerWrapper):
@@ -557,6 +574,13 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
     except ImportError or ModuleNotFoundError:
         have_custom_fsdp = False
 
+    try:
+        from megatron.core.distributed import FullyShardedDataParallel
+
+        have_megatron_fsdp = True
+    except ImportError or ModuleNotFoundError:
+        have_megatron_fsdp = False
+
     for index, module in enumerate(megatron_parallel):
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             if "state_dict" in checkpoint:
@@ -594,6 +618,8 @@ def load_model_state_dict(megatron_parallel, checkpoint: Mapping[str, Any], stri
                 _state_dict[key] = value
 
         if have_custom_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
+            module.module.load_state_dict(_state_dict, strict=strict)
+        elif have_megatron_fsdp and hasattr(module, "module") and isinstance(module.module, FullyShardedDataParallel):
             module.module.load_state_dict(_state_dict, strict=strict)
             continue
 
@@ -653,6 +679,9 @@ def setup_megatron_optimizer(
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
 
     from nemo.core.optim import McoreDistributedOptimizer
+    from nemo.utils import AppState
+
+    app_state = AppState()
 
     assert isinstance(config, OptimizerConfig), f"Expected OptimizerConfig, got {type(config)}"
 
@@ -665,10 +694,13 @@ def setup_megatron_optimizer(
             optimizer_state_dict=None,
             is_loading=False,
             sharding_type='fully_sharded_model_space',
+            metadata=None,
         ):
             mcore_optimizer_sig = inspect.signature(self.mcore_optimizer.sharded_state_dict).parameters
             distrib_optim_kwargs = {}
-            if "sharding_type" in mcore_optimizer_sig:
+            if "metadata" in mcore_optimizer_sig:
+                distrib_optim_kwargs["metadata"] = metadata
+            elif "sharding_type" in mcore_optimizer_sig:
                 distrib_optim_kwargs["sharding_type"] = sharding_type
             state_dict = self.mcore_optimizer.sharded_state_dict(
                 model_sharded_state_dict, is_loading=is_loading, **distrib_optim_kwargs
@@ -683,6 +715,7 @@ def setup_megatron_optimizer(
         no_weight_decay_cond=no_weight_decay_cond,
         scale_lr_cond=scale_lr_cond,
         lr_mult=lr_mult,
+        use_gloo_process_groups=app_state.use_gloo_process_groups,
     )
     # Pytorch does not have the concept of an `lr_mult` or a `wd_mult` but these are added to param
     # groups in megatron to control which sub-modules have different learning rates or weight

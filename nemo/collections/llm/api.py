@@ -35,13 +35,14 @@ from nemo.collections.llm.evaluation.api import (
     EvaluationTarget,
     MisconfigurationError,
 )
+from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
     PruningConfig,
     QuantizationConfig,
     Quantizer,
-    prune_gpt_model,
+    prune_language_model,
     save_pruned_model,
     set_modelopt_spec_if_exists_in_ckpt,
     setup_trainer_and_restore_model_with_modelopt_spec,
@@ -309,6 +310,8 @@ def prune(
     num_nodes: int = 1,
     tp_size: int = 1,
     pp_size: int = 1,
+    num_layers_in_first_pipeline_stage: int | None = None,
+    num_layers_in_last_pipeline_stage: int | None = None,
     num_train_samples: int = 1024,
     data: pl.LightningDataModule | None = None,
     tokenizer_path: str | None = None,
@@ -326,6 +329,8 @@ def prune(
         tp_size (int): The tensor parallel size.
         pp_size (int): The pipeline parallel size.
         num_train_samples (int): Number of training samples for importance estimation using forward pass.
+        num_layers_in_first_pipeline_stage (int): The number of layers in the first pipeline stage.
+        num_layers_in_last_pipeline_stage (int): The number of layers in the last pipeline stage.
         data (pl.LightningDataModule): The data module for forward pass.
             Required if not dropping layers.
         tokenizer_path (str): Path to the tokenizer if not using model's tokenizer.
@@ -361,6 +366,8 @@ def prune(
         model_path=nemo_checkpoint,
         tensor_model_parallel_size=tp_size,
         pipeline_model_parallel_size=pp_size,
+        num_layers_in_first_pipeline_stage=num_layers_in_first_pipeline_stage,
+        num_layers_in_last_pipeline_stage=num_layers_in_last_pipeline_stage,
         devices=devices,
         num_nodes=num_nodes,
         inference_only=True,
@@ -370,7 +377,7 @@ def prune(
         trainer_kwargs={"max_steps": steps, "limit_val_batches": steps, "val_check_interval": steps},
         model_config_overrides={"sequence_parallel": False},
     )
-    prune_gpt_model(model, pruning_config, data, trainer)
+    prune_language_model(model, pruning_config, data, trainer)
     save_pruned_model(trainer, save_path)
 
     console = Console()
@@ -447,6 +454,11 @@ def distill(
         distillation_config_path=distillation_config_path,
     )
     model.__io__ = _student_model.__io__
+
+    if resume is None:
+        resume = AutoResume()
+    if resume.restore_config is None:
+        resume.restore_config = nl.RestoreConfig(path=student_model_path)
 
     return train(
         model=model,
@@ -649,6 +661,12 @@ def deploy(
             the trtllm backend).
         legacy_ckpt (bool): Indicates whether the checkpoint is in the legacy format. Default: False
     """
+    warnings.warn(
+        "The 'deploy' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     import os
 
     import uvicorn
@@ -800,6 +818,12 @@ def evaluate(
         adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.
             Default: None.
     """
+    warnings.warn(
+        "The 'evaluate' function is deprecated and will be removed in NeMo FW 25.09 container release. "
+        "For evaluation functionality, please use the new Eval repository: https://github.com/NVIDIA-NeMo/Eval",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:
@@ -1049,6 +1073,7 @@ def generate(
     text_only: bool = False,
     output_path: Optional[AnyPath] = None,
     enable_flash_decode: bool = True,
+    **kwargs,
 ) -> list[Union["InferenceRequest", str]]:
     """
     Generates text using a NeMo LLM model.
@@ -1116,6 +1141,7 @@ def generate(
         output_path (Optional[Union[Path, str]], optional): The path to save the generated text or test dataset
             predictions. Defaults to None.
         enable_flash_decode (bool, optional): Whether to enable flash decode. Defaults to True.
+        **kwargs: Additional keyword arguments passed to setup_model_and_tokenizer.
 
     Returns:
         list[Union["InferenceRequest", str]]: A list of generated text,
@@ -1139,6 +1165,7 @@ def generate(
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
         enable_flash_decode=enable_flash_decode,
+        **kwargs,
     )
 
     max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)
@@ -1168,7 +1195,7 @@ def generate(
     )
 
     if trainer.strategy.expert_model_parallel_size > 1:
-        gathered_results = results_on_this_dp_rank
+        gathered_results = [r.generated_text if text_only else r for r in results_on_this_dp_rank]
     else:
         gathered_results = [None] * dp_size
 
@@ -1359,6 +1386,17 @@ def _validate_config(
                     assert (
                         model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
                     ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+                if isinstance(data, FineTuningDataModule):
+                    # check calculate_per_token_loss to be True
+                    # check average_in_collective to be False
+                    # for context parallel to solve the issue of nan loss on ranks with all tokens masked
+                    # (only happens in SFT)
+                    assert (
+                        model.config.calculate_per_token_loss
+                    ), "When finetuning with CP>1, model.config.calculate_per_token_loss must be True"
+                    assert (
+                        not trainer.strategy.ddp_config.average_in_collective
+                    ), "When finetuning with CP>1, average_in_collective must be False"
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:

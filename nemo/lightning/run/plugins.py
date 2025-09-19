@@ -14,7 +14,8 @@
 
 import copy
 import os
-from dataclasses import dataclass, field
+import signal
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -58,13 +59,15 @@ class PreemptionPlugin(run.Plugin):
                              stopped before reaching their time limit, reducing waste and
                              promoting fair resource usage. The default value is 60 seconds (1 minute).
                              This is only supported for ``run.SlurmExecutor``.
+        sig (signal.Signals): The signal to listen for. Defaults to signal.SIGTERM.
         callbacks (list[run.Config[Callback]]): A list of callback configurations that the plugin
                                                 will merge with the task's existing callbacks.
                                                 By default, the list includes NeMo's preemption callback.
     """
 
     preempt_time: int = 60
-    callbacks: list[run.Config[Callback]] = field(default_factory=lambda: [run.Config(PreemptionCallback)])
+    sig: signal.Signals = signal.SIGTERM
+    callbacks: list[run.Config[Callback]] = None
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         """Set up the preemption plugin."""
@@ -77,11 +80,12 @@ class PreemptionPlugin(run.Plugin):
         if isinstance(executor, run.SlurmExecutor):
             # Sends a SIGTERM self.preempt_time seconds before hitting time limit
             logging.info(
-                f"{self.__class__.__name__} will send a SIGTERM {self.preempt_time} seconds before the job's time limit for your Slurm executor."  # pylint: disable=C0301
+                f"{self.__class__.__name__} will send a {self.sig.name} {self.preempt_time} seconds before the job's time limit for your Slurm executor."  # pylint: disable=C0301
             )
-            executor.signal = f"TERM@{self.preempt_time}"
+            executor.signal = f"{self.sig.value}@{self.preempt_time}"
 
-        _merge_callbacks(task, callbacks=self.callbacks)
+        callbacks = self.callbacks or [run.Config(PreemptionCallback, sig=self.sig)]
+        _merge_callbacks(task, callbacks=callbacks)
 
 
 @dataclass(kw_only=True)
@@ -359,6 +363,7 @@ class PerfEnvPlugin(run.Plugin):
     enable_vboost: bool = False
     nccl_pp_comm_chunksize: Optional[int] = None
     gpu_sm100_or_newer: bool = False
+    user_buffer_registration: bool = False
 
     def get_vboost_srun_cmd(self, nodes, job_dir):
         "Create the vboost `sudo nvidia-smi boost-slider --vboost 1` command"
@@ -404,6 +409,28 @@ class PerfEnvPlugin(run.Plugin):
             if pp_size > 1 and self.nccl_pp_comm_chunksize is not None:
                 assert isinstance(self.nccl_pp_comm_chunksize, int) and self.nccl_pp_comm_chunksize > 1
                 executor.env_vars["NCCL_P2P_NET_CHUNKSIZE"] = str(self.nccl_pp_comm_chunksize)
+
+            # Enable high priority for NCCL communications
+            executor.env_vars["TORCH_NCCL_HIGH_PRIORITY"] = "1"
+
+            if self.user_buffer_registration:
+                # Enable NCCL NVLS ALGO, which could increase GPU memory usage
+                executor.env_vars["NCCL_NVLS_ENABLE"] = "1"
+                # This option makes NCCL to prefer SM efficient ALGOS if available
+                # With this option, NCCL will use NVLS if user buffer is registered
+                executor.env_vars["NCCL_CTA_POLICY"] = "1"
+                if "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+                    pytorch_cuda_alloc_conf = executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"].split(',')
+                    if "expandable_segments:True" in pytorch_cuda_alloc_conf:
+                        logging.warning(
+                            "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True is not currently compatible with"
+                            "user buffer registration. Removing expandable_segments:True from the list."
+                        )
+                        pytorch_cuda_alloc_conf.remove("expandable_segments:True")
+                        executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"] = ",".join(pytorch_cuda_alloc_conf)
+
+            if task.model.config.enable_cuda_graph and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+                del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
 
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):

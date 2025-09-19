@@ -23,12 +23,11 @@ from megatron.core import parallel_state
 from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
 from megatron.core.pipeline_parallel.schedules import get_tensor_shapes
 from megatron.core.transformer import TransformerLayer
-from megatron.core.utils import get_model_config, get_model_type, get_model_xattn
+from megatron.core.utils import get_model_config
 
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.utils import logging
-from nemo.utils.import_utils import safe_import, safe_import_from
 
 from .loss import HiddenStateCosineLoss, LogitsAndIntermediatesLossBalancer, LogitsKLLoss, ProjectionLayer
 
@@ -39,9 +38,8 @@ if TYPE_CHECKING:
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
-DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationModel", alt=object)
-DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
+import modelopt.torch.opt as mto
+from modelopt.torch.distill import DistillationLossBalancer, DistillationModel
 
 
 @dataclass
@@ -145,7 +143,8 @@ def teacher_provider(
     # TODO(aanoosheh): Replace spec with modelopt one
     model = config.configure_model(tokenizer)
 
-    sharded_state_dict = {"state_dict": model.sharded_state_dict(prefix="module.")}
+    sharded_sd_metadata = trainer.strategy.unwrapped_checkpoint_io.load_content_metadata(ckpt_path)
+    sharded_state_dict = {"state_dict": model.sharded_state_dict(prefix="module.", metadata=sharded_sd_metadata)}
     strict = trainer.strategy.ckpt_load_strictness
     checkpoint = trainer.strategy.checkpoint_io.load_checkpoint(ckpt_path, sharded_state_dict, strict=strict)
     state_dict = {k.replace("module.", ""): v for k, v in checkpoint["state_dict"].items()}
@@ -172,8 +171,7 @@ def adjust_distillation_model_for_mcore(model: DistillationModel, distill_cfg: D
     # NOTE: If re-placed, above losses need modifcation as `TransformerConfig` has non-pickleable elements.
     existing_state = mto.ModeloptStateManager(model).state_dict()
     assert len(existing_state) == 1 and existing_state[0][0] == "kd_loss", f"{existing_state=}"
-    # mto.ModeloptStateManager.remove_state(model)
-    delattr(model, mto.ModeloptStateManager._state_key)  # Use above method from modelopt 0.27
+    mto.ModeloptStateManager.remove_state(model)
 
     # Hide teacher during `sharded_state_dict` method.
     def _sharded_state_dict(self, *args, **kwargs) -> "ShardedStateDict":
@@ -242,8 +240,6 @@ def get_tensor_shapes_adjust_fn_for_distillation(
     Currently only used during non-interleaved pipelining for Distillation.
     Concatenates sizes of student and teacher output tensors for inter-process communication.
     """
-    if not HAVE_MODELOPT:
-        return None
     if (
         forward_only
         or parallel_state.get_pipeline_model_parallel_world_size() == 1
@@ -259,28 +255,25 @@ def get_tensor_shapes_adjust_fn_for_distillation(
         return None
 
     def adjust_tensor_shapes(recv_tensor_shapes: List[Tuple[int, ...]], send_tensor_shapes: List[Tuple[int, ...]]):
-        rank = parallel_state.get_pipeline_model_parallel_rank()
         teacher_config = get_model_config(model.teacher_model)
-        teacher_model_type = get_model_type(model.teacher_model)
-        teacher_encoder_decoder_xattn = get_model_xattn(model.teacher_model)
+        tp_group = parallel_state.get_tensor_model_parallel_group()
+        cp_group = parallel_state.get_context_parallel_group()
 
         teacher_recv_tensor_shapes = get_tensor_shapes(
-            rank=rank - 1,
-            model_type=teacher_model_type,
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             decoder_seq_length=decoder_seq_length,
             config=teacher_config,
-            encoder_decoder_xattn=teacher_encoder_decoder_xattn,
+            tp_group=tp_group,
+            cp_group=cp_group,
         )
         teacher_send_tensor_shapes = get_tensor_shapes(
-            rank=rank,
-            model_type=teacher_model_type,
             seq_length=seq_length,
             micro_batch_size=micro_batch_size,
             decoder_seq_length=decoder_seq_length,
             config=teacher_config,
-            encoder_decoder_xattn=teacher_encoder_decoder_xattn,
+            tp_group=tp_group,
+            cp_group=cp_group,
         )
         model.set_student_input_tensor_shape(recv_tensor_shapes)
 

@@ -15,6 +15,7 @@ from typing import Callable, Optional
 
 import lightning.pytorch as pl
 import nemo_run as run
+import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
@@ -25,6 +26,7 @@ from nemo.collections.llm.recipes.deepseek import trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.deepep import DeepEPCallback
 from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
@@ -125,9 +127,14 @@ def pretrain_recipe(
     recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm"]
 
     # DeepEP
-    recipe.model.config.moe_token_dispatcher_type = "flex"
-    recipe.model.config.moe_enable_deepep = True
-    recipe.model.config.moe_shared_expert_overlap = False
+    deepep_callback = run.Config(DeepEPCallback)
+
+    # BF16 optimizer
+    recipe.optim.config.use_precision_aware_optimizer = True
+    recipe.optim.config.main_params_dtype = torch.float32
+    recipe.optim.config.main_grads_dtype = torch.bfloat16
+    recipe.optim.config.exp_avg_dtype = torch.bfloat16
+    recipe.optim.config.exp_avg_sq_dtype = torch.bfloat16
 
     garbage_collection_callback = run.Config(
         GarbageCollectionCallback,
@@ -139,6 +146,7 @@ def pretrain_recipe(
         tp_comm_overlap=False,
     )
 
+    recipe.trainer.callbacks.append(deepep_callback)
     recipe.trainer.callbacks.append(garbage_collection_callback)
     recipe.trainer.callbacks.append(comm_overlap_callback)
 

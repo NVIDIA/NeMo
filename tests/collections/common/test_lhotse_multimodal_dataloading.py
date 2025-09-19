@@ -11,15 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from pathlib import Path
+
 import lhotse
 import numpy as np
 import pytest
 import torch
-from lhotse.testing.dummies import dummy_recording
+from lhotse import CutSet, SupervisionSegment, compute_num_samples
+from lhotse.testing.dummies import dummy_cut, dummy_recording
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.data.lhotse.sampling import (
+    DurationFilter,
     MultimodalFixedBucketBatchSizeConstraint2D,
     MultimodalSamplingConstraint,
 )
@@ -27,6 +31,7 @@ from nemo.collections.common.data.lhotse.text_adapters import (
     AudioTurn,
     NeMoMultimodalConversation,
     NeMoMultimodalConversationJsonlAdapter,
+    NeMoMultimodalConversationShareGPTJsonlAdapter,
     NeMoMultimodalConversationTarWriter,
     TextTurn,
 )
@@ -148,6 +153,120 @@ def test_multimodal_conversation_input(multimodal_conversations_path):
     assert isinstance(t, TextTurn)
     assert t.role == "assistant"
     assert t.value == "Of course!"
+
+
+@pytest.fixture(scope="session")
+def sharegpt_conversations_path(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("sharegpt_data")
+    en_path = tmp_path / "sharegpt_manifest.json"
+    data = [
+        {
+            "id": "sharegpt_convo_1",
+            "sound": "audio_123.wav",
+            "conversations": [
+                {
+                    "from": "human",
+                    "value": "Please analyze the following audio <sound> and tell me what you hear.",
+                },
+                {
+                    "from": "gpt",
+                    "value": "Based on the audio analysis, I can hear various sounds including...",
+                },
+            ],
+            "ori_sound": "/original/path/audio_123.wav",
+        },
+        {
+            "id": "sharegpt_convo_2",
+            "sound": "speech_456.wav",
+            "conversations": [
+                {
+                    "from": "human",
+                    "value": "Transcribe this speech: <speech>",
+                },
+                {
+                    "from": "gpt",
+                    "value": "The transcription is: Hello, how are you today?",
+                },
+            ],
+        },
+    ]
+    lhotse.serialization.save_to_jsonl(data, en_path)
+    # Create dummy audio files
+    dummy_recording(0, 5.73, with_data=True).to_cut().save_audio(tmp_path / "audio_123.wav")
+    dummy_recording(1, 3.45, with_data=True).to_cut().save_audio(tmp_path / "speech_456.wav")
+    return en_path
+
+
+def test_multimodal_conversation_input_sharegpt(sharegpt_conversations_path):
+    """Test ShareGPT format conversation input with audio placeholders."""
+
+    # Test the ShareGPT adapter directly since it's not integrated into the NeMo dataloader registry
+    adapter = NeMoMultimodalConversationShareGPTJsonlAdapter(
+        manifest_filepath=sharegpt_conversations_path,
+        audio_locator_tag="[audio]",
+        audio_placeholders=["<sound>", "<speech>"],
+    )
+
+    conversations = list(adapter)
+    assert len(conversations) == 2
+
+    # Test first conversation with <sound> placeholder
+    ex1 = conversations[0]
+    assert isinstance(ex1, NeMoMultimodalConversation)
+    assert ex1.id == "sharegpt_convo_1"
+    assert len(ex1.turns) == 4  # text + audio + text + assistant response
+
+    # First turn: text before <sound>
+    t = ex1.turns[0]
+    assert isinstance(t, TextTurn)
+    assert t.role == "user"
+    assert t.value == "Please analyze the following audio"
+
+    # Second turn: audio from <sound> placeholder
+    t = ex1.turns[1]
+    assert isinstance(t, AudioTurn)
+    assert t.role == "user"
+    assert t.audio_locator_tag == "[audio]"
+    assert t.cut.duration == 5.73
+    assert t.cut.load_audio().shape == (1, 91680)
+
+    # Third turn: text after <sound>
+    t = ex1.turns[2]
+    assert isinstance(t, TextTurn)
+    assert t.role == "user"
+    assert t.value == "and tell me what you hear."
+
+    # Fourth turn: GPT response
+    t = ex1.turns[3]
+    assert isinstance(t, TextTurn)
+    assert t.role == "assistant"
+    assert t.value == "Based on the audio analysis, I can hear various sounds including..."
+
+    # Test second conversation with <speech> placeholder
+    ex2 = conversations[1]
+    assert isinstance(ex2, NeMoMultimodalConversation)
+    assert ex2.id == "sharegpt_convo_2"
+    assert len(ex2.turns) == 3  # text + audio + text
+
+    # First turn: text before <speech>
+    t = ex2.turns[0]
+    assert isinstance(t, TextTurn)
+    assert t.role == "user"
+    assert t.value == "Transcribe this speech:"
+
+    # Second turn: audio from <speech> placeholder
+    t = ex2.turns[1]
+    assert isinstance(t, AudioTurn)
+    assert t.role == "user"
+    assert t.audio_locator_tag == "[audio]"
+    assert t.cut.duration == 3.45
+    assert t.cut.load_audio().shape == (1, 55200)
+
+    # Third turn: GPT response
+    t = ex2.turns[2]
+    assert isinstance(t, TextTurn)
+    assert t.role == "assistant"
+    assert t.value == "The transcription is: Hello, how are you today?"
 
 
 @pytest.fixture
@@ -440,3 +559,247 @@ def test_multimodal_conversation_tarred_format_sharding_works(multimodal_convers
     restored = list(loader)
     assert len(restored) == 30
     assert all(c == restored[0] for c in restored[1:])
+
+
+def test_multimodal_conversation_duration_filter():
+    fltr = DurationFilter(d_min=1.0, d_max=5.0)
+
+    # Passthrough for text-only.
+    conv_text_only = NeMoMultimodalConversation(
+        id="text",
+        turns=[
+            TextTurn("abc", role="user"),
+            TextTurn("def", role="assistant"),
+        ],
+    )
+    assert fltr(conv_text_only) is True
+
+    # 1 <= 3s <= 5 -> OK
+    conv_3s = NeMoMultimodalConversation(
+        "audio-3s",
+        turns=[
+            AudioTurn(dummy_cut(0, duration=3.0), role="user", audio_locator_tag="<|audio|>"),
+            TextTurn("def", role="assistant"),
+        ],
+    )
+    assert fltr(conv_3s) is True
+
+    # 1 <= 0.5s <= 5 -> reject
+    conv_05s = NeMoMultimodalConversation(
+        "audio-05s",
+        turns=[
+            AudioTurn(dummy_cut(0, duration=0.5), role="user", audio_locator_tag="<|audio|>"),
+            TextTurn("def", role="assistant"),
+        ],
+    )
+    assert fltr(conv_05s) is False
+
+    # 1 <= 3 + 4 <= 5 -> reject
+    conv_s2s_7s = NeMoMultimodalConversation(
+        "audio-audio-7s",
+        turns=[
+            AudioTurn(dummy_cut(0, duration=3.0), role="user", audio_locator_tag="<|audio|>"),
+            AudioTurn(dummy_cut(0, duration=4.0), role="assistant", audio_locator_tag="<|audio|>"),
+        ],
+    )
+    assert fltr(conv_s2s_7s) is False
+
+
+@pytest.fixture(scope="session")
+def cutset_path(tmp_path_factory) -> Path:
+    """3 utterances of lengths 1s, 2s, and 3s, with different context/system_prompt, as a Lhotse CutSet."""
+    cuts = CutSet(
+        [
+            dummy_cut(
+                0,
+                duration=1.0,
+                supervisions=[SupervisionSegment("e1", "e1", 0.0, 1.0, text="transcript")],
+                with_data=True,
+            ),
+            dummy_cut(
+                1,
+                duration=2.0,
+                recording_duration=2.0,
+                supervisions=[SupervisionSegment("e2", "e2", 0.0, 2.0, text="context and transcript")],
+                with_data=True,
+            ),
+            dummy_cut(
+                2,
+                duration=3.0,
+                recording_duration=3.0,
+                supervisions=[SupervisionSegment("e3", "e3", 0.0, 2.0, text="system context and transcript")],
+                with_data=True,
+            ),
+        ]
+    )
+    cuts[1].context = "some prompt"
+    cuts[2].context = "other prompt"
+    cuts[2].system_prompt = "system prompt"
+
+    tmp_path = tmp_path_factory.mktemp("data")
+    p = tmp_path / "cuts.jsonl.gz"
+    pa = tmp_path / "audio"
+    cuts.save_audios(pa).drop_in_memory_data().to_file(p)
+    return p
+
+
+def test_cut_to_conversation_conversion(cutset_path, tokenizer):
+    cuts = CutSet.from_file(cutset_path)
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "lhotse_as_conversation",
+                    "cuts_path": cutset_path,
+                    "audio_locator_tag": "[audio]",
+                    "tags": {"test_key": "test_value"},
+                },
+            ],
+            "token_equivalent_duration": 0.08,
+            "prompt_format": "llama3",
+            "force_finite": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=tokenizer
+    )
+    batches = [batch for batch in dl]
+    assert len(batches) == 1
+
+    # Check the cut that has no 'context' or 'system_prompt'
+    conv = batches[0][0]
+    assert isinstance(conv, NeMoMultimodalConversation)
+    assert conv.id == cuts[0].id
+    assert len(conv.turns) == 2
+    assert isinstance(conv.turns[0], AudioTurn)
+    assert conv.turns[0].role == "user"
+    assert isinstance(conv.turns[1], TextTurn)
+    assert conv.turns[1].role == "assistant"
+    assert conv.turns[1].value == "transcript"
+    assert conv.custom["test_key"] == "test_value"
+    assert conv.turns[0].cut.custom["test_key"] == "test_value"
+
+    # Check the cut that has only 'context' and no 'system_prompt'
+    conv = batches[0][1]
+    assert isinstance(conv, NeMoMultimodalConversation)
+    assert conv.id == cuts[1].id
+    assert len(conv.turns) == 3
+    assert isinstance(conv.turns[0], TextTurn)
+    assert conv.turns[0].role == "user"
+    assert conv.turns[0].value == "some prompt"
+    assert isinstance(conv.turns[1], AudioTurn)
+    assert conv.turns[1].role == "user"
+    assert isinstance(conv.turns[2], TextTurn)
+    assert conv.turns[2].role == "assistant"
+    assert conv.turns[2].value == "context and transcript"
+    assert conv.custom["test_key"] == "test_value"
+    assert conv.turns[1].cut.custom["test_key"] == "test_value"
+
+    # Check the cut that has both 'context' and 'system_prompt'
+    conv = batches[0][2]
+    assert isinstance(conv, NeMoMultimodalConversation)
+    assert conv.id == cuts[2].id
+    assert len(conv.turns) == 4
+    assert isinstance(conv.turns[0], TextTurn)
+    assert conv.turns[0].role == "system"
+    assert conv.turns[0].value == "system prompt"
+    assert isinstance(conv.turns[1], TextTurn)
+    assert conv.turns[1].role == "user"
+    assert conv.turns[1].value == "other prompt"
+    assert isinstance(conv.turns[2], AudioTurn)
+    assert conv.turns[2].role == "user"
+    assert isinstance(conv.turns[3], TextTurn)
+    assert conv.turns[3].role == "assistant"
+    assert conv.turns[3].value == "system context and transcript"
+    assert conv.custom["test_key"] == "test_value"
+    assert conv.turns[2].cut.custom["test_key"] == "test_value"
+
+
+@pytest.fixture(scope="session")
+def s2s_cutset_path(tmp_path_factory) -> Path:
+    """
+    1 session of 60s with 4 turns (2 user, 2 assistant).
+    It ignores the typical presence of 'target_audio' attribute in S2S data, unnecessary for this test.
+    """
+
+    cut = dummy_cut(
+        0,
+        duration=60.0,
+        recording_duration=60.0,
+        supervisions=[
+            SupervisionSegment("ut1", "c1", start=1.5, duration=7.13, text="greetings, assistant", speaker="user"),
+            SupervisionSegment("at1", "c1", start=10.2, duration=8.49, text="welcome, user", speaker="assistant"),
+            SupervisionSegment(
+                "ut2", "c1", start=21.3, duration=15.2, text="lengthy issue description", speaker="user"
+            ),
+            SupervisionSegment("at2", "c1", start=38.1, duration=20.0, text="lengthy response", speaker="assistant"),
+        ],
+        with_data=True,
+    )
+    cuts = CutSet([cut])
+    tmp_path = tmp_path_factory.mktemp("data")
+    p = tmp_path / "cuts.jsonl.gz"
+    pa = tmp_path / "audio"
+    cuts.save_audios(pa).drop_in_memory_data().to_file(p)
+    return p
+
+
+def test_s2s_cut_to_conversation_conversion(s2s_cutset_path, tokenizer):
+    cuts = CutSet.from_file(s2s_cutset_path)
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "s2s_as_conversation",
+                    "cuts_path": s2s_cutset_path,
+                    "audio_locator_tag": "[audio]",
+                    "tags": {"test_key": "test_value"},
+                },
+            ],
+            "token_equivalent_duration": 0.08,
+            "prompt_format": "llama3",
+            "force_finite": True,
+            "num_workers": 0,
+            "batch_size": 1,
+            "seed": 0,
+            "shard_seed": 0,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=tokenizer
+    )
+    batches = [batch for batch in dl]
+    assert len(batches) == 1
+
+    # Check the multimodal conversation has 4 turns, with user audio turns, and assistant text turns
+    conv = batches[0][0]
+    assert isinstance(conv, NeMoMultimodalConversation)
+    assert conv.id == cuts[0].id
+    assert len(conv.turns) == 4
+
+    assert isinstance(conv.turns[0], AudioTurn)
+    assert conv.turns[0].role == "user"
+    assert conv.turns[0].text == "greetings, assistant"
+    audio = conv.turns[0].cut.load_audio()
+    assert audio.shape[1] == compute_num_samples(7.13, conv.turns[0].cut.sampling_rate)
+
+    assert isinstance(conv.turns[1], TextTurn)
+    assert conv.turns[1].role == "assistant"
+    assert conv.turns[1].value == "welcome, user"
+
+    assert isinstance(conv.turns[2], AudioTurn)
+    assert conv.turns[2].role == "user"
+    assert conv.turns[2].text == "lengthy issue description"
+    audio = conv.turns[2].cut.load_audio()
+    assert audio.shape[1] == compute_num_samples(15.2, conv.turns[0].cut.sampling_rate)
+
+    assert isinstance(conv.turns[3], TextTurn)
+    assert conv.turns[3].role == "assistant"
+    assert conv.turns[3].value == "lengthy response"
+
+    assert conv.custom["test_key"] == "test_value"
+    assert conv.turns[0].cut.custom["test_key"] == "test_value"
