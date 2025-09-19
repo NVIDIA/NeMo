@@ -116,7 +116,7 @@ class TransformerEmbedding(nn.Module):
             start_pos = 0
         else:
             shift_pos = None
-        
+
         position_ids = torch.arange(
             start=start_pos, end=start_pos + seq_length, dtype=torch.long, device=input_ids.device
         )
@@ -154,7 +154,14 @@ class MultiHeadAttention(nn.Module):
             whole layer, but before layer normalization
     """
 
-    def __init__(self, hidden_size, num_attention_heads, attn_score_dropout=0.0, attn_layer_dropout=0.0, return_xatt_scores=False):
+    def __init__(
+        self,
+        hidden_size,
+        num_attention_heads,
+        attn_score_dropout=0.0,
+        attn_layer_dropout=0.0,
+        return_xatt_scores=False,
+    ):
         super().__init__()
         if hidden_size % num_attention_heads != 0:
             raise ValueError(

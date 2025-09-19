@@ -50,7 +50,9 @@ python speech_to_text_aed_streaming_infer.py \
 """
 import copy
 import glob
+import json
 import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -60,24 +62,31 @@ import torch
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-import tempfile
-import json
 
-from nemo.collections.asr.parts.submodules.aed_decoding.aed_batched_streaming import AEDStreamingState
-from nemo.collections.asr.parts.submodules.multitask_decoding import AEDStreamingDecodingConfig, MultiTaskDecodingConfig
-from nemo.collections.asr.parts.submodules.aed_decoding.aed_batched_streaming import GreedyBatchedStreamingAEDComputer
-from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer, cal_write_text_metric
-from nemo.collections.asr.parts.utils.manifest_utils import filepath_to_absolute, read_manifest
 from nemo.collections.asr.models.aed_multitask_models import parse_multitask_prompt
-from nemo.collections.asr.parts.utils.transcribe_utils import prepare_audio_data
-from nemo.collections.common.data.utils import move_data_to_device
+from nemo.collections.asr.parts.submodules.aed_decoding.aed_batched_streaming import (
+    AEDStreamingState,
+    GreedyBatchedStreamingAEDComputer,
+)
+from nemo.collections.asr.parts.submodules.multitask_decoding import (
+    AEDStreamingDecodingConfig,
+    MultiTaskDecodingConfig,
+)
+from nemo.collections.asr.parts.utils.eval_utils import cal_write_text_metric, cal_write_wer
+from nemo.collections.asr.parts.utils.manifest_utils import filepath_to_absolute, read_manifest
 from nemo.collections.asr.parts.utils.streaming_utils import (
     AudioBatch,
     ContextSize,
     SimpleAudioDataset,
     StreamingBatchedAudioBuffer,
 )
-from nemo.collections.asr.parts.utils.transcribe_utils import compute_output_filename, setup_model, write_transcription
+from nemo.collections.asr.parts.utils.transcribe_utils import (
+    compute_output_filename,
+    prepare_audio_data,
+    setup_model,
+    write_transcription,
+)
+from nemo.collections.common.data.utils import move_data_to_device
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 
@@ -131,8 +140,8 @@ class TranscriptionConfig:
     decoding: AEDStreamingDecodingConfig = field(default_factory=AEDStreamingDecodingConfig)
 
     # Config for word / character error rate calculation
-    calculate_wer: bool = True      # for ASR task
-    calculate_bleu: bool = True     # for AST task
+    calculate_wer: bool = True  # for ASR task
+    calculate_bleu: bool = True  # for AST task
     calculate_latency: bool = True
     clean_groundtruth_text: bool = False
     ignore_capitalization: bool = True
@@ -194,19 +203,19 @@ def initialize_aed_model_state(
 ) -> AEDStreamingState:
     """
     Initialize AED model state for streaming inference.
-    
+
     Args:
         asr_model: ASR model instance (used for tokenizer and device)
         decoder_input_ids: Prompt tensor for decoder input
         batch_size: Batch size for inference
         context_encoder_frames: Context size configuration
-    
+
     Returns:
         Initialized AEDStreamingState object
     """
     # initialize AED model state
     model_state = AEDStreamingState(decoder_input_ids=decoder_input_ids, device=asr_model.device)
-    
+
     model_state.frame_chunk_size = context_encoder_frames.chunk
     model_state.batch_idxs = torch.arange(batch_size, dtype=torch.long, device=asr_model.device)
     model_state.current_context_lengths = torch.zeros_like(model_state.batch_idxs) + decoder_input_ids.size(-1)
@@ -220,17 +229,17 @@ def initialize_aed_model_state(
     model_state.tgt[:, : model_state.decoder_input_ids.size(-1)] = model_state.decoder_input_ids
     model_state.tokens_frame_alignment = torch.zeros_like(model_state.tgt)
     model_state.active_samples = torch.ones(batch_size, dtype=torch.bool, device=asr_model.device)
-    model_state.active_samples_inner_loop = torch.ones(
-        batch_size, dtype=torch.bool, device=asr_model.device
-    )
+    model_state.active_samples_inner_loop = torch.ones(batch_size, dtype=torch.bool, device=asr_model.device)
     model_state.right_context = context_encoder_frames.right
     model_state.eos_tokens = torch.full(
         [batch_size], asr_model.tokenizer.eos, dtype=torch.long, device=asr_model.device
     )
     model_state.avgpool2d = torch.nn.AvgPool2d(5, stride=1, padding=2, count_include_pad=False)
     model_state.batch_size = batch_size
-    model_state.max_tokens_per_alignatt_step = model_state.max_tokens_per_one_second * int(cfg.chunk_secs + cfg.right_context_secs)
-    
+    model_state.max_tokens_per_alignatt_step = model_state.max_tokens_per_one_second * int(
+        cfg.chunk_secs + cfg.right_context_secs
+    )
+
     return model_state
 
 
@@ -248,7 +257,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     if cfg.decoding.streaming_policy not in {"alignatt", "waitk"}:
         raise ValueError("This script currently supports only `alignatt` or `waitk` streaming policy")
-    
+
     if cfg.random_seed:
         pl.seed_everything(cfg.random_seed)
 
@@ -396,7 +405,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         drop_last=False,
         in_order=True,
     )
-    
+
     decoding_computer = GreedyBatchedStreamingAEDComputer(
         asr_model,
         frame_chunk_size=context_encoder_frames.chunk,
@@ -442,9 +451,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
             step_idx = 0
             # iterate over audio samples
-            while left_sample < audio_batch.shape[1]:   
+            while left_sample < audio_batch.shape[1]:
                 # add samples to buffer
-                chunk_length = min(right_sample, audio_batch.shape[1]) - left_sample # M + R context
+                chunk_length = min(right_sample, audio_batch.shape[1]) - left_sample  # M + R context
                 is_last_chunk_batch = chunk_length >= rest_audio_lengths
                 is_last_chunk = right_sample >= audio_batch.shape[1]
                 chunk_lengths_batch = torch.where(
@@ -481,8 +490,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 encoder_output_len = torch.where(is_last_chunk_batch, encoder_output_len_with_rc, encoder_output_len)
 
                 # keep track of the real frame position in the audio signal
-                model_state.prev_encoder_shift = max(end_of_window_sample//encoder_frame2audio_samples - context_encoder_frames.left - context_encoder_frames.chunk, 0)
-                
+                model_state.prev_encoder_shift = max(
+                    end_of_window_sample // encoder_frame2audio_samples
+                    - context_encoder_frames.left
+                    - context_encoder_frames.chunk,
+                    0,
+                )
+
                 # decode only chunk frames (controlled by encoder_context_batch.chunk)
                 model_state = decoding_computer(
                     encoder_output=encoder_output,
@@ -493,7 +507,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 rest_audio_lengths -= chunk_lengths_batch
                 left_sample = right_sample
                 right_sample = min(right_sample + context_samples.chunk, audio_batch.shape[1])  # add next chunk
-                end_of_window_sample += context_samples.chunk # add next chunk
+                end_of_window_sample += context_samples.chunk  # add next chunk
                 step_idx += 1
 
             # get final results for each sample in the batch
@@ -504,7 +518,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 transcription = asr_model.tokenizer.ids_to_text(transcription_idx.tolist()).strip()
                 all_hyps.append(transcription)
                 tokens_frame_alignment.append(model_state.tokens_frame_alignment[i])
-                predicted_token_ids.append(model_state.tgt[i, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[i]])
+                predicted_token_ids.append(
+                    model_state.tgt[i, model_state.decoder_input_ids.size(-1) : model_state.current_context_lengths[i]]
+                )
 
     # write predictions to outputfile
     output_filename = cfg.output_filename
@@ -547,15 +563,20 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     # compute decoding latency (LAAL)
     if cfg.calculate_latency:
-        audio_encoder_fs = encoder_subsampling_factor * feature_stride_sec * 1000 # to ms
+        audio_encoder_fs = encoder_subsampling_factor * feature_stride_sec * 1000  # to ms
         if cfg.decoding.streaming_policy == "waitk":
             laal_list = decoding_computer.compute_waitk_lagging(
                 records, predicted_token_ids, context_encoder_frames, audio_encoder_fs, BOW_PREFIX="\u2581"
             )
         elif cfg.decoding.streaming_policy == "alignatt":
             laal_list = decoding_computer.compute_alignatt_lagging(
-                records, predicted_token_ids, tokens_frame_alignment, context_encoder_frames, audio_encoder_fs, BOW_PREFIX="\u2581"
-            ) 
+                records,
+                predicted_token_ids,
+                tokens_frame_alignment,
+                context_encoder_frames,
+                audio_encoder_fs,
+                BOW_PREFIX="\u2581",
+            )
         laal = sum(laal_list) / len(laal_list)
         logging.info(f"Decoding latency (LAAL): {laal:.2f} ms")
 
