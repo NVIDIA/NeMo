@@ -67,34 +67,102 @@ The following command would simulate cache-aware streaming on a pretrained model
 The chunk_size of 100 would be 100*4*10=4000ms for a model with 4x downsampling and 10ms shift in feature extraction.
 
 python speech_to_text_streaming_infer.py \
-    --asr_model=stt_en_conformer_ctc_large \
-    --chunk_size=100 \
-    --shift_size=50 \
-    --left_chunks=2 \
-    --online_normalization \
-    --manifest_file=manifest_file.json \
-    --batch_size=16 \
-    --compare_vs_offline \
-    --use_amp \
-    --debug_mode
+    pretrained_name=stt_en_conformer_ctc_large \
+    chunk_size=100 \
+    shift_size=50 \
+    left_chunks=2 \
+    online_normalization=true \
+    dataset_manifest=manifest_file.json \
+    batch_size=16 \
+    compare_vs_offline=true \
+    debug_mode=true
 
 """
 
 
-import contextlib
 import json
 import os
 import time
-from argparse import ArgumentParser
+from dataclasses import dataclass, field
+from typing import Optional
 
+import lightning.pytorch as pl
 import torch
-from omegaconf import open_dict
+from omegaconf import OmegaConf
 
-import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.asr.parts.utils.streaming_utils import CacheAwareStreamingAudioBuffer
+from nemo.collections.asr.parts.utils.transcribe_utils import get_inference_device, get_inference_dtype, setup_model
+from nemo.core.config import hydra_runner
 from nemo.utils import logging
+
+
+@dataclass
+class TranscriptionConfig:
+    """
+    Transcription Configuration for cache-aware inference.
+    """
+
+    # Required configs
+    model_path: Optional[str] = None  # Path to a .nemo file
+    pretrained_name: Optional[str] = None  # Name of a pretrained model
+    # audio_dir: Optional[str] = None  # Path to a directory which contains audio files
+    audio_file: Optional[str] = None  # Path to an audio file to perform streaming
+    dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
+    output_filename: Optional[str] = None  # Path to output file when manifest is used as input
+
+    # General configs
+    batch_size: int = 32
+    # num_workers: int = 0
+    # append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
+    # pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
+    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
+
+    # Chunked configs
+    chunk_size: int = -1  # The chunk_size to be used for models trained with full context and offline models
+    shift_size: int = -1  # The shift_size to be used for models trained with full context and offline models
+    left_chunks: int = 2  # The number of left chunks to be used as left context via caching for offline models
+    online_normalization: bool = False  # Perform normalization on the run per chunk.
+    # `pad_and_drop_preencoded` enables padding the audio input and then dropping the extra steps after
+    # the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling
+    # slightly different from offline mode for some techniques like striding or sw_striding.
+    pad_and_drop_preencoded: bool = False
+    att_context_size: Optional[str] = (
+        None  # Sets the att_context_size for the models which support multiple lookaheads
+    )
+
+    compare_vs_offline: bool = False  #  Whether to compare the output of the model with the offline mode.
+
+    # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
+    # device anyway, and do inference on CPU only if CUDA device is not found.
+    # If `cuda` is a negative number, inference will be on CPU only.
+    cuda: Optional[int] = None
+    allow_mps: bool = True  # allow to select MPS device (Apple Silicon M-series GPU)
+    compute_dtype: Optional[str] = (
+        None  # "float32", "bfloat16" or "float16"; if None (default): bfloat16 if available, else float32
+    )
+    matmul_precision: str = "high"  # Literal["highest", "high", "medium"]
+    # audio_type: str = "wav"
+
+    # Recompute model transcription, even if the output folder exists with scores.
+    # overwrite_transcripts: bool = True
+
+    # Decoding strategy for CTC models
+    ctc_decoding: CTCDecodingConfig = field(default_factory=CTCDecodingConfig)
+    # Decoding strategy for RNNT models
+    rnnt_decoding: RNNTDecodingConfig = field(default_factory=lambda: RNNTDecodingConfig(fused_batch_size=-1))
+    # Selects the decoder for Hybrid ASR models which has both the CTC and RNNT decoder.
+    decoder_type: Optional[str] = None  # Literal["ctc", "rnnt"]
+
+    # Config for word / character error rate calculation
+    # calculate_wer: bool = True
+    # clean_groundtruth_text: bool = False
+    # langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    # use_cer: bool = False
+    debug_mode: bool = False  # Whether to print more detail in the output.
 
 
 def extract_transcriptions(hyps):
@@ -127,21 +195,20 @@ def perform_streaming(
         # would pass the whole audio at once through the model like offline mode in order to compare the results with the stremaing mode
         # the output of the model in the offline and streaming mode should be exactly the same
         with torch.inference_mode():
-            with autocast:
-                processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
-                with torch.no_grad():
-                    (
-                        pred_out_offline,
-                        transcribed_texts,
-                        cache_last_channel_next,
-                        cache_last_time_next,
-                        cache_last_channel_len,
-                        best_hyp,
-                    ) = asr_model.conformer_stream_step(
-                        processed_signal=processed_signal,
-                        processed_signal_length=processed_signal_length,
-                        return_transcription=True,
-                    )
+            processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
+            with torch.no_grad():
+                (
+                    pred_out_offline,
+                    transcribed_texts,
+                    cache_last_channel_next,
+                    cache_last_time_next,
+                    cache_last_channel_len,
+                    best_hyp,
+                ) = asr_model.conformer_stream_step(
+                    processed_signal=processed_signal,
+                    processed_signal_length=processed_signal_length,
+                    return_transcription=True,
+                )
         final_offline_tran = extract_transcriptions(transcribed_texts)
         logging.info(f" Final offline transcriptions:   {final_offline_tran}")
     else:
@@ -156,32 +223,29 @@ def perform_streaming(
     pred_out_stream = None
     for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
         with torch.inference_mode():
-            with autocast:
-                # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
-                # otherwise the last outputs would get dropped
+            # keep_all_outputs needs to be True for the last step of streaming when model is trained with att_context_style=regular
+            # otherwise the last outputs would get dropped
 
-                with torch.no_grad():
-                    (
-                        pred_out_stream,
-                        transcribed_texts,
-                        cache_last_channel,
-                        cache_last_time,
-                        cache_last_channel_len,
-                        previous_hypotheses,
-                    ) = asr_model.conformer_stream_step(
-                        processed_signal=chunk_audio,
-                        processed_signal_length=chunk_lengths,
-                        cache_last_channel=cache_last_channel,
-                        cache_last_time=cache_last_time,
-                        cache_last_channel_len=cache_last_channel_len,
-                        keep_all_outputs=streaming_buffer.is_buffer_empty(),
-                        previous_hypotheses=previous_hypotheses,
-                        previous_pred_out=pred_out_stream,
-                        drop_extra_pre_encoded=calc_drop_extra_pre_encoded(
-                            asr_model, step_num, pad_and_drop_preencoded
-                        ),
-                        return_transcription=True,
-                    )
+            with torch.no_grad():
+                (
+                    pred_out_stream,
+                    transcribed_texts,
+                    cache_last_channel,
+                    cache_last_time,
+                    cache_last_channel_len,
+                    previous_hypotheses,
+                ) = asr_model.conformer_stream_step(
+                    processed_signal=chunk_audio,
+                    processed_signal_length=chunk_lengths,
+                    cache_last_channel=cache_last_channel,
+                    cache_last_time=cache_last_time,
+                    cache_last_channel_len=cache_last_channel_len,
+                    keep_all_outputs=streaming_buffer.is_buffer_empty(),
+                    previous_hypotheses=previous_hypotheses,
+                    previous_pred_out=pred_out_stream,
+                    drop_extra_pre_encoded=calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded),
+                    return_transcription=True,
+                )
 
         if debug_mode:
             logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
@@ -207,158 +271,87 @@ def perform_streaming(
     return final_streaming_tran, final_offline_tran
 
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument(
-        "--asr_model",
-        type=str,
-        required=True,
-        help="Path to an ASR model .nemo file or name of a pretrained model.",
-    )
-    parser.add_argument(
-        "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"
-    )
-    parser.add_argument("--audio_file", type=str, help="Path to an audio file to perform streaming", default=None)
-    parser.add_argument(
-        "--manifest_file",
-        type=str,
-        help="Path to a manifest file containing audio files to perform streaming",
-        default=None,
-    )
-    parser.add_argument("--use_amp", action="store_true", help="Whether to use AMP")
-    parser.add_argument("--debug_mode", action="store_true", help="Whether to print more detail in the output.")
-    parser.add_argument(
-        "--compare_vs_offline",
-        action="store_true",
-        help="Whether to compare the output of the model with the offline mode.",
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=32,
-        help="The batch size to be used to perform streaming in batch mode with multiple streams",
-    )
-    parser.add_argument(
-        "--chunk_size",
-        type=int,
-        default=-1,
-        help="The chunk_size to be used for models trained with full context and offline models",
-    )
-    parser.add_argument(
-        "--shift_size",
-        type=int,
-        default=-1,
-        help="The shift_size to be used for models trained with full context and offline models",
-    )
-    parser.add_argument(
-        "--left_chunks",
-        type=int,
-        default=2,
-        help="The number of left chunks to be used as left context via caching for offline models",
-    )
+@hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
+def main(cfg: TranscriptionConfig):
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    torch.set_grad_enabled(False)
+    torch.set_float32_matmul_precision(cfg.matmul_precision)
+    cfg = OmegaConf.structured(cfg)
+    if cfg.random_seed:
+        pl.seed_everything(cfg.random_seed)
 
-    parser.add_argument(
-        "--online_normalization",
-        default=False,
-        action='store_true',
-        help="Perform normalization on the run per chunk.",
-    )
-    parser.add_argument(
-        "--output_path", type=str, help="path to output file when manifest is used as input", default=None
-    )
-    parser.add_argument(
-        "--pad_and_drop_preencoded",
-        action="store_true",
-        help="Enables padding the audio input and then dropping the extra steps after the pre-encoding for all the steps including the the first step. It may make the outputs of the downsampling slightly different from offline mode for some techniques like striding or sw_striding.",
-    )
+    # setup device
+    device = get_inference_device(cuda=cfg.cuda, allow_mps=cfg.allow_mps)
+    compute_dtype = get_inference_dtype(cfg.compute_dtype, device=device)
 
-    parser.add_argument(
-        "--set_decoder",
-        choices=["ctc", "rnnt"],
-        default=None,
-        help="Selects the decoder for Hybrid ASR models which has both the CTC and RNNT decoder. Supported decoders are ['ctc', 'rnnt']",
-    )
-
-    parser.add_argument(
-        "--att_context_size",
-        type=str,
-        default=None,
-        help="Sets the att_context_size for the models which support multiple lookaheads",
-    )
-
-    parser.add_argument(
-        "--matmul-precision",
-        type=str,
-        default="high",
-        choices=["highest", "high", "medium"],
-        help="Set torch matmul precision",
-    )
-
-    parser.add_argument("--strategy", type=str, default="greedy_batch", help="decoding strategy to use")
-
-    args = parser.parse_args()
-
-    torch.set_float32_matmul_precision(args.matmul_precision)
-    if (args.audio_file is None and args.manifest_file is None) or (
-        args.audio_file is not None and args.manifest_file is not None
+    if (cfg.audio_file is None and cfg.dataset_manifest is None) or (
+        cfg.audio_file is not None and cfg.dataset_manifest is not None
     ):
-        raise ValueError("One of the audio_file and manifest_file should be non-empty!")
+        raise ValueError("One of the audio_file and dataset_manifest should be non-empty!")
 
-    if args.asr_model.endswith('.nemo'):
-        logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=args.asr_model)
-    else:
-        logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model = nemo_asr.models.ASRModel.from_pretrained(model_name=args.asr_model)
+    asr_model, model_name = setup_model(cfg=cfg, map_location=device)
 
     logging.info(asr_model.encoder.streaming_cfg)
-    if args.set_decoder is not None:
-        if hasattr(asr_model, "cur_decoder"):
-            asr_model.change_decoding_strategy(decoder_type=args.set_decoder)
-        else:
-            raise ValueError("Decoder cannot get changed for non-Hybrid ASR models.")
-
-    if args.att_context_size is not None:
+    if cfg.att_context_size is not None:
         if hasattr(asr_model.encoder, "set_default_att_context_size"):
-            asr_model.encoder.set_default_att_context_size(att_context_size=json.loads(args.att_context_size))
+            asr_model.encoder.set_default_att_context_size(att_context_size=json.loads(cfg.att_context_size))
         else:
             raise ValueError("Model does not support multiple lookaheads.")
 
-    global autocast
-    autocast = torch.amp.autocast(asr_model.device.type, enabled=args.use_amp)
+        # configure the decoding config
+        # Setup decoding strategy
+        if hasattr(asr_model, 'change_decoding_strategy') and hasattr(asr_model, 'decoding'):
+            if cfg.decoder_type is not None:
+                # TODO: Support compute_langs in CTC eventually
+                if cfg.compute_langs and cfg.decoder_type == 'ctc':
+                    raise ValueError("CTC models do not support `compute_langs` at the moment")
 
-    # configure the decoding config
-    decoding_cfg = asr_model.cfg.decoding
-    with open_dict(decoding_cfg):
-        decoding_cfg.strategy = args.strategy
-        decoding_cfg.preserve_alignments = False
-        if hasattr(asr_model, 'joint'):  # if an RNNT model
-            decoding_cfg.fused_batch_size = -1
-            if not (max_symbols := decoding_cfg.greedy.get("max_symbols")) or max_symbols <= 0:
-                decoding_cfg.greedy.max_symbols = 10
-        if hasattr(asr_model, "cur_decoder"):
-            # hybrid model, explicitly pass decoder type, otherwise it will be set to "rnnt"
-            asr_model.change_decoding_strategy(decoding_cfg, decoder_type=asr_model.cur_decoder)
-        else:
-            asr_model.change_decoding_strategy(decoding_cfg)
+                decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
+                if cfg.extract_nbest:
+                    decoding_cfg.beam.return_best_hypothesis = False
+                    cfg.return_hypotheses = True
+                if 'compute_langs' in decoding_cfg:
+                    decoding_cfg.compute_langs = cfg.compute_langs
+                if hasattr(asr_model, 'cur_decoder'):
+                    asr_model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+                else:
+                    asr_model.change_decoding_strategy(decoding_cfg)
 
-    asr_model = asr_model.to(args.device)
+            # Check if ctc or rnnt model
+            elif hasattr(asr_model, 'joint'):  # RNNT model
+                if cfg.extract_nbest:
+                    cfg.rnnt_decoding.beam.return_best_hypothesis = False
+                    cfg.return_hypotheses = True
+                cfg.rnnt_decoding.fused_batch_size = -1
+                cfg.rnnt_decoding.compute_langs = cfg.compute_langs
+
+                asr_model.change_decoding_strategy(cfg.rnnt_decoding)
+            else:
+                if cfg.compute_langs:
+                    raise ValueError("CTC models do not support `compute_langs` at the moment.")
+                if cfg.extract_nbest:
+                    cfg.ctc_decoding.beam.return_best_hypothesis = False
+                    cfg.return_hypotheses = True
+
+                asr_model.change_decoding_strategy(cfg.ctc_decoding)
+
+    asr_model = asr_model.to(device=device, dtype=compute_dtype)
     asr_model.eval()
 
     # chunk_size is set automatically for models trained for streaming. For models trained for offline mode with full context, we need to pass the chunk_size explicitly.
-    if args.chunk_size > 0:
-        if args.shift_size < 0:
-            shift_size = args.chunk_size
+    if cfg.chunk_size > 0:
+        if cfg.shift_size < 0:
+            shift_size = cfg.chunk_size
         else:
-            shift_size = args.shift_size
+            shift_size = cfg.shift_size
         asr_model.encoder.setup_streaming_params(
-            chunk_size=args.chunk_size, left_chunks=args.left_chunks, shift_size=shift_size
+            chunk_size=cfg.chunk_size, left_chunks=cfg.left_chunks, shift_size=shift_size
         )
 
     # In streaming, offline normalization is not feasible as we don't have access to the whole audio at the beginning
     # When online_normalization is enabled, the normalization of the input features (mel-spectrograms) are done per step
     # It is suggested to train the streaming models without any normalization in the input features.
-    if args.online_normalization:
+    if cfg.online_normalization:
         if asr_model.cfg.preprocessor.normalize not in ["per_feature", "all_feature"]:
             logging.warning(
                 "online_normalization is enabled but the model has no normalization in the feature extration part, so it is ignored."
@@ -373,18 +366,18 @@ def main():
     streaming_buffer = CacheAwareStreamingAudioBuffer(
         model=asr_model,
         online_normalization=online_normalization,
-        pad_and_drop_preencoded=args.pad_and_drop_preencoded,
+        pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
     )
-    if args.audio_file is not None:
+    if cfg.audio_file is not None:
         # stream a single audio file
         processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-            args.audio_file, stream_id=-1
+            cfg.audio_file, stream_id=-1
         )
         perform_streaming(
             asr_model=asr_model,
             streaming_buffer=streaming_buffer,
-            compare_vs_offline=args.compare_vs_offline,
-            pad_and_drop_preencoded=args.pad_and_drop_preencoded,
+            compare_vs_offline=cfg.compare_vs_offline,
+            pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
         )
     else:
         # stream audio files in a manifest file in batched mode
@@ -392,13 +385,14 @@ def main():
         all_streaming_tran = []
         all_offline_tran = []
         all_refs_text = []
+        batch_size = cfg.batch_size
 
-        with open(args.manifest_file, 'r') as f:
+        with open(cfg.dataset_manifest, 'r') as f:
             for line in f:
                 item = json.loads(line)
                 samples.append(item)
 
-        logging.info(f"Loaded {len(samples)} from the manifest at {args.manifest_file}.")
+        logging.info(f"Loaded {len(samples)} from the manifest at {cfg.dataset_manifest}.")
 
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
@@ -409,21 +403,21 @@ def main():
                 all_refs_text.append(sample["text"])
             logging.info(f'Added this sample to the buffer: {sample["audio_filepath"]}')
 
-            if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
+            if (sample_idx + 1) % batch_size == 0 or sample_idx == len(samples) - 1:
                 logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
-                    compare_vs_offline=args.compare_vs_offline,
-                    debug_mode=args.debug_mode,
-                    pad_and_drop_preencoded=args.pad_and_drop_preencoded,
+                    compare_vs_offline=cfg.compare_vs_offline,
+                    debug_mode=cfg.debug_mode,
+                    pad_and_drop_preencoded=cfg.pad_and_drop_preencoded,
                 )
                 all_streaming_tran.extend(streaming_tran)
-                if args.compare_vs_offline:
+                if cfg.compare_vs_offline:
                     all_offline_tran.extend(offline_tran)
                 streaming_buffer.reset_buffer()
 
-        if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
+        if cfg.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
             offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
             logging.info(f"WER% of offline mode: {round(offline_wer * 100, 2)}")
         if len(all_refs_text) == len(all_streaming_tran):
@@ -434,17 +428,17 @@ def main():
         logging.info(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
 
         # stores the results including the transcriptions of the streaming inference in a json file
-        if args.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
+        if cfg.output_filename is not None and len(all_refs_text) == len(all_streaming_tran):
             fname = (
                 "streaming_out_"
-                + os.path.splitext(os.path.basename(args.asr_model))[0]
+                + os.path.splitext(os.path.basename(model_name))[0]
                 + "_"
-                + os.path.splitext(os.path.basename(args.manifest_file))[0]
+                + os.path.splitext(os.path.basename(cfg.dataset_manifest))[0]
                 + ".json"
             )
 
-            hyp_json = os.path.join(args.output_path, fname)
-            os.makedirs(args.output_path, exist_ok=True)
+            hyp_json = os.path.join(cfg.output_filename, fname)
+            os.makedirs(cfg.output_filename, exist_ok=True)
             with open(hyp_json, "w") as out_f:
                 for i, hyp in enumerate(all_streaming_tran):
                     record = {
