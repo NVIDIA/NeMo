@@ -76,6 +76,7 @@ class HybridSALMTDTDataset(torch.utils.data.Dataset):
         salm_input_ids = left_collate_vectors([c.input_ids for c in conversations], padding_value=self.salm_pad_id)
         
         tdt_cuts = [c for c in conversations if hasattr(c, 'tdt_input_ids') and c.tdt_input_ids is not None]
+        tdt_input_idxs = torch.tensor([i for i, c in enumerate(conversations) if hasattr(c, 'tdt_input_ids') and c.tdt_input_ids is not None], device=audios.device, dtype=torch.long)
         if len(tdt_cuts) > 0:
             tdt_input_ids = right_collate_vectors([c.tdt_input_ids for c in tdt_cuts], padding_value=0)
             tdt_input_ids_len = torch.tensor([c.tdt_input_ids_len for c in tdt_cuts], device=tdt_input_ids.device, dtype=torch.long)
@@ -84,6 +85,7 @@ class HybridSALMTDTDataset(torch.utils.data.Dataset):
                 "audios": audios,
                 "audio_lens": audio_lens,
                 "input_ids": salm_input_ids,  # For SALM head
+                "tdt_input_idxs": tdt_input_idxs,
                 "tdt_input_ids": tdt_input_ids,    # For TDT head
                 "tdt_input_ids_len": tdt_input_ids_len,
                 "loss_mask": left_collate_vectors(

@@ -59,6 +59,10 @@ class HybridSALMTDT(SALM):
         self.tdt_tokenizer = asr_model.tokenizer
         self.tdt_tokenizer_type = asr_model.tokenizer_type
         
+        # Make TDT components trainable (override the .eval() from parent)
+        self.tdt_decoder.train()
+        self.tdt_joint.train()
+        
         # Setup TDT loss with same parameters as pretrained model
         self.tdt_loss = asr_model.loss
         
@@ -71,33 +75,6 @@ class HybridSALMTDT(SALM):
         )
         
         logging.info("TDT head components loaded from pretrained ASR model successfully")
-        
-        # Verify that components are properly loaded
-        self._verify_tdt_components()
-
-    def _verify_tdt_components(self):
-        # Check that encoder hidden size matches joint network input size
-        encoder_hidden = self.perception.encoder.d_model
-        joint_encoder_hidden = self.tdt_joint.encoder_hidden
-        
-        if encoder_hidden != joint_encoder_hidden:
-            logging.warning(
-                f"Encoder hidden size ({encoder_hidden}) doesn't match TDT joint encoder input size ({joint_encoder_hidden}). "
-                f"This may cause issues during training. Consider using a TDT model trained with the same encoder."
-            )
-        
-        # Check tokenizer compatibility
-        if hasattr(self.tdt_tokenizer, 'tokenizer'):
-            vocab_size = len(self.tdt_tokenizer.tokenizer.get_vocab())
-            joint_vocab_size = self.tdt_joint.num_classes_with_blank - 1  # Subtract blank token
-            
-            if vocab_size != joint_vocab_size:
-                logging.warning(
-                    f"TDT tokenizer vocab size ({vocab_size}) doesn't match joint network vocab size ({joint_vocab_size}). "
-                    f"This may cause issues during training."
-                )
-        
-        logging.info("TDT component verification completed")
 
     def forward_tdt(self, audio_encoded: Tensor,
                     audio_encoded_len: Tensor, 
@@ -118,8 +95,6 @@ class HybridSALMTDT(SALM):
             compute_wer=compute_wer,
         )
         
-        print("Loss value: ", loss_value)
-        print("WER: ", wer)
         
         if compute_wer:
             return {
@@ -134,9 +109,11 @@ class HybridSALMTDT(SALM):
 
     def prepare_tdt_inputs(self, batch: dict):
         """Prepare inputs for TDT head (ASR tasks)."""
+        tdt_batch_audios = batch["audios"].index_select(0, batch["tdt_input_idxs"])
+        tdt_batch_audio_lens = batch["audio_lens"].index_select(0, batch["tdt_input_idxs"])
         
         audio_encoded, audio_encoded_len = self.perception(
-            input_signal=batch["audios"], input_signal_length=batch["audio_lens"], 
+            input_signal=tdt_batch_audios, input_signal_length=tdt_batch_audio_lens, 
             apply_modality_adapter=False
         )
         
@@ -196,6 +173,12 @@ class HybridSALMTDT(SALM):
         for m in (self.perception.preprocessor, self.perception.encoder):
             if is_frozen(m):
                 m.eval()
+        
+        # Ensure TDT components are in training mode
+        if not is_frozen(self.tdt_decoder):
+            self.tdt_decoder.train()
+        if not is_frozen(self.tdt_joint):
+            self.tdt_joint.train()
     
         compute_wer = True if batch_idx % 100 == 0 else False
         # Prepare TDT inputs using the new structure
@@ -210,68 +193,19 @@ class HybridSALMTDT(SALM):
                 compute_wer
             )
             
-            tdt_loss = self.tdt_weight * forward_outputs["loss_value"]
+            tdt_loss = forward_outputs["loss_value"]
+            loss_dict["tdt_loss"] = forward_outputs["loss_value"]
         
-        total_loss += tdt_loss
-        loss_dict["tdt_loss"] = forward_outputs["loss_value"]
-        if compute_wer:
-            loss_dict["tdt_wer"] = forward_outputs["wer"]
-        
-        # Batch size info
-        if "audios" in batch:
-            loss_dict["speech_batch_size"] = batch["audios"].shape[0]
-        
+            if compute_wer:
+                loss_dict["tdt_wer"] = forward_outputs["wer"]
+        else:
+            print("No TDT input ids in batch")
+            
+        total_loss += tdt_loss * self.tdt_weight
         return total_loss, loss_dict
-
-    def _process_non_speech_batch(self, batch: dict, batch_idx: int) -> tuple[float, dict]:
-        """Process non-speech batch through SALM head only."""
-        loss_dict = {}
-        
-        # Create SALM batch (use salm_input_ids)
-        salm_batch = batch.copy()
-        if "salm_input_ids" in batch:
-            salm_batch["input_ids"] = batch["salm_input_ids"]
-        
-        # SALM training for non-speech data
-        salm_result = super().training_step(salm_batch, batch_idx)
-        salm_loss = salm_result["loss"]
-        loss_dict["salm_non_speech_loss"] = salm_loss
-        
-        # Add other SALM metrics with non-speech prefix
-        for key, value in salm_result.items():
-            if key != "loss":
-                loss_dict[f"salm_non_speech_{key}"] = value
-        
-        # Batch size info
-        if "salm_input_ids" in batch:
-            loss_dict["non_speech_batch_size"] = batch["salm_input_ids"].shape[0]
-        
-        return salm_loss, loss_dict
 
     def validation_step(self, batch: dict, batch_idx: int):
         """Validation step that handles separate speech and non-speech batches."""
-        # Handle different batch types
-        if "batch_type" in batch:
-            # New hybrid batch format
-            batch_type = batch["batch_type"]
-            
-            # Process speech data (TDT + SALM validation)
-            if "speech_batch" in batch:
-                speech_batch = batch["speech_batch"]
-                self._validate_speech_batch(speech_batch, batch_idx, "speech")
-            
-            # Process non-speech data (SALM validation only)
-            if "non_speech_batch" in batch:
-                non_speech_batch = batch["non_speech_batch"]
-                self._validate_non_speech_batch(non_speech_batch, batch_idx, "non_speech")
-                
-        else:
-            # Legacy batch format - treat as speech data
-            self._validate_speech_batch(batch, batch_idx, "legacy")
-
-    def _validate_speech_batch(self, batch: dict, batch_idx: int, dataset_name: str):
-        """Validate speech batch through both TDT and SALM heads."""
-
         super().validation_step(batch, batch_idx)
         
         for dataset_name, dataset_batch in batch.items():
@@ -289,18 +223,6 @@ class HybridSALMTDT(SALM):
             
             self._partial_accuracies[f"{dataset_name}_tdt_val_loss"].append(forward_outputs["loss_value"])
             self._partial_accuracies[f"{dataset_name}_tdt_val_wer"].append(forward_outputs["wer"])
-
-    def _validate_non_speech_batch(self, batch: dict, batch_idx: int, dataset_name: str):
-        """Validate non-speech batch through SALM head only."""
-        # Create SALM batch (use salm_input_ids)
-        salm_batch = batch.copy()
-        if "salm_input_ids" in batch:
-            salm_batch["input_ids"] = batch["salm_input_ids"]
-        
-        # SALM validation - use parent class method
-        super().validation_step(salm_batch, batch_idx)
-        
-        # No TDT validation for non-speech data
 
 
     @torch.no_grad()
@@ -325,63 +247,34 @@ class HybridSALMTDT(SALM):
     @property
     def oomptimizer_schema(self) -> dict:
         """Return typing schema for optimal batch size calibration."""
-        # Extend parent schema with task_type
-        parent_schema = super().oomptimizer_schema
-        parent_schema["inputs"].append({"name": "task_type", "type": str})  # "salm", "tdt", or "both"
-        return parent_schema
-
-    # def _setup_tdt_head_from_config(self):
-    #     """Fallback method to setup TDT head from config (when no pretrained model available)."""
-    #     from nemo.collections.asr.modules.rnnt import RNNTJoint
-    #     from nemo.collections.asr.parts.mixins.mixins import ASRBPEMixin
-        
-    #     # Setup TDT tokenizer using ASRBPEMixin pattern
-    #     tdt_tokenizer_cfg = self.cfg.tdt_head.tokenizer
-    #     if 'tokenizer' not in self.cfg.tdt_head:
-    #         raise ValueError("`cfg.tdt_head` must have `tokenizer` config to create a TDT tokenizer!")
-        
-    #     # Create a temporary mixin instance to setup TDT tokenizer
-    #     tdt_mixin = ASRBPEMixin()
-    #     tdt_mixin._setup_tokenizer(tdt_tokenizer_cfg)
-    #     self.tdt_tokenizer = tdt_mixin.tokenizer
-    #     self.tdt_tokenizer_type = tdt_mixin.tokenizer_type
-        
-    #     # Get TDT vocabulary size
-    #     tdt_vocabulary = self.tdt_tokenizer.tokenizer.get_vocab()
-    #     tdt_vocab_size = len(tdt_vocabulary)
-        
-    #     # TDT predictor
-    #     predictor_cfg = self.cfg.tdt_head.predictor
-    #     self.tdt_predictor = self.from_config_dict(predictor_cfg)
-        
-    #     # TDT joint network
-    #     joint_cfg = self.cfg.tdt_head.joint
-    #     joint_cfg.num_classes = tdt_vocab_size
-    #     joint_cfg.vocabulary = list(tdt_vocabulary.keys())
-    #     joint_cfg.jointnet.encoder_hidden = self.cfg.model_defaults.enc_hidden
-    #     joint_cfg.jointnet.pred_hidden = self.cfg.model_defaults.pred_hidden
-        
-    #     self.tdt_joint = RNNTJoint(
-    #         vocab_size=tdt_vocab_size,
-    #         encoder_hidden=joint_cfg.jointnet.encoder_hidden,
-    #         pred_hidden=joint_cfg.jointnet.pred_hidden,
-    #         joint_hidden=joint_cfg.jointnet.joint_hidden,
-    #         activation=joint_cfg.jointnet.activation,
-    #         dropout=joint_cfg.jointnet.dropout,
-    #     )
-        
-    #     # TDT loss
-    #     self.tdt_loss = RNNTLoss(
-    #         num_classes=tdt_vocab_size,
-    #         loss_name='tdt',
-    #         durations=self.cfg.tdt_head.get('durations', [0, 1, 2, 3, 4]),
-    #         sigma=self.cfg.tdt_head.get('sigma', 0.0),
-    #     )
-        
-    #     # TDT decoding
-    #     self.tdt_decoding = RNNTBPEDecoding(
-    #         decoding_cfg=self.cfg.tdt_head.decoding,
-    #         decoder=self.tdt_predictor,
-    #         joint=self.tdt_joint,
-    #         tokenizer=self.tdt_tokenizer,
-    #     )
+        # Create a comprehensive schema for the hybrid model
+        return {
+            "cls": dict,
+            "inputs": [
+                # Audio inputs (shared by both SALM and TDT)
+                {"name": "audios", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                
+                # SALM inputs
+                {
+                    "name": "input_ids",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.text_vocab_size,
+                },
+                {"name": "loss_mask", "type": NeuralType(("B", "T"), MaskType()), "seq_length": "output"},
+                
+                # TDT inputs
+                {
+                    "name": "tdt_input_ids",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "tdt_output",
+                    "vocab_size": self.tdt_tokenizer.vocab_size if hasattr(self.tdt_tokenizer, 'vocab_size') else 1024,
+                },
+                {"name": "tdt_input_ids_len", "type": NeuralType(("B",), LengthsType()), "seq_length": "tdt_output"},
+                
+                # Task routing inputs
+                {"name": "tdt_input_idxs", "type": NeuralType(("B",), LengthsType())},
+                {"name": "task_type", "type": str},  # "salm", "tdt", or "both"
+            ],
+        }

@@ -332,6 +332,8 @@ def read_share_gpt_as_conversation(config) -> tuple[CutSet, bool]:
             slice_length=config.get("slice_length"),
         )
     )
+    if (prompt := config.get("prompt")) is not None:
+        cuts = cuts.map(partial(attach_prompt_field, prompt_field="prompt", prompt_value=prompt), apply_fn=None)
     if not config.get("force_finite", False):
         cuts = cuts.repeat(preserve_id=True)
     return cuts, True
