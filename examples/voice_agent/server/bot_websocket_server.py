@@ -45,7 +45,7 @@ from pipecat.processors.frameworks.rtvi import RTVIAction, RTVIConfig, RTVIObser
 from pipecat.serializers.protobuf import ProtobufFrameSerializer
 
 from nemo.agents.voice_agent.pipecat.services.nemo.diar import NeMoDiarInputParams, NemoDiarService
-from nemo.agents.voice_agent.pipecat.services.nemo.llm import HuggingFaceLLMService
+from nemo.agents.voice_agent.pipecat.services.nemo.llm import get_llm_service_from_config
 from nemo.agents.voice_agent.pipecat.services.nemo.stt import NeMoSTTInputParams, NemoSTTService
 from nemo.agents.voice_agent.pipecat.services.nemo.tts import NeMoFastPitchHiFiGANTTSService
 from nemo.agents.voice_agent.pipecat.services.nemo.turn_taking import NeMoTurnTakingService
@@ -56,10 +56,12 @@ from nemo.agents.voice_agent.pipecat.transports.network.websocket_server import 
 from nemo.agents.voice_agent.pipecat.utils.text.simple_text_aggregator import SimpleSegmentedTextAggregator
 
 SERVER_CONFIG_PATH = os.environ.get(
-    "SERVER_CONFIG_PATH", f"{os.path.dirname(os.path.abspath(__file__))}/server_config.yaml"
+    "SERVER_CONFIG_PATH", f"{os.path.dirname(os.path.abspath(__file__))}/server_configs/default.yaml"
 )
 
 server_config = OmegaConf.load(SERVER_CONFIG_PATH)
+server_config = OmegaConf.to_container(server_config, resolve=True)
+server_config = OmegaConf.create(server_config)
 
 logger.info(f"Server config: {server_config}")
 
@@ -121,16 +123,6 @@ if server_config.llm.get("system_prompt", None) is not None:
             system_prompt = f.read()
     SYSTEM_PROMPT = system_prompt
 logger.info(f"System prompt: {SYSTEM_PROMPT}")
-
-LLM_MODEL = server_config.llm.model
-LLM_DEVICE = server_config.llm.device
-LLM_DTYPE = server_config.llm.dtype
-LLM_GENERATION_KWARGS = server_config.llm.get("generation_kwargs", {})
-if LLM_GENERATION_KWARGS is not None:
-    LLM_GENERATION_KWARGS = OmegaConf.to_container(LLM_GENERATION_KWARGS)
-LLM_APPLY_CHAT_TEMPLATE_KWARGS = server_config.llm.get("apply_chat_template_kwargs", None)
-if LLM_APPLY_CHAT_TEMPLATE_KWARGS is not None:
-    LLM_APPLY_CHAT_TEMPLATE_KWARGS = OmegaConf.to_container(LLM_APPLY_CHAT_TEMPLATE_KWARGS)
 
 
 ### TTS
@@ -230,13 +222,7 @@ async def run_bot_websocket_server():
 
     logger.info("Initializing LLM service...")
 
-    llm = HuggingFaceLLMService(
-        model=LLM_MODEL,
-        device=LLM_DEVICE,
-        dtype=LLM_DTYPE,
-        generation_kwargs=LLM_GENERATION_KWARGS,
-        apply_chat_template_kwargs=LLM_APPLY_CHAT_TEMPLATE_KWARGS,
-    )
+    llm = get_llm_service_from_config(server_config.llm)
     logger.info("LLM service initialized")
 
     text_aggregator = SimpleSegmentedTextAggregator(punctuation_marks=TTS_EXTRA_SEPARATOR)
