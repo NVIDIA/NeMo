@@ -59,6 +59,23 @@ except (ImportError, ModuleNotFoundError) as e:
     )
 
 
+def configure_nccl_for_checkpointing():
+    """Configure NCCL settings for large model checkpoint saving."""
+    import os
+
+    # Increase NCCL timeout for large model checkpointing
+    if not os.environ.get('NCCL_ASYNC_ERROR_HANDLING'):
+        os.environ['NCCL_ASYNC_ERROR_HANDLING'] = '1'
+
+    # Set longer timeout (1 hour) for checkpoint operations
+    if not os.environ.get('NCCL_BLOCKING_WAIT'):
+        os.environ['NCCL_BLOCKING_WAIT'] = '1'
+
+    # Increase socket timeout
+    if not os.environ.get('NCCL_SOCKET_TIMEOUT'):
+        os.environ['NCCL_SOCKET_TIMEOUT'] = '3600000'
+
+
 @contextmanager
 def _debug_time(name: str):
     """Simple context manager for timing functions/code blocks."""
@@ -289,14 +306,34 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         rank = torch.distributed.get_rank()
         iteration = _get_iteration_from_checkpoint(checkpoint)
+
+        # Configure NCCL for async saves to prevent timeouts
+        if self.async_save:
+            configure_nccl_for_checkpointing()
+
         start_time = time()
-        async_save_request = dist_checkpointing.save(
-            sharded_state_dict=checkpoint,
-            checkpoint_dir=path,
-            sharded_strategy=self.save_sharded_strategy,
-            validate_access_integrity=validate_sharding_integrity,
-            async_sharded_save=self.async_save,
-        )
+
+        try:
+            async_save_request = dist_checkpointing.save(
+                sharded_state_dict=checkpoint,
+                checkpoint_dir=path,
+                sharded_strategy=self.save_sharded_strategy,
+                validate_access_integrity=validate_sharding_integrity,
+                async_sharded_save=self.async_save,
+            )
+        except Exception as e:
+            if self.async_save and ("timeout" in str(e).lower() or "nccl" in str(e).lower()):
+                logging.warning(f"Async save failed with NCCL timeout ({e}), falling back to sync save")
+                async_save_request = dist_checkpointing.save(
+                    sharded_state_dict=checkpoint,
+                    checkpoint_dir=path,
+                    sharded_strategy=self.save_sharded_strategy,
+                    validate_access_integrity=validate_sharding_integrity,
+                    async_sharded_save=False,
+                )
+            else:
+                raise
+
         end_time = time()
         log_parts = (
             "Global Checkpoint Save",
