@@ -211,6 +211,9 @@ def is_tarred_dataset(audio_file: str, manifest_file: Optional[str] = None) -> b
     if "/sharded_manifests/" in manifest_file and re.match(r'^manifest_(\d+)\.json$', os.path.basename(manifest_file)):
         # the manifest file is a sharded manifest
         return True
+    if "_sharded" in manifest_file:
+        # the manifest file is a sharded manifest
+        return True
     return False
 
 
@@ -259,6 +262,8 @@ def get_full_path(
                 f"Manifest file `{manifest_file}` seems to be part of a tarred dataset, skip checking for relative paths. If this is not intended, please avoid having `/sharded_manifests/` and `tarred_audio_manifest.json` in manifest_filepath.",
                 mode=LogMode.ONCE,
             )
+            print("I was here")
+            print(audio_file)
             return audio_file
         if (
             (len(audio_file) < audio_file_len_limit)

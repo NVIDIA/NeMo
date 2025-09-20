@@ -170,6 +170,10 @@ class LhotseSpeechToTextBpeDatasetWithPrompt(torch.utils.data.Dataset):
                     # Create a minimal token tensor as fallback
                     tokens.append(torch.tensor([0], dtype=torch.long))
 
+        except Exception as e:
+            print(f"Error in __getitem__: {e}")
+            return None
+
         # Create prompt targets
         prompt_targets = [
             torch.transpose(

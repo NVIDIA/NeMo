@@ -222,6 +222,11 @@ class SALM(LightningModule, HFHubMixin):
             "target_to_input_ratio": num_frames / (B * T),
             "padding_ratio": (batch["input_ids"] != self.text_pad_id).long().sum() / batch["input_ids"].numel(),
         }
+        
+        # Log decoded outputs every 100 steps using already computed logits
+        if batch_idx % 100 == 0:
+            self._log_decoded_outputs(forward_outputs["logits"], inputs["target_ids"], batch_idx)
+        
         self.log_dict(ans, on_step=True)
         return ans
 
@@ -249,6 +254,50 @@ class SALM(LightningModule, HFHubMixin):
 
         self._partial_val_losses.clear()
         self._partial_accuracies.clear()
+
+    def _log_decoded_outputs(self, logits: torch.Tensor, target_ids: torch.Tensor, batch_idx: int):
+        """Log decoded SALM outputs vs reference texts using already computed logits."""
+        try:
+            # Get predictions (argmax) from already computed logits
+            preds = logits.argmax(dim=-1)  # (B, T)
+            
+            # Decode first few samples in batch for logging
+            batch_size = min(2, preds.shape[0])  # Log first 2 samples max
+            
+            logging.info(f"Step {batch_idx}: SALM Decoded Outputs vs References:")
+            logging.info("=" * 80)
+            
+            for i in range(batch_size):
+                # Get valid (non-padded) tokens
+                valid_mask = target_ids[i] != -100
+                if valid_mask.sum() == 0:
+                    continue
+                    
+                # Extract valid predictions and targets
+                pred_tokens = preds[i][valid_mask]
+                target_tokens = target_ids[i][valid_mask]
+                
+                # Decode using tokenizer
+                try:
+                    pred_text = self.tokenizer.ids_to_text(pred_tokens.cpu().tolist())
+                    target_text = self.tokenizer.ids_to_text(target_tokens.cpu().tolist())
+                    
+                    logging.info(f"Sample {i+1}:")
+                    logging.info(f"  Reference: {target_text[:200]}{'...' if len(target_text) > 200 else ''}")
+                    logging.info(f"  Predicted: {pred_text[:200]}{'...' if len(pred_text) > 200 else ''}")
+                    
+                    # Calculate token-level accuracy for this sample
+                    correct_tokens = (pred_tokens == target_tokens).sum().item()
+                    total_tokens = len(target_tokens)
+                    accuracy = correct_tokens / total_tokens if total_tokens > 0 else 0.0
+                    logging.info(f"  Token Accuracy: {accuracy:.3f} ({correct_tokens}/{total_tokens})")
+                    
+                except Exception as decode_error:
+                    logging.warning(f"Failed to decode sample {i+1}: {decode_error}")
+    
+            
+        except Exception as e:
+            logging.warning(f"Failed to log decoded outputs at step {batch_idx}: {e}")
 
     def validation_step(self, batch: dict, batch_idx: int):
         for name, dataset_batch in batch.items():

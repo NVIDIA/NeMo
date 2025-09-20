@@ -29,7 +29,7 @@ from lhotse.custom import CustomFieldMixin
 from lhotse.cut import Cut
 from lhotse.dataset.collation import collate_matrices, collate_vectors
 from lhotse.dataset.dataloading import resolve_seed
-from lhotse.serialization import load_jsonl
+from lhotse.serialization import load_jsonl, open_best
 from lhotse.shar import AudioTarWriter, JsonlShardWriter
 from lhotse.utils import Pathlike, is_valid_url
 
@@ -433,6 +433,10 @@ def collate_conversation_audio_fault_tolerant(
         return torch.tensor([]), torch.tensor([]), CutSet()
 
     audio_lens = torch.tensor([c.num_samples for c in all_cuts], dtype=torch.int64)
+    # TODO: convert to single channel in a good way
+    audios = [a.mean(axis=0) if len(a.shape) > 1 else a for a in audios]
+    assert all([len(a.shape) == len(audios[0].shape) for i, a in enumerate(audios)]), "Different number of channels in audios in batch"
+    
     if len(audios[0].shape) == 1:
         audios = collate_vectors(audios, padding_value=0.0)
     else:
@@ -727,7 +731,7 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
         Detects audio placeholders (<sound>, <speech>) and creates appropriate audio/text turns.
         """
         conversations = []
-        audio_path = data.get("sound") or data.get("ori_sound")
+        audio_path = data.get("sound") or data.get("ori_sound") or data.get("speech")
 
         for turn in data["conversations"]:
             # Map ShareGPT roles to standard roles
@@ -783,7 +787,12 @@ class NeMoMultimodalConversationShareGPTJsonlAdapter:
                     cut = cuts.popleft()
                 else:
                     # Load audio from file path
-                    cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
+                    if is_valid_url(turn["value"]):
+                        # prefetch remote data to memory to avoid doing it once for metadata read and second time for audio loading
+                        data = open_best(turn["value"], "rb").read()
+                        cut = Recording.from_bytes(data, recording_id=turn["value"]).to_cut()
+                    else:
+                        cut = Recording.from_file(get_full_path(turn["value"], manifest_path)).to_cut()
 
                 turns.append(
                     AudioTurn(

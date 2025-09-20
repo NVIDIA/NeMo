@@ -794,19 +794,18 @@ def tokenize_with_tdt(example, tdt_tokenizer):
         if  example.custom is not None and \
             example.custom.get("prompt") is not None and \
             example.custom.get("prompt") != "transcribe":
-            print(f"Got prompt: {example.custom.get('prompt')}. Skipping TDT tokenization.")
-           
-            print(f"Skipping TDT tokenization for prompt: {example.custom.get('text')}")
+            # print(f"Got prompt: {example.custom.get('prompt')}. Skipping TDT tokenization.")
+
             return example
-        
-        if example.custom.get("prompt") == "transcribe":
-            print(f"Got prompt: {example.custom.get('prompt')}. Performing TDT tokenization.")
             
         # Extract raw text from conversation turns (without prompts)
         for turn in example.turns:
             if turn.role == "assistant":  # TextTurn
                 text=turn.value
                 
+        assert hasattr(example, 'custom') and example.custom is not None and example.custom.get("text") is not None, "text must be in example.custom for transcribe task"
+        
+        text = example.custom.get("text")        
         # Tokenize with TDT tokenizer
         tdt_tokens = tdt_tokenizer.text_to_ids(text)
         
