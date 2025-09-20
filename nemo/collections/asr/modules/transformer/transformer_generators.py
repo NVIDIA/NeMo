@@ -128,6 +128,7 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         decoder_mems_list=None,
         pos=0,
         return_scores: bool = True,
+        return_xatt_scores: bool = False,
     ):
         """
         One step of autoregressive output generation.
@@ -141,14 +142,14 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
             encoder_input_mask: input mask used in the encoder
             decoder_mems_list: list of size num_layers with cached activations
                 of sequence (x[1], ..., x[k-1]) for fast generation of x[k]
-            pos: starting position in positional encoding
+            pos: starting position in positional encoding (can be a tensor for asynchronius decoding)
         """
 
         decoder_hidden_states = self.embedding.forward(decoder_input_ids, start_pos=pos)
         decoder_input_mask = mask_padded_tokens(decoder_input_ids, self.pad).float()
 
         if encoder_hidden_states is not None:
-            decoder_mems_list = self.decoder.forward(
+            decoder_mems_list, xatt_scores_list = self.decoder.forward(
                 decoder_hidden_states,
                 decoder_input_mask,
                 encoder_hidden_states,
@@ -157,12 +158,15 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
                 return_mems=True,
             )
         else:
-            decoder_mems_list = self.decoder.forward(
+            decoder_mems_list, _ = self.decoder.forward(
                 decoder_hidden_states, decoder_input_mask, decoder_mems_list, return_mems=True
             )
         with self.classifier.with_log_softmax_enabled(return_scores) as clf:
             logits = clf.forward(hidden_states=decoder_mems_list[-1][:, -1:])
-        return logits, decoder_mems_list
+        if return_xatt_scores:
+            return logits, decoder_mems_list, xatt_scores_list
+        else:
+            return logits, decoder_mems_list
 
     def _prepare_for_search(self, decoder_input_ids=None, encoder_hidden_states=None):
         """
@@ -202,6 +206,7 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
         is_sampling = self.temperature is not None and self.n_samples > 1
 
         tgt, batch_size, max_generation_length = self._prepare_for_search(decoder_input_ids, encoder_hidden_states)
+        tgt_len = tgt.size(-1)
         if is_sampling:
             tgt = torch.repeat_interleave(tgt, self.n_samples, dim=0)
             encoder_hidden_states = torch.repeat_interleave(encoder_hidden_states, self.n_samples, dim=0)
@@ -228,6 +233,7 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
             if i == 0:
                 input_ids = tgt
             else:
+                i += tgt_len - 1
                 input_ids = tgt[:, -1:]
 
             logits, decoder_mems_list = self._one_step_forward(
