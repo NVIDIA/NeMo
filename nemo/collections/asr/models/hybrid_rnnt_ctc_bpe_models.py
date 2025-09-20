@@ -138,6 +138,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
 
         if config.get("use_lhotse"):
+            dataset = LhotseSpeechToTextBpeDataset(
+                tokenizer=self.tokenizer,
+                return_cuts=config.get("do_transcribe", False),
+            )
+
             return get_lhotse_dataloader_from_config(
                 config,
                 # During transcription, the model is initially loaded on the CPU.
@@ -145,10 +150,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 # these values must be passed from the configuration.
                 global_rank=self.global_rank if not config.get("do_transcribe", False) else config.get("global_rank"),
                 world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
-                dataset=LhotseSpeechToTextBpeDataset(
-                    tokenizer=self.tokenizer,
-                    return_cuts=config.get("do_transcribe", False),
-                ),
+                dataset=dataset,
                 tokenizer=self.tokenizer,
             )
 

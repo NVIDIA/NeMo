@@ -503,9 +503,17 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
             cuts = cuts.map(partial(tokenize, tokenizer=tokenizer), apply_fn=None)
 
     # 2. Optional augmentations.
+
     # 2.a. Noise mixing.
     if config.noise_path is not None:
         noise = guess_parse_cutset(config.noise_path)
+        noise = noise.resample(config.sample_rate)
+
+        def mark_as_mixed_in_noise(cut):
+            cut.is_mixed_noise = True
+            return cut
+
+        noise = noise.map(mark_as_mixed_in_noise)
         cuts = cuts.mix(
             cuts=noise,
             snr=tuple(config.noise_snr),
