@@ -102,6 +102,7 @@ class LabelLoopingState:
         preserve_alignments=False,
         preserve_frame_confidence=False,
         include_duration_confidence: bool = False,
+        include_duration: bool = False,
     ):
         """
 
@@ -122,6 +123,7 @@ class LabelLoopingState:
         self.float_dtype = float_dtype
         self.batch_size = batch_size
         self.max_time = max_time
+        self.include_duration = include_duration
 
         self.encoder_output_projected = torch.zeros(
             (self.batch_size, self.max_time, encoder_dim),
@@ -156,6 +158,7 @@ class LabelLoopingState:
             init_length=self.max_time * max_symbols,
             device=self.device,
             float_dtype=float_dtype,
+            is_with_durations=include_duration,
         )
         if preserve_alignments or preserve_frame_confidence:
             self.alignments = rnnt_utils.BatchedAlignments(
@@ -239,12 +242,15 @@ class GreedyBatchedTDTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBase
         self.max_symbols = max_symbols_per_step
         self.preserve_alignments = preserve_alignments
         self.preserve_frame_confidence = preserve_frame_confidence
+        self.use_alignments = preserve_alignments or preserve_frame_confidence
         self.allow_cuda_graphs = allow_cuda_graphs
         self.include_duration = include_duration
         self.include_duration_confidence = include_duration_confidence
         self._SOS = self._blank_index
         self._init_confidence_method(confidence_method_cfg=confidence_method_cfg)
         assert self._SOS == self._blank_index  # "blank as pad" algorithm only
+
+        # assert include_duration == True
 
         self.state = None
         self.full_graph = None
@@ -315,6 +321,7 @@ class GreedyBatchedTDTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBase
             init_length=max_time * self.max_symbols if self.max_symbols is not None else max_time,
             device=device,
             float_dtype=float_dtype,
+            is_with_durations=self.include_duration,
         )
         # init alignments if necessary
         use_alignments = self.preserve_alignments or self.preserve_frame_confidence
@@ -830,7 +837,7 @@ class GreedyBatchedTDTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBase
         # to avoid any manipulations with allocated memory outside the decoder
         return (
             self.state.batched_hyps.clone(),
-            self.state.alignments.clone() if self.preserve_alignments else None,
+            self.state.alignments.clone() if self.use_alignments else None,
             decoding_state,
         )
 
@@ -890,6 +897,7 @@ class GreedyBatchedTDTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBase
             preserve_alignments=self.preserve_alignments,
             preserve_frame_confidence=self.preserve_frame_confidence,
             include_duration_confidence=self.include_duration_confidence,
+            include_duration=self.include_duration,
         )
         self.state.model_durations = self.durations.to(self.state.device, non_blocking=True)
 
