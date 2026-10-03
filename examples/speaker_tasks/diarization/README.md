@@ -1,0 +1,331 @@
+# Speaker Diarization
+
+Documentation section for speaker related tasks can be found at:
+ - [Speaker Diarization](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_diarization/intro.html)
+ - [Speaker Identification and Verification](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/speaker_recognition/intro.html)
+
+
+## Features of NeMo Speaker Diarization
+- Provides pretrained speaker embedding extractor models and VAD models.
+- Does not need to be tuned on dev-set while showing the better performance than AHC+PLDA method in general.
+- Estimates the number of speakers in the given session.
+- Provides example script for asr transcription with speaker labels. 
+
+## Supported Pretrained Speaker Embedding Extractor models
+- [titanet_large](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large)
+- [ecapa_tdnn](https://ngc.nvidia.com/catalog/models/nvidia:nemo:ecapa_tdnn)
+- [speakerverification_speakernet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/speakerverification_speakernet)
+
+## Supported End-to-End Speaker Diarization models
+- [diar_sortformer_4spk-v1](https://huggingface.co/nvidia/diar_sortformer_4spk-v1) — Offline Sortformer diarizer (up to 4 speakers)
+- [diar_streaming_sortformer_4spk-v2](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2) — Streaming Sortformer diarizer (up to 4 speakers)
+- [diar_streaming_sortformer_4spk-v2.1](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1) — Streaming Sortformer diarizer with improved meeting speech robustness
+
+## Supported Pretrained VAD models
+- [vad_multilingual_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet)
+- [vad_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_marblenet)
+- [vad_telephony_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_telephony_marblenet)
+
+## Supported ASR models
+QuartzNet, CitriNet and Conformer-CTC models are supported. 
+Recommended models HuggingFace:
+- [stt_en_conformer_ctc_large](https://huggingface.co/nvidia/stt_en_conformer_ctc_large/tree/main)
+
+## Performance
+
+#### Clustering Diarizer 
+Diarization Error Rate (DER) table of `titanet_large.nemo` model on well known evaluation datasets. 
+
+|         Evaluation Condition           |   AMI(Lapel)   | AMI(MixHeadset)     |   CH109  | NIST SRE 2000 |  
+|:--------------------------------------:|:--------------:|:-------------------:|:--------:|:-------------:|
+|       Domain Configuration             |   Meeting      |        Meeting      |Telephonic| Telephonic    |
+|  Oracle VAD <br> Known # of Speakers   |     1.28       |         1.07        |  0.56    |     5.62      |
+|  Oracle VAD <br> Unknown # of Speakers |     1.28       |         1.4         |  0.88    |     4.33      | 
+
+* All models were tested using the domain specific `.yaml` files which can be found in `conf/inference/` folder.
+* The above result is based on the oracle Voice Activity Detection (VAD) result.
+* This result is based on [titanet_large.nemo](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/titanet_large) model.
+
+#### End-to-End Diarizer: Sortformer
+
+[Sortformer](https://arxiv.org/abs/2409.06656) is a novel end-to-end neural model for speaker diarization that resolves the permutation problem by following the arrival-time order of speech segments from each speaker. Sortformer consists of a Fast-Conformer (NEST) encoder followed by a Transformer encoder with sigmoid outputs for each speaker. Both offline and streaming variants are available.
+
+##### [diar_sortformer_4spk-v1](https://huggingface.co/nvidia/diar_sortformer_4spk-v1) (Offline)
+
+An offline Sortformer diarizer with an 18-layer NEST encoder (L-size) and 18-layer Transformer encoder (hidden size 192), supporting up to 4 speakers. Trained on ~7,180 hours of real conversations and simulated audio mixtures.
+
+```python
+from nemo.collections.asr.models import SortformerEncLabelModel
+diar_model = SortformerEncLabelModel.from_pretrained("nvidia/diar_sortformer_4spk-v1")
+diar_model.eval()
+predicted_segments = diar_model.diarize(audio="/path/to/audio.wav", batch_size=1)
+```
+
+Diarization Error Rate (DER) — all evaluations include overlapping speech:
+
+| Dataset | Collar | DER (no PP) | DER (with PP) |
+|:-------:|:------:|:-----------:|:-------------:|
+| DIHARD3-Eval (<=4spk) | 0.0s | 16.28 | **14.76** |
+| CALLHOME-part2 (2spk) | 0.25s | 6.49 | **5.85** |
+| CALLHOME-part2 (3spk) | 0.25s | 10.01 | **8.46** |
+| CALLHOME-part2 (4spk) | 0.25s | 14.14 | **12.59** |
+| CH109 | 0.25s | **6.27** | 6.86 |
+
+##### [diar_streaming_sortformer_4spk-v2](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2) (Streaming)
+
+A streaming version of Sortformer using an Arrival-Order Speaker Cache (AOSC) for consistent speaker tracking across chunks. Uses a 17-layer NEST encoder and 18-layer Transformer encoder. Supports configurable latency from ultra-low (0.32s) to very-high (30.4s).
+
+```python
+from nemo.collections.asr.models import SortformerEncLabelModel
+diar_model = SortformerEncLabelModel.from_pretrained("nvidia/diar_streaming_sortformer_4spk-v2")
+diar_model.eval()
+diar_model.sortformer_modules.chunk_len = 340
+diar_model.sortformer_modules.chunk_right_context = 40
+diar_model.sortformer_modules.fifo_len = 40
+diar_model.sortformer_modules.spkcache_update_period = 300
+predicted_segments = diar_model.diarize(audio="/path/to/audio.wav", batch_size=1)
+```
+
+Diarization Error Rate (DER) with post-processing — all evaluations include overlapping speech:
+
+| Dataset | Collar | 30.4s latency | 10.0s latency | 1.04s latency | 0.32s latency |
+|:-------:|:------:|:-------------:|:-------------:|:-------------:|:-------------:|
+| DIHARD III Eval (<=4spk) | 0.0s | 13.45 | 13.75 | 13.24 | 13.44 |
+| DIHARD III Eval (>=5spk) | 0.0s | 41.40 | 41.41 | 42.56 | 43.73 |
+| CALLHOME-part2 (2spk) | 0.25s | 5.34 | 6.05 | 6.57 | 6.91 |
+| CALLHOME-part2 (3spk) | 0.25s | 9.22 | 9.88 | 10.05 | 10.45 |
+| CALLHOME-part2 (4spk) | 0.25s | 11.29 | 11.72 | 12.44 | 13.70 |
+| CH109 | 0.25s | 4.61 | 4.80 | 4.88 | 5.27 |
+
+##### [diar_streaming_sortformer_4spk-v2.1](https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1) (Streaming, improved)
+
+An improved streaming Sortformer with greater robustness for meeting speech scenarios. Same architecture as v2 but with additional training on meeting corpora (DiPCo, AliMeeting, NOTSOFAR1) and forced-alignment-based ground-truth RTTMs for AMI and AliMeeting.
+
+```python
+from nemo.collections.asr.models import SortformerEncLabelModel
+diar_model = SortformerEncLabelModel.from_pretrained("nvidia/diar_streaming_sortformer_4spk-v2.1")
+diar_model.eval()
+diar_model.sortformer_modules.chunk_len = 340
+diar_model.sortformer_modules.chunk_right_context = 40
+diar_model.sortformer_modules.fifo_len = 40
+diar_model.sortformer_modules.spkcache_update_period = 300
+predicted_segments = diar_model.diarize(audio="/path/to/audio.wav", batch_size=1)
+```
+
+Diarization Error Rate (DER) — all evaluations include overlapping speech:
+
+**Telephonic and General-Purpose Speech:**
+
+| Dataset | Collar | 30.4s latency | 1.04s latency |
+|:-------:|:------:|:-------------:|:-------------:|
+| DIHARD III Eval (<=4spk) | 0.0s | 14.84 | 15.09 |
+| DIHARD III Eval (full) | 0.0s | 19.49 | 20.21 |
+| CALLHOME-part2 (full) | 0.25s | 10.10 | 11.19 |
+| CH109 | 0.25s | 5.04 | 5.09 |
+
+**Meeting Speech (v2.1 vs v2 comparison):**
+
+| Dataset | Collar | v2.1 (30.4s) | v2 (30.4s) | v2.1 (1.04s) | v2 (1.04s) |
+|:-------:|:------:|:------------:|:----------:|:------------:|:----------:|
+| AliMeeting Test (near) | 0.0s | **11.73** | 19.63 | **12.60** | 19.98 |
+| AliMeeting Test (far) | 0.0s | **13.55** | 21.09 | **15.60** | 22.09 |
+| AMI Test (IHM) | 0.0s | **15.90** | 22.39 | **16.67** | 25.11 |
+| AMI Test (SDM) | 0.0s | **17.80** | 28.56 | **20.57** | 31.34 |
+| NOTSOFAR1 Eval SC (full) | 0.0s | **27.07** | 33.43 | **28.75** | 34.52 |
+
+##### Example inference script for end-to-end diarizer
+```bash
+python neural_diarizer/e2e_diarize_speech.py \
+    model_path=<path to .nemo or HuggingFace model name> \
+    dataset_manifest=<path to manifest file> \
+    batch_size=1
+```
+
+## Run Speaker Diarization on Your Audio Files
+
+#### Example script for clustering diarizer: with system-VAD
+```bash
+  python clustering_diarizer/offline_diar_infer.py \
+    diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.out_dir='demo_output' \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
+    diarizer.vad.model_path=<pretrained model name or path to .nemo> \
+    diarizer.speaker_embeddings.model_path=<pretrained speaker embedding model name or path to .nemo> 
+```
+
+If you have oracle VAD files and groundtruth RTTM files for evaluation:
+Provide rttm files in the input manifest file and enable oracle_vad as shown below. 
+```bash
+...
+    diarizer.oracle_vad=True \
+...
+```
+
+#### Arguments
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; To run speaker diarization on your audio recordings, you need to prepare the following file.
+
+- **`diarizer.manifest_filepath`: <manifest file>** Path to manifest file 
+
+Example: `manifest.json`
+
+```bash
+{"audio_filepath": "/path/to/audio_file", "offset": 0, "duration": null, label: "infer", "text": "-", "num_speakers": null, "rttm_filepath": "/path/to/rttm/file", "uem_filepath"="/path/to/uem/filepath"}
+```
+Mandatory fields are `audio_filepath`, `offset`, `duration`, `label:"infer"` and `text: <ground truth or "-" >`  , and the rest are optional keys which can be passed based on the type of evaluation 
+
+Some of important options in config file: 
+
+- **`diarizer.vad.model_path`: voice activity detection model name or path to the model**
+
+Specify the name of VAD model, then the script will download the model from NGC. Currently, we have 'vad_multilingual_marblenet', 'vad_marblenet' and  'vad_telephony_marblenet' as options for VAD models.
+
+`diarizer.vad.model_path='vad_multilingual_marblenet'`
+
+
+Instead, you can also download the model from [vad_multilingual_marblenet](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/vad_multilingual_marblenet), [vad_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_marblenet) and [vad_telephony_marblenet](https://ngc.nvidia.com/catalog/models/nvidia:nemo:vad_telephony_marblenet) and specify the full path name to the model as below.
+
+`diarizer.vad.model_path='path/to/vad_multilingual_marblenet.nemo'`
+
+- **`diarizer.speaker_embeddings.model_path`: speaker embedding model name**
+
+Specify the name of speaker embedding model, then the script will download the model from NGC. Currently, we support 'titanet_large', 'ecapa_tdnn' and 'speakerverification_speakernet'.
+
+`diarizer.speaker_embeddings.model_path='titanet_large'`
+
+You could also download *.nemo files from [this link](https://ngc.nvidia.com/catalog/models?orderBy=scoreDESC&pageNumber=0&query=SpeakerNet&quickFilter=&filters=) and specify the full path name to the speaker embedding model file (`*.nemo`).
+
+`diarizer.speaker_embeddings.model_path='path/to/titanet_large.nemo'` 
+ 
+
+- **`diarizer.speaker_embeddings.parameters.multiscale_weights`: multiscale diarization**
+
+Multiscale diarization system employs multiple scales at the same time to obtain a finer temporal resolution. To use multiscale feature, at least two scales and scale weights should be provided. The scales should be provided in descending order, from the longest scale to the base scale (the shortest). If multiple scales are provided, multiscale_weights must be provided in list format. The following example shows how multiscale parameters are specified and the recommended parameters.
+
+#### Example script: single-scale and multiscale
+
+Single-scale setting:
+```bash
+  python offline_diar_infer.py \
+     ... <other parameters> ...
+     parameters.window_length_in_sec=1.5 \
+     parameters.shift_length_in_sec=0.75 \
+     parameters.multiscale_weights=null \
+```
+
+Multiscale setting (base scale - window_length 0.5 s and shift_length 0.25):
+
+```bash
+  python offline_diar_infer.py \
+     ... <other parameters> ...
+     parameters.window_length_in_sec=[1.5,1.0,0.5] \
+     parameters.shift_length_in_sec=[0.75,0.5,0.25] \
+     parameters.multiscale_weights=[0.33,0.33,0.33] \
+```
+ 
+<br/>
+
+## Run Speech Recognition with Clustering based Speaker Diarization
+
+Using the script `offline_diar_with_asr_infer.py`, you can transcribe your audio recording with speaker labels as shown below:
+
+```
+[00:03.34 - 00:04.46] speaker_0: back from the gym oh good how's it going 
+[00:04.46 - 00:09.96] speaker_1: oh pretty well it was really crowded today yeah i kind of assumed everyone would be at the shore uhhuh
+[00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
+```
+
+Currently, offline clustering diarization inference supports ConformerCTC ASR models (e.g.,`stt_en_conformer_ctc_large`). 
+
+#### Example script
+
+```bash
+python offline_diar_with_asr_infer.py \
+    diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.out_dir='demo_asr_output' \
+    diarizer.speaker_embeddings.model_path=<pretrained model name or path to .nemo> \
+    diarizer.asr.model_path=<pretrained model name or path to .nemo> \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
+    diarizer.asr.parameters.asr_based_vad=True
+```
+If you have reference rttm files or oracle number of speaker information, you can provide those file paths and number of speakers in the manifest file path and pass `diarizer.clustering.parameters.oracle_num_speakers=True` as shown in the following example.
+
+```bash
+python offline_diar_with_asr_infer.py \
+    diarizer.manifest_filepath=<path to manifest file> \
+    diarizer.out_dir='demo_asr_output' \
+    diarizer.speaker_embeddings.model_path=<pretrained model name or path to .nemo> \
+    diarizer.asr.model_path=<pretrained model name or path to .nemo> \
+    diarizer.speaker_embeddings.parameters.save_embeddings=False \
+    diarizer.asr.parameters.asr_based_vad=True \
+    diarizer.clustering.parameters.oracle_num_speakers=True
+```
+
+#### Output folders
+
+The above script will create a folder named `./demo_asr_output/`.
+For example, in `./demo_asr_output/`, you can check the results as below.
+
+```bash
+./asr_with_diar
+├── pred_rttms
+    └── my_audio1.json
+    └── my_audio1.txt
+    └── my_audio1.rttm
+    └── my_audio1_gecko.json
+│
+└── speaker_outputs
+    └── oracle_vad_manifest.json
+    └── subsegments_scale2_cluster.label
+    └── subsegments_scale0.json
+    └── subsegments_scale1.json
+    └── subsegments_scale2.json
+... 
+```
+
+`my_audio1.json` file contains word-by-word json output with speaker label and time stamps. We also provide a json output file for [gecko](https://gong-io.github.io/gecko/) tool, where you can visualize the diarization result along with the ASR output.
+
+Example: `./demo_asr_output/pred_rttms/my_audio1.json`
+```bash
+{
+    "status": "Success",
+    "session_id": "my_audio1",
+    "transcription": "back from the gym oh good ...",
+    "speaker_count": 2,
+    "words": [
+        {
+            "word": "back",
+            "start_time": 0.44,
+            "end_time": 0.56,
+            "speaker_label": "speaker_0"
+        },
+...
+        {
+            "word": "oh",
+            "start_time": 1.74,
+            "end_time": 1.88,
+            "speaker_label": "speaker_1"
+        },
+        {
+            "word": "good",
+            "start_time": 2.08,
+            "end_time": 3.28,
+            "speaker_label": "speaker_1"
+        },
+```
+
+`*.txt` files in `pred_rttms` folder contain transcriptions with speaker labels and corresponding time.
+
+Example: `./demo_asr_output/pred_rttms/my_audio1.txt`
+```
+[00:03.34 - 00:04.46] speaker_0: back from the gym oh good how's it going
+[00:04.46 - 00:09.96] speaker_1: pretty well it was really crowded today yeah i kind of assumed everylonewould be at the shore uhhuh
+[00:12.10 - 00:13.97] speaker_0: well it's the middle of the week or whatever so
+[00:13.97 - 00:15.78] speaker_1: but it's the fourth of july mm
+[00:16.90 - 00:21.80] speaker_0: so yeah people still work tomorrow do you have to work tomorrow did you drive off yesterday
+```
+ 
+In `speaker_outputs` folder we have three kinds of files as follows:
+ 
+ - `oracle_vad_manifest.json` file contains oracle VAD labels that are extracted from RTTM files.
+ - `subsegments_scale<scale_index>.json` is a manifest file for subsegments, which includes segment-by-segment start and end time with original wav file path. In multi-scale mode, this file is generated for each `<scale_index>`.
+ - `subsegments_scale<scale_index>_cluster.label` file contains the estimated cluster labels for each segment. This file is only generated for the base scale index in multi-scale diarization mode.

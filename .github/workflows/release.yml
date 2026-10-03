@@ -1,0 +1,128 @@
+# SPDX-FileCopyrightText: Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+name: "Build, validate, and release Neural Modules"
+
+on:
+  push:
+    branches:
+      - main
+      - "r**"
+      - "pull-request/**"
+      - "deploy-release/*"
+  workflow_dispatch:
+    inputs:
+      release-ref:
+        description: Ref (SHA or branch name) to release
+        required: true
+        type: string
+      version-bump-branch:
+        description: Branch for version bump
+        required: true
+        type: string
+      dry-run:
+        description: Compute the release but do not publish wheel, GH release, or docs.
+        required: true
+        default: true
+        type: boolean
+      create-gh-release:
+        description: Create a GitHub release
+        required: true
+        default: true
+        type: boolean
+      generate-changelog:
+        description: Generate changelog
+        required: false
+        default: true
+        type: boolean
+      publish-docs:
+        description: Publish docs
+        required: false
+        default: true
+        type: boolean
+      gh-release-from-tag:
+        description: Tag of previous release for changelog builder
+        required: false
+        type: string
+        default: ""
+
+defaults:
+  run:
+    shell: bash -x -e -u -o pipefail {0}
+
+permissions:
+  id-token: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  pre-flight:
+    if: github.event_name != 'workflow_dispatch'
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_cicd_preflight.yml@cf5acebace78c7c339bc1f804357a991336f1c4d # v1.8.10
+
+  release:
+    needs: [pre-flight]
+    if: |
+      !cancelled() && !failure()
+      && !(needs.pre-flight.outputs.docs_only == 'true'
+           || needs.pre-flight.outputs.is_deployment_workflow == 'true')
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_release_library.yml@f7af92c4d1caea5a58577ce4ac5314f7de1bc5d4 # v1.4.3
+    with:
+      release-ref: ${{ inputs.release-ref || github.sha }}
+      python-package: nemo
+      python-version: "3.10"
+      library-name: Neural Modules
+      validate-only: ${{ github.event_name != 'workflow_dispatch' }}
+      dry-run: ${{ inputs.dry-run || false }}
+      wheel-content-ignore: "W002,W004,W005,W009"
+      skip-check-manifest: true
+      version-bump-branch: ${{ inputs.version-bump-branch || github.ref_name }}
+      create-gh-release: ${{ inputs.create-gh-release || true }}
+      app-id: ${{ vars.BOT_ID }}
+      gh-release-use-changelog-builder: ${{ inputs.generate-changelog || false }}
+      publish-docs: ${{ inputs.publish-docs || true }}
+      docs-target-path: nemo
+      docs-directory: docs/source
+      docs-requirements-file: requirements/requirements_docs.txt
+      docs-sync-all: true
+      docs-no-extras: "--no-extra cu12 --no-extra compiled --no-extra compiled-a100 --no-extra vllm"
+      publish-as-latest: true
+      run-on-version-tag-only: ${{ github.ref_name != 'main' }}
+      gh-release-from-tag: ${{ inputs.gh-release-from-tag || '' }}
+      restrict-to-admins: true
+    secrets: inherit  # pragma: allowlist secret
+
+  release-summary:
+    needs: [pre-flight, release]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Result
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FAILED_JOBS=$(gh run view $GITHUB_RUN_ID --repo ${{ github.repository }} --json jobs --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "action_required")] | length')
+
+          if [ "${FAILED_JOBS:-0}" -eq 0 ]; then
+              echo "✅ All previous jobs completed successfully"
+              exit 0
+          else
+              echo "❌ Found $FAILED_JOBS failed job(s)"
+              gh run view $GITHUB_RUN_ID --repo ${{ github.repository }} --json jobs --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "timed_out" or .conclusion == "action_required") | .name'
+              exit 1
+          fi

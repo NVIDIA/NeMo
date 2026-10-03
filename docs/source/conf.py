@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import glob
+import os
+import re
+import sys
+
+# If extensions (or modules to document with autodoc) are in another directory,
+# add these directories to sys.path here. If the directory is relative to the
+# documentation root, use os.path.abspath to make it absolute, like shown here.
+
+sys.path.insert(0, os.path.abspath("../.."))
+# Append (not prepend) the nemo/ subdir so package_info is importable,
+# but real third-party packages like `lightning` are found first.
+sys.path.append(os.path.abspath("../../nemo"))
+
+from package_info import __version__
+
+templates_path = ["_templates"]
+
+autodoc_mock_imports = [
+    'torch',
+    'torch.nn',
+    'torch.utils',
+    'torch.optim',
+    'torch.utils.data',
+    'torch.utils.data.sampler',
+    'torchtext',
+    'hydra',  # hydra-core in requirements, hydra during import
+    'transformers.tokenization_bert',  # has ., troublesome for this regex
+    'sklearn',  # scikit_learn in requirements, sklearn in import
+    'nemo_text_processing.inverse_text_normalization',  # Not installed automatically
+    'nemo_text_processing.text_normalization',  # Not installed automatically
+    'torchmetrics',  # inherited from PTL
+    'lightning_utilities',  # inherited from PTL
+    'lightning_fabric',
+    'apex',
+    'megatron.core',
+    'transformer_engine',
+    'joblib',  # inherited from optional code
+    'IPython',
+    'ipadic',
+    'psutil',
+    'pytorch_lightning',
+    'regex',
+    'PIL',
+    'boto3',
+    'taming',
+    'cytoolz',  # for adapters
+    'megatron',  # for nlp
+    "open_clip",
+]
+
+_skipped_autodoc_mock_imports = ['wrapt', 'numpy']
+
+for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
+    if "docs.txt" in req_path:
+        continue
+
+    req_file = os.path.abspath(os.path.expanduser(req_path))
+    with open(req_file, 'r') as f:
+        for line in f:
+            line = line.replace("\n", "")
+            req = re.search(r"([a-zA-Z0-9-_]*)", line)
+            if req:
+                req = req.group(1)
+                req = req.replace("-", "_")
+
+                if req not in autodoc_mock_imports:
+                    if req in _skipped_autodoc_mock_imports:
+                        print(f"Skipping req : `{req}` (lib {line})")
+                        continue
+
+                    autodoc_mock_imports.append(req)
+                    print(f"Adding req : `{req}` to autodoc mock requirements (lib {line})")
+                else:
+                    print(f"`{req}` already added to autodoc mock requirements (lib {line})")
+
+# Filter out packages that are actually installed and importable.
+# autodoc_mock_imports is designed for packages missing from the build env;
+# mocking installed packages causes issues (e.g., issubclass() fails on mocks).
+import importlib.util
+
+_final_mock_imports = []
+for _mod in autodoc_mock_imports:
+    _top_level = _mod.split('.')[0]
+    if importlib.util.find_spec(_top_level) is not None:
+        print(f"Skipping mock for installed package: `{_mod}` (found `{_top_level}`)")
+    else:
+        _final_mock_imports.append(_mod)
+autodoc_mock_imports = _final_mock_imports
+
+#
+# -- General configuration ------------------------------------------------
+
+# If your documentation needs a minimal Sphinx version, state it here.
+#
+# needs_sphinx = '1.0'
+
+# Add any Sphinx extension module names here, as strings. They can be
+# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
+# ones.
+
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.todo",
+    "sphinx.ext.coverage",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.ifconfig",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.inheritance_diagram",
+    "sphinx.ext.intersphinx",
+    # "sphinx.ext.autosectionlabel",
+    "sphinxcontrib.bibtex",
+    "sphinx_copybutton",
+    "sphinxext.opengraph",
+]
+
+bibtex_bibfiles = [
+    'asr/asr_all.bib',
+    'tools/tools_all.bib',
+    'tts/tts_all.bib',
+    'core/adapters/adapter_bib.bib',
+    'audio/audio_all.bib',
+]
+
+intersphinx_mapping = {
+    'pytorch': ('https://docs.pytorch.org/docs/stable', None),
+    'pytorch-lightning': ('https://lightning.ai/docs/pytorch/latest/', None),
+}
+
+# Set default flags for all classes.
+autodoc_default_options = {'members': None, 'undoc-members': None, 'show-inheritance': True}
+
+locale_dirs = ['locale/']  # path is example but recommended.
+gettext_compact = False  # optional.
+
+# The suffix(es) of source filenames.
+# You can specify multiple suffix as a list of string:
+#
+# source_suffix = ['.rst', '.md']
+source_suffix = ".rst"
+
+# The master toctree document.
+master_doc = "index"
+
+# General information about the project.
+project = "NeMo-Speech"
+copyright = "2026, NVIDIA Corporation"
+author = "NVIDIA CORPORATION"
+release = "nightly"
+
+# The version info for the project you're documenting, acts as replacement for
+# |version| and |release|, also used in various other places throughout the
+# built documents.
+
+
+# The short X.Y version.
+# version = "0.10.0"
+version = __version__
+
+
+# The language for content autogenerated by Sphinx. Refer to documentation
+# for a list of supported languages.
+#
+# This is also used if you do content translation via gettext catalogs.
+# Usually you set "language" from the command line for these cases.
+language = 'en'
+
+# List of patterns, relative to source directory, that match files and
+# directories to ignore when looking for source files.
+# This patterns also effect to html_static_path and html_extra_path
+exclude_patterns = []
+
+# The name of the Pygments (syntax highlighting) style to use.
+pygments_style = "default"
+
+# Ignore Github links and downloading a large file
+# Github links are now getting rate limited from the Github Actions
+linkcheck_ignore = [
+    "https://zenodo.org/record/5525342/files/thorsten-neutral_v03.tgz?download=1",
+    ".*github\\.com.*",
+    ".*githubusercontent\\.com.*",
+]
+# Lightning documentation pages are rendered by JavaScript. Their static HTML does not contain the API anchors
+# referenced by the intersphinx inventory, so linkcheck must validate only the page URL.
+linkcheck_anchors_ignore_for_url = [r"https://lightning\.ai/docs/pytorch/.*"]
+linkcheck_retries = 10
+linkcheck_rate_limit_timeout = 600
+
+### Previous NeMo theme
+# # NVIDIA theme settings.
+# html_theme = 'nvidia_theme'
+
+# html_theme_path = ["."]
+
+# html_theme_options = {
+#     'display_version': True,
+#     'project_version': version,
+#     'project_name': project,
+#     'logo_path': None,
+#     'logo_only': True,
+# }
+# html_title = 'Introduction'
+
+# html_logo = html_theme_options["logo_path"]
+
+# html_sidebars = {
+#     "**": ["navbar-logo.html", "search-field.html", "sbt-sidebar-nav.html"]
+# }
+
+# -- Options for HTMLHelp output ------------------------------------------
+
+# Output file base name for HTML help builder.
+htmlhelp_basename = "nemodoc"
+
+### from TLT conf.py
+# -- Options for HTML output -------------------------------------------------
+
+# The theme to use for HTML and HTML Help pages.  See the documentation for
+# a list of builtin themes.
+#
+
+# html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+
+html_theme = "nvidia_sphinx_theme"
+html_theme_options = {
+    "switcher": {"json_url": "../versions1.json", "version_match": release},
+    "public_docs_features": True,
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/NVIDIA-NeMo/Speech",
+            "icon": "fa-brands fa-github",
+        }
+    ],
+    "extra_head": {
+        """
+    <script src="https://assets.adobedtm.com/5d4962a43b79/c1061d2c5e7b/launch-191c2462b890.min.js" ></script>
+    """
+    },
+    "extra_footer": {
+        """
+    <script type="text/javascript">if (typeof _satellite !== "undefined") {_satellite.pageBottom();}</script>
+    """
+    },
+}
+html_extra_path = ["project.json", "versions1.json"]
+
+# OpenGraph settings
+ogp_site_url = 'https://nvidia.github.io/NeMo/'
+ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
+
+# MathJax CDN
+# follow recommendation here https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.mathjax
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"

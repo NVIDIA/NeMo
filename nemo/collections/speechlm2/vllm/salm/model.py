@@ -1,0 +1,361 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Single registered model class for the NeMo Speech LM (SALM) vLLM plugin.
+
+Architecture: NeMo speech encoder (e.g. FastConformer) + projection + LLM.
+
+A single ``NeMoSpeechLMForConditionalGeneration`` covers every supported
+backbone family. Backbone-specific behavior (architecture choice, weight
+rename rules, optional LoRA merge, mamba state passthroughs) lives in
+``backends.py`` and is selected once at ``__init__`` time via
+``make_backend(config)``. The class declares ``IsHybrid`` /
+``SupportsMambaPrefixCaching`` so vLLM's hybrid KV-cache allocator picks up
+NemotronH backbones, and ``SupportsEagle3`` so DFlash and DFlash2 can consume
+auxiliary hidden states from the language tower. For transformer backbones the
+runtime ``ModelConfig.is_hybrid`` property returns False because ``config.py``
+populates ``text_config.layer_types`` with all-attention markers (vLLM's
+granite-4.0-micro escape hatch).
+
+Requires NeMo toolkit for the audio encoder:
+    pip install 'nemo-toolkit[asr]'
+"""
+
+from collections.abc import Callable, Iterable
+from typing import Any
+
+import torch
+from torch import nn
+from vllm.config import VllmConfig
+from vllm.model_executor.models.interfaces import (
+    IsHybrid,
+    MultiModalEmbeddings,
+    SupportsEagle3,
+    SupportsMambaPrefixCaching,
+    SupportsMultiModal,
+    SupportsPP,
+)
+from vllm.model_executor.models.module_mapping import MultiModelKeys
+from vllm.model_executor.models.utils import AutoWeightsLoader, init_vllm_registered_model, maybe_prefix
+from vllm.multimodal import MULTIMODAL_REGISTRY
+from vllm.sequence import IntermediateTensors
+
+from nemo.collections.speechlm2.parts.encoder_chunking import encode_audio_with_optional_chunking
+from nemo.collections.speechlm2.vllm.salm.audio import (
+    _SAMPLING_RATE,
+    NeMoSpeechLMAudioInputs,
+    NeMoSpeechLMDummyInputsBuilder,
+    NeMoSpeechLMMultiModalProcessor,
+    NeMoSpeechLMProcessingInfo,
+    _load_nemo_perception,
+    _maybe_mount_independent_speaker_encoder,
+    _maybe_mount_pe_encoder,
+)
+from nemo.collections.speechlm2.vllm.salm.backends import HybridBackend, make_backend
+from nemo.collections.speechlm2.vllm.salm.config import _AUDIO_PLACEHOLDER
+
+_AUDIO_INPUT_DTYPE = torch.float32
+_PERCEPTION_DTYPE = torch.bfloat16
+
+
+def _is_parallel_expert_encoder(module: nn.Module) -> bool:
+    """Recognize the shared speaker-aware encoder contract without importing ASR at plugin import time."""
+    return bool(getattr(module, "supports_external_speaker_targets", False)) and callable(
+        getattr(module, "online_inference", None)
+    )
+
+
+@MULTIMODAL_REGISTRY.register_processor(
+    NeMoSpeechLMMultiModalProcessor,
+    info=NeMoSpeechLMProcessingInfo,
+    dummy_inputs=NeMoSpeechLMDummyInputsBuilder,
+)
+class NeMoSpeechLMForConditionalGeneration(
+    nn.Module,
+    SupportsMultiModal,
+    SupportsPP,
+    IsHybrid,
+    SupportsMambaPrefixCaching,
+    SupportsEagle3,
+):
+    """Backbone-agnostic NeMo SpeechLM. Composition with a backend handles per-backbone details."""
+
+    @classmethod
+    def get_placeholder_str(cls, modality: str, i: int) -> str | None:
+        if modality.startswith("audio"):
+            return _AUDIO_PLACEHOLDER
+        return None
+
+    def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
+        super().__init__()
+        config = vllm_config.model_config.hf_config
+        self.config = config
+        self.encoder_chunk_size_seconds = getattr(config, "encoder_chunk_size_seconds", None)
+
+        backend = make_backend(config)
+        self._backend = backend
+
+        with self._mark_language_model(vllm_config):
+            self.language_model = init_vllm_registered_model(
+                vllm_config=vllm_config,
+                hf_config=config.text_config,
+                prefix=maybe_prefix(prefix, "language_model"),
+                architectures=backend.architectures(),
+            )
+
+        with self._mark_tower_model(vllm_config, {"audio"}):
+            self.perception = _load_nemo_perception(config.perception)
+            pe_encoder_path = getattr(config, "pe_encoder_path", None)
+            pe_encoder_config = getattr(config, "pe_encoder_config", None)
+            speaker_encoder = getattr(config, "speaker_encoder", None)
+            has_pe_encoder = pe_encoder_path not in (
+                None,
+                "",
+                False,
+            ) or pe_encoder_config not in (
+                None,
+                {},
+                "",
+                False,
+            )
+            has_speaker_encoder = speaker_encoder not in (None, {}, "", False)
+            if has_pe_encoder and has_speaker_encoder:
+                raise ValueError("ParallelExpertEncoder and speaker_encoder are mutually exclusive.")
+            if has_speaker_encoder:
+                _maybe_mount_independent_speaker_encoder(
+                    self.perception,
+                    speaker_encoder,
+                    self.encoder_chunk_size_seconds,
+                )
+                self._uses_pe_encoder = False
+            else:
+                _maybe_mount_pe_encoder(
+                    self.perception,
+                    pe_encoder_path,
+                    pe_encoder_config,
+                    getattr(config, "pe_encoder_overrides", None),
+                )
+                self._uses_pe_encoder = _is_parallel_expert_encoder(getattr(self.perception, "encoder", None))
+
+        self.make_empty_intermediate_tensors = self.language_model.make_empty_intermediate_tensors
+
+    # ── language-model integration ──
+
+    def get_language_model(self) -> nn.Module:
+        """Return the wrapped decoder used by vLLM speculative decoders.
+
+        DFlash and DFlash2 resolve the target embedding table and LM head
+        through this hook. Returning the registered vLLM language tower also
+        lets the ``SupportsEagle3`` interface reach its inner ``EagleModelMixin``.
+        """
+        return self.language_model
+
+    def _require_eagle3_method(self, method_name: str) -> Callable:
+        method = getattr(self.language_model, method_name, None)
+        if callable(method):
+            return method
+
+        text_config = getattr(self.config, "text_config", None)
+        architectures = getattr(text_config, "architectures", None)
+        if isinstance(architectures, (list, tuple)) and architectures:
+            backbone = ", ".join(str(architecture) for architecture in architectures)
+        else:
+            backbone = type(self.language_model).__name__
+        raise NotImplementedError(
+            f"SpeechLM backbone {backbone!r} does not support DFlash/Eagle3 "
+            f"hidden-state export: missing {method_name}()."
+        )
+
+    def set_aux_hidden_state_layers(self, layers: tuple[int, ...]) -> None:
+        """Select target layers whose hidden states are consumed by DFlash drafters."""
+        self._require_eagle3_method("set_aux_hidden_state_layers")(layers)
+
+    def get_eagle3_default_aux_hidden_state_layers(self) -> tuple[int, ...]:
+        """Delegate vLLM's fallback auxiliary-layer selection to the decoder."""
+        return self._require_eagle3_method("get_eagle3_default_aux_hidden_state_layers")()
+
+    # ── audio processing ──
+
+    def _parse_audio_input(
+        self,
+        audio_signal: torch.Tensor | list[torch.Tensor] | None = None,
+        audio_signal_length: torch.Tensor | None = None,
+        **kwargs,
+    ) -> NeMoSpeechLMAudioInputs | None:
+        if audio_signal is None:
+            return None
+
+        if not isinstance(audio_signal_length, torch.Tensor):
+            raise ValueError(
+                "audio_signal_length must be a torch.Tensor; got " f"{type(audio_signal_length).__name__}."
+            )
+
+        if isinstance(audio_signal, list):
+            max_len = max(a.shape[-1] for a in audio_signal)
+            padded = [torch.nn.functional.pad(a, (0, max_len - a.shape[-1])) for a in audio_signal]
+            audio_signal = torch.stack(padded, dim=0)
+
+        return NeMoSpeechLMAudioInputs(
+            audio_signal=audio_signal,
+            audio_signal_length=audio_signal_length,
+        )
+
+    def _process_audio(self, audio_input: NeMoSpeechLMAudioInputs) -> tuple[torch.Tensor, ...]:
+        # Real device placement happens at init via _mark_tower_model +
+        # get_mm_mapping; this .to() is a no-op guard kept for paranoia.
+        device = next(self.perception.parameters()).device
+        self.perception = self.perception.to(device)
+
+        audio_signal = audio_input.audio_signal
+        if isinstance(audio_signal, list):
+            audio_signal = torch.stack(audio_signal, dim=0)
+        audio_signal = audio_signal.to(device=device, dtype=_AUDIO_INPUT_DTYPE)
+        audio_lengths = audio_input.audio_signal_length.to(device=device)
+
+        # Mirrors training (``encode_audio_with_optional_chunking``): when the
+        # checkpoint was trained with a chunked encoder (e.g. SALMAutomodel
+        # default 30 s), long audios are split into chunks before the perception
+        # forward and the per-chunk embeddings are concatenated. ``None``
+        # disables chunking and runs a single forward over the full batch.
+        # A ParallelExpertEncoder instead runs its own context-preserving online
+        # inference over the full audio, so it bypasses the chunking helper.
+        with torch.no_grad():
+            if self._uses_pe_encoder:
+                with self.perception.encoder.online_inference():
+                    audio_embs, audio_emb_lens = self.perception(
+                        input_signal=audio_signal, input_signal_length=audio_lengths
+                    )
+                audio_embeds = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
+            else:
+                audio_embeds = encode_audio_with_optional_chunking(
+                    self.perception,
+                    audio_signal,
+                    audio_lengths,
+                    chunk_size_seconds=self.encoder_chunk_size_seconds,
+                    sampling_rate=_SAMPLING_RATE,
+                )
+
+        return tuple(emb.to(_PERCEPTION_DTYPE) for emb in audio_embeds)
+
+    def embed_multimodal(self, **kwargs) -> MultiModalEmbeddings:
+        audio_input = self._parse_audio_input(**kwargs)
+        if audio_input is None:
+            return []
+        return self._process_audio(audio_input)
+
+    # ── forward / logits ──
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        positions: torch.Tensor,
+        intermediate_tensors: IntermediateTensors | None = None,
+        inputs_embeds: torch.Tensor | None = None,
+        **kwargs,
+    ) -> torch.Tensor | IntermediateTensors | tuple[torch.Tensor, list[torch.Tensor]]:
+        if intermediate_tensors is not None:
+            inputs_embeds = None
+        return self.language_model(input_ids, positions, intermediate_tensors, inputs_embeds)
+
+    def compute_logits(self, hidden_states: torch.Tensor) -> torch.Tensor | None:
+        logits = self.language_model.compute_logits(hidden_states)
+        if logits is not None:
+            logits[..., self.config.speechlm_output_vocab_size :] = -torch.inf
+            for token_id in getattr(self.config, "speechlm_runtime_added_token_ids", []):
+                if token_id < logits.shape[-1]:
+                    logits[..., token_id] = -torch.inf
+        return logits
+
+    def get_mm_mapping(self) -> MultiModelKeys:
+        return MultiModelKeys.from_string_field(
+            language_model="language_model",
+            connector="perception.proj",
+            tower_model="perception.encoder",
+        )
+
+    # ── weight loading ──
+
+    def _load_perception_weights(self, perception_weights: dict[str, torch.Tensor]) -> set[str]:
+        self.perception = self.perception.to(_PERCEPTION_DTYPE)
+        incompatible = self.perception.load_state_dict(perception_weights, strict=False)
+
+        from nemo.collections.speechlm2.modules.perception import IndependentDualEncoder
+
+        requires_exact_architecture = (
+            isinstance(getattr(self.perception, "encoder", None), IndependentDualEncoder) or self._uses_pe_encoder
+        )
+        if requires_exact_architecture:
+            missing = [name for name in incompatible.missing_keys if not name.endswith("._extra_state")]
+            unexpected = [name for name in incompatible.unexpected_keys if not name.endswith("._extra_state")]
+            if missing or unexpected:
+                raise RuntimeError(
+                    "Speech encoder checkpoint does not exactly match its exported architecture: "
+                    f"missing={missing}, unexpected={unexpected}."
+                )
+        return {"perception." + k for k in perception_weights}
+
+    @staticmethod
+    def _split_perception_llm(
+        weights: Iterable[tuple[str, torch.Tensor]],
+    ) -> tuple[dict[str, torch.Tensor], list[tuple[str, torch.Tensor]]]:
+        perception: dict[str, torch.Tensor] = {}
+        llm: list[tuple[str, torch.Tensor]] = []
+        for name, tensor in weights:
+            if "._extra_state" in name:
+                continue
+            if name.startswith("perception."):
+                perception[name[len("perception.") :]] = tensor
+            elif name.startswith("llm.mtp."):
+                pass  # MTP draft-head weights; loaded by the speculative draft model, not here
+            elif name.startswith("mtp."):
+                raise ValueError(
+                    f"Unsupported bare MTP tensor {name!r}; NeMo SpeechLM exports must store draft weights "
+                    f"under the 'llm.mtp.*' namespace."
+                )
+            else:
+                llm.append((name, tensor))
+        return perception, llm
+
+    def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]) -> set[str]:
+        perception_weights, llm_raw = self._split_perception_llm(weights)
+        loaded_perception = self._load_perception_weights(perception_weights)
+
+        preprocessed = self._backend.preprocess_llm_weights(llm_raw)
+        hf_weights = self._backend.nemo_to_hf_llm_weights(preprocessed)
+        combined = (("language_model." + n, t) for n, t in hf_weights)
+
+        loader = AutoWeightsLoader(self)
+        loaded_llm = loader.load_weights(combined)
+
+        return loaded_llm | loaded_perception
+
+    # ── vLLM IsHybrid mamba state classmethods ──
+    #
+    # Reached only when vLLM's ``ModelConfig.is_hybrid`` returns True at
+    # runtime (NemotronH backbones). For transformer backbones the
+    # ``text_config.layer_types`` shim in ``config.py`` flips ``is_hybrid``
+    # off at runtime so vLLM never calls into these.
+
+    @classmethod
+    def get_mamba_state_dtype_from_config(cls, vllm_config: VllmConfig) -> Any:
+        return HybridBackend.get_mamba_state_dtype_from_config(vllm_config)
+
+    @classmethod
+    def get_mamba_state_shape_from_config(cls, vllm_config: VllmConfig) -> Any:
+        return HybridBackend.get_mamba_state_shape_from_config(vllm_config)
+
+    @classmethod
+    def get_mamba_state_copy_func(cls) -> Any:
+        return HybridBackend.get_mamba_state_copy_func()

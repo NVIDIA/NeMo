@@ -1,0 +1,114 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+Evaluation wrapper for MagpieTTS generated audio.
+
+This module provides a clean interface to the evaluation functionality,
+wrapping the existing `examples.tts.magpietts.evaluate_generated_audio` module.
+"""
+from __future__ import annotations
+
+from typing import Dict, List, Tuple
+
+import numpy as np
+import scipy.stats as stats
+
+# Import the existing evaluation module
+import nemo.collections.tts.modules.magpietts_inference.evaluate_generated_audio as evaluate_generated_audio
+from nemo.collections.tts.modules.magpietts_inference.evaluation_config import (
+    EvaluationConfig,
+    resolve_evaluation_config_for_dataset,
+)
+from nemo.utils import logging
+
+__all__ = [
+    "DEFAULT_VIOLIN_METRICS",
+    "EvaluationConfig",
+    "compute_mean_with_confidence_interval",
+    "evaluate_generated_audio_dir",
+    "resolve_evaluation_config_for_dataset",
+]
+
+
+def evaluate_generated_audio_dir(
+    manifest_path: str,
+    audio_dir: str,
+    generated_audio_dir: str,
+    config: EvaluationConfig,
+) -> Tuple[Dict[str, float], List[dict]]:
+    """Evaluate a batch of generated audio files against ground truth.
+
+    This function computes:
+    - ASR-based metrics: Character Error Rate (CER), Word Error Rate (WER)
+    - Speaker similarity: Cosine similarity using speaker embeddings
+    - Audio quality: UTMOSv2 scores (if enabled)
+    - Freceht Codec Distance (FCD) metric (if enabled)
+
+    Args:
+        manifest_path: Path to the evaluation manifest (NDJSON format).
+        audio_dir: Directory containing ground truth audio files.
+        generated_audio_dir: Directory containing generated audio files.
+        config: Evaluation configuration.
+
+    Returns:
+        Tuple of:
+            - avg_metrics: Dictionary of averaged metrics across all files.
+            - filewise_metrics: List of per-file metric dictionaries.
+    """
+    logging.info(f"Evaluating generated audio from {generated_audio_dir} " f"against manifest {manifest_path}")
+
+    return evaluate_generated_audio.evaluate_with_config(
+        manifest_path=manifest_path,
+        audio_dir=audio_dir,
+        generated_audio_dir=generated_audio_dir,
+        config=config,
+    )
+
+
+def compute_mean_with_confidence_interval(
+    metrics_list: List[dict],
+    confidence: float = 0.95,
+) -> Dict[str, str]:
+    """Compute mean and confidence interval for all metrics present in the dicts.
+
+    Args:
+        metrics_list: List of metric dictionaries (one per repeat/run).
+        confidence: Confidence level (default: 0.95 for 95% CI).
+
+    Returns:
+        Dictionary mapping metric names to [mean, CI].
+    """
+    metric_keys = list(metrics_list[0].keys())
+
+    if len(metrics_list) < 2:
+        # Can't compute CI with fewer than 2 samples
+        return {key: f"{metrics_list[0].get(key, 0):.4f} (single sample)" for key in metric_keys}
+
+    results = {}
+    for key in metric_keys:
+        measurements = [m[key] for m in metrics_list if key in m]
+        mean = np.mean(measurements)
+        std_err = stats.sem(measurements)
+
+        # t-distribution critical value for confidence interval
+        t_critical = stats.t.ppf((1 + confidence) / 2, len(measurements) - 1)
+        ci = std_err * t_critical
+
+        results[key] = [mean, ci]
+
+    return results
+
+
+DEFAULT_VIOLIN_METRICS = ['cer', 'pred_context_ssim', 'utmosv2']

@@ -1,0 +1,280 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import torch
+from lightning import LightningDataModule
+from lightning.pytorch.utilities import CombinedLoader
+from omegaconf import DictConfig, OmegaConf, open_dict
+
+from nemo.collections.common.data.fallback import FallbackDataset
+from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
+from nemo.collections.common.data.lhotse.broadcasting import BroadcastingDataLoader, is_dp_source_rank
+from nemo.collections.common.tokenizers import TokenizerSpec
+
+
+class DataModule(LightningDataModule):
+    """
+    A Lightning DataModule specialized for Lhotse dataloading.
+    It takes care of setting up the proper DP ranks for dataloaders, and instantiating them.
+    Keep in mind the actual dataset paths and blend are defined by the YAML config, not Python code.
+
+    The typical structure of the YAML config used to initialize this module looks like the following:
+
+    .. code-block:: yaml
+
+        data:
+          train_ds:
+            input_cfg: path/to/input_cfg.yaml
+            num_workers: 2
+            batch_size: 4
+            # ... Other settings, see nemo/collections/common/data/lhotse/dataloader.py
+
+          validation_ds:
+            # The entries under 'datasets' are a list of separate dataloaders.
+            # The structure is <dataset-name>: {<dataloader-dict-config>}
+            # They inherit all settings from validation_ds, but can individually override them.
+            datasets:
+              val_set_0:  # rename to your dataset name, add more as needed
+                cuts_path: ???  # needs to be specified
+            batch_size: 4
+            # ... Other settings, see nemo/collections/common/data/lhotse/dataloader.py
+
+    See also the examples in ``examples/speechlm2/conf``.
+
+    Args:
+        cfg: a DictConfig instance, typically corresponding to `data` namespace in YAML configs.
+        tokenizer: a tokenizer instance, typically NeMo's AutoTokenizer wrapping HF's AutoTokenizer.
+        dataset: a torch.utils.data.Dataset instance, expected to define __getitem__ that accepts
+            a lhotse.CutSet. It converts metadata + raw data to a batch of PyTorch tensors.
+            The data sampling is controlled by Lhotse samplers rather than the dataset.
+    """
+
+    def __init__(self, cfg, tokenizer: TokenizerSpec, dataset: torch.utils.data.Dataset) -> None:
+        super().__init__()
+        self.cfg = cfg
+        with open_dict(self.cfg):
+            for k in ("validation_ds", "test_ds"):
+                if k in self.cfg:
+                    getattr(self.cfg, k).force_finite = True
+                    getattr(self.cfg, k).force_map_dataset = True
+        self.tokenizer = tokenizer
+        self.dataset = dataset
+        self._train_dl = None
+
+    def _dataset_for_config(self, cfg, *, training: bool) -> torch.utils.data.Dataset:
+        """Apply the loader's audio I/O failure policy to the shared dataset."""
+        fault_tolerant_audio_loading = bool(cfg.get("fault_tolerant_audio_loading", True))
+        dataset = self.dataset
+        configure_policy = getattr(dataset, "with_fault_tolerant_audio_loading", None)
+        if callable(configure_policy):
+            dataset = configure_policy(fault_tolerant_audio_loading)
+        if training and fault_tolerant_audio_loading:
+            dataset = FallbackDataset(dataset)
+        return dataset
+
+    def train_dataloader(self):
+        if "train_ds" not in self.cfg:
+            return None
+        mesh = self._get_device_mesh()
+        if self._train_dl is None:
+            if is_dp_source_rank(mesh):
+                source = get_lhotse_dataloader_from_config(
+                    config=self.cfg.train_ds,
+                    global_rank=self._get_dp_rank(),
+                    world_size=self._get_world_size(),
+                    dataset=self._dataset_for_config(self.cfg.train_ds, training=True),
+                    tokenizer=self.tokenizer,
+                    dp_group=self._get_dp_group(),
+                )
+            else:
+                source = None
+            self._train_dl = BroadcastingDataLoader(source=source, device_mesh=mesh)
+        return self._train_dl
+
+    # state_dict / load_state_dict are intentionally NOT overridden.
+    #
+    # Per-rank dataloader state is now produced and consumed by
+    # ``_PerRankStatefulDataLoader`` (in
+    # ``nemo.collections.common.data.lhotse.dataloader``). ``DataModule``
+    # passes a DP-only process group into that wrapper so ``state_dict``
+    # all-gathers only across DP ranks; ``load_state_dict`` picks the entry
+    # matching the current DP rank. Lightning's ``FitLoop``
+    # already round-trips ``CombinedLoader._state_dicts()`` through
+    # ``loader.state_dict()`` / ``loader.load_state_dict()`` on every rank,
+    # so the wrapper alone is sufficient to keep per-rank shard partitioning
+    # synchronised on resume.
+    #
+    # Historically this class also gathered+scattered the state at the
+    # DataModule level. That worked for the save, but on load, Lightning's
+    # automatic ``FitLoop._load_combined_loader_states`` fired AFTER
+    # ``restore_datamodule`` and overwrote our per-rank load with the
+    # rank-0-only state captured under ``loops.fit_loop.state_dict.combined_loader``
+    # — every non-zero rank's iterator ended up with ``shard_id=0`` (the
+    # rank-0 worker-0 value) and ``PartitionedIndexedIterator.iterate``
+    # raised ``topology mismatch on resume`` ~14 min into training. See
+    # ``agent-debug-workspace/0909-en-only-id2-4node-postfix/DIAGNOSIS_ORD_vs_IAD.md``
+    # for the full post-mortem.
+
+    def val_dataloader(self):
+        if "validation_ds" not in self.cfg:
+            return None
+        cfg = self.cfg.validation_ds
+        return self._build_test_dataloader(cfg)
+
+    def test_dataloader(self):
+        if "test_ds" not in self.cfg:
+            return None
+        cfg = self.cfg.test_ds
+        return self._build_test_dataloader(cfg)
+
+    def predict_dataloader(self):
+        if "predict_ds" not in self.cfg:
+            return None
+        cfg = self.cfg.predict_ds
+
+        base_cfg = cfg.copy()
+        with open_dict(base_cfg):
+            del base_cfg.datasets
+        dloaders = {}
+        for name, item in cfg.datasets.items():
+            with open_dict(base_cfg):
+                item = OmegaConf.merge(base_cfg, item)
+            dloaders[name] = self._build_test_dataloader(item)
+        # NOTE(yifan): `trainer.predict()` only supports the `CombinedLoader(mode="sequential")` mode
+        # so we cannot reuse the `_build_test_dataloader` function here
+        return CombinedLoader(dloaders, mode="sequential")
+
+    def _build_test_dataloader(self, cfg: DictConfig) -> torch.utils.data.DataLoader | CombinedLoader:
+        # Single validation/test dataloader.
+        # This is internal-only: the config has to specify multiple dataloaders via "datasets" key,
+        # even for a single validation/test set.
+        if "datasets" not in cfg:
+            with open_dict(cfg):
+                cfg.force_finite = True
+                cfg.force_map_dataset = True
+            mesh = self._get_device_mesh()
+            if is_dp_source_rank(mesh):
+                source = get_lhotse_dataloader_from_config(
+                    config=cfg,
+                    global_rank=self._get_dp_rank(),
+                    world_size=self._get_world_size(),
+                    dataset=self._dataset_for_config(cfg, training=False),
+                    tokenizer=self.tokenizer,
+                    dp_group=self._get_dp_group(),
+                )
+            else:
+                source = None
+            return BroadcastingDataLoader(source=source, device_mesh=mesh)
+
+        # Multiple validation/test dataloaders.
+        # Config looks like:
+        #
+        # validation_ds:
+        #   batch_size: ...
+        #   datasets:
+        #     easy_benchmark:
+        #       shar_path: ...
+        #     hard_benchmark:
+        #       shar_path: ...
+        base_cfg = cfg.copy()
+        with open_dict(base_cfg):
+            del base_cfg.datasets
+        dloaders = {}
+        for name, item in cfg.datasets.items():
+            with open_dict(base_cfg):
+                item = OmegaConf.merge(base_cfg, item)
+            dloaders[name] = self._build_test_dataloader(item)
+        return CombinedLoader(dloaders, mode="max_size")
+
+    def _get_device_mesh(self):
+        if not (torch.distributed.is_available() and torch.distributed.is_initialized()):
+            return None
+        if hasattr(self.trainer, "model") and hasattr(self.trainer.model, "device_mesh"):
+            return self.trainer.model.device_mesh
+        return None
+
+    def _get_dp_rank(self):
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if (
+                hasattr(self.trainer, "model")
+                and hasattr(self.trainer.model, "device_mesh")
+                and (dm := self.trainer.model.device_mesh) is not None
+            ):  # model parallelism
+                if "data_parallel" in dm.mesh_dim_names:  # Lightning's built-in ModelParallelStrategy
+                    dp_rank = dm["data_parallel"].get_local_rank()
+                elif (
+                    "dp_shard" in dm.mesh_dim_names and "dp_replicate" in dm.mesh_dim_names
+                ):  # AutomodelParallelStrategy
+                    try:
+                        dp_rank = dm["dp"].get_local_rank()
+                    except (KeyError, RuntimeError, ValueError):
+                        # Compatibility for older Automodel/PyTorch meshes without a flattened "dp" submesh.
+                        dp_rank = (
+                            dm["dp_replicate"].get_local_rank() * dm["dp_shard"].size()
+                            + dm["dp_shard"].get_local_rank()
+                        )
+                return dp_rank
+            else:
+                return torch.distributed.get_rank()  # plain ol' DDP
+        else:
+            return 0  # 1 GPU
+
+    def _get_world_size(self):
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if (
+                hasattr(self.trainer, "model")
+                and hasattr(self.trainer.model, "device_mesh")
+                and (dm := self.trainer.model.device_mesh) is not None
+            ):  # model parallelism
+                if "data_parallel" in dm.mesh_dim_names:  # Lightning's built-in ModelParallelStrategy
+                    dp_size = dm["data_parallel"].size()
+                elif (
+                    "dp_shard" in dm.mesh_dim_names and "dp_replicate" in dm.mesh_dim_names
+                ):  # AutomodelParallelStrategy
+                    try:
+                        dp_size = dm["dp"].size()
+                    except (KeyError, RuntimeError, ValueError):
+                        # Compatibility for older Automodel/PyTorch meshes without a flattened "dp" submesh.
+                        dp_size = dm["dp_replicate", "dp_shard"].size()
+                return dp_size
+            else:  # plain ol' DDP
+                return torch.distributed.get_world_size()
+        else:
+            return 1  # 1 GPU
+
+    def _get_dp_group(self):
+        """Return the torch.distributed process group covering this rank's DP siblings.
+
+        Passed to ``_PerRankStatefulDataLoader`` so dataloader state is
+        gathered across DP ranks only, excluding CP/TP/PP/EP duplicates that
+        receive batches via ``BroadcastingDataLoader``. Returns ``None`` for
+        plain DDP and single-process runs, where the default world group is the
+        DP group.
+        """
+        if not (torch.distributed.is_available() and torch.distributed.is_initialized()):
+            return None
+        if (
+            hasattr(self.trainer, "model")
+            and hasattr(self.trainer.model, "device_mesh")
+            and (dm := self.trainer.model.device_mesh) is not None
+        ):
+            if "data_parallel" in dm.mesh_dim_names:  # Lightning's ModelParallelStrategy
+                return dm["data_parallel"].get_group()
+            if "dp_shard" in dm.mesh_dim_names and "dp_replicate" in dm.mesh_dim_names:
+                try:
+                    return dm["dp"].get_group()
+                except (KeyError, RuntimeError, ValueError):
+                    # Compatibility for older Automodel/PyTorch meshes without a flattened "dp" submesh.
+                    return dm["dp_replicate", "dp_shard"].get_group()
+        return None  # default = global DDP group

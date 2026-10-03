@@ -1,0 +1,16 @@
+name: Community Bot
+
+on:
+  issues:
+    types: [opened, edited, reopened, closed, deleted]
+  issue_comment:
+    types: [created, edited, deleted]
+
+jobs:
+  community-bot:
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_community_bot.yml@98ea77e930f3e1b0f97a1ce5255e12c407e9d0d4 # v1.8.7
+    with:
+      community_project_id: ${{ vars.COMMUNITY_PROJECT_ID }}
+      app-id: ${{ vars.BOT_ID }}
+    secrets:
+      BOT_KEY: ${{ secrets.BOT_KEY }}

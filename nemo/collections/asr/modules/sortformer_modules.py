@@ -1,0 +1,1349 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import math
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from nemo.core.classes.exportable import Exportable
+from nemo.core.classes.module import NeuralModule
+from nemo.utils import logging
+
+__all__ = ['SortformerModules']
+
+
+@dataclass
+class StreamingSortformerState:
+    """
+    This class creates a class instance that will be used to store the state of the
+    streaming Sortformer model.
+
+    Attributes:
+        spkcache (torch.Tensor): Speaker cache to store embeddings from start
+        spkcache_lengths (torch.Tensor): Lengths of the speaker cache
+        spkcache_preds (torch.Tensor): The speaker predictions for the speaker cache parts
+        spkcache_compressed (bool or torch.Tensor): Whether speaker-cache compression has run. A scalar is used for
+            synchronous streaming and per-row flags are used for asynchronous streaming.
+        fifo (torch.Tensor): FIFO queue to save the embedding from the latest chunks
+        fifo_lengths (torch.Tensor): Lengths of the FIFO queue
+        fifo_preds (torch.Tensor): The speaker predictions for the FIFO queue parts
+        spk_perm (torch.Tensor): Speaker permutation information for the speaker cache
+        mean_sil_emb (torch.Tensor): Mean silence embedding
+        n_sil_frames (torch.Tensor): Number of silence frames
+    """
+
+    spkcache = None  # Speaker cache to store embeddings from start
+    spkcache_lengths = None  #
+    spkcache_preds = None  # speaker cache predictions
+    spkcache_compressed = False
+    fifo = None  # to save the embedding from the latest chunks
+    fifo_lengths = None
+    fifo_preds = None
+    spk_perm = None
+    mean_sil_emb = None
+    n_sil_frames = None
+
+    def to(self, device):
+        """
+        Move state tensors to a target device while preserving their dtypes.
+
+        Args:
+            device (str or torch.device): Target device for every tensor in the streaming state.
+        """
+        if self.spkcache is not None:
+            self.spkcache = self.spkcache.to(device)
+        if self.spkcache_lengths is not None:
+            self.spkcache_lengths = self.spkcache_lengths.to(device)
+        if self.spkcache_preds is not None:
+            self.spkcache_preds = self.spkcache_preds.to(device)
+        if isinstance(self.spkcache_compressed, torch.Tensor):
+            self.spkcache_compressed = self.spkcache_compressed.to(device)
+        if self.fifo is not None:
+            self.fifo = self.fifo.to(device)
+        if self.fifo_lengths is not None:
+            self.fifo_lengths = self.fifo_lengths.to(device)
+        if self.fifo_preds is not None:
+            self.fifo_preds = self.fifo_preds.to(device)
+        if self.spk_perm is not None:
+            self.spk_perm = self.spk_perm.to(device)
+        if self.mean_sil_emb is not None:
+            self.mean_sil_emb = self.mean_sil_emb.to(device)
+        if self.n_sil_frames is not None:
+            self.n_sil_frames = self.n_sil_frames.to(device)
+
+
+class SortformerModules(NeuralModule, Exportable):
+    """
+    A class including auxiliary functions for Sortformer models.
+    This class contains and will contain the following functions that performs streaming features,
+    and any neural layers that are not included in the NeMo neural modules
+    (e.g. Transformer, Fast-Conformer).
+    """
+
+    @staticmethod
+    def _validate_integer_parameter(name: str, value: int, minimum: int):
+        """
+        Validate an integer parameter against an inclusive minimum.
+
+        Args:
+            name (str): Parameter name used in validation error messages.
+            value (int): Parameter value to validate.
+            minimum (int): Smallest permitted value.
+
+        Raises:
+            TypeError: If ``value`` is not an integer or is a boolean.
+            ValueError: If ``value`` is less than ``minimum``.
+        """
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(f"Parameter '{name}' must be an integer, but got {name}: {value}")
+        if value < minimum:
+            raise ValueError(f"Parameter '{name}' must be at least {minimum}, but got {value}.")
+
+    def __init__(
+        self,
+        num_spks: int = 4,
+        dropout_rate: float = 0.5,
+        fc_d_model: int = 512,
+        tf_d_model: int = 192,
+        subsampling_factor: int = 8,
+        spkcache_len: int = 188,
+        fifo_len: int = 0,
+        chunk_len: int = 188,
+        spkcache_update_period: int = 188,
+        chunk_left_context: int = 1,
+        chunk_right_context: int = 1,
+        spkcache_sil_frames_per_spk: int = 3,
+        causal_attn_rate: float = 0,
+        causal_attn_rc: int = 7,
+        scores_add_rnd: float = 0,
+        pred_score_threshold: float = 0.25,
+        max_index: int = 99999,
+        scores_boost_latest: float = 0.05,
+        sil_threshold: float = 0.2,
+        strong_boost_rate: float = 0.75,
+        weak_boost_rate: float = 1.5,
+        min_pos_scores_rate: float = 0.5,
+        use_learnable_sil_emb: bool = False,
+        upsample_factor: int = 1,
+        async_desync_updates: bool = False,
+        use_activity_head: bool = False,
+    ) -> None:
+        super().__init__()
+        self._validate_integer_parameter('num_spks', num_spks, 1)
+        if not isinstance(upsample_factor, int) or isinstance(upsample_factor, bool) or upsample_factor < 1:
+            raise ValueError(f"upsample_factor must be a positive integer, got {upsample_factor}")
+        if not isinstance(use_activity_head, bool):
+            raise TypeError(f"use_activity_head must be a boolean, got {type(use_activity_head).__name__}")
+        # General params
+        self.subsampling_factor = subsampling_factor
+        self.fc_d_model = fc_d_model
+        self.tf_d_model = tf_d_model
+        self.upsample_factor = upsample_factor
+        self.hidden_size = tf_d_model
+        self.n_spk: int = num_spks
+        self.hidden_to_spks = nn.Linear(2 * self.hidden_size, self.n_spk)
+        self.hidden_to_spks.requires_grad_(False)
+        self.first_hidden_to_hidden = nn.Linear(self.hidden_size, self.hidden_size)
+        self.single_hidden_to_spks = nn.Linear(self.hidden_size, self.n_spk)
+        self.activity_head = (
+            nn.Sequential(
+                nn.LayerNorm(self.hidden_size),
+                nn.Linear(self.hidden_size, 3),
+            )
+            if use_activity_head
+            else None
+        )
+        self.dropout = nn.Dropout(dropout_rate)
+        self.encoder_proj = nn.Linear(self.fc_d_model, self.tf_d_model)
+        self.subpixel_upsample = None
+        if self.upsample_factor > 1:
+            self.subpixel_upsample = nn.Conv1d(
+                in_channels=self.tf_d_model,
+                out_channels=self.tf_d_model * self.upsample_factor,
+                kernel_size=3,
+                padding=1,
+            )
+            with torch.no_grad():
+                self.subpixel_upsample.weight.zero_()
+                repeat_identity = torch.eye(
+                    self.tf_d_model,
+                    device=self.subpixel_upsample.weight.device,
+                    dtype=self.subpixel_upsample.weight.dtype,
+                ).repeat(self.upsample_factor, 1)
+                self.subpixel_upsample.weight[:, :, 1].copy_(repeat_identity)
+                self.subpixel_upsample.bias.zero_()
+        self.log = False
+
+        # Streaming-related params
+        self.spkcache_len = spkcache_len
+        self.fifo_len = fifo_len
+        self.chunk_len = chunk_len
+        self.chunk_left_context = chunk_left_context
+        self.chunk_right_context = chunk_right_context
+        self.spkcache_sil_frames_per_spk = spkcache_sil_frames_per_spk
+        self.spkcache_update_period = spkcache_update_period
+        self.causal_attn_rate = causal_attn_rate
+        self.causal_attn_rc = causal_attn_rc
+        self.scores_add_rnd = scores_add_rnd
+        self.max_index = max_index
+        self.pred_score_threshold = pred_score_threshold
+        self.scores_boost_latest = scores_boost_latest
+        self.sil_threshold = sil_threshold
+        self.strong_boost_rate = strong_boost_rate
+        self.weak_boost_rate = weak_boost_rate
+        self.min_pos_scores_rate = min_pos_scores_rate
+        self.use_learnable_sil_emb = use_learnable_sil_emb
+        self.async_desync_updates = async_desync_updates
+        if self.use_learnable_sil_emb:
+            self.learnable_sil_emb = nn.Parameter(torch.zeros(self.fc_d_model))
+
+    def _check_streaming_parameters(self):
+        """
+        Check if there are any illegal parameter combinations.
+
+        Restrictions:
+            - All streaming parameters should be non-negative integers.
+            - Chunk length and speaker cache update period should be greater than 0.
+            - Speaker cache length should be greater than or equal to `(1 + spkcache_sil_frames_per_spk ) * n_spk`.
+            - The effective range of self.spkcache_update_period is: chunk_len <= spkcache_update_period <= fifo_len + chunk_len
+        """
+        param_constraints = {
+            'spkcache_len': (1 + self.spkcache_sil_frames_per_spk) * self.n_spk,
+            'fifo_len': 0,
+            'chunk_len': 1,
+            'spkcache_update_period': 1,
+            'chunk_left_context': 0,
+            'chunk_right_context': 0,
+            'spkcache_sil_frames_per_spk': 0,
+        }
+
+        for param, min_val in param_constraints.items():
+            val = getattr(self, param)
+            self._validate_integer_parameter(param, val, min_val)
+
+        if self.spkcache_update_period < self.chunk_len:
+            logging.warning(
+                f"spkcache_update_period ({self.spkcache_update_period}) is less than chunk_len ({self.chunk_len}). "
+                f"The effective update period will be {self.chunk_len}."
+            )
+        if self.spkcache_update_period > self.fifo_len + self.chunk_len:
+            logging.warning(
+                f"spkcache_update_period ({self.spkcache_update_period}) is greater than "
+                f"fifo_len + chunk_len ({self.fifo_len + self.chunk_len}). "
+                f"The effective update period will be {self.fifo_len + self.chunk_len}."
+            )
+
+    @staticmethod
+    def length_to_mask(lengths, max_length: int):
+        """
+        Convert length values to encoder mask input tensor
+
+        Args:
+            lengths (torch.Tensor): Tensor containing lengths of sequences
+            max_length (int): maximum sequence length
+
+        Returns:
+            mask (torch.Tensor): Tensor of shape (batch_size, max_len) containing 0's
+                                 in the padded region and 1's elsewhere
+        """
+        batch_size = lengths.shape[0]
+        arange = torch.arange(max_length, device=lengths.device)
+        mask = arange.expand(batch_size, max_length) < lengths.unsqueeze(1)
+        return mask
+
+    def streaming_feat_loader(
+        self, feat_seq, feat_seq_length, feat_seq_offset
+    ) -> Tuple[int, torch.Tensor, torch.Tensor, int, int]:
+        """
+        Load a chunk of feature sequence for streaming inference.
+
+        Args:
+            feat_seq (torch.Tensor): Tensor containing feature sequence
+                Shape: (batch_size, feat_dim, feat frame count)
+            feat_seq_length (torch.Tensor): Tensor containing feature sequence lengths
+                Shape: (batch_size,)
+            feat_seq_offset (torch.Tensor): Tensor containing feature sequence offsets
+                Shape: (batch_size,)
+
+        Returns:
+            chunk_idx (int): Index of the current chunk
+            chunk_feat_seq (torch.Tensor): Tensor containing the chunk of feature sequence
+                Shape: (batch_size, diar frame count, feat_dim)
+            feat_lengths (torch.Tensor): Tensor containing lengths of the chunk of feature sequence
+                Shape: (batch_size,)
+        """
+        self._validate_integer_parameter('chunk_len', self.chunk_len, 1)
+        self._validate_integer_parameter('subsampling_factor', self.subsampling_factor, 1)
+        feat_len = feat_seq.shape[2]
+        num_chunks = math.ceil(feat_len / (self.chunk_len * self.subsampling_factor))
+        if self.log:
+            logging.info(
+                f"feat_len={feat_len}, num_chunks={num_chunks}, "
+                f"feat_seq_length={feat_seq_length}, feat_seq_offset={feat_seq_offset}"
+            )
+
+        stt_feat, end_feat, chunk_idx = 0, 0, 0
+        while end_feat < feat_len:
+            left_offset = min(self.chunk_left_context * self.subsampling_factor, stt_feat)
+            end_feat = min(stt_feat + self.chunk_len * self.subsampling_factor, feat_len)
+            right_offset = min(self.chunk_right_context * self.subsampling_factor, feat_len - end_feat)
+            chunk_feat_seq = feat_seq[:, :, stt_feat - left_offset : end_feat + right_offset]
+            feat_lengths = (feat_seq_length + feat_seq_offset - stt_feat + left_offset).clamp(
+                0, chunk_feat_seq.shape[2]
+            )
+            feat_lengths = feat_lengths * (feat_seq_offset < end_feat)
+            stt_feat = end_feat
+            chunk_feat_seq_t = torch.transpose(chunk_feat_seq, 1, 2)
+            if self.log:
+                logging.info(
+                    f"chunk_idx: {chunk_idx}, "
+                    f"chunk_feat_seq_t shape: {chunk_feat_seq_t.shape}, "
+                    f"chunk_feat_lengths: {feat_lengths}"
+                )
+            yield chunk_idx, chunk_feat_seq_t, feat_lengths, left_offset, right_offset
+            chunk_idx += 1
+
+    def forward_speaker_logits(self, hidden_out):
+        """
+        The final layer that outputs raw speaker logits.
+
+        Args:
+            hidden_out (torch.Tensor): Tensor containing hidden states from the encoder
+                Shape: (batch_size, n_frames, hidden_dim)
+
+        Returns:
+            logits (torch.Tensor): Tensor containing raw speaker logits
+                Shape: (batch_size, n_frames, n_spk)
+        """
+        hidden_out = self.dropout(F.relu(hidden_out))
+        hidden_out = self.first_hidden_to_hidden(hidden_out)
+        hidden_out = self.dropout(F.relu(hidden_out))
+        return self.single_hidden_to_spks(hidden_out)
+
+    def forward_speaker_sigmoids(self, hidden_out):
+        """
+        The final layer that outputs speaker probabilities using the Sigmoid activation function.
+
+        Args:
+            hidden_out (torch.Tensor): Tensor containing hidden states from the encoder
+                Shape: (batch_size, n_frames, hidden_dim)
+
+        Returns:
+            preds (torch.Tensor): Tensor containing speaker probabilities computed using
+                the Sigmoid activation function
+                Shape: (batch_size, n_frames, n_spk)
+        """
+        return torch.sigmoid(self.forward_speaker_logits(hidden_out))
+
+    def forward_activity_logits(self, hidden_out: torch.Tensor) -> Optional[torch.Tensor]:
+        """Project hidden states to frame-level speaker-activity logits.
+
+        The three output classes represent silence (no active speakers), single-speaker
+        activity, and overlapping activity (two or more active speakers), respectively.
+        The returned values are raw, unnormalized logits intended for cross-entropy loss.
+
+        Args:
+            hidden_out: Post-transformer hidden states with shape ``(B, T, H)``.
+
+        Returns:
+            Raw activity logits with shape ``(B, T, 3)`` when the auxiliary activity
+            head is enabled, or ``None`` when it is disabled.
+        """
+        if self.activity_head is None:
+            return None
+        return self.activity_head(hidden_out)
+
+    def upsample_hidden(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        """
+        Upsample transformer hidden states when high-resolution output is enabled.
+
+        Args:
+            hidden_states (torch.Tensor): Transformer states with shape ``(B, T, H)``.
+
+        Returns:
+            upsampled_hidden_states (torch.Tensor): States with shape ``(B, T * upsample_factor, H)``, or the
+                unchanged input when upsampling is disabled.
+        """
+        if self.subpixel_upsample is None:
+            return hidden_states
+        batch_size, num_frames, hidden_size = hidden_states.shape
+        projected = self.subpixel_upsample(hidden_states.transpose(1, 2)).transpose(1, 2)
+        return projected.reshape(batch_size, num_frames, self.upsample_factor, hidden_size).reshape(
+            batch_size, num_frames * self.upsample_factor, hidden_size
+        )
+
+    @staticmethod
+    def downsample_preds(preds: torch.Tensor, downsample_factor: int, lengths: torch.Tensor = None) -> torch.Tensor:
+        """
+        Average non-overlapping prediction windows while retaining a partial final window.
+
+        Args:
+            preds (torch.Tensor): Speaker probabilities with shape ``(B, T, S)``.
+            downsample_factor (int): Number of consecutive input frames per output frame.
+            lengths (Optional[torch.Tensor]): Valid input lengths with shape ``(B,)``. When provided,
+                padded frames are excluded from each sample's final partial-window average.
+
+        Returns:
+            downsampled_preds (torch.Tensor): Probabilities with shape
+                ``(B, ceil(T / downsample_factor), S)``.
+        """
+        if not isinstance(downsample_factor, int) or isinstance(downsample_factor, bool) or downsample_factor < 1:
+            raise ValueError(f"downsample_factor must be a positive integer, got {downsample_factor}")
+        if preds.ndim != 3:
+            raise ValueError(f"preds must have shape (B, T, S), got {preds.shape}")
+        if downsample_factor == 1 or preds.shape[1] == 0:
+            return preds
+
+        def pool(values):
+            return F.avg_pool1d(
+                values,
+                kernel_size=downsample_factor,
+                stride=downsample_factor,
+                ceil_mode=True,
+                count_include_pad=False,
+            )
+
+        preds = preds.transpose(1, 2)
+        if lengths is not None:
+            if lengths.shape != (preds.shape[0],):
+                raise ValueError(f"lengths must have shape {(preds.shape[0],)}, got {lengths.shape}")
+            num_frames = preds.shape[2]
+            lengths = lengths.to(device=preds.device).clamp(min=0, max=num_frames)
+            valid_mask = (torch.arange(num_frames, device=preds.device).unsqueeze(0) < lengths.unsqueeze(1)).unsqueeze(
+                1
+            )
+            valid_mask = valid_mask.to(preds.dtype)
+            pooled_mask = pool(valid_mask)
+            preds = pool(preds * valid_mask) / pooled_mask.clamp_min(torch.finfo(preds.dtype).eps)
+        else:
+            preds = pool(preds)
+        return preds.transpose(1, 2)
+
+    @staticmethod
+    def concat_embs(
+        list_of_tensors: List[torch.Tensor],
+        return_lengths: bool = False,
+        dim: int = 1,
+        device: torch.device = None,
+    ):
+        """
+        Concatenate a list of tensors along the specified dimension.
+
+        Args:
+            list_of_tensors (List[torch.Tensor]): List of tensors to concatenate
+            return_lengths (bool): Whether to return temporal lengths. Only supported when ``dim=1``.
+            dim (int): Concatenation axis
+            device (torch.device): device to use for tensor operations
+
+        Returns:
+            embs (torch.Tensor): concatenated tensor
+        """
+        embs = torch.cat(list_of_tensors, dim=dim)
+        if return_lengths and dim != 1:
+            raise ValueError("return_lengths=True is only supported for the temporal dimension, dim=1.")
+        if device is not None:
+            embs = embs.to(device)
+        if return_lengths:
+            lengths = torch.full((embs.shape[0],), embs.shape[1], dtype=torch.long, device=embs.device)
+            return embs, lengths
+        else:
+            return embs
+
+    @staticmethod
+    def concat_and_pad(embs: List[torch.Tensor], lengths: List[torch.Tensor], output_length: Optional[int] = None):
+        """
+        Concatenates lengths[i] first embeddings of embs[i], and pads the rest elements with zeros.
+
+        Args:
+            embs (List[torch.Tensor]): Embedding tensors with shape ``(B, T_i, D)``.
+            lengths (List[torch.Tensor]): Valid lengths for each embedding tensor, each with shape ``(B,)``.
+            output_length (Optional[int]): Fixed output width. It must fit the full physical capacity of all inputs.
+
+        Returns:
+            output (torch.Tensor): Concatenated and padded embeddings with shape ``(B, T_output, D)``.
+            total_lengths (torch.Tensor): Summed valid output lengths with shape ``(B,)``.
+        """
+        # Error handling for mismatched list lengths
+        if len(embs) != len(lengths):
+            raise ValueError(
+                f"Length lists must have the same length, but got len(embs) - {len(embs)} "
+                f"and len(lengths) - {len(lengths)}."
+            )
+        # Handle empty lists
+        if len(embs) == 0 or len(lengths) == 0:
+            raise ValueError(
+                f"Cannot concatenate empty lists of embeddings or lengths: embs - {len(embs)}, lengths - {len(lengths)}"
+            )
+
+        device, dtype = embs[0].device, embs[0].dtype
+        batch_size, emb_dim = embs[0].shape[0], embs[0].shape[2]
+
+        total_lengths = torch.sum(torch.stack(lengths), dim=0)
+        if output_length is None:
+            sig_length = total_lengths.max().item()
+        else:
+            input_capacity = sum(emb.shape[1] for emb in embs)
+            if isinstance(output_length, int) and isinstance(input_capacity, int) and output_length < input_capacity:
+                raise ValueError(
+                    f"output_length ({output_length}) must be at least the total input capacity ({input_capacity})."
+                )
+            sig_length = output_length
+
+        # Reserve one extra position as the destination for invalid/padded source frames.
+        # This keeps all indexing tensors rectangular and avoids a Python loop over the batch.
+        flat_output = torch.zeros(batch_size * sig_length + 1, emb_dim, device=device, dtype=dtype)
+        start_indices = torch.zeros(batch_size, dtype=torch.int64, device=device)
+        batch_offsets = torch.arange(batch_size, dtype=torch.long, device=device).unsqueeze(1) * sig_length
+        padding_index = torch.tensor(batch_size * sig_length, dtype=torch.long, device=device)
+
+        for emb, length in zip(embs, lengths):
+            source_indices = torch.arange(emb.shape[1], dtype=torch.long, device=device).unsqueeze(0)
+            valid_mask = source_indices < length.unsqueeze(1)
+            flat_destination_indices = torch.where(
+                valid_mask,
+                batch_offsets + start_indices.unsqueeze(1) + source_indices,
+                padding_index,
+            ).reshape(-1)
+            flat_source = emb.reshape(-1, emb_dim).type_as(flat_output)
+            flat_output.index_copy_(0, flat_destination_indices, flat_source)
+            start_indices += length
+
+        output = flat_output[: batch_size * sig_length].view(batch_size, sig_length, emb_dim)
+        return output, total_lengths
+
+    def init_streaming_state(self, batch_size: int = 1, async_streaming: bool = False, device: torch.device = None):
+        """
+        Initializes StreamingSortformerState with empty tensors or zero-valued tensors.
+
+        Args:
+            batch_size (int): Batch size for tensors in streaming state
+            async_streaming (bool): True for asynchronous update, False for synchronous update
+            device (torch.device): Device for tensors in streaming state
+
+        Returns:
+            streaming_state (SortformerStreamingState): initialized streaming state
+        """
+        streaming_state = StreamingSortformerState()
+        if async_streaming:
+            streaming_state.spkcache = torch.zeros((batch_size, self.spkcache_len, self.fc_d_model), device=device)
+            streaming_state.spkcache_preds = torch.zeros((batch_size, self.spkcache_len, self.n_spk), device=device)
+            streaming_state.spkcache_lengths = torch.zeros((batch_size,), dtype=torch.long, device=device)
+            streaming_state.spkcache_compressed = torch.zeros((batch_size,), dtype=torch.bool, device=device)
+            streaming_state.fifo = torch.zeros((batch_size, self.fifo_len, self.fc_d_model), device=device)
+            streaming_state.fifo_lengths = torch.zeros((batch_size,), dtype=torch.long, device=device)
+        else:
+            streaming_state.spkcache = torch.zeros((batch_size, 0, self.fc_d_model), device=device)
+            streaming_state.fifo = torch.zeros((batch_size, 0, self.fc_d_model), device=device)
+        streaming_state.mean_sil_emb = torch.zeros((batch_size, self.fc_d_model), device=device)
+        streaming_state.n_sil_frames = torch.zeros((batch_size,), dtype=torch.long, device=device)
+        return streaming_state
+
+    @staticmethod
+    def apply_mask_to_preds(spkcache_fifo_chunk_preds, spkcache_fifo_chunk_fc_encoder_lengths):
+        """
+        Applies mask to speaker cache and FIFO queue to ensure that only valid frames are
+        considered for predictions from the model.
+
+        Args:
+            spkcache_fifo_chunk_preds (torch.Tensor): Speaker predictions of the chunk
+            spkcache_fifo_chunk_fc_encoder_lengths (torch.Tensor): Lengths of current chunk in
+                                                                   the Fast-Conformer encoder
+
+        Returns:
+            spkcache_fifo_chunk_preds (torch.Tensor): Speaker predictions of the chunk with valid frames only
+        """
+        batch_size, n_frames, n_spk = spkcache_fifo_chunk_preds.shape
+        preds_mask = torch.arange(n_frames, device=spkcache_fifo_chunk_preds.device).view(1, -1, 1)
+        preds_mask = preds_mask.expand(batch_size, -1, n_spk) < spkcache_fifo_chunk_fc_encoder_lengths.view(-1, 1, 1)
+        preds_mask = preds_mask.expand(-1, n_frames, n_spk)
+        spkcache_fifo_chunk_preds = torch.where(preds_mask, spkcache_fifo_chunk_preds, torch.tensor(0.0))
+        return spkcache_fifo_chunk_preds
+
+    def _gather_async_predictions(
+        self,
+        streaming_state,
+        preds,
+        spkcache_lengths,
+        fifo_lengths,
+        chunk_lengths,
+        max_spkcache_len,
+        max_fifo_len,
+        max_chunk_len,
+        lc,
+    ):
+        """
+        Map packed predictions to rectangular speaker-cache, FIFO, and chunk regions.
+
+        Args:
+            streaming_state (StreamingSortformerState): Streaming state containing prediction dtype information.
+            preds (torch.Tensor): Packed speaker predictions.
+                Shape: (batch_size, packed_length, n_spk)
+            spkcache_lengths (torch.Tensor): Valid speaker-cache lengths.
+                Shape: (batch_size,)
+            fifo_lengths (torch.Tensor): Valid FIFO lengths.
+                Shape: (batch_size,)
+            chunk_lengths (torch.Tensor): Valid normalized chunk lengths.
+                Shape: (batch_size,)
+            max_spkcache_len (int): Physical speaker-cache capacity.
+            max_fifo_len (int): Physical FIFO capacity.
+            max_chunk_len (int): Physical chunk capacity excluding context.
+            lc (int): Left chunk context excluded from the returned chunk predictions.
+
+        Returns:
+            current_spkcache_preds (torch.Tensor): Left-aligned speaker-cache predictions.
+                Shape: (batch_size, max_spkcache_len, n_spk)
+            current_fifo_preds (torch.Tensor): Left-aligned FIFO predictions.
+                Shape: (batch_size, max_fifo_len, n_spk)
+            chunk_preds (torch.Tensor): Left-aligned chunk predictions.
+                Shape: (batch_size, max_chunk_len, n_spk)
+        """
+        batch_size, _, n_spk = preds.shape
+        spkcache_positions = torch.arange(max_spkcache_len, device=preds.device).unsqueeze(0)
+        fifo_positions = torch.arange(max_fifo_len, device=preds.device).unsqueeze(0)
+        chunk_positions = torch.arange(max_chunk_len, device=preds.device).unsqueeze(0)
+        spkcache_pred_indices = spkcache_positions.expand(batch_size, -1)
+        fifo_pred_indices = spkcache_lengths.unsqueeze(1) + fifo_positions
+        chunk_pred_indices = spkcache_lengths.unsqueeze(1) + fifo_lengths.unsqueeze(1) + lc + chunk_positions
+        valid_spkcache_preds = spkcache_positions < spkcache_lengths.unsqueeze(1)
+        valid_fifo_preds = fifo_positions < fifo_lengths.unsqueeze(1)
+        valid_chunk_preds = chunk_positions < chunk_lengths.unsqueeze(1)
+        pred_indices = torch.cat([spkcache_pred_indices, fifo_pred_indices, chunk_pred_indices], dim=1)
+        valid_pred_indices = torch.cat([valid_spkcache_preds, valid_fifo_preds, valid_chunk_preds], dim=1)
+        pred_padding_index = preds.shape[1]
+        pred_indices = torch.where(valid_pred_indices, pred_indices, pred_padding_index)
+        padded_preds = torch.cat([preds, preds.new_zeros((batch_size, 1, n_spk))], dim=1)
+        gathered_preds = torch.gather(padded_preds, 1, pred_indices.unsqueeze(-1).expand(-1, -1, n_spk))
+        gathered_preds = gathered_preds.type_as(streaming_state.spkcache_preds)
+        return torch.split(gathered_preds, [max_spkcache_len, max_fifo_len, max_chunk_len], dim=1)
+
+    def _compute_async_fifo_pop_lengths(
+        self, spkcache_lengths, fifo_lengths, chunk_lengths, max_fifo_len
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Calculate per-row FIFO eviction and retained lengths without host synchronization.
+
+        Args:
+            spkcache_lengths (torch.Tensor): Valid speaker-cache lengths.
+                Shape: (batch_size,)
+            fifo_lengths (torch.Tensor): Valid FIFO lengths.
+                Shape: (batch_size,)
+            chunk_lengths (torch.Tensor): Valid normalized chunk lengths.
+                Shape: (batch_size,)
+            max_fifo_len (int): Physical FIFO capacity.
+
+        Returns:
+            pop_out_lengths (torch.Tensor): Number of FIFO frames popped per row.
+                Shape: (batch_size,)
+            new_fifo_lengths (torch.Tensor): Number of FIFO frames retained per row.
+                Shape: (batch_size,)
+        """
+        combined_fifo_lengths = fifo_lengths + chunk_lengths
+        overflow_lengths = combined_fifo_lengths - max_fifo_len
+        update_period = torch.full_like(combined_fifo_lengths, self.spkcache_update_period)
+        pop_out_lengths = torch.where(
+            combined_fifo_lengths > max_fifo_len,
+            torch.minimum(combined_fifo_lengths, torch.maximum(update_period, overflow_lengths)),
+            torch.zeros_like(combined_fifo_lengths),
+        )
+        if self.async_desync_updates:
+            # Offline batches start all streams together, hiding the ragged update phases seen when
+            # production streams arrive independently. Stagger those phases by randomizing the first pop.
+            first_fifo_pop = (spkcache_lengths == 0) & (combined_fifo_lengths > max_fifo_len) & (chunk_lengths > 0)
+            random_pop_range = (pop_out_lengths - overflow_lengths + 1).clamp_min(1)
+            random_pop_offsets = torch.floor(
+                torch.rand_like(combined_fifo_lengths, dtype=torch.float32) * random_pop_range
+            ).to(torch.long)
+            random_pop_lengths = overflow_lengths + random_pop_offsets
+            pop_out_lengths = torch.where(first_fifo_pop, random_pop_lengths, pop_out_lengths)
+        # A zero-length chunk marks a finalized row; flush its remaining FIFO into the speaker cache.
+        pop_out_lengths = torch.where(chunk_lengths == 0, fifo_lengths, pop_out_lengths)
+        new_fifo_lengths = combined_fifo_lengths - pop_out_lengths
+        return pop_out_lengths, new_fifo_lengths
+
+    def _update_async_fifo(
+        self,
+        streaming_state,
+        chunk,
+        current_fifo_preds,
+        chunk_preds,
+        fifo_lengths,
+        pop_out_lengths,
+        new_fifo_lengths,
+        max_chunk_len,
+        max_pop_out_len,
+        lc,
+    ):
+        """
+        Pop and retain logical ``[FIFO | chunk]`` frames and mutate the FIFO streaming state.
+
+        Args:
+            streaming_state (StreamingSortformerState): Streaming state whose FIFO tensors are updated.
+            chunk (torch.Tensor): Current chunk embeddings including left and right context.
+                Shape: (batch_size, lc + max_chunk_len + rc, emb_dim)
+            current_fifo_preds (torch.Tensor): Predictions for the valid current FIFO region.
+                Shape: (batch_size, max_fifo_len, n_spk)
+            chunk_preds (torch.Tensor): Predictions for the current chunk region.
+                Shape: (batch_size, max_chunk_len, n_spk)
+            fifo_lengths (torch.Tensor): Valid FIFO lengths before this update.
+                Shape: (batch_size,)
+            pop_out_lengths (torch.Tensor): Number of logical FIFO/chunk frames popped per row.
+                Shape: (batch_size,)
+            new_fifo_lengths (torch.Tensor): Number of logical FIFO/chunk frames retained per row.
+                Shape: (batch_size,)
+            max_chunk_len (int): Physical chunk capacity excluding context.
+            max_pop_out_len (int): Physical capacity of the rectangular popped-frame buffer.
+            lc (int): Left context offset of the current chunk.
+
+        Returns:
+            pop_out_embs (torch.Tensor): Left-aligned popped embeddings.
+                Shape: (batch_size, max_pop_out_len, emb_dim)
+            pop_out_preds (torch.Tensor): Left-aligned predictions for popped embeddings.
+                Shape: (batch_size, max_pop_out_len, n_spk)
+            valid_pop_mask (torch.Tensor): Mask identifying valid popped frames.
+                Shape: (batch_size, max_pop_out_len)
+        """
+        batch_size, _, emb_dim = chunk.shape
+        n_spk = chunk_preds.shape[2]
+        max_fifo_len = streaming_state.fifo.shape[1]
+
+        # Treat the old FIFO and current chunk as a per-row logical concatenation.
+        update_chunk = chunk[:, lc : lc + max_chunk_len].type_as(streaming_state.fifo)
+        fifo_chunk_embs = torch.cat(
+            [
+                streaming_state.fifo,
+                update_chunk,
+                streaming_state.fifo.new_zeros((batch_size, 1, emb_dim)),
+            ],
+            dim=1,
+        )
+        fifo_chunk_preds = torch.cat(
+            [
+                current_fifo_preds,
+                chunk_preds,
+                current_fifo_preds.new_zeros((batch_size, 1, n_spk)),
+            ],
+            dim=1,
+        )
+        pop_positions = torch.arange(max_pop_out_len, device=chunk_preds.device).unsqueeze(0)
+        retained_positions = torch.arange(max_fifo_len, device=chunk_preds.device).unsqueeze(0)
+        pop_logical_indices = pop_positions.expand(batch_size, -1)
+        retained_logical_indices = pop_out_lengths.unsqueeze(1) + retained_positions
+        fifo_logical_indices = torch.cat([pop_logical_indices, retained_logical_indices], dim=1)
+        valid_fifo_logical_indices = torch.cat(
+            [
+                pop_positions < pop_out_lengths.unsqueeze(1),
+                retained_positions < new_fifo_lengths.unsqueeze(1),
+            ],
+            dim=1,
+        )
+        fifo_physical_indices = torch.where(
+            fifo_logical_indices < fifo_lengths.unsqueeze(1),
+            fifo_logical_indices,
+            max_fifo_len + fifo_logical_indices - fifo_lengths.unsqueeze(1),
+        )
+        fifo_padding_index = max_fifo_len + max_chunk_len
+        fifo_physical_indices = torch.where(valid_fifo_logical_indices, fifo_physical_indices, fifo_padding_index)
+        gathered_fifo_embs = torch.gather(
+            fifo_chunk_embs, 1, fifo_physical_indices.unsqueeze(-1).expand(-1, -1, emb_dim)
+        )
+        gathered_fifo_preds = torch.gather(
+            fifo_chunk_preds, 1, fifo_physical_indices.unsqueeze(-1).expand(-1, -1, n_spk)
+        )
+        pop_out_embs, updated_fifo = torch.split(gathered_fifo_embs, [max_pop_out_len, max_fifo_len], dim=1)
+        pop_out_preds, updated_fifo_preds = torch.split(gathered_fifo_preds, [max_pop_out_len, max_fifo_len], dim=1)
+        valid_pop_mask = pop_positions < pop_out_lengths.unsqueeze(1)
+
+        streaming_state.fifo = updated_fifo
+        streaming_state.fifo_preds = updated_fifo_preds
+        streaming_state.fifo_lengths.copy_(new_fifo_lengths)
+        return pop_out_embs, pop_out_preds, valid_pop_mask
+
+    def _update_async_silence_profile(self, streaming_state, pop_out_embs, pop_out_preds, valid_pop_mask):
+        """
+        Update the per-row running silence profile while ignoring padded popped frames.
+
+        Args:
+            streaming_state (StreamingSortformerState): Streaming state whose silence profile is updated.
+            pop_out_embs (torch.Tensor): Left-aligned popped embeddings.
+                Shape: (batch_size, max_pop_out_len, emb_dim)
+            pop_out_preds (torch.Tensor): Left-aligned predictions for popped embeddings.
+                Shape: (batch_size, max_pop_out_len, n_spk)
+            valid_pop_mask (torch.Tensor): Mask identifying valid popped frames.
+                Shape: (batch_size, max_pop_out_len)
+        """
+        if not self.use_learnable_sil_emb:
+            is_sil = (pop_out_preds.sum(dim=2) < self.sil_threshold) & valid_pop_mask
+            sil_count = is_sil.sum(dim=1)
+            updated_n_sil_frames = streaming_state.n_sil_frames + sil_count
+            sil_emb_sum = torch.sum(pop_out_embs * is_sil.unsqueeze(-1), dim=1)
+            old_sil_emb_sum = streaming_state.mean_sil_emb * streaming_state.n_sil_frames.unsqueeze(1)
+            updated_mean_sil_emb = (old_sil_emb_sum + sil_emb_sum) / torch.clamp(
+                updated_n_sil_frames.unsqueeze(1), min=1
+            )
+            updated_mean_sil_emb = torch.where(
+                (sil_count > 0).unsqueeze(1), updated_mean_sil_emb, streaming_state.mean_sil_emb
+            )
+            streaming_state.mean_sil_emb.copy_(updated_mean_sil_emb)
+            streaming_state.n_sil_frames.copy_(updated_n_sil_frames)
+
+    def _update_async_spkcache(
+        self,
+        streaming_state,
+        current_spkcache_preds,
+        pop_out_embs,
+        pop_out_preds,
+        pop_out_lengths,
+    ):
+        """
+        Append popped FIFO frames and compress overflowing rows, mutating the speaker cache state.
+
+        Args:
+            streaming_state (StreamingSortformerState): Streaming state whose speaker-cache tensors are updated.
+            current_spkcache_preds (torch.Tensor): Fresh predictions for the current speaker cache.
+                Shape: (batch_size, max_spkcache_len, n_spk)
+            pop_out_embs (torch.Tensor): Left-aligned popped FIFO embeddings.
+                Shape: (batch_size, max_pop_out_len, emb_dim)
+            pop_out_preds (torch.Tensor): Left-aligned predictions for popped FIFO embeddings.
+                Shape: (batch_size, max_pop_out_len, n_spk)
+            pop_out_lengths (torch.Tensor): Number of valid popped frames per row.
+                Shape: (batch_size,)
+        """
+        batch_size, max_pop_out_len, emb_dim = pop_out_embs.shape
+        n_spk = pop_out_preds.shape[2]
+        max_spkcache_len = streaming_state.spkcache.shape[1]
+        spkcache_lengths = streaming_state.spkcache_lengths
+
+        # Build the compression candidates as [valid cache | popped FIFO] for every row.
+        updated_spkcache_lengths = spkcache_lengths + pop_out_lengths
+        need_compress = updated_spkcache_lengths > self.spkcache_len
+        first_compression = (~streaming_state.spkcache_compressed) & need_compress
+        candidate_old_preds = torch.where(
+            first_compression.view(-1, 1, 1), current_spkcache_preds, streaming_state.spkcache_preds
+        )
+        candidate_spkcache_embs = torch.cat(
+            [
+                streaming_state.spkcache,
+                pop_out_embs,
+                streaming_state.spkcache.new_zeros((batch_size, 1, emb_dim)),
+            ],
+            dim=1,
+        )
+        candidate_spkcache_preds = torch.cat(
+            [
+                candidate_old_preds,
+                pop_out_preds,
+                streaming_state.spkcache_preds.new_zeros((batch_size, 1, n_spk)),
+            ],
+            dim=1,
+        )
+        candidate_positions = torch.arange(max_spkcache_len + max_pop_out_len, device=pop_out_preds.device).unsqueeze(
+            0
+        )
+        candidate_logical_indices = candidate_positions.expand(batch_size, -1)
+        valid_candidate_indices = candidate_positions < updated_spkcache_lengths.unsqueeze(1)
+        candidate_physical_indices = torch.where(
+            candidate_logical_indices < spkcache_lengths.unsqueeze(1),
+            candidate_logical_indices,
+            max_spkcache_len + candidate_logical_indices - spkcache_lengths.unsqueeze(1),
+        )
+        candidate_padding_index = max_spkcache_len + max_pop_out_len
+        candidate_physical_indices = torch.where(
+            valid_candidate_indices, candidate_physical_indices, candidate_padding_index
+        )
+        updated_spkcache = torch.gather(
+            candidate_spkcache_embs, 1, candidate_physical_indices.unsqueeze(-1).expand(-1, -1, emb_dim)
+        )
+        updated_spkcache_preds = torch.gather(
+            candidate_spkcache_preds, 1, candidate_physical_indices.unsqueeze(-1).expand(-1, -1, n_spk)
+        )
+
+        streaming_state.spkcache = updated_spkcache[:, : self.spkcache_len, :]
+        streaming_state.spkcache_preds = updated_spkcache_preds[:, : self.spkcache_len, :]
+
+        idx = torch.where(need_compress)[0]
+        if len(idx) > 0:
+            streaming_state.spkcache[idx], streaming_state.spkcache_preds[idx], _ = self._compress_spkcache(
+                emb_seq=updated_spkcache[idx],
+                preds=updated_spkcache_preds[idx],
+                mean_sil_emb=streaming_state.mean_sil_emb[idx],
+                permute_spk=False,
+            )
+            streaming_state.spkcache_compressed[idx] = True
+        streaming_state.spkcache_lengths.copy_(updated_spkcache_lengths.clamp(max=self.spkcache_len))
+
+    def streaming_update_async(self, streaming_state, chunk, chunk_lengths, preds, lc: int = 0, rc: int = 0):
+        """
+        Update the speaker cache and FIFO queue with the chunk of embeddings and speaker predictions.
+        Asynchronous version, which means speaker cache, FIFO and chunk may have different lengths within a batch.
+        Should be used for real streaming applications.
+
+        Args:
+            streaming_state (SortformerStreamingState): Previous streaming state including speaker cache and FIFO
+            chunk (torch.Tensor): chunk of embeddings to be predicted
+                Shape: (batch_size, lc+chunk_len+rc, emb_dim)
+            chunk_lengths (torch.Tensor): Lengths of current chunk
+                Shape: (batch_size,)
+            preds (torch.Tensor): Speaker predictions of the [spkcache + fifo + chunk] embeddings
+                Shape: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
+            lc (int): Left-context offset. Only ``chunk[:, lc:chunk_len+lc]`` is used to update the state.
+            rc (int): Right-context offset excluded from the speaker-cache and FIFO update.
+
+        Returns:
+            streaming_state (SortformerStreamingState): Current streaming state including speaker cache and FIFO
+            chunk_preds (torch.Tensor): Speaker predictions of the chunk embeddings
+                Shape: (batch_size, chunk_len, num_spks)
+        """
+        max_spkcache_len, max_fifo_len, max_chunk_len = (
+            streaming_state.spkcache.shape[1],
+            streaming_state.fifo.shape[1],
+            chunk.shape[1] - lc - rc,
+        )
+
+        # A finalized row may flush its entire FIFO, so the temporary pop buffer must fit max_fifo_len.
+        max_pop_out_len = max(self.spkcache_update_period, max_fifo_len, max_chunk_len)
+        max_pop_out_len = min(max_pop_out_len, max_chunk_len + max_fifo_len)
+
+        spkcache_lengths = streaming_state.spkcache_lengths
+        fifo_lengths = streaming_state.fifo_lengths
+        chunk_lengths = (chunk_lengths - lc).clamp(min=0, max=max_chunk_len)
+
+        current_spkcache_preds, current_fifo_preds, chunk_preds = self._gather_async_predictions(
+            streaming_state,
+            preds,
+            spkcache_lengths,
+            fifo_lengths,
+            chunk_lengths,
+            max_spkcache_len,
+            max_fifo_len,
+            max_chunk_len,
+            lc,
+        )
+
+        pop_out_lengths, new_fifo_lengths = self._compute_async_fifo_pop_lengths(
+            spkcache_lengths, fifo_lengths, chunk_lengths, max_fifo_len
+        )
+        pop_out_embs, pop_out_preds, valid_pop_mask = self._update_async_fifo(
+            streaming_state,
+            chunk,
+            current_fifo_preds,
+            chunk_preds,
+            fifo_lengths,
+            pop_out_lengths,
+            new_fifo_lengths,
+            max_chunk_len,
+            max_pop_out_len,
+            lc,
+        )
+        self._update_async_silence_profile(streaming_state, pop_out_embs, pop_out_preds, valid_pop_mask)
+        self._update_async_spkcache(
+            streaming_state,
+            current_spkcache_preds,
+            pop_out_embs,
+            pop_out_preds,
+            pop_out_lengths,
+        )
+
+        if self.log:
+            logging.info(
+                f"spkcache: {streaming_state.spkcache.shape}, spkcache_lengths: {streaming_state.spkcache_lengths}, "
+                f"fifo: {streaming_state.fifo.shape}, fifo_lengths: {streaming_state.fifo_lengths}, "
+                f"chunk: {chunk.shape}, chunk_lengths: {chunk_lengths}, "
+                f"chunk_preds: {chunk_preds.shape}"
+            )
+
+        return streaming_state, chunk_preds
+
+    def streaming_update(self, streaming_state, chunk, preds, lc: int = 0, rc: int = 0):
+        """
+        Update the speaker cache and FIFO queue with the chunk of embeddings and speaker predictions.
+        Synchronous version, which means speaker cahce, FIFO queue and chunk have same lengths within a batch.
+        Should be used for training and evaluation, not for real streaming applications.
+
+        Args:
+            streaming_state (SortformerStreamingState): previous streaming state including speaker cache and FIFO
+            chunk (torch.Tensor): chunk of embeddings to be predicted
+                Shape: (batch_size, lc+chunk_len+rc, emb_dim)
+            preds (torch.Tensor): speaker predictions of the [spkcache + fifo + chunk] embeddings
+                Shape: (batch_size, spkcache_len + fifo_len + lc+chunk_len+rc, num_spks)
+            lc (int): Left-context offset. Only ``chunk[:, lc:chunk_len+lc]`` is used to update the state.
+            rc (int): Right-context offset excluded from the speaker-cache and FIFO update.
+
+        Returns:
+            streaming_state (SortformerStreamingState): current streaming state including speaker cache and FIFO
+            chunk_preds (torch.Tensor): speaker predictions of the chunk embeddings
+                Shape: (batch_size, chunk_len, num_spks)
+        """
+
+        batch_size, _, emb_dim = chunk.shape
+
+        spkcache_len, fifo_len, chunk_len = (
+            streaming_state.spkcache.shape[1],
+            streaming_state.fifo.shape[1],
+            chunk.shape[1] - lc - rc,
+        )
+        if streaming_state.spk_perm is not None:
+            inv_spk_perm = torch.stack(
+                [torch.argsort(streaming_state.spk_perm[batch_index]) for batch_index in range(batch_size)]
+            )
+            preds = torch.stack(
+                [preds[batch_index, :, inv_spk_perm[batch_index]] for batch_index in range(batch_size)]
+            )
+
+        streaming_state.fifo_preds = preds[:, spkcache_len : spkcache_len + fifo_len]
+        chunk = chunk[:, lc : chunk_len + lc]
+        chunk_preds = preds[:, spkcache_len + fifo_len + lc : spkcache_len + fifo_len + chunk_len + lc]
+
+        # append chunk to fifo
+        streaming_state.fifo = torch.cat([streaming_state.fifo, chunk], dim=1)
+        streaming_state.fifo_preds = torch.cat([streaming_state.fifo_preds, chunk_preds], dim=1)
+
+        if fifo_len + chunk_len > self.fifo_len:
+            # extract pop_out_len first frames from FIFO queue
+            pop_out_len = self.spkcache_update_period
+            pop_out_len = max(pop_out_len, chunk_len - self.fifo_len + fifo_len)
+            pop_out_len = min(pop_out_len, fifo_len + chunk_len)
+
+            pop_out_embs = streaming_state.fifo[:, :pop_out_len]
+            pop_out_preds = streaming_state.fifo_preds[:, :pop_out_len]
+            if not self.use_learnable_sil_emb:
+                streaming_state.mean_sil_emb, streaming_state.n_sil_frames = self._get_silence_profile(
+                    streaming_state.mean_sil_emb,
+                    streaming_state.n_sil_frames,
+                    pop_out_embs,
+                    pop_out_preds,
+                )
+            streaming_state.fifo = streaming_state.fifo[:, pop_out_len:]
+            streaming_state.fifo_preds = streaming_state.fifo_preds[:, pop_out_len:]
+
+            # append pop_out_embs to spkcache
+            streaming_state.spkcache = torch.cat([streaming_state.spkcache, pop_out_embs], dim=1)
+            if streaming_state.spkcache_compressed:
+                streaming_state.spkcache_preds = torch.cat([streaming_state.spkcache_preds, pop_out_preds], dim=1)
+            else:
+                # Before the first compression, retain fresh predictions for every current cache frame.
+                streaming_state.spkcache_preds = torch.cat([preds[:, :spkcache_len], pop_out_preds], dim=1)
+            if streaming_state.spkcache.shape[1] > self.spkcache_len:
+                streaming_state.spkcache, streaming_state.spkcache_preds, streaming_state.spk_perm = (
+                    self._compress_spkcache(
+                        emb_seq=streaming_state.spkcache,
+                        preds=streaming_state.spkcache_preds,
+                        mean_sil_emb=streaming_state.mean_sil_emb,
+                        permute_spk=self.training,
+                    )
+                )
+                streaming_state.spkcache_compressed = True
+
+        if self.log:
+            logging.info(
+                f"spkcache: {streaming_state.spkcache.shape}, fifo: {streaming_state.fifo.shape}, "
+                f"chunk: {chunk.shape}, chunk_preds: {chunk_preds.shape}"
+            )
+
+        return streaming_state, chunk_preds
+
+    def _boost_topk_scores(
+        self, scores, n_boost_per_spk: int, scale_factor: float = 1.0, offset: float = 0.5
+    ) -> torch.Tensor:
+        """
+        Increase `n_boost_per_spk` highest scores for each speaker.
+
+        Args:
+            scores (torch.Tensor): Tensor containing scores for each frame and speaker
+                Shape: (batch_size, n_frames, n_spk)
+            n_boost_per_spk (int): Number of frames to boost per speaker
+            scale_factor (float): Scaling factor for boosting scores. Defaults to 1.0.
+            offset (float): Offset for score adjustment. Defaults to 0.5.
+
+        Returns:
+            scores (torch.Tensor): Tensor containing scores for each frame and speaker after boosting.
+                Shape: (batch_size, n_frames, n_spk)
+        """
+        batch_size, _, n_spk = scores.shape
+        _, topk_indices = torch.topk(scores, n_boost_per_spk, dim=1, largest=True, sorted=False)
+        batch_indices = torch.arange(batch_size).unsqueeze(1).unsqueeze(2)  # Shape: (batch_size, 1, 1)
+        speaker_indices = torch.arange(n_spk).unsqueeze(0).unsqueeze(0)  # Shape: (1, 1, n_spk)
+        # Boost scores corresponding to topk_indices; but scores for disabled frames will remain '-inf'
+        scores[batch_indices, topk_indices, speaker_indices] -= scale_factor * math.log(offset)
+        return scores
+
+    def _get_silence_profile(self, mean_sil_emb, n_sil_frames, emb_seq, preds):
+        """
+        Get updated mean silence embedding and number of silence frames from emb_seq sequence.
+        Embeddings are considered as silence if sum of corresponding preds is lower than self.sil_threshold.
+
+        Args:
+            mean_sil_emb (torch.Tensor): Previous mean silence embedding tensor
+                Shape: (batch_size, emb_dim)
+            n_sil_frames (torch.Tensor): Previous number of silence frames
+                Shape: (batch_size)
+            emb_seq (torch.Tensor): Tensor containing sequence of embeddings
+                Shape: (batch_size, n_frames, emb_dim)
+            preds (torch.Tensor): Tensor containing speaker activity probabilities
+                Shape: (batch_size, n_frames, n_spk)
+
+        Returns:
+            mean_sil_emb (torch.Tensor): Updated mean silence embedding tensor
+                Shape: (batch_size, emb_dim)
+            n_sil_frames (torch.Tensor): Updated number of silence frames
+                Shape: (batch_size)
+        """
+        is_sil = preds.sum(dim=2) < self.sil_threshold
+        sil_count = is_sil.sum(dim=1)
+        has_new_sil = sil_count > 0
+        if not has_new_sil.any():
+            return mean_sil_emb, n_sil_frames
+        sil_emb_sum = torch.sum(emb_seq * is_sil.unsqueeze(-1), dim=1)
+        upd_n_sil_frames = n_sil_frames + sil_count
+        old_sil_emb_sum = mean_sil_emb * n_sil_frames.unsqueeze(1)
+        total_sil_sum = old_sil_emb_sum + sil_emb_sum
+        upd_mean_sil_emb = total_sil_sum / torch.clamp(upd_n_sil_frames.unsqueeze(1), min=1)
+        return upd_mean_sil_emb, upd_n_sil_frames
+
+    def _get_log_pred_scores(self, preds):
+        """
+        Get per-frame scores for speakers based on their activity probabilities.
+        Scores are log-based and designed to be high for confident prediction of non-overlapped speech.
+
+        Args:
+            preds (torch.Tensor): Tensor containing speaker activity probabilities
+                Shape: (batch_size, n_frames, n_spk)
+
+        Returns:
+            scores (torch.Tensor): Tensor containing speaker scores
+                Shape: (batch_size, n_frames, n_spk)
+        """
+        log_probs = torch.log(torch.clamp(preds, min=self.pred_score_threshold))
+        log_1_probs = torch.log(torch.clamp(1.0 - preds, min=self.pred_score_threshold))
+        log_1_probs_sum = log_1_probs.sum(dim=2).unsqueeze(-1).expand(-1, -1, self.n_spk)
+        scores = log_probs - log_1_probs + log_1_probs_sum - math.log(0.5)
+        return scores
+
+    def _get_topk_indices(self, scores):
+        """
+        Get indices corresponding to spkcache_len highest scores, and binary mask for frames in topk to be disabled.
+        Disabled frames correspond to either '-inf' score or spkcache_sil_frames_per_spk frames of extra silence
+        Mean silence embedding will be used for these frames.
+
+        Args:
+            scores (torch.Tensor): Tensor containing speaker scores, including for extra silence frames
+                Shape: (batch_size, n_frames, n_spk)
+
+        Returns:
+            topk_indices_sorted (torch.Tensor): Tensor containing frame indices of spkcache_len highest scores
+                Shape: (batch_size, spkcache_len)
+            is_disabled (torch.Tensor): Tensor containing binary mask for frames in topk to be disabled
+                Shape: (batch_size, spkcache_len)
+        """
+        batch_size, n_frames, _ = scores.shape
+        n_frames_no_sil = n_frames - self.spkcache_sil_frames_per_spk
+        # Concatenate scores for all speakers and get spkcache_len frames with highest scores.
+        # Replace topk_indices corresponding to '-inf' score with a placeholder index self.max_index.
+        scores_flatten = scores.permute(0, 2, 1).reshape(batch_size, -1)
+        topk_values, topk_indices = torch.topk(scores_flatten, self.spkcache_len, dim=1, sorted=False)
+        valid_topk_mask = topk_values != float('-inf')
+        topk_indices = torch.where(valid_topk_mask, topk_indices, torch.tensor(self.max_index))
+        # Sort topk_indices to preserve the original order of the frames.
+        # Get correct indices corresponding to the original frames
+        topk_indices_sorted, _ = torch.sort(topk_indices, dim=1)  # Shape: (batch_size, spkcache_len)
+        is_disabled = topk_indices_sorted == self.max_index
+        topk_indices_sorted = torch.remainder(topk_indices_sorted, n_frames)
+        is_disabled += topk_indices_sorted >= n_frames_no_sil
+        topk_indices_sorted[is_disabled] = 0  # Set a placeholder index to make gather work
+        return topk_indices_sorted, is_disabled
+
+    def _gather_spkcache_and_preds(self, emb_seq, preds, topk_indices, is_disabled, mean_sil_emb):
+        """
+        Gather embeddings from emb_seq and speaker activities from preds corresponding to topk_indices.
+        For disabled frames, use mean silence embedding and zero probability instead.
+
+        Args:
+            emb_seq (torch.Tensor): Tensor containing sequence of embeddings.
+                Shape: (batch_size, n_frames, emb_dim)
+            preds (torch.Tensor): Tensor containing speaker activity probabilities
+                Shape: (batch_size, n_frames, n_spk)
+            topk_indices (torch.Tensor): Tensor containing indices of frames to gather
+                Shape: (batch_size, spkcache_len)
+            is_disabled (torch.Tensor): Tensor containing binary mask for disabled frames
+                Shape: (batch_size, spkcache_len)
+            mean_sil_emb (torch.Tensor): Tensor containing mean silence embedding. Ignored when
+                ``use_learnable_sil_emb`` is enabled.
+                Shape: (batch_size, emb_dim)
+
+        Returns:
+            emb_seq_gathered (torch.Tensor): Tensor containing gathered embeddings.
+                Shape: (batch_size, spkcache_len, emb_dim)
+            preds_gathered (torch.Tensor): Tensor containing gathered speaker activities.
+                Shape: (batch_size, spkcache_len, n_spk)
+        """
+        # To use `torch.gather`, expand `topk_indices` along the last dimension to match `emb_dim`.
+        # Gather the speaker cache embeddings, including the placeholder embeddings for silence frames.
+        # Finally, replace the placeholder embeddings with actual mean silence embedding.
+        emb_dim, n_spk = emb_seq.shape[2], preds.shape[2]
+        indices_expanded_emb = topk_indices.unsqueeze(-1).expand(-1, -1, emb_dim)
+        emb_seq_gathered = torch.gather(emb_seq, 1, indices_expanded_emb)  # (batch_size, spkcache_len, emb_dim)
+        mean_sil_emb_expanded = mean_sil_emb.unsqueeze(1).expand(-1, self.spkcache_len, -1)
+        emb_seq_gathered = torch.where(is_disabled.unsqueeze(-1), mean_sil_emb_expanded, emb_seq_gathered)
+
+        # To use `torch.gather`, expand `topk_indices` along the last dimension to match `n_spk`.
+        # Gather speaker cache predictions `preds`, including the placeholder `preds` for silence frames.
+        # Finally, replace the placeholder `preds` with zeros.
+        indices_expanded_spk = topk_indices.unsqueeze(-1).expand(-1, -1, n_spk)
+        preds_gathered = torch.gather(preds, 1, indices_expanded_spk)  # (batch_size, spkcache_len, n_spk)
+        preds_gathered = torch.where(is_disabled.unsqueeze(-1), torch.tensor(0.0), preds_gathered)
+        return emb_seq_gathered, preds_gathered
+
+    def _get_max_perm_index(self, scores):
+        """
+        Get number of first speakers having at least one positive score.
+        These speakers will be randomly permuted during _compress_spkcache (training only).
+
+        Args:
+            scores (torch.Tensor): Tensor containing speaker scores
+                Shape: (batch_size, n_frames, n_spk)
+
+        Returns:
+            max_perm_index (torch.Tensor): Tensor with number of first speakers to permute
+                Shape: (batch_size)
+        """
+
+        batch_size, _, n_spk = scores.shape
+        is_pos = scores > 0  # positive score usually means that only current speaker is speaking
+        zero_indices = torch.where(is_pos.sum(dim=1) == 0)
+        max_perm_index = torch.full((batch_size,), n_spk, dtype=torch.long, device=scores.device)
+        max_perm_index.scatter_reduce_(0, zero_indices[0], zero_indices[1], reduce="amin", include_self=False)
+        return max_perm_index
+
+    def _disable_low_scores(self, preds, scores, min_pos_scores_per_spk: int):
+        """
+        Sets scores for non-speech to '-inf'.
+        Also sets non-positive scores to '-inf', if there are at least min_pos_scores_per_spk positive scores.
+
+        Args:
+            preds (torch.Tensor): Tensor containing speaker activity probabilities
+                Shape: (batch_size, n_frames, n_spk)
+            scores (torch.Tensor): Tensor containing speaker importance scores
+                Shape: (batch_size, n_frames, n_spk)
+            min_pos_scores_per_spk (int): if number of positive scores for a speaker is greater than this,
+                then all non-positive scores for this speaker will be disabled, i.e. set to '-inf'.
+
+        Returns:
+            scores (torch.Tensor): Tensor containing speaker scores.
+                Shape: (batch_size, n_frames, n_spk)
+        """
+        # Replace scores for non-speech with '-inf'.
+        is_speech = preds > 0.5
+        scores = torch.where(is_speech, scores, torch.tensor(float('-inf')))
+
+        # Replace non-positive scores (usually overlapped speech) with '-inf'
+        # This will be applied only if a speaker has at least min_pos_scores_per_spk positive-scored frames
+        is_pos = scores > 0  # positive score usually means that only current speaker is speaking
+        is_nonpos_replace = (~is_pos) * is_speech * (is_pos.sum(dim=1).unsqueeze(1) >= min_pos_scores_per_spk)
+        scores = torch.where(is_nonpos_replace, torch.tensor(float('-inf')), scores)
+        return scores
+
+    def _permute_speakers(self, scores, max_perm_index):
+        """
+        Create a random permutation of scores max_perm_index first speakers.
+
+        Args:
+            scores (torch.Tensor): Tensor containing speaker scores
+                Shape: (batch_size, n_frames, n_spk)
+            max_perm_index (torch.Tensor): Tensor with number of first speakers to permute
+                Shape: (batch_size)
+
+        Returns:
+            scores (torch.Tensor): Tensor with permuted scores.
+                Shape: (batch_size, n_frames, n_spk)
+            spk_perm (torch.Tensor): Tensor containing speaker permutation applied to scores
+                Shape: (batch_size, n_spk)
+        """
+        spk_perm_list, scores_list = [], []
+        batch_size, _, n_spk = scores.shape
+        for batch_index in range(batch_size):
+            rand_perm_inds = torch.randperm(max_perm_index[batch_index].item())
+            linear_inds = torch.arange(max_perm_index[batch_index].item(), n_spk)
+            permutation = torch.cat([rand_perm_inds, linear_inds])
+            spk_perm_list.append(permutation)
+            scores_list.append(scores[batch_index, :, permutation])
+        spk_perm = torch.stack(spk_perm_list).to(scores.device)
+        scores = torch.stack(scores_list).to(scores.device)
+        return scores, spk_perm
+
+    def _compress_spkcache(self, emb_seq, preds, mean_sil_emb, permute_spk: bool = False):
+        """
+        Compress speaker cache for streaming inference.
+        Keep spkcache_len most important frames out of input n_frames, based on preds.
+
+        Args:
+            emb_seq (torch.Tensor): Tensor containing n_frames > spkcache_len embeddings
+                Shape: (batch_size, n_frames, emb_dim)
+            preds (torch.Tensor): Tensor containing n_frames > spkcache_len speaker activity probabilities
+                Shape: (batch_size, n_frames, n_spk)
+            mean_sil_emb (torch.Tensor): Tensor containing mean silence embedding
+                Shape: (batch_size, emb_dim)
+            permute_spk (bool): If true, will generate a random permutation of existing speakers
+
+        Returns:
+            spkcache (torch.Tensor): Tensor containing spkcache_len most important embeddings from emb_seq.
+                Embeddings are ordered by speakers. Within each speaker, original order of frames is kept.
+                Shape: (batch_size, spkcache_len, emb_dim)
+            spkcache_preds (torch.Tensor): predictions corresponding to speaker cache
+                Shape: (batch_size, spkcache_len, n_spk)
+            spk_perm (torch.Tensor): random speaker permutation tensor if permute_spk=True, otherwise None
+                Shape: (batch_size, n_spk)
+        """
+        batch_size, n_frames, n_spk = preds.shape
+        if self.use_learnable_sil_emb:
+            mean_sil_emb = self.learnable_sil_emb.to(dtype=emb_seq.dtype, device=emb_seq.device)
+            mean_sil_emb = mean_sil_emb.unsqueeze(0).expand(batch_size, -1)
+        spkcache_len_per_spk = self.spkcache_len // n_spk - self.spkcache_sil_frames_per_spk
+        strong_boost_per_spk = math.floor(spkcache_len_per_spk * self.strong_boost_rate)
+        weak_boost_per_spk = math.floor(spkcache_len_per_spk * self.weak_boost_rate)
+        min_pos_scores_per_spk = math.floor(spkcache_len_per_spk * self.min_pos_scores_rate)
+
+        scores = self._get_log_pred_scores(preds)
+        scores = self._disable_low_scores(preds, scores, min_pos_scores_per_spk)
+
+        if permute_spk:  # Generate a random permutation of speakers
+            max_perm_index = self._get_max_perm_index(scores)
+            scores, spk_perm = self._permute_speakers(scores, max_perm_index)
+        else:
+            spk_perm = None
+
+        if self.scores_boost_latest > 0:  # Boost newly added frames
+            scores[:, self.spkcache_len :, :] += self.scores_boost_latest
+
+        if self.training:
+            if self.scores_add_rnd > 0:  # Add random noise to scores
+                scores += torch.rand(batch_size, n_frames, n_spk, device=scores.device) * self.scores_add_rnd
+
+        # Strong boosting to ensure each speaker has at least K frames in speaker cache
+        scores = self._boost_topk_scores(scores, strong_boost_per_spk, scale_factor=2)
+        # Weak boosting to prevent dominance of one speaker in speaker cache
+        scores = self._boost_topk_scores(scores, weak_boost_per_spk, scale_factor=1)
+
+        if self.spkcache_sil_frames_per_spk > 0:  # Add number of silence frames in the end of each block
+            pad = torch.full((batch_size, self.spkcache_sil_frames_per_spk, n_spk), float('inf'), device=scores.device)
+            scores = torch.cat([scores, pad], dim=1)  # (batch_size, n_frames + spkcache_sil_frames_per_spk, n_spk)
+
+        topk_indices, is_disabled = self._get_topk_indices(scores)
+        spkcache, spkcache_preds = self._gather_spkcache_and_preds(
+            emb_seq, preds, topk_indices, is_disabled, mean_sil_emb
+        )
+        return spkcache, spkcache_preds, spk_perm

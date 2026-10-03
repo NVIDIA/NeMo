@@ -1,0 +1,3 @@
+nemo-toolkit[all]
+prettyprinter # for testing
+pytest # for testing

@@ -1,0 +1,39 @@
+name: Review command migration
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  redirect-to-review:
+    name: Redirect to /review
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+      (github.event.comment.body == '/claude review' ||
+       github.event.comment.body == '/claude strict-review')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.issue.number }}
+      RETIRED_COMMAND: ${{ github.event.comment.body == '/claude strict-review' && '/claude strict-review' || '/claude review' }}
+      REVIEW_COMMAND: ${{ github.event.comment.body == '/claude strict-review' && '/review mode=strict' || '/review' }}
+    steps:
+      - name: Explain the replacement command
+        env:
+          NOTICE: |
+            @${{ github.event.comment.user.login }} `${{ env.RETIRED_COMMAND }}` has been retired. Pull-request reviews now run through `/review`; comment this instead:
+
+            ```
+            ${{ env.REVIEW_COMMAND }}
+            ```
+
+            Add `model=claude` to keep a Claude reviewer (the default is `model=codex`). `mode=light|strict` selects the review depth. Comment `/review help` for all options.
+        run: gh pr comment "$PR_NUMBER" --repo "$REPO" --body "$NOTICE"

@@ -1,0 +1,2097 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Lhotse CutSet utilities and Parquet manifest support for NeMo."""
+
+import io
+import logging
+import random
+import re
+import warnings
+from copy import deepcopy
+from functools import partial
+from itertools import repeat
+from pathlib import Path
+from typing import KeysView, List, Mapping, Sequence, Tuple, Union
+
+import numpy as np
+import omegaconf
+import soundfile as sf
+from lhotse import CutSet, Features, MonoCut, Recording, SupervisionSegment
+from lhotse.array import Array, TemporalArray
+from lhotse.cut import Cut, MixedCut, PaddingCut
+from lhotse.lazy import LazyIteratorChain
+from lhotse.serialization import load_yaml
+from lhotse.utils import fastcopy
+from omegaconf import DictConfig, ListConfig, OmegaConf
+
+from nemo.collections.common.data.lhotse.nemo_adapters import (
+    LazyNeMoIterator,
+    LazyNeMoTarredIterator,
+    LazyParquetIterator,
+    expand_sharded_filepaths,
+)
+from nemo.collections.common.data.lhotse.text_adapters import (
+    AudioTurn,
+    LhotseTextAdapter,
+    LhotseTextJsonlAdapter,
+    LhotseTextPairAdapter,
+    MaterializedSFTMessagesAdapter,
+    NeMoMultimodalConversation,
+    NeMoMultimodalConversationJsonlAdapter,
+    NeMoMultimodalConversationShareGPTJsonlAdapter,
+    NeMoMultimodalConversationShareGPTWebdatasetAdapter,
+    NeMoSFTJsonlAdapter,
+    NemotronTextConversationAdapter,
+    TextTurn,
+)
+from nemo.collections.common.parts.preprocessing.manifest import get_full_path
+
+
+def temperature_reweighting(weights: List[Union[float, int]], temperature: float = 1.0) -> List[float]:
+    """
+    Apply temperature scaling to dataset weights and normalize.
+
+    Formula: normalized_weight_i = (w_i ^ temperature) / sum(w_j ^ temperature)
+
+    Args:
+        weights: List of dataset weights (can be hours, sample counts, or probabilities).
+                 Values can be any positive float/int, not limited to [0, 1].
+        temperature: Scaling factor.
+                     - 1.0: preserves original weight ratios
+                     - 0.0: equalizes all weights (w^0 = 1)
+                     - <1.0: oversamples smaller datasets
+                     - >1.0: amplifies weight differences
+
+    Returns:
+        Normalized weights that sum to 1.0
+
+    Example:
+        >>> temperature_reweighting([197, 2159], temperature=1.0)  # hours
+        [0.0836, 0.9164]  # preserves ratio
+        >>> temperature_reweighting([197, 2159], temperature=0.0)  # equalize
+        [0.5, 0.5]
+    """
+    if len(weights) == 0:
+        return []
+    weights = np.asarray(weights)
+    if np.any(weights <= 0):
+        raise ValueError(f"All weights must be positive (> 0), got: {weights.tolist()}")
+    weights = weights**temperature
+    return (weights / weights.sum()).tolist()
+
+
+def validate_and_standardize_reweight_temperature(config: Union[DictConfig, dict], propagate_attrs: dict) -> None:
+    """
+    Validate and standardize reweight_temperature in propagate_attrs.
+
+    Accepted formats:
+      - Scalar (int/float): broadcast to all nesting levels (warning logged).
+      - List: length must exactly match the input_cfg nesting depth.
+
+    Raises:
+        ValueError: If list length does not match the nesting depth.
+    """
+    if propagate_attrs["reweight_temperature"] is None:
+        return
+
+    expected_length = count_input_cfg_levels(config)
+    reweight_temp = propagate_attrs["reweight_temperature"]
+
+    if isinstance(reweight_temp, (int, float)):
+        propagate_attrs["reweight_temperature"] = [float(reweight_temp)] * expected_length
+        logging.warning(
+            f"reweight_temperature is a scalar ({reweight_temp}), broadcasting to all {expected_length} levels. "
+            f"Expanded to: {propagate_attrs['reweight_temperature']}"
+        )
+    else:
+        reweight_temp = list(reweight_temp)
+        if len(reweight_temp) != expected_length:
+            raise ValueError(
+                f"reweight_temperature list length ({len(reweight_temp)}) does not match "
+                f"the input_cfg nesting depth ({expected_length}). "
+                f"Provide exactly {expected_length} values (one per nesting level), "
+                f"or use a scalar to apply the same temperature to all levels."
+            )
+        propagate_attrs["reweight_temperature"] = reweight_temp
+
+
+def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bool]:
+    """
+    Reads NeMo configuration and creates a CutSet either from Lhotse or NeMo manifests.
+
+    Returns a tuple of ``CutSet`` and a boolean indicating whether the data is tarred (True) or not (False).
+    """
+    # First, check if the dataset is specified in the new configuration format and use it if possible.
+    if not isinstance(config, DictConfig):
+        config = DictConfig(config)
+
+    if config.get("input_cfg") is not None:
+        cuts, is_tarred = read_dataset_config(config)
+    else:
+        # Now, we'll figure out if we should read Lhotse manifest or NeMo manifest.
+        use_nemo_manifest = all(config.get(opt) is None for opt in ("cuts_path", "shar_path"))
+        if use_nemo_manifest:
+            if config.get("manifest_filepath") is None:
+                raise IncompleteConfigError("You must specify either: manifest_filepath, cuts_path, or shar_path")
+            cuts, is_tarred = read_nemo_manifest(config)
+        else:
+            cuts, is_tarred = read_lhotse_manifest(config)
+
+    return cuts, is_tarred
+
+
+class IncompleteConfigError(RuntimeError):
+    """Placeholder for an error raised."""
+
+    pass
+
+
+KNOWN_DATA_CONFIG_TYPES = {}
+
+
+def get_known_config_data_types() -> KeysView[str]:
+    """
+    Return the names of all registered data type parsers.
+
+    Example:
+
+        >>> get_known_config_data_types()
+        ["nemo", "nemo_tarred", "lhotse", ...]
+    """
+    return KNOWN_DATA_CONFIG_TYPES.keys()
+
+
+def get_parser_fn(data_type_name: str):
+    """
+    Return the parsing function for a given data type name.
+    Parsing function reads a dataloading config and returns a tuple
+    of lhotse ``CutSet`` and boolean indicating whether we should use
+    iterable dataset (True) or map dataset (False) mechanism ("is tarred").
+    """
+    return KNOWN_DATA_CONFIG_TYPES[data_type_name]
+
+
+def data_type_parser(name: Union[str, list[str]]):
+    """
+    Decorator used to register data type parser functions.
+    Parsing function reads a dataloading config and returns a tuple
+    of lhotse ``CutSet`` and boolean indicating whether we should use
+    iterable dataset (True) or map dataset (False) mechanism ("is tarred").
+
+    Example:
+
+        >>> @data_type_parser("my_new_format")
+        ... def my_new_format(config):
+        ...     return CutSet(read_my_format(**config)), True
+        ...
+        ... fn = get_parser_fn("my_new_format")
+        ... cuts, is_tarred = fn({"my_arg_0": ..., "my_arg_1": ..., ...})
+    """
+
+    def _decorator(fn):
+        global KNOWN_DATA_CONFIG_TYPES
+        if isinstance(name, str):
+            KNOWN_DATA_CONFIG_TYPES[name] = fn
+        else:
+            for n in name:
+                KNOWN_DATA_CONFIG_TYPES[n] = fn
+        return fn
+
+    return _decorator
+
+
+def read_dataset_config(config) -> tuple[CutSet, bool]:
+    """
+    Input configuration format examples.
+    Example 1. Combine two datasets with equal weights and attach custom metadata in ``tags`` to each cut::
+        input_cfg:
+          - type: nemo_tarred
+            manifest_filepath: /path/to/manifest__OP_0..512_CL_.json
+            tarred_audio_filepath: /path/to/tarred_audio/audio__OP_0..512_CL_.tar
+            weight: 0.5
+            tags:
+              lang: en
+              some_metadata: some_value
+          - type: nemo_tarred
+            manifest_filepath: /path/to/manifest__OP_0..512_CL_.json
+            tarred_audio_filepath: /path/to/tarred_audio/audio__OP_0..512_CL_.tar
+            weight: 0.5
+            tags:
+              lang: pl
+              some_metadata: some_value
+    Example 2. Combine multiple (4) datasets, with 2 corresponding to different tasks (ASR, AST).
+        There are two levels of weights: per task (outer) and per dataset (inner).
+        The final weight is the product of outer and inner weight::
+        input_cfg:
+          - type: group
+            weight: 0.7
+            tags:
+              task: asr
+            input_cfg:
+              - type: nemo_tarred
+                manifest_filepath: /path/to/asr1/manifest__OP_0..512_CL_.json
+                tarred_audio_filepath: /path/to/tarred_audio/asr1/audio__OP_0..512_CL_.tar
+                weight: 0.6
+                tags:
+                  lang: en
+                  some_metadata: some_value
+              - type: nemo_tarred
+                manifest_filepath: /path/to/asr2/manifest__OP_0..512_CL_.json
+                tarred_audio_filepath: /path/to/asr2/tarred_audio/audio__OP_0..512_CL_.tar
+                weight: 0.4
+                tags:
+                  lang: pl
+                  some_metadata: some_value
+          - type: group
+            weight: 0.3
+            tags:
+              task: ast
+            input_cfg:
+              - type: nemo_tarred
+                manifest_filepath: /path/to/ast1/manifest__OP_0..512_CL_.json
+                tarred_audio_filepath: /path/to/ast1/tarred_audio/audio__OP_0..512_CL_.tar
+                weight: 0.2
+                tags:
+                  src_lang: en
+                  tgt_lang: pl
+              - type: nemo_tarred
+                manifest_filepath: /path/to/ast2/manifest__OP_0..512_CL_.json
+                tarred_audio_filepath: /path/to/ast2/tarred_audio/audio__OP_0..512_CL_.tar
+                weight: 0.8
+                tags:
+                  src_lang: pl
+                  tgt_lang: en
+    """
+    propagate_attrs = {
+        "shuffle": config.get("shuffle", False),
+        "shard_seed": config.get("shard_seed", "trng"),
+        "text_field": config.get("text_field", "text"),
+        "lang_field": config.get("lang_field", "lang"),
+        "metadata_only": config.get("metadata_only", False),
+        "force_finite": config.get("force_finite", False),
+        "max_open_streams": config.get("max_open_streams", None),
+        "audio_locator_tag": config.get("audio_locator_tag", None),
+        "token_equivalent_duration": config.get("token_equivalent_duration", None),
+        "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
+        "fault_tolerant_audio_loading": config.get("fault_tolerant_audio_loading", True),
+        "input_sampling_rate": config.get("input_sampling_rate", None),
+        "force_map_dataset": config.get("force_map_dataset", False),
+        "force_iterable_dataset": config.get("force_iterable_dataset", False),
+        "slice_length": config.get("slice_length", None),
+        "indexed": config.get("indexed", False),
+        "indexes_root": config.get("indexes_root", None),
+        "index_pack_root": config.get("index_pack_root", None),
+        "index_pack_max_open_files": config.get("index_pack_max_open_files", 32),
+        "index_pack": config.get("index_pack", None),
+        # Temperature for re-weighting datasets. 1 is a neutral value. Lower temperature over-samples smaller datasets, and vice versa.
+        "reweight_temperature": config.get("reweight_temperature", None),
+    }
+
+    validate_and_standardize_reweight_temperature(config, propagate_attrs)
+
+    cuts, is_tarred = parse_and_combine_datasets(config.input_cfg, propagate_attrs=propagate_attrs)
+    return cuts, is_tarred
+
+
+def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
+    """Parse a group configuration, potentially combining multiple datasets."""
+    assert grp_cfg.type in get_known_config_data_types(), f"Unknown item type in dataset config list: {grp_cfg.type=}"
+
+    # Note: Text data types will return is_tarred=True.
+    #       We choose to treat text as-if it was tarred, which tends to be more
+    #       efficient as it moves the text file iteration into dataloading subprocess.
+    if grp_cfg.type != "group":
+        parser_fn = get_parser_fn(grp_cfg.type)
+        cuts, is_tarred = parser_fn(grp_cfg)
+    else:
+        cuts, is_tarred = parse_and_combine_datasets(
+            grp_cfg.input_cfg,
+            propagate_attrs=propagate_attrs,
+        )
+    # Attach extra tags to every utterance dynamically, if provided.
+    if (extra_tags := grp_cfg.get("tags")) is not None:
+        cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
+    return cuts, is_tarred
+
+
+def _resolve_index_pack(config) -> Path | None:
+    index_pack = config.get("index_pack")
+    if index_pack is None:
+        return None
+    if not config.get("indexed", False):
+        raise ValueError("Declaring index_pack requires indexed=true.")
+    index_pack = Path(str(index_pack))
+    root = config.get("index_pack_root")
+    if not index_pack.is_absolute() and root is not None:
+        index_pack = Path(str(root)) / index_pack
+    if not index_pack.is_file():
+        raise FileNotFoundError(f"Declared index pack does not exist: {index_pack}")
+    return index_pack
+
+
+@data_type_parser("txt")
+def read_txt_paths(config: DictConfig) -> tuple[CutSet, bool]:
+    """
+    Read paths to text files and create a CutSet.
+    """
+    cuts = CutSet(
+        LhotseTextAdapter(
+            paths=config.paths,
+            language=config.language,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+    return cuts, True
+
+
+@data_type_parser("txt_jsonl")
+def read_txt_jsonl_paths(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read paths to text files in JSONL format and create a CutSet.
+
+    This parser reads JSONL files where each line contains a JSON object with text fields.
+    The text_field parameter specifies which field in the JSON object contains the text to be used.
+    """
+    cuts = CutSet(
+        LhotseTextJsonlAdapter(
+            paths=config.paths,
+            language=config.language,
+            text_field=config.text_field,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+            indexed=config.get("indexed", False),
+            indexes_root=config.get("indexes_root", None),
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+    return cuts, True
+
+
+@data_type_parser("txt_pair")
+def read_txt_pair_paths(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read paths to source and target text files and create a CutSet."""
+    cuts = CutSet(
+        LhotseTextPairAdapter(
+            source_paths=config.source_paths,
+            target_paths=config.target_paths,
+            source_language=config.get("source_language"),
+            target_language=config.get("target_language"),
+            questions_path=config.get("questions_path"),
+            questions_language=config.get("questions_language"),
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+    return cuts, True
+
+
+@data_type_parser("nemo_sft_jsonl")
+def read_nemo_sft_jsonl(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read paths to Nemo SFT JSONL files and create a CutSet."""
+    cuts = CutSet(
+        NeMoSFTJsonlAdapter(
+            paths=config.paths,
+            language=config.get("language"),
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+            indexed=config.get("indexed", False),
+            indexes_root=config.get("indexes_root", None),
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+    return cuts, True
+
+
+@data_type_parser("nemotron_text_converation")
+def read_nemotron_text_converation(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read Nemotron/Energon text-only conversation JSONL files or tar directories."""
+    cuts = CutSet(
+        NemotronTextConversationAdapter(
+            paths=config.paths,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+            indexed=config.get("indexed", False),
+            indexes_root=config.get("indexes_root", None),
+            index_pack=_resolve_index_pack(config),
+            index_pack_max_open_files=config.get("index_pack_max_open_files", 32),
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+    return cuts, True
+
+
+@data_type_parser("materialized_sft_messages")
+def read_materialized_sft_messages(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read packed SFT JSONL whose message contents are already prompt-rendered."""
+    cuts = CutSet(
+        MaterializedSFTMessagesAdapter(
+            paths=config.paths,
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+            indexed=config.get("indexed", False),
+            indexes_root=config.get("indexes_root", None),
+            index_pack=_resolve_index_pack(config),
+            index_pack_max_open_files=config.get("index_pack_max_open_files", 32),
+            validate_chunk_tokenization=config.get("validate_chunk_tokenization", True),
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+    return cuts, True
+
+
+@data_type_parser("multimodal_conversation")
+def read_multimodal_conversation_jsonl(config: DictConfig) -> tuple[CutSet, bool]:
+    """Read paths to multimodal conversation JSONL files and create a CutSet."""
+    cuts = CutSet(
+        NeMoMultimodalConversationJsonlAdapter(
+            manifest_filepath=config.manifest_filepath,
+            tarred_audio_filepaths=config.get("tarred_audio_filepaths"),
+            audio_locator_tag=config.audio_locator_tag,
+            token_equivalent_duration=config.get("token_equivalent_duration"),
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+            system_prompt=config.get("tags", {}).get("system_prompt"),
+            override_system_prompt=config.get("tags", {}).get("override_system_prompt", False),
+            context=config.get("tags", {}).get("context"),
+            slice_length=config.get("slice_length"),
+            indexed=config.get("indexed", False),
+            indexes_root=config.get("indexes_root", None),
+            index_pack=_resolve_index_pack(config),
+            index_pack_max_open_files=config.get("index_pack_max_open_files", 32),
+            skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
+            fault_tolerant_audio_loading=config.get("fault_tolerant_audio_loading", True),
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat()
+    return cuts, True
+
+
+@data_type_parser(["share_gpt"])
+def read_share_gpt_as_conversation(config) -> tuple[CutSet, bool]:
+    """Read paths to ShareGPT JSONL files and create a CutSet of NeMoMultimodalConversation."""
+    cuts = CutSet(
+        NeMoMultimodalConversationShareGPTJsonlAdapter(
+            manifest_filepath=config.manifest_filepath,
+            tarred_audio_filepaths=config.get("tarred_audio_filepaths"),
+            tar_lookup_mode=config.get("tar_lookup_mode"),
+            tar_routing_filepath=config.get("tar_routing_filepath", config.get("tar_routing_index")),
+            audio_locator_tag=config.audio_locator_tag,
+            audio_placeholders=config.audio_placeholders,
+            audio_root=config.get("audio_root"),
+            audio_path_prefix_map=config.get("audio_path_prefix_map"),
+            token_equivalent_duration=config.get("token_equivalent_duration"),
+            system_prompt=config.get("tags", {}).get("system_prompt"),
+            override_system_prompt=config.get("tags", {}).get("override_system_prompt", False),
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+            slice_length=config.get("slice_length"),
+            indexed=config.get("indexed", False),
+            indexes_root=config.get("indexes_root", None),
+            index_pack=_resolve_index_pack(config),
+            index_pack_max_open_files=config.get("index_pack_max_open_files", 32),
+            skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
+            fault_tolerant_audio_loading=config.get("fault_tolerant_audio_loading", True),
+            excluded_manifest_lines=config.get("excluded_manifest_lines"),
+            excluded_manifest_lines_sha256=config.get("excluded_manifest_lines_sha256"),
+            approved_exclusion_audit_sha256=config.get("approved_exclusion_audit_sha256"),
+        )
+    )
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+    return cuts, True
+
+
+@data_type_parser(["share_gpt_webdataset"])
+def read_share_gpt_webdataset_as_conversation(config) -> tuple[CutSet, bool]:
+    """Read ShareGPT conversations from WebDataset tar archives."""
+    cuts = CutSet(
+        NeMoMultimodalConversationShareGPTWebdatasetAdapter(
+            data_dir=config.data_dir,
+            audio_locator_tag=config.audio_locator_tag,
+            audio_placeholders=config.get("audio_placeholders"),
+            token_equivalent_duration=config.get("token_equivalent_duration"),
+            system_prompt=config.get("tags", {}).get("system_prompt"),
+            override_system_prompt=config.get("tags", {}).get("override_system_prompt", False),
+            shuffle_shards=config.shuffle,
+            shard_seed=config.shard_seed,
+            indexed=config.get("indexed", False),
+            indexes_root=config.get("indexes_root", None),
+            wds_sample_index_version=config.get("wds_sample_index_version", 1),
+            index_pack=_resolve_index_pack(config),
+            index_pack_max_open_files=config.get("index_pack_max_open_files", 32),
+            skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
+            fault_tolerant_audio_loading=config.get("fault_tolerant_audio_loading", True),
+        )
+    )
+    # When force_finite is False (default), repeat the dataset infinitely so that
+    # the dataloader never runs out of data; the trainer controls epoch boundaries.
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+    return cuts, True
+
+
+def _resolve_shar_inputs(path: Union[str, Path], only_metadata: bool) -> dict:
+    if only_metadata:
+        return dict(fields={"cuts": sorted(Path(path).glob("cuts.*"))})
+    else:
+        return dict(in_dir=path)
+
+
+def attach_tags(cut, tags: dict):
+    """Attach extra tags to a cut dynamically."""
+    for key, val in tags.items():
+        setattr(cut, key, val)
+    return cut
+
+
+def count_input_cfg_levels(config: Union[DictConfig, dict]) -> int:
+    """
+    Compute the maximum nesting depth of 'input_cfg' keys in the configuration.
+
+    Each 'input_cfg' represents one level of nesting that consumes one temperature
+    value from reweight_temperature. Since sibling groups at the same level share
+    the same temperature (due to propagate_attrs.copy()), we count max depth,
+    not total occurrences.
+
+    String/Path values for ``input_cfg`` are treated as file references (mirroring
+    :func:`parse_and_combine_datasets`) and loaded so that nested ``input_cfg``
+    keys inside those files are counted.  If the file is not found (e.g. the
+    path contains unresolved OmegaConf interpolations such as
+    ``${oc.env:MANIFEST_ROOT}``), it is conservatively counted as one additional
+    level.  All other I/O or parsing errors propagate immediately.
+
+    Args:
+        config: Configuration dictionary that may contain nested 'input_cfg' keys.
+
+    Returns:
+        Maximum nesting depth of 'input_cfg' keys.
+
+    Example:
+        >>> config = {
+        ...     "input_cfg": [
+        ...         {"type": "group", "input_cfg": [{"type": "nemo"}]},
+        ...         {"type": "group", "input_cfg": [{"type": "nemo"}]},
+        ...     ]
+        ... }
+        >>> count_input_cfg_levels(config)
+        2
+    """
+
+    _cache: dict[str, object] = {}
+
+    def _resolve_if_path(val, containing_dir: Path | None):
+        """If *val* is a string/Path, load the YAML file it points to.
+
+        Raises on I/O or parse errors except ``FileNotFoundError``, which is
+        expected when the path contains OmegaConf interpolations (e.g.
+        ``${oc.env:MANIFEST_ROOT}/file.yaml``) that raw ``yaml.load`` returns
+        as literal strings.  ``parse_and_combine_datasets`` resolves them at
+        runtime via ``OmegaConf.create()``.
+        """
+        if isinstance(val, (str, Path)):
+            raw_path = str(val)
+            if "://" in raw_path:
+                key = raw_path
+                next_dir = containing_dir
+            else:
+                path = Path(raw_path)
+                if containing_dir is not None and not path.is_absolute():
+                    path = containing_dir / path
+                key = str(path)
+                next_dir = path.parent
+            if key not in _cache:
+                try:
+                    _cache[key] = load_yaml(key)
+                except FileNotFoundError:
+                    logging.debug("count_input_cfg_levels: could not load %r, treating as leaf", key)
+                    _cache[key] = val
+            return _cache[key], next_dir
+        return val, containing_dir
+
+    def _max_depth(obj, containing_dir: Path | None = None) -> int:
+        if isinstance(obj, (dict, DictConfig)):
+            depths = []
+            for key, val in obj.items():
+                if key == "input_cfg":
+                    resolved, next_dir = _resolve_if_path(val, containing_dir)
+                    depths.append(1 + _max_depth(resolved, next_dir))
+                else:
+                    depths.append(_max_depth(val, containing_dir))
+            return max(depths, default=0)
+        elif isinstance(obj, (list, ListConfig)):
+            # For lists, find the max depth across all items (siblings)
+            return max((_max_depth(item, containing_dir) for item in obj), default=0)
+        return 0
+
+    return _max_depth(config)
+
+
+@data_type_parser("group")
+def parse_and_combine_datasets(
+    config_list: Union[list[DictConfig], ListConfig, str, Path], propagate_attrs: dict
+) -> tuple[CutSet, bool]:
+    """Parse a list of dataset configurations, potentially combining multiple datasets."""
+    cuts = []
+    weights = []
+    tarred_status = []
+
+    # Extract the temperature for re-weighting datasets.
+    if not propagate_attrs["reweight_temperature"]:
+        temperature = 1.0
+        next_temperatures = None
+    else:
+        temperature, *next_temperatures = propagate_attrs["reweight_temperature"]
+    propagate_attrs["reweight_temperature"] = next_temperatures
+
+    containing_dir = None
+    if isinstance(config_list, (str, Path)):
+        # Resolve local filepath /path/to/input_cfg.yaml or
+        # remote url s3://bucket/path/to/input_cfg.yaml into config contents if needed.
+        config_path = str(config_list)
+        config_list = OmegaConf.create(load_yaml(config_path))
+        if "://" not in config_path:
+            containing_dir = Path(config_path).parent
+    assert len(config_list) > 0, "Empty group in dataset config list."
+
+    for item in config_list:
+        # External blend YAMLs may refer to another YAML relative to their own
+        # location. Resolve that reference before descending so frozen blend
+        # trees remain portable when their common parent directory is moved.
+        if containing_dir is not None and isinstance((nested := item.get("input_cfg")), (str, Path)):
+            nested_path = str(nested)
+            if "://" not in nested_path and not Path(nested_path).is_absolute():
+                item["input_cfg"] = str(containing_dir / nested_path)
+
+        # Propagate loader attributes into each leaf. Most leaf values may
+        # override their parent, but both failure policies remain loader-wide.
+        # SALMDataset and FallbackDataset are shared across the blended graph,
+        # and preserving one authoritative policy also avoids changing existing
+        # external-input_cfg override semantics. Keep top-level values authoritative
+        # through external YAMLs.
+        next_propagate_attrs = propagate_attrs.copy()
+        for k, v in propagate_attrs.items():
+            if k in ("skip_missing_manifest_entries", "fault_tolerant_audio_loading"):
+                if k in item and item[k] != v:
+                    logging.info(
+                        "Overriding nested %s=%s with loader-wide value %s.",
+                        k,
+                        item[k],
+                        v,
+                    )
+                item[k] = v
+                next_propagate_attrs[k] = v
+            elif k not in item:
+                item[k] = v
+            else:
+                next_propagate_attrs[k] = item[k]
+
+        # Load the item (which may also be another group) as a CutSet.
+        item_cuts, item_is_tarred = parse_group(item, next_propagate_attrs)
+        cuts.append(item_cuts)
+        tarred_status.append(item_is_tarred)
+        if (w := item.get("weight")) is not None:
+            weights.append(w)
+
+    all_same_tarred_status = all(t == tarred_status[0] for t in tarred_status)
+    if not all_same_tarred_status:
+        if propagate_attrs["force_map_dataset"] or propagate_attrs["force_iterable_dataset"]:
+            logging.warning(
+                f"Not all datasets in the group have the same tarred status, using provided force_map_dataset "
+                f"({propagate_attrs['force_map_dataset']}) and force_iterable_dataset "
+                f"({propagate_attrs['force_iterable_dataset']}) to determine the final tarred status."
+            )
+        else:
+            raise ValueError(
+                "Mixing tarred and non-tarred datasets is not supported when neither force_map_dataset "
+                "nor force_iterable_dataset is True."
+            )
+
+    assert len(weights) == 0 or len(cuts) == len(
+        weights
+    ), "Missing dataset weight. When weighting datasets, every dataset must have a specified weight."
+
+    if len(cuts) > 1:
+        if not weights:
+            reweights = None
+        else:
+            reweights = temperature_reweighting(weights, temperature=temperature)
+
+        cuts = mux(
+            *cuts,
+            weights=reweights,
+            max_open_streams=propagate_attrs["max_open_streams"],
+            seed=propagate_attrs["shard_seed"],
+            force_finite=propagate_attrs["force_finite"] or propagate_attrs["metadata_only"],
+        )
+    else:
+        (cuts,) = cuts
+    return cuts, tarred_status[0]
+
+
+@data_type_parser(["lhotse", "lhotse_shar"])
+def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
+    """Read paths to Lhotse manifest files and create a CutSet."""
+    is_tarred = config.get("shar_path") is not None
+    if is_tarred:
+        # Lhotse Shar is the equivalent of NeMo's native "tarred" dataset.
+        # The combination of shuffle_shards, and repeat causes this to
+        # be an infinite manifest that is internally reshuffled on each epoch.
+        # The parameter ``config.shard_seed`` is used to determine shard shuffling order. Options:
+        # - "trng" means we'll defer setting the seed until the iteration
+        #   is triggered, and we'll use system TRNG to get a completely random seed for each worker.
+        #   This results in every dataloading worker using full data but in a completely different order.
+        # - "randomized" means we'll defer setting the seed until the iteration
+        #   is triggered, and we'll use config.seed to get a pseudo-random seed for each worker.
+        #   This results in every dataloading worker using full data but in a completely different order.
+        #   Unlike "trng", this is deterministic, and if you resume training, you should change the seed
+        #   to observe different data examples than in the previous run.
+        # - integer means we'll set a specific seed in every worker, and data would be duplicated across them.
+        #   This is mostly useful for unit testing or debugging.
+        shard_seed = config.get("shard_seed", "trng")
+        metadata_only = config.get("metadata_only", False)
+        force_finite = config.get("force_finite", False)
+        indexed = config.get("indexed", False)
+        indexes_root = config.get("indexes_root", None)
+        if config.get("cuts_path") is not None:
+            warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
+        if isinstance(config.shar_path, (str, Path)):
+            cuts = CutSet.from_shar(
+                **_resolve_shar_inputs(config.shar_path, metadata_only),
+                shuffle_shards=True,
+                seed=shard_seed,
+                slice_length=config.get("slice_length", None),
+                indexed=indexed,
+                indexes_root=indexes_root,
+            )
+            if not metadata_only and not force_finite:
+                cuts = cuts.repeat(preserve_id=True)
+        elif isinstance(config.shar_path, Sequence):
+            # Multiple datasets in Lhotse Shar format: we will dynamically multiplex them
+            # with probability approximately proportional to their size
+            cutsets = []
+            weights = []
+            for item in config.shar_path:
+                if isinstance(item, (str, Path)):
+                    path = item
+                    cs = CutSet.from_shar(
+                        **_resolve_shar_inputs(path, metadata_only),
+                        shuffle_shards=True,
+                        seed=shard_seed,
+                        slice_length=config.get("slice_length", None),
+                        indexed=indexed,
+                        indexes_root=indexes_root,
+                    )
+                    weight = len(cs)
+                else:
+                    assert isinstance(item, Sequence) and len(item) == 2 and isinstance(item[1], (int, float)), (
+                        "Supported inputs types for config.shar_path are: "
+                        "str | list[str] | list[tuple[str, number]] "
+                        "where str is a path and number is a mixing weight (it may exceed 1.0). "
+                        f"We got: '{item}'"
+                    )
+                    path, weight = item
+                    cs = CutSet.from_shar(
+                        **_resolve_shar_inputs(path, metadata_only),
+                        shuffle_shards=True,
+                        seed=shard_seed,
+                        slice_length=config.get("slice_length", None),
+                        indexed=indexed,
+                        indexes_root=indexes_root,
+                    )
+                cutsets.append(cs)
+                weights.append(weight)
+
+            cuts = mux(
+                *cutsets,
+                weights=weights,
+                max_open_streams=config.get("max_open_streams", None),
+                seed=shard_seed,
+                force_finite=force_finite,
+            )
+        elif isinstance(config.shar_path, Mapping):
+            fields = {k: expand_sharded_filepaths(v) for k, v in config.shar_path.items()}
+            assert "cuts" in config.shar_path.keys(), (
+                f"Invalid value for key 'shar_path': a dict was provided, but didn't specify key 'cuts' pointing "
+                f"to the manifests. We got the following: {config.shar_path=}"
+            )
+            if metadata_only:
+                fields = {"cuts": fields["cuts"]}
+            cuts = CutSet.from_shar(
+                fields=fields,
+                shuffle_shards=True,
+                seed=shard_seed,
+                slice_length=config.get("slice_length", None),
+                indexed=indexed,
+                indexes_root=indexes_root,
+            )
+            if not metadata_only and not force_finite:
+                cuts = cuts.repeat(preserve_id=True)
+        else:
+            raise RuntimeError(
+                f"Unexpected value for key 'shar_path'. We support string, list of strings, "
+                f"list of tuples[string,float], and dict[string,list[string]], "
+                f"but got: {type(config.shar_path)=} {config.shar_path=}"
+            )
+    else:
+        # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
+        path = config.cuts_path
+        from lhotse.indexing import index_file_path
+
+        indexes_root = config.get("indexes_root", None)
+        from_file_kwargs = {"indexed": config.get("indexed", None)}
+        if indexes_root is not None:
+            from_file_kwargs["index_path"] = index_file_path(path, indexes_root)
+        cuts = CutSet.from_file(path, **from_file_kwargs).map(partial(resolve_relative_paths, manifest_path=path))
+    return cuts, is_tarred
+
+
+@data_type_parser(["parquet"])
+def read_parquet_manifest(config: DictConfig) -> tuple[CutSet, bool]:
+    """
+    Read paths to Parquet files and create a CutSet.
+
+    Config options:
+    - manifest_filepath: path to .parquet file (or list of paths)
+    - audio_field: column name for audio (default: "audio")
+    - text_field: column name for text (default: "text")
+    - duration_field: column name for duration (default: "duration")
+    - lang_field: column name for language (default: "lang")
+    - sampling_rate: default sampling rate if not present (default: 16000)
+    - shuffle: whether to shuffle shards (default: False)
+    - shard_seed: seed for shuffling (default: "trng")
+    """
+    # 1. Get the path(s)
+    paths = config.manifest_filepath
+    if isinstance(paths, str):
+        paths = [paths]
+
+    # 2. Extract config options with defaults
+    audio_field = config.get("audio_field", "audio")
+    text_field = config.get("text_field", "text")
+    duration_field = config.get("duration_field", "duration")
+    lang_field = config.get("lang_field", "lang")
+    sampling_rate = config.get("sampling_rate", 16000)
+
+    # Extract shuffling options (CRITICAL for distributed training)
+    shuffle_shards = config.get("shuffle", False)
+    shard_seed = config.get("shard_seed", "trng")
+    indexed = config.get("indexed", False)
+
+    # 3. Create Iterators for each file
+    iterators = []
+    for path in paths:
+        logging.info(f"Initializing Lhotse Parquet Iterator: '{path}'")
+        adapter = LazyParquetIterator(
+            path=path,
+            audio_field=audio_field,
+            text_field=text_field,
+            duration_field=duration_field,
+            lang_field=lang_field,
+            sampling_rate=sampling_rate,
+            indexed=indexed,
+        )
+        iterators.append(adapter)
+
+    # 4. Chain them together using Lhotse's lazy chaining
+    if len(iterators) == 1:
+        source = iterators[0]
+    else:
+        # This handles shuffling the order of .parquet files for multi-GPU training
+        # as requested by pzelasko
+        source = LazyIteratorChain(*iterators, shuffle_iters=shuffle_shards, seed=shard_seed)
+
+    # 5. Create the final CutSet
+    cuts = CutSet(source)
+
+    # 6. Handle infinite looping if requested
+    if not config.get("force_finite", False):
+        cuts = cuts.repeat(preserve_id=True)
+
+    # Return cuts + is_tarred=True (since it's a stream, we treat it like tarred)
+    return cuts, True
+
+
+def cut_to_conversation(
+    cut: Cut, audio_locator_tag: str, token_equivalent_duration: float
+) -> NeMoMultimodalConversation:
+    """
+    Converts a lhotse Cut into a two-turn NeMoMultimodalConversation, where the user turn contains cut's audio,
+    and assistant turn contains text response from ``cut.supervisions[0].text``.
+
+    If ``cut`` has a custom field ``context``, it's pre-pended as an extra user text turn before the user's audio turn.
+    """
+    if isinstance(cut, NeMoMultimodalConversation):
+        return cut
+    turns = [
+        AudioTurn(cut=cut, role="user", audio_locator_tag=audio_locator_tag, text=cut.supervisions[0].text),
+        TextTurn(value=cut.supervisions[0].text, role="assistant"),
+    ]
+    if hasattr(cut, "context"):
+        turns = [TextTurn(value=cut.context, role="user")] + turns
+    if hasattr(cut, "system_prompt"):
+        turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
+    return NeMoMultimodalConversation(
+        id=cut.id,
+        turns=turns,
+        token_equivalent_duration=token_equivalent_duration,
+        custom=cut.custom,
+    )
+
+
+def sample_preference_to_conversation(
+    cut: Cut,
+    audio_locator_tag: str,
+    token_equivalent_duration: float,
+    weights: dict | None = None,
+    seed: int = 42,
+    fallback_text_field: str = "pnc_text",
+) -> NeMoMultimodalConversation:
+    """Sample one instruction from a cut's ``preference_instructions`` and build a conversation.
+
+    Granary-v2 manifests carry a ``preference_instructions`` list on ``cut.custom``, where each
+    element is ``{"prompt": <user turn>, "target": <assistant target>, "tags": {"type": <task>,
+    "target_lang": <lang>}}``. For each cut we draw ONE instruction according to per-task
+    ``weights`` and construct ``[user:prompt] -> [user:audio] -> [assistant:target]`` (the prompt
+    turn is omitted when the instruction has no prompt).
+
+    The RNG is seeded deterministically from ``(seed, cut.id)`` so the choice is a pure function
+    of the cut. This is required for reproducibility under indexed/random-access + resumable
+    dataloading (the ``.map`` transform must return the same result whenever the same cut is read).
+    Consequence: a given utterance always trains its one sampled task; the task mix across the
+    corpus still follows ``weights`` because each utterance is assigned independently.
+
+    ``weights`` may reference any of the task ``type`` strings; it is renormalized per cut over the
+    instruction types actually present (types with weight 0 or absent are excluded). If a cut has no
+    usable instruction, we fall back to plain transcription using ``cut.custom[fallback_text_field]``.
+    """
+    if isinstance(cut, NeMoMultimodalConversation):
+        return cut
+
+    if weights is not None and not isinstance(weights, dict):
+        # Accept OmegaConf DictConfig etc.
+        weights = OmegaConf.to_container(weights, resolve=True)
+
+    custom = cut.custom or {}
+    instructions = custom.get("preference_instructions") or []
+
+    def _type_of(instr: dict) -> str | None:
+        return (instr.get("tags") or {}).get("type")
+
+    candidates = [
+        instr
+        for instr in instructions
+        if instr.get("target") and (weights is None or weights.get(_type_of(instr), 0.0) > 0.0)
+    ]
+
+    rng = random.Random(f"{seed}:{cut.id}")
+    if candidates:
+        if weights is None:
+            chosen = rng.choice(candidates)
+        else:
+            w = [float(weights.get(_type_of(instr), 0.0)) for instr in candidates]
+            chosen = rng.choices(candidates, weights=w, k=1)[0]
+        prompt = chosen.get("prompt")
+        target = chosen["target"]
+        target_lang = (chosen.get("tags") or {}).get("target_lang")
+        chosen_type = _type_of(chosen)
+    else:
+        # Fallback: plain transcription (no preference instructions available/selected).
+        prompt = None
+        target = custom.get(fallback_text_field)
+        if not target:
+            target = cut.supervisions[0].text if cut.supervisions else None
+        target_lang = custom.get("target_lang") or custom.get("source_lang")
+        chosen_type = "fallback"
+
+    # Keep supervision text/language consistent with the sampled target (used by some
+    # length/metrics code paths). Safe no-op if the cut has no supervisions.
+    if cut.supervisions:
+        cut.supervisions[0].text = target
+        if target_lang is not None:
+            cut.supervisions[0].language = target_lang
+
+    turns = [
+        AudioTurn(cut=cut, role="user", audio_locator_tag=audio_locator_tag, text=target),
+        TextTurn(value=target, role="assistant"),
+    ]
+    if prompt:
+        turns = [TextTurn(value=prompt, role="user")] + turns
+    if hasattr(cut, "system_prompt"):
+        turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
+
+    new_custom = dict(custom)
+    new_custom["_pref_type"] = chosen_type
+    return NeMoMultimodalConversation(
+        id=cut.id,
+        turns=turns,
+        token_equivalent_duration=token_equivalent_duration,
+        custom=new_custom,
+    )
+
+
+def _has_valid_preference_target(conversation: NeMoMultimodalConversation) -> bool:
+    assistant_targets = [
+        turn.value for turn in conversation.turns if isinstance(turn, TextTurn) and turn.role == "assistant"
+    ]
+    if assistant_targets and all(isinstance(target, str) and target.strip() for target in assistant_targets):
+        return True
+    logging.warning(
+        "Skipping preference-sampled conversation with invalid assistant target: conversation_id=%s",
+        conversation.id,
+    )
+    return False
+
+
+@data_type_parser(["s2s_duplex_overlap_as_s2s_duplex"])
+def read_s2s_duplex_overlap_as_s2s_duplex(config) -> Tuple[CutSet, bool]:
+    """
+    Convert a CutSet with overlapping agent/user segments into a standard S2S duplex format.
+
+    Use Case:
+        This parser is designed for conversational data where agent and user speech can overlap
+        in time (e.g., natural turn-taking with interruptions or backchanneling). The input
+        format stores agent and user segments separately as `agent_segments` and `user_segments`
+        attributes on each cut. This function converts them into a unified timeline of sequential
+        SupervisionSegments, which is the standard format expected by DuplexS2S models.
+
+    Expected Input Data Format:
+        Each cut should have:
+        - cut.agent_segments: List[Dict] with keys:
+            - "start" (float): Start time in seconds
+            - "end" (float): End time in seconds
+            - "text" (str): Agent's transcription
+        - cut.user_segments: List[Dict] with keys:
+            - "start" (float): Start time in seconds
+            - "end" (float): End time in seconds
+            - "text" (str): User's transcription
+
+    Example:
+        Input cut with overlapping segments:
+            cut.agent_segments = [
+                {"start": 0.5, "end": 2.0, "text": "Hello, how can I help?"},
+                {"start": 3.0, "end": 4.5, "text": "Sure, I can do that."}
+            ]
+            cut.user_segments = [
+                {"start": 1.8, "end": 3.2, "text": "I need assistance"},
+                {"start": 4.0, "end": 5.5, "text": "Thank you"}
+            ]
+
+        Output cut.supervisions (sorted by start time):
+            [
+                SupervisionSegment(start=0.5, duration=1.5, text="Hello, how can I help?", speaker="agent"),
+                SupervisionSegment(start=1.8, duration=1.4, text="I need assistance", speaker="user"),
+                SupervisionSegment(start=3.0, duration=1.5, text="Sure, I can do that.", speaker="agent"),
+                SupervisionSegment(start=4.0, duration=1.5, "Thank you", speaker="user")
+            ]
+
+    Args:
+        config: Dictionary containing parser options:
+            - move_agent_text_back_by (float): Time offset to shift agent text back (default: 0).
+                Useful for aligning agent text with earlier audio timing.
+            - filter_samples_starting_with_agent (bool): Whether to remove samples starting with agent (default: False).
+                When True, only keeps samples where the first speaker is a user.
+            - agent_roles (List[str]): Roles considered as agent (default: ["agent", "Assistant", "assistant"]).
+
+    Returns:
+        Tuple[CutSet, bool]: Converted cuts with unified supervisions, and a flag indicating if the data was tarred.
+    """
+    move_agent_text_back_by = config.get("move_agent_text_back_by", 0)
+    filter_samples_starting_with_agent = config.get("filter_samples_starting_with_agent", False)
+    agent_roles = config.get("agent_roles", ["agent", "Assistant", "assistant"])
+
+    cuts, is_tarred = read_cutset_from_config(config)
+
+    def filter_cuts_starting_with_agent_fn(cuts: CutSet, agent_roles: Tuple[str, ...]) -> CutSet:
+        """Remove cuts where the first supervision belongs to an agent role."""
+
+        def _filter_fn(cut: Cut) -> bool:
+            if not cut.supervisions:
+                return False
+            cut.supervisions = sorted(cut.supervisions, key=lambda s: s.start)
+            return cut.supervisions[0].speaker not in agent_roles
+
+        return cuts.filter(_filter_fn)
+
+    def convert_overlap_cut_fn(cut: Cut) -> Cut:
+        """Convert agent/user overlapping segments into sequential SupervisionSegments."""
+        agent_segments = [
+            SupervisionSegment(
+                id=cut.id,
+                recording_id=cut.id,
+                start=seg["start"] - move_agent_text_back_by,
+                duration=seg["end"] - seg["start"] + move_agent_text_back_by,
+                text=seg["text"],
+                speaker="agent",
+            )
+            for seg in cut.agent_segments
+        ]
+
+        user_segments = [
+            SupervisionSegment(
+                id=cut.id,
+                recording_id=cut.id,
+                start=seg["start"],
+                duration=seg["end"] - seg["start"],
+                text=seg["text"],
+                speaker="user",
+            )
+            for seg in cut.user_segments
+        ]
+
+        cut.supervisions = sorted(agent_segments + user_segments, key=lambda s: s.start)
+        cut.task = "s2s_duplex_overlap_as_s2s_duplex"
+        return cut
+
+    cuts = cuts.map(convert_overlap_cut_fn)
+    if filter_samples_starting_with_agent:
+        cuts = filter_cuts_starting_with_agent_fn(cuts, tuple(agent_roles))
+
+    return cuts, is_tarred
+
+
+@data_type_parser(["lhotse_magpietts_data_as_continuation"])
+def read_lhotse_magpietts_data_as_s2s_duplex(config) -> Tuple[CutSet, bool]:
+    """
+    Convert MagpieTTS dataset cuts into the Duplex S2S format, with optional
+    `context_audio` that can be used as a speaker reference.
+
+    Args:
+        config: Dictionary containing parser options:
+            - add_extra_end_silence (bool): Whether to add extra silence at the end.
+            - extra_end_silence_range (List[float]): Range of extra silence duration.
+            - max_cer (float): Maximum allowed character error rate.
+            - min_context_speaker_similarity (float): Minimum similarity score.
+            - target_speaker (str, optional): Target speaker filter.
+            - sample_rate (int): Audio sample rate for resampling.
+
+    Returns:
+        Tuple[CutSet, bool]: Converted cuts and a flag indicating if data was tarred.
+    """
+    cuts, is_tarred = read_cutset_from_config(config)
+
+    add_extra_end_sil = config.get("add_extra_end_silence", False)
+    extra_end_silence_range = config.get("extra_end_silence_range", [0.5, 6.0])
+    sample_rate = config.get("sample_rate", 22050)
+
+    max_cer = config.get("max_cer", 0.03)
+    min_context_speaker_similarity = config.get("min_context_speaker_similarity", 0.6)
+    target_speaker = config.get("target_speaker", None)
+    keep_flag = "pass"
+
+    def create_recording_from_array(samples: np.ndarray, sampling_rate: int, recording_id: str) -> Recording:
+        """Convert a numpy array into a Lhotse Recording object."""
+        with io.BytesIO() as buffer:
+            sf.write(buffer, samples.T, samplerate=sampling_rate, format='WAV')
+            buffer.seek(0)
+            return Recording.from_bytes(buffer.read(), recording_id=recording_id)
+
+    def convert_cut_fn(cut: Cut) -> Cut:
+        """Convert a single cut into the continuation format."""
+        orig_agent_sup = deepcopy(cut.supervisions[0])
+        target_audio_orig_dur = cut.target_audio.duration
+
+        # Resample audios
+        cut.target_audio = cut.target_audio.resample(sample_rate)
+        cut.context_audio = cut.context_audio.resample(sample_rate)
+        total_duration = cut.target_audio.duration
+
+        # Prepare MonoCuts
+        cut_target = MonoCut(
+            id=f"{cut.id}_target",
+            start=0.0,
+            duration=total_duration,
+            channel=0,
+            recording=cut.target_audio,
+            supervisions=[],
+        )
+
+        zero_audio = np.zeros((1, int(total_duration * sample_rate)), dtype=np.float32)
+        source_recording = create_recording_from_array(zero_audio, sample_rate, recording_id=f"{cut.id}_source")
+
+        cut_source = MonoCut(
+            id=f"{cut.id}_source",
+            start=0.0,
+            duration=total_duration,
+            channel=0,
+            recording=source_recording,
+            supervisions=[],
+        )
+
+        # Save to memory
+        cut_source = cut_source.move_to_memory(audio_format='wav')
+        cut_target = cut_target.move_to_memory(audio_format='wav')
+
+        # Create user and agent supervisions
+        user_sup = fastcopy(orig_agent_sup, start=0.0, duration=0.08, speaker="user", text="dummy text")
+        agent_sup = fastcopy(orig_agent_sup, start=0.0, duration=target_audio_orig_dur - 0.08, speaker="agent")
+
+        # Optionally add extra silence
+        if add_extra_end_sil:
+            sil_duration = random.uniform(*extra_end_silence_range)
+            cut_target = cut_target.pad(duration=total_duration + sil_duration, direction="right")
+            cut_source = cut_source.pad(duration=total_duration + sil_duration, direction="right")
+            cut_source = cut_source.to_mono().move_to_memory(audio_format='wav')
+            cut_target = cut_target.to_mono().move_to_memory(audio_format='wav')
+            agent_sup.duration += sil_duration + 1.0
+            user_sup.duration += sil_duration
+
+        # Assemble final cut
+        cut_source.supervisions = [user_sup, agent_sup]
+        cut_source.target_audio = cut_target.recording
+        cut_source.duration = cut_target.duration
+        cut_source.context_audio = cut.context_audio
+        cut_source.task = "lhotse_magpietts_data_as_continuation"
+
+        return cut_source
+
+    # Filters
+    def filter_cer_fn(cut: Cut) -> bool:
+        return (
+            len(cut.supervisions) == 0
+            or not cut.supervisions[0].has_custom("cer")
+            or cut.supervisions[0].cer <= max_cer
+        )
+
+    def filter_val_flag_fn(cut: Cut) -> bool:
+        return not cut.has_custom("validation_status") or cut.validation_status == keep_flag
+
+    def filter_secs_fn(cut: Cut) -> bool:
+        return (
+            len(cut.supervisions) == 0
+            or not cut.supervisions[0].has_custom("context_speaker_similarity")
+            or cut.supervisions[0].context_speaker_similarity >= min_context_speaker_similarity
+        )
+
+    def filter_target_speaker_fn(cut: Cut) -> bool:
+        return len(cut.supervisions) == 0 or target_speaker is None or target_speaker in cut.supervisions[0].speaker
+
+    # Apply filters
+    cuts = (
+        cuts.filter(filter_cer_fn).filter(filter_val_flag_fn).filter(filter_secs_fn).filter(filter_target_speaker_fn)
+    )
+
+    # Convert cuts
+    cuts = cuts.map(convert_cut_fn)
+
+    return cuts, is_tarred
+
+
+def s2s_duplex_reverse_role_for_one_speaker(
+    speaker: str | None,
+    agent_roles: tuple[str, ...],
+    user_roles: tuple[str, ...],
+    target_agent_name: str,
+    target_user_name: str,
+) -> str | None:
+    """Swap one speaker label for the reverse-role duplex view."""
+    if speaker is None:
+        return speaker
+
+    speaker_l = speaker.lower()
+    if speaker_l in user_roles:
+        return target_agent_name
+    if speaker_l in agent_roles:
+        return target_user_name
+    return speaker
+
+
+def s2s_duplex_reverse_role_for_one_cut(
+    cut: Cut,
+    agent_roles: tuple[str, ...],
+    user_roles: tuple[str, ...],
+    target_agent_name: str,
+    target_user_name: str,
+) -> Cut:
+    """Swap speaker roles and source/target audio streams for one duplex cut."""
+    new_cut = deepcopy(cut)
+
+    if getattr(new_cut, "supervisions", None):
+        new_sups = []
+        for supervision in new_cut.supervisions:
+            swapped_supervision = deepcopy(supervision)
+            swapped_supervision.speaker = s2s_duplex_reverse_role_for_one_speaker(
+                getattr(swapped_supervision, "speaker", None),
+                agent_roles=agent_roles,
+                user_roles=user_roles,
+                target_agent_name=target_agent_name,
+                target_user_name=target_user_name,
+            )
+            new_sups.append(swapped_supervision)
+        new_cut.supervisions = new_sups
+
+    old_recording = new_cut.recording
+    old_target_audio = new_cut.target_audio
+    old_rec_id = old_recording.id
+    old_tar_id = old_target_audio.id
+
+    new_cut.recording = old_target_audio
+    new_cut.target_audio = old_recording
+
+    if hasattr(new_cut, "duration"):
+        new_cut.duration = new_cut.recording.duration
+
+    assert new_cut.target_audio.id == old_rec_id, f"{new_cut.id}: recording swap failed"
+    assert new_cut.recording.id == old_tar_id, f"{new_cut.id}: target_audio swap failed"
+    assert new_cut.recording is old_target_audio, f"{new_cut.id}: recording object not swapped"
+    assert new_cut.target_audio is old_recording, f"{new_cut.id}: target_audio object not swapped"
+
+    new_cut.task = "s2s_duplex_reverse_role"
+    return new_cut
+
+
+@data_type_parser(["s2s_duplex_reverse_role"])
+def read_s2s_duplex_reverse_role(config) -> Tuple[CutSet, bool]:
+    """
+    Reverse the speaker roles and swap the source/target audio streams in a Duplex S2S CutSet.
+
+    This parser takes an existing conversational dataset and inverts the perspective
+    by swapping the "user" and "agent" supervision labels. It also swaps the primary
+    `recording` (usually source audio) with the `target_audio` to fully simulate the
+    conversation from the opposite participant's point of view.
+
+    Args:
+        config: Dictionary containing parser options:
+            - agent_roles (List[str], optional): List of role strings to be identified as the agent.
+              Defaults to ["agent", "Agent", "Assistant", "assistant"].
+            - user_roles (List[str], optional): List of role strings to be identified as the user.
+              Defaults to ["user", "User"].
+            - target_agent_name (str, optional): The canonical name to assign to former user roles.
+              Defaults to "agent".
+            - target_user_name (str, optional): The canonical name to assign to former agent roles.
+              Defaults to "user".
+
+    Returns:
+        Tuple[CutSet, bool]: Converted cuts with swapped roles and audio streams,
+        along with a flag indicating if the data was tarred.
+    """
+    cuts, is_tarred = read_cutset_from_config(config)
+
+    agent_roles = tuple(r.lower() for r in config.get("agent_roles", ["agent", "Agent", "Assistant", "assistant"]))
+    user_roles = tuple(r.lower() for r in config.get("user_roles", ["user", "User"]))
+    target_agent_name = config.get("target_agent_name", "agent")
+    target_user_name = config.get("target_user_name", "user")
+
+    convert_fn = partial(
+        s2s_duplex_reverse_role_for_one_cut,
+        agent_roles=agent_roles,
+        user_roles=user_roles,
+        target_agent_name=target_agent_name,
+        target_user_name=target_user_name,
+    )
+    cuts = cuts.map(convert_fn)
+    return cuts, is_tarred
+
+
+@data_type_parser(["lhotse_as_conversation"])
+def read_lhotse_as_conversation(config) -> tuple[CutSet, bool]:
+    """
+    Conversion parser for regular ASR data.
+    Intended for converting ASR data in NeMo or Lhotse manifests from Lhotse Cut into NeMoMultimodalConversation.
+    The examples for multimodal LLM are constructed to present an optional "context" field and the acoustic representation as input,
+    and predict "text".
+
+    Example of original data JSON in NeMo manifest format::
+
+        {
+          "audio_filepath": "/path/to/audio.wav",
+          "duration": 3.48,
+          "text": "Of exclusive national competence, let me assure you".
+          "lang": "en",
+          "context": "Transcribe the following:",
+        }
+
+    Same example in Lhotse manifest format::
+
+        {
+          "id": "some-id-0",
+          "recording": {
+            "id": "some-id-0",
+            "sources": [
+              "type": "path",
+              "source": "/path/to/audio.wav",
+              "channel_ids": [0],
+            ],
+            "sampling_rate": 16000,
+            "duration": 3.48,
+            "num_samples": 55680,
+          },
+          "supervisions": [
+            "id": "some-id-0",
+            "start": 0.0,
+            "duration": 3.48,
+            "channel": 0,
+            "text": "Of exclusive national competence, let me assure you".
+            "language": "en",
+          ],
+          "start": 0.0,
+          "duration": 3.48,
+          "channel": 0,
+          "custom": {
+            "context": "Transcribe the following:",
+          }
+        }
+    """
+    cuts, is_tarred = read_cutset_from_config(config)
+    # Attach extra tags to every utterance dynamically, if provided.
+    # We need to attach them before cuts are converted to conversations.
+    if (extra_tags := config.get("tags")) is not None:
+        cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
+    # Optional: sample one task from each cut's `preference_instructions` list
+    # (Granary-v2 packed manifests) instead of the default single-target conversion.
+    if (pref_cfg := config.get("preference_sampling")) is not None:
+        cuts = cuts.map(
+            partial(
+                sample_preference_to_conversation,
+                audio_locator_tag=config.audio_locator_tag,
+                token_equivalent_duration=config.token_equivalent_duration,
+                weights=pref_cfg.get("weights"),
+                seed=pref_cfg.get("seed", 42),
+                fallback_text_field=pref_cfg.get("fallback_text_field", "pnc_text"),
+            )
+        )
+        if pref_cfg.get("skip_invalid_target", False):
+            cuts = cuts.filter(_has_valid_preference_target)
+    else:
+        cuts = cuts.map(
+            partial(
+                cut_to_conversation,
+                audio_locator_tag=config.audio_locator_tag,
+                token_equivalent_duration=config.token_equivalent_duration,
+            )
+        )
+    return cuts, is_tarred
+
+
+def sqa_cut_to_conversation(
+    cut: Cut, audio_locator_tag: str, token_equivalent_duration: float
+) -> NeMoMultimodalConversation:
+    """
+    Converts a lhotse Cut representing a SQA example into a NeMoMultimodalConversation.
+
+    The ``cut`` is expected to have ``question`` and ``answer`` fields.
+    """
+    if isinstance(cut, NeMoMultimodalConversation):
+        return cut
+    turns = [
+        TextTurn(value=cut.question, role="user"),
+        AudioTurn(cut=cut, role="user", audio_locator_tag=audio_locator_tag, text=getattr(cut, "text", "")),
+        TextTurn(value=cut.answer, role="assistant"),
+    ]
+    if hasattr(cut, "context"):
+        turns = [TextTurn(value=cut.context, role="user")] + turns
+    if hasattr(cut, "system_prompt"):
+        turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
+    return NeMoMultimodalConversation(
+        id=cut.id,
+        turns=turns,
+        token_equivalent_duration=token_equivalent_duration,
+        custom=cut.custom,
+    )
+
+
+@data_type_parser(["sqa_as_conversation"])
+def read_sqa_as_conversation(config) -> tuple[CutSet, bool]:
+    """
+    Conversion parser for old spoken-question-answering data saved in NeMo format.
+    Intended for converting SQA data in NeMo or Lhotse manifests from Lhotse Cut into NeMoMultimodalConversation.
+    The examples for multimodal LLM are constructed to present "question" + acoustic representation as input,
+    and predict "answer".
+
+    Example of original data JSON in NeMo manifest format::
+
+        {
+          "audio_filepath": "/path/to/audio.wav",
+          "duration": 3.48,
+          "text": "Of exclusive national competence, let me assure you".
+          "lang": "en",
+          "question": "What is the nature of the competence described in the context?",
+          "answer": "The context mentions \"exclusive national competence\", indicating that the competence in question is solely within the authority of a nation.",
+        }
+
+    Same example in Lhotse manifest format::
+
+        {
+          "id": "some-id-0",
+          "recording": {
+            "id": "some-id-0",
+            "sources": [
+              "type": "path",
+              "source": "/path/to/audio.wav",
+              "channel_ids": [0],
+            ],
+            "sampling_rate": 16000,
+            "duration": 3.48,
+            "num_samples": 55680,
+          },
+          "supervisions": [
+            "id": "some-id-0",
+            "start": 0.0,
+            "duration": 3.48,
+            "channel": 0,
+            "text": "Of exclusive national competence, let me assure you".
+            "language": "en",
+          ],
+          "start": 0.0,
+          "duration": 3.48,
+          "channel": 0,
+          "custom": {
+            "question": "What is the nature of the competence described in the context?",
+            "answer": "The context mentions \"exclusive national competence\", indicating that the competence in question is solely within the authority of a nation.",
+          }
+        }
+    """
+    cuts, is_tarred = read_cutset_from_config(config)
+    # Attach extra tags to every utterance dynamically, if provided.
+    # We need to attach them before cuts are converted to conversations.
+    if (extra_tags := config.get("tags")) is not None:
+        cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
+    cuts = cuts.map(
+        partial(
+            sqa_cut_to_conversation,
+            audio_locator_tag=config.audio_locator_tag,
+            token_equivalent_duration=config.token_equivalent_duration,
+        )
+    )
+    return cuts, is_tarred
+
+
+def _strip_timestamps(
+    text: str, _TIMESTAMP_PATTERN=re.compile(r"<\|\d+\|>"), _SPACE_PATTERN=re.compile(r"\s+")
+) -> str:
+    """
+    Strips timestamp tokens from text, e.g. turns:
+      '<|0|> Hey <|3|> <|3|> how <|5|> <|7|> are <|8|> <|8|> <|10|> you? <|12|>'
+      into:
+      'Hey how are you?'
+    """
+    # Regexp pattern args are cached compiled patterns (micro-optimization).
+    text = _TIMESTAMP_PATTERN.sub("", text)  # strip timestamp tokens if present
+    return _SPACE_PATTERN.sub(" ", text).strip()  # strip multi-whitespaces
+
+
+class FailedConversion:
+    pass
+
+
+def s2s_cut_to_conversation(
+    cut: Cut,
+    audio_locator_tag: str,
+    token_equivalent_duration: float,
+    input_roles: Sequence[str] = ("user", "User"),
+    output_roles: Sequence[str] = ("assistant", "Assistant", "agent", "Agent"),
+    strip_timestamp_tokens: bool = True,
+) -> NeMoMultimodalConversation:
+    """
+    Converts a lhotse Cut representing multi-turn speech-to-speech conversation (with multiple supervision segments)
+    into a multi-turn NeMoMultimodalConversation, where the user has AudioTurns and assistant responds in TextTurns.
+
+    Args:
+        cut: lhotse Cut to convert.
+        audio_locator_tag: special token indicating audio will be inserted in this location in the token sequence.
+        token_equivalent_duration: how much speech duration is counted as one token.
+        input_roles: when supervision.speaker is set to one of these values, we consider it user's turn.
+        output_roles: when supervision.speaker is set to one of these values, we consider it assistant's turn.
+        strip_timestamp_tokens: strips tokens like <|0|>, <|1|>, etc indicating timestamps from the text.
+    """
+    turn_cuts = cut.trim_to_supervisions(keep_overlapping=False)
+    turns = []
+    idx = 0
+    for per_turn_cut in turn_cuts:
+        assert (
+            len(per_turn_cut.supervisions) >= 1
+        ), f"Expected at least one supervision per turn, got none in cut {cut.id}"
+        # If len(per_turn_cut.supervisions) > 1, only the first turn is considered for cut creation.
+        # We assume that len(per_turn_cut.supervisions) >= 1 happens because one of the turns
+        # is completely contained within another turn.
+        turn_speaker = per_turn_cut.supervisions[0].speaker
+        turn_text = per_turn_cut.supervisions[0].text
+        if strip_timestamp_tokens:
+            turn_text = _strip_timestamps(turn_text)
+        if len(per_turn_cut.supervisions) > 1:
+            assert per_turn_cut.supervisions[1].text == turn_cuts[idx - 1].supervisions[0].text
+        if turn_speaker in input_roles:
+            turns.append(AudioTurn(cut=per_turn_cut, role="user", audio_locator_tag=audio_locator_tag, text=turn_text))
+        elif turn_speaker in output_roles:
+            turns.append(TextTurn(value=turn_text, role="assistant"))
+        else:
+            logging.warning(f"Speaker '{turn_speaker}' not found in user or agent roles for cut {cut.id}")
+            return FailedConversion()
+        idx += 1
+    if hasattr(cut, "context"):
+        turns = [TextTurn(value=cut.context, role="user")] + turns
+    if hasattr(cut, "system_prompt"):
+        turns = [TextTurn(value=cut.system_prompt, role="system")] + turns
+    return NeMoMultimodalConversation(
+        id=cut.id,
+        turns=turns,
+        token_equivalent_duration=token_equivalent_duration,
+        custom=cut.custom,
+    )
+
+
+@data_type_parser(["s2s_as_conversation"])
+def read_s2s_as_conversation(config) -> tuple[CutSet, bool]:
+    cuts, is_tarred = read_cutset_from_config(config)
+    # Attach extra tags to every utterance dynamically, if provided.
+    # We need to attach them before cuts are converted to conversations.
+    if (extra_tags := config.get("tags")) is not None:
+        cuts = cuts.map(partial(attach_tags, tags=extra_tags), apply_fn=None)
+    cuts = cuts.map(
+        partial(
+            s2s_cut_to_conversation,
+            audio_locator_tag=config.audio_locator_tag,
+            token_equivalent_duration=config.token_equivalent_duration,
+            input_roles=config.get("input_roles", ["user", "User"]),
+            output_roles=config.get("output_roles", ["assistant", "Assistant", "agent", "Agent"]),
+            strip_timestamp_tokens=config.get("strip_timestamp_tokens", True),
+        )
+    ).filter(lambda ex: not isinstance(ex, FailedConversion))
+    return cuts, is_tarred
+
+
+def create_recording_from_array(samples: np.ndarray, sampling_rate: int, recording_id: str) -> Recording:
+    with io.BytesIO() as buffer:
+        sf.write(buffer, samples.T, samplerate=sampling_rate, format='WAV')
+        buffer.seek(0)
+        return Recording.from_bytes(buffer.read(), recording_id=recording_id)
+
+
+def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
+    """Resolve relative paths in a Cut object to their full paths."""
+    if isinstance(cut, PaddingCut):
+        return cut
+
+    if isinstance(cut, MixedCut):
+        for track in cut.tracks:
+            track.cut = resolve_relative_paths(track.cut, manifest_path)
+        return cut
+
+    def resolve_recording(value):
+        for audio_source in value.sources:
+            if audio_source.type == "file":
+                audio_source.source = get_full_path(audio_source.source, manifest_file=manifest_path)
+
+    def resolve_array(value):
+        if isinstance(value, TemporalArray):
+            value.array = resolve_array(value.array)
+        else:
+            if value.storage_type in ("numpy_files", "lilcom_files"):
+                abspath = Path(
+                    get_full_path(str(Path(value.storage_path) / value.storage_key), manifest_file=manifest_path)
+                )
+                value.storage_path = str(abspath.parent)
+                value.storage_key = str(abspath.name)
+            elif value.storage_type in (
+                "kaldiio",
+                "chunked_lilcom_hdf5",
+                "lilcom_chunky",
+                "lilcom_hdf5",
+                "numpy_hdf5",
+            ):
+                value.storage_path = get_full_path(value.storage_path, manifest_file=manifest_path)
+            # ignore others i.e. url, in-memory data, etc.
+
+    if cut.has_recording:
+        resolve_recording(cut.recording)
+    if cut.has_features:
+        resolve_array(cut.features)
+    if cut.custom is not None:
+        for key, value in cut.custom.items():
+            if isinstance(value, Recording):
+                resolve_recording(value)
+            elif isinstance(value, (Array, TemporalArray, Features)):
+                resolve_array(value)
+
+    return cut
+
+
+@data_type_parser(["nemo", "nemo_tarred"])
+def read_nemo_manifest(config) -> tuple[CutSet, bool]:
+    """Read NeMo manifest and return a Lhotse CutSet."""
+    common_kwargs = {}
+    for key in ("text_field", "lang_field", "shuffle", "shard_seed", "extra_fields"):
+        if key in config:
+            if key == "shuffle":
+                common_kwargs["shuffle_shards"] = config[key]
+            else:
+                common_kwargs[key] = config[key]
+    indexed = config.get("indexed", False)
+    indexes_root = config.get("indexes_root", None)
+    index_pack = _resolve_index_pack(config)
+    pack_extra = (
+        {
+            "index_pack": index_pack,
+            "index_pack_max_open_files": config.get("index_pack_max_open_files", 32),
+        }
+        if indexed and index_pack is not None
+        else {}
+    )
+    indexed_extra = {"indexes_root": indexes_root} if (indexed and indexes_root is not None) else {}
+    notar_kwargs_extra = {"indexed": indexed, **indexed_extra, **pack_extra} if indexed else {}
+    # The option below is to allow a special case of NeMo manifest iteration as Lhotse CutSet
+    # without performing any I/O. NeMo manifests typically don't have sampling_rate information required by Lhotse,
+    # so lhotse has to look up the headers of audio files to fill it on-the-fly.
+    # (this only has an impact on non-tarred data; tarred data is read into memory anyway).
+    # This is useful for utility scripts that iterate metadata and estimate optimal batching settings
+    # and other data statistics.
+    metadata_only = config.get("metadata_only", False)
+    force_finite = config.get("force_finite", False)
+    notar_kwargs = {
+        "metadata_only": metadata_only,
+        "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
+    }
+    tar_kwargs_extra = {"indexed": indexed, **indexed_extra, **pack_extra} if indexed else {}
+    is_tarred = config.get("tarred_audio_filepaths") is not None
+    manifest_filepath = config.manifest_filepath
+    manifest_is_scalar = isinstance(manifest_filepath, (str, Path))
+    manifest_is_flat_list = (
+        isinstance(manifest_filepath, (list, tuple, ListConfig))
+        and bool(manifest_filepath)
+        and all(isinstance(item, (str, Path)) for item in manifest_filepath)
+    )
+    tarred_audio_filepaths = config.get("tarred_audio_filepaths")
+    tar_is_scalar = isinstance(tarred_audio_filepaths, (str, Path))
+    tar_is_flat_list = (
+        isinstance(tarred_audio_filepaths, (list, tuple, ListConfig))
+        and bool(tarred_audio_filepaths)
+        and all(isinstance(item, (str, Path)) for item in tarred_audio_filepaths)
+    )
+    if index_pack is not None:
+        if not (manifest_is_scalar or manifest_is_flat_list):
+            raise ValueError(
+                "Packed native NeMo datasets require manifest_filepath to be "
+                "a string/Path or a non-empty flat list of strings/Paths; nested "
+                "and weighted list forms are not supported."
+            )
+        if is_tarred and not (tar_is_scalar or tar_is_flat_list):
+            raise ValueError(
+                "Packed native NeMo datasets require tarred_audio_filepaths to "
+                "be a string/Path or a non-empty flat list of strings/Paths; nested "
+                "list forms are not supported."
+            )
+        if is_tarred and manifest_is_flat_list != tar_is_flat_list:
+            raise ValueError(
+                "Packed native NeMo manifest_filepath and tarred_audio_filepaths "
+                "must both use scalar path specs or both use non-empty flat lists."
+            )
+    packed_flat_list = index_pack is not None and (manifest_is_flat_list or (is_tarred and tar_is_flat_list))
+    if manifest_is_scalar or packed_flat_list:
+        if is_tarred and not metadata_only:
+            cuts = CutSet(
+                LazyNeMoTarredIterator(
+                    manifest_filepath,
+                    tar_paths=tarred_audio_filepaths,
+                    skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
+                    fault_tolerant_audio_loading=config.get("fault_tolerant_audio_loading", True),
+                    input_sampling_rate=config.get("input_sampling_rate", None),
+                    slice_length=config.get("slice_length", None),
+                    **tar_kwargs_extra,
+                    **common_kwargs,
+                )
+            )
+            if not force_finite:
+                cuts = cuts.repeat(preserve_id=True)
+        else:
+            cuts = CutSet(LazyNeMoIterator(manifest_filepath, **notar_kwargs, **notar_kwargs_extra, **common_kwargs))
+    else:
+        # Format option 1:
+        #   Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
+        #   This is the format for multiple NeMo buckets.
+        #   Note: we set "weights" here to be proportional to the number of utterances in each data source.
+        #         this ensures that we distribute the data from each source uniformly throughout each epoch.
+        #         Setting equal weights would exhaust the shorter data sources closer the towards the beginning
+        #         of an epoch (or over-sample it in the case of infinite CutSet iteration with .repeat()).
+        # Format option 2:
+        #   Assume it's [[path1, weight1], [path2, weight2], ...] (while tarred_audio_filepaths remain unchanged).
+        #   Note: this option allows to manually set the weights for multiple datasets.
+        # Format option 3:
+        #   i.e., NeMo concatenated dataset
+        #   Assume it's [path1, path2, ...] (while tarred_audio_filepaths in the same format).
+        cutsets = []
+        weights = []
+        tar_paths = config.tarred_audio_filepaths if is_tarred else repeat((None,))
+        # Create a stream for each dataset.
+        for manifest_info, tar_path in zip(config.manifest_filepath, tar_paths):
+            if is_tarred and isinstance(tar_path, (list, tuple, ListConfig)):
+                # if it's in option 1 or 2
+                (tar_path,) = tar_path
+                manifest_path = manifest_info[0]
+            else:
+                # if it's in option 3
+                manifest_path = manifest_info
+            # First, convert manifest_path[+tar_path] to an iterator.
+            if is_tarred and not metadata_only:
+                nemo_iter = LazyNeMoTarredIterator(
+                    manifest_path=manifest_path,
+                    tar_paths=tar_path,
+                    skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
+                    fault_tolerant_audio_loading=config.get("fault_tolerant_audio_loading", True),
+                    input_sampling_rate=config.get("input_sampling_rate", None),
+                    slice_length=config.get("slice_length", None),
+                    **tar_kwargs_extra,
+                    **common_kwargs,
+                )
+            else:
+                nemo_iter = LazyNeMoIterator(manifest_path, **notar_kwargs, **notar_kwargs_extra, **common_kwargs)
+            # Then, determine the weight or use one provided
+            if isinstance(manifest_info, str) or len(manifest_info) == 1:
+                weight = len(nemo_iter)
+            else:
+                assert (
+                    isinstance(manifest_info, Sequence)
+                    and len(manifest_info) == 2
+                    and isinstance(manifest_info[1], (int, float))
+                ), (
+                    "Supported inputs types for config.manifest_filepath are: "
+                    "str | list[list[str]] | list[tuple[str, number]] "
+                    "where str is a path and number is a mixing weight (it may exceed 1.0). "
+                    f"We got: '{manifest_info}'"
+                )
+                weight = manifest_info[1]
+            # [optional] When we have a limit on the number of open streams,
+            #   split the manifest to individual shards if applicable.
+            #   This helps the multiplexing achieve closer data distribution
+            #   to the one desired in spite of the limit.
+            if config.get("max_open_streams") is not None:
+                for subiter in nemo_iter.to_shards():
+                    cutsets.append(CutSet(subiter))
+                    weights.append(weight)
+            else:
+                cutsets.append(CutSet(nemo_iter))
+                weights.append(weight)
+        cuts = mux(
+            *cutsets,
+            weights=weights,
+            max_open_streams=config.get("max_open_streams"),
+            seed=config.get("shard_seed", "trng"),
+            force_finite=force_finite or metadata_only,
+        )
+    return cuts, is_tarred
+
+
+@data_type_parser("multi_speaker_simulator")
+def read_multi_speaker_simulator(config: DictConfig) -> tuple[CutSet, bool]:
+    # Import here to avoid circular dependency
+    from nemo.collections.asr.parts.utils.asr_multispeaker_utils import MultiSpeakerMixtureGenerator
+
+    multi_speaker_cuts = CutSet(
+        MultiSpeakerMixtureGenerator(
+            manifest_filepath=config.manifest_filepath,
+            simulator_type=config.simulator_type,
+            sample_rate=config.get("sample_rate", 16000),
+            min_delay=config.get("min_delay", 0.5),
+            min_duration=config.get("min_duration", 0.1),
+            max_duration=config.get("max_duration", 60),
+            num_speakers=config.get("num_speakers", 2),
+            global_rank=config.get("global_rank", 0),
+            world_size=config.get("world_size", 1),
+        )
+    )
+    is_tarred = config.get("is_tarred", False)
+    return multi_speaker_cuts, is_tarred
+
+
+def mux(
+    *cutsets: CutSet,
+    weights: list[Union[int, float]],
+    max_open_streams: Union[int, None] = None,
+    seed: Union[str, int] = "trng",
+    force_finite: bool = False,
+) -> CutSet:
+    """
+    Helper function to call the right multiplexing method flavour in lhotse.
+    The result is always an infinitely iterable ``CutSet``, but depending on whether ``max_open_streams`` is set,
+    it will select a more appropriate multiplexing strategy.
+    """
+    if max_open_streams is not None:
+        assert not force_finite, "max_open_streams and metadata_only/force_finite options are not compatible"
+        cuts = CutSet.infinite_mux(*cutsets, weights=weights, seed=seed, max_open_streams=max_open_streams)
+    else:
+        if not force_finite:
+            cutsets = [cs.repeat(preserve_id=True) for cs in cutsets]
+        if len(cutsets) == 1:
+            # CutSet.mux must take more than one CutSet.
+            cuts = cutsets[0]
+        else:
+            cuts = CutSet.mux(*cutsets, weights=weights, seed=seed)
+    return cuts
+
+
+def guess_parse_cutset(inp: Union[str, dict, omegaconf.DictConfig]) -> CutSet:
+    """
+    Utility function that supports opening a CutSet from:
+    * a string path to YAML input spec (see :func:`read_dataset_config` for details)
+    * a string path to Lhotse non-tarred JSONL manifest
+    * a string path to NeMo non-tarred JSON manifest
+    * a dictionary specifying inputs with keys available in
+        :class:`nemo.collections.common.data.lhotse.dataloader.LhotseDataLoadingConfig`
+
+    It's intended to be used in a generic context where we are not sure which way the user will specify the inputs.
+    """
+    from nemo.collections.common.data.lhotse.dataloader import make_structured_with_schema_warnings
+
+    if isinstance(inp, (dict, omegaconf.DictConfig)):
+        try:
+            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"{k}={v}" for k, v in inp.items()]))
+            cuts, _ = read_cutset_from_config(config)
+            return cuts
+        except Exception as e:
+            raise RuntimeError(
+                f"Couldn't open CutSet based on dict input {inp} (is it compatible with LhotseDataLoadingConfig?)"
+            ) from e
+    elif isinstance(inp, str):
+        if inp.endswith(".yaml"):
+            # Path to YAML file with the input configuration
+            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"input_cfg={inp}"]))
+        elif inp.endswith(".jsonl") or inp.endswith(".jsonl.gz"):
+            # Path to a Lhotse non-tarred manifest
+            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"cuts_path={inp}"]))
+        else:
+            # Assume anything else is a NeMo non-tarred manifest
+            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"manifest_filepath={inp}"]))
+        cuts, _ = read_cutset_from_config(config)
+        return cuts
+    else:
+        raise RuntimeError(f'Unsupported input type: {type(inp)} (expected a dict or a string)')
+
+
+def _convert_tarred_to_duplex(cut, agent_silence_duration):
+    """Helper function to convert single supervision to duplex format.
+
+    This is a module-level function (not nested) so it can be pickled for multiprocessing.
+    """
+    if len(cut.supervisions) != 1:
+        # Skip cuts that don't have exactly one supervision
+        return cut
+
+    original_sup = cut.supervisions[0]
+    orig_user_duration = cut.duration
+
+    # Note here we use the last part of the audio as agent silence, which may cut user text, but this avoid using synthetic silence
+    # TODO(kevinhu): Evaluate how this impacts user EOU
+
+    # Append agent_silence_duration of silence to the original recording
+    if agent_silence_duration > 0:
+        sr = cut.recording.sampling_rate
+        user_sil_samples = int(agent_silence_duration * sr)
+        silence_audio = np.zeros((1, user_sil_samples), dtype=np.float32)
+        # Concatenate silence to the end of the original audio
+        orig_audio = cut.recording.load_audio()
+        if orig_audio.ndim == 1:
+            orig_audio = orig_audio[None, :]
+        new_audio = np.concatenate([orig_audio, silence_audio], axis=1)
+        # Create a new Recording with the extended audio
+        new_recording = create_recording_from_array(new_audio, sr, cut.recording.id)
+        cut.recording = new_recording
+        cut.duration = new_audio.shape[1] / sr
+
+    # Create user supervision (original speech)
+    user_dur = orig_user_duration
+    user_sup = SupervisionSegment(
+        id=f"{cut.id}_user",
+        recording_id=cut.recording_id,
+        start=0.0,
+        duration=user_dur,
+        text=original_sup.text,
+        language=original_sup.language,
+        speaker="user",
+    )
+
+    # Create agent supervision (silence with configurable duration)
+    agent_start = orig_user_duration + agent_silence_duration if agent_silence_duration < 0 else orig_user_duration
+    agent_dur = abs(agent_silence_duration)
+    agent_sup = SupervisionSegment(
+        id=f"{cut.id}_agent",
+        recording_id=cut.recording_id,
+        start=agent_start,
+        duration=agent_dur,
+        text="",  # Empty text for silence
+        language=original_sup.language,
+        speaker="agent",
+    )
+
+    # Create target_audio with all zeros (silence)
+    sr = cut.recording.sampling_rate
+    num_samples = int(cut.duration * sr)
+    silence_audio = np.zeros((1, num_samples), dtype=np.float32)
+
+    # Create a Recording from the silence audio
+    silence_recording = create_recording_from_array(silence_audio, sr, f"{cut.id}_target")
+
+    # Replace the single supervision with user and agent supervisions
+    cut.supervisions = [user_sup, agent_sup]
+    cut.task = "asr"
+
+    # Add target_audio to cut.custom
+    if cut.custom is None:
+        cut.custom = {}
+    cut.custom["target_audio"] = silence_recording
+
+    return cut
+
+
+@data_type_parser(["nemo_tarred_to_duplex"])
+def read_nemo_tarred_to_duplex(config) -> tuple[CutSet, bool]:
+    """Convert single-supervision NeMo tarred data to duplex format with user speech and agent silence.
+
+    This parser wraps ``nemo_tarred`` and converts each single-supervision cut
+    into a two-supervision (user + agent) duplex cut.  The user supervision
+    keeps the original audio and text, while the agent supervision is silence
+    with empty text.  A silent ``target_audio`` recording (all zeros, same
+    length as the source) is attached via ``cut.custom["target_audio"]``.
+
+    Input config YAML example (used inside an ``input_cfg`` list)::
+
+        - manifest_filepath: /path/to/manifest__OP_0..63_CL_.json
+          tarred_audio_filepaths: /path/to/audio__OP_0..63_CL_.tar
+          type: nemo_tarred_to_duplex
+          agent_silence_duration: 2.0   # optional, default -0.08
+          weight: 1.0
+
+    Each line in the NeMo manifest JSON is the standard NeMo format::
+
+        {"audio_filepath": "relative/path.wav", "text": "transcript", "duration": 4.5}
+
+    ``agent_silence_duration`` controls how much silence is used for the agent
+    turn.  A positive value appends that many seconds of silence after the
+    user audio.  A negative value (the default, ``-0.08``) re-uses the last
+    ``abs(value)`` seconds of the user audio as the agent region instead of
+    appending new silence.
+    """
+
+    # by default, use the last part of user audio as agent silence duration
+    agent_silence_duration = config.get("agent_silence_duration", -0.08)
+
+    # Reuse the existing nemo_tarred parser by creating a config with type: nemo_tarred
+    nemo_config = DictConfig(config)
+    nemo_config.type = "nemo_tarred"
+
+    # Load the cuts using the original parser
+    cuts, is_tarred = read_nemo_manifest(nemo_config)
+
+    # Apply the conversion using functools.partial to make it picklable
+    convert_fn = partial(_convert_tarred_to_duplex, agent_silence_duration=agent_silence_duration)
+    cuts = cuts.map(convert_fn)
+
+    return cuts, is_tarred

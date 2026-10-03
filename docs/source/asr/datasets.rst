@@ -1,0 +1,212 @@
+Datasets
+========
+
+NeMo ASR models expect data as a set of audio files plus a manifest file describing each utterance.
+
+.. seealso::
+
+   For Lhotse-based dataloading (the recommended path for new ASR
+   recipes — dynamic bucketing, multi-source mixing, indexed/resumable
+   dataloading), see :doc:`/dataloaders`.
+
+.. _section-with-manifest-format-explanation:
+
+Manifest Format
+---------------
+
+Each line of the manifest is a JSON object:
+
+.. code-block:: json
+
+  {"audio_filepath": "/path/to/audio.wav", "text": "the transcription of the utterance", "duration": 23.147}
+
+* ``audio_filepath`` — absolute or relative path to the audio file (WAV recommended)
+* ``text`` — the transcript
+* ``duration`` — duration in seconds
+
+There should be one manifest per dataset split (train, validation, test). Pass it via ``training_ds.manifest_filepath=<path>``.
+
+
+.. _canary-manifest-format:
+
+Canary Manifest Format
+~~~~~~~~~~~~~~~~~~~~~~
+
+Canary multi-task models require additional manifest keys to control transcription, translation, punctuation, and other behaviors.
+The required and optional keys differ between Canary v1 and Canary Flash / v2.
+
+**Canary v1** (e.g., ``canary-1b``):
+
+.. code-block:: json
+
+  {"audio_filepath": "audio.wav", "text": "hello world", "duration": 3.5, "source_lang": "en", "task": "asr", "target_lang": "en", "pnc": "yes"}
+
+.. list-table::
+  :header-rows: 1
+
+  * - Key
+    - Required
+    - Description
+  * - ``source_lang``
+    - Yes
+    - Input audio language (ISO code, e.g. ``en``, ``de``, ``es``)
+  * - ``target_lang``
+    - Yes
+    - Output transcription language
+  * - ``task``
+    - Yes
+    - ``"asr"`` (transcribe) or ``"ast"`` (translate)
+  * - ``pnc``
+    - Yes
+    - ``"yes"`` or ``"no"`` — enable punctuation and capitalization
+
+**Canary Flash / v2** (e.g., ``canary-1b-flash``, ``canary-1b-v2``):
+
+The ``task`` field has been removed; the model infers ASR vs translation from the language pair.
+Additional optional keys control features like timestamps, ITN, and diarization.
+
+.. code-block:: json
+
+  {"audio_filepath": "audio.wav", "text": "hello world", "duration": 3.5, "source_lang": "en", "target_lang": "en", "pnc": "yes"}
+
+.. list-table::
+  :header-rows: 1
+
+  * - Key
+    - Required
+    - Description
+  * - ``source_lang``
+    - Yes
+    - Input audio language (ISO code)
+  * - ``target_lang``
+    - Yes
+    - Output transcription language. Same as ``source_lang`` for ASR; different for translation.
+  * - ``pnc``
+    - No (default: ``"yes"``)
+    - ``"yes"`` or ``"no"`` — punctuation and capitalization
+  * - ``itn``
+    - No (default: ``"no"``)
+    - ``"yes"`` or ``"no"`` — inverse text normalization
+  * - ``timestamp``
+    - No (default: ``"no"``)
+    - ``"yes"`` or ``"no"`` — predict word-level timestamps
+  * - ``diarize``
+    - No (default: ``"no"``)
+    - ``"yes"`` or ``"no"`` — diarize speech
+  * - ``decodercontext``
+    - No (default: ``""``)
+    - Previous transcript or other context to bias predictions
+  * - ``emotion``
+    - No (default: ``"undefined"``)
+    - Speaker emotion hint (``"neutral"``, ``"angry"``, ``"happy"``, ``"sad"``, ``"undefined"``)
+
+During fine-tuning, these keys are read from the manifest and encoded as prompt tokens.
+During inference, they can be provided either in the manifest or as arguments to ``model.transcribe()``.
+
+.. _Tarred_Datasets:
+
+Tarred Datasets
+---------------
+
+For cluster training with distributed file systems, tar your audio files to avoid reading many small files.
+Use ``is_tarred: true`` in the config and provide tarball paths via ``tarred_audio_filepaths``.
+
+NeMo uses `WebDataset <https://github.com/tmbdev/webdataset>`_ for tarred data.
+
+**Convert to tarred format:**
+
+.. code-block:: bash
+
+  python scripts/speech_recognition/convert_to_tarred_audio_dataset.py \
+    --manifest_path=<manifest> \
+    --target_dir=<output_dir> \
+    --num_shards=64 \
+    --max_duration=<float representing maximum duration of audio samples> \
+    --min_duration=<float representing minimum duration of audio samples> \
+    --shuffle --shuffle_seed=0
+
+This script shuffles the entries in the given manifest (if ``--shuffle`` is set, which we recommend), filter
+audio files according to ``min_duration`` and ``max_duration``, and tar the remaining audio files to the directory
+``--target_dir`` in ``n`` shards, along with separate manifest and metadata files.
+
+The files in the target directory should look similar to the following:
+
+.. code::
+
+  target_dir/
+  ├── audio_1.tar
+  ├── audio_2.tar
+  ├── ...
+  ├── metadata.yaml
+  ├── tarred_audio_manifest.json
+  ├── sharded_manifests/
+      ├── manifest_1.json
+      ├── ...
+      └── manifest_N.json
+
+
+Note that file structures are flattened such that all audio files are at the top level in each tarball. This ensures that
+filenames are unique in the tarred dataset and the filepaths do not contain "-sub" and forward slashes in each ``audio_filepath`` are
+simply converted to underscores. For example, a manifest entry for ``/data/directory1/file.wav`` would be ``_data_directory1_file.wav``
+in the tarred dataset manifest, and ``/data/directory2/file.wav`` would be converted to ``_data_directory2_file.wav``.
+
+Sharded manifests are generated by default; this behavior can be toggled via the ``no_shard_manifests`` flag.
+
+To use an existing tarred dataset instead of a non-tarred dataset, set ``is_tarred: true`` in
+the experiment config file. Then, pass in the paths to all of the audio tarballs in ``tarred_audio_filepaths``, either as a list
+of filepaths, e.g. ``['/data/shard1.tar', '/data/shard2.tar']``, or in a single brace-expandable string, e.g.
+``'/data/shard_{1..64}.tar'`` or ``'/data/shard__OP_1..64_CL_'`` (recommended, see note below).
+
+.. note::
+  For brace expansion, there may be cases where ``{x..y}`` syntax cannot be used due to shell interference. This occurs most commonly
+  inside SLURM scripts. Therefore, we provide a few equivalent replacements. Supported opening braces (equivalent to ``{``) are ``(``,
+  ``[``, ``<`` and the special tag ``_OP_``. Supported closing braces (equivalent to ``}``) are ``)``, ``]``, ``>`` and the special
+  tag ``_CL_``. For SLURM based tasks, we suggest the use of the special tags for ease of use.
+
+As with non-tarred datasets, the manifest file should be passed in ``manifest_filepath``. The dataloader assumes that the length
+of the manifest after filtering is the correct size of the dataset for reporting training progress.
+
+The ``tarred_shard_strategy`` field of the config file can be set if you have multiple shards and are running an experiment with
+multiple workers. It defaults to ``scatter``, which preallocates a set of shards per worker which do not change during runtime.
+Note that this strategy, on specific occasions (when the number of shards is not divisible with ``world_size``), will not sample
+the entire dataset. As an alternative the ``replicate`` strategy, will preallocate the entire set of shards to every worker and not
+change it during runtime. The benefit of this strategy is that it allows each worker to sample data points from the entire dataset
+independently of others. Note, though, that more than one worker may sample the same shard, and even sample the same data points!
+As such, there is no assured guarantee that all samples in the dataset will be sampled at least once during 1 epoch. Note that
+for these reasons it is not advisable to use tarred datasets as validation and test datasets.
+
+For more information about the individual tarred datasets and the parameters available, including shuffling options,
+see the corresponding class APIs in the :ref:`Datasets <asr-api-datasets>` section.
+
+.. warning::
+  If using multiple workers, the number of shards should be divisible by the world size to ensure an even
+  split among workers. If it is not divisible, logging will give a warning but training will proceed, but likely hang at the last epoch.
+  In addition, if using distributed processing, each shard must have the same number of entries after filtering is
+  applied such that each worker ends up with the same number of files. We currently do not check for this in any dataloader, but the user's
+  program may hang if the shards are uneven.
+
+.. _Bucketing_Datasets:
+
+Bucketing
+---------
+
+The script ``scripts/speech_recognition/convert_to_tarred_audio_dataset.py`` offers a ``--buckets_num`` option that enables
+static bucketing by sorting data into separate duration-based buckets at pre-processing time.
+This approach is deprecated in favor of :ref:`dynamic bucketing <lhotse-dataloading>` enabled with Lhotse, which doesn't require special pre-processing.
+
+If you do wish to proceed with static bucketing, pass the tarred datasets as a list of lists in your training config:
+
+.. code-block:: yaml
+
+  train_ds:
+    manifest_filepath: [[bucket1/manifest.json], [bucket2/manifest.json], ...]
+    tarred_audio_filepaths: [[bucket1/audio__OP_0..63_CL_.tar], [bucket2/audio__OP_0..63_CL_.tar], ...]
+    bucketing_batch_size: null  # set to a list of ints for adaptive batch sizes per bucket
+
+
+Lhotse Dataloading
+------------------
+
+NeMo supports `Lhotse <https://github.com/lhotse-speech/lhotse>`_ for advanced dataloading with dynamic batch sizes, dynamic bucketing, OOMptimizer, and multi-dataset configuration.
+
+See :doc:`Lhotse Dataloading </dataloaders>` for full documentation.

@@ -1,0 +1,160 @@
+# It contains the default values for training an LSTM-CTC ASR model, large size (~170M for bidirectional and ~130M for unidirectional) with CTC loss and sub-word encoding.
+
+# Architecture and training config:
+# Default learning parameters in this config are set for effective batch size of 2K. To train it with smaller effective
+# batch sizes, you may need to re-tune the learning parameters or use higher accumulate_grad_batches.
+
+# Followed the architecture suggested in the following paper:
+# 'STREAMING END-TO-END SPEECH RECOGNITION FOR MOBILE DEVICES' by Yanzhang He et al. (https://arxiv.org/pdf/1811.06621.pdf)
+
+# You may find more info about LSTM-CTC here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/models.html#lstm-transducer
+# Pre-trained models of LSTM-CTC can be found here: https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/stable/asr/results.html
+
+name: "LSTM-CTC-BPE"
+
+model:
+  sample_rate: 16000
+  log_prediction: true # enables logging sample predictions in the output during training
+  ctc_reduction: 'mean_batch'
+  skip_nan_grad: false
+
+  train_ds:
+    manifest_filepath: ???
+    sample_rate: ${model.sample_rate}
+    batch_size: 16 # you may increase batch_size if your memory allows
+    shuffle: true
+    num_workers: 4
+    pin_memory: true
+    max_duration: 16.7 # it is set for LibriSpeech, you may need to update it for your dataset
+    min_duration: 0.1
+    # tarred datasets
+    is_tarred: false
+    tarred_audio_filepaths: null
+    shuffle_n: 2048
+    # bucketing params
+    bucketing_strategy: "synced_randomized"
+    bucketing_batch_size: null
+
+  validation_ds:
+    manifest_filepath: ???
+    sample_rate: ${model.sample_rate}
+    batch_size: 16 # you may increase batch_size if your memory allows
+    shuffle: false
+    num_workers: 4
+    pin_memory: true
+
+  test_ds:
+    manifest_filepath: null
+    sample_rate: ${model.sample_rate}
+    batch_size: 16 # you may increase batch_size if your memory allows
+    shuffle: false
+    num_workers: 4
+    pin_memory: true
+
+  # You may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
+  tokenizer:
+    dir: ???  # path to directory which contains either tokenizer.model (bpe) or vocab.txt (for wpe)
+    type: bpe  # Can be either bpe (SentencePiece tokenizer) or wpe (WordPiece tokenizer)
+
+  preprocessor:
+    _target_: nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor
+    sample_rate: ${model.sample_rate}
+    normalize: "per_feature"
+    window_size: 0.025
+    window_stride: 0.01
+    window: "hann"
+    features: 80
+    n_fft: 512
+    frame_splicing: 1
+    dither: 0.00001
+    pad_to: 0
+
+  spec_augment:
+    _target_: nemo.collections.asr.modules.SpectrogramAugmentation
+    freq_masks: 2 # set to zero to disable it
+    time_masks: 10 # set to zero to disable it
+    freq_width: 27
+    time_width: 0.05
+
+  encoder:
+    _target_: nemo.collections.asr.modules.RNNEncoder
+    feat_in: ${model.preprocessor.features}
+    n_layers: 8
+    d_model: 2048
+    proj_size: 640 # you may set it if you need different output size other than the default d_model
+    rnn_type: "lstm" # it can be lstm, gru or rnn
+    bidirectional: true # need to set it to false if you want to make the model causal
+
+    # Sub-sampling params
+    subsampling: stacking # stacking, vggnet or striding
+    subsampling_factor: 4
+    subsampling_conv_channels: -1 # set to -1 to make it equal to the d_model
+
+    ### regularization
+    dropout: 0.2 # The dropout used in most of the Conformer Modules
+
+  decoder:
+    _target_: nemo.collections.asr.modules.ConvASRDecoder
+    feat_in: null
+    num_classes: -1
+    vocabulary: []
+
+  optim:
+    name: adamw
+    lr: 5.0
+    # optimizer arguments
+    betas: [0.9, 0.98]
+    weight_decay: 1e-2
+
+    # scheduler setup
+    sched:
+      name: NoamAnnealing
+      d_model: ${model.encoder.d_model}
+      # scheduler config override
+      warmup_steps: 10000
+      warmup_ratio: null
+      min_lr: 1e-6
+
+trainer:
+  devices: -1 # number of GPUs, -1 would use all available GPUs
+  num_nodes: 1
+  max_epochs: 500
+  max_steps: -1 # computed at runtime if not set
+  val_check_interval: 1.0 # Set to 0.25 to check 4 times per epoch, or an int for number of iterations
+  accelerator: gpu
+  strategy: ddp
+  accumulate_grad_batches: 1
+  gradient_clip_val: 0.3
+  precision: 32 # 16, 32, or bf16
+  log_every_n_steps: 10  # Interval of logging.
+  enable_progress_bar: True
+  num_sanity_val_steps: 0 # number of steps to perform validation steps for sanity check the validation process before starting the training, setting to 0 disables it
+  check_val_every_n_epoch: 1 # number of evaluations on validation every n epochs
+  sync_batchnorm: true
+  enable_checkpointing: False  # Provided by exp_manager
+  logger: false  # Provided by exp_manager
+  benchmark: false # needs to be false for models with variable-length speech input as it slows down training
+
+
+exp_manager:
+  exp_dir: null
+  name: ${name}
+  create_tensorboard_logger: true
+  create_checkpoint_callback: true
+  checkpoint_callback_params:
+    # in case of multiple validation sets, first one is used
+    monitor: "val_wer"
+    mode: "min"
+    save_top_k: 5
+    always_save_nemo: True # saves the checkpoints as nemo files instead of PTL checkpoints
+
+  resume_from_checkpoint: null # The path to a checkpoint file to continue the training, restores the whole state including the epoch, step, LR schedulers, apex, etc.
+  # you need to set these two to True to continue the training
+  resume_if_exists: false
+  resume_ignore_no_checkpoint: false
+
+  # You may use this section to create a W&B logger
+  create_wandb_logger: false
+  wandb_logger_kwargs:
+    name: null
+    project: null

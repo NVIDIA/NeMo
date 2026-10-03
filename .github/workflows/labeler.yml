@@ -1,0 +1,14 @@
+name: "Pull Request Labeler"
+on:
+- pull_request_target
+
+jobs:
+  triage:
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/labeler@ac9175f8a1f3625fd0d4fb234536d26811351594 # v4
+      with:
+        repo-token: "${{ secrets.GITHUB_TOKEN }}"

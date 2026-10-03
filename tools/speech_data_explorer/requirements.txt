@@ -1,0 +1,13 @@
+boto3
+braceexpand
+dash>=2.1.0
+dash_bootstrap_components>=1.0.3
+diff_match_patch
+kaldialign
+librosa>=0.9.1
+numpy
+pandas
+plotly
+requests
+SoundFile
+tqdm

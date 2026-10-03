@@ -1,0 +1,337 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import re
+from typing import Generator, Iterable
+
+import torch
+from lightning import LightningModule
+from omegaconf import OmegaConf
+
+from nemo.core.classes.common import safe_instantiate
+from nemo.core.optim import patch_flashoptim_uneven_shard_support
+from nemo.utils import logging
+
+
+def configure_optimizers(model: LightningModule):
+    """
+    Re-usable optimizer configuration function for top-level PyTorch Lightning modules in this collection.
+    It sets up parameter freezing, optimizer, and LR scheduler.
+
+    The ``model`` object is expected to have a ``model.cfg`` attribute with OmegaConf configuration.
+    The following fields are expected:
+
+    * ``optimizer`` with hydra-style ``_target_`` pointing to optimizer class, and the remaining options
+        passed directly to its ``__init__`` method.
+
+    * (optional) ``freeze_params`` with a list of regex pattern for identifying frozen parameters.
+
+    * (optional) ``prevent_freeze_params`` with a list of regex pattern for keeping specific parameters trainable
+        (overrides ``freeze_params``).
+
+    * (optional) ``lr_scheduler`` with hydra-style ``_target_`` pointing to LR scheduler class,
+        and the remaining options passed directly to its ``__init__`` method.
+
+    * (optional) ``lr_multipliers``: a mapping of regex pattern -> float. Parameters whose names
+        match a pattern are placed in their own optimizer parameter group with
+        ``lr = optimizer.lr * multiplier``. Useful when submodules need different rates -- e.g.
+        adapting a speech encoder to a new acoustic condition wants a larger step than the LoRA
+        adapters on a frozen LLM. Patterns are tried in order; the first match wins, and anything
+        unmatched stays at the base LR.
+
+    Returns:
+        PyTorch Lightning Trainer-compatible dict with structure::
+
+            {
+                "optimizer": <optimizer>,
+                "lr_scheduler": {"scheduler": <lr_scheduler>, "interval": "step", "frequency": 1}
+            }
+
+    """
+    assert hasattr(model, "cfg"), "Expected `model.cfg` attribute to exist."
+    assert "optimizer" in model.cfg, "Expected `model.cfg` to contain 'optimizer' configuration."
+    parameters = freeze_and_subset(
+        model.named_parameters(),
+        exclude_patterns=model.cfg.get("freeze_params", []),
+        keep_patterns=model.cfg.get("prevent_freeze_params", []),
+        return_named=bool(model.cfg.get("lr_multipliers", None)),
+    )
+    lr_multipliers = model.cfg.get("lr_multipliers", None)
+    if lr_multipliers:
+        parameters = build_param_groups(parameters, lr_multipliers, float(model.cfg.optimizer["lr"]))
+    optimizer = safe_instantiate(_optimizer_config_with_torch_dtypes(model.cfg.optimizer), parameters, _convert_='all')
+    patch_flashoptim_uneven_shard_support(optimizer)
+    ans = {"optimizer": optimizer}
+    if "lr_scheduler" in model.cfg:
+        lr_scheduler = safe_instantiate(model.cfg.lr_scheduler, optimizer)
+        ans["lr_scheduler"] = {"scheduler": lr_scheduler, "interval": "step", "frequency": 1}
+    return ans
+
+
+def configure_optimizers_exclude_norm_from_wd(model: LightningModule):
+    """
+    Advanced optimizer configuration function for top-level PyTorch Lightning modules.
+
+    This function sets up parameter freezing and instantiates the optimizer and LR scheduler,
+    but specifically separates parameters into two groups:
+      1. Standard weights: Receive the configured weight decay.
+      2. Biases and Normalization layers (e.g., LayerNorm): Receive 0.0 weight decay to improve
+         mixed precision stability during training.
+
+    The ``model`` object is expected to have a ``model.cfg`` attribute with OmegaConf configuration.
+    The following fields are expected:
+
+    * ``optimizer`` with hydra-style ``_target_`` pointing to optimizer class.
+    * (optional) ``freeze_params`` with a list of regex patterns for identifying frozen parameters.
+    * (optional) ``prevent_freeze_params`` with a list of regex patterns for keeping specific parameters trainable.
+    * (optional) ``lr_scheduler`` with hydra-style ``_target_`` pointing to LR scheduler class.
+
+    Returns:
+        PyTorch Lightning Trainer-compatible dict with structure::
+
+            {
+                "optimizer": <optimizer>,
+                "lr_scheduler": {"scheduler": <lr_scheduler>, "interval": "step", "frequency": 1}
+            }
+    """
+    assert hasattr(model, "cfg"), "Expected `model.cfg` attribute to exist."
+    assert "optimizer" in model.cfg, "Expected `model.cfg` to contain 'optimizer' configuration."
+
+    # 1. Identify trainable parameters using the standard freezing logic
+    trainable_params_gen = freeze_and_subset(
+        model.named_parameters(),
+        exclude_patterns=model.cfg.get("freeze_params", []),
+        keep_patterns=model.cfg.get("prevent_freeze_params", []),
+    )
+
+    # freeze_and_subset yields parameters, but we need to track names to separate by norm/bias.
+    # So we get the set of id(param) that are trainable to filter named_parameters.
+    trainable_param_ids = {id(p) for p in trainable_params_gen}
+
+    # 2. Identify layers for Weight Decay exclusion
+    no_decay_keywords = ["bias", "norm", "layernorm"]
+
+    decay_group = []
+    no_decay_group = []
+    no_decay_names = []
+    total_trainable_layers = 0
+
+    for name, param in model.named_parameters():
+        if id(param) in trainable_param_ids:
+            total_trainable_layers += 1
+            if any(nd in name.lower() for nd in no_decay_keywords):
+                no_decay_group.append(param)
+                no_decay_names.append(name)
+            else:
+                decay_group.append(param)
+
+    # Logging audit trail
+    logging.info("=" * 70)
+    logging.info("OPTIMIZER STRATEGY: Mixed Precision Stability")
+    logging.info(f"Total Trainable Layers: {total_trainable_layers}")
+    logging.info("-" * 70)
+    logging.info(
+        f"REGULARIZATION: Applying weight_decay={model.cfg.optimizer.get('weight_decay', 0.1)} "
+        f"to {len(decay_group)} weight layers."
+    )
+    logging.info(f"STABILITY: Excluding {len(no_decay_names)} Normalization and Bias layers from weight decay.")
+
+    for n in no_decay_names[:10]:
+        logging.info(f"  [WD=0.0] -> {n}")
+    if len(no_decay_names) > 10:
+        logging.info(f"  ... (+ {len(no_decay_names) - 10} additional normalization/bias layers)")
+    logging.info("=" * 70)
+
+    # 3. Parameter Grouping
+    # Note: We must exclude 'weight_decay' from the main config so we can apply it per-group
+    # Hydra's instantiate will fail if we pass grouped dicts to the main positional argument
+    # but weight_decay is also defined in model.cfg.optimizer.
+    base_wd = model.cfg.optimizer.get("weight_decay", 0.01)
+    optim_groups = [
+        {"params": decay_group, "weight_decay": base_wd},
+        {"params": no_decay_group, "weight_decay": 0.0},
+    ]
+
+    # 4. Instantiate via Hydra
+    optimizer = safe_instantiate(
+        _optimizer_config_with_torch_dtypes(model.cfg.optimizer), optim_groups, _convert_='all'
+    )
+    patch_flashoptim_uneven_shard_support(optimizer)
+
+    ans = {"optimizer": optimizer}
+    if "lr_scheduler" in model.cfg:
+        lr_scheduler = safe_instantiate(model.cfg.lr_scheduler, optimizer)
+        ans["lr_scheduler"] = {"scheduler": lr_scheduler, "interval": "step", "frequency": 1}
+
+    return ans
+
+
+def build_param_groups(
+    named_parameters: Iterable[tuple[str, torch.nn.Parameter]],
+    lr_multipliers: dict,
+    base_lr: float,
+) -> list[dict]:
+    """
+    Split trainable parameters into optimizer groups with per-group learning rates.
+
+    Args:
+        named_parameters: ``(name, parameter)`` pairs for the trainable parameters.
+        lr_multipliers: mapping of regex pattern -> multiplier applied to ``base_lr``.
+            The first matching pattern wins; unmatched parameters keep ``base_lr``.
+        base_lr: the optimizer's configured learning rate.
+
+    Returns:
+        A list of parameter-group dicts suitable for a PyTorch optimizer.
+    """
+    compiled = [(re.compile(pat), float(mult)) for pat, mult in lr_multipliers.items()]
+    groups = {}
+    for name, param in named_parameters:
+        mult = 1.0
+        for pat, m in compiled:
+            if pat.match(name) is not None:
+                mult = m
+                break
+        groups.setdefault(mult, []).append(param)
+    out = []
+    for mult, params in sorted(groups.items()):
+        n_elem = sum(p.numel() for p in params)
+        logging.info(
+            f" | > optimizer group: lr={base_lr * mult:.3e} (x{mult}) "
+            f"{len(params)} tensors, {n_elem/1e6:.1f}M params"
+        )
+        out.append({"params": params, "lr": base_lr * mult})
+    return out
+
+
+def freeze_and_subset(
+    named_parameters: Iterable[tuple[str, torch.nn.Parameter]],
+    exclude_patterns: list[str],
+    keep_patterns: list[str] = None,
+    return_named: bool = False,
+) -> Generator[torch.nn.Parameter, None, None]:
+    """
+    Utility used to freeze select model parameters, and skip them for the purpose
+    of initializing an optimizer's parameter group.
+
+    Args:
+        named_parameters: The output of `torch.nn.Module.named_parameters()`
+        exclude_patterns: A list of regex patterns matching parameter names to be frozen
+            and excluded from optimization.
+        keep_patterns: A list of regex patterns matching parameter names to be trained.
+            This list overrides all matches to `exclude_patterns`.
+
+    Returns:
+        A generator over parameters, equivalent to calling `torch.nn.Module.parameters()`,
+            that will be passed to the optimizer and trained.
+
+    Example:
+
+        >>> model = MyModel()
+        ... # freeze all LLM parameters in "model.llm"
+        ... params = freeze_and_subset(model.named_parameters(), [r'^llm\\.\\..+$'])
+        ... optimizer = torch.optim.AdamW(params, lr=1e-3)
+
+    """
+    exclude_counter = {p: 0 for p in exclude_patterns}
+
+    if not keep_patterns:
+        keep_counter = {}
+
+        def _must_keep(_) -> bool:
+            return False
+
+    else:
+        keep_counter = {p: 0 for p in keep_patterns}
+        compiled_keep_patterns = [re.compile(p) for p in keep_patterns]
+
+        def _must_keep(name: str) -> bool:
+            for p in compiled_keep_patterns:
+                if p.match(name) is not None:
+                    keep_counter[p.pattern] += 1
+                    return True
+            return False
+
+    compiled_exclude_patterns = [re.compile(p) for p in exclude_patterns]
+
+    def _exclude(name: str) -> bool:
+        for p in compiled_exclude_patterns:
+            if p.match(name) is not None:
+                exclude_counter[p.pattern] += 1
+                return True
+        return False
+
+    trainable, nontrainable = 0, 0
+    for name, param in named_parameters:
+        keep = _must_keep(name)
+        # ``prevent_freeze_params`` is an explicit instruction to train a parameter, so it has to
+        # override module-level freezing as well as the ``freeze_params`` regexes. LoRA setup sets
+        # requires_grad=False on the entire LLM backbone, so without this the guard below drops the
+        # parameter before any regex is consulted and partial SFT silently trains nothing — the run
+        # looks healthy and only the trainable-parameter count betrays it.
+        if keep and not param.requires_grad:
+            param.requires_grad = True
+        # Honor module-level freezing (e.g. ConformerMultiLayerFeatureExtractor freezes tail
+        # layers in its __init__). Without this guard, a param with ``requires_grad=False`` that
+        # no exclude regex matches would still be yielded into the optimizer — the optimizer
+        # would then synthesize empty state for it at DCP load, causing "Missing key in
+        # checkpoint state_dict" since the saved checkpoint has no state for never-trained params.
+        if not param.requires_grad:
+            nontrainable += param.numel()
+            continue
+        discard = False
+        if _exclude(name) and not keep:
+            param.requires_grad = False
+            discard = True
+        if not discard:
+            # build_param_groups needs the names to apply its regexes; plain
+            # optimizer construction only wants the tensors.
+            yield (name, param) if return_named else param
+            trainable += param.numel()
+        else:
+            nontrainable += param.numel()
+    total = trainable + nontrainable
+
+    logging.info(f"Parameters | trainable={trainable} ({trainable / total:.2%}) | total={total}")
+
+    if unused_excluded_patterns := [k for k, v in exclude_counter.items() if v == 0]:
+        msg = "['" + "', '".join(unused_excluded_patterns) + "']"
+        logging.warning(f"Parameter freezing patterns UNMATCHED against any parameter: {msg} (bad regexp?)")
+
+    if unused_keep_patterns := [k for k, v in keep_counter.items() if v == 0]:
+        msg = "['" + "', '".join(unused_keep_patterns) + "']"
+        logging.warning(f"Parameter freeze-preventing patterns UNMATCHED against any parameter: {msg} (bad regexp?)")
+
+
+def is_frozen(module: torch.nn.Module) -> bool:
+    return all(not p.requires_grad for p in module.parameters())
+
+
+def _optimizer_config_with_torch_dtypes(config):
+    """Resolve TE FusedAdam dtype strings to torch.dtype without changing other optimizers."""
+    target = config.get("_target_", "")
+    if target != "transformer_engine.pytorch.optimizers.fused_adam.FusedAdam":
+        return config
+    from nemo_automodel.shared.te_patches import apply_te_patches
+
+    apply_te_patches()
+    resolved = OmegaConf.to_container(config, resolve=True)
+    for key in ("master_weight_dtype", "exp_avg_dtype", "exp_avg_sq_dtype"):
+        value = resolved.get(key)
+        if isinstance(value, str):
+            dtype_name = value.removeprefix("torch.")
+            dtype = getattr(torch, dtype_name, None)
+            if not isinstance(dtype, torch.dtype):
+                raise ValueError(f"Invalid {key} for TE FusedAdam: {value!r}")
+            resolved[key] = dtype
+    return resolved
