@@ -313,6 +313,11 @@ and storage dtypes before checkpoint loading and wrapping; optional
 ``retain_native_mtp: true`` preserves native MTP topology while ``mtp.enabled``
 remains false. These options do not change existing training defaults.
 
+The vLLM SpeechLM model requires a complete initial PE/dual-encoder state.
+After successful initialization, normal ``load_weights`` calls can update only
+the selected perception tensors; supplied names and shapes are checked before
+mutation, and omitted frozen tensors retain their seed values.
+
 Packed Sequences (THD)
 """"""""""""""""""""""
 

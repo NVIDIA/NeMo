@@ -53,6 +53,7 @@ from vllm.multimodal import MULTIMODAL_REGISTRY
 from vllm.sequence import IntermediateTensors
 
 from nemo.collections.speechlm2.parts.encoder_chunking import encode_audio_with_optional_chunking
+from nemo.collections.speechlm2.parts.perception_weight_loading import load_perception_state
 from nemo.collections.speechlm2.vllm.salm.audio import (
     _SAMPLING_RATE,
     NeMoSpeechLMAudioInputs,
@@ -102,6 +103,7 @@ class NeMoSpeechLMForConditionalGeneration(
         super().__init__()
         config = vllm_config.model_config.hf_config
         self.config = config
+        self._perception_weights_initialized = False
         self.encoder_chunk_size_seconds = getattr(config, "encoder_chunk_size_seconds", None)
 
         backend = make_backend(config)
@@ -288,23 +290,19 @@ class NeMoSpeechLMForConditionalGeneration(
     # ── weight loading ──
 
     def _load_perception_weights(self, perception_weights: dict[str, torch.Tensor]) -> set[str]:
-        self.perception = self.perception.to(_PERCEPTION_DTYPE)
-        incompatible = self.perception.load_state_dict(perception_weights, strict=False)
-
         from nemo.collections.speechlm2.modules.perception import IndependentDualEncoder
 
         requires_exact_architecture = (
             isinstance(getattr(self.perception, "encoder", None), IndependentDualEncoder) or self._uses_pe_encoder
         )
-        if requires_exact_architecture:
-            missing = [name for name in incompatible.missing_keys if not name.endswith("._extra_state")]
-            unexpected = [name for name in incompatible.unexpected_keys if not name.endswith("._extra_state")]
-            if missing or unexpected:
-                raise RuntimeError(
-                    "Speech encoder checkpoint does not exactly match its exported architecture: "
-                    f"missing={missing}, unexpected={unexpected}."
-                )
-        return {"perception." + k for k in perception_weights}
+        loaded = load_perception_state(
+            self.perception,
+            perception_weights,
+            require_complete=requires_exact_architecture and not self._perception_weights_initialized,
+        )
+        self.perception = self.perception.to(_PERCEPTION_DTYPE)
+        self._perception_weights_initialized = True
+        return loaded
 
     @staticmethod
     def _split_perception_llm(
