@@ -292,6 +292,27 @@ For distributed inference, launch with ``torchrun``:
       inputs=path/to/manifest \
       ep_size=2
 
+Native NeMo-RL checkpoints
+"""""""""""""""""""""""""
+
+The canonical ``examples/speechlm2/to_hf.py`` exporter accepts
+``checkpoint_format=nemo_rl`` for flat DCP checkpoints saved by NeMo-RL.
+Point ``ckpt_path`` at ``policy/weights/model`` and ``ckpt_config`` at the
+SpeechLM model configuration. The exporter retains the native frozen MTP head
+without enabling auxiliary MTP training, and uses the model's canonical HF
+dtype mapping so intrinsically FP32 weights and router buffers are preserved.
+Empty Transformer Engine bookkeeping entries are omitted by the canonical
+adapter; they contain no numerical weights. Loading requires complete parameter
+and persistent-buffer coverage, including frozen and MTP parameters, with
+activation-checkpoint wrapper names mapped to their canonical checkpoint names.
+
+For training integrations, ``SALMAutomodel`` accepts the public Automodel
+``ParameterConfig`` construction option. It applies the declared update surface
+and storage dtypes before checkpoint loading and wrapping; optional
+``perception_mixed_precision`` selects the normal FSDP2 compute/reduction policy.
+``retain_native_mtp: true`` preserves native MTP topology while ``mtp.enabled``
+remains false. These options do not change existing training defaults.
+
 Packed Sequences (THD)
 """"""""""""""""""""""
 

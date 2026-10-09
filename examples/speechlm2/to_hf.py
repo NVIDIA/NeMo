@@ -51,8 +51,27 @@ class HfExportConfig:
     # Dtype used for stored parameters
     dtype: str = "bfloat16"
 
+    # Native NeMo-RL uses flat DCP tensors under weights/model.
+    checkpoint_format: str = "lightning"
 
-def load_checkpoint(model: torch.nn.Module, checkpoint_path: str) -> None:
+
+def prepare_native_export_model_config(model_cfg: dict) -> dict:
+    """Keep native MTP topology and enable the canonical dtype adapter."""
+    model_cfg = deepcopy(model_cfg)
+    model_cfg["retain_native_mtp"] = True
+    model_cfg["mtp"] = {**model_cfg.get("mtp", {}), "enabled": False}
+    model_cfg["automodel_backend"] = {**model_cfg.get("automodel_backend", {}), "enable_hf_state_dict_adapter": True}
+    return model_cfg
+
+
+def load_checkpoint(model: torch.nn.Module, checkpoint_path: str, checkpoint_format: str = "lightning") -> None:
+    if checkpoint_format == "nemo_rl":
+        from nemo.collections.speechlm2.parts.weight_loading import load_nemo_rl_checkpoint
+
+        load_nemo_rl_checkpoint(model, checkpoint_path)
+        return
+    if checkpoint_format != "lightning":
+        raise ValueError(f"Unsupported checkpoint_format={checkpoint_format!r}")
     if Path(checkpoint_path).is_dir():
         from torch.distributed.checkpoint import load
 
@@ -193,6 +212,10 @@ def _hf_export_config(model: torch.nn.Module, dtype: str | torch.dtype) -> dict[
 
     llm = getattr(model, "llm", None)
     text_config = getattr(llm, "config", None)
+    if config.pop("retain_native_mtp", False):
+        if getattr(llm, "mtp", None) is None:
+            raise ValueError("Native MTP retention requested but no MTP head exists for export")
+        config["mtp"] = {**config.get("mtp", {}), "enabled": True}
     explicit_mtp = config.get("mtp")
     mtp_enabled = (
         bool(explicit_mtp.get("enabled", True))
@@ -578,6 +601,8 @@ def main(cfg: HfExportConfig) -> None:
         # The vLLM prompt processor must reserve exactly as many audio
         # placeholders as the checkpoint's encoder emits.
         model_cfg["audio_token_estimator"] = audio_token_estimator
+    if cfg.checkpoint_format == "nemo_rl":
+        model_cfg = prepare_native_export_model_config(model_cfg)
     model_cfg["torch_dtype"] = _canonical_torch_dtype_name(cfg.dtype)
     cls = import_class_by_path(cfg.class_path)
 
@@ -602,7 +627,7 @@ def main(cfg: HfExportConfig) -> None:
         model = cls(model_cfg)
         model.configure_model(distributed_setup=strategy.distributed_setup)
 
-        load_checkpoint(model, cfg.ckpt_path)
+        load_checkpoint(model, cfg.ckpt_path, cfg.checkpoint_format)
 
         # Consolidate DTensors to regular tensors and save on rank 0.
         consolidated = consolidate_state_dict(model)
@@ -616,10 +641,15 @@ def main(cfg: HfExportConfig) -> None:
         model_cfg["init_configure_model"] = True
         model_cfg["pretrained_weights"] = False
         model = cls(model_cfg)
-        load_checkpoint(model, cfg.ckpt_path)
-        model = model.to(str_to_dtype(cfg.dtype))
-        model.save_pretrained(cfg.output_dir, config=_hf_export_config(model, cfg.dtype))
-        save_llm_backbone_config(model, cfg.output_dir)
+        load_checkpoint(model, cfg.ckpt_path, cfg.checkpoint_format)
+        if cfg.checkpoint_format == "nemo_rl":
+            # The canonical saver preserves intrinsically-FP32 Mamba/router
+            # tensors. A blanket model.to(BF16) would round them before saving.
+            save_hf_checkpoint(model, consolidate_state_dict(model), cfg)
+        else:
+            model = model.to(str_to_dtype(cfg.dtype))
+            model.save_pretrained(cfg.output_dir, config=_hf_export_config(model, cfg.dtype))
+            save_llm_backbone_config(model, cfg.output_dir)
         _try_prepare_for_vllm(cfg.output_dir, model_cfg)
 
 
