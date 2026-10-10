@@ -34,6 +34,7 @@ Requires NeMo toolkit for the audio encoder:
 """
 
 from collections.abc import Callable, Iterable
+from datetime import datetime, timezone
 from typing import Any
 
 import torch
@@ -328,14 +329,52 @@ class NeMoSpeechLMForConditionalGeneration(
 
     def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]) -> set[str]:
         perception_weights, llm_raw = self._split_perception_llm(weights)
+        verification = None
+        verification_config = getattr(self.config, "speechlm_refit_verification", None)
+        # The first complete checkpoint load remains strict. Diagnostics apply
+        # only to subsequent normal load_weights calls used by refit.
+        if verification_config and self._perception_weights_initialized:
+            from vllm.distributed import get_tensor_model_parallel_rank, get_tensor_model_parallel_world_size
+
+            from nemo.collections.speechlm2.parts.refit_verification import RefitWeightVerifier
+
+            verification = RefitWeightVerifier(
+                self,
+                verification_config["samples"],
+                tp_rank=get_tensor_model_parallel_rank(),
+                tp_size=get_tensor_model_parallel_world_size(),
+            )
+            self._refit_verification_load_call = getattr(self, "_refit_verification_load_call", 0) + 1
+            verification_started = datetime.now(timezone.utc).isoformat()
+            for name, tensor in perception_weights.items():
+                verification.capture("perception." + name, tensor)
         loaded_perception = self._load_perception_weights(perception_weights)
 
         preprocessed = self._backend.preprocess_llm_weights(llm_raw)
         hf_weights = self._backend.nemo_to_hf_llm_weights(preprocessed)
-        combined = (("language_model." + n, t) for n, t in hf_weights)
+
+        def combined_weights():
+            for name, tensor in hf_weights:
+                name = "language_model." + name
+                if verification is not None:
+                    verification.capture(name, tensor)
+                yield name, tensor
 
         loader = AutoWeightsLoader(self)
-        loaded_llm = loader.load_weights(combined)
+        loaded_llm = loader.load_weights(combined_weights())
+
+        if verification is not None:
+            from nemo.collections.speechlm2.parts.refit_verification import append_refit_receipt
+
+            receipt = verification.verify()
+            receipt["load_call"] = self._refit_verification_load_call
+            receipt["started_utc"] = verification_started
+            receipt["finished_utc"] = datetime.now(timezone.utc).isoformat()
+            receipt["received_source_names"] = ["perception." + name for name in perception_weights] + [
+                name for name, _ in llm_raw
+            ]
+            receipt["scope"] = "destination samples versus received BF16 refit; not full policy correspondence"
+            append_refit_receipt(verification_config["output_dir"], receipt)
 
         return loaded_llm | loaded_perception
 
