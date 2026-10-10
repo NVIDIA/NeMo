@@ -1369,18 +1369,28 @@ class SALMAutomodel(LightningModule, HFHubMixin):
         activation_checkpointing_perception: bool | None = None,
         perception_fsdp_wrap_asr_layers: bool | None = None,
         perception_mixed_precision=None,
+        *,
+        device_mesh=None,
+        distributed_config=None,
+        moe_config=None,
+        moe_mesh=None,
+        activation_checkpointing_llm: bool = False,
     ) -> None:
         if distributed_setup is None and self._trainer is not None:
             distributed_setup = getattr(self._trainer.strategy, "distributed_setup", None)
         if distributed_setup is None:
             distributed_setup = getattr(self, "_distributed_setup", None)
 
-        device_mesh = None
+        if distributed_setup is not None and device_mesh is not None:
+            raise ValueError("Use either distributed_setup or the device_mesh configuration API")
         if distributed_setup is not None:
             self._distributed_setup = distributed_setup
             device_mesh = distributed_setup.mesh_context.device_mesh
             self._device_mesh = device_mesh
             self._moe_mesh = distributed_setup.mesh_context.moe_mesh
+        elif device_mesh is not None:
+            self._device_mesh = device_mesh
+            self._moe_mesh = moe_mesh
         else:
             device_mesh = getattr(self, "_device_mesh", None)
 
@@ -1412,6 +1422,25 @@ class SALMAutomodel(LightningModule, HFHubMixin):
         automodel_kwargs = {}
         if distributed_setup is not None:
             automodel_kwargs["distributed_setup"] = distributed_setup
+        elif device_mesh is not None:
+            # Public Automodel releases preceding DistributedSetup use this
+            # explicit mesh/config API. Preserve its normal sharding/AC path.
+            from nemo_automodel.components.distributed.config import FSDP2Config
+            from nemo_automodel.components.moe.config import MoEParallelizerConfig
+
+            if distributed_config is None:
+                distributed_config = FSDP2Config()
+            if moe_config is None:
+                moe_config = MoEParallelizerConfig()
+            if activation_checkpointing_llm:
+                distributed_config.activation_checkpointing = True
+            automodel_kwargs.update(
+                device_mesh=device_mesh,
+                distributed_config=distributed_config,
+                moe_config=moe_config,
+                moe_mesh=moe_mesh,
+                activation_checkpointing=activation_checkpointing_llm,
+            )
 
         # When LoRA is configured and we have a device_mesh, pass peft_config
         # through automodel so LoRA is applied before FSDP2 sharding (handles

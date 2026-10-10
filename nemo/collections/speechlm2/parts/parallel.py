@@ -352,6 +352,7 @@ class AutomodelParallelStrategy(ModelParallelStrategy):
         process_group_backend: Optional[str] = None,
         timeout: Optional[timedelta] = default_pg_timeout,
         timeout_minutes: Optional[float] = None,
+        automodel_api: str = "distributed_setup",
     ) -> None:
         # YAML-friendly override that avoids NeMo's _target_ allowlist blocking
         # datetime.timedelta. Pass `timeout_minutes: <N>` in the strategy config
@@ -369,6 +370,9 @@ class AutomodelParallelStrategy(ModelParallelStrategy):
             process_group_backend=process_group_backend,
             timeout=timeout,
         )
+        if automodel_api not in {"distributed_setup", "device_mesh"}:
+            raise ValueError("automodel_api must be distributed_setup or device_mesh")
+        self._automodel_api = automodel_api
         self._dp_size = dp_size
         self._dp_replicate_size = dp_replicate_size
         self._tp_size = tp_size
@@ -438,6 +442,24 @@ class AutomodelParallelStrategy(ModelParallelStrategy):
         Returns:
             Tuple of ``(device_mesh, moe_mesh)``.
         """
+        if self._automodel_api == "device_mesh":
+            from nemo_automodel.components.distributed.config import FSDP2Config
+            from nemo_automodel.components.distributed.mesh_utils import create_device_mesh
+
+            if self._distributed_config is None:
+                self._distributed_config = FSDP2Config()
+            self._device_mesh, self._moe_mesh = create_device_mesh(
+                self._distributed_config,
+                dp_size=self._dp_size,
+                dp_replicate_size=self._dp_replicate_size,
+                tp_size=self._tp_size,
+                pp_size=self._pp_size,
+                cp_size=self._cp_size,
+                ep_size=self._ep_size,
+                world_size=dist.get_world_size(),
+            )
+            return self._device_mesh, self._moe_mesh
+
         from nemo_automodel.components.distributed import DistributedSetup, FSDP2Config, ParallelismSizes
 
         if self._distributed_config is None:

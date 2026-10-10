@@ -65,7 +65,17 @@ class HFHubMixin(
             raise TypeError(f"trust_remote_code must be a bool, got {type(trust_remote_code).__name__}")
 
         distributed_setup = model_kwargs.pop("distributed_setup", None)
-        device_mesh = distributed_setup.mesh_context.device_mesh if distributed_setup is not None else None
+        mesh_kwargs = {
+            name: model_kwargs.pop(name)
+            for name in ("device_mesh", "distributed_config", "moe_config", "moe_mesh", "activation_checkpointing_llm")
+            if name in model_kwargs
+        }
+        if distributed_setup is not None and mesh_kwargs:
+            raise ValueError("Use either distributed_setup or the device_mesh configuration API")
+        device_mesh = (
+            distributed_setup.mesh_context.device_mesh
+            if distributed_setup is not None else mesh_kwargs.get("device_mesh")
+        )
         torch_dtype = model_kwargs.pop("torch_dtype", None)
 
         _cached_file_kwargs = dict(
@@ -125,6 +135,7 @@ class HFHubMixin(
             model_kwargs=model_kwargs,
             torch_dtype=torch_dtype,
             distributed_setup=distributed_setup,
+            mesh_kwargs=mesh_kwargs,
             cached_file_kwargs=_cached_file_kwargs,
             strict=strict,
         )
@@ -189,6 +200,7 @@ def _distributed_from_pretrained(
     torch_dtype,
     distributed_setup,
     cached_file_kwargs,
+    mesh_kwargs=None,
     strict=False,
 ):
     """Create a distributed model instance outside of a classmethod frame.
@@ -209,7 +221,7 @@ def _distributed_from_pretrained(
     instance = cls(**model_kwargs)
 
     # 2. Build parallelized architecture
-    instance.configure_model(distributed_setup=distributed_setup)
+    instance.configure_model(distributed_setup=distributed_setup, **(mesh_kwargs or {}))
 
     # 3. Load weights
     weight_file = cached_file(model_id, SAFETENSORS_SINGLE_FILE, **cached_file_kwargs)

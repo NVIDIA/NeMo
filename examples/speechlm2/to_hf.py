@@ -625,7 +625,16 @@ def main(cfg: HfExportConfig) -> None:
         model_cfg["init_configure_model"] = False
         model_cfg["pretrained_weights"] = False
         model = cls(model_cfg)
-        model.configure_model(distributed_setup=strategy.distributed_setup)
+        if strategy_cfg.get("automodel_api", "distributed_setup") == "device_mesh":
+            model.configure_model(
+                device_mesh=strategy.device_mesh,
+                distributed_config=strategy.distributed_config,
+                moe_config=strategy.moe_config,
+                moe_mesh=strategy.moe_mesh,
+                activation_checkpointing_llm=strategy.activation_checkpointing_llm,
+            )
+        else:
+            model.configure_model(distributed_setup=strategy.distributed_setup)
 
         load_checkpoint(model, cfg.ckpt_path, cfg.checkpoint_format)
 
