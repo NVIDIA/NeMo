@@ -1538,6 +1538,9 @@ class SALMAutomodel(LightningModule, HFHubMixin):
             # the MTP memory/compute cost during SpeechLM fine-tuning.
             automodel_kwargs["num_nextn_predict_layers"] = 0
 
+        if self.cfg.get("preserve_parameter_dtypes", False):
+            automodel_kwargs["preserve_parameter_dtypes"] = True
+
         if self.parameter_config is not None:
             from nemo_automodel.components.utils.parameter_config import ParameterConfig
 

@@ -59,6 +59,7 @@ def prepare_native_export_model_config(model_cfg: dict) -> dict:
     """Keep native MTP topology and enable the canonical dtype adapter."""
     model_cfg = deepcopy(model_cfg)
     model_cfg["retain_native_mtp"] = True
+    model_cfg["preserve_parameter_dtypes"] = True
     model_cfg["mtp"] = {**model_cfg.get("mtp", {}), "enabled": False}
     model_cfg["automodel_backend"] = {**model_cfg.get("automodel_backend", {}), "enable_hf_state_dict_adapter": True}
     return model_cfg
@@ -150,6 +151,7 @@ def _hf_export_config(model: torch.nn.Module, dtype: str | torch.dtype) -> dict[
     # Remote-code trust is a runtime security decision. Do not persist a
     # training-time opt-in in checkpoints that may be loaded by another user.
     config.pop("trust_remote_code", None)
+    config.pop("preserve_parameter_dtypes", None)
     pe_encoder_path = config.get("pe_encoder_path", None)
     pe_encoder_config = config.get("pe_encoder_config", None)
     if pe_encoder_path not in (None, "", False) or pe_encoder_config not in (
@@ -459,12 +461,12 @@ def prepare_for_vllm(output_dir: str, model_cfg: dict) -> None:
     if tok.pad_token_id is not None:
         gen_cfg["pad_token_id"] = tok.pad_token_id
 
-    # Build every tokenizer-side artifact in a sibling staging directory. A
+    # Build every tokenizer-side artifact inside the output filesystem. A
     # caught validation/serialization ``ValueError`` must leave the original
     # HF checkpoint untouched instead of advertising a half-prepared vLLM
     # model. Once staging succeeds, publish each file atomically and write the
     # authoritative root config last.
-    with TemporaryDirectory(prefix=f".{output_dir.name}-vllm-", dir=output_dir.parent) as staging:
+    with TemporaryDirectory(prefix=f".{output_dir.name}-vllm-", dir=output_dir) as staging:
         staging_dir = Path(staging)
         artifacts_dir = staging_dir / "artifacts"
         artifacts_dir.mkdir()

@@ -38,6 +38,7 @@ def model_fixture():
         {
             "pretrained_llm": "unused",
             "retain_native_mtp": True,
+            "preserve_parameter_dtypes": True,
             "mtp": {
                 "enabled": False,
                 "num_nextn_predict_layers": 2,
@@ -101,6 +102,7 @@ def test_canonical_native_export_preserves_exact_fp32_values(tmp_path):
         "hybrid_override_pattern": "*E",
     }
     assert "retain_native_mtp" not in metadata
+    assert "preserve_parameter_dtypes" not in metadata
     assert model.cfg.mtp.enabled is False
 
 
@@ -129,5 +131,7 @@ def test_entrypoint_native_export_config_preserves_backend_and_mtp_options():
     assert prepared["mtp"]["num_nextn_predict_layers"] == 2
     assert prepared["mtp"]["use_repeated_layer"] is True
     assert prepared["retain_native_mtp"] is True
+    assert prepared["preserve_parameter_dtypes"] is True
+    assert "preserve_parameter_dtypes" not in original
     assert original["automodel_backend"]["enable_hf_state_dict_adapter"] is False
     assert original["mtp"]["enabled"] is True
