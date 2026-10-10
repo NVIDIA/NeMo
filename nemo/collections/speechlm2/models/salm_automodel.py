@@ -1394,6 +1394,20 @@ class SALMAutomodel(LightningModule, HFHubMixin):
         else:
             device_mesh = getattr(self, "_device_mesh", None)
 
+        # Preserve the public old strategy's explicit settings on the Lightning
+        # path as well as callers that supply them directly (HF loading/export).
+        if distributed_setup is None and self._trainer is not None:
+            strategy = self._trainer.strategy
+            if distributed_config is None:
+                distributed_config = getattr(strategy, "distributed_config", None)
+            if moe_config is None:
+                moe_config = getattr(strategy, "moe_config", None)
+            if moe_mesh is None:
+                moe_mesh = getattr(strategy, "moe_mesh", None)
+            activation_checkpointing_llm = activation_checkpointing_llm or getattr(
+                strategy, "activation_checkpointing_llm", False
+            )
+
         # Derive dtype from trainer precision (e.g. "bf16-flash" -> bfloat16).
         dtype = torch.float32
         if self._trainer is not None:
