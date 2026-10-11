@@ -933,3 +933,22 @@ def test_adapt_strategy_preserves_compatible_hsdp_replicate_axis() -> None:
     }
     adapted = to_hf._adapt_strategy_for_conversion_world(original, world_size=8)
     assert adapted["dp_replicate_size"] == 2
+
+
+def test_vllm_publication_stays_inside_the_output_mount(tmp_path):
+    # A parent directory can be on the container overlay while output_dir is
+    # a writable bind mount; rename must keep both endpoints in that mount.
+    real_replace = Path.replace
+    publication_targets = []
+
+    def require_same_output_mount(source, target):
+        target = Path(target)
+        assert target.parent in source.parents
+        publication_targets.append(target.name)
+        return real_replace(source, target)
+
+    with patch.object(Path, "replace", new=require_same_output_mount):
+        output_dir = _run_prepare(tmp_path, _FakeTokenizer(vocab_tokens=[AUDIO_TOKEN]))
+    assert "tokenizer.json" in publication_targets
+    assert publication_targets[-1] == "config.json"
+    assert list(output_dir.glob(".*-vllm-*")) == []
