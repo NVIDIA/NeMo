@@ -107,3 +107,48 @@ def test_only_explicit_samples_are_retained_and_receipts_append(tmp_path):
     lines = next(tmp_path.iterdir()).read_text().splitlines()
     assert len(lines) == 2
     assert json.loads(lines[0])['samples'][name]['verified']
+
+
+@pytest.mark.parametrize("mapped", [True, False])
+def test_receiver_mapper_resolves_destination_without_changing_sample_keys(mapped):
+    source_name = "language_model.backbone.layers.0.mixer.D" if mapped else "language_model.model.layers.0.mixer.D"
+    destination_name = "language_model.model.layers.0.mixer.D"
+    model = torch.nn.Module()
+    model.language_model = torch.nn.Module()
+    model.language_model.model = torch.nn.Module()
+    model.language_model.model.layers = torch.nn.ModuleList([torch.nn.Module()])
+    model.language_model.model.layers[0].mixer = torch.nn.Module()
+    parameter = torch.nn.Parameter(torch.zeros(4, dtype=torch.bfloat16))
+    model.language_model.model.layers[0].mixer.register_parameter("D", parameter)
+    calls = []
+    if mapped:
+        class ReceiverMapper:
+            def apply_list(self, names):
+                calls.append(names)
+                return [name.replace("backbone", "model", 1) for name in names]
+        model.language_model.hf_to_vllm_mapper = ReceiverMapper()
+    verifier = RefitWeightVerifier(model, {source_name: 0}, tp_rank=1, tp_size=2)
+    received = torch.arange(8, dtype=torch.bfloat16)
+    verifier.capture(source_name, received)
+    with torch.no_grad():
+        parameter.copy_(received[4:])
+    receipt = verifier.verify()["samples"][source_name]
+    assert receipt["destination_name"] == destination_name
+    assert receipt["actual"] == receipt["expected"] == [4.0, 5.0, 6.0, 7.0]
+    assert set(verifier.samples) == {source_name}
+    assert calls == ([["backbone.layers.0.mixer.D"]] if mapped else [])
+
+
+@pytest.mark.parametrize("destinations", [[], ["model.D", "other.D"]])
+def test_receiver_mapper_rejects_missing_or_ambiguous_sample(destinations):
+    class ReceiverMapper:
+        def apply_list(self, names):
+            return destinations
+
+    model = torch.nn.Module()
+    model.language_model = torch.nn.Module()
+    model.language_model.hf_to_vllm_mapper = ReceiverMapper()
+    name = "language_model.backbone.layers.0.mixer.D"
+    verifier = RefitWeightVerifier(model, {name: 0}, tp_rank=0, tp_size=1)
+    with pytest.raises(ValueError, match="no unique receiver destination"):
+        verifier.capture(name, torch.ones(4, dtype=torch.bfloat16))

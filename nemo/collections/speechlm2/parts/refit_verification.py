@@ -3,7 +3,7 @@
 
 """Opt-in, bounded verification of received refit weights after normal loading.
 
-Samples use the loader's destination names, after the normal backend rename.
+Samples retain HF loader input names and resolve the receiver's own name mapper.
 This verifies destination versus received transport, not policy-versus-rollout
 correspondence or every element. Only replicated weights and the unfused Mamba
 D/dt_bias and RowParallelLinear out_proj layouts are supported.
@@ -35,7 +35,16 @@ class RefitWeightVerifier:
             return
         if name in self.samples:
             raise ValueError(f'Duplicate refit sample: {name}')
-        destination = self.model.get_parameter(name)
+        destination_name = name
+        if name.startswith("language_model."):
+            receiver = getattr(self.model, "language_model", None)
+            mapper = getattr(receiver, "hf_to_vllm_mapper", None)
+            if mapper is not None:
+                mapped = mapper.apply_list([name.removeprefix("language_model.")])
+                if len(mapped) != 1:
+                    raise ValueError(f'Refit sample has no unique receiver destination: {name}')
+                destination_name = "language_model." + mapped[0]
+        destination = self.model.get_parameter(destination_name)
         axis = self.specs[name]
         if received.dtype != torch.bfloat16:
             raise ValueError(f'Refit verification expects BF16 transport for {name}, got {received.dtype}')
@@ -67,6 +76,7 @@ class RefitWeightVerifier:
             source_coordinates.append(tuple(source_coordinate))
             expected.append(value)
         self.samples[name] = {
+            'destination_name': destination_name,
             'received_shape': list(received.shape),
             'destination_shape': list(destination.shape),
             'destination_dtype': str(destination.dtype),
@@ -80,7 +90,7 @@ class RefitWeightVerifier:
     def verify(self) -> dict:
         result = {}
         for name, sample in self.samples.items():
-            destination = self.model.get_parameter(name)
+            destination = self.model.get_parameter(sample['destination_name'])
             if (
                 list(destination.shape) != sample['destination_shape']
                 or str(destination.dtype) != sample['destination_dtype']
