@@ -1185,9 +1185,12 @@ class SALMAutomodel(LightningModule, HFHubMixin):
             for module in self.llm.modules():
                 if isinstance(module, Gate):
                     module.train_gate = True
-                    module.weight.requires_grad_(True)
-                    if module.bias is not None:
-                        module.bias.requires_grad_(True)
+                    # Explicit pre-sharding selection owns the update surface;
+                    # the legacy flag must not unfreeze excluded routers/MTP.
+                    if self.parameter_config is None:
+                        module.weight.requires_grad_(True)
+                        if module.bias is not None:
+                            module.bias.requires_grad_(True)
 
         moe_metrics_cfg = self.cfg.get("moe_metrics", None)
         if moe_metrics_cfg is not None and moe_metrics_cfg.get("enabled", False):
