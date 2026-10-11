@@ -1584,11 +1584,6 @@ class SALMAutomodel(LightningModule, HFHubMixin):
         # Fix projection dim for pretrained_weights=False (config output_dim may not match LLM)
         update_perception_output_dim(self)
 
-        # Activation checkpointing on perception encoder layers. Must run BEFORE
-        # FSDP2 wrapping (see LLM path in automodel) so checkpoint_wrapper sees
-        # the pristine layer objects and fully_shard indexes the final structure.
-        self.perception.set_activation_checkpointing(activation_checkpointing_perception)
-
         # Apply LoRA adapters to the LLM.
         # When device_mesh is set, LoRA was already applied inside automodel's
         # from_pretrained (before sharding).  Otherwise, apply it now.
@@ -1620,6 +1615,10 @@ class SALMAutomodel(LightningModule, HFHubMixin):
                 ),
             )
             perception_fsdp_wrap_asr_layers = True
+
+        # Select/cast pristine parameter names before checkpoint wrappers add
+        # nested module prefixes; wrap before FSDP2 indexes the final structure.
+        self.perception.set_activation_checkpointing(activation_checkpointing_perception)
 
         if device_mesh is None:
             maybe_load_pretrained_models(self)
