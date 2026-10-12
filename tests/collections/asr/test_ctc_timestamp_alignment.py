@@ -1,10 +1,104 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import weakref
+from types import SimpleNamespace
+
 import pytest
 import torch
 
 from nemo.collections.speechlm2.parts.ctc_timestamp_utils import MultiSpeakerSOTWordTimestampAligner
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("core_length", [0, 3, 7])
+@pytest.mark.parametrize("speaker_weight", [0.0, 0.25])
+@pytest.mark.parametrize("window_budget", [16 * 1024 * 1024, 768])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_deferred_windows_release_full_vocabulary_and_preserve_alignment(
+    core_length, speaker_weight, window_budget, dtype
+):
+    class Decoder(torch.nn.Module):
+        num_classes_with_blank = 128
+
+        def __init__(self):
+            super().__init__()
+            self.outputs = []
+            self.check_lifetime = False
+            self.shapes = []
+
+        def forward(self, states, encoded_lengths):
+            if self.check_lifetime:
+                assert all(ref() is None for ref in self.outputs), "Previous full-vocabulary window is still live"
+            self.shapes.append(states.shape)
+            # Depend on context as well as the frame, so incorrect window slicing changes the oracle.
+            logits = states.transpose(1, 2) + states.mean(dim=-1).unsqueeze(1)
+            output = logits.log_softmax(dim=-1)
+            self.outputs.append(weakref.ref(output))
+            return output
+
+    class Tokenizer:
+        def text_to_ids(self, text):
+            return [{"a": 2, "b": 7}[word] for word in text.split()]
+
+    torch.manual_seed(23)
+    decoder = Decoder()
+    aligner = MultiSpeakerSOTWordTimestampAligner(
+        ctc_decoder=decoder,
+        tokenizer=Tokenizer(),
+        blank_id=126,  # Also exercise a blank other than the last vocabulary column.
+        online_inference_length=core_length,
+        chunk_left_context=1,
+        chunk_right_context=2,
+        speaker_logprob_weight=speaker_weight,
+    )
+    inputs = SimpleNamespace(
+        asr_encoded=torch.randn(3, 128, 7).to(dtype),
+        asr_encoded_lengths=torch.tensor([7, 5, 2]),
+        sortformer_sigmoids=torch.rand(3, 7, 2),
+        sortformer_lengths=torch.tensor([7, 5, 2]),
+        diarization_labels=None,
+        diarization_lengths=None,
+        diarization_frame_seconds=0.01,
+    )
+    transcripts = ["<spk:0> a a <spk:1> b", "b a", ""]
+    durations = [0.7, 0.5, 0.2]
+    # Former full-vocabulary window/cat implementation, independent of the new iterator.
+    chunks = []
+    for start in range(0, 7, core_length or 7):
+        end = min(start + (core_length or 7), 7)
+        left, right = max(start - 1, 0), min(end + 2, 7)
+        lengths = (inputs.asr_encoded_lengths - left).clamp(min=0, max=right - left)
+        output = decoder(inputs.asr_encoded[:, :, left:right], lengths)
+        chunks.append(output[:, start - left : end - left])
+    dense = torch.cat(chunks, dim=1)
+    del chunks, output
+    expected = aligner.prepare_alignment(
+        dense,
+        inputs.sortformer_sigmoids,
+        transcripts,
+        ctc_lengths=inputs.asr_encoded_lengths,
+        sortformer_lengths=inputs.sortformer_lengths,
+        audio_durations=durations,
+    )
+    del dense
+    decoder.outputs.clear()
+    decoder.shapes.clear()
+    decoder.check_lifetime = True
+    aligner._CTC_WINDOW_MAX_ELEMENTS = window_budget
+    actual = aligner.prepare_from_inputs(inputs, transcripts, durations)
+    assert all(ref() is None for ref in decoder.outputs)
+    assert all(batch * frames * classes <= window_budget or batch == 1 for batch, classes, frames in decoder.shapes)
+    for record, reference in zip(actual["records"], expected["records"]):
+        assert record.keys() == reference.keys()
+        for key in record:
+            if isinstance(record[key], torch.Tensor):
+                torch.testing.assert_close(record[key], reference[key], rtol=0, atol=0)
+            else:
+                assert record[key] == reference[key]
+        assert record["ctc_log_probs"].device.type == "cpu"
+        assert record["ctc_log_probs"].shape[1] <= 3
+    assert aligner.align_prepared(actual) == aligner.align_prepared(expected)
 
 
 @pytest.mark.unit

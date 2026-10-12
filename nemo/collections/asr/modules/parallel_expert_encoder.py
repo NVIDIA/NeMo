@@ -45,7 +45,12 @@ from tqdm import tqdm
 
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.modules.transformer_encoder import TransformerEncoder
-from nemo.collections.asr.parts.preprocessing.features import normalize_batch
+from nemo.collections.asr.parts.packed_sequence import (
+    PackedEncoderActivations,
+    pack_encoder_output,
+    unpack_encoder_output,
+)
+from nemo.collections.asr.parts.preprocessing.features import normalize_batch, normalize_packed_batch
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, Serialization
 from nemo.core.classes.module import freeze, unfreeze
@@ -110,6 +115,20 @@ def _normalize_asr_encoder_type(asr_encoder_type: Optional[str]) -> str:
         supported = ", ".join(sorted(_ASR_ENCODER_TYPES))
         raise ValueError(f"asr_encoder_type must be one of {{{supported}}}, got {asr_encoder_type!r}.")
     return normalized
+
+
+def _disable_max_seq_length_sync(module: nn.Module) -> None:
+    """
+    Disable expert collectives without importing optional SpeechLM dependencies.
+    Clears ``sync_max_audio_length`` on every submodule that exposes it, so experts stop
+    all-reducing the batch audio length across ranks.
+
+    Args:
+        module (nn.Module): Root module whose submodules are updated in place.
+    """
+    for submodule in module.modules():
+        if getattr(submodule, "sync_max_audio_length", False):
+            submodule.sync_max_audio_length = False
 
 
 def _normalize_speaker_feature_contract(
@@ -495,6 +514,7 @@ class ParallelExpertEncoder(nn.Module):
     """
 
     supports_external_speaker_targets = True
+    supports_sequence_packed_output = True
 
     def __init__(
         self,
@@ -597,8 +617,6 @@ class ParallelExpertEncoder(nn.Module):
         # ranks process different request shapes.
         self.sync_max_audio_length = bool(sync_max_audio_length)
         if not self.sync_max_audio_length:
-            from nemo.collections.speechlm2.parts.ctc_timestamp_utils import _disable_max_seq_length_sync
-
             _disable_max_seq_length_sync(self)
 
         self.freeze_diar = bool(freeze_diar)
@@ -705,6 +723,127 @@ class ParallelExpertEncoder(nn.Module):
         if value <= 0:
             raise ValueError(f"{name} must be positive or None, got {value}.")
         return value
+
+    def _chunk_size_tokens(self, chunk_size_seconds: Optional[float]) -> Optional[int]:
+        """
+        Convert a chunk duration to a token count on the subsampled encoder grid.
+
+        Args:
+            chunk_size_seconds (Optional[float]): Chunk duration in seconds, or ``None``.
+
+        Returns:
+            Optional[int]: Tokens per chunk (at least one), or ``None`` when chunking is disabled.
+        """
+        if chunk_size_seconds is None:
+            return None
+        token_seconds = self.frame_shift_seconds * self.subsampling_factor
+        return max(1, round(chunk_size_seconds / token_seconds))
+
+    @staticmethod
+    def _chunk_metadata(packed: PackedEncoderActivations, max_tokens: int) -> PackedEncoderActivations:
+        """
+        Re-describe packed utterances as independent chunks of at most ``max_tokens``.
+        Only the sequence metadata changes; ``data`` is shared, so each utterance becomes
+        consecutive full chunks followed by one partial remainder.
+
+        Args:
+            packed (PackedEncoderActivations): Packed utterances with data shaped ``(T_total, D)``.
+            max_tokens (int): Maximum tokens per chunk.
+
+        Returns:
+            PackedEncoderActivations: Same data with per-chunk ``lengths`` and ``cu_seqlens``.
+        """
+        chunk_lengths = []
+        for sequence_length in packed.lengths.detach().cpu().tolist():
+            chunk_lengths.extend([max_tokens] * (sequence_length // max_tokens))
+            if sequence_length % max_tokens:
+                chunk_lengths.append(sequence_length % max_tokens)
+        lengths = torch.as_tensor(chunk_lengths, dtype=torch.int64, device=packed.data.device)
+        cu_seqlens = torch.cat(
+            [
+                torch.zeros(1, dtype=torch.int32, device=packed.data.device),
+                lengths.cumsum(0, dtype=torch.int32),
+            ]
+        ).contiguous()
+        return PackedEncoderActivations(
+            data=packed.data,
+            lengths=lengths,
+            cu_seqlens=cu_seqlens,
+            max_seqlen=min(max_tokens, packed.max_seqlen),
+            padding_value=packed.padding_value,
+            padded_length=None,
+        )
+
+    @staticmethod
+    def _match_packed_module_io(packed: PackedEncoderActivations, module: nn.Module) -> PackedEncoderActivations:
+        """
+        Cast packed data to a module's parameter dtype, requiring the same device.
+
+        Args:
+            packed (PackedEncoderActivations): Packed input activations.
+            module (nn.Module): Module defining the expected device and dtype.
+
+        Returns:
+            PackedEncoderActivations: Converted activations, or the input for a parameterless module.
+        """
+        parameter = next(module.parameters(), None)
+        if parameter is None:
+            return packed
+        if packed.data.device != parameter.device:
+            raise ValueError(
+                f"Packed input is on {packed.data.device}, but {type(module).__name__} is on {parameter.device}."
+            )
+        if packed.data.dtype == parameter.dtype:
+            return packed
+        return packed.with_data(packed.data.to(dtype=parameter.dtype))
+
+    def _forward_packed_branch(
+        self,
+        encoder: nn.Module,
+        features: PackedEncoderActivations,
+        chunk_size_seconds: Optional[float],
+    ) -> PackedEncoderActivations:
+        """
+        Run an encoder token-flat, optionally splitting after feature stacking.
+        Encoders without ``forward_sequence_packed`` fall back to a padded forward and are
+        re-packed. When a chunk size is set and an utterance exceeds it, feature stacking runs
+        once over each full utterance, and the encoder layers then see each chunk as an
+        independent sequence. Chunking requires ``subsampling='feature_stacking'``.
+
+        Args:
+            encoder (nn.Module): ASR or Sortformer encoder.
+            features (PackedEncoderActivations): Packed mel features shaped ``(T_total, D)``.
+            chunk_size_seconds (Optional[float]): Independent chunk duration, or ``None``.
+
+        Returns:
+            PackedEncoderActivations: Packed encoder states with per-utterance metadata.
+        """
+        max_tokens = self._chunk_size_tokens(chunk_size_seconds)
+        packed_forward = getattr(encoder, "forward_sequence_packed", None)
+        if not callable(packed_forward):
+            if max_tokens is not None and features.max_seqlen > max_tokens:
+                raise TypeError(f"{type(encoder).__name__} does not support packed independent chunking.")
+            padded = unpack_encoder_output(features, total_length=features.padded_length).transpose(1, 2)
+            encoded, encoded_lengths = encoder(audio_signal=padded, length=features.lengths)
+            return pack_encoder_output(encoded.transpose(1, 2), encoded_lengths)
+        if max_tokens is None or features.max_seqlen <= max_tokens:
+            return packed_forward(features, features.lengths)
+
+        pre_encode = getattr(encoder, "pre_encode", None)
+        unwrapped_pre_encode = getattr(pre_encode, "_checkpoint_wrapped_module", pre_encode)
+        if type(unwrapped_pre_encode).__name__ != "FeatureStacking":
+            raise TypeError(
+                "Independent post-stacking chunking requires subsampling='feature_stacking'; "
+                f"got {type(unwrapped_pre_encode).__name__} for {type(encoder).__name__}."
+            )
+        pre_encoded = pre_encode(features)
+        chunked = self._chunk_metadata(pre_encoded, max_tokens)
+        encoded_chunks = packed_forward(
+            chunked,
+            chunked.lengths,
+            bypass_pre_encode=True,
+        )
+        return pre_encoded.with_data(encoded_chunks.data)
 
     def _asr_output_frame_boundary(self, input_frame_boundary: int) -> int:
         """Map an input-frame boundary to the selected ASR encoder's output grid."""
@@ -939,6 +1078,53 @@ class ParallelExpertEncoder(nn.Module):
             spk_targets=spk_targets,
         )
 
+    def forward_sequence_packed(self, audio_signal, length=None, spk_targets=None) -> PackedEncoderActivations:
+        """
+        Run Sortformer first and ASR second while keeping encoder states token-flat.
+        Offline counterpart of :meth:`forward` that never pads between utterances. Sortformer
+        is skipped when external speaker targets make it unnecessary. Speaker activity is
+        fused into the ASR states the same way as on the padded path.
+
+        Args:
+            audio_signal (Union[torch.Tensor, PackedEncoderActivations]): Packed mel features,
+                or padded mel features shaped ``(B, D, T)``.
+            length (Optional[torch.Tensor]): Valid input frame counts shaped ``(B,)``; required
+                for padded input and must match ``audio_signal.lengths`` for packed input.
+            spk_targets (Optional[torch.Tensor]): External speaker activity shaped ``(B, T, S)``.
+
+        Returns:
+            PackedEncoderActivations: Speaker-infused ASR states shaped ``(T_total, D)``.
+        """
+        if bool(getattr(self, "online_inference_enabled", False)):
+            raise RuntimeError("forward_sequence_packed is an offline API and cannot run inside online_inference().")
+        if isinstance(audio_signal, PackedEncoderActivations):
+            if length is not None and not torch.equal(length.to(audio_signal.lengths), audio_signal.lengths):
+                raise ValueError("length must match audio_signal.lengths for packed input.")
+            features = audio_signal
+        else:
+            if length is None:
+                raise ValueError("length is required for padded input.")
+            features = pack_encoder_output(audio_signal.transpose(1, 2), length)
+
+        self._check_spk_targets(spk_targets, features.batch_size)
+        needs_diarization = self._should_run_diarization(spk_targets)
+        diarization_preds = self._run_diarization_packed(features) if needs_diarization else None
+        asr_encoded = self._run_asr_packed(features)
+        if diarization_preds is not None and not (
+            torch.equal(diarization_preds.lengths, asr_encoded.lengths)
+            and torch.equal(diarization_preds.cu_seqlens, asr_encoded.cu_seqlens)
+        ):
+            raise RuntimeError(
+                "Sortformer and ASR output metadata diverged: "
+                f"diar={diarization_preds.lengths.detach().cpu().tolist()} "
+                f"asr={asr_encoded.lengths.detach().cpu().tolist()}."
+            )
+        return self._fuse_diar_and_asr_packed(
+            asr_encoded,
+            spk_targets if spk_targets is not None else diarization_preds,
+            diarization_preds=diarization_preds,
+        )
+
     def _align_diarization_output_resolution(
         self, predictions: torch.Tensor, embedding_lengths: torch.Tensor
     ) -> torch.Tensor:
@@ -969,6 +1155,114 @@ class ParallelExpertEncoder(nn.Module):
                 f"asr={target_len}."
             )
         return predictions
+
+    def _run_diarization_packed(self, features: PackedEncoderActivations) -> PackedEncoderActivations:
+        """
+        Normalize each utterance, then run the frozen streaming-trained Sortformer.
+        Without post-encoder layers or high-resolution output, the speaker head runs
+        token-flat. Otherwise the embeddings are unpacked for ``forward_infer`` and the
+        predictions are re-packed.
+
+        Args:
+            features (PackedEncoderActivations): Packed mel features shaped ``(T_total, D)``.
+
+        Returns:
+            PackedEncoderActivations: Packed speaker probabilities shaped ``(T_total, S)``.
+        """
+        if self.diar_normalize_type:
+            features = normalize_packed_batch(features, self.diar_normalize_type)
+        features = self._match_packed_module_io(features, self.diarization_model.encoder)
+        with torch.set_grad_enabled(torch.is_grad_enabled() and not self.freeze_diar):
+            embeddings = self._forward_packed_branch(
+                self.diarization_model.encoder,
+                features,
+                self.chunk_size_seconds,
+            )
+            modules = self.diarization_model.sortformer_modules
+            projected = embeddings.data
+            if modules.encoder_proj is not None:
+                projected = modules.encoder_proj(projected)
+
+            post_encoder = self.diarization_model.transformer_encoder
+            has_post_layers = post_encoder is not None and len(post_encoder.layers) > 0
+            if has_post_layers or self.diarization_model.high_resolution:
+                padded = unpack_encoder_output(embeddings)
+                if modules.encoder_proj is not None:
+                    padded = modules.encoder_proj(padded)
+                predictions = self.diarization_model.forward_infer(padded, embeddings.lengths)
+                predictions = self._align_diarization_output_resolution(predictions, embeddings.lengths)
+                return pack_encoder_output(predictions, embeddings.lengths)
+            if post_encoder is not None and post_encoder.final_layer_norm is not None:
+                projected = post_encoder.final_layer_norm(projected)
+            predictions = modules.forward_speaker_sigmoids(projected)
+            return embeddings.with_data(predictions)
+
+    def _run_asr_packed(self, features: PackedEncoderActivations) -> PackedEncoderActivations:
+        """
+        Normalize once per utterance, then run the trainable ASR packed path.
+
+        Args:
+            features (PackedEncoderActivations): Packed mel features shaped ``(T_total, D)``.
+
+        Returns:
+            PackedEncoderActivations: Packed ASR encoder states shaped ``(T_total, D)``.
+        """
+        if self.asr_normalize_type:
+            features = normalize_packed_batch(features, self.asr_normalize_type)
+        features = self._match_packed_module_io(features, self.asr_encoder)
+        with torch.set_grad_enabled(torch.is_grad_enabled() and not self.freeze_asr):
+            return self._forward_packed_branch(
+                self.asr_encoder,
+                features,
+                self.chunk_size_seconds,
+            )
+
+    def _fuse_diar_and_asr_packed(
+        self,
+        asr_encoded: PackedEncoderActivations,
+        spk_targets: Union[torch.Tensor, PackedEncoderActivations],
+        *,
+        diarization_preds: Optional[PackedEncoderActivations] = None,
+    ) -> PackedEncoderActivations:
+        """
+        Infuse packed speaker activity into packed ASR states.
+        Padded external targets are aligned to the ASR grid and packed. Rows holding only
+        the missing-target sentinel fall back to ``diarization_preds``.
+
+        Args:
+            asr_encoded (PackedEncoderActivations): Packed ASR states shaped ``(T_total, D)``.
+            spk_targets (Union[torch.Tensor, PackedEncoderActivations]): Packed speaker
+                predictions, or padded external targets shaped ``(B, T, S)``.
+            diarization_preds (Optional[PackedEncoderActivations]): Predictions for missing-target rows.
+
+        Returns:
+            PackedEncoderActivations: Speaker-infused ASR states with the ASR metadata.
+        """
+        if isinstance(spk_targets, PackedEncoderActivations):
+            packed_targets = spk_targets
+        else:
+            use_diarization = self._missing_target_rows(spk_targets)
+            targets = self._align_diar_frames(spk_targets, asr_encoded.max_seqlen).to(
+                device=asr_encoded.data.device, dtype=asr_encoded.data.dtype
+            )
+            if bool(use_diarization.any().item()):
+                if diarization_preds is None:
+                    raise ValueError("diarization_preds are required for missing speaker-target rows.")
+                padded_preds = unpack_encoder_output(diarization_preds)
+                targets = torch.where(
+                    use_diarization.to(device=targets.device, dtype=torch.bool).view(-1, 1, 1),
+                    padded_preds.to(device=targets.device, dtype=targets.dtype),
+                    targets,
+                )
+            packed_targets = pack_encoder_output(targets, asr_encoded.lengths)
+
+        if not torch.equal(packed_targets.lengths, asr_encoded.lengths):
+            raise RuntimeError("Packed speaker attributions must match ASR output lengths.")
+        speaker_features = self._speaker_features(packed_targets.data, asr_encoded.data.dtype)
+        normalized_states = self.asr_norm(asr_encoded.data)
+        normalized_targets = self.diar_norm(speaker_features)
+        infusion = torch.matmul(normalized_targets, self.diar_kernel.to(normalized_targets.dtype))
+        return asr_encoded.with_data(normalized_states + getattr(self, "spk_kernel_scale", 1.0) * infusion)
 
     def _run_diarization(
         self,

@@ -114,8 +114,15 @@ Word alignment does not derive diarization segments from CTC word boundaries.
 
 Only when timestamps are requested, the PEE retains detached ASR encoder states
 in BF16 or FP16 while the LLM generates text. After generation, the CTC head
-converts those states to log probabilities. The CTC head processes the recording
-batch together; exact max-sum dynamic programming and backtracing flatten every
+converts those states to log probabilities in context-extended windows. Completed
+transcripts are tokenized first; after full-vocabulary normalization, only their
+token and blank columns are copied into compact CPU buffers. Each vocabulary-wide
+window is released before the next decoder call. Decoder batches are capped at
+16,777,216 output elements (64 MiB at FP32), with a minimum of one recording per
+call so a single larger context window remains intact. This bounds output storage,
+not the head's internal activations. The explicit ``ctc_log_probs_from_inputs()``
+API still returns a full-vocabulary tensor when requested directly.
+Exact max-sum dynamic programming and backtracing flatten every
 recording and speaker stream into shared padded batches. Alignment keeps rolling
 score rows, bounded emission blocks, and packed two-bit backpointers instead of
 dense frames-by-states emissions and int64 backpointers. The CTC artifact is not

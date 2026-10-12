@@ -26,7 +26,7 @@ import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 import torch
 from omegaconf import OmegaConf
@@ -240,6 +240,9 @@ class MultiSpeakerSOTWordTimestampAligner:
 
     _SPEAKER_TAG_RE = re.compile(r"<spk:(\d+)>", flags=re.IGNORECASE)
     _EMISSION_BLOCK_FRAMES = 256
+    # Bound vocabulary-wide output per decoder call (64 MiB at FP32), except when
+    # a single context window already exceeds this budget. Never alter its context.
+    _CTC_WINDOW_MAX_ELEMENTS = 16 * 1024 * 1024
 
     def __init__(
         self,
@@ -337,11 +340,11 @@ class MultiSpeakerSOTWordTimestampAligner:
 
     @torch.no_grad()
     def ctc_log_probs_from_inputs(self, timestamp_inputs: Any) -> torch.Tensor:
-        """Run the deferred CTC head over stored ASR states and return its whole output.
-
-        The output is vocabulary-wide; :meth:`prepare_from_inputs` keeps only the columns
-        transcripts use. Each window of :meth:`_run_ctc_head` is copied into the output and
-        freed before the next one is decoded.
+        """Run the deferred CTC head over stored ASR states in bounded windows.
+        Windows follow the encoder's online inference: ``online_inference_length`` core
+        frames, each decoded with ``chunk_left_context`` and ``chunk_right_context`` frames of
+        context, refreshed by :func:`get_ctc_timestamp_aligner` on each call. This diagnostic
+        API assembles full-vocabulary output; :meth:`prepare_from_inputs` retains only target columns.
 
         Args:
             timestamp_inputs (Any): ``CTCTimestampInputs`` whose ``asr_encoded`` is shaped ``(B, D, T)``.
@@ -349,58 +352,14 @@ class MultiSpeakerSOTWordTimestampAligner:
         Returns:
             torch.Tensor: CTC log probabilities shaped ``(B, T, classes)``.
         """
-        num_frames = timestamp_inputs.asr_encoded.shape[-1]
-        output: List[torch.Tensor] = []
-
-        def keep(start: int, log_probs: torch.Tensor) -> None:
-            if log_probs.shape[1] == num_frames:
-                output.append(log_probs)
-                return
-            if not output:
-                output.append(log_probs.new_empty((log_probs.shape[0], num_frames, log_probs.shape[2])))
-            output[0][:, start : start + log_probs.shape[1]] = log_probs
-
-        self._run_ctc_head(timestamp_inputs, keep)
-        return output[0]
-
-    @torch.no_grad()
-    def _run_ctc_head(self, timestamp_inputs: Any, keep: Callable[[int, torch.Tensor], None]) -> None:
-        """Run the deferred CTC head over stored ASR states in bounded windows.
-
-        Windows follow the encoder's online inference: ``online_inference_length`` core
-        frames, each decoded with ``chunk_left_context`` and ``chunk_right_context`` frames of
-        context. :func:`get_ctc_timestamp_aligner` copies these settings from the encoder on
-        every call.
-
-        Args:
-            timestamp_inputs (Any): ``CTCTimestampInputs`` whose ``asr_encoded`` is shaped ``(B, D, T)``.
-            keep (Callable[[int, torch.Tensor], None]): Called once per window, in order, with the
-                window's first frame and its core frames' log probabilities, shaped
-                ``(B, frames, classes)``. They view the vocabulary-wide window, which is freed
-                before the next window is decoded, so ``keep`` must copy what it keeps.
-        """
-        states = timestamp_inputs.asr_encoded
-        lengths = timestamp_inputs.asr_encoded_lengths
-        parameter = next(self.ctc_decoder.parameters(), None)
-        decoder_dtype = parameter.dtype if parameter is not None else states.dtype
-
-        def decode(state_chunk: torch.Tensor, chunk_lengths: torch.Tensor) -> torch.Tensor:
-            return self.ctc_decoder(state_chunk.to(dtype=decoder_dtype), encoded_lengths=chunk_lengths)
-
-        core_length = self.online_inference_length
-        if core_length <= 0 or states.shape[-1] <= core_length:
-            keep(0, decode(states, lengths))
-            return
-
-        for start in range(0, states.shape[-1], core_length):
-            end = min(start + core_length, states.shape[-1])
-            context_start = max(start - self.chunk_left_context, 0)
-            context_end = min(end + self.chunk_right_context, states.shape[-1])
-            context_lengths = (lengths - context_start).clamp(min=0, max=context_end - context_start)
-            context_logits = decode(states[:, :, context_start:context_end], context_lengths)
-            left_drop = start - context_start
-            keep(start, context_logits[:, left_drop : left_drop + end - start])
-            del context_logits  # before the next window is decoded
+        output = None
+        for batch_start, start, chunk in self._iter_ctc_windows(timestamp_inputs):
+            if output is None:
+                states = timestamp_inputs.asr_encoded
+                output = chunk.new_empty((states.shape[0], states.shape[-1], chunk.shape[-1]))
+            output[batch_start : batch_start + chunk.shape[0], start : start + chunk.shape[1]] = chunk
+            del chunk
+        return output
 
     @torch.no_grad()
     def prepare_from_inputs(
@@ -431,25 +390,23 @@ class MultiSpeakerSOTWordTimestampAligner:
         num_classes = int(self.ctc_decoder.num_classes_with_blank)
 
         def read_columns(columns: List[List[int]], lengths: List[int]) -> List[torch.Tensor]:
-            index = torch.zeros((len(columns), max(map(len, columns))), dtype=torch.long)
-            for row, record_columns in enumerate(columns):
-                index[row, : len(record_columns)] = torch.tensor(record_columns)
-            index = index.to(states.device)
-            kept = []
-
-            def keep(start: int, log_probs: torch.Tensor) -> None:
+            compact = [
+                torch.empty((length, len(record_columns)), dtype=torch.float32, device="cpu")
+                for record_columns, length in zip(columns, lengths)
+            ]
+            indices = [torch.tensor(record_columns, device=states.device) for record_columns in columns]
+            for batch_start, start, log_probs in self._iter_ctc_windows(timestamp_inputs):
                 if log_probs.shape[-1] != num_classes:
                     raise ValueError(f"The CTC head returned {log_probs.shape[-1]} classes, not {num_classes}.")
-                kept.append(torch.gather(log_probs, 2, index[:, None, :].expand(-1, log_probs.shape[1], -1)))
-
-            self._run_ctc_head(timestamp_inputs, keep)
-            compact = torch.cat(kept, dim=1)
-            if compact.shape[1] != num_frames:
-                raise ValueError(f"The CTC head returned {compact.shape[1]} frames for {num_frames} input frames.")
-            return [
-                compact[row, :length, : len(record_columns)].float().cpu().contiguous()
-                for row, (record_columns, length) in enumerate(zip(columns, lengths))
-            ]
+                for offset in range(log_probs.shape[0]):
+                    row = batch_start + offset
+                    count = min(log_probs.shape[1], lengths[row] - start)
+                    if count > 0:
+                        compact[row][start : start + count].copy_(
+                            log_probs[offset, :count].detach().index_select(1, indices[row])
+                        )
+                del log_probs
+            return compact
 
         return self._prepare(
             (states.shape[0], num_frames, num_classes),
@@ -999,6 +956,49 @@ class MultiSpeakerSOTWordTimestampAligner:
                 "speaker_assignment_scores": assignment_scores,
             },
         }
+
+    def _iter_ctc_windows(self, timestamp_inputs: Any) -> Iterator[Tuple[int, int, torch.Tensor]]:
+        """
+        Yield one normalized core at a time, bounding batches by context/vocabulary size.
+        Each core of ``online_inference_length`` frames is decoded with its left and right
+        context, then trimmed back to the core. The records are split into sub-batches so a
+        decoder call stays within ``_CTC_WINDOW_MAX_ELEMENTS``, unless one context window is
+        already larger than that.
+
+        Args:
+            timestamp_inputs (Any): ``CTCTimestampInputs`` whose ``asr_encoded`` is shaped ``(B, D, T)``.
+
+        Yields:
+            Tuple[int, int, torch.Tensor]: First record index, first CTC frame index, and the
+            core's log probs shaped ``(B_window, T_core, classes)``.
+        """
+        states = timestamp_inputs.asr_encoded
+        lengths = timestamp_inputs.asr_encoded_lengths
+        parameter = next(self.ctc_decoder.parameters(), None)
+        decoder_dtype = parameter.dtype if parameter is not None else states.dtype
+        core_length = self.online_inference_length
+        core_length = core_length if core_length > 0 else states.shape[-1]
+        vocab_size = getattr(self.ctc_decoder, "num_classes_with_blank", 1)
+        for start in range(0, states.shape[-1], core_length):
+            end = min(start + core_length, states.shape[-1])
+            context_start = max(start - self.chunk_left_context, 0)
+            context_end = min(end + self.chunk_right_context, states.shape[-1])
+            context_frames = context_end - context_start
+            batch_size = max(1, self._CTC_WINDOW_MAX_ELEMENTS // (context_frames * vocab_size))
+            for batch_start in range(0, states.shape[0], batch_size):
+                batch_end = min(batch_start + batch_size, states.shape[0])
+                context_lengths = (lengths[batch_start:batch_end] - context_start).clamp(min=0, max=context_frames)
+                context_logits = self.ctc_decoder(
+                    states[batch_start:batch_end, :, context_start:context_end].to(dtype=decoder_dtype),
+                    encoded_lengths=context_lengths,
+                )
+                if context_logits.shape[1] != context_frames:
+                    raise ValueError(
+                        f"The CTC head returned {context_logits.shape[1]} frames for {context_frames} input frames."
+                    )
+                left_drop = start - context_start
+                yield batch_start, start, context_logits[:, left_drop : left_drop + end - start]
+                del context_logits
 
     def _align_stream_batch(
         self,

@@ -139,7 +139,8 @@ def test_deferred_ctc_head_runs_only_when_generated_text_is_aligned(monkeypatch)
     (log_probs,) = prepared["records"]
     assert torch.equal(log_probs, torch.tensor([[2.0, 0.0], [5.0, 3.0], [8.0, 6.0]]))
     decoder_states, decoder_lengths = captured["decoder_args"]
-    assert decoder_states is asr_encoded and decoder_lengths is asr_lengths
+    torch.testing.assert_close(decoder_states, asr_encoded)
+    torch.testing.assert_close(decoder_lengths, asr_lengths)
     ctc_shape, sortformer_sigmoids, transcripts, kwargs = captured["prepare_args"]
     assert tuple(ctc_shape) == (1, 4, 3)
     assert sortformer_sigmoids is speaker_probs and transcripts == ["<spk:0> hello"]
