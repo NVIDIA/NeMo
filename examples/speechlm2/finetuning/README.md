@@ -40,6 +40,8 @@ stuttering detection.
   environment with vLLM 0.28.0 and this repository installed. vLLM pins its own PyTorch, so keep the two
   environments apart.
 - **Outputs:** everything is written under `$SALM_FT_WORK`.
+- **LibriSpeech archives:** preparation uses NeMo's safe tar extraction helper and rejects absolute paths,
+  parent-directory traversal, and symbolic or hard links.
 
 ## A minimal run
 

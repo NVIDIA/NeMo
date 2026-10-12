@@ -565,10 +565,12 @@ def test_librispeech_extraction_preserves_audio_and_manifest(tmp_path, monkeypat
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("kind", ["parent_path", "absolute_path", "external_symlink"])
+@pytest.mark.parametrize("kind", ["parent_path", "absolute_path", "external_symlink", "external_hardlink"])
 def test_librispeech_extraction_contains_unsafe_members(tmp_path, monkeypatch, kind):
     import io
     import tarfile
+
+    from nemo.utils.tar_utils import TarPathTraversalError
 
     prep = load("prepare_benchmarks")
     monkeypatch.setattr(prep, "WORK", tmp_path / "work")
@@ -576,9 +578,9 @@ def test_librispeech_extraction_contains_unsafe_members(tmp_path, monkeypatch, k
     root.mkdir(parents=True)
     outside = tmp_path / "outside.txt"
     with tarfile.open(root / "test-clean.tar.gz", "w:gz") as archive:
-        if kind == "external_symlink":
+        if kind in {"external_symlink", "external_hardlink"}:
             member = tarfile.TarInfo("LibriSpeech/test-clean/escape")
-            member.type = tarfile.SYMTYPE
+            member.type = tarfile.SYMTYPE if kind == "external_symlink" else tarfile.LNKTYPE
             member.linkname = str(outside)
             archive.addfile(member)
         else:
@@ -586,11 +588,8 @@ def test_librispeech_extraction_contains_unsafe_members(tmp_path, monkeypatch, k
             member.size = 6
             archive.addfile(member, io.BytesIO(b"escape"))
 
-    if kind == "absolute_path":
-        # The data filter strips leading slashes, keeping the file inside the destination.
+    with pytest.raises(TarPathTraversalError):
         prep.cmd_librispeech(Namespace())
-        assert (root / str(outside).lstrip("/")).read_bytes() == b"escape"
-    else:
-        with pytest.raises(tarfile.FilterError):
-            prep.cmd_librispeech(Namespace())
+    assert not (root / str(outside).lstrip("/")).exists()
+    assert not (root / "LibriSpeech/test-clean/escape").is_symlink()
     assert not outside.exists()

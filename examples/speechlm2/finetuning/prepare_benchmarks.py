@@ -50,6 +50,8 @@ import pyarrow.parquet as pq
 import soundfile as sf
 from huggingface_hub import hf_hub_download, list_repo_files
 
+from nemo.utils.tar_utils import safe_extract
+
 SR = 16000
 # Everything (audio, manifests) is written under $SALM_FT_WORK (default: ./salm_ft_work).
 WORK = Path(os.environ.get("SALM_FT_WORK", "salm_ft_work")).absolute()
@@ -1083,7 +1085,7 @@ def cmd_librispeech(a):
         urllib.request.urlretrieve("https://www.openslr.org/resources/12/test-clean.tar.gz", tgz)
     if not (root / "LibriSpeech" / "test-clean").is_dir():
         with tarfile.open(tgz) as tf:
-            tf.extractall(root, filter="data")
+            safe_extract(tf, str(root))
     rows = []
     for trans in sorted((root / "LibriSpeech" / "test-clean").rglob("*.trans.txt")):
         for line in trans.read_text().splitlines():
