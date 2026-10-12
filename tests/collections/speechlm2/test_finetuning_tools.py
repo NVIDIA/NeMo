@@ -593,3 +593,11 @@ def test_librispeech_extraction_contains_unsafe_members(tmp_path, monkeypatch, k
     assert not (root / str(outside).lstrip("/")).exists()
     assert not (root / "LibriSpeech/test-clean/escape").is_symlink()
     assert not outside.exists()
+
+
+@pytest.fixture(autouse=True)
+def _cpu_tensor_context():
+    # Other SpeechLM2 test modules set the global default to CUDA during collection.
+    # These CPU-only tools load checkpoint tensors on CPU; keep test tensors there too.
+    with torch.device("cpu"):
+        yield
