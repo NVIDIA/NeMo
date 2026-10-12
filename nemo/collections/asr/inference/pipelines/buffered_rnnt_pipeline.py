@@ -219,12 +219,11 @@ class BufferedRNNTPipeline(BasePipeline):
                 else next(iter(self._prompt_config['prompt_dict'].values()))
             )
             prompt_indices = torch.tensor([default_prompt_idx], device=self.device, dtype=torch.long)
-            prompt_vector = self._create_one_hot_prompts(prompt_indices)  # [1, num_prompts]
 
             zero_encoded, _ = self.asr_model.encode_with_prompts(
                 processed_signal=zero_features,
                 processed_signal_length=zero_features_len,
-                prompt_vectors=prompt_vector,
+                language_prompt_indices=prompt_indices,
             )
         else:
             zero_encoded, _ = self.asr_model.encode(
@@ -347,16 +346,15 @@ class BufferedRNNTPipeline(BasePipeline):
             expected_feature_buffer_len=self.expected_feature_buffer_len,
         )
 
-        # Build prompt vectors if prompts are enabled
+        # Build prompt indices if prompts are enabled
         if self.prompt_enabled:
             requests_states = [self.get_state(f.stream_id) for f in frames]
-            prompt_vectors = self._build_prompt_vectors(requests_states)
+            prompt_indices = self._build_prompt_indices(requests_states)
 
-            # Use encode_with_prompts which handles dimension expansion
             encoded, encoded_len = self.asr_model.encode_with_prompts(
                 processed_signal=feature_buffers,
                 processed_signal_length=feature_buffer_lens,
-                prompt_vectors=prompt_vectors,
+                language_prompt_indices=prompt_indices,
             )
         else:
             encoded, encoded_len = self.asr_model.encode(
@@ -395,16 +393,15 @@ class BufferedRNNTPipeline(BasePipeline):
         processed_signals = normalize_features(processed_signals, processed_signal_lengths)
         processed_signal_lengths = processed_signal_lengths.clamp(max=processed_signals.shape[2])
 
-        # Build prompt vectors if prompts are enabled
+        # Build prompt indices if prompts are enabled
         if self.prompt_enabled:
             requests_states = [self.get_state(f.stream_id) for f in fbuffers]
-            prompt_vectors = self._build_prompt_vectors(requests_states)
+            prompt_indices = self._build_prompt_indices(requests_states)
 
-            # Use encode_with_prompts which handles dimension expansion
             encoded, encoded_len = self.asr_model.encode_with_prompts(
                 processed_signal=processed_signals,
                 processed_signal_length=processed_signal_lengths,
-                prompt_vectors=prompt_vectors,
+                language_prompt_indices=prompt_indices,
             )
         else:
             encoded, encoded_len = self.asr_model.encode(

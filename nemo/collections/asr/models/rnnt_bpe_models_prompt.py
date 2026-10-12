@@ -51,8 +51,13 @@ from nemo.utils import logging, model_utils
 class RNNTPromptTranscribeConfig(TranscribeConfig):
     """Transcription configuration for RNNT BPE Model with Prompt conditioning."""
 
-    # None defers to the model's own default language; see `default_prompt_language`.
-    target_lang: Optional[str] = None
+    # Prompt dictionary key applied to every utterance of the run, e.g. "en-US" or the
+    # language-agnostic "auto". Set to None to condition each utterance on its own manifest
+    # language instead, read from `lang_field`.
+    target_lang: Optional[str] = "auto"
+
+    # Manifest field holding each utterance's language. Only consulted when `target_lang` is None.
+    lang_field: str = "lang"
 
 
 class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASRTranscriptionMixin):
@@ -177,14 +182,15 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
     def default_prompt_language(self) -> Optional[str]:
         """Language used when a caller does not name one.
 
-        A checkpoint may declare its preferred fallback as ``model_defaults.default_prompt_language``
-        — useful when the language-agnostic slot is not called ``auto``. Otherwise the usual
-        language-agnostic keys are tried in order, so that a multilingual model does not silently
-        transcribe every language as English.
+        ``auto`` is the established language-agnostic prompt and is used whenever the model
+        defines it. A checkpoint whose language-agnostic slot is spelled differently — ``unk``, for
+        instance — names it via ``model_defaults.default_prompt_language``. Nothing else is
+        guessed: falling back to a locale such as ``en-US`` would silently transcribe every
+        language as English.
 
         Returns:
-            A key of the model's ``prompt_dictionary``, or None when it defines none of the
-            candidates, in which case callers must name a language explicitly.
+            A key of the model's ``prompt_dictionary``, or None when the model neither declares a
+            default nor defines ``auto``, in which case callers must name a language explicitly.
         """
         prompt_dict = self.cfg.model_defaults.get('prompt_dictionary') or {}
         declared = self.cfg.model_defaults.get('default_prompt_language', None)
@@ -196,7 +202,7 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
                 )
             return declared
 
-        return next((code for code in ("auto", "unk", "en-US") if code in prompt_dict), None)
+        return "auto" if "auto" in prompt_dict else None
 
     def resolve_prompt_language(self, target_lang: Optional[str]) -> int:
         """Map a language name to its prompt index.
@@ -386,8 +392,8 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
             "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "prompt": NeuralType(('B', 'T', 'D'), LabelsType(), optional=True),
-            "prompt_indices": NeuralType(tuple('B'), LabelsType(), optional=True),
+            "language_prompt_features": NeuralType(('B', 'T', 'D'), LabelsType(), optional=True),
+            "language_prompt_indices": NeuralType(tuple('B'), LabelsType(), optional=True),
         }
 
     @property
@@ -404,8 +410,8 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
         input_signal_length=None,
         processed_signal=None,
         processed_signal_length=None,
-        prompt=None,
-        prompt_indices=None,
+        language_prompt_features=None,
+        language_prompt_indices=None,
     ):
         """
         Forward pass of the acoustic model, optionally conditioned on a language-ID prompt.
@@ -415,11 +421,11 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
             input_signal_length: Vector of length B with the individual audio lengths.
             processed_signal: Batch of processed audio signals of shape [B, D, T].
             processed_signal_length: Vector of length B with the individual processed lengths.
-            prompt: Pre-built one-hot prompt tensor of shape [B, T, D], trimmed to the encoder
-                length when longer. Used by the streaming inference wrappers.
-            prompt_indices: Tensor of shape [B] with one language-ID index per sample. The one-hot
+            language_prompt_features: Pre-built one-hot prompt tensor of shape [B, T, D],
+                trimmed to the encoder length when longer. Used by the streaming inference wrappers.
+            language_prompt_indices: Tensor of shape [B] with one language-ID index per sample. The one-hot
                 is built after encoding from the actual encoder length, so no size mismatch is
-                possible. Ignored when ``prompt`` is also provided.
+                possible. Ignored when ``language_prompt_features`` is also provided.
 
         Returns:
             A tuple of the encoded tensor of shape [B, D, T] and its lengths of shape [B].
@@ -445,21 +451,28 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
         encoded = torch.transpose(encoded, 1, 2)  # B x D x T -> B x T x D
 
         if self.concat:
-            if prompt is not None:
-                if prompt.shape[1] > encoded.shape[1]:
-                    prompt = prompt[:, : encoded.shape[1], :]
-            elif prompt_indices is not None:
+            if language_prompt_features is not None:
+                if language_prompt_features.shape[1] > encoded.shape[1]:
+                    language_prompt_features = language_prompt_features[:, : encoded.shape[1], :]
+            elif language_prompt_indices is not None:
                 batch_size = encoded.shape[0]
                 time_steps = encoded.shape[1]
                 num_prompts = self.num_prompts
 
-                prompt = torch.zeros(batch_size, time_steps, num_prompts, dtype=encoded.dtype, device=encoded.device)
-                prompt.scatter_(2, prompt_indices.view(batch_size, 1, 1).expand(-1, time_steps, -1), 1.0)
+                language_prompt_features = torch.zeros(
+                    batch_size, time_steps, num_prompts, dtype=encoded.dtype, device=encoded.device
+                )
+                language_prompt_features.scatter_(
+                    2, language_prompt_indices.view(batch_size, 1, 1).expand(-1, time_steps, -1), 1.0
+                )
             else:
-                raise ValueError("Either prompt or prompt_indices must be provided when concat mode is enabled.")
+                raise ValueError(
+                    "Either language_prompt_features or language_prompt_indices must be provided "
+                    "when concat mode is enabled."
+                )
 
             out_dtype = encoded.dtype
-            concat_enc_states = torch.cat([encoded, prompt], dim=-1)
+            concat_enc_states = torch.cat([encoded, language_prompt_features], dim=-1)
             encoded = self.prompt_kernel(concat_enc_states).to(out_dtype)
 
         encoded = torch.transpose(encoded, 1, 2)  # B x T x D -> B x D x T
@@ -469,13 +482,13 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
         if AccessMixin.is_access_enabled(self.model_guid):
             AccessMixin.reset_registry(self)
 
-        signal, signal_len, transcript, transcript_len, prompt_indices = batch
+        signal, signal_len, transcript, transcript_len, language_prompt_indices = batch
 
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
         else:
             encoded, encoded_len = self.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=prompt_indices
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=language_prompt_indices
             )
         del signal
 
@@ -551,13 +564,13 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
         return {'loss': loss_value}
 
     def validation_pass(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, transcript, transcript_len, prompt_indices = batch
+        signal, signal_len, transcript, transcript_len, language_prompt_indices = batch
 
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
         else:
             encoded, encoded_len = self.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=prompt_indices
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=language_prompt_indices
             )
         del signal
 
@@ -632,13 +645,13 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
         return test_logs
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        signal, signal_len, transcript, transcript_len, prompt_indices = batch
+        signal, signal_len, transcript, transcript_len, language_prompt_indices = batch
 
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
             encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
         else:
             encoded, encoded_len = self.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=prompt_indices
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=language_prompt_indices
             )
         del signal
 
@@ -653,18 +666,18 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
 
     def _transcribe_forward(self, batch, trcfg: RNNTPromptTranscribeConfig) -> dict:
         audio, audio_lens = batch[0], batch[1]
-        prompt_indices = batch[4] if len(batch) >= 5 else None
+        language_prompt_indices = batch[4] if len(batch) >= 5 else None
 
         batch_size = audio.shape[0]
 
         # An explicit `target_lang` names the language for the whole run and so takes precedence
         # over the per-utterance indices the dataloader derives from the manifest.
-        if trcfg.target_lang is not None or prompt_indices is None:
+        if trcfg.target_lang is not None or language_prompt_indices is None:
             prompt_id = self.resolve_prompt_language(trcfg.target_lang)
-            prompt_indices = torch.full((batch_size,), prompt_id, dtype=torch.long, device=audio.device)
+            language_prompt_indices = torch.full((batch_size,), prompt_id, dtype=torch.long, device=audio.device)
 
         encoded, encoded_len = self.forward(
-            input_signal=audio, input_signal_length=audio_lens, prompt_indices=prompt_indices
+            input_signal=audio, input_signal_length=audio_lens, language_prompt_indices=language_prompt_indices
         )
 
         return dict(encoded=encoded, encoded_len=encoded_len)
@@ -698,7 +711,7 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
             self.change_decoding_strategy(decoding_cfg, verbose=False)
 
         if override_config is None:
-            target_lang = prompt.get('target_lang', None)
+            defaults = RNNTPromptTranscribeConfig()
 
             trcfg = RNNTPromptTranscribeConfig(
                 batch_size=batch_size,
@@ -708,7 +721,8 @@ class EncDecRNNTBPEModelWithPrompt(PromptStreamingMixin, EncDecRNNTBPEModel, ASR
                 augmentor=augmentor,
                 verbose=verbose,
                 timestamps=timestamps,
-                target_lang=target_lang,
+                target_lang=prompt.get('target_lang', defaults.target_lang),
+                lang_field=prompt.get('lang_field', defaults.lang_field),
             )
         else:
             if not isinstance(override_config, RNNTPromptTranscribeConfig):

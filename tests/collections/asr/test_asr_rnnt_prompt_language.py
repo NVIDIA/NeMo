@@ -16,11 +16,11 @@
 """Language-ID prompt conditioning in :class:`EncDecRNNTBPEModelWithPrompt`.
 
 Covers the language-resolution surface that multilingual ("unified") checkpoints rely on and the
-``prompt`` / ``prompt_indices`` forward arguments, including that the pre-existing
-``prompt_indices`` behaviour is unchanged.
+``language_prompt_features`` / ``language_prompt_indices`` forward arguments.
 """
 
 import os
+from functools import partial
 from types import SimpleNamespace
 
 import pytest
@@ -28,6 +28,7 @@ import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.data.audio_to_text_lhotse_prompt_index import LhotseSpeechToTextBpeDatasetWithPromptIndex
+from nemo.collections.asr.inference.model_wrappers.rnnt_inference_wrapper import RNNTInferenceWrapper
 from nemo.collections.asr.inference.pipelines.base_pipeline import BasePipeline
 from nemo.collections.asr.models import EncDecRNNTBPEModel, EncDecRNNTModel
 from nemo.collections.asr.models.rnnt_bpe_models_prompt import EncDecRNNTBPEModelWithPrompt, RNNTPromptTranscribeConfig
@@ -36,7 +37,7 @@ from nemo.core.utils.numba_utils import NUMBA_INSTALLATION_MESSAGE, numba_cpu_is
 
 ENC_HIDDEN = 64
 NUM_PROMPTS = 8
-PROMPT_DICTIONARY = {'en-US': 0, 'de-DE': 3, 'ja-JP': 5, 'unk': 7}
+PROMPT_DICTIONARY = {'en-US': 0, 'de-DE': 3, 'ja-JP': 5, 'auto': 6, 'unk': 7}
 
 pytestmark = pytest.mark.skipif(
     not numba_cpu_is_supported(NUMBA_MINIMUM_VERSION),
@@ -149,26 +150,28 @@ class TestForwardPromptArguments:
         signal, signal_len = make_audio()
         with torch.no_grad():
             de, _ = prompt_model.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=torch.tensor([3, 3])
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=torch.tensor([3, 3])
             )
             ja, _ = prompt_model.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=torch.tensor([5, 5])
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=torch.tensor([5, 5])
             )
 
         assert not torch.allclose(de, ja), "different languages must produce different encoder output"
 
     @pytest.mark.unit
     def test_prebuilt_prompt_matches_indices(self, prompt_model):
-        """The `prompt` path must agree with the `prompt_indices` path it back-fills."""
+        """The `prompt` path must agree with the `language_prompt_indices` path it back-fills."""
         signal, signal_len = make_audio()
         with torch.no_grad():
             from_indices, _ = prompt_model.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=torch.tensor([3, 3])
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=torch.tensor([3, 3])
             )
             time_steps = from_indices.shape[2]
             one_hot = torch.zeros(2, time_steps, NUM_PROMPTS)
             one_hot[:, :, 3] = 1.0
-            from_prompt, _ = prompt_model.forward(input_signal=signal, input_signal_length=signal_len, prompt=one_hot)
+            from_prompt, _ = prompt_model.forward(
+                input_signal=signal, input_signal_length=signal_len, language_prompt_features=one_hot
+            )
 
         assert torch.allclose(from_indices, from_prompt)
 
@@ -177,11 +180,13 @@ class TestForwardPromptArguments:
         signal, signal_len = make_audio()
         with torch.no_grad():
             reference, _ = prompt_model.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=torch.tensor([3, 3])
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=torch.tensor([3, 3])
             )
             padded = torch.zeros(2, reference.shape[2] + 7, NUM_PROMPTS)
             padded[:, :, 3] = 1.0
-            trimmed, _ = prompt_model.forward(input_signal=signal, input_signal_length=signal_len, prompt=padded)
+            trimmed, _ = prompt_model.forward(
+                input_signal=signal, input_signal_length=signal_len, language_prompt_features=padded
+            )
 
         assert torch.allclose(reference, trimmed)
 
@@ -191,13 +196,13 @@ class TestForwardPromptArguments:
         signal, signal_len = make_audio()
         with torch.no_grad():
             mixed, _ = prompt_model.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=torch.tensor([3, 5])
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=torch.tensor([3, 5])
             )
             de, _ = prompt_model.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=torch.tensor([3, 3])
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=torch.tensor([3, 3])
             )
             ja, _ = prompt_model.forward(
-                input_signal=signal, input_signal_length=signal_len, prompt_indices=torch.tensor([5, 5])
+                input_signal=signal, input_signal_length=signal_len, language_prompt_indices=torch.tensor([5, 5])
             )
 
         assert torch.allclose(mixed[0], de[0])
@@ -206,7 +211,7 @@ class TestForwardPromptArguments:
     @pytest.mark.unit
     def test_missing_prompt_raises_when_conditioning_is_enabled(self, prompt_model):
         signal, signal_len = make_audio()
-        with pytest.raises(ValueError, match="prompt or prompt_indices"):
+        with pytest.raises(ValueError, match="language_prompt_features or language_prompt_indices"):
             prompt_model.forward(input_signal=signal, input_signal_length=signal_len)
 
     @pytest.mark.unit
@@ -227,6 +232,7 @@ class TestDefaultPromptLanguage:
 
     @pytest.mark.unit
     def test_checkpoint_can_declare_its_default(self, build_prompt_model):
+        """A checkpoint whose language-agnostic slot is not named "auto" names it explicitly."""
         model = build_prompt_model(extra_defaults={'default_prompt_language': 'unk'})
         assert model.default_prompt_language == 'unk'
 
@@ -241,12 +247,14 @@ class TestDefaultPromptLanguage:
         "dictionary,expected",
         [
             ({'auto': 1, 'unk': 2, 'en-US': 0}, 'auto'),
-            ({'unk': 2, 'en-US': 0}, 'unk'),
-            ({'en-US': 0, 'de-DE': 3}, 'en-US'),
+            # Nothing but "auto" is implied: an undeclared model demands an explicit language
+            # rather than guessing a slot that may never have been trained.
+            ({'unk': 2, 'en-US': 0}, None),
+            ({'en-US': 0, 'de-DE': 3}, None),
             ({'de-DE': 3, 'ja-JP': 5}, None),
         ],
     )
-    def test_language_agnostic_keys_are_preferred(self, build_prompt_model, dictionary, expected):
+    def test_only_auto_is_implied(self, build_prompt_model, dictionary, expected):
         model = build_prompt_model(prompt_dictionary=dictionary)
         assert model.default_prompt_language == expected
 
@@ -265,11 +273,11 @@ class TestResolvePromptLanguage:
 
     @pytest.mark.unit
     def test_none_uses_the_model_default(self, prompt_model):
-        assert prompt_model.resolve_prompt_language(None) == PROMPT_DICTIONARY['unk']
+        assert prompt_model.resolve_prompt_language(None) == PROMPT_DICTIONARY['auto']
 
     @pytest.mark.unit
     def test_unknown_language_falls_back_to_the_default(self, prompt_model):
-        assert prompt_model.resolve_prompt_language('kl-KL') == PROMPT_DICTIONARY['unk']
+        assert prompt_model.resolve_prompt_language('kl-KL') == PROMPT_DICTIONARY['auto']
 
     @pytest.mark.unit
     def test_unknown_language_raises_without_a_default(self, build_prompt_model):
@@ -293,15 +301,15 @@ class TestTranscribeForward:
     """Offline transcription conditions on `target_lang`, else on the dataloader's indices."""
 
     @staticmethod
-    def _batch(prompt_indices):
+    def _batch(language_prompt_indices):
         signal, signal_len = make_audio()
         transcript = torch.zeros(2, 4, dtype=torch.long)
         transcript_len = torch.full((2,), 4, dtype=torch.long)
-        return signal, signal_len, transcript, transcript_len, prompt_indices
+        return signal, signal_len, transcript, transcript_len, language_prompt_indices
 
     @pytest.mark.unit
     def test_target_lang_selects_the_language(self, prompt_model):
-        batch = self._batch(prompt_indices=None)
+        batch = self._batch(language_prompt_indices=None)
         with torch.no_grad():
             de = prompt_model._transcribe_forward(batch, RNNTPromptTranscribeConfig(target_lang='de-DE'))
             ja = prompt_model._transcribe_forward(batch, RNNTPromptTranscribeConfig(target_lang='ja-JP'))
@@ -311,13 +319,13 @@ class TestTranscribeForward:
     @pytest.mark.unit
     def test_explicit_target_lang_overrides_dataloader_indices(self, prompt_model):
         """`target_lang` names the language for the whole run, so it wins over manifest indices."""
-        from_manifest = self._batch(prompt_indices=torch.tensor([5, 5]))
+        from_manifest = self._batch(language_prompt_indices=torch.tensor([5, 5]))
         with torch.no_grad():
             overridden = prompt_model._transcribe_forward(
                 from_manifest, RNNTPromptTranscribeConfig(target_lang='de-DE')
             )
             expected = prompt_model._transcribe_forward(
-                self._batch(prompt_indices=torch.tensor([3, 3])), RNNTPromptTranscribeConfig(target_lang=None)
+                self._batch(language_prompt_indices=torch.tensor([3, 3])), RNNTPromptTranscribeConfig(target_lang=None)
             )
 
         assert torch.allclose(overridden['encoded'], expected['encoded'])
@@ -327,13 +335,13 @@ class TestTranscribeForward:
         """A manifest naming a different language per utterance conditions each row on its own."""
         with torch.no_grad():
             mixed = prompt_model._transcribe_forward(
-                self._batch(prompt_indices=torch.tensor([3, 5])), RNNTPromptTranscribeConfig(target_lang=None)
+                self._batch(language_prompt_indices=torch.tensor([3, 5])), RNNTPromptTranscribeConfig(target_lang=None)
             )
             de = prompt_model._transcribe_forward(
-                self._batch(prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='de-DE')
+                self._batch(language_prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='de-DE')
             )
             ja = prompt_model._transcribe_forward(
-                self._batch(prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='ja-JP')
+                self._batch(language_prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='ja-JP')
             )
 
         assert torch.allclose(mixed['encoded'][0], de['encoded'][0])
@@ -343,10 +351,10 @@ class TestTranscribeForward:
     def test_dataloader_indices_are_used_when_no_target_lang(self, prompt_model):
         with torch.no_grad():
             from_indices = prompt_model._transcribe_forward(
-                self._batch(prompt_indices=torch.tensor([3, 3])), RNNTPromptTranscribeConfig(target_lang=None)
+                self._batch(language_prompt_indices=torch.tensor([3, 3])), RNNTPromptTranscribeConfig(target_lang=None)
             )
             explicit = prompt_model._transcribe_forward(
-                self._batch(prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='de-DE')
+                self._batch(language_prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='de-DE')
             )
 
         assert torch.allclose(from_indices['encoded'], explicit['encoded'])
@@ -356,13 +364,29 @@ class TestTranscribeForward:
         """Neither a manifest index nor `target_lang`: the model's own default applies."""
         with torch.no_grad():
             implicit = prompt_model._transcribe_forward(
-                self._batch(prompt_indices=None), RNNTPromptTranscribeConfig(target_lang=None)
+                self._batch(language_prompt_indices=None), RNNTPromptTranscribeConfig(target_lang=None)
             )
             explicit = prompt_model._transcribe_forward(
-                self._batch(prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='unk')
+                self._batch(language_prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='auto')
             )
 
         assert torch.allclose(implicit['encoded'], explicit['encoded'])
+
+    @pytest.mark.unit
+    def test_default_config_pins_the_batch_to_auto(self, prompt_model):
+        """The shipped default is the language-agnostic prompt, not the manifest's languages."""
+        assert RNNTPromptTranscribeConfig().target_lang == 'auto'
+        assert RNNTPromptTranscribeConfig().lang_field == 'lang'
+
+        with torch.no_grad():
+            default = prompt_model._transcribe_forward(
+                self._batch(language_prompt_indices=torch.tensor([3, 3])), RNNTPromptTranscribeConfig()
+            )
+            auto = prompt_model._transcribe_forward(
+                self._batch(language_prompt_indices=None), RNNTPromptTranscribeConfig(target_lang='auto')
+            )
+
+        assert torch.allclose(default['encoded'], auto['encoded'])
 
 
 def make_cut(language, prompt_mode=None):
@@ -383,7 +407,7 @@ def make_prompt_dataset(default_prompt_mode='unified', default_lang=None):
 
 
 class TestPromptIndexDatasetLanguage:
-    """Per-utterance language resolution in the dataset feeding ``prompt_indices``."""
+    """Per-utterance language resolution in the dataset feeding ``language_prompt_indices``."""
 
     @pytest.mark.unit
     def test_langid_mode_uses_the_cut_language(self):
@@ -476,8 +500,8 @@ class TestTranscribeDataloaderRequestsPerUtteranceLanguage:
         [
             ('de-DE', 'de-DE'),  # exact key
             ('de', 'de-DE'),  # bare code
-            (None, 'unk'),  # model default
-            ('kl-KL', 'unk'),  # unknown: must not stop the dataloader from being built
+            (None, 'auto'),  # model default
+            ('kl-KL', 'auto'),  # unknown: must not stop the dataloader from being built
         ],
     )
     def test_default_lang_prefers_target_lang(self, prompt_model, target_lang, expected):
@@ -502,10 +526,10 @@ class TestPipelineDefaultLanguage:
         assert self._resolve(model, PROMPT_DICTIONARY) == 'unk'
 
     @pytest.mark.unit
-    def test_falls_back_to_dictionary_candidates(self):
-        """A model without the attribute keeps the pre-existing "auto" / "en-US" preference."""
+    def test_falls_back_to_auto_only(self):
+        """A model without the attribute gets "auto" when it has one, and nothing else."""
         assert self._resolve(SimpleNamespace(), {'auto': 1, 'en-US': 0}) == 'auto'
-        assert self._resolve(SimpleNamespace(), {'en-US': 0, 'de-DE': 3}) == 'en-US'
+        assert self._resolve(SimpleNamespace(), {'en-US': 0, 'de-DE': 3}) is None
 
     @pytest.mark.unit
     def test_none_when_no_candidate_exists(self):
@@ -515,6 +539,48 @@ class TestPipelineDefaultLanguage:
     @pytest.mark.unit
     def test_none_without_prompt_config(self):
         assert BasePipeline._resolve_default_language_code(SimpleNamespace(_prompt_config=None)) is None
+
+
+class TestEncodeWithPrompts:
+    """The buffered wrapper hands the model indices, never a prompt sized by its own length math."""
+
+    @staticmethod
+    def _call(processed_signal, captured):
+        def model(**kwargs):
+            captured.update(kwargs)
+            # Subsampling rounds each of its three stages up, so the encoder emits ceil(T / 8).
+            time_steps = -(-kwargs['processed_signal'].shape[2] // 8)
+            prompt = kwargs.get('language_prompt_features')
+            if prompt is not None and prompt.shape[1] < time_steps:
+                # The model only trims a prompt that is too long; a short one fails to concatenate.
+                raise RuntimeError(f"prompt has {prompt.shape[1]} frames, encoder emitted {time_steps}")
+            return torch.zeros(1, 4, time_steps), torch.tensor([time_steps])
+
+        wrapper = SimpleNamespace(
+            device=torch.device('cpu'),
+            device_str='cpu',
+            compute_dtype=torch.float32,
+            cast_dtype=torch.float32,
+            use_amp=False,
+            asr_model=model,
+        )
+        wrapper.encode = partial(RNNTInferenceWrapper.encode, wrapper)
+        return RNNTInferenceWrapper.encode_with_prompts(
+            wrapper,
+            processed_signal=processed_signal,
+            processed_signal_length=torch.tensor([processed_signal.shape[2]]),
+            language_prompt_indices=torch.tensor([3]),
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("feature_frames", [768, 700])
+    def test_indices_reach_the_model(self, feature_frames):
+        """700 frames is the regression: floor(700/8) is 87 while the encoder emits 88."""
+        captured = {}
+        self._call(torch.zeros(1, 4, feature_frames), captured)
+
+        assert torch.equal(captured['language_prompt_indices'], torch.tensor([3]))
+        assert 'language_prompt_features' not in captured
 
 
 class TestBaseClassesAreUntouched:
@@ -534,5 +600,5 @@ class TestBaseClassesAreUntouched:
         import inspect
 
         parameters = inspect.signature(EncDecRNNTModel.forward).parameters
-        assert 'prompt' not in parameters
-        assert 'prompt_indices' not in parameters
+        assert 'language_prompt_features' not in parameters
+        assert 'language_prompt_indices' not in parameters

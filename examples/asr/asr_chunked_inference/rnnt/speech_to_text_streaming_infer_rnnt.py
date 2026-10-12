@@ -521,7 +521,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     input_signal_length=buffer.context_size_batch.total(),
                 )
                 if batch_prompt_indices is not None:
-                    forward_kwargs["prompt_indices"] = batch_prompt_indices
+                    forward_kwargs["language_prompt_indices"] = batch_prompt_indices
 
                 encoder_output, encoder_output_len = asr_model(**forward_kwargs)
 

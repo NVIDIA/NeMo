@@ -46,7 +46,7 @@ class LhotseSpeechToTextBpeDatasetWithPromptIndex(LhotseAudioLoadingDatasetMixin
         audio_signal_length: Audio lengths [B]
         transcripts: Token IDs [B, T]
         transcript_length: Token lengths [B]
-        prompt_indices: Language ID indices [B] (NOT full tensors)
+        language_prompt_indices: Language ID indices [B] (NOT full tensors)
     """
 
     @property
@@ -56,7 +56,7 @@ class LhotseSpeechToTextBpeDatasetWithPromptIndex(LhotseAudioLoadingDatasetMixin
             'audio_signal_length': NeuralType(tuple('B'), LengthsType()),
             'transcripts': NeuralType(('B', 'T'), LabelsType()),
             'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'prompt_indices': NeuralType(tuple('B'), LabelsType()),  # Just indices, not full tensors
+            'language_prompt_indices': NeuralType(tuple('B'), LabelsType()),  # Just indices, not full tensors
         }
 
     def __init__(self, tokenizer: TokenizerSpec, cfg: Dict) -> None:
@@ -174,7 +174,7 @@ class LhotseSpeechToTextBpeDatasetWithPromptIndex(LhotseAudioLoadingDatasetMixin
         tokens = [torch.as_tensor(self.tokenizer(c.supervisions[0].text, c.supervisions[0].language)) for c in cuts]
 
         # Get prompt indices (just the language ID per sample, NOT full tensors)
-        prompt_indices = torch.tensor([self._get_prompt_index_for_cut(c) for c in cuts], dtype=torch.long)
+        language_prompt_indices = torch.tensor([self._get_prompt_index_for_cut(c) for c in cuts], dtype=torch.long)
 
         # Create final tensors
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
@@ -185,5 +185,5 @@ class LhotseSpeechToTextBpeDatasetWithPromptIndex(LhotseAudioLoadingDatasetMixin
             audio_lens,  # Audio lengths [B]
             tokens,  # Text tokens [B, T]
             token_lens,  # Token lengths [B]
-            prompt_indices,  # Language ID indices [B] - model creates full tensor
+            language_prompt_indices,  # Language ID indices [B] - model creates full tensor
         )
