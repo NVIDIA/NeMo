@@ -5,6 +5,9 @@ MoE), for serving with vLLM and the NeMo SpeechLM plugin. The result is one chec
 ModelOpt `quantization_config`; vLLM builds its quantized layers from it, and the plugin builds the FP8 audio
 encoder from the same config.
 
+The documentation page `docs/source/speechlm2/quantization.rst` covers the same recipe with background on how the
+pipeline works, validation advice and limitations.
+
 ## What the recipes quantize
 
 | Part | `fp8` | `nvfp4` |
@@ -36,8 +39,12 @@ than for English, for more throughput. Measure both on your own test sets agains
 - vLLM 0.28 and NeMo with the SpeechLM plugin's quantized serving (NVIDIA-NeMo/Speech#16341), for calibration and
   serving. Serving the CTC timestamp head also needs NVIDIA-NeMo/Speech#16344; without it, assemble with
   `--skip-ctc-head`.
-- Disk for the BF16 decoder export, the quantized decoder and the final checkpoint: with `--hardlink`, about 1.5
-  times the size of the BF16 checkpoint for FP8 and 1.3 times for NVFP4. The BF16 decoder export can go after step 2.
+- Working space on top of the source checkpoint. Keeping the BF16 decoder export, the quantized decoder and the
+  assembled checkpoint at the same time takes about 2 times the size of the BF16 checkpoint for FP8 and 1.5 times for
+  NVFP4. Step 3 rewrites every decoder shard that holds Mamba parameters (for the decoders we tested, all of them), so
+  `--hardlink` saves little. The BF16 decoder export can go after step 2, and the quantized decoder after step 3.
+  Step 5 hard-links unchanged files into `$OUT`; if `$OUT` is on another filesystem than `$WORK`, it copies them
+  instead, so budget one more copy of the final checkpoint.
 
 ## Steps
 
@@ -64,6 +71,7 @@ OUT=/models/speechlm-$RECIPE
 4. Calibrate the audio encoder and the MTP head by serving the step 3 checkpoint with vLLM and transcribing held-out
    audio with MTP speculative decoding on. Add `--kv-cache-dtype fp8` for NVFP4:
    ```bash
+   VLLM_PLUGINS=nemo_speechlm VLLM_WORKER_MULTIPROC_METHOD=spawn \
    python calibrate_activations.py --checkpoint $WORK/ckpt_bf16_heads --manifest calib.jsonl --output $WORK/ranges.json
    ```
    `calib.jsonl` holds one `{"audio_filepath": ...}` per line. Use a few hundred held-out clips that resemble your
@@ -103,7 +111,9 @@ The server log should show `FP8 audio encoder: N Linears built from quantization
 - `assemble_checkpoint.py` refuses ModelOpt exports with unresolved module names.
 - `quantize_encoder_mtp_fp8.py` requires a calibrated range for every encoder Linear it quantizes, and fails unless
   every FP8 weight has scalar FP32 scales and every perception Linear is FP8 exactly when the config says so.
-- Unit tests: `pytest tests/collections/speechlm2/test_quantization_scripts.py`.
+- Unit tests, from the repository root: `python -m pytest --noconftest tests/collections/speechlm2/test_quantization_scripts.py`.
+  `--noconftest` skips the repository-wide test setup, which downloads test data these tests do not need.
 
 The encoder targets assume the Transformer ASR encoder these SpeechLMs use; another encoder needs its own target list
-in `calibrate_activations.py` and `quantize_encoder_mtp_fp8.py`.
+in `calibrate_activations.py` and `quantize_encoder_mtp_fp8.py`. Calibration always runs MTP speculative decoding, so
+the checkpoint needs an MTP draft head (`llm.mtp.*` tensors) that vLLM can load.

@@ -45,7 +45,7 @@ import mimetypes
 import os
 from pathlib import Path
 
-from checkpoint_utils import write_json
+from checkpoint_utils import check_output_path, write_json
 
 ENCODER_PREFIX = "perception.encoder.asr_encoder."
 ENCODER_TARGETS = ("attn.w_qkv", "attn.out_proj", "ffn.net.0", "ffn.net.3")
@@ -175,6 +175,7 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=None, help="use only the first N manifest entries")
     args = parser.parse_args()
 
+    check_output_path(args.output, args.checkpoint)
     if args.output.exists():
         raise FileExistsError(f"{args.output} exists")
     lines = [line for line in args.manifest.read_text().splitlines() if line.strip()]

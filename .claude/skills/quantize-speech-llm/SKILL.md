@@ -73,7 +73,8 @@ the CTC middleware, check that timestamp requests come back with `error: null`.
 - Compare against the Step 1 baseline only; a different NeMo build, prompt or decoding setup can move WER more than
   quantization does.
 - Report per-dataset and per-language deltas, not only averages: quantization costs concentrate in a few languages.
-- Rerun the BF16 baseline once to learn the run-to-run noise of batched serving before calling a delta real.
+- Serve each checkpoint at least twice to learn the run-to-run noise of batched serving before calling a delta real;
+  quantized checkpoints can vary more between runs than BF16.
 - Measure throughput on otherwise idle GPUs; parallel jobs perturb it.
 
 ## Reproducing a reference build

@@ -532,6 +532,20 @@ class TestCalibrateActivations:
         rows = torch.tensor([True, False, True, True, False])
         assert torch.equal(activations[0], torch.relu(hidden_states[rows] @ w13[0].t()).square())
 
+    def test_ranges_inside_the_checkpoint_are_refused(self, scripts, tmp_path, monkeypatch):
+        ckpt = make_assembled(tmp_path / "ckpt", {"quant_algo": "FP8", "ignore": ["mtp*"]})
+        with pytest.raises(ValueError, match="overlaps input"):
+            run(
+                scripts.calibrate,
+                monkeypatch,
+                "--checkpoint",
+                ckpt,
+                "--manifest",
+                tmp_path / "calib.jsonl",
+                "--output",
+                ckpt / "ranges.json",
+            )
+
     def test_packed_expert_weights_are_refused(self, scripts):
         with pytest.raises(RuntimeError, match="unpacked"):
             next(scripts.calibrate.expert_activations(torch.randn(5, 4), torch.zeros(5, 2), torch.randn(3, 6, 2, 2)))
