@@ -664,6 +664,7 @@ def main(
                         failures.append((j, e))
                         logging.error("  [FAIL] %s %s: %s", j.kind, j.path, e)
             except TimeoutError:
+                # The reporting interval elapsed; log progress below and keep waiting for unfinished workers.
                 pass
             now = time.monotonic()
             logging.info(

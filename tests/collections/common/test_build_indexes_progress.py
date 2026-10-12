@@ -22,7 +22,6 @@ from scripts.dataloading import build_indexes
 
 
 def test_build_indexes_reports_progress_while_a_file_is_blocked(tmp_path, monkeypatch, caplog):
-    import logging
     import threading
 
     manifest = tmp_path / "manifest.jsonl"
