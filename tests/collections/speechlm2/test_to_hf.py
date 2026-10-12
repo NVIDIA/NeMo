@@ -609,12 +609,14 @@ def _run_prepare(
 
 
 def test_prepare_for_vllm_patches_config_json(tmp_path):
-    """config.json gets model metadata without persisting token-index fields."""
+    """config.json persists the resolved audio ID without legacy token-index fields."""
     output_dir = _run_prepare(tmp_path, _FakeTokenizer())
     cfg = json.loads((output_dir / "config.json").read_text())
     assert cfg["model_type"] == "nemo_speechlm"
     assert cfg["architectures"] == ["NeMoSpeechLMForConditionalGeneration"]
     assert cfg["audio_locator_tag"] == AUDIO_TOKEN
+    assert cfg["audio_token_id"] == 0
+    assert cfg["speechlm_runtime_added_token_ids"] == [0]
     assert "audio_token_index" not in cfg
     assert "image_token_index" not in cfg
     # Original LLM fields are preserved.
@@ -675,7 +677,9 @@ def test_prepare_for_vllm_adds_audio_token_to_vocab(tmp_path):
 def test_prepare_for_vllm_skips_add_if_audio_token_already_in_vocab(tmp_path):
     """Avoid re-adding a token that was already present in the backbone vocab."""
     fake_tok = _FakeTokenizer(vocab_tokens=["<|im_start|>", "<|im_end|>", AUDIO_TOKEN])
-    _run_prepare(tmp_path, fake_tok)
+    output_dir = _run_prepare(tmp_path, fake_tok)
+    cfg = json.loads((output_dir / "config.json").read_text())
+    assert cfg["speechlm_runtime_added_token_ids"] == []
     assert fake_tok.add_special_tokens_calls == []
 
 
@@ -699,11 +703,13 @@ def test_prepare_for_vllm_accepts_audio_token_inside_non_boundary_embedding_row(
     tmp_path,
 ):
     """Qwen-style reserved rows may put the audio token below the model-vocab boundary."""
-    fake_tok = _FakeTokenizer(vocab_tokens=["<pad>", AUDIO_TOKEN, "<extra>"])
+    fake_tok = _FakeTokenizer(vocab_tokens=["<pad>"])
 
     output_dir = _run_prepare(tmp_path, fake_tok, backbone_vocab_size=100)
 
     cfg = json.loads((output_dir / "config.json").read_text())
+    assert cfg["audio_token_id"] == fake_tok.get_vocab()[AUDIO_TOKEN] == 1
+    assert cfg["speechlm_runtime_added_token_ids"] == [1]
     assert "audio_token_index" not in cfg
     assert "image_token_index" not in cfg
 
@@ -899,6 +905,22 @@ def test_adapt_strategy_collapses_incompatible_hsdp_replicate_axis() -> None:
     assert adapted["dp_replicate_size"] == 1
     assert adapted["ep_size"] == 8
     assert original["dp_replicate_size"] == 16
+
+
+def test_adapt_strategy_remaps_explicit_training_dp_size() -> None:
+    original = {
+        "dp_size": 256,
+        "dp_replicate_size": 2,
+        "tp_size": 1,
+        "pp_size": 1,
+        "cp_size": 1,
+        "ep_size": 8,
+    }
+    adapted = to_hf._adapt_strategy_for_conversion_world(original, world_size=8)
+    assert adapted["dp_size"] == 8
+    assert adapted["dp_replicate_size"] == 2
+    assert adapted["ep_size"] == 8
+    assert original["dp_size"] == 256
 
 
 def test_adapt_strategy_preserves_compatible_hsdp_replicate_axis() -> None:

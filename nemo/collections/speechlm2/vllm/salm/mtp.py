@@ -107,13 +107,16 @@ class NeMoSpeechLMMTP(NemotronHMTP):
     * ``embed_input_ids`` fuses audio-feature embeddings into the token
       embeddings at placeholder positions, exactly like the target model.
       The MTP heads were trained on the same mixed text+audio embedding
-      stream as the backbone, so the draft must see it too. vLLM probes
-      ``draft_model.embed_input_ids(ids, multimodal_embeddings=None)`` at
-      load time (``llm_base_proposer.load_model``); without this method
-      the probe raises AttributeError and speculative decoding silently
-      falls back to text-only draft inputs, which collapses acceptance
-      rates on audio prompts.
+      stream as the backbone, so the draft must see it too. vLLM forwards
+      target-produced multimodal embeddings only when the draft declares
+      ``supports_multimodal_embeddings`` and implements ``embed_input_ids``;
+      otherwise it silently falls back to text-only draft inputs, which
+      collapses acceptance rates on audio prompts.
     """
+
+    # vLLM gates forwarding target-produced multimodal embeddings on this
+    # capability flag; implementing ``embed_input_ids`` alone is not enough.
+    supports_multimodal_embeddings = True
 
     def embed_input_ids(
         self,
@@ -142,6 +145,15 @@ class NeMoSpeechLMMTP(NemotronHMTP):
             multimodal_embeddings=multimodal_embeddings,
             is_multimodal=is_multimodal,
         )
+
+    def compute_logits(self, hidden_states: torch.Tensor, *args, **kwargs) -> torch.Tensor | None:
+        logits = super().compute_logits(hidden_states, *args, **kwargs)
+        if logits is not None:
+            logits[..., self.config.speechlm_output_vocab_size :] = -torch.inf
+            for token_id in getattr(self.config, "speechlm_runtime_added_token_ids", []):
+                if token_id < logits.shape[-1]:
+                    logits[..., token_id] = -torch.inf
+        return logits
 
     def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]) -> set[str]:
         """Load only the SALM-prefixed weights required by the reusable draft head."""

@@ -75,6 +75,10 @@ def _adapt_strategy_for_conversion_world(strategy_cfg: dict, world_size: int) ->
         return strategy_cfg
 
     conversion_dp_size = world_size // non_dp_size
+    # Training recipes commonly pin the full data-parallel world explicitly.
+    # Conversion may intentionally use fewer ranks, so carrying that value over
+    # would construct a mesh larger than the conversion process group.
+    strategy_cfg["dp_size"] = conversion_dp_size
     replicate_size = int(strategy_cfg.get("dp_replicate_size") or 1)
     if replicate_size > 1 and (conversion_dp_size % replicate_size != 0 or replicate_size >= conversion_dp_size):
         strategy_cfg["dp_replicate_size"] = 1
@@ -332,7 +336,7 @@ def prepare_for_vllm(output_dir: str, model_cfg: dict) -> None:
     """Patch a saved checkpoint to be vLLM-ready.
 
     Adds tokenizer (with audio token and chat template), patches config.json
-    with model_type/architectures, and writes generation_config.json.
+    with model_type/architectures and the resolved audio_token_id, and writes generation_config.json.
 
     Args:
         output_dir: Path to the HuggingFace checkpoint directory.
@@ -393,7 +397,8 @@ def prepare_for_vllm(output_dir: str, model_cfg: dict) -> None:
         LOG.info("Overwriting existing files in %s: %s", output_dir, existing)
     tokenizer_src = model_cfg.get("tokenizer_path") or pretrained_llm
     tok = AutoTokenizer.from_pretrained(tokenizer_src, trust_remote_code=True)
-    if audio_token not in tok.get_vocab():
+    source_vocab = tok.get_vocab()
+    if audio_token not in source_vocab:
         tok.add_special_tokens({"additional_special_tokens": [audio_token]})
     audio_token_id = tok.get_vocab().get(audio_token)
     if isinstance(audio_token_id, bool) or not isinstance(audio_token_id, int) or audio_token_id < 0:
@@ -404,6 +409,12 @@ def prepare_for_vllm(output_dir: str, model_cfg: dict) -> None:
             f"Audio token ID {audio_token_id} is outside the SpeechLM embedding table with "
             f"{padded_vocab_size} rows. Reduce the tokenizer's added-token count before training/export."
         )
+    # Newly added tokens can occupy reserved rows inside the backbone vocabulary.
+    # Preserve existing tokenizer entries; suppress only serving-time additions.
+    config["audio_token_id"] = audio_token_id
+    config["speechlm_runtime_added_token_ids"] = sorted(
+        token_id for token, token_id in tok.get_vocab().items() if token not in source_vocab
+    )
     pad_token = model_cfg.get("pad_token", None)
     if pad_token:
         if pad_token not in tok.get_vocab():
