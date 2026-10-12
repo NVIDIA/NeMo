@@ -444,6 +444,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
         # Speaker/context encoder for context audio embeddings.
         # This enables keeping the zero-shot conditioning module private at release time.
 
+        self.repeat_context = cfg.get('repeat_context', False)
         self.use_speaker_encoder = cfg.get('use_speaker_encoder', False)
         self.train_shuffle_context_embedding_prob = 0.0
         if self.use_speaker_encoder:
@@ -812,11 +813,22 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 )
                 combined_emb = combined_emb + user_audio_cond_emb
 
+            # Continue the context channel at the same absolute positions as training.
+            # The context prefix was already summed once during streaming_init.
+            if self.repeat_context:
+                positions = torch.arange(state.cache_seq_len, state.cache_seq_len + T, device=device)
+                combined_emb = combined_emb + self._repeat_context_embeddings(
+                    state.full_context_embedding, state.full_context_lens, positions
+                )
+
             # -----------------------
             # CFG handling
             # -----------------------
             if state.config.use_cfg:
-                inputs_embeds = torch.cat([combined_emb, audio_emb], dim=0)
+                unconditional_emb = audio_emb
+                if self.repeat_context:
+                    unconditional_emb = unconditional_emb + state.config.dummy_context_embedding_unconditional
+                inputs_embeds = torch.cat([combined_emb, unconditional_emb], dim=0)
             else:
                 inputs_embeds = combined_emb
 
@@ -1426,6 +1438,33 @@ class EasyMagpieTTSInferenceModel(ModelPT):
             context_embedding = cfg_token_embedding.expand(-1, context_embedding.size(1), -1)  # (B, T_context, E)
 
         return context_embedding, context_lens, context_audio_codes, context_audio_codes_lens
+
+    @staticmethod
+    def _repeat_context_embeddings(
+        context_embedding: torch.Tensor,
+        context_lens: torch.Tensor,
+        positions: torch.Tensor,
+        sequence_lens: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Tile each item's valid prepared context at absolute decoder positions.
+
+        Reuse the context after speaker encoding, the zero-shot blocker and CFG
+        dropout. Never repeat batch padding or re-encode the reference. Absolute
+        positions keep training, chunked prefill and cached decoding aligned,
+        including across conversation turns. Empty contexts contribute zeros.
+        """
+        batch_size, _, embedding_dim = context_embedding.shape
+        positions = positions.to(device=context_embedding.device, dtype=torch.long)
+        if context_embedding.size(1) == 0:
+            return context_embedding.new_zeros(batch_size, positions.numel(), embedding_dim)
+
+        context_lens = context_lens.to(device=context_embedding.device, dtype=torch.long)
+        indices = positions.unsqueeze(0) % context_lens.clamp_min(1).unsqueeze(1)
+        repeated = context_embedding.gather(1, indices.unsqueeze(-1).expand(-1, -1, embedding_dim))
+        valid = context_lens.unsqueeze(1) > 0
+        if sequence_lens is not None:
+            valid = valid & (positions.unsqueeze(0) < sequence_lens.to(positions.device).unsqueeze(1))
+        return repeated.masked_fill(~valid.unsqueeze(-1), 0)
 
     def stack_codes(self, codes, codes_lens, bos_id, eos_id, stacking_factor, num_codebooks):
         """
@@ -2113,6 +2152,16 @@ class EasyMagpieTTSInferenceModel(ModelPT):
             )
             next_input = next_input + user_audio_cond_emb
 
+        if self.repeat_context:
+            # Context-phase items already receive the original prefix above.
+            # Repeat only after that prefix so it is never counted twice.
+            repeated_context = self._repeat_context_embeddings(
+                state.full_context_embedding,
+                state.full_context_lens,
+                torch.tensor([state.cache_seq_len], device=device),
+            )
+            next_input = next_input + repeated_context * (~needs_context).view(batch_size, 1, 1)
+
         # --- Handle CFG ---
         if state.config.use_cfg:
             next_input_unconditional_context = state.config.dummy_context_embedding_unconditional.expand(
@@ -2128,6 +2177,12 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 audio_mask = needs_audio.view(batch_size, 1, 1).float()
                 next_input_unconditional = next_input_unconditional * (1 - audio_mask) + audio_emb * audio_mask
 
+            if self.repeat_context:
+                # Match repeated CFG-dropout context during training without leaking
+                # speaker/text conditioning into the unconditional branch.
+                next_input_unconditional = next_input_unconditional + (
+                    next_input_unconditional_context * (~needs_context).view(batch_size, 1, 1)
+                )
             next_input = torch.cat([next_input, next_input_unconditional], dim=0)
 
         return next_input, needs_context, needs_phoneme, needs_audio

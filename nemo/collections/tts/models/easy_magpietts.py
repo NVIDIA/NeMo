@@ -954,7 +954,13 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         combined_lens = torch.maximum(text_channel_lens, phoneme_channel_lens)
         max_len = int(combined_lens.max())
         pad = lambda tensor: torch.nn.functional.pad(tensor, (0, 0, 0, max_len - tensor.size(1)))
-        full_embedding = pad(context) + pad(text_embedding) + pad(phoneme_embedding)
+        if self.repeat_context:
+            context_channel = self._repeat_context_embeddings(
+                context, context_lens, torch.arange(max_len, device=context.device), combined_lens
+            )
+        else:
+            context_channel = pad(context)
+        full_embedding = context_channel + pad(text_embedding) + pad(phoneme_embedding)
         hidden = self.forward(
             inputs_embeds=full_embedding, attention_mask=get_mask_from_lengths(combined_lens)
         ).last_hidden_state
@@ -1300,16 +1306,24 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             .values
         )
 
-        # Right pad context embedding
-        context_padding = torch.zeros(
-            context_embedding.size(0),
-            combined_channel_embedding.size(1) - context_embedding.size(1),
-            context_embedding.size(2),
-            device=context_embedding.device,
-        )
-        context_embedding_padded = torch.cat([context_embedding, context_padding], dim=1)
+        if self.repeat_context:
+            context_channel = self._repeat_context_embeddings(
+                context_embedding,
+                context_lens,
+                torch.arange(combined_channel_embedding.size(1), device=context_embedding.device),
+                combined_channel_lens,
+            )
+        else:
+            # Preserve the original prefix-only path, including its dtype behavior.
+            context_padding = torch.zeros(
+                context_embedding.size(0),
+                combined_channel_embedding.size(1) - context_embedding.size(1),
+                context_embedding.size(2),
+                device=context_embedding.device,
+            )
+            context_channel = torch.cat([context_embedding, context_padding], dim=1)
 
-        full_embedding = context_embedding_padded + combined_channel_embedding
+        full_embedding = context_channel + combined_channel_embedding
 
         # 8. Forward pass through transformer
         transformer_out = self.forward(

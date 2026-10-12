@@ -62,6 +62,9 @@ model:
     residual_in_fp32: true
   
   use_text_conditioning_encoder: true # If true, distilbert will be used to encode context_text if provided.
+  # Tile prepared speaker/text/task context and sum it with the input channels.
+  # False preserves prefix-only conditioning; enable consistently in training and inference.
+  repeat_context: false
   context_duration_min: 5.0
   context_duration_max: 5.0
   load_cached_codes_if_available: true
