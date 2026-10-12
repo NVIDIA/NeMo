@@ -152,6 +152,11 @@ class NeMoSpeechLMForConditionalGeneration(
             # Built here, as vLLM builds a quantized decoder, so FP8 weights load directly.
             build_fp8_encoder(self.perception, vllm_config.quant_config)
 
+        if isinstance(backend, HybridBackend):
+            from nemo.collections.speechlm2.vllm.salm.precision import preserve_hybrid_precision
+
+            preserve_hybrid_precision(self.language_model)
+
         self.make_empty_intermediate_tensors = self.language_model.make_empty_intermediate_tensors
 
     # ── language-model integration ──

@@ -2288,6 +2288,7 @@ class TestMTPPlugin:
         from nemo.collections.speechlm2.vllm.salm.mtp import NeMoSpeechLMMTP
 
         model = object.__new__(NeMoSpeechLMMTP)
+        torch.nn.Module.__init__(model)
         object.__setattr__(
             model,
             "config",
@@ -2327,11 +2328,13 @@ class TestMTPPlugin:
 
     @pytest.mark.parametrize("pattern", [None, "", 3])
     def test_mtp_load_weights_rejects_invalid_serialized_pattern(self, monkeypatch, pattern):
+        import torch
         from vllm.model_executor.models.nemotron_h_mtp import NemotronHMTP
 
         from nemo.collections.speechlm2.vllm.salm.mtp import NeMoSpeechLMMTP
 
         model = object.__new__(NeMoSpeechLMMTP)
+        torch.nn.Module.__init__(model)
         object.__setattr__(
             model,
             "config",
