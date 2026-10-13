@@ -1899,12 +1899,10 @@ class ParallelExpertEncoder(nn.Module):
                 ``(B, D, T_out)``, per-row output lengths, and timestamp inputs or ``None``.
         """
         self._check_spk_targets(spk_targets, audio_signal.shape[0])
-        # While a CUDA graph is captured, .item() is not allowed: use the padded width, whose extra frames are
-        # masked by ``length`` like those of any shorter row in the batch.
-        if torch.cuda.is_available() and torch.cuda.is_current_stream_capturing():
-            total_feat_len = audio_signal.shape[-1]
-        else:
-            total_feat_len = min(audio_signal.shape[-1], int(length.max().item()))
+        # Windows cover the padded width: the window count must be known on the host without reading ``length``
+        # (no device sync, CUDA-graph capturable). Frames past a row's length are masked like any shorter row's
+        # padding, so extra padding costs compute but does not change the outputs.
+        total_feat_len = audio_signal.shape[-1]
         num_chunks = max(1, math.ceil(total_feat_len / self.chunk_feat_len))
 
         if self.asr_normalize_type:

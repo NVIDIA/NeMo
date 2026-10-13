@@ -921,6 +921,33 @@ def test_single_window_online_inference_can_be_captured_in_a_cuda_graph(asr_enco
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "asr_encoder_type,asr_encoder_cfg",
+    [("fastconformer", toy_asr_encoder_cfg), ("transformer", toy_transformer_asr_encoder_cfg)],
+)
+def test_online_inference_extra_padding_does_not_change_outputs(asr_encoder_type, asr_encoder_cfg):
+    """Online windows cover the padded width; padding past every row's length, even across windows, is masked."""
+    torch.manual_seed(0)
+    encoder = build_toy_pe_encoder(
+        asr_encoder_type=asr_encoder_type,
+        asr_encoder_cfg=asr_encoder_cfg(),
+        online_inference_length=40,
+    ).eval()
+    encoder._suppress_online_pbar = True
+    lengths = torch.tensor([200, 137])
+    mels = torch.randn(2, _MEL_FEATURES, 200)
+    padded = torch.cat([mels, torch.zeros(2, _MEL_FEATURES, 3 * encoder.chunk_feat_len)], dim=-1)
+
+    with torch.no_grad(), encoder.online_inference():
+        expected, expected_lengths = encoder(mels, lengths)
+        out, out_lengths = encoder(padded, lengths)
+
+    assert torch.equal(out_lengths, expected_lengths)
+    for i, n in enumerate(expected_lengths.tolist()):
+        torch.testing.assert_close(out[i, :, :n], expected[i, :, :n])
+
+
+@pytest.mark.unit
 def test_transformer_online_inference_preserves_partial_feature_stack():
     encoder = build_toy_pe_encoder(
         asr_encoder_type="transformer",
