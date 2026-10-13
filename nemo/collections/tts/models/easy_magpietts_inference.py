@@ -851,6 +851,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 use_cache=True,
                 past_key_values=state.past_key_values,
                 cache_position=cache_position,
+                context_prefix_lens=state.full_context_lens.repeat(2 if state.config.use_cfg else 1),
             )
 
             state.past_key_values = out.past_key_values
@@ -1064,7 +1065,15 @@ class EasyMagpieTTSInferenceModel(ModelPT):
         phoneme_embedding = phoneme_embedding / phoneme_tokens.size(1)
         return phoneme_embedding
 
-    def forward(self, inputs_embeds, attention_mask, use_cache=False, past_key_values=None, cache_position=None):
+    def forward(
+        self,
+        inputs_embeds,
+        attention_mask,
+        use_cache=False,
+        past_key_values=None,
+        cache_position=None,
+        context_prefix_lens=None,
+    ):
         # Only pass cache_position for NemotronH (HF transformers may not accept it)
         """Run the configured decoder backend.
 
@@ -1074,6 +1083,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
             use_cache: Whether to return and update the key-value cache.
             past_key_values: Optional existing key-value cache.
             cache_position: Optional absolute cache positions used by Nemotron-H.
+            context_prefix_lens: Fixed valid conditioning-prefix lengths for Nemotron-H R-SWA.
 
         Returns:
             Decoder backend output.
@@ -1085,6 +1095,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 use_cache=use_cache,
                 past_key_values=past_key_values,
                 cache_position=cache_position,
+                context_prefix_lens=context_prefix_lens,
             )
         else:
             backend_out = self.decoder(
@@ -1776,6 +1787,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 use_cache=True,
                 past_key_values=None,
                 cache_position=cache_position,
+                context_prefix_lens=full_context_lens.repeat(2 if use_cfg else 1),
             )
 
             last_hidden = transformer_out.last_hidden_state
@@ -1927,6 +1939,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 use_cache=True,
                 past_key_values=state.past_key_values,
                 cache_position=cache_position,
+                context_prefix_lens=state.full_context_lens.repeat(2 if state.config.use_cfg else 1),
             )
 
             state.last_hidden = transformer_out.last_hidden_state

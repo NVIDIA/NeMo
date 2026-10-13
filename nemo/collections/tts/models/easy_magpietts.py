@@ -962,7 +962,9 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             context_channel = pad(context)
         full_embedding = context_channel + pad(text_embedding) + pad(phoneme_embedding)
         hidden = self.forward(
-            inputs_embeds=full_embedding, attention_mask=get_mask_from_lengths(combined_lens)
+            inputs_embeds=full_embedding,
+            attention_mask=get_mask_from_lengths(combined_lens),
+            context_prefix_lens=context_lens,
         ).last_hidden_state
         target_lens = stacked_lens - 1
         predictions = self.slice_sequence_embeddings(hidden, phoneme_delay, target_lens)
@@ -1329,6 +1331,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         transformer_out = self.forward(
             inputs_embeds=full_embedding,
             attention_mask=get_mask_from_lengths(combined_channel_lens),
+            context_prefix_lens=context_lens,
         )
         transformer_hidden_states = transformer_out.last_hidden_state  # (B, T_total, E)
 

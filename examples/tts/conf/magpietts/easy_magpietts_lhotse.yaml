@@ -32,6 +32,9 @@ model:
     attention_dropout: 0.0
     attention_bias: false
     max_position_embeddings: 8192
+    # Causal rolling window in decoder steps, plus each item's pinned conditioning prefix.
+    # null keeps full attention. R-SWA uses FlexAttention on CUDA; attention_dropout must be 0.
+    rswa_window: null
     # Mamba config
     mamba_num_heads: 64
     mamba_head_dim: 24

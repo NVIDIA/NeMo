@@ -28,6 +28,7 @@ class _ChannelHarness(nn.Module):
     _repeat_gated_context_embeddings = EasyMagpieTTSInferenceModel._repeat_gated_context_embeddings
     streaming_init = EasyMagpieTTSInferenceModel.streaming_init
     streaming_prefill = EasyMagpieTTSInferenceModel.streaming_prefill
+    streaming_step = EasyMagpieTTSInferenceModel.streaming_step
     _prepare_streaming_input = EasyMagpieTTSInferenceModel._prepare_streaming_input
     process_batch = EasyMagpieTTSModel.process_batch
     _is_text_only_batch = staticmethod(EasyMagpieTTSModel._is_text_only_batch)
@@ -84,6 +85,7 @@ class _ChannelHarness(nn.Module):
         self.local_transformer_type = LocalTransformerType.NO_LT
         self.forward_inputs = []
         self.forward_masks = []
+        self.forward_prefix_lens = []
         self.to(device)
 
     def embed_text_tokens(self, tokens, **kwargs):
@@ -98,6 +100,7 @@ class _ChannelHarness(nn.Module):
     def forward(self, inputs_embeds, **kwargs):
         self.forward_inputs.append(inputs_embeds)
         self.forward_masks.append(kwargs.get('attention_mask'))
+        self.forward_prefix_lens.append(kwargs.get('context_prefix_lens'))
         return SimpleNamespace(last_hidden_state=inputs_embeds, past_key_values='test-cache')
 
     def prepare_audio_channel_embeddings(self, audio_codes, audio_codes_lens, delay, **kwargs):
@@ -484,3 +487,55 @@ def test_gate_receives_gradients_from_first_cuda_training_step(text_only):
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-2)
     optimizer.step()
     assert not torch.equal(before, model.context_gate_logits)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('text_only', [False, True])
+@pytest.mark.parametrize('repeat', [False, True])
+def test_training_routes_prepared_prefix_lengths_for_rswa(text_only, repeat):
+    model = _ChannelHarness(repeat).eval()
+    model.task_embedding = nn.Embedding(1, 4)
+    batch = _batch()
+    if text_only:
+        model.phoneme_tokenizer = SimpleNamespace(eos_token_id=17, pad=0)
+        batch.update(
+            task=['text_only', 'text_only'], phoneme_tokens=batch['text'], phoneme_tokens_lens=batch['text_lens']
+        )
+        expected = batch['context_text_tokens_lens'] + 1
+    else:
+        _, expected, _, _ = model.prepare_context_tensors(
+            **{key: value for key, value in batch.items() if key.startswith('context_')},
+            training_mode=model.training_modes[0],
+        )
+    model.process_batch(**batch)
+    torch.testing.assert_close(model.forward_prefix_lens[-1], expected)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('use_cfg', [False, True])
+def test_streaming_routes_fixed_prefix_lengths_across_turns(use_cfg):
+    model = _ChannelHarness(False).eval()
+    state = _init(model, use_cfg)
+    expected = state.full_context_lens.repeat(2 if use_cfg else 1)
+    torch.testing.assert_close(model.forward_prefix_lens[-1], expected)
+    state.context_position = state.full_context_lens.clone()
+    state.cache_seq_len = int(state.full_context_lens.max())
+    for _ in range(3):
+        # New conversational text must not enlarge the pinned conditioning prefix.
+        model.streaming_prefill(state, torch.tensor([[2, 3], [4, 5]]), use_inference_mode=False)
+        torch.testing.assert_close(model.forward_prefix_lens[-1], expected)
+    model.streaming_step(state, prefill_like_step=True, use_inference_mode=False)
+    torch.testing.assert_close(model.forward_prefix_lens[-1], expected)
+
+
+@pytest.mark.unit
+def test_nemotron_forward_routes_prefix_but_huggingface_does_not():
+    for backend in ('nemotron_h', 'huggingface'):
+        captured = {}
+        harness = SimpleNamespace(decoder_type=backend, decoder=lambda **kw: captured.update(kw))
+        prefix = torch.tensor([2, 5])
+        EasyMagpieTTSInferenceModel.forward(harness, torch.randn(2, 7, 4), None, context_prefix_lens=prefix)
+        if backend == 'nemotron_h':
+            assert captured['context_prefix_lens'] is prefix
+        else:
+            assert 'context_prefix_lens' not in captured

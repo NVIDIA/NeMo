@@ -172,6 +172,9 @@ class NemotronHConfig:
     attention_dropout: float = 0.0
     attention_bias: bool = False
     max_position_embeddings: int = 4096
+    # Pinned conditioning prefix + causal rolling window, including the current step.
+    # None preserves the original full-attention implementation.
+    rswa_window: Optional[int] = None
 
     # Mamba config
     mamba_num_heads: int = 64
@@ -226,6 +229,14 @@ class NemotronHConfig:
     _attn_implementation: str = "sdpa"  # "eager", "sdpa", or "flash_attention_2"
 
     def __post_init__(self):
+        if self.rswa_window is not None:
+            if isinstance(self.rswa_window, bool) or not isinstance(self.rswa_window, int) or self.rswa_window <= 0:
+                raise ValueError("rswa_window must be a positive integer or None")
+            if self.attention_dropout != 0.0:
+                raise ValueError(
+                    "R-SWA requires attention_dropout=0; FlexAttention does not support attention dropout"
+                )
+
         # Derive layers_block_type from hybrid_override_pattern
         pattern_map = {'M': 'mamba', '*': 'attention', '-': 'mlp', 'E': 'moe'}
         self.layers_block_type = [pattern_map.get(c, 'mamba') for c in self.hybrid_override_pattern]
@@ -948,6 +959,66 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
 
 
+_RSWA_FLEX_ATTENTION = None
+_RSWA_CREATE_BLOCK_MASK = None
+
+
+def _get_rswa_flex_kernels():
+    """Compile lazily so full attention does not depend on FlexAttention."""
+    global _RSWA_FLEX_ATTENTION, _RSWA_CREATE_BLOCK_MASK
+    if _RSWA_FLEX_ATTENTION is None:
+        try:
+            from torch.nn.attention.flex_attention import create_block_mask, flex_attention
+        except ImportError as error:
+            raise RuntimeError("CUDA R-SWA requires PyTorch with torch.nn.attention.flex_attention") from error
+        # Dynamic sequence lengths avoid compiling a new attention kernel for every batch length.
+        _RSWA_FLEX_ATTENTION = torch.compile(flex_attention, dynamic=True)
+        _RSWA_CREATE_BLOCK_MASK = torch.compile(create_block_mask, dynamic=True)
+    return _RSWA_FLEX_ATTENTION, _RSWA_CREATE_BLOCK_MASK
+
+
+def create_rswa_mask(context_prefix_lens, query_positions, key_length, window, attention_mask=None):
+    """Build causal prefix/window visibility, shared by all attention layers.
+
+    ``k <= q and (k < prefix_length or q - k < window)`` matches R-SWA.
+    Padding is excluded on both axes. Prefix queries remain causal. CUDA uses a
+    compiled block-sparse mask; the dense CPU path is intended for small tests.
+    Cached keys keep their absolute positions (the cache is not compacted here).
+    """
+    batch_size = context_prefix_lens.numel()
+    query_length = query_positions.numel()
+    device = query_positions.device
+    if attention_mask is None:
+        attention_mask = torch.ones(batch_size, key_length, device=device, dtype=torch.bool)
+    elif attention_mask.shape != (batch_size, key_length):
+        raise ValueError("R-SWA attention_mask must be a 2D mask covering all cached and current keys")
+    attention_mask = attention_mask.to(device=device, dtype=torch.bool)
+
+    def visibility(batch, head, query, key):
+        # Block-mask construction evaluates indices in rounded-up blocks.
+        position = query_positions[query.clamp(max=query_length - 1)]
+        key_valid = attention_mask[batch, key.clamp(max=key_length - 1)]
+        query_valid = attention_mask[batch, position.clamp(max=key_length - 1)]
+        return (
+            (query < query_length)
+            & (key < key_length)
+            & query_valid
+            & key_valid
+            & (key <= position)
+            & ((key < context_prefix_lens[batch]) | (position - key < window))
+        )
+
+    if device.type == "cuda":
+        _, create_block_mask = _get_rswa_flex_kernels()
+        return create_block_mask(
+            visibility, B=batch_size, H=None, Q_LEN=query_length, KV_LEN=key_length, device=device
+        )
+    batch = torch.arange(batch_size, device=device)[:, None, None, None]
+    query = torch.arange(query_length, device=device)[None, None, :, None]
+    key = torch.arange(key_length, device=device)[None, None, None, :]
+    return visibility(batch, 0, query, key)
+
+
 class NemotronHAttention(nn.Module):
     """Multi-headed attention for NemotronH."""
 
@@ -991,6 +1062,22 @@ class NemotronHAttention(nn.Module):
 
         if past_key_value is not None:
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx)
+
+        if self.config.rswa_window is not None:
+            if query_states.device.type == "cuda":
+                flex_attention, _ = _get_rswa_flex_kernels()
+                attn_output = flex_attention(
+                    query_states, key_states, value_states, block_mask=attention_mask, enable_gqa=True
+                )
+            else:
+                attn_output = F.scaled_dot_product_attention(
+                    query_states,
+                    repeat_kv(key_states, self.num_key_value_groups),
+                    repeat_kv(value_states, self.num_key_value_groups),
+                    attn_mask=attention_mask,
+                )
+            attn_output = attn_output.transpose(1, 2).contiguous().view(bsz, q_len, -1)
+            return self.o_proj(attn_output), None, past_key_value
 
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
@@ -1045,7 +1132,7 @@ class NemotronHFlashAttention2(NemotronHAttention):
         use_cache: bool = False,
         cache_position: Optional[torch.LongTensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        if not FLASH_ATTN_AVAILABLE or _flash_attention_forward is None:
+        if self.config.rswa_window is not None or not FLASH_ATTN_AVAILABLE or _flash_attention_forward is None:
             return super().forward(
                 hidden_states=hidden_states,
                 attention_mask=attention_mask,
@@ -1476,6 +1563,7 @@ class NemotronHModel(nn.Module):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
+        context_prefix_lens: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Union[Tuple, NemotronHOutput]:
         # Support both cache_params and past_key_values for compatibility
@@ -1506,11 +1594,37 @@ class NemotronHModel(nn.Module):
                 device=hidden_states.device,
             )
 
-        if cache_position is None:
-            cache_position = torch.arange(hidden_states.shape[1], device=hidden_states.device)
-
-        # Create causal mask for attention layers
-        causal_mask = self._create_causal_mask(attention_mask, inputs_embeds, cache_position)
+        if self.config.rswa_window is not None:
+            if context_prefix_lens is None:
+                raise ValueError("R-SWA requires each item's fixed conditioning context_prefix_lens")
+            context_prefix_lens = context_prefix_lens.to(device=hidden_states.device)
+            if (
+                context_prefix_lens.shape != (hidden_states.shape[0],)
+                or context_prefix_lens.dtype not in (torch.int32, torch.int64)
+                or torch.any(context_prefix_lens < 0)
+            ):
+                raise ValueError("context_prefix_lens must contain one nonnegative integer per batch item")
+            attention_layers = [i for i, kind in enumerate(self.config.layers_block_type) if kind == 'attention']
+            past_length = cache_params.get_seq_length(attention_layers[0]) if cache_params and attention_layers else 0
+            expected_positions = torch.arange(
+                past_length, past_length + hidden_states.shape[1], device=hidden_states.device
+            )
+            if cache_position is None:
+                cache_position = expected_positions
+            elif not torch.equal(cache_position, expected_positions):
+                raise ValueError("R-SWA cache_position must continue the contiguous, absolute cache timeline")
+            causal_mask = create_rswa_mask(
+                context_prefix_lens,
+                cache_position,
+                past_length + hidden_states.shape[1],
+                self.config.rswa_window,
+                attention_mask,
+            )
+        else:
+            if cache_position is None:
+                cache_position = torch.arange(hidden_states.shape[1], device=hidden_states.device)
+            # Keep the original full-attention path, including FlashAttention2, unchanged.
+            causal_mask = self._create_causal_mask(attention_mask, inputs_embeds, cache_position)
         mamba_mask = self._update_mamba_mask(attention_mask, cache_position)
 
         all_hidden_states = () if output_hidden_states else None
@@ -1659,6 +1773,7 @@ class NemotronHForCausalLM(nn.Module):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
+        context_prefix_lens: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Union[Tuple, NemotronHCausalLMOutput]:
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1675,6 +1790,7 @@ class NemotronHForCausalLM(nn.Module):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             cache_position=cache_position,
+            context_prefix_lens=context_prefix_lens,
         )
 
         hidden_states = outputs.last_hidden_state if return_dict else outputs[0]
@@ -1709,6 +1825,7 @@ class NemotronHForCausalLM(nn.Module):
         cache_position=None,
         position_ids=None,
         use_cache=True,
+        context_prefix_lens=None,
         **kwargs,
     ):
         """Prepare inputs for generation."""
@@ -1748,6 +1865,7 @@ class NemotronHForCausalLM(nn.Module):
                 "use_cache": use_cache,
                 "attention_mask": attention_mask,
                 "cache_position": cache_position,
+                "context_prefix_lens": context_prefix_lens,
             }
         )
         return model_inputs
