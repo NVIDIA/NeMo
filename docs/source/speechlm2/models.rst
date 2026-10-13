@@ -485,3 +485,43 @@ Model Configuration
 All models in this collection use a configuration-based approach, where a YAML configuration file specifies the model architecture, components, and training parameters. See the :doc:`configurations documentation <configs>` for details on these configuration files.
 
 For information about scaling and training these models at scale, see the :doc:`training and scaling documentation <training_and_scaling>`.
+
+
+Experimental one-pass straight band
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``alignment_backend: one_pass`` to bypass both the preliminary alignment and
+the acoustic-path band. This backend uses NumPy, not Numba. It matches transcript
+speaker tags to diarization columns using greedy CTC token-distribution similarity
+and a small speaker assignment problem; no token/frame alignment is used for mapping.
+Speaker-inactive frames (below ``speaker_activity_threshold``) are removed. Runs of
+greedy blank frames retain at most ``duration_cap`` representatives. Original frame
+indices are preserved for timestamps and duration checks.
+
+Exactly one search scores a straight diagonal corridor in retained-frame versus
+CTC-state coordinates. Half-width is ``ceil(band_ratio * number_of_states)`` with
+a one-state minimum, clipped to the trellis edges. Do not pass the removed
+``band_center`` or ``band_widening_factor`` options. Internal CTC blank states are still needed
+for repeated-label transitions; they are not transcript silence tokens.
+Word/token and blank-state spans cannot exceed ``duration_cap`` original frames.
+Duration alternatives are tracked during scoring, followed by one backtrace.
+There is no widening retry or unconstrained fallback. Infeasible streams have no
+timestamps and are explicitly listed in ``alignment_diagnostics.failed_streams``.
+
+This is an experimental accuracy-sensitive backend, not the default. A straight
+band can exclude correct paths despite silence collapse, and token-distribution
+speaker mapping is heuristic. Evaluate failures and timestamp F1 as well as latency;
+do not treat faster incomplete output as a successful acceleration. Long-form
+backpointer storage scales with retained frames, band width, and duration cap.
+
+Enable on a loaded SALM encoder before generating timestamps::
+
+    model.perception.encoder.ctc_timestamp_alignment = {
+        "alignment_backend": "one_pass",
+        "band_ratio": 0.05,
+        "duration_cap": 12,
+    }
+
+Changing the options refreshes the cached aligner without reloading the head.
+The original backend remains the default. One-pass uses hard speaker-activity
+selection rather than the original backend's ``speaker_logprob_weight`` prior.

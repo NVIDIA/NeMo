@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
+import numpy as np
 import torch
 from omegaconf import OmegaConf
 from torch import nn
@@ -255,6 +256,9 @@ class MultiSpeakerSOTWordTimestampAligner:
         speaker_activity_threshold: float = 0.5,
         speaker_logprob_weight: float = 0.0,
         maximum_token_len: float = 1.0,
+        alignment_backend: str = "original",
+        band_ratio: float = 0.05,
+        duration_cap: int = 12,
         epsilon: float = 1.0e-6,
         online_inference_length: int = 0,
         chunk_left_context: int = 0,
@@ -272,6 +276,9 @@ class MultiSpeakerSOTWordTimestampAligner:
             speaker_activity_threshold (float): Threshold for speaker activity metadata.
             speaker_logprob_weight (float): Weight of the Sortformer prior in CTC alignment.
             maximum_token_len (float): Maximum emitted word duration in seconds.
+            alignment_backend (str): Original alignment or experimental ``one_pass``.
+            band_ratio (float): One-pass straight half-band as a fraction of CTC states.
+            duration_cap (int): One-pass maximum word/token/blank span in original frames.
             epsilon (float): Numerical floor for logarithms.
             online_inference_length (int): Core window, in encoder frames, of the deferred CTC
                 head over stored states; 0 runs it over the whole sequence at once.
@@ -284,6 +291,16 @@ class MultiSpeakerSOTWordTimestampAligner:
             raise ValueError("speaker_activity_threshold must be between zero and one.")
         if maximum_token_len <= 0:
             raise ValueError("maximum_token_len must be positive.")
+        if alignment_backend not in {"original", "one_pass"}:
+            raise ValueError("Unknown alignment_backend")
+        if not 0 < band_ratio <= 1:
+            raise ValueError("band_ratio must be in (0, 1].")
+        if isinstance(duration_cap, bool) or not isinstance(duration_cap, int) or not 1 <= duration_cap <= 255:
+            raise ValueError("duration_cap must be an integer in [1, 255].")
+        self.alignment_backend = alignment_backend
+        self.band_ratio = float(band_ratio)
+        self.duration_cap = duration_cap
+        self.dp_diagnostics = []
         self.ctc_decoder = ctc_decoder
         self.tokenizer = tokenizer
         self.blank_id = blank_id
@@ -318,7 +335,8 @@ class MultiSpeakerSOTWordTimestampAligner:
 
     @classmethod
     def parse_sot_words(cls, transcript: str) -> List[Dict[str, Any]]:
-        """Split a t-SOT transcript into words while retaining speaker turns."""
+        """Split a t-SOT transcript into words, treating em dashes as word separators."""
+        transcript = transcript.replace("—", " ")
         words: List[Dict[str, Any]] = []
         parts = cls._SPEAKER_TAG_RE.split(transcript)
         speaker_tag: Optional[int] = 0 if len(parts) == 1 else None
@@ -687,6 +705,9 @@ class MultiSpeakerSOTWordTimestampAligner:
                 "speaker_activity_threshold": self.speaker_activity_threshold,
                 "speaker_logprob_weight": speaker_logprob_weight,
                 "maximum_token_len": self.maximum_token_len,
+                "alignment_backend": self.alignment_backend,
+                "band_ratio": self.band_ratio,
+                "duration_cap": self.duration_cap,
                 "epsilon": self.epsilon,
             },
             "num_speaker_columns": None if sortformer_sigmoids is None else sortformer_sigmoids.shape[-1],
@@ -696,7 +717,7 @@ class MultiSpeakerSOTWordTimestampAligner:
         }
 
     def align_prepared(self, prepared: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Align a batch from :meth:`prepare_alignment`: both DP passes, speaker mapping and word timing.
+        """Align a prepared batch using the selected backend, speaker mapping and word timing.
 
         Reads only the batch and this aligner's hyperparameters, never the model, so it can
         run in another process than the one that prepared the batch.
@@ -707,6 +728,9 @@ class MultiSpeakerSOTWordTimestampAligner:
         Returns:
             List[Dict[str, Any]]: One alignment result per record.
         """
+        self.dp_diagnostics = []
+        if self.alignment_backend == "one_pass":
+            return _align_one_pass(self, prepared)
         records = prepared["records"]
         batch_size = len(records)
         speaker_logprob_weight = prepared["config"]["speaker_logprob_weight"]
@@ -1316,6 +1340,8 @@ class MultiSpeakerSOTWordTimestampAligner:
         """
         frames_by_word: List[List[Tuple[int, int]]] = [[] for _ in words]
         for frame, state in enumerate(path.tolist()):
+            if state < 0:
+                continue
             word_index = state_to_word[state]
             if word_index is not None:
                 frames_by_word[word_index].append((frame, state))
@@ -1830,7 +1856,15 @@ def get_ctc_timestamp_aligner(
         aligner = MultiSpeakerSOTWordTimestampAligner(ctc_decoder=artifact.decoder, tokenizer=artifact.tokenizer)
         owner.__dict__["_ctc_timestamp_extractor_cache"] = (resolved_path, aligner)
         cached = (resolved_path, aligner)
+        owner.__dict__.pop("_ctc_timestamp_alignment_options", None)
     aligner = cached[1]
+    alignment_options = dict(getattr(owner, "ctc_timestamp_alignment", {}) or {})
+    if alignment_options != owner.__dict__.get("_ctc_timestamp_alignment_options", {}):
+        aligner = MultiSpeakerSOTWordTimestampAligner(
+            ctc_decoder=aligner.ctc_decoder, tokenizer=aligner.tokenizer, **alignment_options
+        )
+        owner.__dict__["_ctc_timestamp_extractor_cache"] = (resolved_path, aligner)
+        owner.__dict__["_ctc_timestamp_alignment_options"] = alignment_options
     aligner.online_inference_length = int(getattr(owner, "online_inference_length", 0))
     aligner.chunk_left_context = int(getattr(owner, "chunk_left_context", 0))
     aligner.chunk_right_context = int(getattr(owner, "chunk_right_context", 0))
@@ -1839,3 +1873,218 @@ def get_ctc_timestamp_aligner(
     aligner.ctc_decoder.to(device=device, dtype=dtype).eval()
     _disable_max_seq_length_sync(aligner.ctc_decoder)
     return aligner
+
+
+def _one_pass_speaker_mapping(ctc, streams, speaker, threshold):
+    """Match token distributions, not alignment paths, to diarization columns."""
+    if not streams:
+        return {}
+    if speaker.shape[1] == 0:
+        return {stream['speaker_tag']: None for stream in streams}
+    from scipy.optimize import linear_sum_assignment
+
+    greedy = ctc.argmax(axis=1)
+    peaks = (greedy != 0) & np.r_[True, greedy[1:] != greedy[:-1]]
+    observed = np.stack(
+        [
+            np.bincount(greedy[peaks & (speaker[:, c] >= threshold)], minlength=ctc.shape[1])
+            for c in range(speaker.shape[1])
+        ]
+    )
+    expected = np.stack([np.bincount(np.asarray(s['labels'])[1::2], minlength=ctc.shape[1]) for s in streams])
+    idf = np.log1p(len(observed) / (1 + (observed > 0).sum(axis=0)))
+    a = np.sqrt(expected * idf)
+    b = np.sqrt(observed * idf)
+    similarity = a @ b.T / np.maximum(1e-8, np.linalg.norm(a, axis=1)[:, None] * np.linalg.norm(b, axis=1)[None, :])
+    # Penalize grossly incompatible amounts of speech, without a timing alignment.
+    similarity -= 0.1 * np.abs(np.log((expected.sum(axis=1)[:, None] + 1) / (observed.sum(axis=1)[None, :] + 1)))
+    rows, cols = linear_sum_assignment(-similarity)
+    mapping = {s['speaker_tag']: None for s in streams}
+    mapping.update({streams[r]['speaker_tag']: int(c) for r, c in zip(rows, cols)})
+    return mapping
+
+
+def _straight_band_search(logp, labels, words, positions, ratio, cap):
+    """Search only a straight band. Word ages include original-frame gaps."""
+    frames, states = len(positions), len(labels)
+    half = max(1, int(np.ceil(ratio * states)))
+    width = min(states, 2 * half + 1)
+    starts = np.clip(np.rint(np.linspace(0, states - 1, frames)).astype(np.int64) - half, 0, states - width)
+    path = np.full(frames, -1, np.int64)
+    if not frames:
+        return path, -np.inf, starts
+    previous = np.full((width, cap), -np.inf, np.float32)
+    pointers = np.full((frames, width, cap), 65535, np.uint16)
+    previous[: min(2, width), 0] = logp[positions[0], labels[: min(2, width)]]
+    ages = np.arange(cap)
+    for t in range(1, frames):
+        current = np.full_like(previous, -np.inf)
+        state = starts[t] + np.arange(width)
+        emission = logp[positions[t], labels[state]]
+        delta = int(positions[t] - positions[t - 1])
+        for move in range(3):
+            source = state - move
+            k = source - starts[t - 1]
+            valid = (k >= 0) & (k < width) & (source >= 0)
+            if move == 2:
+                valid &= (labels[state] != 0) & (labels[state] != labels[np.maximum(source, 0)])
+            dest = np.flatnonzero(valid)
+            if not len(dest):
+                continue
+            same_word = (words[state[dest]] >= 0) & (words[state[dest]] == words[source[dest]])
+            same_blank = (move == 0) & (words[state[dest]] < 0)
+            extending = same_word | same_blank
+            # Extension preserves all feasible word/blank ages, not just the winning age.
+            d = dest[extending]
+            if len(d) and delta < cap:
+                candidate = previous[k[d], : cap - delta] + emission[d, None]
+                old = current[d, delta:]
+                take = candidate > old
+                current[d, delta:] = np.maximum(old, candidate)
+                pointers[t, d, delta:] = np.where(take, move * cap + ages[: cap - delta], pointers[t, d, delta:])
+            d = dest[~extending]
+            if len(d):
+                best_age = previous[k[d]].argmax(axis=1)
+                candidate = previous[k[d], best_age] + emission[d]
+                take = candidate > current[d, 0]
+                current[d, 0] = np.maximum(current[d, 0], candidate)
+                pointers[t, d, 0] = np.where(take, move * cap + best_age, pointers[t, d, 0])
+        previous = current
+    end = np.array([states - 1, states - 2])
+    local = end - starts[-1]
+    valid = (local >= 0) & (local < width)
+    end, local = end[valid], local[valid]
+    if not len(end):
+        return path, -np.inf, starts
+    final = previous[local]
+    slot, age = np.unravel_index(final.argmax(), final.shape)
+    score = float(final[slot, age])
+    if not np.isfinite(score):
+        return path, score, starts
+    state = int(end[slot])
+    for t in range(frames - 1, -1, -1):
+        path[t] = state
+        if t:
+            code = int(pointers[t, state - starts[t], age])
+            state -= code // cap
+            age = code % cap
+    return path, score, starts
+
+
+def _one_pass_positions(ctc, activity, threshold=0.5, max_blank_frames=12):
+    """Remove inactive frames and collapse excess frames of greedy-blank runs."""
+    positions = np.flatnonzero(activity >= threshold)
+    if len(positions) == 0:
+        return positions
+    blank = ctc[positions].argmax(axis=1) == 0
+    index = np.arange(len(positions))
+    last_nonblank = np.maximum.accumulate(np.where(blank, -1, index))
+    return positions[(index - last_nonblank) <= max_blank_frames]
+
+
+def _align_one_pass(aligner, prepared):
+    results = []
+    aligner.dp_diagnostics = []
+    for record in prepared['records']:
+        ctc = record['ctc_log_probs'].numpy()
+        frames = record['ctc_length']
+        probs = record['speaker_probs']
+        tags = [s['speaker_tag'] for s in record['streams']]
+        if probs is None:
+            speaker = None
+            mapping = {tag: None for tag in tags}
+        else:
+            speaker = aligner._resample_speaker_probs(probs.clamp(0, 1), frames)
+            mapping = _one_pass_speaker_mapping(
+                ctc, record['streams'], speaker.numpy(), aligner.speaker_activity_threshold
+            )
+        rows, scores, failures = [], {}, []
+        for stream in record['streams']:
+            labels = np.asarray(stream['labels'], np.int64)
+            words = np.array([w if w is not None else -1 for w in stream['state_to_word']])
+            for state in range(2, len(labels) - 1, 2):
+                if words[state - 1] == words[state + 1]:
+                    words[state] = words[state - 1]
+            column = mapping[stream['speaker_tag']]
+            activity = (
+                np.ones(frames)
+                if speaker is None
+                else (np.zeros(frames) if column is None else speaker[:, column].numpy())
+            )
+            positions = _one_pass_positions(ctc, activity, aligner.speaker_activity_threshold, aligner.duration_cap)
+            path, score, _ = _straight_band_search(
+                ctc, labels, words, positions, aligner.band_ratio, aligner.duration_cap
+            )
+            failed = not np.isfinite(score)
+            half = max(1, int(np.ceil(aligner.band_ratio * len(labels))))
+            aligner.dp_diagnostics.append(
+                dict(
+                    record=len(results),
+                    speaker=stream['speaker_tag'],
+                    frames=frames,
+                    retained_frames=len(positions),
+                    states=len(labels),
+                    half_width=half,
+                    attempts=1,
+                    fallback=False,
+                    failed=failed,
+                    mapping=column,
+                    visited_cells=len(positions) * min(len(labels), 2 * half + 1),
+                    full_cells=frames * len(labels),
+                )
+            )
+            scores[stream['speaker_tag']] = score if not failed else None
+            if failed:
+                failures.append(
+                    {
+                        'speaker': stream['speaker_tag'],
+                        'reason': 'no_legal_path_in_straight_band',
+                        'words': [w['word'] for w in stream['words']],
+                    }
+                )
+                continue
+            fullpath = np.full(frames, -1, np.int64)
+            fullpath[positions] = path
+            rows.extend(
+                aligner._word_rows_from_path(
+                    stream['words'],
+                    stream['labels'],
+                    stream['state_to_word'],
+                    torch.from_numpy(fullpath),
+                    record['ctc_log_probs'],
+                    speaker,
+                    mapping,
+                    record['ctc_step'],
+                    record['time_offset'],
+                )
+            )
+        diarization = (
+            []
+            if record['diarization_labels'] is None
+            else aligner.diarization_segments(
+                record['diarization_labels'],
+                frame_seconds=prepared['diarization_frame_seconds'],
+                time_offset=record['time_offset'],
+                audio_duration=record['audio_duration'],
+            )
+        )
+        result = aligner._result(
+            rows=rows,
+            mapping=mapping,
+            ctc_step=record['ctc_step'],
+            sortformer_step=record['sortformer_step'],
+            time_offset=record['time_offset'],
+            ctc_frames=frames,
+            sortformer_frames=record['speaker_length'],
+            preliminary_scores={},
+            final_scores=scores,
+            assignment_scores={},
+            diarization_timestamps=diarization,
+            diarization_frame_seconds=prepared['diarization_frame_seconds'],
+            diarization_max_speaker_count=prepared['diarization_max_speaker_count'],
+        )
+        result['speaker_assignment_mode'] = 'token_distribution'
+        result['alignment_diagnostics']['failed_streams'] = failures
+        result['alignment_diagnostics']['one_pass'] = True
+        results.append(result)
+    return results

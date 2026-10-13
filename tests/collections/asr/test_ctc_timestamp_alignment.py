@@ -1,13 +1,39 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import itertools
 import weakref
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
-from nemo.collections.speechlm2.parts.ctc_timestamp_utils import MultiSpeakerSOTWordTimestampAligner
+from nemo.collections.speechlm2.parts.ctc_timestamp_utils import (
+    MultiSpeakerSOTWordTimestampAligner,
+    _one_pass_positions,
+    _straight_band_search,
+)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("text", ["piece—just", "piece — just", "—piece——just—"])
+def test_em_dash_separates_alignment_words(text):
+    transcript = f"<spk:1> <sty:stt:flat> {text} <ev:laughter> <sty:end:flat>"
+    words = MultiSpeakerSOTWordTimestampAligner.parse_sot_words(transcript)
+    assert [w["word"] for w in words] == [
+        "<sty:stt:flat>",
+        "piece",
+        "just",
+        "<ev:laughter>",
+        "<sty:end:flat>",
+    ]
+    assert all(w["speaker_tag"] == 1 for w in words)
+    assert [w["word_index"] for w in words] == list(range(5))
+    assert [w["word"] for w in MultiSpeakerSOTWordTimestampAligner.parse_sot_words("don't well-known")] == [
+        "don't",
+        "well-known",
+    ]
 
 
 @pytest.mark.unit
@@ -297,3 +323,106 @@ def test_public_word_timestamps_only_expose_word_speaker_start_and_end():
     timestamps = MultiSpeakerSOTWordTimestampAligner._public_word_timestamps(rows)
 
     assert timestamps == {2: [{"word": "hello", "speaker": 2, "start": 0.16, "end": 0.32}]}
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_search_matches_exhaustive_legal_paths(seed):
+    lp = np.random.default_rng(seed).normal(size=(6, 3)).astype(np.float32)
+    labels = np.array([0, 1, 0, 2, 0])
+    words = np.array([-1, 0, 0, 0, -1])
+    cap = 3
+    best = -np.inf
+    for p in itertools.product(range(5), repeat=6):
+        if p[0] not in (0, 1) or p[-1] not in (3, 4):
+            continue
+        legal = True
+        for a, b in zip(p, p[1:]):
+            if b - a not in (0, 1, 2) or (b - a == 2 and (labels[b] == 0 or labels[b] == labels[a])):
+                legal = False
+                break
+        if not legal:
+            continue
+        for w in set(words):
+            if w < 0:
+                continue
+            hit = np.flatnonzero(words[list(p)] == w)
+            if len(hit) and hit[-1] - hit[0] + 1 > cap:
+                legal = False
+        for state in (0, 4):
+            if p.count(state) > cap:
+                legal = False
+        if legal:
+            best = max(best, float(sum(lp[t, labels[s]] for t, s in enumerate(p))))
+    path, score, _ = _straight_band_search(lp, labels, words, np.arange(6), 1.0, cap)
+    assert score == pytest.approx(best, abs=1e-5)
+
+
+def test_collapse_and_straight_band():
+    ctc = np.array([[0.0, -1], [0, -1], [-1, 0], [0, -1], [0, -1], [-1, 0]])
+    assert _one_pass_positions(ctc, np.array([0, 1, 1, 1, 1, 1]), max_blank_frames=1).tolist() == [1, 2, 3, 5]
+    lp = np.zeros((30, 2), np.float32)
+    path, score, starts = _straight_band_search(
+        lp, np.array([0, 1, 0, 1, 0]), np.array([-1, 0, -1, 1, -1]), np.arange(30), 0.1, 12
+    )
+    assert np.array_equal(starts, np.clip(np.rint(np.linspace(0, 4, 30)).astype(int) - 1, 0, 2))
+
+
+def test_original_gap_counts_against_word_cap():
+    lp = np.zeros((25, 3), np.float32)
+    p, score, _ = _straight_band_search(
+        lp, np.array([0, 1, 0, 2, 0]), np.array([-1, 0, 0, 0, -1]), np.array([0, 24]), 1.0, 12
+    )
+    assert not np.isfinite(score)
+
+
+@pytest.mark.unit
+def test_one_pass_does_not_invoke_preliminary_alignment_or_numba(monkeypatch):
+    from nemo.collections.speechlm2.parts import ctc_timestamp_utils as utils
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError('One-pass backend must not call full/compiled DP')
+
+    monkeypatch.setattr(utils, '_get_compiled_ctc_functions', forbidden, raising=False)
+    monkeypatch.setattr(MultiSpeakerSOTWordTimestampAligner, '_align_stream_batch', forbidden)
+    tokenizer = SimpleNamespace(text_to_ids=lambda text: [1 if w == 'a' else 2 for w in text.split()])
+    aligner = MultiSpeakerSOTWordTimestampAligner(
+        tokenizer=tokenizer, blank_id=3, alignment_backend='one_pass', duration_cap=12
+    )
+    logits = torch.full((1, 8, 4), -10.0)
+    logits[:, :, 3] = 0
+    logits[0, 2, 1] = 10
+    logits[0, 5, 2] = 10
+    prepared = aligner.prepare_alignment(logits.log_softmax(-1), None, ['a b'], audio_durations=[0.64])
+    for _ in range(2):
+        result = aligner.align_prepared(prepared)[0]
+        assert len(result['speaker_word_timestamps'][0]) == 2
+        assert result['alignment_diagnostics']['preliminary_ctc_path_scores'] == {}
+        assert len(aligner.dp_diagnostics) == 1
+        assert aligner.dp_diagnostics[0]['attempts'] == 1
+        assert not aligner.dp_diagnostics[0]['fallback']
+
+
+@pytest.mark.unit
+def test_one_pass_speaker_mapping_uses_tokens_not_column_order():
+    from nemo.collections.speechlm2.parts.ctc_timestamp_utils import _one_pass_speaker_mapping
+
+    ctc = np.array([[0, 4, 0], [4, 0, 0], [0, 0, 4]], dtype=np.float32)
+    streams = [{'speaker_tag': 0, 'labels': [0, 1, 0]}, {'speaker_tag': 1, 'labels': [0, 2, 0]}]
+    speaker = np.array([[0, 1], [0, 0], [1, 0]], dtype=np.float32)
+    assert _one_pass_speaker_mapping(ctc, streams, speaker, 0.5) == {0: 1, 1: 0}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('options', [{'band_ratio': 0}, {'duration_cap': True}, {'duration_cap': 1.5}])
+def test_one_pass_rejects_invalid_configuration(options):
+    with pytest.raises(ValueError):
+        MultiSpeakerSOTWordTimestampAligner(alignment_backend='one_pass', **options)
+
+
+@pytest.mark.unit
+def test_one_pass_empty_activity_has_no_implicit_fallback():
+    ctc = np.zeros((10, 3), dtype=np.float32)
+    positions = _one_pass_positions(ctc, np.zeros(10))
+    path, score, _ = _straight_band_search(ctc, np.array([0, 1, 0]), np.array([-1, 0, -1]), positions, 0.05, 12)
+    assert len(path) == 0
+    assert score == -np.inf
