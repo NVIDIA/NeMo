@@ -281,6 +281,17 @@ def test_ctc_timestamp_loader_copies_the_encoder_windows_on_every_call(monkeypat
     assert get_ctc_timestamp_aligner(encoder, str(adapter_path), torch.device("cpu")) is aligner
     assert (aligner.online_inference_length, aligner.chunk_left_context, aligner.chunk_right_context) == (250, 40, 10)
 
+    encoder.ctc_timestamp_alignment = {"alignment_backend": "banded", "max_word_frames": 6}
+    updated = get_ctc_timestamp_aligner(encoder, str(adapter_path), torch.device("cpu"))
+    assert updated is not aligner
+    assert updated.ctc_decoder is aligner.ctc_decoder
+    assert updated.alignment_backend == "banded" and updated.max_word_frames == 6
+    assert get_ctc_timestamp_aligner(encoder, str(adapter_path), torch.device("cpu")) is updated
+    encoder.ctc_timestamp_alignment = {}
+    restored = get_ctc_timestamp_aligner(encoder, str(adapter_path), torch.device("cpu"))
+    assert restored.alignment_backend == "original"
+    assert restored.ctc_decoder is updated.ctc_decoder
+
 
 @pytest.mark.unit
 def test_inference_ctc_decoder_skips_collective_when_distributed_is_initialized(

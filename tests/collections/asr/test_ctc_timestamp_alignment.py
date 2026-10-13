@@ -1,13 +1,286 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
+import itertools
 import weakref
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import torch
 
-from nemo.collections.speechlm2.parts.ctc_timestamp_utils import MultiSpeakerSOTWordTimestampAligner
+from nemo.collections.speechlm2.parts.ctc_timestamp_utils import (
+    MultiSpeakerSOTWordTimestampAligner,
+    _banded_ctc_search,
+    _character_token_ids,
+    _refine_word_timestamps,
+    _timestamp_units,
+    align_prepared_batch,
+)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    'text,expected',
+    [
+        ('你好。', ['你', '好']),
+        ('こんにちは', list('こんにちは')),
+        ('한국어 단어', ['한국어', '단어']),
+        ('हिन्दी भाषा', ['हिन्दी', 'भाषा']),
+        ('أَهْلًا بالعالم', ['أَهْلًا', 'بالعالم']),
+    ],
+)
+def test_auto_timestamp_units_without_dataset_language(text, expected):
+    words = MultiSpeakerSOTWordTimestampAligner.parse_sot_words(text)
+    assert [w['word'] for w in _timestamp_units(words, 'auto')] == expected
+
+
+@pytest.mark.unit
+def test_inference_cleanup_keeps_acoustic_tags():
+    text = '<s> <spk:0> <sty:flat> 你好 <ev:laughter> </s>'
+    assert (
+        MultiSpeakerSOTWordTimestampAligner.clean_sot_transcript(
+            text, ['<s>', '</s>', '<spk:0>', '<sty:flat>', '<ev:laughter>']
+        )
+        == '<spk:0> <sty:flat> 你好 <ev:laughter>'
+    )
+
+
+@pytest.mark.unit
+def test_normal_deferred_generation_automatically_selects_units_per_record(monkeypatch):
+    import inspect
+
+    from nemo.collections.asr.modules.parallel_expert_encoder import CTCTimestampInputs, ParallelExpertEncoder
+    from nemo.collections.speechlm2.parts import ctc_timestamp_utils
+
+    class Tokenizer:
+        tokenizer = SimpleNamespace(
+            piece_to_id=lambda text: {'你': 1, '好': 2}[text],
+            unk_id=lambda: 0,
+            decode=lambda ids: ''.join({1: '你', 2: '好'}[i] for i in ids),
+        )
+
+        def text_to_ids(self, text):
+            return [1]
+
+    class Head(torch.nn.Module):
+        num_classes_with_blank = 4
+
+        def forward(self, encoder_output, encoded_lengths):
+            logits = torch.full((encoder_output.shape[0], encoder_output.shape[-1], 4), -10.0)
+            logits[:, :, 3] = 0
+            logits[:, 2, 1] = 10
+            logits[:, 4, 2] = 10
+            return torch.log_softmax(logits, -1)
+
+    aligner = MultiSpeakerSOTWordTimestampAligner(
+        tokenizer=Tokenizer(), ctc_decoder=Head(), blank_id=3, alignment_backend='banded'
+    )
+    monkeypatch.setattr(ctc_timestamp_utils, 'get_ctc_timestamp_aligner', lambda *args: aligner)
+    inputs = CTCTimestampInputs(torch.zeros(3, 1, 8), torch.full((3,), 8), torch.ones(3, 8, 1), torch.full((3,), 8))
+    result = inspect.unwrap(ParallelExpertEncoder).generate_ctc_timestamps(
+        SimpleNamespace(ctc_timestamp_model_path='unused'), inputs, ['你好', 'hello', '한국어'], [0.64] * 3
+    )
+    assert [[w['word'] for w in r['speaker_word_timestamps'][0]] for r in result] == [
+        ['你', '好'],
+        ['hello'],
+        ['한국어'],
+    ]
+    assert all(r['word_timestamp_refinement']['method'] == 'diarization_boundary_refinement' for r in result)
+    assert aligner.timestamp_language is None
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('language', ['zh', 'ja'])
+def test_timestamp_character_units_are_instance_local(language):
+    class Processor:
+        def piece_to_id(self, text):
+            return {'你': 1, '好': 2}[text]
+
+        def unk_id(self):
+            return 0
+
+        def decode(self, ids):
+            return ''.join({1: '你', 2: '好'}[i] for i in ids)
+
+    aligner = MultiSpeakerSOTWordTimestampAligner(
+        tokenizer=SimpleNamespace(tokenizer=Processor()), blank_id=3, timestamp_language=language
+    )
+    prepared = aligner.prepare_alignment(
+        torch.log_softmax(torch.zeros(1, 8, 4), -1), None, ['<spk:0> 你好。'], audio_durations=[0.64]
+    )
+    assert [w['word'] for w in prepared['records'][0]['words']] == ['你', '好']
+    assert [w['token_ids'] for w in prepared['records'][0]['words']] == [[1], [2]]
+    assert prepared['config']['timestamp_language'] == language
+    assert MultiSpeakerSOTWordTimestampAligner.parse_sot_words('你好。')[0]['word'] == '你好。'
+    assert align_prepared_batch(prepared) == aligner.align_prepared(prepared)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('language,text', [('hi', 'हिन्दी भाषा'), ('ko', '한국어 단어'), ('ar', 'أَهْلًا بالعالم')])
+def test_timestamp_word_languages_preserve_acoustic_spelling(language, text):
+    class Tokenizer:
+        def text_to_ids(self, text):
+            return [1] * len(text.split())
+
+    aligner = MultiSpeakerSOTWordTimestampAligner(tokenizer=Tokenizer(), blank_id=2, timestamp_language=language)
+    prepared = aligner.prepare_alignment(torch.zeros(1, 8, 3), None, [text], audio_durations=[0.64])
+    assert [w['word'] for w in prepared['records'][0]['words']] == text.split()
+
+
+@pytest.mark.unit
+def test_timestamp_units_preserve_tags_and_turns():
+    words = MultiSpeakerSOTWordTimestampAligner.parse_sot_words('<spk:0> 你好 <ev:laughter> <sty:flat> <spk:1> 好')
+    units = _timestamp_units(words, 'zh')
+    assert [w['word'] for w in units] == ['你', '好', '<ev:laughter>', '<sty:flat>', '好']
+    assert [w['word_index'] for w in units] == list(range(5))
+    assert [w['speaker_tag'] for w in units] == [0, 0, 0, 0, 1]
+    assert units[-1]['turn_index'] != units[0]['turn_index']
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('language', ['th', 'auto'])
+def test_thai_units_use_newmm_without_crossing_turns(language):
+    pytest.importorskip('pythainlp')
+    words = MultiSpeakerSOTWordTimestampAligner.parse_sot_words('<spk:0> ฉัน รักคุณ <ev:laughter> <spk:1> ฉันรักคุณ')
+    units = _timestamp_units(words, language)
+    assert [w['word'] for w in units] == ['ฉัน', 'รัก', 'คุณ', '<ev:laughter>', 'ฉัน', 'รัก', 'คุณ']
+    assert [w['speaker_tag'] for w in units] == [0, 0, 0, 0, 1, 1, 1]
+
+
+@pytest.mark.unit
+def test_character_tokenization_rejects_unknown_characters():
+    processor = SimpleNamespace(
+        piece_to_id=lambda _: 0, unk_id=lambda: 0, encode=lambda _: [0], id_to_piece=lambda _: '?'
+    )
+    with pytest.raises(ValueError, match='Unrepresentable character'):
+        _character_token_ids(processor, '你', 3)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("target", [[1, 2], [1, 1]])
+@pytest.mark.parametrize("use_prior", [False, True])
+def test_banded_ctc_full_band_matches_exhaustive_paths(target, use_prior):
+    rng = np.random.default_rng(71)
+    labels = np.array([0, target[0], 0, target[1], 0])
+    for frames in range(3, 7):
+        logp = rng.normal(size=(frames, 3)).astype(np.float32)
+        prior = rng.uniform(-2, 0, frames).astype(np.float32) if use_prior else None
+        path, score, _ = _banded_ctc_search(logp, labels, np.arange(frames), prior)
+        best = -np.inf
+        for states in itertools.product(range(5), repeat=frames):
+            if states[0] not in (0, 1) or states[-1] not in (3, 4):
+                continue
+            if any(
+                b - a not in (0, 1, 2) or (b - a == 2 and (labels[b] == 0 or labels[a] == labels[b]))
+                for a, b in zip(states, states[1:])
+            ):
+                continue
+            value = sum(
+                float(logp[t, labels[s]]) + (float(prior[t]) if prior is not None and labels[s] else 0)
+                for t, s in enumerate(states)
+            )
+            best = max(best, value)
+        assert score == pytest.approx(best, abs=1e-5)
+        assert path[0] in (0, 1) and path[-1] in (3, 4)
+
+
+@pytest.mark.unit
+def test_banded_ctc_refinement_caps_words_without_mutating_input():
+    result = {
+        "ctc_frame_seconds": 0.08,
+        "speaker_tag_to_sortformer_column": {"0": 2},
+        "speaker_word_timestamps": {
+            "0": [{"word": str(i), "speaker": 0, "start": s, "end": s + 0.08} for i, s in enumerate([0.4, 0.8, 1.8])]
+        },
+        "diarization_timestamps": [{"speaker": 2, "start": 0.2, "end": 2.5}],
+    }
+    saved = copy.deepcopy(result)
+    output = _refine_word_timestamps(result)
+    assert result == saved
+    assert [(w['start'], w['end']) for w in output['speaker_word_timestamps']['0']] == [
+        (0.2, 0.8),
+        (0.8, 1.76),
+        (1.8, 2.5),
+    ]
+    assert output['word_timestamp_refinement']['onsets_moved'] == 1
+    result['speaker_tag_to_sortformer_column'] = {}
+    assert _refine_word_timestamps(result)['word_timestamp_refinement']['unmatched_words'] == 3
+
+
+@pytest.mark.unit
+def test_banded_ctc_serialized_worker_config_and_empty_support():
+    class Tokenizer:
+        def text_to_ids(self, text):
+            return [1]
+
+    aligner = MultiSpeakerSOTWordTimestampAligner(
+        tokenizer=Tokenizer(), blank_id=2, alignment_backend="banded", max_word_frames=6
+    )
+    prepared = aligner.prepare_alignment(
+        torch.log_softmax(torch.zeros(1, 8, 3), -1), None, ["hello"], ctc_lengths=[8], audio_durations=[0.64]
+    )
+    saved = copy.deepcopy(prepared)
+    expected = aligner.align_prepared(prepared)
+    assert align_prepared_batch(prepared) == expected
+    assert expected[0]['word_timestamp_refinement']['max_frames'] == 6
+    assert torch.equal(saved['records'][0]['ctc_log_probs'], prepared['records'][0]['ctc_log_probs'])
+    path, score, starts = _banded_ctc_search(np.zeros((0, 3)), np.array([0, 1, 0]), np.array([], int), None)
+    assert not len(path) and not len(starts) and score == -np.inf
+
+
+@pytest.mark.unit
+def test_banded_ctc_anchor_band_and_greedy_cache_agree():
+    # Enough states/frames to exercise a real band, not the short-clip full-width path.
+    labels = np.zeros(1201, dtype=np.int64)
+    labels[1::2] = np.arange(1, 601)
+    positions = np.arange(1201)
+    logp = np.full((1201, 601), -20, dtype=np.float32)
+    logp[positions, labels] = 0
+    uncached = _banded_ctc_search(logp, labels, positions, None)
+    cached = _banded_ctc_search(logp, labels, positions, None, logp.argmax(axis=1))
+    assert np.array_equal(uncached[0], cached[0])
+    assert uncached[1] == cached[1] == 0
+    assert np.array_equal(uncached[2], cached[2])
+    assert uncached[2][-1] > 0
+    assert np.all(np.isin(np.diff(uncached[2]), [0, 1, 2]))
+
+
+@pytest.mark.unit
+def test_banded_ctc_cannot_start_inside_an_infeasible_long_target():
+    labels = np.zeros(10001, dtype=np.int64)
+    labels[1::2] = 1
+    path, score, _ = _banded_ctc_search(np.zeros((1000, 2), np.float32), labels, np.arange(1000), None)
+    assert score == -np.inf
+    assert np.all(path == -1)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("cap", [0, -1, True, 1.5])
+def test_banded_ctc_rejects_invalid_word_cap(cap):
+    with pytest.raises(ValueError, match="max_word_frames"):
+        MultiSpeakerSOTWordTimestampAligner(alignment_backend="banded", max_word_frames=cap)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("text", ["piece—just", "piece — just", "—piece——just—"])
+def test_em_dash_separates_alignment_words(text):
+    transcript = f"<spk:1> <sty:stt:flat> {text} <ev:laughter> <sty:end:flat>"
+    words = MultiSpeakerSOTWordTimestampAligner.parse_sot_words(transcript)
+    assert [w["word"] for w in words] == [
+        "<sty:stt:flat>",
+        "piece",
+        "just",
+        "<ev:laughter>",
+        "<sty:end:flat>",
+    ]
+    assert all(w["speaker_tag"] == 1 for w in words)
+    assert [w["word_index"] for w in words] == list(range(5))
+    assert [w["word"] for w in MultiSpeakerSOTWordTimestampAligner.parse_sot_words("don't well-known")] == [
+        "don't",
+        "well-known",
+    ]
 
 
 @pytest.mark.unit
