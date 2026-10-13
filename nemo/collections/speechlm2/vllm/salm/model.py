@@ -78,6 +78,7 @@ from nemo.collections.speechlm2.vllm.salm.ctc_timestamps import (
     take_step_hashes,
     tokenizer_special_tokens,
 )
+from nemo.collections.speechlm2.vllm.salm.fp8_encoder import build_fp8_encoder, check_fp8_encoder_weights
 from nemo.utils import logging
 
 _AUDIO_INPUT_DTYPE = torch.float32
@@ -179,6 +180,13 @@ class NeMoSpeechLMForConditionalGeneration(
                     getattr(config, "pe_encoder_overrides", None),
                 )
                 self._uses_pe_encoder = _is_parallel_expert_encoder(getattr(self.perception, "encoder", None))
+            # Built here, as vLLM builds a quantized decoder, so FP8 weights load directly.
+            build_fp8_encoder(self.perception, vllm_config.quant_config)
+
+        if isinstance(backend, HybridBackend):
+            from nemo.collections.speechlm2.vllm.salm.precision import preserve_hybrid_precision
+
+            preserve_hybrid_precision(self.language_model)
 
         # Installed even without an adapter, so ctc_timestamps() gets a clear "not
         # enabled" error instead of an unknown method.
@@ -425,6 +433,7 @@ class NeMoSpeechLMForConditionalGeneration(
     # ── weight loading ──
 
     def _load_perception_weights(self, perception_weights: dict[str, torch.Tensor]) -> set[str]:
+        check_fp8_encoder_weights(self.perception, perception_weights)
         self.perception = self.perception.to(_PERCEPTION_DTYPE)
         incompatible = self.perception.load_state_dict(perception_weights, strict=False)
 

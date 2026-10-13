@@ -159,7 +159,7 @@ The focused runtime components are public from ``nemo.collections.speechlm2.part
 ``load_ctc_timestamp_artifact``.
 
 CTC timestamps in vLLM chat responses
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A vLLM server whose checkpoint bundles a compatible CTC timestamp head, or
 configures ``ctc_timestamps.adapter_path``, can attach timestamps to chat

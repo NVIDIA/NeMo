@@ -382,7 +382,7 @@ def store_alignment_states(
             never waits to read it.
     """
     if not isinstance(audio_durations, torch.Tensor):
-        audio_durations = torch.tensor(audio_durations, dtype=torch.float64)
+        audio_durations = torch.tensor(audio_durations, dtype=torch.float64, device="cpu")
     host = {name: _to_host(getattr(alignment_states, name)) for name, _, _ in _FIELDS}
     durations = _to_host(audio_durations)
     on_device = audio_durations.is_cuda or any(
@@ -415,7 +415,7 @@ def _to_host(tensor: torch.Tensor | None) -> torch.Tensor | None:
         return None
     if not tensor.is_cuda:
         return tensor.detach().clone()
-    host = torch.empty(tensor.shape, dtype=tensor.dtype, pin_memory=True)
+    host = torch.empty(tensor.shape, dtype=tensor.dtype, device="cpu", pin_memory=True)
     host.copy_(tensor.detach(), non_blocking=True)
     return host
 
@@ -1067,7 +1067,7 @@ def _unpack(value: Any) -> Any:
             dtype_name, shape = value[_PACKED_TENSOR]
             dtype = getattr(torch, dtype_name)
             if not value["data"]:
-                return torch.empty(shape, dtype=dtype)
+                return torch.empty(shape, dtype=dtype, device="cpu")
             return torch.frombuffer(bytearray(value["data"]), dtype=dtype).reshape(shape)
         return {key: _unpack(item) for key, item in value.items()}
     if isinstance(value, list):
@@ -1098,7 +1098,7 @@ def _collate_field(tensors: list[torch.Tensor], time_axis: int | None, device: t
     shape = [len(tensors), *tensors[0].shape[1:]]
     if time_axis is not None:
         shape[time_axis] = max(tensor.shape[time_axis] for tensor in tensors)
-    batch = torch.zeros(shape, dtype=tensors[0].dtype, pin_memory=device.type == "cuda")
+    batch = torch.zeros(shape, dtype=tensors[0].dtype, device="cpu", pin_memory=device.type == "cuda")
     for row, tensor in enumerate(tensors):
         target = batch[row : row + 1]
         if time_axis is not None:

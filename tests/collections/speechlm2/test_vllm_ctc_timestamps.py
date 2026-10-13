@@ -17,6 +17,7 @@
 import asyncio
 import contextlib
 import json
+import logging
 import sys
 import threading
 import weakref
@@ -29,6 +30,44 @@ from torch import nn
 
 from nemo.collections.asr.modules.parallel_expert_encoder import CTCTimestampInputs
 from nemo.collections.speechlm2.vllm.salm import ctc_timestamps as ct
+
+
+@pytest.fixture(autouse=True)
+def _cpu_default_device():
+    """Keep CPU fixtures independent of modules that select CUDA during collection."""
+    with torch.device("cpu"):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _capture_nemo_logs(caplog):
+    """NeMo disables propagation, so attach pytest's handler directly for these tests."""
+    logger = logging.getLogger("nemo_logger")
+    logger.addHandler(caplog.handler)
+    try:
+        yield
+    finally:
+        logger.removeHandler(caplog.handler)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+def test_host_buffers_ignore_a_cuda_default_device(aligner):
+    with torch.device("cuda"):
+        inputs = _inputs(1, 4)
+        _capture(1, 4, ["hash-a"], inputs=inputs)
+        ct._record_request_hashes([("req-a", "hash-a")])
+        entry = ct._store["hash-a"]
+        entry["ready"].synchronize()
+        assert entry["asr_encoded"].device.type == "cpu"
+        assert entry["asr_encoded"].is_pinned()
+        assert entry["duration"].device.type == "cpu"
+        for device in (torch.device("cpu"), torch.device("cuda")):
+            collated = ct._collate([entry], device)
+            assert collated.asr_encoded.device.type == device.type
+            torch.testing.assert_close(collated.asr_encoded.cpu(), inputs.asr_encoded.cpu())
+        unpacked = ct._unpack(ct._pack({"empty": torch.empty(0, 3), "values": torch.arange(3)}))
+        assert all(tensor.device.type == "cpu" for tensor in unpacked.values())
+        assert unpacked["empty"].shape == (0, 3)
 
 
 class _FakeAligner:
