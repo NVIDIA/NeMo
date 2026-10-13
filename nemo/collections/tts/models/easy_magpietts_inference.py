@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 import random
 import tempfile
 import time
@@ -445,6 +446,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
         # This enables keeping the zero-shot conditioning module private at release time.
 
         self.repeat_context = cfg.get('repeat_context', False)
+        self._init_context_gate()
         self.use_speaker_encoder = cfg.get('use_speaker_encoder', False)
         self.train_shuffle_context_embedding_prob = 0.0
         if self.use_speaker_encoder:
@@ -817,7 +819,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
             # The context prefix was already summed once during streaming_init.
             if self.repeat_context:
                 positions = torch.arange(state.cache_seq_len, state.cache_seq_len + T, device=device)
-                combined_emb = combined_emb + self._repeat_context_embeddings(
+                combined_emb = combined_emb + self._repeat_gated_context_embeddings(
                     state.full_context_embedding, state.full_context_lens, positions
                 )
 
@@ -827,7 +829,9 @@ class EasyMagpieTTSInferenceModel(ModelPT):
             if state.config.use_cfg:
                 unconditional_emb = audio_emb
                 if self.repeat_context:
-                    unconditional_emb = unconditional_emb + state.config.dummy_context_embedding_unconditional
+                    unconditional_emb = unconditional_emb + self._gate_context_embeddings(
+                        state.config.dummy_context_embedding_unconditional
+                    )
                 inputs_embeds = torch.cat([combined_emb, unconditional_emb], dim=0)
             else:
                 inputs_embeds = combined_emb
@@ -1439,6 +1443,35 @@ class EasyMagpieTTSInferenceModel(ModelPT):
 
         return context_embedding, context_lens, context_audio_codes, context_audio_codes_lens
 
+    def _init_context_gate(self):
+        """Create a positive per-feature gain initialized to one, only when enabled."""
+        if self.repeat_context:
+            # Inverse softplus(1): conditioning is active from the first training step.
+            # Softplus has no upper cap, so training can also amplify conditioning.
+            initial_logit = math.log(math.expm1(1.0))
+            self.context_gate_logits = nn.Parameter(torch.full((self.cfg.embedding_dim,), initial_logit))
+        else:
+            # No additional weights or optimizer state in the legacy configuration.
+            self.register_parameter('context_gate_logits', None)
+
+    def _gate_context_embeddings(self, context_embedding: torch.Tensor) -> torch.Tensor:
+        """Scale prepared context after speaker encoding, zero-shot blocking and CFG."""
+        if self.context_gate_logits is None:
+            return context_embedding
+        gain = torch.nn.functional.softplus(self.context_gate_logits.float()).to(dtype=context_embedding.dtype)
+        return context_embedding * gain
+
+    def _repeat_gated_context_embeddings(
+        self,
+        context_embedding: torch.Tensor,
+        context_lens: torch.Tensor,
+        positions: torch.Tensor,
+        sequence_lens: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        return self._gate_context_embeddings(
+            self._repeat_context_embeddings(context_embedding, context_lens, positions, sequence_lens)
+        )
+
     @staticmethod
     def _repeat_context_embeddings(
         context_embedding: torch.Tensor,
@@ -1730,6 +1763,10 @@ class EasyMagpieTTSInferenceModel(ModelPT):
                 )
                 # Concatenate conditional and unconditional: (2*B, T, E)
                 context_embedding = torch.cat([context_embedding, dummy_context_expanded], dim=0)
+
+            if self.repeat_context:
+                # Stored context remains unscaled; every prefix/repetition is gated once.
+                context_embedding = self._gate_context_embeddings(context_embedding)
 
             # First forward pass to process context - only up to min_context_len
             cache_position = torch.arange(min_context_len, device=device)
@@ -2030,6 +2067,8 @@ class EasyMagpieTTSInferenceModel(ModelPT):
             ].unsqueeze(
                 1
             )  # (B, 1, E)
+            if self.repeat_context:
+                ctx_emb = self._gate_context_embeddings(ctx_emb)
             context_mask = needs_context.view(batch_size, 1, 1).float()
             next_input = next_input + ctx_emb * context_mask
 
@@ -2155,7 +2194,7 @@ class EasyMagpieTTSInferenceModel(ModelPT):
         if self.repeat_context:
             # Context-phase items already receive the original prefix above.
             # Repeat only after that prefix so it is never counted twice.
-            repeated_context = self._repeat_context_embeddings(
+            repeated_context = self._repeat_gated_context_embeddings(
                 state.full_context_embedding,
                 state.full_context_lens,
                 torch.tensor([state.cache_seq_len], device=device),
@@ -2167,6 +2206,8 @@ class EasyMagpieTTSInferenceModel(ModelPT):
             next_input_unconditional_context = state.config.dummy_context_embedding_unconditional.expand(
                 batch_size, 1, -1
             )
+            if self.repeat_context:
+                next_input_unconditional_context = self._gate_context_embeddings(next_input_unconditional_context)
             next_input_unconditional_zeros = torch.zeros_like(next_input_unconditional_context)
             context_mask = needs_context.view(batch_size, 1, 1).float()
             next_input_unconditional = (

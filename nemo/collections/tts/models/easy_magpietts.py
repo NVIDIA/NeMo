@@ -955,7 +955,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         max_len = int(combined_lens.max())
         pad = lambda tensor: torch.nn.functional.pad(tensor, (0, 0, 0, max_len - tensor.size(1)))
         if self.repeat_context:
-            context_channel = self._repeat_context_embeddings(
+            context_channel = self._repeat_gated_context_embeddings(
                 context, context_lens, torch.arange(max_len, device=context.device), combined_lens
             )
         else:
@@ -1307,7 +1307,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         )
 
         if self.repeat_context:
-            context_channel = self._repeat_context_embeddings(
+            context_channel = self._repeat_gated_context_embeddings(
                 context_embedding,
                 context_lens,
                 torch.arange(combined_channel_embedding.size(1), device=context_embedding.device),

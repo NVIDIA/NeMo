@@ -23,6 +23,9 @@ class _ChannelHarness(nn.Module):
     stack_codes = EasyMagpieTTSInferenceModel.stack_codes
     slice_sequence_embeddings = EasyMagpieTTSModel.slice_sequence_embeddings
     _repeat_context_embeddings = staticmethod(EasyMagpieTTSInferenceModel._repeat_context_embeddings)
+    _init_context_gate = EasyMagpieTTSInferenceModel._init_context_gate
+    _gate_context_embeddings = EasyMagpieTTSInferenceModel._gate_context_embeddings
+    _repeat_gated_context_embeddings = EasyMagpieTTSInferenceModel._repeat_gated_context_embeddings
     streaming_init = EasyMagpieTTSInferenceModel.streaming_init
     streaming_prefill = EasyMagpieTTSInferenceModel.streaming_prefill
     _prepare_streaming_input = EasyMagpieTTSInferenceModel._prepare_streaming_input
@@ -40,6 +43,7 @@ class _ChannelHarness(nn.Module):
             cfg['repeat_context'] = repeat_context
         self.cfg = OmegaConf.create(cfg)
         self.repeat_context = self.cfg.get('repeat_context', False)
+        self._init_context_gate()
         self.training_modes = [TrainingMode('streaming', 1, 2, 0)]
         self.default_inference_mode = self.training_modes[0].name
         self.mode_name_to_mode = {self.default_inference_mode: self.training_modes[0]}
@@ -79,6 +83,7 @@ class _ChannelHarness(nn.Module):
         self.parallel_codebook_loss_scale = self.phoneme_loss_weight = 1.0
         self.local_transformer_type = LocalTransformerType.NO_LT
         self.forward_inputs = []
+        self.forward_masks = []
         self.to(device)
 
     def embed_text_tokens(self, tokens, **kwargs):
@@ -92,6 +97,7 @@ class _ChannelHarness(nn.Module):
 
     def forward(self, inputs_embeds, **kwargs):
         self.forward_inputs.append(inputs_embeds)
+        self.forward_masks.append(kwargs.get('attention_mask'))
         return SimpleNamespace(last_hidden_state=inputs_embeds, past_key_values='test-cache')
 
     def prepare_audio_channel_embeddings(self, audio_codes, audio_codes_lens, delay, **kwargs):
@@ -182,7 +188,7 @@ def test_training_context_channel_and_default(repeat, text_only):
 
     # Subtract an otherwise identical run with zero context to isolate its channel.
     control = _ChannelHarness(False).eval()
-    control.load_state_dict(model.state_dict())
+    control.load_state_dict({k: v for k, v in model.state_dict().items() if k != 'context_gate_logits'})
     control.phoneme_tokenizer = model.phoneme_tokenizer
     if text_only:
         original_embed = control.embed_text_tokens
@@ -299,3 +305,182 @@ def test_cuda_training_backpropagates_through_repeated_reference():
     assert model.audio_lookup.weight.grad is not None
     assert model.audio_lookup.weight.grad[10].abs().sum() > 0  # repeated reference BOS
     assert model.text_lookup.weight.grad[7].abs().sum() > 0  # repeated context text
+
+
+def _set_context_gain(model, values):
+    values = torch.as_tensor(values, device=model.context_gate_logits.device, dtype=torch.float32)
+    with torch.no_grad():
+        model.context_gate_logits.copy_(torch.log(torch.expm1(values)))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('enabled', [None, False, True])
+def test_gate_initialization_and_legacy_state_dict(enabled):
+    model = _ChannelHarness(enabled)
+    if enabled:
+        gain = torch.nn.functional.softplus(model.context_gate_logits)
+        torch.testing.assert_close(gain, torch.ones(4), rtol=0, atol=0)
+        assert model.context_gate_logits.numel() == model.cfg.embedding_dim
+        assert 'context_gate_logits' in model.state_dict()
+    else:
+        assert model.context_gate_logits is None
+        assert 'context_gate_logits' not in model.state_dict()
+        context = torch.randn(2, 3, 4)
+        assert model._gate_context_embeddings(context) is context
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('dtype', [torch.float32, torch.float16, torch.bfloat16])
+def test_gate_preserves_embedding_dtype_and_can_amplify(dtype):
+    model = _ChannelHarness(True)
+    _set_context_gain(model, [0.5, 1.0, 2.0, 4.0])
+    context = torch.ones(2, 3, 4, dtype=dtype)
+    actual = model._gate_context_embeddings(context)
+    assert actual.dtype == dtype
+    torch.testing.assert_close(actual, torch.tensor([0.5, 1.0, 2.0, 4.0], dtype=dtype).expand_as(actual))
+    with torch.no_grad():
+        model.context_gate_logits.fill_(1000)
+    amplified = model._gate_context_embeddings(context)
+    torch.testing.assert_close(amplified, torch.full_like(context, 1000))
+    assert torch.isfinite(amplified).all()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('text_only', [False, True])
+def test_training_gate_scales_context_without_scaling_other_channels(text_only):
+    model = _ChannelHarness(True).eval()
+    gains = torch.tensor([0.5, 1.0, 2.0, 4.0])
+    _set_context_gain(model, gains)
+    batch = _batch()
+    if text_only:
+        batch['context_text_tokens'][1, 1] = 10
+        batch['context_text_tokens_lens'][1] = 2
+        model.phoneme_tokenizer = SimpleNamespace(eos_token_id=17, pad=0)
+        context = model.embed_text_tokens(batch['context_text_tokens'])
+        lengths = batch['context_text_tokens_lens']
+        batch.update(
+            task=['text_only', 'text_only'], phoneme_tokens=batch['text'], phoneme_tokens_lens=batch['text_lens']
+        )
+    else:
+        context, lengths, _, _ = model.prepare_context_tensors(
+            **{key: value for key, value in batch.items() if key.startswith('context_')}
+        )
+    control = _ChannelHarness(False).eval()
+    control.load_state_dict({k: v for k, v in model.state_dict().items() if k != 'context_gate_logits'})
+    control.phoneme_tokenizer = model.phoneme_tokenizer
+    if text_only:
+        original_embed = control.embed_text_tokens
+        control.embed_text_tokens = lambda tokens, **kw: (
+            torch.zeros_like(original_embed(tokens))
+            if tokens is batch['context_text_tokens']
+            else original_embed(tokens)
+        )
+    else:
+        control.prepare_context_tensors = lambda **kw: (torch.zeros_like(context), lengths, None, None)
+    model.process_batch(**batch)
+    control.process_batch(**batch)
+    contribution = model.forward_inputs[-1] - control.forward_inputs[-1]
+    mask = model.forward_masks[-1]
+    for item, length in enumerate(lengths.tolist()):
+        expected = context[item, :length].repeat((contribution.size(1) + length - 1) // length, 1)
+        expected = expected[: contribution.size(1)] * gains * mask[item, :, None]
+        torch.testing.assert_close(contribution[item], expected)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize('use_cfg', [False, True])
+def test_inference_gates_prefix_remaining_context_prefill_and_decode_once(use_cfg):
+    model = _ChannelHarness(True).eval()
+    gains = torch.tensor([0.5, 1.0, 2.0, 4.0])
+    _set_context_gain(model, gains)
+    state = _init(model, use_cfg)
+    prefix = model.forward_inputs[-1]
+    torch.testing.assert_close(prefix[:2], state.full_context_embedding[:, : state.cache_seq_len] * gains)
+    if use_cfg:
+        dummy = state.config.dummy_context_embedding_unconditional
+        torch.testing.assert_close(prefix[2:], dummy.expand(2, state.cache_seq_len, -1) * gains)
+    step, _, _, _ = model._prepare_streaming_input(state, None, False)
+    torch.testing.assert_close(step[0, 0], state.full_context_embedding[0, state.cache_seq_len] * gains)
+    torch.testing.assert_close(step[1, 0], state.full_context_embedding[1, 0] * gains)
+
+    state.cache_seq_len = int(state.full_context_lens.max())
+    state.context_position = state.full_context_lens.clone()
+    start = state.cache_seq_len
+    tokens = torch.tensor([[2, 3, 4], [5, 6, 7]])
+    model.streaming_prefill(state, tokens, use_inference_mode=False)
+    actual = model.forward_inputs[-1]
+    audio = model.embed_audio_tokens(torch.ones(2, 1, 3, dtype=torch.long))
+    channels = model.embed_text_tokens(tokens) + audio
+    for item, length in enumerate(state.full_context_lens.tolist()):
+        expected_context = torch.stack(
+            [state.full_context_embedding[item, p % length] for p in range(start, start + 3)]
+        )
+        torch.testing.assert_close(actual[item], channels[item] + expected_context * gains)
+    if use_cfg:
+        torch.testing.assert_close(actual[2:], audio + dummy * gains)
+
+    state.turn_text_tokens_seen.zero_()
+    state.text_finished.fill_(True)
+    decoded, _, _, _ = model._prepare_streaming_input(state, None, False)
+    for item, length in enumerate(state.full_context_lens.tolist()):
+        torch.testing.assert_close(
+            decoded[item, 0], state.full_context_embedding[item, state.cache_seq_len % length] * gains
+        )
+    if use_cfg:
+        torch.testing.assert_close(decoded[2:], dummy.expand(2, 1, -1) * gains)
+
+
+@pytest.mark.unit
+def test_gate_keeps_zero_shot_blocker_and_cfg_dropout(monkeypatch):
+    model = _ChannelHarness(True).train()
+    gains = torch.tensor([0.5, 1.0, 2.0, 4.0])
+    _set_context_gain(model, gains)
+    model.train_shuffle_context_embedding_prob = 1.0
+    monkeypatch.setattr('nemo.collections.tts.models.easy_magpietts_inference.random.randint', lambda *args: 1)
+    batch = _batch()
+    context, lengths, codes, _ = model.prepare_context_tensors(
+        **{key: value for key, value in batch.items() if key.startswith('context_')}
+    )
+    shuffled = model.embed_audio_tokens(codes).roll(1, dims=0)
+    model.process_batch(**batch)
+    torch.testing.assert_close(model.forward_inputs[-1][0, 0], shuffled[0, 0] * gains)
+    repeated = model.forward_inputs[-1][0, int(lengths[0])] - model.embed_text_tokens(batch['text'])[0, 0]
+    torch.testing.assert_close(repeated, shuffled[0, 0] * gains)
+    model.cfg_unconditional_prob = 1.0
+    batch['mode'] = 'train'
+    model.process_batch(**batch)
+    dummy = model.embed_text_tokens(torch.tensor([[model.cfg_unk_token_id]]))[0, 0]
+    torch.testing.assert_close(model.forward_inputs[-1][0, :6], (dummy * gains).expand(6, -1))
+
+
+@pytest.mark.unit
+def test_gate_round_trips_with_model_weights():
+    model = _ChannelHarness(True).eval()
+    _set_context_gain(model, [0.5, 1.0, 2.0, 4.0])
+    restored = _ChannelHarness(True).eval()
+    restored.load_state_dict(model.state_dict())
+    _init(model, True)
+    _init(restored, True)
+    torch.testing.assert_close(model.forward_inputs[-1], restored.forward_inputs[-1], rtol=0, atol=0)
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA is required')
+@pytest.mark.parametrize('text_only', [False, True])
+def test_gate_receives_gradients_from_first_cuda_training_step(text_only):
+    model = _ChannelHarness(True, 'cuda').train()
+    batch = _batch('cuda')
+    if text_only:
+        model.phoneme_tokenizer = SimpleNamespace(eos_token_id=17, pad=0)
+        batch.update(
+            task=['text_only', 'text_only'], phoneme_tokens=batch['text'], phoneme_tokens_lens=batch['text_lens']
+        )
+    with torch.autocast('cuda', dtype=torch.bfloat16):
+        output = model.process_batch(**batch)
+    output.loss.backward()
+    gradient = model.context_gate_logits.grad
+    assert gradient is not None and torch.isfinite(gradient).all() and gradient.abs().sum() > 0
+    before = model.context_gate_logits.detach().clone()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-2)
+    optimizer.step()
+    assert not torch.equal(before, model.context_gate_logits)
