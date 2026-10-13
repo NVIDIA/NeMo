@@ -182,6 +182,15 @@ class NeMoSpeechLMForConditionalGeneration(
                 self._uses_pe_encoder = _is_parallel_expert_encoder(getattr(self.perception, "encoder", None))
             # Built here, as vLLM builds a quantized decoder, so FP8 weights load directly.
             build_fp8_encoder(self.perception, vllm_config.quant_config)
+            # Opt-in (``encoder_cuda_graphs`` in the checkpoint config or ``hf_overrides``): replay the
+            # encoder from CUDA graphs at the small per-step batches vLLM encodes; see encoder_graphs.py.
+            self._encoder_graphs = None
+            if self._uses_pe_encoder and getattr(config, "encoder_cuda_graphs", False):
+                from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+                self._encoder_graphs = EncoderGraphRunner(
+                    self.perception, compile_layers=bool(getattr(config, "encoder_compile", False))
+                )
 
         if isinstance(backend, HybridBackend):
             from nemo.collections.speechlm2.vllm.salm.precision import preserve_hybrid_precision
@@ -316,10 +325,8 @@ class NeMoSpeechLMForConditionalGeneration(
         )
 
     def _process_audio(self, audio_input: NeMoSpeechLMAudioInputs) -> tuple[torch.Tensor, ...]:
-        # Real device placement happens at init via _mark_tower_model +
-        # get_mm_mapping; this .to() is a no-op guard kept for paranoia.
+        # Device placement happens at init via _mark_tower_model + get_mm_mapping.
         device = next(self.perception.parameters()).device
-        self.perception = self.perception.to(device)
 
         audio_signal = audio_input.audio_signal
         if isinstance(audio_signal, list):
@@ -341,11 +348,14 @@ class NeMoSpeechLMForConditionalGeneration(
                     audio_signal, audio_lengths, audio_input.capture_ctc_timestamps
                 )
             elif self._uses_pe_encoder:
-                with self.perception.encoder.online_inference():
-                    audio_embs, audio_emb_lens = self.perception(
-                        input_signal=audio_signal, input_signal_length=audio_lengths
-                    )
-                audio_embeds = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
+                graphs = getattr(self, "_encoder_graphs", None)
+                audio_embeds = graphs(audio_signal, audio_lengths) if graphs is not None else None
+                if audio_embeds is None:
+                    with self.perception.encoder.online_inference():
+                        audio_embs, audio_emb_lens = self.perception(
+                            input_signal=audio_signal, input_signal_length=audio_lengths
+                        )
+                    audio_embeds = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens.tolist())]
             else:
                 audio_embeds = encode_audio_with_optional_chunking(
                     self.perception,

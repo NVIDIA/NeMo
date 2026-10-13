@@ -73,3 +73,30 @@ MoE routers use FP32 weights, operands, and output logits, matching the
 Automodel training precision contract. Other language-model and perception
 weights retain their configured serving precision. FP32 SSM cache defaults
 are delegated to vLLM's NemotronH configuration hook.
+
+.. _speechlm2-vllm-encoder-cuda-graphs:
+
+Audio encoder CUDA graphs
+-------------------------
+
+vLLM encodes the audio of the requests it admits in each engine step, often a few dozen short clips. For a
+``ParallelExpertEncoder`` at that batch size, the encoder's cost is mostly kernel launches. Setting
+``encoder_cuda_graphs`` replays the encoder (everything after the mel front end) from CUDA graphs captured per
+batch size and audio length:
+
+.. code-block:: bash
+
+   vllm serve /path/to/vllm-ready-speechlm-checkpoint \
+     --trust-remote-code \
+     --dtype bfloat16 \
+     --hf-overrides '{"encoder_cuda_graphs": true, "encoder_compile": true}'
+
+The keys can also be set in the checkpoint's ``config.json``.
+
+- ``encoder_cuda_graphs``: capture graphs for batches of 8 to 128 clips and lengths up to two 40-second encoder
+  windows, at the first encoder call. Longer audio runs the encoder without graphs. Capture adds start-up time and
+  GPU memory; the graphs reproduce the encoder's outputs.
+- ``encoder_compile``: also compile each encoder transformer block with ``torch.compile``, fusing its
+  memory-bound operations. This lowers encoder GPU time further and changes the outputs at bf16 rounding level.
+
+Both are off by default. The graphs do not apply while CTC timestamp capture is enabled.

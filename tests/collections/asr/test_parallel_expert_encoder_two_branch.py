@@ -866,6 +866,61 @@ def test_online_inference_matches_independent_valid_prefixes_for_unequal_audio(a
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("asr_encoder_type", ["fastconformer", "transformer"])
+def test_asr_output_frame_boundary_on_tensors_matches_ints(asr_encoder_type):
+    encoder = SimpleNamespace(asr_encoder_type=asr_encoder_type, subsampling_factor=8)
+    boundaries = torch.arange(0, 400)
+    expected = [ParallelExpertEncoder._asr_output_frame_boundary(encoder, int(b)) for b in boundaries]
+    actual = ParallelExpertEncoder._asr_output_frame_boundary(encoder, boundaries)
+    assert actual.dtype == boundaries.dtype
+    assert actual.tolist() == expected
+
+
+@pytest.mark.unit
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA graphs need a GPU")
+@pytest.mark.parametrize(
+    "asr_encoder_type, asr_encoder_cfg",
+    [
+        ("fastconformer", toy_asr_encoder_cfg),
+        ("transformer", toy_transformer_asr_encoder_cfg),
+    ],
+)
+def test_single_window_online_inference_can_be_captured_in_a_cuda_graph(asr_encoder_type, asr_encoder_cfg):
+    """A graph-captured single-window online forward over padded frames matches eager on the valid frames."""
+    encoder = (
+        build_toy_pe_encoder(
+            asr_encoder_type=asr_encoder_type,
+            asr_encoder_cfg=asr_encoder_cfg(),
+            online_inference_length=40,
+        )
+        .cuda()
+        .eval()
+    )
+    encoder._suppress_online_pbar = True
+    lengths = torch.tensor([200, 137], device="cuda")
+    mels = torch.randn(2, _MEL_FEATURES, 200, device="cuda")
+    static_mels = torch.zeros(2, _MEL_FEATURES, 256, device="cuda")
+    static_mels[:, :, :200] = mels
+    static_lengths = lengths.clone()
+
+    with torch.no_grad(), encoder.online_inference():
+        expected, expected_lengths = encoder(mels, lengths)
+        side = torch.cuda.Stream()
+        side.wait_stream(torch.cuda.current_stream())
+        with torch.cuda.stream(side):
+            encoder(static_mels, static_lengths)
+        torch.cuda.current_stream().wait_stream(side)
+        graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(graph):
+            out, out_lengths = encoder(static_mels, static_lengths)
+    graph.replay()
+
+    assert torch.equal(out_lengths, expected_lengths)
+    for i, n in enumerate(expected_lengths.tolist()):
+        torch.testing.assert_close(out[i, :, :n], expected[i, :, :n], rtol=1e-5, atol=2e-5)
+
+
+@pytest.mark.unit
 def test_transformer_online_inference_preserves_partial_feature_stack():
     encoder = build_toy_pe_encoder(
         asr_encoder_type="transformer",

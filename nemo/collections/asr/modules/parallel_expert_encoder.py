@@ -1018,19 +1018,23 @@ class ParallelExpertEncoder(nn.Module):
         )
         return pre_encoded.with_data(encoded_chunks.data)
 
-    def _asr_output_frame_boundary(self, input_frame_boundary: int) -> int:
+    def _asr_output_frame_boundary(self, input_frame_boundary: Union[int, torch.Tensor]) -> Union[int, torch.Tensor]:
         """
         Map an input-frame boundary to the selected ASR encoder's output grid.
         Transformer encoders use ceiling division by the subsampling factor; FastConformer rounds.
+        A tensor boundary stays on its device.
 
         Args:
-            input_frame_boundary (int): Boundary position in input feature frames.
+            input_frame_boundary (Union[int, torch.Tensor]): Boundary position in input feature frames.
 
         Returns:
-            int: Corresponding boundary in encoder output frames.
+            Union[int, torch.Tensor]: Corresponding boundary in encoder output frames.
         """
         if getattr(self, "asr_encoder_type", "fastconformer") == "transformer":
             return (input_frame_boundary + self.subsampling_factor - 1) // self.subsampling_factor
+        if isinstance(input_frame_boundary, torch.Tensor):
+            # torch.round, like Python's round, rounds halves to even.
+            return torch.round(input_frame_boundary.double() / self.subsampling_factor).to(input_frame_boundary.dtype)
         return round(input_frame_boundary / self.subsampling_factor)
 
     def freeze(self) -> None:
@@ -1895,7 +1899,12 @@ class ParallelExpertEncoder(nn.Module):
                 ``(B, D, T_out)``, per-row output lengths, and timestamp inputs or ``None``.
         """
         self._check_spk_targets(spk_targets, audio_signal.shape[0])
-        total_feat_len = min(audio_signal.shape[-1], int(length.max().item()))
+        # While a CUDA graph is captured, .item() is not allowed: use the padded width, whose extra frames are
+        # masked by ``length`` like those of any shorter row in the batch.
+        if torch.cuda.is_available() and torch.cuda.is_current_stream_capturing():
+            total_feat_len = audio_signal.shape[-1]
+        else:
+            total_feat_len = min(audio_signal.shape[-1], int(length.max().item()))
         num_chunks = max(1, math.ceil(total_feat_len / self.chunk_feat_len))
 
         if self.asr_normalize_type:
@@ -1938,11 +1947,7 @@ class ParallelExpertEncoder(nn.Module):
         # adding the longest row's scalar core length to every row would expose
         # padded frames as valid for shorter audios.
         valid_feat_lengths = length.clamp(max=audio_signal.shape[-1])
-        encoded_len = torch.as_tensor(
-            [self._asr_output_frame_boundary(int(row_len)) for row_len in valid_feat_lengths.detach().cpu()],
-            dtype=asr_length.dtype,
-            device=asr_length.device,
-        )
+        encoded_len = self._asr_output_frame_boundary(valid_feat_lengths.detach()).to(dtype=asr_length.dtype)
         for chunk_index in tqdm(
             range(num_chunks),
             total=num_chunks,
@@ -1985,6 +1990,8 @@ class ParallelExpertEncoder(nn.Module):
                         left_offset=left_offset,
                         right_offset=right_offset,
                         return_native_resolution=return_ctc_timestamp_inputs,
+                        # The state after the last window is discarded.
+                        update_state=chunk_index < num_chunks - 1,
                     )
                 chunk_preds = total_preds[:, previous_len:]
                 if return_ctc_timestamp_inputs:
@@ -2067,7 +2074,9 @@ class ParallelExpertEncoder(nn.Module):
             # Refresh the nested ModelPT/Lightning device tracker. Sortformer's
             # streaming path uses ``self.device`` when assembling chunk state,
             # which can otherwise remain stale after moving the parent encoder.
-            self.diarization_model.to(device)
+            # .to() walks every submodule; only call it when the tracker is actually stale.
+            if getattr(self.diarization_model, "device", device) != device:
+                self.diarization_model.to(device)
         diar_signal = audio_signal.to(device=device, dtype=stream_dtype)
         diar_length = length.to(device=device)
         with _disable_dist_feature_sync(), _default_dtype(stream_dtype):
