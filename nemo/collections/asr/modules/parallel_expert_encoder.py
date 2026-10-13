@@ -639,6 +639,8 @@ class ParallelExpertEncoder(nn.Module):
 
     supports_external_speaker_targets = True
     supports_sequence_packed_output = True
+    # Online inference encodes up to this many ASR windows (rows) per forward.
+    _ASR_WINDOW_ROWS = 128
 
     def __init__(
         self,
@@ -1938,7 +1940,16 @@ class ParallelExpertEncoder(nn.Module):
                 dtype=stream_dtype,
             )
 
-        asr_chunks: List[torch.Tensor] = []
+        windows = []
+        for chunk_index in range(num_chunks):
+            start = chunk_index * self.chunk_feat_len
+            end = min(start + self.chunk_feat_len, total_feat_len)
+            context_start = max(start - self.left_ctx_feat_len, 0)
+            context_end = min(end + self.right_ctx_feat_len, total_feat_len)
+            windows.append((start, end, context_start, context_end))
+        # ASR windows do not depend on each other, so all of them are encoded together; only the Sortformer
+        # below carries state from window to window.
+        asr_chunks = self._encode_asr_windows(asr_signal, asr_length, windows)
         diar_chunks: List[torch.Tensor] = []
         # The window loop uses the longest row to keep every batch tensor
         # rectangular. Report each row's actual output length independently;
@@ -1952,21 +1963,10 @@ class ParallelExpertEncoder(nn.Module):
             desc="PEE online inference",
             disable=getattr(self, "_suppress_online_pbar", False),
         ):
-            start = chunk_index * self.chunk_feat_len
-            end = min(start + self.chunk_feat_len, total_feat_len)
-            context_start = max(start - self.left_ctx_feat_len, 0)
-            context_end = min(end + self.right_ctx_feat_len, total_feat_len)
+            start, end, context_start, context_end = windows[chunk_index]
             left_offset = start - context_start
             right_offset = context_end - end
-
-            asr_chunk = asr_signal[:, :, context_start:context_end]
-            chunk_length = (asr_length - context_start).clamp(min=0, max=context_end - context_start)
-            with torch.set_grad_enabled(torch.is_grad_enabled() and not self.freeze_asr):
-                encoded_context, _ = self.asr_encoder(audio_signal=asr_chunk, length=chunk_length)
-            left_drop = left_offset // self.subsampling_factor
-            core_len = self._asr_output_frame_boundary(end) - self._asr_output_frame_boundary(start)
-            core_len = max(0, min(core_len, encoded_context.shape[-1] - left_drop))
-            asr_chunks.append(encoded_context[:, :, left_drop : left_drop + core_len])
+            core_len = asr_chunks[chunk_index].shape[-1]
 
             if run_streaming_diar:
                 previous_len = total_preds.shape[1]
@@ -2035,6 +2035,45 @@ class ParallelExpertEncoder(nn.Module):
             use_diarization=use_diarization,
         )
         return output, encoded_len, timestamp_inputs
+
+    def _encode_asr_windows(
+        self, asr_signal: torch.Tensor, asr_length: torch.Tensor, windows: List[tuple]
+    ) -> List[torch.Tensor]:
+        """Encode context-extended ASR windows, many per forward, and return each window's core frames.
+
+        Windows of equal width share a forward (at most ``_ASR_WINDOW_ROWS`` rows), so no window is padded and each
+        sees exactly the input it would see alone. Only the first and last windows differ in width.
+
+        Args:
+            asr_signal (torch.Tensor): Normalized mel features shaped ``(B, D, T)``.
+            asr_length (torch.Tensor): Valid frame counts shaped ``(B,)``.
+            windows (List[tuple]): ``(start, end, context_start, context_end)`` input frames per window.
+
+        Returns:
+            List[torch.Tensor]: Per window, the encoded core frames shaped ``(B, D_out, T_core)``.
+        """
+        batch_size = asr_signal.shape[0]
+        by_width = {}
+        for index, (_, _, context_start, context_end) in enumerate(windows):
+            by_width.setdefault(context_end - context_start, []).append(index)
+        group_size = max(1, self._ASR_WINDOW_ROWS // batch_size)
+        cores: List[Optional[torch.Tensor]] = [None] * len(windows)
+        for indices in by_width.values():
+            for first in range(0, len(indices), group_size):
+                group = indices[first : first + group_size]
+                rows = torch.cat([asr_signal[:, :, windows[i][2] : windows[i][3]] for i in group])
+                lengths = torch.cat(
+                    [(asr_length - windows[i][2]).clamp(min=0, max=windows[i][3] - windows[i][2]) for i in group]
+                )
+                with torch.set_grad_enabled(torch.is_grad_enabled() and not self.freeze_asr):
+                    encoded, _ = self.asr_encoder(audio_signal=rows, length=lengths)
+                for k, i in enumerate(group):
+                    start, end, context_start, _ = windows[i]
+                    left_drop = (start - context_start) // self.subsampling_factor
+                    core_len = self._asr_output_frame_boundary(end) - self._asr_output_frame_boundary(start)
+                    core_len = max(0, min(core_len, encoded.shape[-1] - left_drop))
+                    cores[i] = encoded[k * batch_size : (k + 1) * batch_size, :, left_drop : left_drop + core_len]
+        return cores
 
     def _init_streaming_diar(self, audio_signal: torch.Tensor, length: torch.Tensor, batch_size: int):
         """

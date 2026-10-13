@@ -948,6 +948,35 @@ def test_online_inference_extra_padding_does_not_change_outputs(asr_encoder_type
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "asr_encoder_type,asr_encoder_cfg",
+    [("fastconformer", toy_asr_encoder_cfg), ("transformer", toy_transformer_asr_encoder_cfg)],
+)
+def test_online_inference_batches_asr_windows_like_one_window_per_forward(asr_encoder_type, asr_encoder_cfg):
+    """Encoding several ASR windows per forward returns what one window per forward does."""
+    torch.manual_seed(0)
+    encoder = build_toy_pe_encoder(
+        asr_encoder_type=asr_encoder_type,
+        asr_encoder_cfg=asr_encoder_cfg(),
+        online_inference_length=10,
+        chunk_left_context=2,
+        chunk_right_context=2,
+    ).eval()
+    encoder._suppress_online_pbar = True
+    lengths = torch.tensor([7 * encoder.chunk_feat_len - 13, 3 * encoder.chunk_feat_len + 5])
+    mels = torch.randn(2, _MEL_FEATURES, int(lengths.max()))
+
+    with torch.no_grad(), encoder.online_inference():
+        batched, batched_lengths = encoder(mels, lengths)
+        encoder._ASR_WINDOW_ROWS = 1
+        expected, expected_lengths = encoder(mels, lengths)
+
+    assert torch.equal(batched_lengths, expected_lengths)
+    for i, n in enumerate(expected_lengths.tolist()):
+        torch.testing.assert_close(batched[i, :, :n], expected[i, :, :n])
+
+
+@pytest.mark.unit
 def test_transformer_online_inference_preserves_partial_feature_stack():
     encoder = build_toy_pe_encoder(
         asr_encoder_type="transformer",
