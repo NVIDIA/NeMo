@@ -1018,6 +1018,34 @@ def test_online_cuda_graphs_replay_streaming_diarization_steps(asr_encoder_type,
 
 
 @pytest.mark.unit
+def test_streaming_step_graphs_fall_back_to_eager_when_capture_fails(monkeypatch):
+    """A failed capture leaves the step eager for good instead of breaking inference."""
+    from types import SimpleNamespace
+
+    from nemo.collections.asr.modules import parallel_expert_encoder as pee
+
+    def failing_capture(fn, pool=None):
+        raise RuntimeError("synthetic capture failure")
+
+    monkeypatch.setattr(pee, "capture_cuda_graph", failing_capture)
+    monkeypatch.setattr(pee.torch.cuda, "graph_pool_handle", lambda: None)
+    calls = []
+
+    def step(state, chunk, chunk_length):
+        calls.append(chunk_length.tolist())
+        return state, chunk * 2
+
+    graphs = pee._StreamingStepGraphs()
+    state = SimpleNamespace(spkcache=torch.zeros(1, 4, 2), spkcache_compressed=True)
+    chunk, chunk_length = torch.ones(1, 3, 2), torch.tensor([3])
+    for _ in range(3):
+        _, preds = graphs(step, state, chunk, chunk_length, extra_key=())
+        assert torch.equal(preds, chunk * 2)
+    assert len(calls) == 3
+    assert not graphs.enabled and not graphs.graphs
+
+
+@pytest.mark.unit
 def test_transformer_online_inference_preserves_partial_feature_stack():
     encoder = build_toy_pe_encoder(
         asr_encoder_type="transformer",

@@ -30,6 +30,8 @@ import math
 import torch
 from torch import nn
 
+from nemo.collections.common.parts.optional_cuda_graphs import capture_cuda_graph
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,6 +67,9 @@ class EncoderGraphRunner:
         self.max_rows_x_frames = self.batch_sizes[-1] * self.window
         self.graphs: dict[tuple[int, int], tuple] = {}
         self.pool = None
+        # Audio longer than the graphed windows runs the eager online path, whose steady-state streaming
+        # diarization steps still replay from CUDA graphs.
+        perception.encoder.online_cuda_graphs = True
         if compile_layers:
             for name, module in perception.encoder.named_modules():
                 if isinstance(module, nn.ModuleList) and name.endswith("layers"):
@@ -105,17 +110,9 @@ class EncoderGraphRunner:
         device = next(self.perception.parameters()).device
         x = torch.zeros(rows, n_feat, frames, device=device, dtype=dtype)
         x_len = torch.full((rows,), frames, device=device, dtype=torch.long)
-        # One eager run on a side stream compiles, autotunes and allocates workspaces outside the capture.
-        side = torch.cuda.Stream(device)
-        side.wait_stream(torch.cuda.current_stream(device))
-        with torch.cuda.stream(side):
-            self._forward(x, x_len)
-        torch.cuda.current_stream(device).wait_stream(side)
         if self.pool is None:
             self.pool = torch.cuda.graph_pool_handle()
-        graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(graph, pool=self.pool):
-            emb, emb_len = self._forward(x, x_len)
+        graph, (emb, emb_len) = capture_cuda_graph(lambda: self._forward(x, x_len), pool=self.pool)
         self.graphs[rows, frames] = (graph, x, x_len, emb, emb_len)
         logger.info("Captured encoder CUDA graph for %d rows x %d frames", rows, frames)
 

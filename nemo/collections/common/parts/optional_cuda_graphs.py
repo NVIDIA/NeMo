@@ -14,8 +14,9 @@
 # limitations under the License.
 
 import abc
-from typing import Optional
+from typing import Any, Callable, Optional
 
+import torch
 import torch.nn as nn
 
 from nemo.utils import logging
@@ -90,3 +91,25 @@ class WithOptionalCudaGraphs(abc.ABC):
     def maybe_enable_cuda_graphs(self) -> bool:
         """Enable CUDA graphs if all conditions met, return True if state changed"""
         raise NotImplementedError
+
+
+def capture_cuda_graph(fn: Callable[[], Any], pool=None) -> tuple[torch.cuda.CUDAGraph, Any]:
+    """
+    Capture ``fn()`` into a CUDA graph and return the graph with the outputs of the captured call.
+
+    ``fn`` first runs once eagerly on a side stream, so lazy initialization (compilation, autotuning, library
+    workspaces) happens outside the capture. Every replay of the graph rewrites the returned outputs in place.
+
+    Args:
+        fn: Callable to capture; it reads its inputs from tensors that callers update before each replay.
+        pool: Optional memory pool handle shared with other graphs (``torch.cuda.graph_pool_handle()``).
+    """
+    side = torch.cuda.Stream()
+    side.wait_stream(torch.cuda.current_stream())
+    with torch.cuda.stream(side):
+        fn()
+    torch.cuda.current_stream().wait_stream(side)
+    graph = torch.cuda.CUDAGraph()
+    with torch.cuda.graph(graph, pool=pool):
+        outputs = fn()
+    return graph, outputs

@@ -52,6 +52,7 @@ from nemo.collections.asr.parts.packed_sequence import (
     unpack_encoder_output,
 )
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch, normalize_packed_batch
+from nemo.collections.common.parts.optional_cuda_graphs import capture_cuda_graph
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, Serialization
 from nemo.core.classes.module import freeze, unfreeze
@@ -644,6 +645,7 @@ class ParallelExpertEncoder(nn.Module):
     _ASR_WINDOW_ROWS = 128
     # Replay steady-state streaming Sortformer steps of online inference from CUDA graphs.
     online_cuda_graphs = False
+    _diar_step_graphs = None
 
     def __init__(
         self,
@@ -2060,13 +2062,12 @@ class ParallelExpertEncoder(nn.Module):
             by_width.setdefault(context_end - context_start, []).append(index)
         group_size = max(1, self._ASR_WINDOW_ROWS // batch_size)
         cores: List[Optional[torch.Tensor]] = [None] * len(windows)
-        for indices in by_width.values():
+        for width, indices in by_width.items():
             for first in range(0, len(indices), group_size):
                 group = indices[first : first + group_size]
-                rows = torch.cat([asr_signal[:, :, windows[i][2] : windows[i][3]] for i in group])
-                lengths = torch.cat(
-                    [(asr_length - windows[i][2]).clamp(min=0, max=windows[i][3] - windows[i][2]) for i in group]
-                )
+                context_starts = [windows[i][2] for i in group]
+                rows = torch.cat([asr_signal[:, :, cs : cs + width] for cs in context_starts])
+                lengths = torch.cat([(asr_length - cs).clamp(min=0, max=width) for cs in context_starts])
                 with torch.set_grad_enabled(torch.is_grad_enabled() and not self.freeze_asr):
                     encoded, _ = self.asr_encoder(audio_signal=rows, length=lengths)
                 for k, i in enumerate(group):
@@ -2101,9 +2102,11 @@ class ParallelExpertEncoder(nn.Module):
             )
 
         graphable = (
-            getattr(self, "online_cuda_graphs", False)
+            self.online_cuda_graphs
             and chunk.is_cuda
             and not torch.is_grad_enabled()
+            # A graph fixes kernel and dtype choices: autocast and an enclosing capture run eagerly.
+            and not torch.is_autocast_enabled("cuda")
             and not torch.cuda.is_current_stream_capturing()
             and not self.diarization_model.async_streaming
             and streaming_state.spk_perm is None
@@ -2111,7 +2114,7 @@ class ParallelExpertEncoder(nn.Module):
         )
         if not graphable:
             return step(streaming_state, chunk, chunk_length)
-        if getattr(self, "_diar_step_graphs", None) is None:
+        if self._diar_step_graphs is None:
             self._diar_step_graphs = _StreamingStepGraphs()
         return self._diar_step_graphs(step, streaming_state, chunk, chunk_length, tuple(sorted(step_kwargs.items())))
 
@@ -2170,7 +2173,7 @@ class _StreamingStepGraphs:
 
     A key gets a graph the second time it is seen, so only the steady state after the speaker cache has filled is
     captured. A replay copies the state and the window into the graph's input buffers and clones its outputs, so
-    callers own every returned tensor.
+    callers own every returned tensor. If a capture fails, the step runs eagerly from then on.
     """
 
     _STATE_FIELDS = (
@@ -2186,6 +2189,7 @@ class _StreamingStepGraphs:
 
     def __init__(self, max_graphs: int = 16):
         self.max_graphs = max_graphs
+        self.enabled = True
         self.seen = set()
         self.graphs = {}
         self.pool = None
@@ -2201,10 +2205,17 @@ class _StreamingStepGraphs:
             tuple(chunk_length.shape),
         )
         if key not in self.graphs:
-            if key not in self.seen or len(self.graphs) >= self.max_graphs:
+            if not self.enabled or key not in self.seen or len(self.graphs) >= self.max_graphs:
                 self.seen.add(key)
                 return step(state, chunk, chunk_length)
-            self.graphs[key] = self._capture(step, state, tensors, chunk, chunk_length)
+            try:
+                self.graphs[key] = self._capture(step, state, tensors, chunk, chunk_length)
+            except Exception as error:  # noqa: BLE001 - a failed capture must not break inference
+                logging.warning(
+                    f"CUDA graph capture of the streaming Sortformer step failed; running eagerly: {error}"
+                )
+                self.enabled = False
+                return step(state, chunk, chunk_length)
         graph, static_tensors, static_chunk, static_length, out_state, out_preds = self.graphs[key]
         for name, t in tensors.items():
             static_tensors[name].copy_(t)
@@ -2221,22 +2232,14 @@ class _StreamingStepGraphs:
         static_tensors = {name: t.clone() for name, t in tensors.items()}
         static_chunk, static_length = chunk.clone(), chunk_length.clone()
 
-        def static_state():
-            # The step reassigns state attributes, so each run gets its own shallow copy.
+        def run():
+            # The step reassigns state attributes, so each run gets its own shallow copy of the state.
             fresh = copy.copy(state)
             for name, t in static_tensors.items():
                 setattr(fresh, name, t)
-            return fresh
+            return step(fresh, static_chunk, static_length)
 
-        device = chunk.device
-        side = torch.cuda.Stream(device)
-        side.wait_stream(torch.cuda.current_stream(device))
-        with torch.cuda.stream(side):
-            step(static_state(), static_chunk, static_length)
-        torch.cuda.current_stream(device).wait_stream(side)
         if self.pool is None:
             self.pool = torch.cuda.graph_pool_handle()
-        graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(graph, pool=self.pool):
-            out_state, out_preds = step(static_state(), static_chunk, static_length)
+        graph, (out_state, out_preds) = capture_cuda_graph(run, pool=self.pool)
         return graph, static_tensors, static_chunk, static_length, out_state, out_preds
