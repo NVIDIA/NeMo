@@ -24,6 +24,33 @@ Loading Checkpoints
     model = nemo_asr.models.ASRModel.from_pretrained("nvidia/parakeet-tdt-0.6b-v2")
 
 
+Exporting a Transformer Encoder to ONNX
+----------------------------------------
+
+An offline ``TransformerEncoder`` can be exported through NeMo's ``export()`` API.
+Export uses tensor-based attention with the same weights, positional encodings and masking rules as the regular FlexAttention path.
+The regular training and inference path remains unchanged.
+
+.. code-block:: python
+
+    model.eval()
+    encoder = model.encoder
+    encoder.set_max_audio_length(5000)
+    encoder.export("encoder.onnx", onnx_opset_version=17)
+
+The graph accepts ``audio_signal`` with shape ``(batch, features, frames)`` and int64 ``length`` with shape ``(batch,)``.
+It returns ``outputs`` with shape ``(batch, channels, encoded_frames)`` and int64 ``encoded_lengths``.
+Batch size and time are dynamic, including input lengths not divisible by the subsampling factor.
+For absolute, relative or rotary positions, provision the positional cache before export with ``set_max_audio_length()`` for the largest required sequence.
+The exported graph contains that cache and cannot extend it at runtime.
+
+This interface exports offline inference, without streaming caches or ``bypass_pre_encode``.
+It supports the encoder's full, causal and block-causal-tail masks.
+Audio preprocessing and the transducer decoding loop remain outside the encoder graph.
+For RNNT/TDT models, ``model.export("model.onnx")`` exports the encoder and combined decoder/joint as separate subnetworks.
+Floating-point rounding can differ between FlexAttention and ONNX runtimes; validate encoder outputs, output lengths and decoded hypotheses for the intended model and precision.
+
+
 Basic Transcription
 -------------------
 
