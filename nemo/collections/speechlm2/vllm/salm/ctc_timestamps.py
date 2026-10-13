@@ -116,15 +116,13 @@ _ALIGN_BATCH = 16
 # takes, about 1.6 GiB at this budget with a 32,769-class BF16 head.
 _HEAD_FRAME_BUDGET = 8192
 
-# Records a server merges into one alignment search (see _AlignmentBatcher). The
-# search's per-frame loop is shared, so more records cost little more, short ones
-# padded to the longest.
+# Maximum records a server merges into one alignment task (see _AlignmentBatcher).
+# Each record keeps its own frame support and band; no cross-record DP padding is needed.
 _SERVER_ALIGN_RECORDS = 32
 
 # Weight of the Sortformer speaker-activity prior in CTC alignment, overridable per
-# checkpoint as ctc_timestamps.speaker_logprob_weight. The aligner's own default is
-# 0.0, which lets words in overlapped speech drift out of their speaker's turns.
-DEFAULT_SPEAKER_PRIOR_WEIGHT = 0.25
+# checkpoint as ctc_timestamps.speaker_logprob_weight. Matches the native aligner.
+DEFAULT_SPEAKER_PRIOR_WEIGHT = 1.0
 
 # CTCTimestampInputs tensor fields: the time axis to trim and pad along, and the
 # lengths field marking its valid frames (None for the lengths fields themselves).

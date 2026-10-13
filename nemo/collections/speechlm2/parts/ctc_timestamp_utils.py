@@ -236,7 +236,11 @@ class TransformerCTCDecoder(ConvASRDecoder):
 
 
 class MultiSpeakerSOTWordTimestampAligner:
-    """Align speaker streams with exact max-sum CTC DP and packed two-bit backpointers.
+    """Align speaker streams with single-pass banded max-sum CTC DP and word-boundary refinement.
+
+    Speaker mapping uses greedy token distributions, followed by speaker-inactive frame removal
+    and anchor-guided DP with byte backpointers. The speaker prior defaults to weight 1.0. Every
+    result receives diarization-assisted word refinement, capped at 12 frames by default.
 
     The aligner takes model outputs, not audio: ASR states for the CTC head
     (:meth:`generate_from_inputs`) or CTC log probabilities (:meth:`extract_from_outputs_batch`).
@@ -250,7 +254,6 @@ class MultiSpeakerSOTWordTimestampAligner:
     """
 
     _SPEAKER_TAG_RE = re.compile(r"<spk:(\d+)>", flags=re.IGNORECASE)
-    _EMISSION_BLOCK_FRAMES = 256
     # Bound vocabulary-wide output per decoder call (64 MiB at FP32), except when
     # a single context window already exceeds this budget. Never alter its context.
     _CTC_WINDOW_MAX_ELEMENTS = 16 * 1024 * 1024
@@ -264,9 +267,8 @@ class MultiSpeakerSOTWordTimestampAligner:
         ctc_frame_seconds: Optional[float] = None,
         sortformer_frame_seconds: Optional[float] = None,
         speaker_activity_threshold: float = 0.5,
-        speaker_logprob_weight: float = 0.0,
+        speaker_logprob_weight: float = 1.0,
         maximum_token_len: float = 1.0,
-        alignment_backend: str = "original",
         max_word_frames: int = 12,
         timestamp_language: Optional[str] = None,
         epsilon: float = 1.0e-6,
@@ -285,13 +287,12 @@ class MultiSpeakerSOTWordTimestampAligner:
                 audio duration.
             sortformer_frame_seconds (Optional[float]): Explicit duration of one Sortformer frame.
             speaker_activity_threshold (float): Threshold for speaker activity metadata.
-            speaker_logprob_weight (float): Weight of the Sortformer prior in CTC alignment.
+            speaker_logprob_weight (float): Weight of the Sortformer prior in CTC alignment; defaults to 1.0.
             maximum_token_len (float): Maximum emitted word duration in seconds.
-            alignment_backend (str): ``original`` or single-pass ``banded`` with word refinement.
             max_word_frames (int): Banded CTC word duration and onset-snap cap in CTC frames.
             timestamp_language (Optional[str]): Explicit alignment-unit policy: zh/ja characters,
                 th newmm words, or unchanged whitespace words for other languages. None selects
-                per-transcript script detection for banded, and legacy parsing for original.
+                per-transcript script detection.
             epsilon (float): Numerical floor for logarithms.
             online_inference_length (int): Core window, in encoder frames, of the deferred CTC
                 head over stored states; 0 runs it over the whole sequence at once.
@@ -305,11 +306,8 @@ class MultiSpeakerSOTWordTimestampAligner:
         if maximum_token_len <= 0:
             raise ValueError("maximum_token_len must be positive.")
         self.ctc_decoder = ctc_decoder
-        if alignment_backend not in {"original", "banded"}:
-            raise ValueError("alignment_backend must be original or banded.")
         if isinstance(max_word_frames, bool) or not isinstance(max_word_frames, int) or max_word_frames < 1:
             raise ValueError("max_word_frames must be a positive integer.")
-        self.alignment_backend = alignment_backend
         self.max_word_frames = max_word_frames
         self.timestamp_language = timestamp_language
         self.tokenizer = tokenizer
@@ -691,7 +689,7 @@ class MultiSpeakerSOTWordTimestampAligner:
             words = self._tokenize_words(
                 _timestamp_units(
                     self.parse_sot_words(transcript),
-                    self.timestamp_language or ('auto' if self.alignment_backend == 'banded' else None),
+                    self.timestamp_language or 'auto',
                 ),
                 blank_id,
             )
@@ -746,7 +744,6 @@ class MultiSpeakerSOTWordTimestampAligner:
                 "speaker_activity_threshold": self.speaker_activity_threshold,
                 "speaker_logprob_weight": speaker_logprob_weight,
                 "maximum_token_len": self.maximum_token_len,
-                "alignment_backend": self.alignment_backend,
                 "max_word_frames": self.max_word_frames,
                 "timestamp_language": self.timestamp_language,
                 "epsilon": self.epsilon,
@@ -759,7 +756,7 @@ class MultiSpeakerSOTWordTimestampAligner:
 
     def align_prepared(self, prepared: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Align a batch from :meth:`prepare_alignment` with the selected alignment backend.
+        Align a batch from :meth:`prepare_alignment` with single-pass banded CTC and word refinement.
         Reads only the batch and this aligner's hyperparameters, never the model, so it can
         run in another process than the one that prepared the batch.
 
@@ -769,152 +766,7 @@ class MultiSpeakerSOTWordTimestampAligner:
         Returns:
             List[Dict[str, Any]]: One alignment result per record.
         """
-        if self.alignment_backend == "banded":
-            return _align_banded_ctc(self, prepared)
-        records = prepared["records"]
-        batch_size = len(records)
-        speaker_logprob_weight = prepared["config"]["speaker_logprob_weight"]
-        ctc_lengths_list = [record["ctc_length"] for record in records]
-        max_ctc_frames = max(ctc_lengths_list, default=0)
-        num_columns = max((record["ctc_log_probs"].shape[1] for record in records), default=1)
-        ctc_cpu = torch.zeros((batch_size, max_ctc_frames, num_columns))
-        for index, record in enumerate(records):
-            ctc_cpu[index, : record["ctc_length"], : record["ctc_log_probs"].shape[1]] = record["ctc_log_probs"]
-
-        speaker_by_record: List[Optional[torch.Tensor]] = [None] * batch_size
-        aligned_speaker_cpu = None
-        if prepared["num_speaker_columns"] is not None:
-            aligned_speaker_cpu = torch.zeros((batch_size, max_ctc_frames, prepared["num_speaker_columns"]))
-            for index, record in enumerate(records):
-                speaker_probs = self._resample_speaker_probs(
-                    record["speaker_probs"].clamp(0, 1),
-                    record["ctc_length"],
-                )
-                speaker_by_record[index] = speaker_probs
-                aligned_speaker_cpu[index, : record["ctc_length"]] = speaker_probs
-
-        contexts = []
-        streams = []
-        for index, record in enumerate(records):
-            contexts.append(
-                {
-                    "mapping": {},
-                    "assignment_scores": {},
-                    "preliminary_scores": {},
-                    "final_scores": {},
-                    "rows": [],
-                    "diarization_timestamps": (
-                        []
-                        if record["diarization_labels"] is None
-                        else self.diarization_segments(
-                            record["diarization_labels"],
-                            frame_seconds=prepared["diarization_frame_seconds"],
-                            time_offset=record["time_offset"],
-                            audio_duration=record["audio_duration"],
-                        )
-                    ),
-                }
-            )
-            streams.extend({"record_index": index, **stream} for stream in record["streams"])
-
-        # prepare_alignment renumbers every record's blank column to 0.
-        blank_id = 0
-        if streams:
-            empty_mappings = [{} for _ in range(batch_size)]
-            preliminary_paths, preliminary_path_scores = self._align_stream_batch(
-                streams,
-                ctc_cpu,
-                ctc_lengths_list,
-                blank_id,
-                empty_mappings,
-                speaker_probs=None,
-                speaker_logprob_weight=0.0,
-            )
-            preliminary_rows = [[] for _ in range(batch_size)]
-            for stream, path, score in zip(streams, preliminary_paths, preliminary_path_scores):
-                record_index = stream["record_index"]
-                record = records[record_index]
-                rows = self._word_rows_from_path(
-                    stream["words"],
-                    stream["labels"],
-                    stream["state_to_word"],
-                    path,
-                    ctc_cpu[record_index, : record["ctc_length"]],
-                    None,
-                    {},
-                    record["ctc_step"],
-                    record["time_offset"],
-                )
-                preliminary_rows[record_index].extend(rows)
-                contexts[record_index]["preliminary_scores"][stream["speaker_tag"]] = score
-
-            for index, context in enumerate(contexts):
-                speaker_tags = list(
-                    dict.fromkeys(
-                        word["speaker_tag"] for word in records[index]["words"] if word["speaker_tag"] is not None
-                    )
-                )
-                context["mapping"], context["assignment_scores"] = self._resolve_speaker_mapping(
-                    speaker_tags,
-                    preliminary_rows[index],
-                    speaker_by_record[index],
-                )
-
-            use_speaker_dp = bool(
-                aligned_speaker_cpu is not None
-                and speaker_logprob_weight > 0
-                and any(column is not None for context in contexts for column in context["mapping"].values())
-            )
-            if use_speaker_dp:
-                final_paths, final_path_scores = self._align_stream_batch(
-                    streams,
-                    ctc_cpu,
-                    ctc_lengths_list,
-                    blank_id,
-                    [context["mapping"] for context in contexts],
-                    speaker_probs=aligned_speaker_cpu,
-                    speaker_logprob_weight=speaker_logprob_weight,
-                )
-            else:
-                final_paths, final_path_scores = preliminary_paths, preliminary_path_scores
-
-            for stream, path, score in zip(streams, final_paths, final_path_scores):
-                record_index = stream["record_index"]
-                record = records[record_index]
-                context = contexts[record_index]
-                context["rows"].extend(
-                    self._word_rows_from_path(
-                        stream["words"],
-                        stream["labels"],
-                        stream["state_to_word"],
-                        path,
-                        ctc_cpu[record_index, : record["ctc_length"]],
-                        speaker_by_record[record_index],
-                        context["mapping"],
-                        record["ctc_step"],
-                        record["time_offset"],
-                    )
-                )
-                context["final_scores"][stream["speaker_tag"]] = score
-
-        return [
-            self._result(
-                rows=context["rows"],
-                mapping=context["mapping"],
-                ctc_step=record["ctc_step"],
-                sortformer_step=record["sortformer_step"],
-                time_offset=record["time_offset"],
-                ctc_frames=record["ctc_length"],
-                sortformer_frames=record["speaker_length"],
-                preliminary_scores=context["preliminary_scores"],
-                final_scores=context["final_scores"],
-                assignment_scores=context["assignment_scores"],
-                diarization_timestamps=context["diarization_timestamps"],
-                diarization_frame_seconds=prepared["diarization_frame_seconds"],
-                diarization_max_speaker_count=prepared["diarization_max_speaker_count"],
-            )
-            for record, context in zip(records, contexts)
-        ]
+        return _align_banded_ctc(self, prepared)
 
     @staticmethod
     def diarization_segments(
@@ -1010,8 +862,8 @@ class MultiSpeakerSOTWordTimestampAligner:
             "diarization_max_speaker_count": diarization_max_speaker_count,
             "diarization_activity_threshold": 0.5 if diarization_frame_seconds is not None else None,
             "speaker_tag_to_sortformer_column": mapping,
-            "alignment_mode": "parallel",
-            "requested_alignment_mode": "parallel",
+            "alignment_mode": "banded",
+            "requested_alignment_mode": "banded",
             "speaker_assignment_mode": "optimal",
             "ctc_frame_seconds": ctc_step,
             "sortformer_frame_seconds": sortformer_step,
@@ -1067,64 +919,6 @@ class MultiSpeakerSOTWordTimestampAligner:
                 left_drop = start - context_start
                 yield batch_start, start, context_logits[:, left_drop : left_drop + end - start]
                 del context_logits
-
-    def _align_stream_batch(
-        self,
-        streams: Sequence[Dict[str, Any]],
-        ctc_log_probs: torch.Tensor,
-        ctc_lengths: Sequence[int],
-        blank_id: int,
-        speaker_mappings: Sequence[Dict[int, Optional[int]]],
-        speaker_probs: Optional[torch.Tensor],
-        speaker_logprob_weight: float,
-    ) -> Tuple[List[torch.Tensor], List[float]]:
-        """
-        Run one padded DP/backtrace batch across every record and speaker stream.
-        Labels are padded with blank. Token states of a stream whose speaker tag maps to a Sortformer
-        column use that column for the speaker prior; all other states use ``-1``.
-
-        Args:
-            streams (Sequence[Dict[str, Any]]): Speaker streams with ``record_index``, ``speaker_tag``,
-                ``labels`` and ``state_to_word``.
-            ctc_log_probs (torch.Tensor): Per-record CTC log probabilities shaped ``(B, T, columns)``.
-            ctc_lengths (Sequence[int]): Valid CTC frame count per record.
-            blank_id (int): CTC blank class index.
-            speaker_mappings (Sequence[Dict[int, Optional[int]]]): Per-record t-SOT tag to
-                Sortformer-column mapping.
-            speaker_probs (Optional[torch.Tensor]): Speaker probabilities on the CTC grid shaped
-                ``(B, T, speakers)``.
-            speaker_logprob_weight (float): Weight of the Sortformer prior.
-
-        Returns:
-            Tuple[List[torch.Tensor], List[float]]: Best state path and its score for each stream.
-        """
-        max_states = max(len(stream["labels"]) for stream in streams)
-        labels_batch = torch.full((len(streams), max_states), blank_id, dtype=torch.long)
-        columns_batch = torch.full_like(labels_batch, -1)
-        state_lengths = torch.tensor([len(stream["labels"]) for stream in streams], dtype=torch.long)
-        record_indices = torch.tensor([stream["record_index"] for stream in streams], dtype=torch.long)
-        frame_lengths = torch.tensor([ctc_lengths[index] for index in record_indices.tolist()], dtype=torch.long)
-        for index, stream in enumerate(streams):
-            labels = stream["labels"]
-            mapping = speaker_mappings[stream["record_index"]]
-            column = mapping.get(stream["speaker_tag"])
-            labels_batch[index, : len(labels)] = torch.tensor(labels)
-            if column is not None:
-                token_states = [word_index is not None for word_index in stream["state_to_word"]]
-                columns_batch[index, : len(token_states)] = torch.tensor(
-                    [column if is_token else -1 for is_token in token_states]
-                )
-
-        return self._ctc_forced_align_batched(
-            ctc_log_probs.index_select(0, record_indices),
-            labels_batch,
-            state_lengths,
-            blank_id,
-            columns_batch,
-            None if speaker_probs is None else speaker_probs.index_select(0, record_indices),
-            speaker_logprob_weight,
-            frame_lengths=frame_lengths,
-        )
 
     @staticmethod
     def _group_words_by_speaker(
@@ -1254,178 +1048,6 @@ class MultiSpeakerSOTWordTimestampAligner:
                 state_to_word.extend((word_index, None))
         return labels, state_to_word
 
-    def _ctc_forced_align_batched(
-        self,
-        log_probs: torch.Tensor,
-        labels: torch.Tensor,
-        state_lengths: torch.Tensor,
-        blank_id: int,
-        state_speaker_columns: torch.Tensor,
-        speaker_probs: Optional[torch.Tensor],
-        speaker_logprob_weight: float,
-        *,
-        frame_lengths: Optional[torch.Tensor] = None,
-    ) -> Tuple[List[torch.Tensor], List[float]]:
-        """
-        Run exact max-sum CTC DP for padded record/speaker stream batches.
-        Only two score rows are live. Backtrace moves are encoded as ``stay=0``,
-        ``advance=1``, or ``skip=2`` and packed four states per byte. This
-        preserves the dense recurrence and tie-breaking exactly while reducing
-        persistent backpointer storage from eight bytes to two bits per state.
-
-        Args:
-            log_probs (torch.Tensor): CTC log probabilities shaped ``(frames, classes)``, shared by
-                every stream, or ``(streams, frames, classes)``.
-            labels (torch.Tensor): Blank-expanded, blank-padded target labels shaped ``(streams, states)``.
-            state_lengths (torch.Tensor): Valid target-state counts shaped ``(streams,)``.
-            blank_id (int): CTC blank class index.
-            state_speaker_columns (torch.Tensor): Speaker column per target state shaped
-                ``(streams, states)``; ``-1`` marks states without a speaker prior.
-            speaker_probs (Optional[torch.Tensor]): Speaker probabilities shaped ``(frames, speakers)``
-                or ``(streams, frames, speakers)``.
-            speaker_logprob_weight (float): Weight of the log speaker-activity prior on token states.
-            frame_lengths (Optional[torch.Tensor]): Valid frame counts shaped ``(streams,)``; None uses
-                every frame.
-
-        Returns:
-            Tuple[List[torch.Tensor], List[float]]: Per-stream CPU state paths trimmed to their frame
-                lengths, and their best final scores.
-        """
-        num_streams, max_states = labels.shape
-        if log_probs.ndim == 2:
-            log_probs = log_probs.unsqueeze(0).expand(num_streams, -1, -1)
-        elif log_probs.ndim != 3 or log_probs.shape[0] != num_streams:
-            raise ValueError("log_probs must have shape (frames, classes) or (streams, frames, classes).")
-        num_frames = log_probs.shape[1]
-        if num_frames < 1 or max_states < 2:
-            raise ValueError("CTC forced alignment requires at least one frame and two target states.")
-        device = log_probs.device
-        labels = labels.to(device=device)
-        state_lengths = state_lengths.to(device=device)
-        state_speaker_columns = state_speaker_columns.to(device=device)
-        state_mask = torch.arange(max_states, device=device).unsqueeze(0) < state_lengths.unsqueeze(1)
-        token_states = state_mask & (state_speaker_columns >= 0)
-        columns = state_speaker_columns.clamp_min(0)
-        if frame_lengths is None:
-            frame_lengths = torch.full((num_streams,), num_frames, dtype=torch.long, device=device)
-        else:
-            frame_lengths = frame_lengths.to(device=device)
-        if frame_lengths.shape != (num_streams,) or bool(((frame_lengths < 1) | (frame_lengths > num_frames)).any()):
-            raise ValueError("frame_lengths must contain one valid length per CTC stream.")
-        use_speaker_prior = bool(speaker_probs is not None and speaker_logprob_weight > 0 and token_states.any())
-        if speaker_probs is not None:
-            if speaker_probs.ndim == 2:
-                speaker_probs = speaker_probs.unsqueeze(0).expand(num_streams, -1, -1)
-            elif speaker_probs.ndim != 3 or speaker_probs.shape[0] != num_streams:
-                raise ValueError("speaker_probs must have shape (frames, speakers) or (streams, frames, speakers).")
-            speaker_probs = speaker_probs.to(device=device)
-
-        previous = torch.full((num_streams, max_states), -float("inf"), device=device)
-        packed_states = (max_states + 3) // 4
-        backpointers = torch.zeros(
-            (max(0, num_frames - 1), num_streams, packed_states),
-            dtype=torch.uint8,
-            device=device,
-        )
-
-        for block_start in range(0, num_frames, self._EMISSION_BLOCK_FRAMES):
-            block_end = min(block_start + self._EMISSION_BLOCK_FRAMES, num_frames)
-            emissions = _ctc_emission_block(
-                log_probs,
-                labels,
-                state_mask,
-                columns,
-                token_states,
-                speaker_probs,
-                use_speaker_prior,
-                speaker_logprob_weight,
-                self.epsilon,
-                block_start,
-                block_end,
-            )
-            local_start = 0
-            if block_start == 0:
-                previous[:, :2] = emissions[:, 0, :2]
-                local_start = 1
-            for local_frame in range(local_start, block_end - block_start):
-                frame = block_start + local_frame
-                best = previous.clone()
-                moves = torch.zeros((num_streams, max_states), dtype=torch.uint8, device=device)
-                take = previous[:, :-1] > best[:, 1:]
-                best[:, 1:] = torch.where(take, previous[:, :-1], best[:, 1:])
-                moves[:, 1:] = take.to(torch.uint8)
-                if max_states > 2:
-                    can_skip = state_mask[:, 2:] & (labels[:, 2:] != blank_id) & (labels[:, 2:] != labels[:, :-2])
-                    take = can_skip & (previous[:, :-2] > best[:, 2:])
-                    best[:, 2:] = torch.where(take, previous[:, :-2], best[:, 2:])
-                    moves[:, 2:] = torch.where(take, 2, moves[:, 2:])
-                updated = best + emissions[:, local_frame]
-                updated.masked_fill_(~state_mask, -float("inf"))
-                active_streams = frame < frame_lengths
-                previous = torch.where(active_streams.unsqueeze(1), updated, previous)
-                moves.masked_fill_(~active_streams.unsqueeze(1), 0)
-                packed = backpointers[frame - 1]
-                for offset in range(4):
-                    values = moves[:, offset::4]
-                    packed[:, : values.shape[1]] |= values << (2 * offset)
-
-        last_blank = state_lengths - 1
-        last_token = state_lengths - 2
-        blank_scores = previous.gather(1, last_blank[:, None]).squeeze(1)
-        token_scores = previous.gather(1, last_token[:, None]).squeeze(1)
-        final_states = torch.where(token_scores > blank_scores, last_token, last_blank)
-        final_scores = torch.maximum(token_scores, blank_scores)
-        if not torch.isfinite(final_scores).all():
-            failed = torch.nonzero(~torch.isfinite(final_scores)).flatten().tolist()
-            raise ValueError(f"No valid CTC forced-alignment path for speaker stream(s) {failed}.")
-
-        paths = torch.empty((num_streams, num_frames), dtype=torch.long, device=device)
-        current = final_states
-        stream_indices = torch.arange(num_streams, device=device)
-        for frame in range(num_frames - 1, -1, -1):
-            paths[:, frame] = current
-            if frame:
-                packed = backpointers[
-                    frame - 1,
-                    stream_indices,
-                    torch.div(current, 4, rounding_mode="floor"),
-                ]
-                shifts = 2 * torch.remainder(current, 4)
-                moves = torch.bitwise_right_shift(packed.to(torch.long), shifts) & 3
-                current = torch.where(frame < frame_lengths, current - moves, current)
-        paths_cpu = paths.cpu()
-        return [path[: int(length)] for path, length in zip(paths_cpu, frame_lengths.cpu())], [
-            float(score) for score in final_scores
-        ]
-
-    @staticmethod
-    def estimate_dp_storage_bytes(num_frames: int, num_streams: int, max_states: int) -> Dict[str, int]:
-        """
-        Compare persistent dense and compact DP storage for a problem shape.
-
-        Args:
-            num_frames (int): Number of CTC frames.
-            num_streams (int): Number of speaker streams aligned together.
-            max_states (int): Largest blank-expanded target length.
-
-        Returns:
-            Dict[str, int]: Byte counts for ``dense_emissions``, ``dense_backpointers``,
-                ``compact_emission_block`` and ``compact_backpointers``.
-        """
-        cells = int(num_frames) * int(num_streams) * int(max_states)
-        return {
-            "dense_emissions": cells * torch.tensor([], dtype=torch.float32).element_size(),
-            "dense_backpointers": cells * torch.tensor([], dtype=torch.int64).element_size(),
-            "compact_emission_block": min(
-                int(num_frames),
-                MultiSpeakerSOTWordTimestampAligner._EMISSION_BLOCK_FRAMES,
-            )
-            * int(num_streams)
-            * int(max_states)
-            * torch.tensor([], dtype=torch.float32).element_size(),
-            "compact_backpointers": max(0, int(num_frames) - 1) * int(num_streams) * ((int(max_states) + 3) // 4),
-        }
-
     def _word_rows_from_path(
         self,
         words: Sequence[Dict[str, Any]],
@@ -1506,72 +1128,6 @@ class MultiSpeakerSOTWordTimestampAligner:
                 }
             )
         return rows
-
-    def _resolve_speaker_mapping(
-        self,
-        speaker_tags: Sequence[int],
-        preliminary_rows: Sequence[Dict[str, Any]],
-        speaker_probs: Optional[torch.Tensor],
-    ) -> Tuple[Dict[int, Optional[int]], Dict[int, List[float]]]:
-        """
-        Map t-SOT speaker tags to Sortformer output columns.
-        Each tag scores each column by the mean log activity over its words' frames, and the
-        maximum-weight one-to-one assignment is chosen. Without speaker probabilities, or with more
-        tags than columns, every tag maps to None.
-
-        Args:
-            speaker_tags (Sequence[int]): Distinct t-SOT speaker tags.
-            preliminary_rows (Sequence[Dict[str, Any]]): CTC-only aligned word records.
-            speaker_probs (Optional[torch.Tensor]): Speaker probabilities shaped ``(T, S)``.
-
-        Returns:
-            Tuple[Dict[int, Optional[int]], Dict[int, List[float]]]: Mapping and assignment scores.
-        """
-        mapping = {tag: None for tag in speaker_tags}
-        if speaker_probs is None or len(speaker_tags) > speaker_probs.shape[1]:
-            return mapping, {}
-        rows_by_tag = self._group_words_by_speaker(preliminary_rows)
-        scores = []
-        diagnostics = {}
-        for tag in speaker_tags:
-            column_scores = []
-            for column in range(speaker_probs.shape[1]):
-                values = [
-                    torch.log(speaker_probs[row["start_frame"] : row["end_frame"] + 1, column].clamp_min(self.epsilon))
-                    for row in rows_by_tag[tag]
-                ]
-                column_scores.append(float(torch.cat(values).mean()))
-            diagnostics[tag] = column_scores
-            scores.append(column_scores)
-        for tag, column in zip(speaker_tags, self._maximum_weight_assignment(scores)):
-            mapping[tag] = column
-        return mapping, diagnostics
-
-    @staticmethod
-    def _maximum_weight_assignment(scores: Sequence[Sequence[float]]) -> List[int]:
-        """
-        Find the maximum-weight one-to-one speaker assignment.
-        Exact DP over bitmasks of used columns.
-
-        Args:
-            scores (Sequence[Sequence[float]]): Score matrix indexed by tag and speaker column.
-
-        Returns:
-            List[int]: Selected column index for each score row.
-        """
-        states: Dict[int, Tuple[float, List[int]]] = {0: (0.0, [])}
-        for row in scores:
-            next_states = {}
-            for used, (total, columns) in states.items():
-                for column, score in enumerate(row):
-                    if used & (1 << column):
-                        continue
-                    mask = used | (1 << column)
-                    candidate = (total + score, columns + [column])
-                    if mask not in next_states or candidate[0] > next_states[mask][0]:
-                        next_states[mask] = candidate
-            states = next_states
-        return max(states.values(), key=lambda item: item[0])[1] if states else []
 
     @staticmethod
     def _resample_speaker_probs(speaker_probs: torch.Tensor, target_frames: int) -> torch.Tensor:
@@ -1680,9 +1236,8 @@ def align_prepared_batch(prepared: Dict[str, Any]) -> List[Dict[str, Any]]:
 def merge_prepared_batches(batches: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
     Merge batches from :meth:`MultiSpeakerSOTWordTimestampAligner.prepare_alignment` into one.
-    The alignment search runs one per-frame loop over all records at once, so a merged search
-    costs little more than its longest record. Batches merge only when every batch-level value,
-    everything but ``records``, matches.
+    Each record retains its own frame support and alignment band. Batches merge only when every
+    batch-level value, everything but ``records``, matches.
 
     Args:
         batches (Sequence[Dict[str, Any]]): One or more prepared batches.
@@ -2465,7 +2020,7 @@ def _align_banded_ctc(aligner, prepared):
             )
             # Conservative support selection is separate from the >0.5 diarization labels.
             positions = np.flatnonzero(activity >= 0.01)
-            prior = np.log(np.maximum(activity, 1e-6))
+            prior = prepared['config']['speaker_logprob_weight'] * np.log(np.maximum(activity, aligner.epsilon))
             path, score, _ = _banded_ctc_search(ctc, labels, positions, prior, greedy)
             failed = not np.isfinite(score)
             half = len(labels) if len(positions) < 1000 else min(len(labels), math.ceil(0.10 * len(labels) + 100))
@@ -2706,53 +2261,6 @@ def _read_ctc_columns(ctc_log_probs: torch.Tensor, columns: List[List[int]], len
         .cpu()
         for index, (record_columns, length) in enumerate(zip(columns, lengths))
     ]
-
-
-def _ctc_emission_block(
-    log_probs,
-    labels,
-    state_mask,
-    columns,
-    token_states,
-    speaker_probs,
-    use_speaker_prior,
-    speaker_logprob_weight,
-    epsilon,
-    start: int,
-    end: int,
-) -> torch.Tensor:
-    """
-    Gather target-state emissions for frames ``[start, end)``, adding the speaker prior if used.
-
-    Args:
-        log_probs (torch.Tensor): CTC log probabilities shaped ``(streams, frames, classes)``.
-        labels (torch.Tensor): Target class indices shaped ``(streams, states)``.
-        state_mask (torch.Tensor): Valid-state mask shaped ``(streams, states)``.
-        columns (torch.Tensor): Nonnegative speaker indices shaped ``(streams, states)``.
-        token_states (torch.Tensor): Speaker-prior mask shaped ``(streams, states)``.
-        speaker_probs (Optional[torch.Tensor]): Activity shaped ``(streams, frames, speakers)``.
-        use_speaker_prior (bool): Whether to add the speaker prior.
-        speaker_logprob_weight (float): Multiplier for the log speaker activity.
-        epsilon (float): Positive floor applied before taking the activity logarithm.
-        start (int): First frame index.
-        end (int): Frame index one past the last frame.
-
-    Returns:
-        torch.Tensor: Emission scores shaped ``(streams, end - start, states)``, with ``-inf``
-            at padded states.
-    """
-    block_frames = end - start
-    gather_labels = labels.unsqueeze(1).expand(-1, block_frames, -1)
-    emissions = torch.gather(log_probs[:, start:end], 2, gather_labels)
-    if use_speaker_prior:
-        gather_columns = columns.unsqueeze(1).expand(-1, block_frames, -1)
-        activity = torch.gather(speaker_probs[:, start:end], 2, gather_columns)
-        emissions = emissions + torch.where(
-            token_states.unsqueeze(1),
-            speaker_logprob_weight * torch.log(activity.clamp_min(epsilon)),
-            torch.zeros_like(activity),
-        )
-    return emissions.masked_fill(~state_mask.unsqueeze(1), -float("inf"))
 
 
 def _ctc_trigram_positions(tokens):

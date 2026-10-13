@@ -18,6 +18,7 @@ from nemo.collections.speechlm2.parts.ctc_timestamp_utils import (
     _timestamp_units,
     align_prepared_batch,
 )
+from tests.collections.asr.ctc_timestamp_test_utils import search_streams
 
 
 @pytest.mark.unit
@@ -74,9 +75,7 @@ def test_normal_deferred_generation_automatically_selects_units_per_record(monke
             logits[:, 4, 2] = 10
             return torch.log_softmax(logits, -1)
 
-    aligner = MultiSpeakerSOTWordTimestampAligner(
-        tokenizer=Tokenizer(), ctc_decoder=Head(), blank_id=3, alignment_backend='banded'
-    )
+    aligner = MultiSpeakerSOTWordTimestampAligner(tokenizer=Tokenizer(), ctc_decoder=Head(), blank_id=3)
     monkeypatch.setattr(ctc_timestamp_utils, 'get_ctc_timestamp_aligner', lambda *args: aligner)
     inputs = CTCTimestampInputs(torch.zeros(3, 1, 8), torch.full((3,), 8), torch.ones(3, 8, 1), torch.full((3,), 8))
     result = inspect.unwrap(ParallelExpertEncoder).generate_ctc_timestamps(
@@ -215,9 +214,7 @@ def test_banded_ctc_serialized_worker_config_and_empty_support():
         def text_to_ids(self, text):
             return [1]
 
-    aligner = MultiSpeakerSOTWordTimestampAligner(
-        tokenizer=Tokenizer(), blank_id=2, alignment_backend="banded", max_word_frames=6
-    )
+    aligner = MultiSpeakerSOTWordTimestampAligner(tokenizer=Tokenizer(), blank_id=2, max_word_frames=6)
     prepared = aligner.prepare_alignment(
         torch.log_softmax(torch.zeros(1, 8, 3), -1), None, ["hello"], ctc_lengths=[8], audio_durations=[0.64]
     )
@@ -260,7 +257,7 @@ def test_banded_ctc_cannot_start_inside_an_infeasible_long_target():
 @pytest.mark.parametrize("cap", [0, -1, True, 1.5])
 def test_banded_ctc_rejects_invalid_word_cap(cap):
     with pytest.raises(ValueError, match="max_word_frames"):
-        MultiSpeakerSOTWordTimestampAligner(alignment_backend="banded", max_word_frames=cap)
+        MultiSpeakerSOTWordTimestampAligner(max_word_frames=cap)
 
 
 @pytest.mark.unit
@@ -375,8 +372,51 @@ def test_deferred_windows_release_full_vocabulary_and_preserve_alignment(
 
 
 @pytest.mark.unit
-def test_word_timestamp_alignment_defaults_to_ctc_only():
-    assert MultiSpeakerSOTWordTimestampAligner().speaker_logprob_weight == 0.0
+def test_word_timestamp_alignment_defaults_to_speaker_prior():
+    assert MultiSpeakerSOTWordTimestampAligner().speaker_logprob_weight == 1.0
+
+
+@pytest.mark.unit
+def test_legacy_alignment_backend_is_not_selectable():
+    with pytest.raises(TypeError, match="alignment_backend"):
+        MultiSpeakerSOTWordTimestampAligner(alignment_backend="original")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("weight", [None, 0.0, 0.25, 1.0])
+def test_default_pipeline_applies_configured_prior_and_always_refines(monkeypatch, weight):
+    from nemo.collections.speechlm2.parts import ctc_timestamp_utils as utils
+
+    class Tokenizer:
+        def text_to_ids(self, text):
+            return [1]
+
+    aligner = MultiSpeakerSOTWordTimestampAligner(tokenizer=Tokenizer(), blank_id=2)
+    logp = torch.log_softmax(torch.zeros(1, 8, 3), -1)
+    prepared = aligner.prepare_alignment(
+        logp,
+        torch.full((1, 8, 1), 0.8),
+        ["hello"],
+        audio_durations=[0.64],
+        speaker_logprob_weight=weight,
+        diarization_labels=torch.ones(1, 1, 64, dtype=torch.bool),
+    )
+    priors = []
+    search = utils._banded_ctc_search
+
+    def capture(*args):
+        priors.append(args[3].copy())
+        return search(*args)
+
+    monkeypatch.setattr(utils, '_banded_ctc_search', capture)
+    result = aligner.align_prepared(prepared)[0]
+    assert len(priors) == 1
+    np.testing.assert_allclose(priors[0], (1.0 if weight is None else weight) * np.log(0.8), atol=1e-7)
+    assert result['alignment_mode'] == 'banded'
+    assert result['alignment_diagnostics']['one_pass'] is True
+    assert result['word_timestamp_refinement']['method'] == 'diarization_boundary_refinement'
+    assert result['word_timestamp_refinement']['max_frames'] == 12
+    assert 'alignment_backend' not in prepared['config']
 
 
 def _dense_reference(
@@ -447,7 +487,7 @@ def _dense_reference(
 @pytest.mark.unit
 @pytest.mark.parametrize("seed", [0, 7, 19])
 @pytest.mark.parametrize("speaker_weight", [0.0, 0.25])
-def test_compact_dp_matches_dense_reference_exactly(seed, speaker_weight):
+def test_full_band_dp_matches_dense_reference(seed, speaker_weight):
     torch.manual_seed(seed)
     blank_id = 5
     labels = torch.tensor([[5, 0, 5, 1, 5, 1, 5], [5, 2, 5, 3, 5, 5, 5]])
@@ -466,24 +506,27 @@ def test_compact_dp_matches_dense_reference_exactly(seed, speaker_weight):
     )
 
     expected_paths, expected_scores = _dense_reference(*args)
-    actual_paths, actual_scores = MultiSpeakerSOTWordTimestampAligner()._ctc_forced_align_batched(*args)
+    actual_paths, actual_scores = search_streams(*args)
 
     assert all(torch.equal(actual, expected) for actual, expected in zip(actual_paths, expected_paths))
-    assert actual_scores == pytest.approx(expected_scores, abs=1.0e-6)
+    # NumPy adds the prior after the previous score; the oracle combines emissions first.
+    assert actual_scores == pytest.approx(expected_scores, abs=1.0e-5)
 
 
 @pytest.mark.unit
-def test_compact_dp_storage_for_ten_minute_shape():
-    storage = MultiSpeakerSOTWordTimestampAligner.estimate_dp_storage_bytes(
-        num_frames=7500,
-        num_streams=4,
-        max_states=3001,
-    )
+def test_banded_backpointers_use_one_byte_per_visited_cell():
+    from nemo.collections.speechlm2.parts.ctc_timestamp_utils import _ctc_banded_forward
 
-    assert storage["dense_emissions"] == 360_120_000
-    assert storage["dense_backpointers"] == 720_240_000
-    assert storage["compact_backpointers"] == 22_526_996
-    assert storage["compact_backpointers"] * 31 < storage["dense_backpointers"]
+    _, pointers = _ctc_banded_forward(
+        np.zeros((20, 2), np.float32),
+        np.array([0, 1, 0]),
+        np.arange(20),
+        None,
+        np.zeros(20, dtype=np.int64),
+        3,
+    )
+    assert pointers.dtype == np.uint8
+    assert pointers.nbytes == 20 * 3
 
 
 @pytest.mark.unit
@@ -498,7 +541,7 @@ def test_padded_record_batch_matches_independent_dp_and_backtraces():
     frame_lengths = torch.tensor([9, 7])
     aligner = MultiSpeakerSOTWordTimestampAligner()
 
-    batched_paths, batched_scores = aligner._ctc_forced_align_batched(
+    batched_paths, batched_scores = search_streams(
         log_probs,
         labels,
         state_lengths,
@@ -510,7 +553,7 @@ def test_padded_record_batch_matches_independent_dp_and_backtraces():
     )
 
     for index, frame_length in enumerate(frame_lengths.tolist()):
-        paths, scores = aligner._ctc_forced_align_batched(
+        paths, scores = search_streams(
             log_probs[index, :frame_length],
             labels[index : index + 1],
             state_lengths[index : index + 1],

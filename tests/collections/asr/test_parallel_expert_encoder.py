@@ -33,6 +33,7 @@ from nemo.collections.asr.modules.parallel_expert_encoder import (
     _default_dtype,
     _disable_dist_feature_sync,
 )
+from nemo.collections.speechlm2.parts import ctc_timestamp_utils
 from nemo.collections.speechlm2.parts.ctc_timestamp_utils import (
     CTCTimestampArtifact,
     MultiSpeakerSOTWordTimestampAligner,
@@ -42,6 +43,7 @@ from nemo.collections.speechlm2.parts.ctc_timestamp_utils import (
     get_ctc_timestamp_aligner,
     merge_prepared_batches,
 )
+from tests.collections.asr.ctc_timestamp_test_utils import search_streams
 
 # ``@experimental`` wraps the class in a wrapt proxy, so ``__new__`` (used to build
 # bare instances that skip the heavy real ``__init__``) must target the underlying
@@ -281,15 +283,15 @@ def test_ctc_timestamp_loader_copies_the_encoder_windows_on_every_call(monkeypat
     assert get_ctc_timestamp_aligner(encoder, str(adapter_path), torch.device("cpu")) is aligner
     assert (aligner.online_inference_length, aligner.chunk_left_context, aligner.chunk_right_context) == (250, 40, 10)
 
-    encoder.ctc_timestamp_alignment = {"alignment_backend": "banded", "max_word_frames": 6}
+    encoder.ctc_timestamp_alignment = {"max_word_frames": 6}
     updated = get_ctc_timestamp_aligner(encoder, str(adapter_path), torch.device("cpu"))
     assert updated is not aligner
     assert updated.ctc_decoder is aligner.ctc_decoder
-    assert updated.alignment_backend == "banded" and updated.max_word_frames == 6
+    assert updated.max_word_frames == 6
     assert get_ctc_timestamp_aligner(encoder, str(adapter_path), torch.device("cpu")) is updated
     encoder.ctc_timestamp_alignment = {}
     restored = get_ctc_timestamp_aligner(encoder, str(adapter_path), torch.device("cpu"))
-    assert restored.alignment_backend == "original"
+    assert restored.speaker_logprob_weight == 1.0 and restored.max_word_frames == 12
     assert restored.ctc_decoder is updated.ctc_decoder
 
 
@@ -400,7 +402,7 @@ def test_parse_sot_words_retains_turns_and_assigns_untagged_single_speaker():
 
 
 @pytest.mark.unit
-def test_timestamp_extractor_batches_all_speakers_in_parallel(monkeypatch):
+def test_timestamp_extractor_searches_each_speaker_once(monkeypatch):
     blank_id = 2
     token_ids = {"a": 0, "b": 1}
 
@@ -416,14 +418,14 @@ def test_timestamp_extractor_batches_all_speakers_in_parallel(monkeypatch):
     extractor = MultiSpeakerSOTWordTimestampAligner(blank_id=blank_id, ctc_frame_seconds=0.01)
     monkeypatch.setattr(extractor, "_tokenize_words", tokenize_words)
     calls = []
-    original = extractor._ctc_forced_align_batched
+    original = ctc_timestamp_utils._banded_ctc_search
 
     def record_batch(*args, **kwargs):
         call_labels = args[1] if args else kwargs["labels"]
-        calls.append(call_labels.shape[0])
+        calls.append(1)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(extractor, "_ctc_forced_align_batched", record_batch)
+    monkeypatch.setattr(ctc_timestamp_utils, "_banded_ctc_search", record_batch)
     result = extractor.extract_from_outputs_batch(
         ctc_log_probs=torch.log_softmax(logits, dim=-1).unsqueeze(0),
         sortformer_sigmoids=None,
@@ -431,13 +433,13 @@ def test_timestamp_extractor_batches_all_speakers_in_parallel(monkeypatch):
     )[0]
 
     # Without speaker probabilities, the CTC-only paths are rendered directly.
-    assert calls == [2]
-    assert result["alignment_mode"] == "parallel"
+    assert calls == [1, 1]
+    assert result["alignment_mode"] == "banded"
     assert set(result["speaker_word_timestamps"]) == {0, 1}
 
 
 @pytest.mark.unit
-def test_timestamp_extractor_runs_untagged_single_speaker_in_parallel(monkeypatch):
+def test_timestamp_extractor_searches_untagged_single_speaker_once(monkeypatch):
     blank_id = 1
 
     def tokenize_words(words, blank):
@@ -450,14 +452,14 @@ def test_timestamp_extractor_runs_untagged_single_speaker_in_parallel(monkeypatc
     extractor = MultiSpeakerSOTWordTimestampAligner(blank_id=blank_id, ctc_frame_seconds=0.01)
     monkeypatch.setattr(extractor, "_tokenize_words", tokenize_words)
     calls = []
-    original = extractor._ctc_forced_align_batched
+    original = ctc_timestamp_utils._banded_ctc_search
 
     def record_batch(*args, **kwargs):
         call_labels = args[1] if args else kwargs["labels"]
-        calls.append(call_labels.shape[0])
+        calls.append(1)
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(extractor, "_ctc_forced_align_batched", record_batch)
+    monkeypatch.setattr(ctc_timestamp_utils, "_banded_ctc_search", record_batch)
 
     result = extractor.extract_from_outputs_batch(
         ctc_log_probs=torch.log_softmax(logits, dim=-1).unsqueeze(0),
@@ -465,7 +467,7 @@ def test_timestamp_extractor_runs_untagged_single_speaker_in_parallel(monkeypatc
         sot_transcripts=["hello world"],
     )[0]
 
-    assert result["alignment_mode"] == "parallel"
+    assert result["alignment_mode"] == "banded"
     assert calls == [1]
     assert [row["word"] for row in result["speaker_word_timestamps"][0]] == [
         "hello",
@@ -528,10 +530,10 @@ def test_dp_over_the_gathered_columns_matches_the_dp_over_the_full_output(speake
     gathered_labels = labels.clone().apply_(columns.index)
     aligner = MultiSpeakerSOTWordTimestampAligner()
 
-    full_paths, full_scores = aligner._ctc_forced_align_batched(
+    full_paths, full_scores = search_streams(
         full, labels, state_lengths, blank_id, speaker_columns, speaker_probs, speaker_weight
     )
-    paths, scores = aligner._ctc_forced_align_batched(
+    paths, scores = search_streams(
         full[:, :, columns], gathered_labels, state_lengths, 0, speaker_columns, speaker_probs, speaker_weight
     )
 
@@ -657,7 +659,7 @@ def test_compact_batched_ctc_alignment_handles_repeated_tokens():
     for frame, label in enumerate(frame_labels):
         logits[frame, label] = 12.0
 
-    paths, scores = MultiSpeakerSOTWordTimestampAligner()._ctc_forced_align_batched(
+    paths, scores = search_streams(
         torch.log_softmax(logits, dim=-1),
         target,
         torch.tensor([target.shape[1]]),
@@ -672,8 +674,8 @@ def test_compact_batched_ctc_alignment_handles_repeated_tokens():
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize(("speaker_weight", "expected_dp_calls"), [(0.0, 1), (0.25, 2)])
-def test_timestamp_extractor_maps_speakers_from_preliminary_ctc_paths(monkeypatch, speaker_weight, expected_dp_calls):
+@pytest.mark.parametrize(("speaker_weight", "expected_dp_calls"), [(0.0, 2), (0.25, 2), (1.0, 2)])
+def test_timestamp_extractor_maps_speakers_without_preliminary_dp(monkeypatch, speaker_weight, expected_dp_calls):
     blank_id = 2
     token_ids = {"a": 0, "b": 1}
 
@@ -701,14 +703,14 @@ def test_timestamp_extractor_maps_speakers_from_preliminary_ctc_paths(monkeypatc
     )
     monkeypatch.setattr(extractor, "_tokenize_words", tokenize_words)
     calls = 0
-    original = extractor._ctc_forced_align_batched
+    original = ctc_timestamp_utils._banded_ctc_search
 
     def record_call(*args, **kwargs):
         nonlocal calls
         calls += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(extractor, "_ctc_forced_align_batched", record_call)
+    monkeypatch.setattr(ctc_timestamp_utils, "_banded_ctc_search", record_call)
 
     result = extractor.extract_from_outputs_batch(
         ctc_log_probs=torch.log_softmax(logits, dim=-1).unsqueeze(0),
@@ -717,12 +719,12 @@ def test_timestamp_extractor_maps_speakers_from_preliminary_ctc_paths(monkeypatc
     )[0]
 
     assert result["speaker_tag_to_sortformer_column"] == {0: 1, 1: 0}
-    assert result["alignment_mode"] == "parallel"
+    assert result["alignment_mode"] == "banded"
     assert calls == expected_dp_calls
 
 
 @pytest.mark.unit
-def test_timestamp_extractor_keeps_parallel_mode_when_speakers_exceed_columns(
+def test_timestamp_extractor_reports_unmapped_speaker_without_legacy_fallback(
     monkeypatch,
 ):
     blank_id = 2
@@ -744,8 +746,9 @@ def test_timestamp_extractor_keeps_parallel_mode_when_speakers_exceed_columns(
         sot_transcripts=["<spk:0> a <spk:1> b"],
     )[0]
 
-    assert result["alignment_mode"] == "parallel"
-    assert result["speaker_tag_to_sortformer_column"] == {0: None, 1: None}
+    assert result["alignment_mode"] == "banded"
+    assert result["speaker_tag_to_sortformer_column"] == {0: 0, 1: None}
+    assert [f["speaker"] for f in result["alignment_diagnostics"]["failed_streams"]] == [1]
 
 
 @pytest.mark.unit
@@ -765,13 +768,13 @@ def test_timestamp_extractor_batch_honors_record_lengths(monkeypatch):
     extractor = MultiSpeakerSOTWordTimestampAligner(blank_id=blank_id, ctc_frame_seconds=0.01)
     monkeypatch.setattr(extractor, "_tokenize_words", tokenize_words)
     dp_calls = []
-    original = extractor._ctc_forced_align_batched
+    original = ctc_timestamp_utils._banded_ctc_search
 
     def record_dp_batch(*args, **kwargs):
-        dp_calls.append((args[0].shape, kwargs["frame_lengths"].tolist()))
+        dp_calls.append((args[0].shape, len(args[2])))
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(extractor, "_ctc_forced_align_batched", record_dp_batch)
+    monkeypatch.setattr(ctc_timestamp_utils, "_banded_ctc_search", record_dp_batch)
     diarization_labels = torch.zeros(2, 8, 7, dtype=torch.bool)
     diarization_labels[0, 0, :2] = True
     diarization_labels[1, 1, 1:4] = True
@@ -791,9 +794,9 @@ def test_timestamp_extractor_batch_honors_record_lengths(monkeypatch):
     )
 
     assert [result["num_ctc_frames"] for result in results] == [4, 5]
-    assert [result["alignment_mode"] for result in results] == ["parallel", "parallel"]
-    # Two streams over the longest record's 5 valid frames, keeping each transcript's blank and token columns.
-    assert dp_calls == [(torch.Size([2, 5, 2]), [4, 5])]
+    assert [result["alignment_mode"] for result in results] == ["banded", "banded"]
+    # Each stream searches only its own valid frames, without cross-record padding.
+    assert dp_calls == [((4, 2), 4), ((5, 2), 5)]
     assert results[0]["diarization_timestamps"] == [{"speaker": 0, "start": 0.0, "end": 0.02}]
     assert results[1]["diarization_timestamps"] == [{"speaker": 1, "start": 0.01, "end": 0.04}]
     assert [result["diarization_frame_seconds"] for result in results] == [0.01, 0.01]

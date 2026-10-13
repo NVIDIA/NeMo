@@ -574,7 +574,7 @@ def test_evicted_rows_are_not_compacted(aligner, monkeypatch):
 
 
 def test_speaker_prior_weight_defaults_and_rejects_negative_values():
-    assert ct.read_speaker_prior_weight({}) == 0.25
+    assert ct.read_speaker_prior_weight({}) == 1.0
     assert ct.read_speaker_prior_weight(SimpleNamespace(speaker_logprob_weight=0)) == 0.0
     with pytest.raises(ValueError, match="non-negative"):
         ct.read_speaker_prior_weight({"speaker_logprob_weight": -0.1})
