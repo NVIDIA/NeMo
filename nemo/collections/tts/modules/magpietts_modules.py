@@ -808,9 +808,10 @@ class FeatureMasking(NeuralModule):
 
     The fraction of valid timesteps to mask is drawn per batch item from a beta distribution and rescaled to
     ``[mask_min, mask_max]``; ``max(floor(fraction * length), 1)`` timesteps are then masked, so at least one
-    valid timestep is always masked. For example, the default parameters (min=0.0, max=0.75, alpha=2.0,
-    beta=1.0) mask between one timestep and 75% of each item's valid timesteps, 50% on average for long items
-    (the Beta(2, 1) mean of 2/3 scaled by ``mask_max``).
+    valid timestep is always masked even when that exceeds ``mask_max`` (a one-timestep item is fully masked).
+    For example, the default parameters (min=0.0, max=0.75, alpha=2.0, beta=1.0) mask between one timestep and
+    75% of each item's valid timesteps for items of two or more timesteps, 50% on average for long items (the
+    Beta(2, 1) mean of 2/3 scaled by ``mask_max``).
 
     (min=0.1, max=0.5, alpha=1.0, beta=1.0) would be a uniform distribution masking between 10% and 50% of its input.
 
