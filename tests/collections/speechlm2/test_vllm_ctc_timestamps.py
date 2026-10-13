@@ -1374,7 +1374,7 @@ def test_a_disconnected_stream_releases_captures_and_closes_upstream(server, mon
             await asyncio.wait_for(started.wait(), 2)
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
-                await task
+                await asyncio.wait_for(task, 2)
         assert closed.is_set() and ct._store == {} and ct._request_hashes == {}
         assert server.rpcs == [ct.WORKER_RELEASE_METHOD]
 
@@ -1522,7 +1522,8 @@ def test_an_alignment_failure_releases_the_capture_and_answers_500(server, caplo
     assert any(record.exc_info and str(record.exc_info[1]) == "kernel failure" for record in caplog.records)
 
 
-def test_a_cancelled_chat_completion_releases_its_capture(server):
+@pytest.mark.parametrize("error_type", [asyncio.CancelledError, KeyboardInterrupt, SystemExit])
+def test_an_interrupted_chat_completion_releases_its_capture(server, error_type):
     from starlette.requests import Request
 
     from nemo.collections.speechlm2.vllm.salm.ctc_serving import ctc_timestamp_middleware
@@ -1537,13 +1538,44 @@ def test_a_cancelled_chat_completion_releases_its_capture(server):
         request_id = "chatcmpl-" + dict(request.scope["headers"])[b"x-request-id"].decode()
         _capture(1, 4, ["hash-cancelled"])
         ct._record_request_hashes([(f"{request_id}-0123abcd", "hash-cancelled")])
-        raise asyncio.CancelledError
+        raise error_type
 
     scope = {"type": "http", "method": "POST", "path": "/v1/chat/completions", "headers": [], "app": server.app}
-    with pytest.raises(asyncio.CancelledError):
+    with pytest.raises(error_type):
         asyncio.run(ctc_timestamp_middleware(Request(scope, receive), call_next))
 
     assert server.rpcs == [ct.WORKER_RELEASE_METHOD] and ct._store == {}
+
+
+@pytest.mark.parametrize("error_type", [asyncio.CancelledError, KeyboardInterrupt, SystemExit, RuntimeError])
+def test_middleware_cleanup_without_vllm(monkeypatch, error_type):
+    from unittest.mock import AsyncMock
+
+    from nemo.collections.speechlm2.vllm.salm import ctc_serving as serving
+
+    engine = SimpleNamespace(model_config={})
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(engine_client=engine)),
+        scope={"path": "/v1/chat/completions"},
+        method="POST",
+        body=AsyncMock(return_value=b'{}'),
+    )
+    monkeypatch.setattr(serving, "ctc_timestamp_config", lambda _: {})
+    monkeypatch.setattr(serving, "ctc_adapter_path", lambda _: "adapter")
+    monkeypatch.setattr(serving, "_opted_in", lambda _: {})
+    monkeypatch.setattr(serving, "_engine_request_id", lambda *_: "request")
+    release = AsyncMock()
+    monkeypatch.setattr(serving, "_release", release)
+    monkeypatch.setattr(serving, "_error", lambda error, *_: error)
+    error = error_type("interrupted")
+    call = serving.ctc_timestamp_middleware(request, AsyncMock(side_effect=error))
+
+    if issubclass(error_type, Exception):
+        assert asyncio.run(call) is error
+    else:
+        with pytest.raises(error_type):
+            asyncio.run(call)
+    release.assert_awaited_once_with(engine, "request")
 
 
 def test_a_completion_vllm_cancelled_for_a_disconnected_client_passes_through_and_releases(server, caplog):

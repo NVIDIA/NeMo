@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import copy
+import inspect
 import itertools
 import weakref
 from types import SimpleNamespace
@@ -378,8 +379,7 @@ def test_word_timestamp_alignment_defaults_to_speaker_prior():
 
 @pytest.mark.unit
 def test_legacy_alignment_backend_is_not_selectable():
-    with pytest.raises(TypeError, match="alignment_backend"):
-        MultiSpeakerSOTWordTimestampAligner(alignment_backend="original")
+    assert "alignment_backend" not in inspect.signature(MultiSpeakerSOTWordTimestampAligner).parameters
 
 
 @pytest.mark.unit
@@ -539,7 +539,6 @@ def test_padded_record_batch_matches_independent_dp_and_backtraces():
     log_probs = torch.log_softmax(torch.randn(2, 9, blank_id + 1), dim=-1)
     speaker_probs = torch.sigmoid(torch.randn(2, 9, 2))
     frame_lengths = torch.tensor([9, 7])
-    aligner = MultiSpeakerSOTWordTimestampAligner()
 
     batched_paths, batched_scores = search_streams(
         log_probs,

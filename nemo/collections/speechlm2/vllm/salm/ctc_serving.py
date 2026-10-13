@@ -98,31 +98,33 @@ async def ctc_timestamp_middleware(request: Any, call_next: Any) -> Any:
         return _error("CTC timestamps do not support n > 1.")
 
     request_id = _engine_request_id(request, payload)
+    release_capture = True
     try:
         response = await call_next(request)
         if response.status_code != HTTPStatus.OK:
-            await _release(engine, request_id)
             return response
         if payload.get("stream") and response.headers.get("content-type", "").startswith("text/event-stream"):
-            return _TimestampStreamingResponse(response, engine, request_id)
+            streaming_response = _TimestampStreamingResponse(response, engine, request_id)
+            release_capture = False  # The streaming response owns capture cleanup from here.
+            return streaming_response
         completion = json.loads(b"".join([chunk async for chunk in response.body_iterator]))
         headers = {name: value for name, value in response.headers.items() if name.lower() != "content-length"}
         if not isinstance(completion, dict):
             # vLLM's chat route answers null for a request whose client disconnected; there is nothing to align.
-            await _release(engine, request_id)
             return _json(completion, response.status_code, headers)
         request_id = _reported_request_id(completion, request_id)
         text = completion["choices"][0]["message"]["content"] or ""
         (result,) = await align_async(_capture_owner_rpc(engine), [(request_id, text)], require_enabled=False)
-    except BaseException as error:
-        # Alignment releases the capture; a request that stops before it releases it here.
-        await _release(engine, request_id)
-        if not isinstance(error, Exception):
-            raise
+        release_capture = False  # Successful alignment already released the capture.
+    except Exception as error:
         logging.error(
             "[NeMoSpeechLM] CTC timestamps for chat request %s failed: %s", request_id, error, exc_info=error
         )
         return _error(error, "InternalServerError", HTTPStatus.INTERNAL_SERVER_ERROR)
+    finally:
+        # Also clean up on cancellation or process-level exceptions, without catching them.
+        if release_capture:
+            await _release(engine, request_id)
 
     completion["ctc_timestamps"] = result
     return _json(completion, response.status_code, headers)

@@ -421,7 +421,6 @@ def test_timestamp_extractor_searches_each_speaker_once(monkeypatch):
     original = ctc_timestamp_utils._banded_ctc_search
 
     def record_batch(*args, **kwargs):
-        call_labels = args[1] if args else kwargs["labels"]
         calls.append(1)
         return original(*args, **kwargs)
 
@@ -455,7 +454,6 @@ def test_timestamp_extractor_searches_untagged_single_speaker_once(monkeypatch):
     original = ctc_timestamp_utils._banded_ctc_search
 
     def record_batch(*args, **kwargs):
-        call_labels = args[1] if args else kwargs["labels"]
         calls.append(1)
         return original(*args, **kwargs)
 
@@ -528,7 +526,6 @@ def test_dp_over_the_gathered_columns_matches_the_dp_over_the_full_output(speake
     speaker_probs = torch.rand(2, 12, 2)
     columns = [blank_id, 2, 4, 7]
     gathered_labels = labels.clone().apply_(columns.index)
-    aligner = MultiSpeakerSOTWordTimestampAligner()
 
     full_paths, full_scores = search_streams(
         full, labels, state_lengths, blank_id, speaker_columns, speaker_probs, speaker_weight
