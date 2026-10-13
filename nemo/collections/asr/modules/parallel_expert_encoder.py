@@ -2043,8 +2043,8 @@ class ParallelExpertEncoder(nn.Module):
     def _encode_asr_windows(
         self, asr_signal: torch.Tensor, asr_length: torch.Tensor, windows: List[tuple]
     ) -> List[torch.Tensor]:
-        """Encode context-extended ASR windows, many per forward, and return each window's core frames.
-
+        """
+        Encode context-extended ASR windows, many per forward, and return each window's core frames.
         Windows of equal width share a forward (at most ``_ASR_WINDOW_ROWS`` rows), so no window is padded and each
         sees exactly the input it would see alone. Only the first and last windows differ in width.
 
@@ -2086,10 +2086,20 @@ class ParallelExpertEncoder(nn.Module):
         empty_preds: torch.Tensor,
         **step_kwargs,
     ) -> tuple[Any, torch.Tensor]:
-        """Run one streaming Sortformer step and return the new state and this window's predictions.
-
+        """
+        Run one streaming Sortformer step and return the new state and this window's predictions.
         With ``online_cuda_graphs`` set, steady-state steps of inference (no autograd, synchronous streaming,
         a state update) replay a CUDA graph; any other step runs eagerly.
+
+        Args:
+            chunk (torch.Tensor): Window mel features shaped ``(B, D, T)``.
+            chunk_length (torch.Tensor): Valid window frame counts shaped ``(B,)``.
+            streaming_state (Any): Sortformer streaming state from the previous step.
+            empty_preds (torch.Tensor): Empty prediction buffer passed to the step.
+            **step_kwargs: Extra keyword arguments of ``forward_streaming_step``.
+
+        Returns:
+            tuple[Any, torch.Tensor]: Updated streaming state and this window's speaker predictions.
         """
 
         def step(state, signal, signal_length):
@@ -2188,6 +2198,12 @@ class _StreamingStepGraphs:
     )
 
     def __init__(self, max_graphs: int = 16):
+        """
+        Create an empty graph cache.
+
+        Args:
+            max_graphs (int): Maximum number of captured graphs; further keys run eagerly.
+        """
         self.max_graphs = max_graphs
         self.enabled = True
         self.seen = set()
@@ -2195,6 +2211,19 @@ class _StreamingStepGraphs:
         self.pool = None
 
     def __call__(self, step, state, chunk: torch.Tensor, chunk_length: torch.Tensor, extra_key: tuple):
+        """
+        Run ``step`` eagerly or replay its graph for this input signature.
+
+        Args:
+            step (Callable): Function mapping ``(state, chunk, chunk_length)`` to ``(state, predictions)``.
+            state (Any): Sortformer streaming state.
+            chunk (torch.Tensor): Window mel features shaped ``(B, D, T)``.
+            chunk_length (torch.Tensor): Valid window frame counts shaped ``(B,)``.
+            extra_key (tuple): Hashable step options that are part of the graph key.
+
+        Returns:
+            tuple[Any, torch.Tensor]: Updated streaming state and this window's speaker predictions.
+        """
         tensors = {name: getattr(state, name) for name in self._STATE_FIELDS if getattr(state, name, None) is not None}
         key = (
             extra_key,
@@ -2229,6 +2258,19 @@ class _StreamingStepGraphs:
         return new_state, out_preds.clone()
 
     def _capture(self, step, state, tensors, chunk, chunk_length):
+        """
+        Capture ``step`` on static copies of its inputs.
+
+        Args:
+            step (Callable): Function mapping ``(state, chunk, chunk_length)`` to ``(state, predictions)``.
+            state (Any): Sortformer streaming state used as the template.
+            tensors (dict[str, torch.Tensor]): State tensors to give static input buffers.
+            chunk (torch.Tensor): Window mel features shaped ``(B, D, T)``.
+            chunk_length (torch.Tensor): Valid window frame counts shaped ``(B,)``.
+
+        Returns:
+            tuple: The graph, its static state tensors, chunk and length buffers, and its output state and predictions.
+        """
         static_tensors = {name: t.clone() for name, t in tensors.items()}
         static_chunk, static_length = chunk.clone(), chunk_length.clone()
 
