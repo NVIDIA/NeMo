@@ -386,18 +386,17 @@ class MultiHeadAttention(nn.Module):
             attn_fn = _transformer_utils._get_flex_attention(q)
             out = attn_fn(q, k, v, block_mask=block_mask, score_mod=score_mod)
         else:
-            # Export uses ordinary tensor operations with the same mask and position terms.
             # Accumulate reduced-precision attention in fp32, as FlexAttention does.
             dtype = torch.float32 if q.dtype in (torch.float16, torch.bfloat16) else q.dtype
-            scores = torch.matmul(q.to(dtype), k.to(dtype).transpose(-2, -1)) * (D**-0.5)
+            bias = torch.zeros_like(attn_mask, dtype=dtype)
             if score_mod is not None:
-                scores = scores + score_mod._relative_position_bias.to(dtype)
-            scores = scores.masked_fill(~attn_mask, float("-inf"))
-            # FlexAttention returns zero for fully masked rows.
-            # Avoid softmax(-inf, ..., -inf), which would produce NaNs in ONNX Runtime.
-            scores = torch.where(attn_mask.any(dim=-1, keepdim=True), scores, 0.0)
-            weights = scores.softmax(dim=-1).masked_fill(~attn_mask, 0.0)
-            out = torch.matmul(weights, v.to(dtype)).to(v.dtype)
+                bias = bias + score_mod._relative_position_bias.to(dtype)
+            bias = bias.masked_fill(~attn_mask, float("-inf"))
+            # Avoid all-masked softmax rows in exported runtimes and return zero, as FlexAttention does.
+            valid_rows = attn_mask.any(dim=-1, keepdim=True)
+            bias = torch.where(valid_rows, bias, 0.0)
+            out = F.scaled_dot_product_attention(q.to(dtype), k.to(dtype), v.to(dtype), attn_mask=bias, dropout_p=0.0)
+            out = torch.where(valid_rows, out, 0.0).to(v.dtype)
         out = out.transpose(1, 2).contiguous().view(B, T, self.d_model)
         return self.out_proj(out)
 
