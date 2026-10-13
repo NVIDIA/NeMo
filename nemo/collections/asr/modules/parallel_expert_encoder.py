@@ -28,6 +28,7 @@ Only self-contained bundles with inline ``asr_encoder_cfg`` and
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import math
 import os
@@ -641,6 +642,8 @@ class ParallelExpertEncoder(nn.Module):
     supports_sequence_packed_output = True
     # Online inference encodes up to this many ASR windows (rows) per forward.
     _ASR_WINDOW_ROWS = 128
+    # Replay steady-state streaming Sortformer steps of online inference from CUDA graphs.
+    online_cuda_graphs = False
 
     def __init__(
         self,
@@ -1969,7 +1972,6 @@ class ParallelExpertEncoder(nn.Module):
             core_len = asr_chunks[chunk_index].shape[-1]
 
             if run_streaming_diar:
-                previous_len = total_preds.shape[1]
                 # Sortformer's streaming boundary is time-major for every
                 # supported pre-encoder. Its internal adapter performs any
                 # FeatureStacking-specific channel-first conversion.
@@ -1980,18 +1982,18 @@ class ParallelExpertEncoder(nn.Module):
                     _disable_dist_feature_sync(),
                     _default_dtype(stream_dtype),
                 ):
-                    streaming_state, total_preds = self.diarization_model.forward_streaming_step(
-                        processed_signal=diar_chunk,
-                        processed_signal_length=diar_chunk_length,
-                        streaming_state=streaming_state,
-                        total_preds=total_preds,
+                    streaming_state, chunk_preds = self._streaming_diar_step(
+                        diar_chunk,
+                        diar_chunk_length,
+                        streaming_state,
+                        empty_preds=total_preds[:, :0],
                         left_offset=left_offset,
                         right_offset=right_offset,
                         return_native_resolution=return_ctc_timestamp_inputs,
                         # The state after the last window is discarded.
                         update_state=chunk_index < num_chunks - 1,
                     )
-                chunk_preds = total_preds[:, previous_len:]
+                total_preds = torch.cat([total_preds, chunk_preds], dim=1)
                 if return_ctc_timestamp_inputs:
                     chunk_preds = self.diarization_model.sortformer_modules.downsample_preds(
                         chunk_preds,
@@ -2075,6 +2077,44 @@ class ParallelExpertEncoder(nn.Module):
                     cores[i] = encoded[k * batch_size : (k + 1) * batch_size, :, left_drop : left_drop + core_len]
         return cores
 
+    def _streaming_diar_step(
+        self,
+        chunk: torch.Tensor,
+        chunk_length: torch.Tensor,
+        streaming_state: Any,
+        empty_preds: torch.Tensor,
+        **step_kwargs,
+    ) -> tuple[Any, torch.Tensor]:
+        """Run one streaming Sortformer step and return the new state and this window's predictions.
+
+        With ``online_cuda_graphs`` set, steady-state steps of inference (no autograd, synchronous streaming,
+        a state update) replay a CUDA graph; any other step runs eagerly.
+        """
+
+        def step(state, signal, signal_length):
+            return self.diarization_model.forward_streaming_step(
+                processed_signal=signal,
+                processed_signal_length=signal_length,
+                streaming_state=state,
+                total_preds=empty_preds,
+                **step_kwargs,
+            )
+
+        graphable = (
+            getattr(self, "online_cuda_graphs", False)
+            and chunk.is_cuda
+            and not torch.is_grad_enabled()
+            and not torch.cuda.is_current_stream_capturing()
+            and not self.diarization_model.async_streaming
+            and streaming_state.spk_perm is None
+            and step_kwargs.get("update_state", True)
+        )
+        if not graphable:
+            return step(streaming_state, chunk, chunk_length)
+        if getattr(self, "_diar_step_graphs", None) is None:
+            self._diar_step_graphs = _StreamingStepGraphs()
+        return self._diar_step_graphs(step, streaming_state, chunk, chunk_length, tuple(sorted(step_kwargs.items())))
+
     def _init_streaming_diar(self, audio_signal: torch.Tensor, length: torch.Tensor, batch_size: int):
         """
         Initialize Sortformer state for windowed inference.
@@ -2123,3 +2163,80 @@ class ParallelExpertEncoder(nn.Module):
                 device=device,
             )
         return state, stream_dtype, diar_signal, diar_length
+
+
+class _StreamingStepGraphs:
+    """CUDA graphs of one synchronous streaming Sortformer step, keyed by every input shape (inference only).
+
+    A key gets a graph the second time it is seen, so only the steady state after the speaker cache has filled is
+    captured. A replay copies the state and the window into the graph's input buffers and clones its outputs, so
+    callers own every returned tensor.
+    """
+
+    _STATE_FIELDS = (
+        "spkcache",
+        "spkcache_lengths",
+        "spkcache_preds",
+        "fifo",
+        "fifo_lengths",
+        "fifo_preds",
+        "mean_sil_emb",
+        "n_sil_frames",
+    )
+
+    def __init__(self, max_graphs: int = 16):
+        self.max_graphs = max_graphs
+        self.seen = set()
+        self.graphs = {}
+        self.pool = None
+
+    def __call__(self, step, state, chunk: torch.Tensor, chunk_length: torch.Tensor, extra_key: tuple):
+        tensors = {name: getattr(state, name) for name in self._STATE_FIELDS if getattr(state, name, None) is not None}
+        key = (
+            extra_key,
+            bool(state.spkcache_compressed),
+            tuple((name, tuple(t.shape), t.dtype) for name, t in tensors.items()),
+            tuple(chunk.shape),
+            chunk.dtype,
+            tuple(chunk_length.shape),
+        )
+        if key not in self.graphs:
+            if key not in self.seen or len(self.graphs) >= self.max_graphs:
+                self.seen.add(key)
+                return step(state, chunk, chunk_length)
+            self.graphs[key] = self._capture(step, state, tensors, chunk, chunk_length)
+        graph, static_tensors, static_chunk, static_length, out_state, out_preds = self.graphs[key]
+        for name, t in tensors.items():
+            static_tensors[name].copy_(t)
+        static_chunk.copy_(chunk)
+        static_length.copy_(chunk_length)
+        graph.replay()
+        new_state = copy.copy(out_state)
+        for name, value in vars(out_state).items():
+            if isinstance(value, torch.Tensor):
+                setattr(new_state, name, value.clone())
+        return new_state, out_preds.clone()
+
+    def _capture(self, step, state, tensors, chunk, chunk_length):
+        static_tensors = {name: t.clone() for name, t in tensors.items()}
+        static_chunk, static_length = chunk.clone(), chunk_length.clone()
+
+        def static_state():
+            # The step reassigns state attributes, so each run gets its own shallow copy.
+            fresh = copy.copy(state)
+            for name, t in static_tensors.items():
+                setattr(fresh, name, t)
+            return fresh
+
+        device = chunk.device
+        side = torch.cuda.Stream(device)
+        side.wait_stream(torch.cuda.current_stream(device))
+        with torch.cuda.stream(side):
+            step(static_state(), static_chunk, static_length)
+        torch.cuda.current_stream(device).wait_stream(side)
+        if self.pool is None:
+            self.pool = torch.cuda.graph_pool_handle()
+        graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(graph, pool=self.pool):
+            out_state, out_preds = step(static_state(), static_chunk, static_length)
+        return graph, static_tensors, static_chunk, static_length, out_state, out_preds

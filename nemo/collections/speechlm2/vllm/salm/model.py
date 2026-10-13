@@ -191,6 +191,8 @@ class NeMoSpeechLMForConditionalGeneration(
                 self._encoder_graphs = EncoderGraphRunner(
                     self.perception, compile_layers=bool(getattr(config, "encoder_compile", False))
                 )
+                # Audio too long for those graphs still replays its steady-state diarization steps.
+                self.perception.encoder.online_cuda_graphs = True
 
         if isinstance(backend, HybridBackend):
             from nemo.collections.speechlm2.vllm.salm.precision import preserve_hybrid_precision

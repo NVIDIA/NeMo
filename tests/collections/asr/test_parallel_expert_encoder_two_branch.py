@@ -977,6 +977,47 @@ def test_online_inference_batches_asr_windows_like_one_window_per_forward(asr_en
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "asr_encoder_type,asr_encoder_cfg",
+    [("fastconformer", toy_asr_encoder_cfg), ("transformer", toy_transformer_asr_encoder_cfg)],
+)
+def test_online_cuda_graphs_replay_streaming_diarization_steps(asr_encoder_type, asr_encoder_cfg):
+    """Steady-state streaming Sortformer steps replayed from CUDA graphs give the eager outputs."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    torch.manual_seed(0)
+    encoder = (
+        build_toy_pe_encoder(
+            asr_encoder_type=asr_encoder_type,
+            asr_encoder_cfg=asr_encoder_cfg(),
+            online_inference_length=10,
+            chunk_left_context=2,
+            chunk_right_context=2,
+            diar_fifo_len=10,
+            diar_spkcache_update_period=20,
+            diar_spkcache_len=20,
+        )
+        .cuda()
+        .eval()
+    )
+    encoder._suppress_online_pbar = True
+    lengths = torch.tensor([12 * encoder.chunk_feat_len - 13, 9 * encoder.chunk_feat_len + 5], device="cuda")
+    mels = torch.randn(2, _MEL_FEATURES, int(lengths.max()), device="cuda")
+
+    with torch.no_grad(), encoder.online_inference():
+        expected, expected_lengths = encoder(mels, lengths)
+        encoder.online_cuda_graphs = True
+        out, out_lengths = encoder(mels, lengths)
+        replayed, _ = encoder(mels, lengths)
+
+    assert encoder._diar_step_graphs.graphs, "no streaming step was captured"
+    assert torch.equal(out_lengths, expected_lengths)
+    for i, n in enumerate(expected_lengths.tolist()):
+        torch.testing.assert_close(out[i, :, :n], expected[i, :, :n])
+        torch.testing.assert_close(replayed[i, :, :n], expected[i, :, :n])
+
+
+@pytest.mark.unit
 def test_transformer_online_inference_preserves_partial_feature_stack():
     encoder = build_toy_pe_encoder(
         asr_encoder_type="transformer",

@@ -94,7 +94,8 @@ batch size and audio length:
 The keys can also be set in the checkpoint's ``config.json``.
 
 - ``encoder_cuda_graphs``: capture graphs for batches of 8 to 128 clips and lengths up to two 40-second encoder
-  windows, at the first encoder call. Longer audio runs the encoder without graphs. Capture adds start-up time and
+  windows, at the first encoder call. For longer audio, the streaming diarization steps after the speaker cache has
+  filled replay from CUDA graphs, while the ASR windows run batched without graphs. Capture adds start-up time and
   GPU memory; the graphs reproduce the encoder's outputs.
 - ``encoder_compile``: also compile each encoder transformer block with ``torch.compile``, fusing its
   memory-bound operations. This lowers encoder GPU time further and changes the outputs at bf16 rounding level.
