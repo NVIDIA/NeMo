@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -30,7 +31,6 @@ from nemo_automodel.components.speculative.dflash.draft_qwen3 import Qwen3DFlash
 from nemo_automodel.components.speculative.dflash.draft_qwen3_dflash2 import Qwen3DFlash2DraftModel  # noqa: E402
 
 from nemo.collections.speechlm2.parts import dflash as salm_dflash  # noqa: E402
-from nemo.collections.speechlm2.parts import packed_sequences  # noqa: E402
 
 REPO_ROOT = Path(__file__).parents[3]
 
@@ -401,7 +401,7 @@ def test_pack_audio_for_dflash_builds_unshifted_boundary_metadata():
         torch.tensor([[200.0, 201.0]]),
     ]
 
-    packed = packed_sequences.pack_audio_for_dflash(
+    packed = salm_dflash._pack_audio_for_dflash(
         input_ids=input_ids,
         embeds=embeds,
         loss_mask=loss_mask,
@@ -425,7 +425,7 @@ def test_pack_audio_for_dflash_builds_unshifted_boundary_metadata():
     assert packed["input_embeddings"][7:8].tolist() == replacements[1].tolist()
 
 
-def test_validate_packed_dflash_rejects_non_int32_cu_seqlens():
+def test_target_hidden_states_rejects_non_int32_cu_seqlens():
     packed = {
         "input_ids": torch.tensor([[10, 11, 20, 21]]),
         "input_embeddings": torch.randn(4, 2),
@@ -438,8 +438,9 @@ def test_validate_packed_dflash_rejects_non_int32_cu_seqlens():
         "qkv_format": "thd",
     }
 
+    module = salm_dflash.SALMDFlashModule(nn.Linear(1, 1), {"dflash": {"mask_token_id": 18}})
     with pytest.raises(ValueError, match="cu_seqlens must have dtype torch.int32"):
-        packed_sequences._validate_packed_dflash_inputs(packed)
+        module._target_hidden_states(packed)
 
 
 def test_pack_audio_for_dflash_one_document_matches_unpacked_preparation(monkeypatch):
@@ -465,7 +466,7 @@ def test_pack_audio_for_dflash_one_document_matches_unpacked_preparation(monkeyp
 
 def test_pack_audio_for_dflash_rejects_malformed_inputs():
     with pytest.raises(ValueError, match=r"same \[B, S\] shape"):
-        packed_sequences.pack_audio_for_dflash(
+        salm_dflash._pack_audio_for_dflash(
             input_ids=torch.ones(1, 3, dtype=torch.long),
             embeds=torch.ones(1, 3, 2),
             loss_mask=torch.ones(1, 2, dtype=torch.bool),
@@ -547,6 +548,27 @@ def test_build_draft_config_applies_explicit_architecture_and_layer_taps():
     }
     assert draft_config.architectures == ["Qwen3DFlashDraftModel"]
     assert draft_config.is_causal is False
+
+
+@pytest.mark.parametrize("variant", ["dflash", "dflash2"])
+def test_draft_export_excludes_target_only_architecture_fields(tmp_path, variant):
+    target_config = Qwen3Config(num_hidden_layers=8, dtype=torch.bfloat16)
+    target_config.num_nextn_predict_layers = 1
+    target_config.hybrid_override_pattern = "M-M-*"
+    target_config.partial_rotary_factor = 0.25
+    target_config.rope_parameters.update(partial_rotary_factor=0.25, mrope_section=[16, 24, 24])
+    draft_config, _ = salm_dflash._build_draft_config(
+        target_config, {"variant": variant}, block_size=16, mask_token_id=18
+    )
+
+    draft_config.save_pretrained(tmp_path)
+    exported = json.loads((tmp_path / "config.json").read_text())
+
+    assert not {"num_nextn_predict_layers", "hybrid_override_pattern", "partial_rotary_factor"} & exported.keys()
+    assert not {"partial_rotary_factor", "mrope_section"} & exported["rope_parameters"].keys()
+    assert exported["rope_parameters"]["rope_theta"] == target_config.rope_parameters["rope_theta"]
+    assert exported["model_type"] == "qwen3"
+    assert exported["dtype"] == "bfloat16"
 
 
 def test_build_dflash2_config_matches_automodel_recipe_fields():
@@ -1178,14 +1200,38 @@ def test_dflash_loss_times_weight_recovers_decay_weighted_numerator():
     torch.testing.assert_close(result.total_loss * effective_weights.sum(), expected_numerator)
 
 
-def test_training_step_synchronizes_multi_dataset_skips(monkeypatch):
+@pytest.mark.parametrize("audio_lens", [torch.empty(0, dtype=torch.long), torch.tensor([16000])])
+def test_training_accepts_mixed_audio_presence_across_ranks(monkeypatch, audio_lens):
+    module = salm_dflash.SALMDFlashModule(nn.Linear(1, 1), {"dflash": {"mask_token_id": 18}})
+    module.draft_model = nn.Linear(1, 1)
+    monkeypatch.setattr(module, "log", Mock())
+    monkeypatch.setattr(salm_dflash, "_all_ranks_agree", lambda condition, _device: condition)
+    # The other rank has no audio and no speaker targets. Audio synchronization
+    # belongs to encode_audio_with_cp_distribution, not the step's skip gate.
+    monkeypatch.setattr(salm_dflash, "_all_ranks_report_same_value", lambda value, _device: value == 0)
+    metrics = SimpleNamespace(
+        loss=torch.tensor(2.0, requires_grad=True),
+        loss_weight=torch.tensor(1.0),
+        accuracy=torch.tensor(0.5),
+        accept_len=torch.tensor(1.5),
+    )
+    run_batch = Mock(return_value=metrics)
+    monkeypatch.setattr(module, "_run_batch", run_batch)
+    batch = {"input_ids": torch.ones(1, 2, dtype=torch.long), "audio_lens": audio_lens}
+
+    loss = module._training_step_batch(batch, batch_idx=0)
+
+    torch.testing.assert_close(loss, metrics.loss)
+    run_batch.assert_called_once_with(batch)
+
+
+def test_validation_step_synchronizes_multi_dataset_skips(monkeypatch):
     module = salm_dflash.SALMDFlashModule(nn.Linear(1, 1), {"dflash": {"mask_token_id": 18}})
     module.draft_model = nn.Linear(1, 1)
     module._draft_dp_size = 1
     module._draft_dp_group = None
     log = Mock()
     monkeypatch.setattr(module, "log", log)
-    monkeypatch.setattr(salm_dflash, "_max_rank_value", lambda _value, _device: 3)
     availability = []
 
     def agree(local_condition, _device):
@@ -1200,6 +1246,8 @@ def test_training_step_synchronizes_multi_dataset_skips(monkeypatch):
         accuracy=torch.tensor(0.5),
         accept_len=torch.tensor(1.5),
         valid_tokens=torch.tensor(12),
+        correct_tokens=torch.tensor(6),
+        accept_len_sum=torch.tensor(6.0),
         valid_blocks=torch.tensor(4),
     )
     run_batch = Mock(side_effect=[salm_dflash.NoValidAnchorsError("skip"), metrics])
@@ -1207,11 +1255,12 @@ def test_training_step_synchronizes_multi_dataset_skips(monkeypatch):
     batch = {
         "dataset_a": {"input_ids": torch.ones(1, 2, dtype=torch.long)},
         "dataset_b": {"input_ids": torch.ones(1, 2, dtype=torch.long)},
+        "dataset_c": None,
     }
 
-    loss = module._training_step_batch(batch, batch_idx=0)
+    module.validation_step(batch, batch_idx=0)
 
-    torch.testing.assert_close(loss, metrics.loss)
+    assert list(module._partial_val_metrics) == ["dataset_b"]
     assert availability == [True, True, False]
     assert run_batch.call_count == 2
 
@@ -1233,14 +1282,13 @@ def test_train_end_resolves_relative_export_under_log_dir(monkeypatch, tmp_path,
     module.draft_model.save_pretrained.assert_called_once_with(expected, state_dict=state_dict)
 
 
-def test_training_step_returns_differentiable_zero_when_every_dataset_is_skipped(
+def test_training_step_returns_differentiable_zero_when_batch_is_skipped(
     monkeypatch,
 ):
     module = salm_dflash.SALMDFlashModule(nn.Linear(1, 1), {"dflash": {"mask_token_id": 18}})
     module.draft_model = nn.Linear(1, 1)
     log = Mock()
     monkeypatch.setattr(module, "log", log)
-    monkeypatch.setattr(salm_dflash, "_max_rank_value", lambda value, _device: value)
     monkeypatch.setattr(salm_dflash, "_all_ranks_agree", lambda condition, _device: condition)
     monkeypatch.setattr(salm_dflash, "_all_ranks_report_same_value", lambda _value, _device: True)
     monkeypatch.setattr(
@@ -1270,7 +1318,6 @@ def test_validation_step_accumulates_additive_metrics_in_float64(monkeypatch):
         accept_len_sum=torch.tensor(7.0),
         valid_blocks=torch.tensor(4),
     )
-    monkeypatch.setattr(salm_dflash, "_max_rank_value", lambda value, _device: value)
     monkeypatch.setattr(salm_dflash, "_all_ranks_agree", lambda condition, _device: condition)
     monkeypatch.setattr(salm_dflash, "_all_ranks_report_same_value", lambda _value, _device: True)
     monkeypatch.setattr(module, "_run_batch", Mock(return_value=metrics))

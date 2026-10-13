@@ -342,10 +342,7 @@ def test_load_local_nemo_resolves_concrete_target(tmp_path):
     with (
         patch.object(BaseModel, "restore_from", base_restore, create=True),
         patch.object(ConcreteModel, "restore_from", concrete_restore, create=True),
-        patch(
-            "nemo.core.classes.common._get_allowed_target_class",
-            return_value=ConcreteModel,
-        ) as resolve_target,
+        patch("nemo.core.classes.common._get_allowed_target_class", return_value=ConcreteModel) as resolve_target,
     ):
         result = load_pretrained_nemo(BaseModel, str(model_path))
 
@@ -383,10 +380,7 @@ def test_load_local_nemo_rejects_unrelated_target(tmp_path):
 
     with (
         patch.object(BaseModel, "restore_from", base_restore, create=True),
-        patch(
-            "nemo.core.classes.common._get_allowed_target_class",
-            return_value=UnrelatedModel,
-        ),
+        patch("nemo.core.classes.common._get_allowed_target_class", return_value=UnrelatedModel),
         pytest.raises(TypeError, match="not a subclass"),
     ):
         load_pretrained_nemo(BaseModel, str(model_path))
@@ -411,10 +405,7 @@ def test_load_local_nemo_accepts_wrapped_subclass(tmp_path):
     with (
         patch.object(BaseModel, "restore_from", base_restore, create=True),
         patch.object(WrappedModel, "restore_from", wrapped_restore, create=True),
-        patch(
-            "nemo.core.classes.common._get_allowed_target_class",
-            return_value=WrappedModel,
-        ),
+        patch("nemo.core.classes.common._get_allowed_target_class", return_value=WrappedModel),
     ):
         result = load_pretrained_nemo(BaseModel, str(model_path))
 

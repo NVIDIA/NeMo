@@ -304,16 +304,6 @@ def _load_state_dict_with_dtensors(model, weight_dir, *, strict: bool = False):
         )
 
     state_dict = {key: value for key, value in all_tensors.items() if key in checkpoint_keys}
-    missing_buffers = sorted(buffers.keys() - checkpoint_keys)
-    unexpected_keys = sorted(checkpoint_keys - all_tensors.keys())
-    logging.info(
-        "Distributed HF checkpoint coverage: %d/%d parameters and %d/%d buffers; " "%d checkpoint-only keys",
-        len(parameters) - len(missing_parameters),
-        len(parameters),
-        len(buffers) - len(missing_buffers),
-        len(buffers),
-        len(unexpected_keys),
-    )
     if missing_parameters:
         logging.warning(
             "Leaving %d model parameters at their initialized values because strict loading is disabled "

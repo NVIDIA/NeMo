@@ -20,6 +20,7 @@ import inspect
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -29,13 +30,12 @@ from nemo_automodel.components.speculative.dflash.core import DFlashTrainerModul
 from nemo_automodel.components.speculative.dflash.dflash2_core import DFlash2TrainerModule
 from nemo_automodel.components.speculative.dflash.draft_qwen3 import Qwen3DFlashDraftModel, build_target_layer_ids
 from nemo_automodel.components.speculative.dflash.draft_qwen3_dflash2 import Qwen3DFlash2DraftModel
-from torch import nn
+from torch import Tensor, nn
 from torch.distributed.tensor import DTensor
 from transformers.models.qwen3.configuration_qwen3 import Qwen3Config
 
 from nemo.collections.speechlm2.models.salm import replace_placeholders_and_build_targets
 from nemo.collections.speechlm2.parts.cp_helpers import encode_audio_with_cp_distribution, get_perception_fsdp_group
-from nemo.collections.speechlm2.parts.packed_sequences import _validate_packed_dflash_inputs, pack_audio_for_dflash
 from nemo.core.classes.common import safe_instantiate
 from nemo.core.utils.lightning_utils import read_batch
 from nemo.utils import logging
@@ -256,7 +256,7 @@ class SALMDFlashModule(LightningModule):
         text_ids = torch.where(input_ids == self.target.audio_locator_tag_id, 0, input_ids)
         text_embeddings = self.target._embed_tokens(text_ids)
         if self.target.cfg.get("packed_sequences", False):
-            return pack_audio_for_dflash(
+            return _pack_audio_for_dflash(
                 input_ids=input_ids,
                 embeds=text_embeddings,
                 loss_mask=batch["loss_mask"],
@@ -393,7 +393,13 @@ class SALMDFlashModule(LightningModule):
         packing_fields = ("qkv_format", "cu_seqlens", "position_ids", "seq_lens", "doc_remaining", "max_seqlen")
         is_packed = any(name in inputs for name in packing_fields)
         if is_packed:
-            _validate_packed_dflash_inputs(inputs)
+            missing = sorted(set(packing_fields).difference(inputs))
+            if missing:
+                raise ValueError(f"Packed DFlash inputs are missing required fields: {', '.join(missing)}")
+            if inputs["qkv_format"] != "thd":
+                raise ValueError("Packed DFlash requires qkv_format='thd'")
+            if inputs["cu_seqlens"].dtype != torch.int32:
+                raise ValueError("Packed DFlash cu_seqlens must have dtype torch.int32")
         if hasattr(self.target.llm, "model") and hasattr(self.target.llm.model, "layers"):
             layer_container = self.target.llm.model.layers
         elif hasattr(self.target.llm, "layers"):
@@ -581,64 +587,47 @@ class SALMDFlashModule(LightningModule):
     def _training_step_batch(self, batch, batch_idx):
         # Iterator-mode Lightning requires an explicit batch size for logging.
         # These are step-only metrics; batch_size=1 does not weight the objective.
-        batches = list(batch.values()) if isinstance(batch, dict) and "input_ids" not in batch else [batch]
-        losses = []
-        skip_counts = defaultdict(int)
-        num_batches = _max_rank_value(len(batches), self.device)
-        for dataset_index in range(num_batches):
-            dataset_batch = batches[dataset_index] if dataset_index < len(batches) else None
-            if not _all_ranks_agree(dataset_batch is not None, self.device):
-                skip_counts["missing_batch"] += 1
-                continue
-            assert dataset_batch is not None
-            signature = _preprocessing_signature(dataset_batch)
-            if not _all_ranks_report_same_value(signature, self.device):
-                skip_counts["preprocessing_signature"] += 1
-                continue
+        skip_reason = None
+        if not _all_ranks_agree(batch is not None, self.device):
+            skip_reason = "missing_batch"
+        elif not _all_ranks_report_same_value(int(batch.get("spk_targets") is not None), self.device):
+            skip_reason = "preprocessing_signature"
+        else:
             try:
-                metrics = self._run_batch(dataset_batch)
+                metrics = self._run_batch(batch)
             except NoValidAnchorsError:
-                # _run_batch's exact, synchronized precheck makes this branch
-                # rank-symmetric; retain the catch for direct/test callers.
-                skip_counts["no_valid_anchors"] += 1
-                continue
-            losses.append(self._globally_normalized_loss(metrics))
-            self.log("train/dflash_loss", metrics.loss, on_step=True, prog_bar=True, batch_size=1)
-            self.log("train/dflash_accuracy", metrics.accuracy, on_step=True, batch_size=1)
-            self.log("train/accept_len", metrics.accept_len, on_step=True, batch_size=1)
-            if self.dflash_variant == "dflash2":
-                self.log("train/dflash_base_loss", metrics.base_loss, on_step=True, batch_size=1)
-                self.log("train/dflash_selector_loss", metrics.selector_loss, on_step=True, batch_size=1)
-                self.log("train/dflash_base_accuracy", metrics.base_accuracy, on_step=True, batch_size=1)
-                self.log("train/dflash_base_accept_len", metrics.base_accept_len, on_step=True, batch_size=1)
-                self.log("train/dflash_candidate_recall", metrics.candidate_recall, on_step=True, batch_size=1)
-        if not losses:
-            # Every rank takes the same synchronized skip branches above. Lightning
-            # rejects ``None`` from ``training_step`` under distributed automatic
-            # optimization, so return a standalone differentiable zero. It has no
-            # graph edge to optimizer-owned draft parameters: backward is valid, all
-            # draft gradients stay ``None``, and AdamW performs no parameter update.
+                # _run_batch's synchronized anchor precheck makes this rank-symmetric.
+                skip_reason = "no_valid_anchors"
+        if skip_reason:
+            # A standalone differentiable zero lets Lightning run backward while
+            # leaving all draft gradients None, so AdamW performs no update.
             self.log("train/dflash_skipped_step", 1.0, on_step=True, batch_size=1)
-            for reason, count in skip_counts.items():
-                self.log(f"train/dflash_skip/{reason}", float(count), on_step=True, batch_size=1)
+            self.log(f"train/dflash_skip/{skip_reason}", 1.0, on_step=True, batch_size=1)
             return torch.zeros((), device=self.device, requires_grad=True)
         self.log("train/dflash_skipped_step", 0.0, on_step=True, batch_size=1)
-        return torch.stack(losses).mean()
+        self.log("train/dflash_loss", metrics.loss, on_step=True, prog_bar=True, batch_size=1)
+        self.log("train/dflash_accuracy", metrics.accuracy, on_step=True, batch_size=1)
+        self.log("train/accept_len", metrics.accept_len, on_step=True, batch_size=1)
+        if self.dflash_variant == "dflash2":
+            self.log("train/dflash_base_loss", metrics.base_loss, on_step=True, batch_size=1)
+            self.log("train/dflash_selector_loss", metrics.selector_loss, on_step=True, batch_size=1)
+            self.log("train/dflash_base_accuracy", metrics.base_accuracy, on_step=True, batch_size=1)
+            self.log("train/dflash_base_accept_len", metrics.base_accept_len, on_step=True, batch_size=1)
+            self.log("train/dflash_candidate_recall", metrics.candidate_recall, on_step=True, batch_size=1)
+        return self._globally_normalized_loss(metrics)
 
     def on_validation_epoch_start(self) -> None:
         self._partial_val_metrics.clear()
 
     def validation_step(self, batch, batch_idx) -> None:
-        batches = (
-            list(batch.items()) if isinstance(batch, dict) and "input_ids" not in batch else [("validation", batch)]
-        )
-        num_batches = _max_rank_value(len(batches), self.device)
-        for dataset_index in range(num_batches):
-            dataset_name, dataset_batch = batches[dataset_index] if dataset_index < len(batches) else ("missing", None)
+        # CombinedLoader(max_size) preserves configured keys and supplies None
+        # for exhausted datasets, so every rank visits these in the same order.
+        batches = batch if isinstance(batch, dict) and "input_ids" not in batch else {"validation": batch}
+        for dataset_name, dataset_batch in batches.items():
             if not _all_ranks_agree(dataset_batch is not None, self.device):
                 continue
             assert dataset_batch is not None
-            signature = _preprocessing_signature(dataset_batch)
+            signature = int(dataset_batch.get("spk_targets") is not None)
             if not _all_ranks_report_same_value(signature, self.device):
                 continue
             try:
@@ -800,15 +789,6 @@ def _all_ranks_agree(local_condition: bool, device: torch.device) -> bool:
     return bool(flag.item())
 
 
-def _max_rank_value(local_value: int, device: torch.device) -> int:
-    """Return the maximum integer reported by any distributed rank."""
-    if not (torch.distributed.is_available() and torch.distributed.is_initialized()):
-        return local_value
-    value = torch.tensor([local_value], device=device, dtype=torch.int32)
-    torch.distributed.all_reduce(value, op=torch.distributed.ReduceOp.MAX)
-    return int(value.item())
-
-
 def _all_ranks_report_same_value(local_value: int, device: torch.device) -> bool:
     """Return whether every distributed rank reports the same integer."""
     if not (torch.distributed.is_available() and torch.distributed.is_initialized()):
@@ -816,14 +796,6 @@ def _all_ranks_report_same_value(local_value: int, device: torch.device) -> bool
     extrema = torch.tensor([local_value, -local_value], device=device, dtype=torch.int32)
     torch.distributed.all_reduce(extrema, op=torch.distributed.ReduceOp.MIN)
     return int(extrema[0].item()) == -int(extrema[1].item())
-
-
-def _preprocessing_signature(batch: dict[str, torch.Tensor]) -> int:
-    """Describe rank-local branches that may enter distributed perception."""
-    audio_lens = batch.get("audio_lens")
-    has_audio = audio_lens is not None and audio_lens.numel() > 0
-    has_speaker_targets = batch.get("spk_targets") is not None
-    return int(has_audio) | (int(has_speaker_targets) << 1)
 
 
 def _has_valid_dflash_anchors(
@@ -904,26 +876,25 @@ def _build_draft_config(
             }
         )
 
-    draft_layers_config = {
-        "layer_types": ["full_attention"] * draft_layers,
-        "sliding_window": None,
-        "use_sliding_window": False,
-    }
     sliding_window = dflash_config.get("draft_sliding_window")
     if sliding_window is not None:
         sliding_window = int(sliding_window)
         if sliding_window <= 0:
             raise ValueError(f"dflash.draft_sliding_window must be > 0 or null, got {sliding_window}")
-        draft_layers_config = {
-            "layer_types": ["sliding_attention"] * draft_layers,
-            "sliding_window": sliding_window,
-            "use_sliding_window": True,
-        }
 
-    draft_dict = target_config.to_dict()
+    # Keep target-specific Mamba/MoE/MTP and rotary settings out of the Qwen3 export.
+    qwen3_keys = Qwen3Config().to_dict().keys()
+    draft_dict = {key: value for key, value in target_config.to_dict().items() if key in qwen3_keys}
+    if isinstance(draft_dict.get("rope_parameters"), dict):
+        draft_dict["rope_parameters"] = {
+            key: value
+            for key, value in draft_dict["rope_parameters"].items()
+            if not key.startswith("mrope_") and key != "partial_rotary_factor"
+        }
     draft_dict.update(architecture)
     draft_dict.update(
         {
+            "model_type": "qwen3",
             "architectures": ["Qwen3DFlash2DraftModel" if variant == "dflash2" else "Qwen3DFlashDraftModel"],
             "num_hidden_layers": draft_layers,
             "max_window_layers": draft_layers,
@@ -931,7 +902,9 @@ def _build_draft_config(
             "num_target_layers": num_target_layers,
             "block_size": block_size,
             "dflash_config": draft_metadata,
-            **draft_layers_config,
+            "layer_types": ["sliding_attention" if sliding_window is not None else "full_attention"] * draft_layers,
+            "sliding_window": sliding_window,
+            "use_sliding_window": sliding_window is not None,
         }
     )
     draft_config = Qwen3Config.from_dict(draft_dict)
@@ -988,3 +961,140 @@ def _get_consolidated_model_state_dict(model: nn.Module) -> dict[str, torch.Tens
     from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict
 
     return get_model_state_dict(model, options=StateDictOptions(full_state_dict=True, cpu_offload=True))
+
+
+def _pack_audio_for_dflash(
+    input_ids: Tensor,
+    embeds: Tensor,
+    loss_mask: Tensor,
+    replacements: list[Tensor],
+    padding_id: int,
+    placeholder_id: int,
+    mask_token_id: int,
+) -> dict[str, Any]:
+    """Splice audio frames and concatenate utterances for packed SALM DFlash.
+
+    Unlike ordinary causal-LM packing, DFlash consumes the full unshifted token
+    stream. Each audio placeholder becomes one ``mask_token_id`` per encoder
+    frame and every inserted frame is excluded from supervision. The returned
+    target embeddings are flat THD ``[T, H]`` while all draft tensors retain a
+    synthetic packed batch row ``[1, T]``.
+    """
+    if input_ids.ndim != 2:
+        raise ValueError(f"Packed DFlash input_ids must have shape [B, S], got {tuple(input_ids.shape)}")
+    if embeds.ndim != 3 or embeds.shape[:2] != input_ids.shape:
+        raise ValueError(
+            "Packed DFlash embeds must have shape [B, S, H] matching input_ids; "
+            f"got {tuple(embeds.shape)} and {tuple(input_ids.shape)}"
+        )
+    if loss_mask.shape != input_ids.shape:
+        raise ValueError(
+            "Packed DFlash input_ids and loss_mask must have the same [B, S] shape; "
+            f"got {tuple(input_ids.shape)} and {tuple(loss_mask.shape)}"
+        )
+    if input_ids.shape[0] == 0:
+        raise ValueError("Packed DFlash requires at least one document")
+
+    hidden_size = embeds.shape[-1]
+    replacement_idx = 0
+    document_embeddings: list[Tensor] = []
+    document_ids: list[Tensor] = []
+    document_loss_masks: list[Tensor] = []
+    document_lengths: list[int] = []
+
+    for row_idx in range(input_ids.shape[0]):
+        row_ids = input_ids[row_idx]
+        non_padding = (row_ids != padding_id).nonzero(as_tuple=False)
+        if non_padding.numel() == 0:
+            raise ValueError(f"Packed DFlash document {row_idx} contains only padding")
+        start = int(non_padding[0].item())
+        row_ids = row_ids[start:]
+        row_embeddings = embeds[row_idx, start:]
+        row_loss_mask = loss_mask[row_idx, start:].bool()
+
+        embedding_segments: list[Tensor] = []
+        id_segments: list[Tensor] = []
+        loss_segments: list[Tensor] = []
+        previous = 0
+        for placeholder_pos in (row_ids == placeholder_id).nonzero(as_tuple=True)[0].tolist():
+            if placeholder_pos > previous:
+                ids_segment = row_ids[previous:placeholder_pos]
+                embedding_segments.append(row_embeddings[previous:placeholder_pos])
+                id_segments.append(ids_segment)
+                loss_segments.append(row_loss_mask[previous:placeholder_pos] & ids_segment.ne(padding_id))
+            if replacement_idx >= len(replacements):
+                raise ValueError("Packed DFlash has more audio placeholders than replacement tensors")
+            replacement = replacements[replacement_idx]
+            replacement_idx += 1
+            if replacement.ndim != 2 or replacement.shape[1] != hidden_size:
+                raise ValueError(
+                    "Packed DFlash audio replacements must have shape [frames, H] matching text embeddings; "
+                    f"got {tuple(replacement.shape)} for H={hidden_size}"
+                )
+            if replacement.shape[0] == 0:
+                raise ValueError("Packed DFlash audio replacements must contain at least one frame")
+            embedding_segments.append(replacement)
+            id_segments.append(
+                torch.full(
+                    (replacement.shape[0],),
+                    mask_token_id,
+                    dtype=input_ids.dtype,
+                    device=input_ids.device,
+                )
+            )
+            loss_segments.append(torch.zeros(replacement.shape[0], dtype=torch.bool, device=input_ids.device))
+            previous = placeholder_pos + 1
+
+        if previous < row_ids.numel():
+            ids_segment = row_ids[previous:]
+            embedding_segments.append(row_embeddings[previous:])
+            id_segments.append(ids_segment)
+            loss_segments.append(row_loss_mask[previous:] & ids_segment.ne(padding_id))
+        if not embedding_segments:
+            raise ValueError(f"Packed DFlash document {row_idx} has no real tokens after unpadding")
+
+        document_embedding = torch.cat(embedding_segments, dim=0)
+        document_id = torch.cat(id_segments, dim=0)
+        document_loss_mask = torch.cat(loss_segments, dim=0)
+        length = document_id.numel()
+        if document_embedding.shape[0] != length or document_loss_mask.numel() != length:
+            raise ValueError(f"Packed DFlash document {row_idx} is not token aligned after audio expansion")
+        document_embeddings.append(document_embedding)
+        document_ids.append(document_id)
+        document_loss_masks.append(document_loss_mask)
+        document_lengths.append(length)
+
+    if replacement_idx != len(replacements):
+        raise ValueError(
+            f"Packed DFlash used {replacement_idx} of {len(replacements)} audio replacements; "
+            "placeholder occurrences and replacements must match"
+        )
+
+    device = input_ids.device
+    flat_ids = torch.cat(document_ids).unsqueeze(0)
+    flat_loss_mask = torch.cat(document_loss_masks).unsqueeze(0)
+    seq_lens = torch.tensor(document_lengths, dtype=torch.long, device=device).unsqueeze(0)
+    position_ids = torch.cat(
+        [torch.arange(length, dtype=torch.long, device=device) for length in document_lengths]
+    ).unsqueeze(0)
+    doc_remaining = torch.cat(
+        [torch.arange(length - 1, -1, -1, dtype=torch.long, device=device) for length in document_lengths]
+    ).unsqueeze(0)
+    cu_seqlens = torch.cat(
+        [
+            torch.zeros(1, dtype=torch.int32, device=device),
+            seq_lens.flatten().cumsum(0, dtype=torch.int32),
+        ]
+    )
+    return {
+        "input_ids": flat_ids,
+        "input_embeddings": torch.cat(document_embeddings, dim=0),
+        "attention_mask": None,
+        "loss_mask": flat_loss_mask,
+        "position_ids": position_ids,
+        "seq_lens": seq_lens,
+        "doc_remaining": doc_remaining,
+        "cu_seqlens": cu_seqlens,
+        "max_seqlen": torch.tensor(max(document_lengths), dtype=torch.int32, device=device),
+        "qkv_format": "thd",
+    }

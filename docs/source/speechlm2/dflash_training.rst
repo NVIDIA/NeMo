@@ -23,6 +23,9 @@ leading padding is moved to the end of each row so it cannot enter a draft conte
 ``trainer.precision`` controls both target and draft dtypes during training. For BF16
 training, either the shipped ``bf16-flash`` or ``bf16-automodel`` trainer precision
 is supported. Target inference backend compatibility is validated before constructing the draft.
+The frozen target runs in the configured parameter dtype without TE FP8 autocast.
+Packed decoder inputs are supported; packed audio-encoder execution
+(``model.packed_encoder_sequences`` / ``model.packed_encoder_cp``) is not enabled by this entry point.
 
 ``dflash.lr`` defaults to 6e-4 with AdamW and no scheduler. To reproduce an adaptation
 schedule, supply ``dflash.optimizer`` and ``dflash.lr_scheduler`` explicitly; for example:
