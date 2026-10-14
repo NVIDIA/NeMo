@@ -309,3 +309,58 @@ Execution Flow
 
 When writing custom inference scripts, follow the execution flow diagram at the
 `ASR examples README <https://github.com/NVIDIA-NeMo/Speech/blob/main/examples/asr/README.md>`_.
+
+
+Offline TensorRT encoder
+------------------------
+
+An exported offline ASR encoder can run in TensorRT while preprocessing and RNNT/TDT greedy decoding remain in PyTorch.
+Install a CUDA-compatible TensorRT 10.x package and Polygraphy in addition to NeMo's ASR dependencies.
+The encoder ONNX file and the decoding checkpoint must come from the same model.
+Only the encoder is compiled; this workflow does not export the autoregressive decoding loop.
+
+Export the encoder using the model's supported ONNX export interface, then build an engine:
+
+.. code-block:: bash
+
+    python examples/asr/export/build_trt_encoder.py --onnx encoder.onnx --engine encoder.plan --features 128
+
+Set the feature count to the model's input feature dimension.
+The example uses batches 1–16 and 8–4000 feature frames before subsampling; adjust the profile flags for your workload.
+The ONNX export's positional-cache capacity must also cover the requested maximum length.
+FP32 with TF32 disabled is the default.
+Use --fp16 to permit FP16 internal kernels, and validate recognition accuracy separately.
+Input and output dtypes are determined by the engine, independently of its internal kernel precision.
+A timing cache can be saved and reused with --timing-cache.
+Engines and timing caches must be built for compatible GPU hardware and TensorRT/CUDA versions.
+
+Transcribe mono audio at the checkpoint's sample rate:
+
+.. code-block:: bash
+
+    python examples/asr/export/transducer/infer_transducer_trt.py --model model.nemo --engine encoder.plan --audio a.wav b.wav --output predictions.jsonl --batch-size 2 --compare-native
+
+The optional native comparison records both predictions in the JSONL output.
+It is a correctness comparison, not a throughput measurement.
+Preprocessing and the decoder remain FP32 in this example, and CUDA graph decoding is disabled.
+The example retains the native encoder for comparison; it does not measure minimum deployment memory.
+
+For an existing inference loop:
+
+.. code-block:: python
+
+    from nemo.collections.asr.parts.submodules.tensorrt_encoder import TensorRTEncoder
+
+    encoder = TensorRTEncoder("encoder.plan", device="cuda:0")
+    encoded, encoded_lengths = encoder(features, feature_lengths)
+    hypotheses = model.decoding.rnnt_decoder_predictions_tensor(
+        encoded.float(), encoded_lengths, return_hypotheses=True
+    )
+
+Features and integer lengths must be CUDA tensors on the selected device.
+The runtime uses optimization profile zero and accepts dynamic shapes within that profile.
+It requires linear device I/O named audio_signal, length, outputs and encoded_lengths.
+Host I/O, data-dependent output shapes, streaming caches, autograd and CUDA graph capture are outside this interface.
+Each instance belongs to one CUDA stream after its first call.
+Use a separate instance for another stream, serialize calls, and keep the instance alive until its queued work completes.
+As with other asynchronous PyTorch operations, the caller must establish dependencies between producer and consumer streams.
