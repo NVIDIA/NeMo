@@ -276,6 +276,22 @@ For models with a Local Transformer, GRPO can optimize both with and without the
     +model.use_local_transformer_prob=0.5  # 50% of generations use LT
 
 
+EasyMagpie Online PO Options
+---------------------------
+
+For ``examples/tts/easy_magpietts.py`` in ``onlinepo_train`` mode, set
+``model.phoneme_po_loss_weight`` above zero to optimize sampled phoneme actions
+alongside audio. This requires ``inference_phoneme_sampling_method=sample``, a
+positive ``inference_phoneme_temperature``, ``inference_phoneme_topk>=2``, and
+``phoneme_confidence_unk_threshold=0``. Phoneme sampling temperature and top-k
+can be configured independently of audio sampling.
+
+``model.save_reward_audios`` defaults to ``True``. Set it to ``False`` to remove
+generated and reference WAVs when each ``generate_and_reward`` call returns or
+raises an exception. Each call uses a unique directory in writable ``/dev/shm``,
+or the system temporary directory when tmpfs is unavailable. Reward scoring
+finishes before cleanup; returned codes, rewards, and metrics remain available.
+
 See Also
 ########
 

@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import atexit
 import copy
 import os
 import random
-import shutil
+import tempfile
 import time
 from typing import Dict, List, Optional
 
@@ -154,9 +153,7 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         self.phoneme_sampling_topk = int(
             self.cfg.get(
                 'inference_phoneme_topk',
-                self.phoneme_vocab_size
-                if self.phoneme_po_loss_weight > 0.0
-                else self.audio_sampling_topk,
+                self.phoneme_vocab_size if self.phoneme_po_loss_weight > 0.0 else self.audio_sampling_topk,
             )
         )
         self.po_groups_per_subbatch = max(int(self.cfg.get('po_groups_per_subbatch', 1)), 1)
@@ -363,9 +360,7 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
             # Top-k sampling assigns -inf to tokens outside its support. Padded
             # labels may select one of those tokens, so multiplication by a zero
             # mask would produce `-inf * 0 = NaN`. Select masked values instead.
-            per_token_logps = torch.where(
-                loss_mask.bool(), per_token_logps, torch.zeros_like(per_token_logps)
-            )
+            per_token_logps = torch.where(loss_mask.bool(), per_token_logps, torch.zeros_like(per_token_logps))
         return per_token_logps
 
     @staticmethod
@@ -474,12 +469,7 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         """Return (and create if needed) the directory used to store intermediate waveforms during PO."""
         if not self.cfg.get('save_reward_audios', True):
             if not hasattr(self, '_tmp_reward_audio_dir'):
-                job_id = os.environ.get('SLURM_JOB_ID', 'local')
-                self._tmp_reward_audio_dir = os.path.join(
-                    '/dev/shm', f'easy_magpie_rewards_{job_id}_rank{self.global_rank}'
-                )
-                os.makedirs(self._tmp_reward_audio_dir, exist_ok=True)
-                atexit.register(shutil.rmtree, self._tmp_reward_audio_dir, ignore_errors=True)
+                raise RuntimeError('Temporary reward audio must be created inside generate_and_reward.')
             return self._tmp_reward_audio_dir
 
         if self.logger is not None and hasattr(self.logger, "log_dir") and self.logger.log_dir is not None:
@@ -757,6 +747,44 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         return [float(item['predicted_mos']) for item in batch_results]
 
     def generate_and_reward(
+        self,
+        batch: Dict,
+        num_generations_per_item: int,
+        mode: str = 'train',
+        use_local_transformer_for_inference: bool = False,
+    ):
+        """Run autoregressive inference on the batch, compute multi-signal rewards
+        (CER, speaker similarity, UTMOSv2), and return per-item advantages.
+
+        This is the core rollout-then-reward step of the online PO pipeline.
+
+        Returns:
+            Dict containing mean/std rewards, per-item metrics, predicted codes,
+            advantages, group validities, and timing information.
+        """
+        kwargs = dict(
+            batch=batch,
+            num_generations_per_item=num_generations_per_item,
+            mode=mode,
+            use_local_transformer_for_inference=use_local_transformer_for_inference,
+        )
+        if self.cfg.get('save_reward_audios', True):
+            return self._generate_and_reward(**kwargs)
+
+        # All waveform consumers finish before the reward call returns. Keep its
+        # generated and reference WAVs in a unique directory and remove them on
+        # both success and failure, without waiting for process exit.
+        scratch_root = '/dev/shm' if os.path.isdir('/dev/shm') and os.access('/dev/shm', os.W_OK) else None
+        with tempfile.TemporaryDirectory(
+            prefix=f'easy_magpie_rewards_rank{self.global_rank}_', dir=scratch_root
+        ) as path:
+            self._tmp_reward_audio_dir = path
+            try:
+                return self._generate_and_reward(**kwargs)
+            finally:
+                del self._tmp_reward_audio_dir
+
+    def _generate_and_reward(
         self,
         batch: Dict,
         num_generations_per_item: int,
@@ -1177,9 +1205,7 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
                 probs = log_probs.exp()
                 per_token_entropy = -torch.xlogy(probs, probs).sum(-1)
 
-            stream_entropy = (
-                (per_token_entropy * loss_mask).sum(dim=1) / loss_mask.sum(dim=1).clamp_min(1e-8)
-            ).mean()
+            stream_entropy = ((per_token_entropy * loss_mask).sum(dim=1) / loss_mask.sum(dim=1).clamp_min(1e-8)).mean()
 
             grpo_beta = float(self.cfg.get('grpo_beta', 0.0))
             if not self.reference_free and reference_logits is not None and grpo_beta > 0.0:
@@ -1193,9 +1219,7 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
                             .clamp(-100.0, 100.0)
                             .div(sampling_temperature)
                         )
-                    per_token_ref_logps = self._get_per_token_logps(
-                        ref_stream_logits, stream_labels, loss_mask
-                    )
+                    per_token_ref_logps = self._get_per_token_logps(ref_stream_logits, stream_labels, loss_mask)
                 with torch.cuda.amp.autocast(enabled=False):
                     per_token_kl = (
                         torch.exp(per_token_ref_logps.float() - per_token_logps.float())
@@ -1203,16 +1227,12 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
                         - 1
                     )
                     per_token_loss = per_token_loss + grpo_beta * per_token_kl
-                stream_kl = (
-                    (per_token_kl * loss_mask).sum(dim=1) / loss_mask.sum(dim=1).clamp_min(1e-8)
-                ).mean()
+                stream_kl = ((per_token_kl * loss_mask).sum(dim=1) / loss_mask.sum(dim=1).clamp_min(1e-8)).mean()
             else:
                 stream_kl = logits.new_zeros((), dtype=torch.float32)
 
             if self.loss_type == "grpo":
-                stream_loss = (
-                    (per_token_loss * loss_mask).sum(dim=1) / loss_mask.sum(dim=1).clamp_min(1e-8)
-                ).mean()
+                stream_loss = ((per_token_loss * loss_mask).sum(dim=1) / loss_mask.sum(dim=1).clamp_min(1e-8)).mean()
             elif self.loss_type == "dr_grpo":
                 total_tokens = per_token_loss.shape[0] * self.max_decoder_steps
                 stream_loss = (per_token_loss * loss_mask).sum() / max(total_tokens, 1)
@@ -1253,9 +1273,7 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
             group_validities=group_validities,
             sampling_temperature=self.audio_sampling_temperature,
             sampling_topk=self.audio_sampling_topk,
-            forbidden_token_ids=SpecialAudioToken.get_forbidden_tokens(
-                self.codebook_size, forbid_audio_eos=False
-            ),
+            forbidden_token_ids=SpecialAudioToken.get_forbidden_tokens(self.codebook_size, forbid_audio_eos=False),
         )
 
         zero = audio_logits.new_zeros((), dtype=torch.float32)
@@ -1269,9 +1287,7 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
                 or policy_output.phoneme_tokens_lens_target is None
             ):
                 raise RuntimeError("Predicted-phoneme PO requires phoneme logits, targets, and target lengths.")
-            reference_phoneme_logits = (
-                reference_output.phoneme_logits if reference_output is not None else None
-            )
+            reference_phoneme_logits = reference_output.phoneme_logits if reference_output is not None else None
             phoneme_po_loss, phoneme_kl, phoneme_entropy = self._compute_action_po_components(
                 logits=policy_output.phoneme_logits,
                 reference_logits=reference_phoneme_logits,
