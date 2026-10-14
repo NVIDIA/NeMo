@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import math
 import os
 import random
 from dataclasses import dataclass
@@ -50,6 +51,7 @@ from nemo.collections.tts.parts.utils.helpers import (
     transcribe_with_whisper,
     transcribe_with_whisper_from_filepaths,
 )
+from nemo.collections.tts.parts.utils.phoneme_loss_lexicon import PhonemeLossLexicon, make_phoneme_loss_weights
 from nemo.core.classes.common import safe_instantiate
 from nemo.utils import logging
 
@@ -85,6 +87,7 @@ class ProcessBatchOutput:
         context_audio_codes: Processed context audio codes (B, C, T')
         context_audio_codes_lens: Length of processed context audio codes (B,)
         selected_training_mode: Name of the training mode used for this batch (e.g., "streaming_4_8")
+        phoneme_loss_coverage: Optional matched, amplified, and effective loss-token counts.
     """
 
     loss: torch.Tensor
@@ -101,6 +104,7 @@ class ProcessBatchOutput:
     context_audio_codes: Optional[torch.Tensor]
     context_audio_codes_lens: Optional[torch.Tensor]
     selected_training_mode: Optional[str]
+    phoneme_loss_coverage: Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]] = None
 
 
 class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
@@ -122,6 +126,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         self.phoneme_corruption_unk_mode_prob = cfg.get('phoneme_corruption_unk_mode_prob', 0.5)
         self.phoneme_corruption_type = cfg.get('phoneme_corruption_type', 'repeat_skip_unk')
         self.phoneme_loss_weight = cfg.get('phoneme_loss_weight', 1.0)
+        self._initialize_phoneme_loss_lexicon()
         self.parallel_codebook_loss_scale = cfg.get('parallel_codebook_loss_scale', 1.0)
         self.local_transformer_loss_scale = cfg.get('local_transformer_loss_scale', 1.0)
 
@@ -239,6 +244,8 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         phoneme_tokens,
         phoneme_tokens_lens,
         custom_mask=None,
+        token_weights=None,
+        return_coverage=False,
     ):
         """Compute the average cross-entropy loss across stacked phoneme streams.
 
@@ -250,12 +257,18 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             custom_mask: Optional frame-level mask with shape ``(B, T)``. When
                 provided, loss is computed only at positions where the mask is
                 nonzero.
+            token_weights: Optional floating-point weights with the target shape
+                ``(B, S, T)``. Matched positions are multiplied by the configured
+                scale; the original valid-token denominator is preserved.
+            return_coverage: Append matched, amplified, and effective token counts
+                for training coverage logging.
 
         Returns:
             A tuple containing:
 
             - The scalar phoneme loss averaged over stacked phoneme streams.
             - The length-based loss mask with shape ``(B, S, T)``.
+            - Optional coverage counts when ``return_coverage`` is true.
         """
         loss_mask = get_mask_from_lengths(phoneme_tokens_lens)
         loss_mask = loss_mask.unsqueeze(1).repeat(1, phoneme_tokens.size(1), 1)
@@ -280,6 +293,10 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 dtype=loss_mask.dtype,
             )
 
+        if token_weights is not None:
+            if token_weights.shape != phoneme_tokens.shape:
+                raise ValueError("Phoneme token weights must match the stacked target shape")
+            token_weights = token_weights.to(device=logits.device)
         total_phoneme_loss = None
 
         for codebook in range(self.phoneme_stacking_factor):
@@ -299,12 +316,23 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             if custom_mask is not None:
                 effective_mask = effective_mask * custom_mask
 
+            if token_weights is not None:
+                raw_loss = raw_loss * token_weights[:, codebook, :].to(dtype=raw_loss.dtype)
             phoneme_loss = raw_loss * effective_mask
             phoneme_loss = phoneme_loss.sum() / effective_mask.sum().clamp_min(1.0)
 
             total_phoneme_loss = phoneme_loss if total_phoneme_loss is None else total_phoneme_loss + phoneme_loss
 
         total_phoneme_loss = total_phoneme_loss / self.phoneme_stacking_factor
+        if return_coverage:
+            matched = (
+                torch.zeros_like(phoneme_tokens, dtype=torch.bool) if token_weights is None else token_weights > 1
+            )
+            effective_mask = loss_mask
+            if custom_mask is not None:
+                effective_mask = effective_mask * custom_mask.unsqueeze(1)
+            coverage = (matched.sum(), (matched & effective_mask.bool()).sum(), effective_mask.sum())
+            return total_phoneme_loss, loss_mask, coverage
         return total_phoneme_loss, loss_mask
 
     def log_val_audio_example(
@@ -902,6 +930,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         phoneme_tokens_lens,
         mode="train",
         training_mode=None,
+        phoneme_loss_mask=None,
     ) -> ProcessBatchOutput:
         """Predict normalized IPA with no codec, speaker, or audio decoder calls."""
         if self.phoneme_tokenizer is None or phoneme_tokens is None or phoneme_tokens_lens is None:
@@ -970,7 +999,18 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         predictions = self.slice_sequence_embeddings(hidden, phoneme_delay, target_lens)
         logits = self.phoneme_final_proj(predictions)
         targets = clean_tokens[:, :, 1:].long()
-        phoneme_loss, _ = self.compute_phoneme_loss(logits, targets, target_lens)
+        token_weights = make_phoneme_loss_weights(
+            phoneme_loss_mask,
+            phoneme_tokens,
+            self.phoneme_stacking_factor,
+            getattr(self.phoneme_tokenizer, 'bos_token_id', None),
+            scale=self.cfg.get('phoneme_lexicon_loss_scale', 1.0),
+            mode=mode,
+        )
+        loss_result = self.compute_phoneme_loss(
+            logits, targets, target_lens, token_weights=token_weights, return_coverage=token_weights is not None
+        )
+        phoneme_loss = loss_result[0]
         return ProcessBatchOutput(
             loss=self.phoneme_loss_weight * phoneme_loss,
             codebook_loss=phoneme_loss.new_zeros(()),
@@ -986,6 +1026,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             context_audio_codes=None,
             context_audio_codes_lens=None,
             selected_training_mode=selected_mode.name,
+            phoneme_loss_coverage=loss_result[2] if token_weights is not None else None,
         )
 
     def process_batch(
@@ -1006,6 +1047,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         task: Optional[List[str]] = None,
         agent_mask: Optional[torch.Tensor] = None,
         user_audio_embedded: Optional[torch.Tensor] = None,
+        phoneme_loss_mask: Optional[torch.Tensor] = None,
     ) -> ProcessBatchOutput:
         """
         Simplified batch processing using channel-based embedding architecture.
@@ -1057,6 +1099,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 phoneme_tokens_lens,
                 mode,
                 training_mode,
+                phoneme_loss_mask=phoneme_loss_mask,
             )
 
         # Select training mode
@@ -1381,6 +1424,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
 
         # Compute phoneme loss if applicable
         phoneme_loss = None
+        phoneme_loss_coverage = None
         pb_phoneme_logits = None
         pb_phoneme_tokens_target = None
         pb_phoneme_tokens_lens_target = None
@@ -1395,6 +1439,15 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             pb_phoneme_tokens_target = phoneme_tokens_stacked_clean[:, :, 1:].long()
             pb_phoneme_tokens_lens_target = phoneme_tokens_lens_stacked - 1
 
+            token_weights = make_phoneme_loss_weights(
+                phoneme_loss_mask,
+                phoneme_tokens,
+                self.phoneme_stacking_factor,
+                getattr(self.phoneme_tokenizer, 'bos_token_id', None),
+                scale=self.cfg.get('phoneme_lexicon_loss_scale', 1.0),
+                mode=mode,
+            )
+
             if (phoneme_corruption_mode != 'repeat_skip') and not (
                 dropout_complete_phoneme_channel
                 or (phoneme_turn_dropout is not None and phoneme_turn_dropout.any())
@@ -1407,11 +1460,22 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 elif self.cfg.get("mask_user_on_loss", False):
                     custom_mask = agent_mask
 
-                phoneme_loss, _ = self.compute_phoneme_loss(
-                    pb_phoneme_logits, pb_phoneme_tokens_target, pb_phoneme_tokens_lens_target, custom_mask=custom_mask
+                loss_result = self.compute_phoneme_loss(
+                    pb_phoneme_logits,
+                    pb_phoneme_tokens_target,
+                    pb_phoneme_tokens_lens_target,
+                    custom_mask=custom_mask,
+                    token_weights=token_weights,
+                    return_coverage=token_weights is not None,
                 )
+                phoneme_loss = loss_result[0]
+                if token_weights is not None:
+                    phoneme_loss_coverage = loss_result[2]
             else:
                 phoneme_loss = torch.tensor(0.0, device=logits.device)
+                if token_weights is not None:
+                    matched = (token_weights > 1).sum()
+                    phoneme_loss_coverage = (matched, torch.zeros_like(matched), torch.zeros_like(matched))
 
             loss = loss + self.phoneme_loss_weight * phoneme_loss
 
@@ -1430,6 +1494,32 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             context_audio_codes=context_audio_codes_processed,
             context_audio_codes_lens=context_audio_codes_lens_processed,
             selected_training_mode=selected_training_mode.name if selected_training_mode is not None else None,
+            phoneme_loss_coverage=phoneme_loss_coverage,
+        )
+
+    def _log_phoneme_loss_coverage(self, output):
+        """Log global batch coverage using one packed, detached all-reduce."""
+        if self.cfg.get('phoneme_lexicon_loss_scale', 1.0) == 1.0:
+            return
+        if output.phoneme_loss_coverage is None:
+            counts = output.loss.new_zeros(3, dtype=torch.long)
+        else:
+            counts = torch.stack(output.phoneme_loss_coverage).detach()
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            torch.distributed.all_reduce(counts, op=torch.distributed.ReduceOp.SUM)
+        logged_counts = counts.float()
+        self.log_dict(
+            {
+                'train/phoneme_lexicon_matched_tokens': logged_counts[0],
+                'train/phoneme_amplified_tokens': logged_counts[1],
+                'train/phoneme_loss_tokens': logged_counts[2],
+                'train/phoneme_amplified_percent': 100.0 * logged_counts[1] / logged_counts[2].clamp_min(1),
+            },
+            on_step=True,
+            on_epoch=False,
+            sync_dist=False,
+            prog_bar=False,
+            rank_zero_only=True,
         )
 
     def training_step(self, batch, batch_idx):
@@ -1441,7 +1531,9 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 batch["context_text_tokens_lens"],
                 batch.get("phoneme_tokens"),
                 batch.get("phoneme_tokens_lens"),
+                phoneme_loss_mask=batch.get("phoneme_loss_mask"),
             )
+            self._log_phoneme_loss_coverage(output)
             self.log("train/loss", output.loss, prog_bar=True, sync_dist=True)
             self.log("train/phoneme_loss", output.phoneme_loss, prog_bar=True, sync_dist=True)
             self.log("train/codebook_loss", output.codebook_loss, prog_bar=True, sync_dist=True)
@@ -1667,8 +1759,10 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             task=batch["task"] if self.cfg.get("use_multiturn_dataset", False) else None,
             agent_mask=batch["agent_mask"] if self.cfg.get("use_multiturn_dataset", False) else None,
             user_audio_embedded=user_audio_embedded,
+            phoneme_loss_mask=batch.get("phoneme_loss_mask"),
         )
         loss = batch_output.loss
+        self._log_phoneme_loss_coverage(batch_output)
         codebook_loss = batch_output.codebook_loss
         self.log('train/codebook_loss', codebook_loss, prog_bar=True, sync_dist=True)
         self.log('train/loss', loss, prog_bar=True, sync_dist=True)
@@ -2144,7 +2238,31 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         if torch.distributed.is_initialized():
             self.trainer.strategy.model.require_backward_grad_sync = True
 
+    def _initialize_phoneme_loss_lexicon(self):
+        # ModelPT may call dataset setup from its own constructor, before this
+        # subclass constructor resumes. Initialize once from either entry point.
+        if hasattr(self, 'phoneme_lexicon_loss_scale'):
+            return
+        cfg = self.cfg
+        self.phoneme_lexicon_loss_scale = float(cfg.get('phoneme_lexicon_loss_scale', 1.0))
+        if not math.isfinite(self.phoneme_lexicon_loss_scale) or self.phoneme_lexicon_loss_scale < 1.0:
+            raise ValueError("phoneme_lexicon_loss_scale must be finite and >= 1.0")
+        self.phoneme_loss_lexicon_path = None
+        self.phoneme_loss_lexicon = None
+        if self.phoneme_lexicon_loss_scale > 1.0:
+            if self.phoneme_tokenizer is None or not cfg.get('phoneme_loss_lexicon_path'):
+                raise ValueError("Phoneme lexicon loss weighting requires a phoneme tokenizer and lexicon path")
+            self.phoneme_loss_lexicon_path = self.register_artifact(
+                'phoneme_loss_lexicon_path', cfg.phoneme_loss_lexicon_path
+            )
+            # Restored .nemo artifacts exist only during construction. Keep the
+            # compiled CPU lexicon so workers never need the temporary file.
+            self.phoneme_loss_lexicon = PhonemeLossLexicon(self.phoneme_loss_lexicon_path)
+            if not callable(getattr(self.phoneme_tokenizer, 'encode_with_offsets', None)):
+                raise ValueError("Phoneme lexicon loss weighting requires an IPA BPE tokenizer with offsets")
+
     def get_dataset(self, dataset_cfg, dataset_type):
+        self._initialize_phoneme_loss_lexicon()
         dataset = safe_instantiate(
             dataset_cfg.dataset,
             sample_rate=self.sample_rate,
@@ -2174,12 +2292,21 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         if self.phoneme_tokenizer is not None:
             dataset.phoneme_tokenizer_config = self.cfg.phoneme_tokenizer
 
+        if self.phoneme_lexicon_loss_scale > 1.0:
+            if not isinstance(dataset, MagpieTTSLhotseMultiturnDataset):
+                raise ValueError("Phoneme lexicon loss weighting requires the Lhotse multiturn dataset")
+            dataset.phoneme_loss_lexicon_path = self.phoneme_loss_lexicon_path
+            dataset.phoneme_lexicon_loss_scale = self.phoneme_lexicon_loss_scale
+            dataset._phoneme_loss_lexicon = self.phoneme_loss_lexicon
         return dataset
 
     def get_lhotse_dataloader(self, dataset_cfg, mode='train') -> torch.utils.data.DataLoader:
         # TODO @xueyang: better to distinguish cfg. self.cfg is the model cfg, while cfg here is train_ds cfg. Also
         #   cfg is a classifier-free guidance.
+        self._initialize_phoneme_loss_lexicon()
         load_normalized_text_percent = dataset_cfg.get("load_normalized_text_percent", 1.0)
+        if self.phoneme_lexicon_loss_scale > 1.0 and not self.cfg.get("use_multiturn_dataset", False):
+            raise ValueError("Phoneme lexicon loss weighting requires use_multiturn_dataset=true")
         if self.cfg.get("use_multiturn_dataset", False):
             dataset = MagpieTTSLhotseMultiturnDataset(
                 sample_rate=self.sample_rate,
@@ -2222,6 +2349,9 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 challenging_text_start_step=dataset_cfg.dataset.get("challenging_text_start_step", 0),
                 challenging_text_end_step=dataset_cfg.dataset.get("challenging_text_end_step", 0),
                 context_audio_shuffle_batch_prob=dataset_cfg.dataset.get("context_audio_shuffle_batch_prob", 0.0),
+                phoneme_loss_lexicon_path=self.phoneme_loss_lexicon_path,
+                phoneme_lexicon_loss_scale=self.phoneme_lexicon_loss_scale,
+                phoneme_loss_lexicon=self.phoneme_loss_lexicon,
             )
             dataset = FallbackDataset(dataset)
         else:

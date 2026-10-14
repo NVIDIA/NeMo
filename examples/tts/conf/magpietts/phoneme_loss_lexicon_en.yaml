@@ -1,0 +1,6157 @@
+schema_version: 1
+languages:
+- en
+metadata:
+  phonemizer: 'eSpeak NG text-to-speech: 1.52.0  Data at: /usr/lib/x86_64-linux-gnu/espeak-ng-data'
+  voices:
+    en-US: en-us
+  scope: English normalization vocabulary; compositional components, not every literal entity.
+  vocabulary_policy: Canonical words, phrases, abbreviations, and A-Z letters; no letter-name respellings or generic
+    context labels.
+  limitations:
+  - URLs, identifiers, names, loanwords, and domain labels form an open vocabulary.
+  - IPA homophones cannot distinguish two/to/too, four/for, eight/ate, and one/won.
+  - Matches require IPA word boundaries; pronunciations fused across words may not match.
+  - Pronunciations are EN-US only; existing English language IDs are supported.
+entries:
+- word: A
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈeɪ
+- word: AD
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - ˈeɪ dˈiː
+- word: AED
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈiːd
+- word: AEDT
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈiːt
+- word: AEST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈiːst
+- word: AM
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈeɪ ˈɛm
+- word: AUD
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈɔːd
+- word: American
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɐmˈɛɹɪkən
+- word: Anno Domini
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - ˈænoʊ dəmˈiːni
+- word: April
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - ˈeɪpɹəl
+- word: August
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - ˈɔːɡəst
+- word: Australian
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɔːstɹˈeɪliən
+- word: B
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - bˈiː
+- word: BC
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - bˈiː sˈiː
+- word: BCE
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - bˈiː sˈiː ˈiː
+- word: BRL
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - bˌiːˌɑːɹɹˈɛl
+- word: BST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - bˌiːˌɛstˈiː
+- word: Brazilian
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - bɹæzˈɪliən
+- word: British
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - bɹˈɪɾɪʃ
+- word: C
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - sˈiː
+- word: CAD
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kˈæd
+- word: CDT
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - sˌiːdˌiːtˈiː
+- word: CE
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - sˈiː ˈiː
+- word: CEST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - sˈɛst
+- word: CET
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - sˌiːˌiːtˈiː
+- word: CHF
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˌiːˌeɪtʃˈɛf
+- word: CNY
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˌiːˌɛnwˈaɪ
+- word: CST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - sˌiːˌɛstˈiː
+- word: Canadian
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɐnˈeɪdiən
+- word: Celsius
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - sˈɛlsɪəs
+- word: Chinese
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - tʃaɪnˈiːz
+- word: D
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - dˈiː
+- word: DKK
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dˌiːkˌeɪkˈeɪ
+- word: December
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - dᵻsˈɛmbɚ
+- word: E
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈiː
+- word: EDT
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˌiːdˌiːtˈiː
+- word: EST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˌiːˌɛstˈiː
+- word: EUR
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - jˈʊɹ
+- word: F
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɛf
+- word: Fahrenheit
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - fˈæɹənhˌaɪt
+- word: February
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - fˈɛbɹuːˌɛɹi
+- word: Friday
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - fɹˈaɪdeɪ
+- word: G
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - dʒˈiː
+- word: GBP
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dʒˌiːbˌiːpˈiː
+- word: GMT
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - dʒˌiːˌɛmtˈiː
+- word: Greenwich mean time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ɡɹˈɛnɪtʃ mˈiːn tˈaɪm
+- word: H
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈeɪtʃ
+- word: HKD
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˌeɪtʃkˌeɪdˈiː
+- word: I
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈaɪ
+- word: ILS
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈɪlz
+- word: INR
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈɪnɚ
+- word: IST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈɪst
+- word: Indian
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈɪndiən
+- word: J
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - dʒˈeɪ
+- word: JPY
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dʒˌeɪpˌiːwˈaɪ
+- word: JST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - dʒˌeɪˌɛstˈiː
+- word: January
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - dʒˈænjuːˌɛɹi
+- word: Japanese
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dʒˌæpənˈiːz
+- word: July
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - dʒuːlˈaɪ
+- word: June
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - dʒˈuːn
+- word: K
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - kˈeɪ
+- word: KRW
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kˌeɪˌɑːɹdˈʌbəljˌuː
+- word: L
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɛl
+- word: M
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɛm
+- word: MDT
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˌɛmdˌiːtˈiː
+- word: MST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˌɛmˌɛstˈiː
+- word: MXN
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˌɛmˌɛksˈɛn
+- word: March
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - mˈɑːɹtʃ
+- word: May
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - mˈeɪ
+- word: Mexican
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - mˈɛksɪkən
+- word: Monday
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - mˈʌndeɪ
+- word: N
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɛn
+- word: NOK
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - nˈɑːk
+- word: NZD
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˌɛnzˌiːdˈiː
+- word: November
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - noʊvˈɛmbɚ
+- word: O
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈoʊ
+- word: October
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - ɑːktˈoʊbɚ
+- word: P
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - pˈiː
+- word: PDT
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - pˌiːdˌiːtˈiː
+- word: PLN
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˌiːˌɛlˈɛn
+- word: PM
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - pˈiː ˈɛm
+- word: PST
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - pˌiːˌɛstˈiː
+- word: Pacific daylight time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - pɐsˈɪfɪk dˈeɪlaɪt tˈaɪm
+- word: Pacific standard time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - pɐsˈɪfɪk stˈændɚd tˈaɪm
+- word: Q
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - kjˈuː
+- word: R
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɑːɹ
+- word: RUB
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈʌb
+- word: S
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɛs
+- word: SAR
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɑːɹ
+- word: SEK
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɛk
+- word: SGD
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˌɛsdʒˌiːdˈiː
+- word: Saturday
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - sˈæɾɚdˌeɪ
+- word: September
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - sɛptˈɛmbɚ
+- word: Sunday
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - sˈʌndeɪ
+- word: Swiss
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - swˈɪs
+- word: T
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - tˈiː
+- word: THB
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - tˌiːˌeɪtʃbˈiː
+- word: TRY
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - tɹˈaɪ
+- word: TWD
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - tˌiːdˌʌbəljˌuːdˈiː
+- word: Thursday
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - θˈɜːzdeɪ
+- word: Tuesday
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - tˈuːzdeɪ
+- word: U
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - jˈuː
+- word: URI
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - jˈʊɹɹi
+- word: URL
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - jˌuːˌɑːɹɹˈɛl
+- word: US
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - jˌuːˈɛs
+- word: USD
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - jˌuːˌɛsdˈiː
+- word: UTC
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - jˌuːtˌiːsˈiː
+- word: United States
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - juːnˈaɪɾᵻd stˈeɪts
+- word: V
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - vˈiː
+- word: VND
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - vˌiːˌɛndˈiː
+- word: W
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - dˈʌbəljˌuː
+- word: Wednesday
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - wˈɛnzdeɪ
+- word: X
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɛks
+- word: Y
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - wˈaɪ
+- word: Z
+  categories:
+  - alphanumeric
+  - email
+  - letters
+  - phone
+  - roman_numerals
+  - urls
+  pronunciations:
+    en-US:
+    - zˈiː
+- word: ZAR
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - zˈɑːɹ
+- word: acre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈeɪkɚ
+- word: acres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈeɪkɚz
+- word: afternoon
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˌæftɚnˈuːn
+- word: ai
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌeɪˈaɪ
+- word: alpha
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - ˈælfə
+- word: amp
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈæmp
+- word: ampere
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈæmpɛɹ
+- word: amperes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈæmpɛɹz
+- word: ampersand
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæmpɚsˌænd
+- word: amps
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈæmps
+- word: and sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ænd sˈaɪn
+- word: angle bracket
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæŋɡəl bɹˈækɪt
+- word: angle brackets
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæŋɡəl bɹˈækɪts
+- word: ante meridiem
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈæntiː mˈɛɹɪdˌɪm
+- word: apostrophe
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ɐpˈɔstɹəfi
+- word: apostrophes
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ɐpˈɔstɹəfiz
+- word: app
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæp
+- word: area code
+  categories:
+  - phone
+  pronunciations:
+    en-US:
+    - ˈɛɹiə kˈoʊd
+- word: asp
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæsp
+- word: aspx
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæspks
+- word: asterisk
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæstɚɹˌɪsk
+- word: asterisks
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæstɚɹˌɪsks
+- word: at
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈæt
+- word: at sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - æt sˈaɪn
+- word: atmosphere
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈætməsfˌɪɹ
+- word: atmospheres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈætməsfˌɪɹz
+- word: au
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈoʊ
+- word: backslash
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - bˈækslæʃ
+- word: backslashes
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - bˈækslæʃᵻz
+- word: baht
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - bˈɑːt
+- word: bahts
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - bˈɑːts
+- word: bar
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - unit_abbreviations
+  - urls
+  pronunciations:
+    en-US:
+    - bˈɑːɹ
+- word: bars
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - bˈɑːɹz
+- word: basis point
+  categories:
+  - percent
+  pronunciations:
+    en-US:
+    - bˈeɪsɪs pˈɔɪnt
+- word: basis points
+  categories:
+  - percent
+  pronunciations:
+    en-US:
+    - bˈeɪsɪs pˈɔɪnts
+- word: beats per minute
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - bˈiːts pɜː mˈɪnɪt
+- word: becquerel
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - bˈɛkwɚɹəl
+- word: becquerels
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - bˈɛkwɚɹəlz
+- word: before Christ
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - bᵻfˌɔːɹ kɹˈaɪst
+- word: before common era
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - bᵻfˌɔːɹ kˈɑːmən ˈiəɹə
+- word: beta
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - bˈeɪɾə
+- word: billion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - bˈɪliən
+- word: billions
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - bˈɪliənz
+- word: billionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - bˈɪliənθ
+- word: billionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - bˈɪliənθs
+- word: bit
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - bˈɪt
+- word: bitcoin
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - bˈɪtkɔɪn
+- word: bitcoins
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - bˈɪtkɔɪnz
+- word: bits
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - bˈɪts
+- word: biz
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - bˈɪz
+- word: br
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - bˌiːˈɑːɹ
+- word: byte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - bˈaɪt
+- word: bytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - bˈaɪts
+- word: ca
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - kˈɑː
+- word: calorie
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈælɚɹi
+- word: calories
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈælɚɹiz
+- word: candela
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kændˈɛlə
+- word: candelas
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kændˈɛləz
+- word: caret
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kˈæɹət
+- word: cedi
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɛdi
+- word: cedis
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɛdiz
+- word: cent
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɛnt
+- word: centavo
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sɛntˈɑːvoʊ
+- word: centavos
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sɛntˈɑːvoʊz
+- word: centigrade
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - sˈɛntɪɡɹˌeɪd
+- word: centillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sɛntˈɪliən
+- word: centime
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɛntɪm
+- word: centimes
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɛntɪmz
+- word: centimeter
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - sˈɛntɪmˌiːɾɚ
+- word: centimeters
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - sˈɛntɪmˌiːɾɚz
+- word: centimetre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - sˈɛntɪmˌiːɾɚ
+- word: centimetres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - sˈɛntɪmˌiːɾɚz
+- word: central daylight time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - sˈɛntɹəl dˈeɪlaɪt tˈaɪm
+- word: central standard time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - sˈɛntɹəl stˈændɚd tˈaɪm
+- word: cents
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɛnts
+- word: centuries
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - sˈɛntʃɚɹiz
+- word: century
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - sˈɛntʃɚɹi
+- word: chi
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - kˈaɪ
+- word: close brace
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - klˈoʊs bɹˈeɪs
+- word: close bracket
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - klˈoʊs bɹˈækɪt
+- word: close parenthesis
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - klˈoʊs pɚɹˈɛnθəsˌɪs
+- word: cloud
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - klˈaʊd
+- word: cn
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - sˌiːˈɛn
+- word: co
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - kˈoʊ
+- word: colon
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kˈoʊlən
+- word: colons
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kˈoʊlənz
+- word: com
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - kˈɑːm
+- word: comma
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kˈɑːmə
+- word: commas
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kˈɑːməz
+- word: common era
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - kˈɑːmən ˈiəɹə
+- word: coordinated universal time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - koʊˈɔːɹdɪnˌeɪɾᵻd jˌuːnɪvˈɜːsəl tˈaɪm
+- word: country code
+  categories:
+  - phone
+  pronunciations:
+    en-US:
+    - kˈʌntɹi kˈoʊd
+- word: crown
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɹˈaʊn
+- word: crowns
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɹˈaʊnz
+- word: csv
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - sˌiːˌɛsvˈiː
+- word: cubed
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kjˈuːbd
+- word: cubic
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kjˈuːbɪk
+- word: cup
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈʌp
+- word: cups
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈʌps
+- word: curly brace
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kˈɜːli bɹˈeɪs
+- word: curly braces
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kˈɜːli bɹˈeɪsᵻz
+- word: dash
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - dˈæʃ
+- word: dashes
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - dˈæʃᵻz
+- word: day
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - dˈeɪ
+- word: daylight saving time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - dˈeɪlaɪt sˈeɪvɪŋ tˈaɪm
+- word: daylight time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - dˈeɪlaɪt tˈaɪm
+- word: days
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - dˈeɪz
+- word: de
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - dˈə
+- word: decibel
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - dˈɛsᵻbəl
+- word: decibels
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - dˈɛsᵻbəlz
+- word: decillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - dɛsˈɪliən
+- word: decillionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - dˈɛsɪlˌiənθ
+- word: decillionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - dˈɛsɪlˌiənθs
+- word: decimal
+  categories:
+  - currency
+  - decimal
+  - percent
+  - signed
+  pronunciations:
+    en-US:
+    - dˈɛsɪməl
+- word: decimal point
+  categories:
+  - currency
+  - decimal
+  - percent
+  - signed
+  pronunciations:
+    en-US:
+    - dˈɛsɪməl pˈɔɪnt
+- word: degree
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - dᵻɡɹˈiː
+- word: degree sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - dᵻɡɹˈiː sˈaɪn
+- word: degrees
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - dᵻɡɹˈiːz
+- word: delta
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - dˈɛltə
+- word: dev
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - dˈɛv
+- word: dinar
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dˈɪnɑːɹ
+- word: dinars
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dˈɪnɑːɹz
+- word: dirham
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dˈɜːɹæm
+- word: dirhams
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dˈɜːɹæmz
+- word: divided by
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - dᵻvˈaɪdᵻd bˈaɪ
+- word: dollar
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dˈɑːlɚ
+- word: dollars
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dˈɑːlɚz
+- word: dong
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - dˈɑːŋ
+- word: dot
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - dˈɑːt
+- word: dots
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - dˈɑːts
+- word: double
+  categories:
+  - phone
+  pronunciations:
+    en-US:
+    - dˈʌbəl
+- word: double quote
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - dˈʌbəl kwˈoʊt
+- word: dozen
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - dˈʌzən
+- word: dozens
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - dˈʌzənz
+- word: duodecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - dˌuːoʊdsˈɪliən
+- word: e-mail
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈiːmˈeɪl
+- word: eastern daylight time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈiːstɚn dˈeɪlaɪt tˈaɪm
+- word: eastern standard time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈiːstɚn stˈændɚd tˈaɪm
+- word: edu
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɛduː
+- word: eight
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ˈeɪt
+- word: eighteen
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ˈeɪtiːn
+- word: eighteenth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - ˈeɪtiːnθ
+- word: eighteenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - ˈeɪtiːnθs
+- word: eighth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - ˈeɪtθ
+- word: eighths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - ˈeɪtθs
+- word: eightieth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - ˈeɪɾiəθ
+- word: eightieths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - ˈeɪɾiəθs
+- word: eighty
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ˈeɪɾi
+- word: eleven
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ᵻlˈɛvən
+- word: eleventh
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - ᵻlˈɛvənθ
+- word: elevenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - ᵻlˈɛvənθs
+- word: email
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈiːmeɪl
+- word: epsilon
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - ˈɛpsɪlˌɑːn
+- word: equal sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈiːkwəl sˈaɪn
+- word: equals
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈiːkwəlz
+- word: es
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈiːz
+- word: eta
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - ˈiːɾə
+- word: ether
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈiːθɚ
+- word: ethers
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈiːθɚz
+- word: euro
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - jˈʊɹɹoʊ
+- word: euros
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - jˈʊɹɹoʊz
+- word: evening
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈiːvnɪŋ
+- word: exclamation mark
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ɛksklɐmˈeɪʃən mˈɑːɹk
+- word: exclamation point
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ɛksklɐmˈeɪʃən pˈɔɪnt
+- word: extension
+  categories:
+  - phone
+  pronunciations:
+    en-US:
+    - ɛkstˈɛnʃən
+- word: extensions
+  categories:
+  - phone
+  pronunciations:
+    en-US:
+    - ɛkstˈɛnʃənz
+- word: feet
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - fˈiːt
+- word: fifteen
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - fˈɪftiːn
+- word: fifteenth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - fˈɪftiːnθ
+- word: fifteenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - fˈɪftiːnθs
+- word: fifth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - fˈɪfθ
+- word: fifths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - fˈɪfθs
+- word: fiftieth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - fˈɪftiəθ
+- word: fiftieths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - fˈɪftiəθs
+- word: fifty
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - fˈɪfti
+- word: filler
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - fˈɪlɚ
+- word: fils
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - fˈɪlz
+- word: first
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - fˈɜːst
+- word: five
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - fˈaɪv
+- word: foot
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - fˈʊt
+- word: forint
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - fˈɔːɹɪnt
+- word: forints
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - fˈɔːɹɪnts
+- word: fortieth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - fˈɔːɹɾiəθ
+- word: fortieths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - fˈɔːɹɾiəθs
+- word: forty
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - fˈɔːɹɾi
+- word: forward slash
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - fˈɔːɹwɚd slˈæʃ
+- word: four
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - fˈɔːɹ
+- word: fourteen
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - fˈɔːɹtiːn
+- word: fourteenth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - fˈɔːɹtiːnθ
+- word: fourteenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - fˈɔːɹtiːnθs
+- word: fourth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - fˈɔːɹθ
+- word: fourths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - fˈɔːɹθs
+- word: fr
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛfˈɑːɹ
+- word: franc
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - fɹˈæŋk
+- word: francs
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - fɹˈæŋks
+- word: ftp
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛftˌiːpˈiː
+- word: ftps
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛftˌiːpˌiːˈɛs
+- word: full stop
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - fˈʊl stˈɑːp
+- word: gallon
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈælən
+- word: gallons
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈælənz
+- word: gamma
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - ɡˈæmə
+- word: gauss
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈaʊs
+- word: gibibyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - dʒˈɪbɪbˌaɪt
+- word: gibibytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - dʒˈɪbɪbˌaɪts
+- word: gif
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ɡˈɪf
+- word: gigabit
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈɪɡəbˌɪt
+- word: gigabits
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈɪɡəbˌɪts
+- word: gigabyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈɪɡəbˌaɪt
+- word: gigabytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈɪɡəbˌaɪts
+- word: gigahertz
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈɪɡəhˌɜːts
+- word: gigawatt
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈɪɡəwˌɑːt
+- word: gigawatts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡˈɪɡəwˌɑːts
+- word: googol
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ɡˈuːɡɑːl
+- word: googolplex
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ɡˈuːɡəlplˌɛks
+- word: gov
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ɡˈɑːv
+- word: gram
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡɹˈæm
+- word: grams
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡɹˈæmz
+- word: gray
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡɹˈeɪ
+- word: grays
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɡɹˈeɪz
+- word: greater than
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ɡɹˈeɪɾɚ ðɐn
+- word: grosz
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɡɹˈɑːsz
+- word: groszy
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɡɹˈɑːszi
+- word: halala
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - hælˈɑːlə
+- word: halalas
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - hælˈɑːləz
+- word: haler
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - hˈeɪlɚ
+- word: half
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - hˈæf
+- word: halves
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - hˈævz
+- word: hash
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - hˈæʃ
+- word: hashes
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - hˈæʃᵻz
+- word: hashtag
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - hˈæʃtæɡ
+- word: hectare
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - hˈɛktɛɹ
+- word: hectares
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - hˈɛktɛɹz
+- word: hertz
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - hˈɜːts
+- word: hour
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈaʊɚ
+- word: hours
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - ˈaʊɚz
+- word: hryvnia
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈeɪtʃɹˈɪvniə
+- word: hryvnias
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ˈeɪtʃɹˈɪvniəz
+- word: htm
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌeɪtʃtˌiːˈɛm
+- word: html
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌeɪtʃtˌiːˌɛmˈɛl
+- word: http
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌeɪtʃtˌiːtˌiːpˈiː
+- word: https
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌeɪtʃtˌiːtˈiːpˌiːˈɛs
+- word: hundred
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - hˈʌndɹɪd
+- word: hundreds
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - hˈʌndɹɪdz
+- word: hundredth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - hˈʌndɹədθ
+- word: hundredths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - hˈʌndɹədθs
+- word: hyphen
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - hˈaɪfən
+- word: hyphens
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - hˈaɪfənz
+- word: in
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɪn
+- word: inch
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈɪntʃ
+- word: inches
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈɪntʃᵻz
+- word: info
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɪnfoʊ
+- word: int
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɪnt
+- word: io
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈiːoʊ
+- word: iota
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - aɪˈoʊɾə
+- word: it
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɪt
+- word: joule
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - dʒˈuːl
+- word: joules
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - dʒˈuːlz
+- word: jp
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - dʒˌeɪpˈiː
+- word: jpeg
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - dʒˈeɪpˈɛɡ
+- word: jpg
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - dʒˌeɪpˌiːdʒˈiː
+- word: json
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - dʒˈeɪsˈɑːn
+- word: kappa
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - kˈæpə
+- word: kelvin
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɛlvɪn
+- word: kelvins
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɛlvɪnz
+- word: kibibyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪbɪbˌaɪt
+- word: kibibytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪbɪbˌaɪts
+- word: kilobit
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləbˌɪt
+- word: kilobits
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləbˌɪts
+- word: kilobyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləbˌaɪt
+- word: kilobytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləbˌaɪts
+- word: kilocalorie
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləkˌælɚɹi
+- word: kilocalories
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləkˌælɚɹiz
+- word: kilogram
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləɡɹˌæm
+- word: kilograms
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləɡɹˌæmz
+- word: kilohertz
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləhˌɜːts
+- word: kilohm
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈaɪloʊm
+- word: kilohms
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈaɪloʊmz
+- word: kilojoule
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪlədʒˌuːl
+- word: kilojoules
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪlədʒˌuːlz
+- word: kilometer
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kɪlˈɑːmɪɾɚ
+- word: kilometers
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kɪlˈɑːmɪɾɚz
+- word: kilometers per hour
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kɪlˈɑːmɪɾɚz pɜːɹ ˈaʊɚ
+- word: kilometre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləmˌiːɾɚ
+- word: kilometres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləmˌiːɾɚz
+- word: kilometres per hour
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləmˌiːɾɚz pɜːɹ ˈaʊɚ
+- word: kilopascal
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləpˌæskəl
+- word: kilopascals
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləpˌæskəlz
+- word: kilovolt
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləvˌoʊlt
+- word: kilovolts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləvˌoʊlts
+- word: kilowatt
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləwˌɑːt
+- word: kilowatt hour
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləwˌɑːt ˈaʊɚ
+- word: kilowatt hours
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləwˌɑːt ˈaʊɚz
+- word: kilowatts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kˈɪləwˌɑːts
+- word: knot
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˈɑːt
+- word: knots
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˈɑːts
+- word: kopeck
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kˈoʊpək
+- word: kopecks
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kˈoʊpəks
+- word: koruna
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɔːɹˈuːnə
+- word: korunas
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɔːɹˈuːnəz
+- word: kr
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - kˌeɪˈɑːɹ
+- word: krona
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɹˈoʊnə
+- word: krone
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɹˈoʊn
+- word: kroner
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɹˈoʊnɚ
+- word: kronor
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kɹˈɑːnɚ
+- word: kurus
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kjˈʊɹɹəs
+- word: kwacha
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kwˈætʃə
+- word: kwachas
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - kwˈætʃəz
+- word: lambda
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - lˈæmdə
+- word: leap year
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - lˈiːp jˈɪɹ
+- word: left brace
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - lˈɛft bɹˈeɪs
+- word: left bracket
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - lˈɛft bɹˈækɪt
+- word: left parenthesis
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - lˈɛft pɚɹˈɛnθəsˌɪs
+- word: less than
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - lˈɛs ðɐn
+- word: lira
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - lˈiəɹə
+- word: liras
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - lˈiəɹəz
+- word: liter
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - lˈiːɾɚ
+- word: liters
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - lˈiːɾɚz
+- word: litre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - lˈiːɾɚ
+- word: litres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - lˈiːɾɚz
+- word: loti
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - lˈoʊɾi
+- word: lumen
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - lˈuːmɛn
+- word: lumens
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - lˈuːmɛnz
+- word: lux
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - lˈʌks
+- word: macron
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - mˈækɹɑːn
+- word: mailto
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - mˈeɪltoʊ
+- word: maloti
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - mælˈoʊɾi
+- word: me
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - mˈiː
+- word: mebibyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛbɪbˌaɪt
+- word: mebibytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛbɪbˌaɪts
+- word: megabit
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəbˌɪt
+- word: megabits
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəbˌɪts
+- word: megabyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəbˌaɪt
+- word: megabytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəbˌaɪts
+- word: megahertz
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəhˌɜːts
+- word: megapascal
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəpˌæskəl
+- word: megapascals
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəpˌæskəlz
+- word: megawatt
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəwˌɑːt
+- word: megawatts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɛɡəwˌɑːts
+- word: meter
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈiːɾɚ
+- word: meters
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈiːɾɚz
+- word: meters per second
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈiːɾɚz pɜː sˈɛkənd
+- word: metre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈiːɾɚ
+- word: metres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈiːɾɚz
+- word: metres per second
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈiːɾɚz pɜː sˈɛkənd
+- word: microgram
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊɡɹˌæm
+- word: micrograms
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊɡɹˌæmz
+- word: micrometer
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊmˌiːɾɚ
+- word: micrometers
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊmˌiːɾɚz
+- word: micrometre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊmˌiːɾɚ
+- word: micrometres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊmˌiːɾɚz
+- word: micromole
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊmˌoʊl
+- word: micromoles
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊmˌoʊlz
+- word: microsecond
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊsˌɛkənd
+- word: microseconds
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈaɪkɹoʊsˌɛkəndz
+- word: midnight
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈɪdnaɪt
+- word: mil
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - mˈɪl
+- word: mile
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪl
+- word: miles
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪlz
+- word: miles per hour
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈaɪlz pɜːɹ ˈaʊɚ
+- word: millennia
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - mɪlˈɛniə
+- word: millennium
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - mɪlˈɛniəm
+- word: milliampere
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪˌæmpɛɹ
+- word: milliamperes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪˌæmpɛɹz
+- word: millibar
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪbˌɑːɹ
+- word: millibars
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪbˌɑːɹz
+- word: milligram
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪɡɹˌæm
+- word: milligrams
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪɡɹˌæmz
+- word: milliliter
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪlˌɪɾɚ
+- word: milliliters
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪlˌɪɾɚz
+- word: millilitre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪlˌiːɾɚ
+- word: millilitres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪlˌiːɾɚz
+- word: millimeter
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪmˌiːɾɚ
+- word: millimeters
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪmˌiːɾɚz
+- word: millimeters of mercury
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪmˌiːɾɚz ʌv mˈɜːkjʊɹi
+- word: millimetre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪmˌiːɾɚ
+- word: millimetres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪmˌiːɾɚz
+- word: millimetres of mercury
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪmˌiːɾɚz ʌv mˈɜːkjʊɹi
+- word: millimole
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪmˌoʊl
+- word: millimoles
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪmˌoʊlz
+- word: million
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - mˈɪliən
+- word: millions
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - mˈɪliənz
+- word: millionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - mˈɪliənθ
+- word: millionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - mˈɪliənθs
+- word: millisecond
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈɪlɪsˌɛkənd
+- word: milliseconds
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈɪlɪsˌɛkəndz
+- word: millivolt
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪvˌoʊlt
+- word: millivolts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈɪlɪvˌoʊlts
+- word: minus
+  categories:
+  - currency
+  - decimal
+  - percent
+  - signed
+  pronunciations:
+    en-US:
+    - mˈaɪnəs
+- word: minus sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - mˈaɪnəs sˈaɪn
+- word: minute
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈɪnɪt
+- word: minutes
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈɪnɪts
+- word: mole
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈoʊl
+- word: moles
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - mˈoʊlz
+- word: month
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - mˈʌnθ
+- word: months
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - mˈʌnθs
+- word: morning
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈɔːɹnɪŋ
+- word: mountain daylight time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈaʊntɪn dˈeɪlaɪt tˈaɪm
+- word: mountain standard time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - mˈaʊntɪn stˈændɚd tˈaɪm
+- word: mp3
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛmpˈiː θɹˈiː
+- word: mp4
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛmpˈiː fˈɔːɹ
+- word: mu
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - mˈuː
+- word: naira
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - nˈɛɹə
+- word: nairas
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - nˈɛɹəz
+- word: nanometer
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˌænoʊmˈiːɾɚ
+- word: nanometers
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˌænoʊmˈiːɾɚz
+- word: nanometre
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˌænoʊmˈiːɾɚ
+- word: nanometres
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˌænoʊmˈiːɾɚz
+- word: nanosecond
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - nˌænoʊsˈɛkənd
+- word: nanoseconds
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - nˌænoʊsˈɛkəndz
+- word: naught
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - nˈɔːt
+- word: nautical mile
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˈɔːɾɪkəl mˈaɪl
+- word: nautical miles
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˈɔːɾɪkəl mˈaɪlz
+- word: negative
+  categories:
+  - currency
+  - decimal
+  - percent
+  - signed
+  pronunciations:
+    en-US:
+    - nˈɛɡətˌɪv
+- word: net
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - nˈɛt
+- word: newton
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˈuːtən
+- word: newtons
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - nˈuːtənz
+- word: night
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - nˈaɪt
+- word: nine
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - nˈaɪn
+- word: nineteen
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - nˈaɪntiːn
+- word: nineteenth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - nˈaɪntiːnθ
+- word: nineteenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - nˈaɪntiːnθs
+- word: ninetieth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - nˈaɪntiəθ
+- word: ninetieths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - nˈaɪntiəθs
+- word: ninety
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - nˈaɪnti
+- word: ninth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - nˈaɪnθ
+- word: ninths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - nˈaɪnθs
+- word: nonillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - nˌɑːnɪlˈiən
+- word: nonillionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - nˌɑːnɪlˈiənθ
+- word: nonillionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - nˌɑːnɪlˈiənθs
+- word: noon
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - nˈuːn
+- word: nought
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - nˈɔːt
+- word: novemdecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - nˌoʊvmdɪsˈɪliən
+- word: nu
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - nˈuː
+- word: number sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - nˈʌmbɚ sˈaɪn
+- word: nz
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛnzˈiː
+- word: o'clock
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - əklˈɑːk
+- word: octillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ɑːktˈɪliən
+- word: octillionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - ˈɑːktɪlˌiənθ
+- word: octillionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - ˈɑːktɪlˌiənθs
+- word: octodecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ˌɑːktədɪsˈɪliən
+- word: oh
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ˈoʊ
+- word: ohm
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈoʊm
+- word: ohms
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈoʊmz
+- word: omega
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - oʊmˈeɪɡə
+- word: omicron
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - ˈɑːmɪkɹˌɑːn
+- word: one
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - wˈʌn
+- word: one half
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - wˈʌn hˈæf
+- word: online
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɑːnlaɪn
+- word: open brace
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈoʊpən bɹˈeɪs
+- word: open bracket
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈoʊpən bɹˈækɪt
+- word: open parenthesis
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˈoʊpən pɚɹˈɛnθəsˌɪs
+- word: org
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈɔːɹɡ
+- word: ounce
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈaʊns
+- word: ounces
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ˈaʊnsᵻz
+- word: over
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - ˈoʊvɚ
+- word: overbar
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˌoʊvɚbˈɑːɹ
+- word: paisa
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈaɪsɑː
+- word: paisas
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈaɪsɑːz
+- word: paise
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈeɪz
+- word: parentheses
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - pɚɹˈɛnθəsˌiːz
+- word: parts per billion
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈɑːɹts pɜː bˈɪliən
+- word: parts per million
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈɑːɹts pɜː mˈɪliən
+- word: pascal
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈæskəl
+- word: pascals
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈæskəlz
+- word: pdf
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - pˌiːdˌiːˈɛf
+- word: pence
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈɛns
+- word: pennies
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈɛnɪz
+- word: penny
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈɛni
+- word: per
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈɜː
+- word: per cent
+  categories:
+  - percent
+  pronunciations:
+    en-US:
+    - pɚ sˈɛnt
+- word: per mille
+  categories:
+  - percent
+  pronunciations:
+    en-US:
+    - pɜː mˈɪl
+- word: percent
+  categories:
+  - percent
+  pronunciations:
+    en-US:
+    - pɚsˈɛnt
+- word: percent sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - pɚsˈɛnt sˈaɪn
+- word: percentage
+  categories:
+  - percent
+  pronunciations:
+    en-US:
+    - pɚsˈɛntɪdʒ
+- word: percentages
+  categories:
+  - percent
+  pronunciations:
+    en-US:
+    - pɚsˈɛntɪdʒᵻz
+- word: period
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - pˈiəɹɪəd
+- word: periods
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - pˈiəɹɪədz
+- word: permille
+  categories:
+  - percent
+  pronunciations:
+    en-US:
+    - pˈɜːmɪl
+- word: pesewa
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈɛswə
+- word: pesewas
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈɛswəz
+- word: peso
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈeɪsoʊ
+- word: pesos
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈeɪsoʊz
+- word: petabyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈɛɾəbˌaɪt
+- word: petabytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈɛɾəbˌaɪts
+- word: phi
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - fˈaɪ
+- word: php
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - pˌiːˌeɪtʃpˈiː
+- word: pi
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - pˈaɪ
+- word: piastre
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈaɪəstɚ
+- word: piastres
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈaɪəstɚz
+- word: pint
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈaɪnt
+- word: pints
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈaɪnts
+- word: pipe
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - pˈaɪp
+- word: plus
+  categories:
+  - currency
+  - decimal
+  - percent
+  - signed
+  pronunciations:
+    en-US:
+    - plˈʌs
+- word: plus sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - plˈʌs sˈaɪn
+- word: png
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - pˌiːˌɛndʒˈiː
+- word: point
+  categories:
+  - currency
+  - decimal
+  - percent
+  - signed
+  pronunciations:
+    en-US:
+    - pˈɔɪnt
+- word: positive
+  categories:
+  - currency
+  - decimal
+  - percent
+  - signed
+  pronunciations:
+    en-US:
+    - pˈɑːzᵻtˌɪv
+- word: post meridiem
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - pˈoʊst mˈɛɹɪdˌɪm
+- word: pound
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈaʊnd
+- word: pound key
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - pˈaʊnd kˈiː
+- word: pound sign
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - pˈaʊnd sˈaɪn
+- word: pounds
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - pˈaʊndz
+- word: pounds per square inch
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - pˈaʊndz pɜː skwˈɛɹ ˈɪntʃ
+- word: psi
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - sˈaɪ
+- word: pt
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - pˌiːtˈiː
+- word: quadrillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - kwɑːdɹˈɪliən
+- word: quadrillionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - kwˈɑːdɹɪlˌiənθ
+- word: quadrillionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - kwˈɑːdɹɪlˌiənθs
+- word: quart
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kwˈɔːɹt
+- word: quarter
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - kwˈɔːɹɾɚ
+- word: quarters
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - kwˈɔːɹɾɚz
+- word: quarts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - kwˈɔːɹts
+- word: quattuordecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - kwˌættʃuːˌɔːɹdɪsˈɪliən
+- word: question mark
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kwˈɛstʃən mˈɑːɹk
+- word: quindecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - kwˌɪndɪsˈɪliən
+- word: quintillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - kwɪntˈɪliən
+- word: quintillionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - kwˈɪntɪlˌiənθ
+- word: quintillionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - kwˈɪntɪlˌiənθs
+- word: quotation mark
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kwoʊtˈeɪʃən mˈɑːɹk
+- word: quote
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kwˈoʊt
+- word: quotes
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - kwˈoʊts
+- word: radian
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɹˈeɪdiən
+- word: radians
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɹˈeɪdiənz
+- word: rand
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈænd
+- word: rands
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈændz
+- word: reais
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈiːiz
+- word: real
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈiːəl
+- word: renminbi
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹɛnmˈɪnbaɪ
+- word: revolution
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɹˌɛvəlˈuːʃən
+- word: revolutions
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɹˌɛvəlˈuːʃənz
+- word: revolutions per minute
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɹˌɛvəlˈuːʃənz pɜː mˈɪnɪt
+- word: rho
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - ɹˈoʊ
+- word: rial
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈaɪəl
+- word: rials
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈaɪəlz
+- word: right brace
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ɹˈaɪt bɹˈeɪs
+- word: right bracket
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ɹˈaɪt bɹˈækɪt
+- word: right parenthesis
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ɹˈaɪt pɚɹˈɛnθəsˌɪs
+- word: ringgit
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈɪŋdʒɪt
+- word: ringgits
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈɪŋdʒɪts
+- word: riyal
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈɪjəl
+- word: riyals
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈɪjəlz
+- word: rotation
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɹoʊtˈeɪʃən
+- word: rotations
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - ɹoʊtˈeɪʃənz
+- word: rouble
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːbəl
+- word: roubles
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːbəlz
+- word: ruble
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːbəl
+- word: rubles
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːbəlz
+- word: rufiyaa
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːfɪjˌɑː
+- word: rufiyaas
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːfɪjˌɑːz
+- word: rupee
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːpiː
+- word: rupees
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːpiːz
+- word: rupiah
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ɹˈuːpˈaɪə
+- word: satang
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈeɪɾəŋ
+- word: satoshi
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sætˈoʊʃi
+- word: satoshis
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sætˈoʊʃiz
+- word: score
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - skˈɔːɹ
+- word: scores
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - skˈɔːɹz
+- word: second
+  categories:
+  - colon_numbers_time_or_ratio
+  - dates
+  - fractions
+  - ordinal
+  - time
+  pronunciations:
+    en-US:
+    - sˈɛkənd
+- word: seconds
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - sˈɛkəndz
+- word: semicolon
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - sˌɛmɪkˈoʊlən
+- word: semicolons
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - sˌɛmɪkˈoʊlənz
+- word: sen
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - sˈɛn
+- word: septendecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sˌɛptəndɪsˈɪliən
+- word: septillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sɛptˈɪliən
+- word: septillionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - sˈɛptɪlˌiənθ
+- word: septillionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - sˈɛptɪlˌiənθs
+- word: seven
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sˈɛvən
+- word: seventeen
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sˈɛvəntˌiːn
+- word: seventeenth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - sˈɛvəntˌiːnθ
+- word: seventeenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - sˈɛvəntˌiːnθs
+- word: seventh
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - sˈɛvənθ
+- word: sevenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - sˈɛvənθs
+- word: seventieth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - sˈɛvəntˌiəθ
+- word: seventieths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - sˈɛvəntˌiəθs
+- word: seventy
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sˈɛvənti
+- word: sexdecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sˌɛksdɪsˈɪliən
+- word: sextillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sɛkstˈɪliən
+- word: sextillionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - sˈɛkstɪlˌiənθ
+- word: sextillionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - sˈɛkstɪlˌiənθs
+- word: sftp
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛsˌɛftˌiːpˈiː
+- word: shilling
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ʃˈɪlɪŋ
+- word: shillings
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - ʃˈɪlɪŋz
+- word: sievert
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - sˈɪvɜːt
+- word: sieverts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - sˈɪvɜːts
+- word: sigma
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - sˈɪɡmə
+- word: single quote
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - sˈɪŋɡəl kwˈoʊt
+- word: site
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - sˈaɪt
+- word: six
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sˈɪks
+- word: sixteen
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sˈɪkstiːn
+- word: sixteenth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - sˈɪkstiːnθ
+- word: sixteenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - sˈɪkstiːnθs
+- word: sixth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - sˈɪksθ
+- word: sixths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - sˈɪksθs
+- word: sixtieth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - sˈɪkstiəθ
+- word: sixtieths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - sˈɪkstiəθs
+- word: sixty
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - sˈɪksti
+- word: slash
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - slˈæʃ
+- word: slashes
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - slˈæʃᵻz
+- word: space
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - spˈeɪs
+- word: spaces
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - spˈeɪsᵻz
+- word: square
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - skwˈɛɹ
+- word: squared
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - skwˈɛɹd
+- word: ssh
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛsˌɛsˈeɪtʃ
+- word: standard time
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - stˈændɚd tˈaɪm
+- word: star
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - stˈɑːɹ
+- word: sterling
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - stˈɜːlɪŋ
+- word: store
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - stˈɔːɹ
+- word: tablespoon
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈeɪbəlspˌuːn
+- word: tablespoons
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈeɪbəlspˌuːnz
+- word: tau
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - tˈaʊ
+- word: teaspoon
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈiːspuːn
+- word: teaspoons
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈiːspuːnz
+- word: tebibyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛbɪbˌaɪt
+- word: tebibytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛbɪbˌaɪts
+- word: tech
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - tˈɛk
+- word: ten
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - tˈɛn
+- word: tenth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - tˈɛnθ
+- word: tenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - tˈɛnθs
+- word: terabit
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛɹəbˌɪt
+- word: terabits
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛɹəbˌɪts
+- word: terabyte
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛɹəbˌaɪt
+- word: terabytes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛɹəbˌaɪts
+- word: terahertz
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛɹəhˌɜːts
+- word: tesla
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛslə
+- word: teslas
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈɛsləz
+- word: theta
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - θˈeɪɾə
+- word: third
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - θˈɜːd
+- word: thirds
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - θˈɜːdz
+- word: thirteen
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - θˈɜːtiːn
+- word: thirteenth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - θˈɜːtiːnθ
+- word: thirteenths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - θˈɜːtiːnθs
+- word: thirtieth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - θˈɜːɾiəθ
+- word: thirtieths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - θˈɜːɾiəθs
+- word: thirty
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - θˈɜːɾi
+- word: thousand
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - θˈaʊzənd
+- word: thousands
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - θˈaʊzəndz
+- word: thousandth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - θˈaʊzəndθ
+- word: thousandths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - θˈaʊzəndθs
+- word: three
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - θɹˈiː
+- word: three quarters
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - θɹˈiː kwˈɔːɹɾɚz
+- word: tilde
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - tˈɪldə
+- word: time zone
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - tˈaɪm zˈoʊn
+- word: time zones
+  categories:
+  - colon_numbers_time_or_ratio
+  - time
+  pronunciations:
+    en-US:
+    - tˈaɪm zˈoʊnz
+- word: ton
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈʌn
+- word: tonne
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈʌn
+- word: tonnes
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈʌnz
+- word: tons
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - tˈʌnz
+- word: tredecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - tɹˌɛdɪsˈɪliən
+- word: trillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - tɹˈɪliən
+- word: trillions
+  categories:
+  - cardinal
+  - long_digit_runs
+  pronunciations:
+    en-US:
+    - tɹˈɪliənz
+- word: trillionth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - tɹˈɪliənθ
+- word: trillionths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - tɹˈɪliənθs
+- word: triple
+  categories:
+  - phone
+  pronunciations:
+    en-US:
+    - tɹˈɪpəl
+- word: tv
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - tˌiːvˈiː
+- word: twelfth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - twˈɛlfθ
+- word: twelfths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - twˈɛlfθs
+- word: twelve
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - twˈɛlv
+- word: twentieth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - twˈɛntiəθ
+- word: twentieths
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - twˈɛntiəθs
+- word: twenty
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - twˈɛnti
+- word: two
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - tˈuː
+- word: txt
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - tˌiːˌɛkstˈiː
+- word: uk
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - jˌuːkˈeɪ
+- word: undecillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - ˌʌndɛsˈɪliən
+- word: underscore
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˌʌndɚskˈɔːɹ
+- word: underscores
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - ˌʌndɚskˈɔːɹz
+- word: upsilon
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - ˈʌpsɪlˌɑːn
+- word: us
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˈʌs
+- word: vertical bar
+  categories:
+  - alphanumeric
+  - email
+  - phone
+  - symbols
+  - urls
+  pronunciations:
+    en-US:
+    - vˈɜːɾɪkəl bˈɑːɹ
+- word: vigintillion
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - vˌɪdʒɪntˈɪliən
+- word: volt
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - vˈoʊlt
+- word: volts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - vˈoʊlts
+- word: watt
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - wˈɑːt
+- word: watts
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - wˈɑːts
+- word: wav
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - wˈæv
+- word: webm
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - wˈɛbəm
+- word: webp
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - wˈɛbp
+- word: week
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - wˈiːk
+- word: weeks
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - wˈiːks
+- word: whole
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - hˈoʊl
+- word: wholes
+  categories:
+  - fractions
+  pronunciations:
+    en-US:
+    - hˈoʊlz
+- word: won
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - wˈʌn
+- word: world wide web
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - wˈɜːld wˈaɪd wˈɛb
+- word: www
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - dˌʌbəljˌuːdˌʌbəljˌuːdˈʌbəljˌuː
+- word: xi
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - ɹˌoʊmən ɪlˈɛvən
+- word: xml
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - ˌɛksˌɛmˈɛl
+- word: xyz
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - zˈaɪz
+- word: yard
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - jˈɑːɹd
+- word: yards
+  categories:
+  - unit_abbreviations
+  pronunciations:
+    en-US:
+    - jˈɑːɹdz
+- word: year
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - jˈɪɹ
+- word: years
+  categories:
+  - dates
+  - years
+  pronunciations:
+    en-US:
+    - jˈɪɹz
+- word: yen
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - jˈɛn
+- word: yuan
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - jˈuːən
+- word: zero
+  categories:
+  - cardinal
+  - comma_grouped_numbers
+  - currency
+  - dates
+  - decimal
+  - long_digit_runs
+  - percent
+  - phone
+  - time
+  - years
+  pronunciations:
+    en-US:
+    - zˈiəɹoʊ
+- word: zeroth
+  categories:
+  - dates
+  - fractions
+  - ordinal
+  pronunciations:
+    en-US:
+    - zˈiəɹɑːθ
+- word: zeta
+  categories:
+  - alphanumeric
+  - roman_numerals
+  pronunciations:
+    en-US:
+    - zˈeɪɾə
+- word: zip
+  categories:
+  - email
+  - urls
+  pronunciations:
+    en-US:
+    - zˈɪp
+- word: zloty
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - zlˈoʊɾi
+- word: zlotys
+  categories:
+  - currency
+  pronunciations:
+    en-US:
+    - zlˈoʊɾiz

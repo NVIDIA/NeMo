@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 import multiprocessing
 import random
 import re
@@ -30,6 +31,7 @@ from omegaconf import DictConfig
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import IPABPETokenizer
 from nemo.collections.speechlm2.parts.precision import fp32_precision
 from nemo.collections.tts.data.text_to_speech_dataset_lhotse import setup_tokenizers
+from nemo.collections.tts.parts.utils.phoneme_loss_lexicon import PhonemeLossLexicon
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     _sample_probability_range,
     _select_text_for_tts_input,
@@ -184,6 +186,9 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
         challenging_text_start_step: int = 0,
         challenging_text_end_step: int = 0,
         context_audio_shuffle_batch_prob: float = 0.0,
+        phoneme_loss_lexicon_path: str = None,
+        phoneme_lexicon_loss_scale: float = 1.0,
+        phoneme_loss_lexicon: PhonemeLossLexicon = None,
     ):
         super().__init__()
         self.sample_rate = sample_rate
@@ -208,6 +213,13 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
         self.text_context_remapping = text_context_remapping
         self.text_context_remapping_prob = text_context_remapping_prob
         self.phoneme_tokenizer_config = phoneme_tokenizer_config
+        if not math.isfinite(phoneme_lexicon_loss_scale) or phoneme_lexicon_loss_scale < 1.0:
+            raise ValueError("phoneme_lexicon_loss_scale must be finite and >= 1.0")
+        if phoneme_lexicon_loss_scale > 1.0 and not phoneme_loss_lexicon_path and phoneme_loss_lexicon is None:
+            raise ValueError("phoneme_loss_lexicon_path is required when phoneme_lexicon_loss_scale > 1.0")
+        self.phoneme_loss_lexicon_path = phoneme_loss_lexicon_path
+        self.phoneme_lexicon_loss_scale = phoneme_lexicon_loss_scale
+        self._phoneme_loss_lexicon = phoneme_loss_lexicon
         self.ignore_phoneme_languages = ignore_phoneme_languages or []
         self.enable_phoneme_text_input = enable_phoneme_text_input
         self.text_phoneme_token_offset = text_phoneme_token_offset
@@ -472,7 +484,14 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
 
     def _collate_phoneme_tokens(self, cuts: CutSet) -> Dict[str, Union[torch.Tensor, None]]:
         if self.phoneme_tokenizer is not None:
-            target_phoneme_tokens, target_phoneme_lens, phoneme_turn_dropout = collate_phoneme_channel(
+            # Keep all YAML parsing, word matching, and tokenizer offsets in CPU workers.
+            lexicon = None
+            if self.dataset_type == 'train' and self.phoneme_lexicon_loss_scale > 1.0:
+                if self._phoneme_loss_lexicon is None:
+                    self._phoneme_loss_lexicon = PhonemeLossLexicon(self.phoneme_loss_lexicon_path)
+                lexicon = self._phoneme_loss_lexicon
+                lexicon.bind_tokenizer(self.phoneme_tokenizer)
+            phoneme_result = collate_phoneme_channel(
                 cuts,
                 self.phoneme_tokenizer,
                 self.frame_length,
@@ -485,15 +504,20 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
                 phoneme_turn_dropout_turn_prob=self.phoneme_turn_dropout_turn_prob,
                 phoneme_turn_max_words_to_drop=self.phoneme_turn_max_words_to_drop,
                 apply_turn_dropout=self.dataset_type == 'train',
+                phoneme_loss_lexicon=lexicon,
             )
+            target_phoneme_tokens, target_phoneme_lens, phoneme_turn_dropout = phoneme_result[:3]
         else:
             target_phoneme_tokens, target_phoneme_lens, phoneme_turn_dropout = None, None, None
 
-        return {
+        result = {
             "target_phoneme_tokens": target_phoneme_tokens,
             "target_phoneme_lens": target_phoneme_lens,
             "phoneme_turn_dropout": phoneme_turn_dropout,
         }
+        if self.phoneme_tokenizer is not None and lexicon is not None:
+            result["phoneme_loss_mask"] = phoneme_result[3]
+        return result
 
     def _get_dataset_name(self, cut: Cut) -> str:
         speaker_found = False
@@ -858,6 +882,8 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             batch_dict["phoneme_tokens"] = phoneme_data["target_phoneme_tokens"]
             batch_dict["phoneme_tokens_lens"] = phoneme_data["target_phoneme_lens"]
             batch_dict["phoneme_turn_dropout"] = phoneme_data["phoneme_turn_dropout"]
+            if "phoneme_loss_mask" in phoneme_data:
+                batch_dict["phoneme_loss_mask"] = phoneme_data["phoneme_loss_mask"]
 
         audio_list_16khz = features["audio_16khz"]
         if len(audio_list_16khz) > 0:
@@ -960,7 +986,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             context_text = next((sup.context_text for sup in cut.supervisions if sup.has_custom("context_text")), None)
             context_text = f"[{language.upper()}][TEXT_ONLY]" + (f" {context_text}" if context_text else "")
             contexts.append(self._encode_context_text(context_text, language)[0])
-        return {
+        batch_dict = {
             "sample_id": [str(cut.id) for cut in cuts],
             "dataset_names": [self._get_dataset_name(cut) for cut in cuts],
             "languages": languages,
@@ -981,6 +1007,9 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
                 " ".join(s.text for s in cut.supervisions if s.speaker in self.output_roles) for cut in cuts
             ],
         }
+        if "phoneme_loss_mask" in phoneme_data:
+            batch_dict["phoneme_loss_mask"] = phoneme_data["phoneme_loss_mask"]
+        return batch_dict
 
     def __getitem__(self, cuts: CutSet) -> Dict[str, Union[torch.Tensor, List]]:
         self._initialize_tokenizers()
@@ -1270,11 +1299,14 @@ def collate_phoneme_channel(
     phoneme_turn_dropout_turn_prob: float = 0.0,
     phoneme_turn_max_words_to_drop: int = 2,
     apply_turn_dropout: bool = False,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    phoneme_loss_lexicon: PhonemeLossLexicon = None,
+):
+    """Collate phonemes; optionally append a Boolean lexicon loss mask."""
     tokens = []
     dropout_flags = []
+    loss_masks = []
     for i, c in enumerate(cuts):
-        token, dropout_applied = build_phoneme_channel(
+        result = build_phoneme_channel(
             c,
             phoneme_tokenizer,
             frame_length,
@@ -1287,11 +1319,18 @@ def collate_phoneme_channel(
             phoneme_turn_dropout_turn_prob=phoneme_turn_dropout_turn_prob,
             phoneme_turn_max_words_to_drop=phoneme_turn_max_words_to_drop,
             apply_turn_dropout=apply_turn_dropout,
+            phoneme_loss_lexicon=phoneme_loss_lexicon,
         )
+        token, dropout_applied = result[:2]
+        if phoneme_loss_lexicon is not None:
+            loss_masks.append(result[2])
         tokens.append(token)
         dropout_flags.append(dropout_applied)
     token_lens = torch.tensor([len(tt) for tt in tokens])
-    return collate_vectors(tokens, padding_value=pad_id), token_lens, torch.tensor(dropout_flags, dtype=torch.bool)
+    result = (collate_vectors(tokens, padding_value=pad_id), token_lens, torch.tensor(dropout_flags, dtype=torch.bool))
+    if phoneme_loss_lexicon is not None:
+        return (*result, collate_vectors(loss_masks, padding_value=False))
+    return result
 
 
 def build_phoneme_channel(
@@ -1307,20 +1346,47 @@ def build_phoneme_channel(
     phoneme_turn_dropout_turn_prob: float = 0.0,
     phoneme_turn_max_words_to_drop: int = 2,
     apply_turn_dropout: bool = False,
-) -> tuple[torch.Tensor, bool]:
+    phoneme_loss_lexicon: PhonemeLossLexicon = None,
+):
+    """Build target IDs, dropout status, and an optional matching-position mask."""
+    language = (
+        (
+            cut.lang
+            if cut.has_custom("lang")
+            else next((sup.language for sup in cut.supervisions if sup.has_custom("language")), "en")
+        )
+        if phoneme_loss_lexicon is not None
+        else None
+    )
+    match_lexicon = (
+        phoneme_loss_lexicon
+        if phoneme_loss_lexicon is not None and (phoneme_loss_lexicon.supports_language(language))
+        else None
+    )
     if getattr(cut, "task", "tts") == "text_only":
         # Explicit IPA supervision applies even to short utterances and languages
         # excluded from phoneme conditioning in ordinary audio training.
         ids = []
+        loss_mask = []
         for supervision in cut.supervisions:
             if supervision.speaker in roles:
                 ipa = _get_supervision_ipa_text(supervision)
                 if not ipa.strip():
                     raise ValueError(f"text_only cut {cut.id} requires a nonempty IPA target")
-                ids.extend([bos_id] + phoneme_tokenizer.encode(ipa) + [eos_id])
+                if match_lexicon is None:
+                    encoded = phoneme_tokenizer.encode(ipa)
+                    matched = [False] * len(encoded) if phoneme_loss_lexicon is not None else []
+                else:
+                    encoded, matched = match_lexicon.encode_with_mask(ipa, phoneme_tokenizer)
+                ids.extend([bos_id] + encoded + [eos_id])
+                if phoneme_loss_lexicon is not None:
+                    loss_mask.extend([False] + matched + [False])
         if not ids:
             raise ValueError(f"text_only cut {cut.id} has no target supervision")
-        return torch.tensor(ids, dtype=torch.long), False
+        result = (torch.tensor(ids, dtype=torch.long), False)
+        if phoneme_loss_lexicon is not None:
+            return (*result, torch.tensor(loss_mask, dtype=torch.bool))
+        return result
 
     language = (
         cut.lang
@@ -1330,6 +1396,7 @@ def build_phoneme_channel(
 
     total = compute_num_frames(cut.duration, frame_length, cut.sampling_rate)
     tokens = torch.ones(total, dtype=torch.long) * pad_id
+    loss_mask = torch.zeros(total, dtype=torch.bool) if phoneme_loss_lexicon is not None else None
     dropout_applied = False
     apply_dropout = (
         apply_turn_dropout
@@ -1354,7 +1421,12 @@ def build_phoneme_channel(
             if _count_words_ignoring_punctuation(supervision.text) <= phoneme_turn_max_words_to_drop:
                 ipa_text = ""
 
-            phoneme_ids = phoneme_tokenizer.encode(ipa_text)
+            if match_lexicon is None:
+                phoneme_ids = phoneme_tokenizer.encode(ipa_text)
+                matched = [False] * len(phoneme_ids) if phoneme_loss_lexicon is not None else []
+            else:
+                phoneme_ids, matched = match_lexicon.encode_with_mask(ipa_text, phoneme_tokenizer)
+            phoneme_mask = [False] + matched + [False] if loss_mask is not None else []
             phoneme_ids = [bos_id] + phoneme_ids + [eos_id]
             phoneme_ids = torch.as_tensor(phoneme_ids, dtype=torch.long)
             pos = compute_num_frames(supervision.start, frame_length, cut.sampling_rate)
@@ -1365,5 +1437,11 @@ def build_phoneme_channel(
             if endpos > len(tokens):
                 phoneme_ids = phoneme_ids[: len(tokens) - pos]
             tokens[pos : pos + len(phoneme_ids)] = phoneme_ids
+            if loss_mask is not None:
+                loss_mask[pos : pos + len(phoneme_ids)] = torch.tensor(
+                    phoneme_mask[: len(phoneme_ids)], dtype=torch.bool
+                )
 
+    if loss_mask is not None:
+        return tokens, dropout_applied, loss_mask
     return tokens, dropout_applied

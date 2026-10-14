@@ -1459,6 +1459,11 @@ class IPABPETokenizer(TokenizerSpec):
         """Encode IPA text to token IDs."""
         return self._tokenizer.encode(text).ids
 
+    def encode_with_offsets(self, text: str):
+        """Encode IPA once and return token IDs plus original character offsets."""
+        encoding = self._tokenizer.encode(text)
+        return encoding.ids, encoding.offsets
+
     def decode(self, tokens: List[int]) -> str:
         """Decode token IDs back to IPA text."""
         return self._tokenizer.decode(tokens)

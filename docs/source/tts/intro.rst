@@ -16,6 +16,7 @@ We will illustrate details in the following sections.
     checkpoints
     configs
     g2p
+    phoneme_loss_lexicon
     magpietts
     magpietts-finetuning
     magpietts-po

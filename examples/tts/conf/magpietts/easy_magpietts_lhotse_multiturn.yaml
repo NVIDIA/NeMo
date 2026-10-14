@@ -79,6 +79,10 @@ model:
   # Below args are only relevant if use_local_transformer is autoregressive
   local_transformer_loss_scale: 1.0
   phoneme_loss_weight: 1.0
+  # Optional English normalization-vocabulary IPA matching in CPU data-loader workers.
+  # Scale 1.0 disables matching and preserves the existing loss; validation stays unweighted.
+  phoneme_loss_lexicon_path: null
+  phoneme_lexicon_loss_scale: 1.0
   local_transformer_n_layers: 3
   local_transformer_n_heads: 12
   local_transformer_hidden_dim: 1536
