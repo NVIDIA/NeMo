@@ -27,7 +27,7 @@ def test_target_load_preserves_fp32_checkpoint_values(hybrid_checkpoint, monkeyp
     monkeypatch.setattr(model_module, "_maybe_mount_pe_encoder", lambda *args: None)
     monkeypatch.setattr(model_class, "_load_perception_weights", lambda self, weights: set())
 
-    model = model_class(vllm_config=SimpleNamespace(model_config=SimpleNamespace(hf_config=config)))
+    model = model_class(vllm_config=SimpleNamespace(model_config=SimpleNamespace(hf_config=config), quant_config=None))
     loaded = model.load_weights(("llm.model." + name, value) for name, value in checkpoint.items())
 
     assert loaded == {"language_model.backbone." + name for name in checkpoint}

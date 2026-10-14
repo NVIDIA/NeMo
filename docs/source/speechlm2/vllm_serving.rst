@@ -5,6 +5,26 @@ The NeMo SpeechLM vLLM plugin serves exported SpeechLM checkpoints with
 their speech encoder and language backbone. It supports ordinary generation
 and checkpoint-backed speculative decoding.
 
+CTC word timestamp alignment
+---------------------------
+
+When CTC timestamps are requested, native SpeechLM and the vLLM timestamp
+worker use the same single-pass banded CTC word aligner. Speaker mapping
+uses greedy token distributions; the search retains speaker-active frame
+support and scores an anchor-guided band. There is no preliminary DP pass
+or selectable legacy alignment backend.
+
+The Sortformer log-probability prior defaults to weight ``1.0``. The vLLM
+checkpoint setting ``ctc_timestamps.speaker_logprob_weight`` may override
+this weight without changing the alignment algorithm. Diarization-assisted
+word-boundary refinement always runs, with a default cap of 12 frames
+(at most 0.96 seconds). Native inference automatically chooses transcript
+units from the writing script unless ``timestamp_language`` is explicit.
+
+Remove the former ``alignment_backend`` option from native aligner
+configuration; it is no longer accepted. Timestamp generation remains
+opt-in and requires a CTC adapter.
+
 Installation
 ------------
 

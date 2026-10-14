@@ -207,9 +207,11 @@ class InterCTCMixin:
                 raise RuntimeError(
                     "Make sure encoder.forward is called exactly one time before interCTC loss is computed."
                 )
-            captured_tensors.append(
-                (self.get_interctc_param('decoder')(encoder_output=layer_outputs[0]), layer_lengths[0])
-            )
+            decoder = self.get_interctc_param('decoder')
+            decoder_kwargs = {'encoder_output': layer_outputs[0]}
+            if getattr(decoder, 'requires_encoded_lengths', False):
+                decoder_kwargs['encoded_lengths'] = layer_lengths[0]
+            captured_tensors.append((decoder(**decoder_kwargs), layer_lengths[0]))
         return captured_tensors
 
     def add_interctc_losses(
