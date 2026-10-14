@@ -364,3 +364,45 @@ Host I/O, data-dependent output shapes, streaming caches, autograd and CUDA grap
 Each instance belongs to one CUDA stream after its first call.
 Use a separate instance for another stream, serialize calls, and keep the instance alive until its queued work completes.
 As with other asynchronous PyTorch operations, the caller must establish dependencies between producer and consumer streams.
+
+
+Waveform preprocessing engine
+----------------------------
+
+The log-mel preprocessor can be exported separately from the encoder.
+Its input is a zero-padded float32 array of mono waveform samples, input_signal, with shape [batch, samples],
+and an int64 length array containing each waveform's sample count.
+Decode audio files and resample to the checkpoint's sample rate before invoking the engine.
+The outputs are processed_signal with shape [batch, features, frames] and processed_length in feature frames.
+These outputs can feed the encoder's audio_signal and length inputs.
+
+Build from the same checkpoint used for the encoder:
+
+.. code-block:: bash
+
+    python examples/asr/export/build_trt_preprocessor.py --model model.nemo --onnx preprocessor.onnx --engine preprocessor.plan
+
+The builder uses native NeMo preprocessing in evaluation mode, including its window, preemphasis, mel filter bank, log scaling, normalization, length calculation and padding.
+Dithering and training augmentation are disabled in evaluation mode.
+The engine uses FP32 with TF32 disabled; building requires PyTorch, NeMo, TensorRT and Polygraphy.
+The ONNX path uses opset 17 STFT with real/imaginary output pairs.
+Dynamic export currently supports per-feature or no normalization and requires frame_splicing=1.
+The default profile accepts batches 1–16 with 800–640000 padded waveform samples; adjust --min-samples, --opt-samples, --max-samples, --opt-batch and --max-batch for the workload.
+Profile dimensions are sample counts, not seconds or feature frames.
+Keep the resulting feature widths within the separate encoder engine's profile.
+Validate feature values, lengths and recognition accuracy after building for the deployment environment.
+
+The standalone runner requires only NumPy, TensorRT and cuda-python at runtime:
+
+.. code-block:: bash
+
+    python examples/asr/export/run_trt_preprocessor.py --engine preprocessor.plan --input waveforms.npz --output features.npz
+
+The input NPZ contains input_signal and length; the output contains processed_signal and processed_length.
+The example loads the engine and copies data between CPU and GPU for each call.
+For serving, retain an execution context and buffers and connect the preprocessing device outputs directly to the encoder.
+This example removes PyTorch from preprocessing execution; the encoder transcription example still uses the NeMo RNNT/TDT decoder.
+
+Numerical validation is required even for an FP32 engine.
+Small floating-point differences before per-feature normalization can produce larger differences when the signal variance is very low.
+Check quiet audio and silence explicitly, as well as representative recognition data; FP32 does not guarantee elementwise equivalence to native preprocessing.
