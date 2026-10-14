@@ -893,7 +893,7 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
             table = torch.load(
                 config.precomputed_context_audio_embeddings_path,
                 map_location="cpu",
-                weights_only=False,
+                weights_only=True,
             )
             self._precomputed_audio_embeddings = table["audio_embeddings"]
 
