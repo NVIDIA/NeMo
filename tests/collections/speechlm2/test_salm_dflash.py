@@ -1352,7 +1352,7 @@ def test_validation_checkpoint_with_skipped_datasets(tmp_path, monkeypatch, vari
     from nemo.utils.callbacks.nemo_model_checkpoint import NeMoModelCheckpoint
 
     class TinyDraftModule(salm_dflash.SALMDFlashModule):
-        def training_step(self, batch, batch_idx):
+        def _training_step_batch(self, batch, batch_idx):
             return self.draft_model(batch).square().mean()
 
     module = TinyDraftModule(
