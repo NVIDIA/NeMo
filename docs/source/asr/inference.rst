@@ -314,38 +314,56 @@ When writing custom inference scripts, follow the execution flow diagram at the
 Offline TensorRT encoder
 ------------------------
 
-An exported offline ASR encoder can run in TensorRT while preprocessing and RNNT/TDT greedy decoding remain in PyTorch.
-Install a CUDA-compatible TensorRT 10.x package and Polygraphy in addition to NeMo's ASR dependencies.
-The encoder ONNX file and the decoding checkpoint must come from the same model.
-Only the encoder is compiled; this workflow does not export the autoregressive decoding loop.
+You can use TensorRT to run an ASR encoder on an NVIDIA GPU.
+TensorRT compiles the exported encoder into an engine file, which NeMo loads for inference.
+NeMo still uses PyTorch to prepare the audio features and decode the encoder output into text.
+This example supports offline RNNT and TDT models.
 
-Export the encoder using the model's supported ONNX export interface, then build an engine:
+Start with a CUDA-capable NeMo ASR installation, then install a compatible TensorRT 10.x package and Polygraphy.
+Polygraphy is used to build engines; running an existing engine only requires TensorRT in addition to NeMo.
 
-.. code-block:: bash
+Build an encoder engine
+~~~~~~~~~~~~~~~~~~~~~~~
 
-    python examples/asr/export/build_trt_encoder.py --onnx encoder.onnx --engine encoder.plan --features 128
-
-Set the feature count to the model's input feature dimension.
-The example uses batches 1–16 and 8–4000 feature frames before subsampling; adjust the profile flags for your workload.
-The ONNX export's positional-cache capacity must also cover the requested maximum length.
-FP32 with TF32 disabled is the default.
-Use --fp16 to permit FP16 internal kernels, and validate recognition accuracy separately.
-Input and output dtypes are determined by the engine, independently of its internal kernel precision.
-A timing cache can be saved and reused with --timing-cache.
-Engines and timing caches must be built for compatible GPU hardware and TensorRT/CUDA versions.
-
-Transcribe mono audio at the checkpoint's sample rate:
+Export the encoder to ONNX using your model's export interface, then build the engine:
 
 .. code-block:: bash
 
-    python examples/asr/export/transducer/infer_transducer_trt.py --model model.nemo --engine encoder.plan --audio a.wav b.wav --output predictions.jsonl --batch-size 2 --compare-native
+    python examples/asr/export/build_trt_encoder.py \
+        --onnx encoder.onnx --engine encoder.plan --features 128
 
-The optional native comparison records both predictions in the JSONL output.
-It is a correctness comparison, not a throughput measurement.
-Preprocessing and the decoder remain FP32 in this example, and CUDA graph decoding is disabled.
-The example retains the native encoder for comparison; it does not measure minimum deployment memory.
+Set ``--features`` to your model's input feature count.
+By default, the engine accepts batches of 1–16 utterances with 8–4000 padded feature frames per utterance.
+Use ``--max-batch`` and ``--max-frames`` to change these limits; ``--help`` lists all build options.
+The ONNX export must support these shapes too, including enough positional embeddings for the maximum length.
 
-For an existing inference loop:
+The builder uses FP32 with TF32 disabled by default.
+Add ``--fp16`` to allow FP16 computation, then check recognition accuracy before using that engine.
+Build the engine for the GPU and TensorRT/CUDA versions on which you will run it.
+To speed up later builds on the same setup, use ``--timing-cache`` to save and reuse TensorRT's kernel timing results.
+
+Transcribe audio
+~~~~~~~~~~~~~~~~
+
+Use the checkpoint from which you exported the encoder.
+Audio files must be mono and match the checkpoint's sample rate.
+
+.. code-block:: bash
+
+    python examples/asr/export/transducer/infer_transducer_trt.py \
+        --model model.nemo --engine encoder.plan \
+        --audio a.wav b.wav --output predictions.jsonl \
+        --batch-size 2 --compare-native
+
+The script writes one JSON record per audio file.
+With ``--compare-native``, each record also includes the transcript from the original PyTorch encoder.
+Use this to compare recognition results.
+For speed and memory measurements, use a separate benchmark: the example keeps the original encoder in memory, uses FP32 preprocessing and decoding, and disables CUDA graph decoding.
+
+Use an engine in your own code
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pass CUDA feature tensors and their lengths to ``TensorRTEncoder``, then decode its outputs:
 
 .. code-block:: python
 
@@ -357,52 +375,67 @@ For an existing inference loop:
         encoded.float(), encoded_lengths, return_hypotheses=True
     )
 
-Features and integer lengths must be CUDA tensors on the selected device.
-The runtime uses optimization profile zero and accepts dynamic shapes within that profile.
-It requires linear device I/O named audio_signal, length, outputs and encoded_lengths.
-Host I/O, data-dependent output shapes, streaming caches, autograd and CUDA graph capture are outside this interface.
-Each instance belongs to one CUDA stream after its first call.
-Use a separate instance for another stream, serialize calls, and keep the instance alive until its queued work completes.
-As with other asynchronous PyTorch operations, the caller must establish dependencies between producer and consumer streams.
+Both inputs must be on the selected GPU, with shapes inside the engine's first optimization profile.
+The runtime converts their dtypes to those expected by the engine.
+Use one encoder instance per CUDA stream and keep it alive until its queued work finishes.
+If you prepare inputs or consume outputs on another stream, synchronize the streams as you would for other PyTorch operations.
+See the ``TensorRTEncoder`` class docstring for the full input and execution requirements.
+Streaming encoder caches, training and CUDA graph capture are not supported by this interface.
 
 
 Waveform preprocessing engine
-----------------------------
+-----------------------------
 
-The log-mel preprocessor can be exported separately from the encoder.
-Its input is a zero-padded float32 array of mono waveform samples, input_signal, with shape [batch, samples],
-and an int64 length array containing each waveform's sample count.
-Decode audio files and resample to the checkpoint's sample rate before invoking the engine.
-The outputs are processed_signal with shape [batch, features, frames] and processed_length in feature frames.
-These outputs can feed the encoder's audio_signal and length inputs.
+You can build a separate TensorRT engine to turn waveform samples into the log-mel features expected by the encoder.
+The standalone example runs this step without importing PyTorch.
 
-Build from the same checkpoint used for the encoder:
+This feature is still under validation.
+Quiet audio can produce differences from native NeMo preprocessing that exceed the current numerical tolerance.
+Check quiet audio, silence and recognition accuracy before using the engine for deployment.
 
-.. code-block:: bash
+Build the engine
+~~~~~~~~~~~~~~~~
 
-    python examples/asr/export/build_trt_preprocessor.py --model model.nemo --onnx preprocessor.onnx --engine preprocessor.plan
-
-The builder uses native NeMo preprocessing in evaluation mode, including its window, preemphasis, mel filter bank, log scaling, normalization, length calculation and padding.
-Dithering and training augmentation are disabled in evaluation mode.
-The engine uses FP32 with TF32 disabled; building requires PyTorch, NeMo, TensorRT and Polygraphy.
-The ONNX path uses opset 17 STFT with real/imaginary output pairs.
-Dynamic export currently supports per-feature or no normalization and requires frame_splicing=1.
-The default profile accepts batches 1–16 with 800–640000 padded waveform samples; adjust --min-samples, --opt-samples, --max-samples, --opt-batch and --max-batch for the workload.
-Profile dimensions are sample counts, not seconds or feature frames.
-Keep the resulting feature widths within the separate encoder engine's profile.
-Validate feature values, lengths and recognition accuracy after building for the deployment environment.
-
-The standalone runner requires only NumPy, TensorRT and cuda-python at runtime:
+Use the same checkpoint as the encoder:
 
 .. code-block:: bash
 
-    python examples/asr/export/run_trt_preprocessor.py --engine preprocessor.plan --input waveforms.npz --output features.npz
+    python examples/asr/export/build_trt_preprocessor.py \
+        --model model.nemo --onnx preprocessor.onnx --engine preprocessor.plan
 
-The input NPZ contains input_signal and length; the output contains processed_signal and processed_length.
-The example loads the engine and copies data between CPU and GPU for each call.
-For serving, retain an execution context and buffers and connect the preprocessing device outputs directly to the encoder.
-This example removes PyTorch from preprocessing execution; the encoder transcription example still uses the NeMo RNNT/TDT decoder.
+Building requires NeMo, PyTorch, TensorRT and Polygraphy.
+The builder uses the checkpoint's evaluation settings for the window, preemphasis, mel filters, log scaling, normalization and padding.
+Dithering and training augmentation are disabled.
+The engine uses FP32 with TF32 disabled.
 
-Numerical validation is required even for an FP32 engine.
-Small floating-point differences before per-feature normalization can produce larger differences when the signal variance is very low.
-Check quiet audio and silence explicitly, as well as representative recognition data; FP32 does not guarantee elementwise equivalence to native preprocessing.
+The default input limits are 1–16 utterances and 800–640000 padded samples per utterance.
+Use the sample-count and batch-size options shown by ``--help`` to change these limits.
+Check that the resulting feature sequences fit the encoder engine's limits too.
+Dynamic export supports per-feature normalization or no normalization, and requires ``frame_splicing=1``.
+The ONNX export uses opset 17 and represents the STFT output as real/imaginary pairs.
+
+Prepare and process audio
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Decode files, convert them to mono and resample them to the checkpoint's sample rate before calling the engine.
+Store a zero-padded batch in an NPZ file with two arrays:
+
+* ``input_signal``: float32 waveform samples with shape ``[batch, samples]``.
+* ``length``: int64 sample counts with shape ``[batch]``, excluding padding.
+
+Run the example with NumPy, TensorRT and cuda-python installed:
+
+.. code-block:: bash
+
+    python examples/asr/export/run_trt_preprocessor.py \
+        --engine preprocessor.plan --input waveforms.npz --output features.npz
+
+The output NPZ contains ``processed_signal`` with shape ``[batch, features, frames]`` and ``processed_length`` in feature frames.
+Pass these to the encoder's ``audio_signal`` and ``length`` inputs.
+
+This example loads the engine and copies data between CPU and GPU on each call.
+For a serving application, keep the engine, execution context and buffers loaded, and pass GPU outputs directly to the encoder.
+The encoder transcription example still uses NeMo's PyTorch decoder.
+
+FP32 does not guarantee identical features.
+Small differences before per-feature normalization can become larger when the signal variance is very low, which is why quiet audio needs particular attention during validation.
