@@ -314,38 +314,56 @@ When writing custom inference scripts, follow the execution flow diagram at the
 Offline TensorRT encoder
 ------------------------
 
-An exported offline ASR encoder can run in TensorRT while preprocessing and RNNT/TDT greedy decoding remain in PyTorch.
-Install a CUDA-compatible TensorRT 10.x package and Polygraphy in addition to NeMo's ASR dependencies.
-The encoder ONNX file and the decoding checkpoint must come from the same model.
-Only the encoder is compiled; this workflow does not export the autoregressive decoding loop.
+You can use TensorRT to run an ASR encoder on an NVIDIA GPU.
+TensorRT compiles the exported encoder into an engine file, which NeMo loads for inference.
+NeMo still uses PyTorch to prepare the audio features and decode the encoder output into text.
+This example supports offline RNNT and TDT models.
 
-Export the encoder using the model's supported ONNX export interface, then build an engine:
+Start with a CUDA-capable NeMo ASR installation, then install a compatible TensorRT 10.x package and Polygraphy.
+Polygraphy is used to build engines; running an existing engine only requires TensorRT in addition to NeMo.
 
-.. code-block:: bash
+Build an encoder engine
+~~~~~~~~~~~~~~~~~~~~~~~
 
-    python examples/asr/export/build_trt_encoder.py --onnx encoder.onnx --engine encoder.plan --features 128
-
-Set the feature count to the model's input feature dimension.
-The example uses batches 1–16 and 8–4000 feature frames before subsampling; adjust the profile flags for your workload.
-The ONNX export's positional-cache capacity must also cover the requested maximum length.
-FP32 with TF32 disabled is the default.
-Use --fp16 to permit FP16 internal kernels, and validate recognition accuracy separately.
-Input and output dtypes are determined by the engine, independently of its internal kernel precision.
-A timing cache can be saved and reused with --timing-cache.
-Engines and timing caches must be built for compatible GPU hardware and TensorRT/CUDA versions.
-
-Transcribe mono audio at the checkpoint's sample rate:
+Export the encoder to ONNX using your model's export interface, then build the engine:
 
 .. code-block:: bash
 
-    python examples/asr/export/transducer/infer_transducer_trt.py --model model.nemo --engine encoder.plan --audio a.wav b.wav --output predictions.jsonl --batch-size 2 --compare-native
+    python examples/asr/export/build_trt_encoder.py \
+        --onnx encoder.onnx --engine encoder.plan --features 128
 
-The optional native comparison records both predictions in the JSONL output.
-It is a correctness comparison, not a throughput measurement.
-Preprocessing and the decoder remain FP32 in this example, and CUDA graph decoding is disabled.
-The example retains the native encoder for comparison; it does not measure minimum deployment memory.
+Set ``--features`` to your model's input feature count.
+By default, the engine accepts batches of 1–16 utterances with 8–4000 padded feature frames per utterance.
+Use ``--max-batch`` and ``--max-frames`` to change these limits; ``--help`` lists all build options.
+The ONNX export must support these shapes too, including enough positional embeddings for the maximum length.
 
-For an existing inference loop:
+The builder uses FP32 with TF32 disabled by default.
+Add ``--fp16`` to allow FP16 computation, then check recognition accuracy before using that engine.
+Build the engine for the GPU and TensorRT/CUDA versions on which you will run it.
+To speed up later builds on the same setup, use ``--timing-cache`` to save and reuse TensorRT's kernel timing results.
+
+Transcribe audio
+~~~~~~~~~~~~~~~~
+
+Use the checkpoint from which you exported the encoder.
+Audio files must be mono and match the checkpoint's sample rate.
+
+.. code-block:: bash
+
+    python examples/asr/export/transducer/infer_transducer_trt.py \
+        --model model.nemo --engine encoder.plan \
+        --audio a.wav b.wav --output predictions.jsonl \
+        --batch-size 2 --compare-native
+
+The script writes one JSON record per audio file.
+With ``--compare-native``, each record also includes the transcript from the original PyTorch encoder.
+Use this to compare recognition results.
+For speed and memory measurements, use a separate benchmark: the example keeps the original encoder in memory, uses FP32 preprocessing and decoding, and disables CUDA graph decoding.
+
+Use an engine in your own code
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pass CUDA feature tensors and their lengths to ``TensorRTEncoder``, then decode its outputs:
 
 .. code-block:: python
 
@@ -357,32 +375,33 @@ For an existing inference loop:
         encoded.float(), encoded_lengths, return_hypotheses=True
     )
 
-Features and integer lengths must be CUDA tensors on the selected device.
-The runtime uses optimization profile zero and accepts dynamic shapes within that profile.
-It requires linear device I/O named audio_signal, length, outputs and encoded_lengths.
-Host I/O, data-dependent output shapes, streaming caches, autograd and CUDA graph capture are outside this interface.
-Each instance belongs to one CUDA stream after its first call.
-Use a separate instance for another stream, serialize calls, and keep the instance alive until its queued work completes.
-As with other asynchronous PyTorch operations, the caller must establish dependencies between producer and consumer streams.
+Both inputs must be on the selected GPU, with shapes inside the engine's first optimization profile.
+The runtime converts their dtypes to those expected by the engine.
+Use one encoder instance per CUDA stream and keep it alive until its queued work finishes.
+If you prepare inputs or consume outputs on another stream, synchronize the streams as you would for other PyTorch operations.
+See the ``TensorRTEncoder`` class docstring for the full input and execution requirements.
+Streaming encoder caches, training and CUDA graph capture are not supported by this interface.
 
 
 Prediction network and joint engine
 -----------------------------------
 
-The combined decoder-joint ONNX export can also be built as a single-step TensorRT engine:
+You can also compile the combined RNNT/TDT prediction and joint networks into a TensorRT engine.
+The engine evaluates one decoding step: it takes an encoder frame, the previous label and the prediction network's hidden and cell states.
+It returns joint scores, prediction lengths and updated states.
+
+Build it from NeMo's combined decoder-joint ONNX export:
 
 .. code-block:: bash
 
-    python examples/asr/export/build_trt_decoder_joint.py --onnx decoder_joint-model.onnx --engine decoder_joint.plan
+    python examples/asr/export/build_trt_decoder_joint.py \
+        --onnx decoder_joint-model.onnx --engine decoder_joint.plan
 
-The engine consumes one encoded acoustic frame, one previous label and explicit predictor hidden/cell states per item.
-It returns joint scores, prediction lengths and updated states.
-The builder reads fixed channel and state dimensions from ONNX and supports batches 1–16 by default.
-Use --opt-batch and --max-batch to change the batch profile.
-FP32 with TF32 disabled is the default; --fp16 permits reduced-precision internal kernels.
-Check recurrent-state and score accuracy over multiple successive calls before using reduced precision.
+The builder reads the channel and state dimensions from the ONNX model.
+By default, it supports batches of 1–16 items and uses FP32 with TF32 disabled.
+Use ``--opt-batch`` and ``--max-batch`` to change the batch sizes.
+To allow FP16 computation, add ``--fp16`` and check scores and recurrent states over several successive decoding steps.
 
-This engine implements a neural-network step, not the autoregressive decoding loop.
-The caller must apply blank handling, update states only for the appropriate hypotheses, advance TDT durations and stop completed sequences.
-The encoder transcription example above still uses the native NeMo decoder.
-Integrating the combined engine with an optimized label-looping decoder requires preserving its cached prediction outputs and joint projections.
+A decoding loop must call this engine, handle blank predictions, update the appropriate states, advance by the predicted TDT durations and stop completed sequences.
+The encoder transcription example above still uses NeMo's PyTorch decoder.
+When integrating this engine, preserve the decoder's cached prediction outputs and joint projections to avoid repeating work.
