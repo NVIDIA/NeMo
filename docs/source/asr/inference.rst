@@ -364,3 +364,25 @@ Host I/O, data-dependent output shapes, streaming caches, autograd and CUDA grap
 Each instance belongs to one CUDA stream after its first call.
 Use a separate instance for another stream, serialize calls, and keep the instance alive until its queued work completes.
 As with other asynchronous PyTorch operations, the caller must establish dependencies between producer and consumer streams.
+
+
+Prediction network and joint engine
+-----------------------------------
+
+The combined decoder-joint ONNX export can also be built as a single-step TensorRT engine:
+
+.. code-block:: bash
+
+    python examples/asr/export/build_trt_decoder_joint.py --onnx decoder_joint-model.onnx --engine decoder_joint.plan
+
+The engine consumes one encoded acoustic frame, one previous label and explicit predictor hidden/cell states per item.
+It returns joint scores, prediction lengths and updated states.
+The builder reads fixed channel and state dimensions from ONNX and supports batches 1–16 by default.
+Use --opt-batch and --max-batch to change the batch profile.
+FP32 with TF32 disabled is the default; --fp16 permits reduced-precision internal kernels.
+Check recurrent-state and score accuracy over multiple successive calls before using reduced precision.
+
+This engine implements a neural-network step, not the autoregressive decoding loop.
+The caller must apply blank handling, update states only for the appropriate hypotheses, advance TDT durations and stop completed sequences.
+The encoder transcription example above still uses the native NeMo decoder.
+Integrating the combined engine with an optimized label-looping decoder requires preserving its cached prediction outputs and joint projections.
