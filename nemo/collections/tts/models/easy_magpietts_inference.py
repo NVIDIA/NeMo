@@ -1283,29 +1283,10 @@ class EasyMagpieTTSInferenceModel(ModelPT):
         device = context_text_tokens.device
 
         # Context Audio
-        has_precomputed_audio = precomputed_context_audio_embedding is not None
-        if has_precomputed_audio != (precomputed_context_audio_embedding_lens is not None):
-            raise ValueError(
-                "`precomputed_context_audio_embedding` and `precomputed_context_audio_embedding_lens` "
-                "must be provided together."
-            )
+        has_precomputed_audio = self._validate_precomputed_context_audio(
+            precomputed_context_audio_embedding, precomputed_context_audio_embedding_lens, batch_size
+        )
         if has_precomputed_audio:
-            if precomputed_context_audio_embedding.ndim != 3:
-                raise ValueError("`precomputed_context_audio_embedding` must have shape (batch, time, embedding_dim).")
-            if precomputed_context_audio_embedding.shape[0] != batch_size:
-                raise ValueError("Precomputed context audio batch size must match context text batch size.")
-            if precomputed_context_audio_embedding.shape[2] != self.cfg.embedding_dim:
-                raise ValueError(
-                    f"Precomputed context audio embedding dimension is "
-                    f"{precomputed_context_audio_embedding.shape[2]}, but the model expects {self.cfg.embedding_dim}."
-                )
-            max_audio_len = precomputed_context_audio_embedding.shape[1]
-            if precomputed_context_audio_embedding_lens.shape != (batch_size,):
-                raise ValueError("`precomputed_context_audio_embedding_lens` must have shape (batch,).")
-            if torch.any(precomputed_context_audio_embedding_lens < 0) or torch.any(
-                precomputed_context_audio_embedding_lens > max_audio_len
-            ):
-                raise ValueError("Precomputed context audio lengths must be between 0 and the padded length.")
             context_audio_embedded = precomputed_context_audio_embedding.to(
                 device=device, dtype=next(self.parameters()).dtype
             )
@@ -2841,3 +2822,36 @@ class EasyMagpieTTSInferenceModel(ModelPT):
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         """Return metadata for pretrained models exposed by this class."""
         return []
+
+    def _validate_precomputed_context_audio(
+        self,
+        precomputed_context_audio_embedding: Optional[torch.Tensor],
+        precomputed_context_audio_embedding_lens: Optional[torch.Tensor],
+        batch_size: int,
+    ) -> bool:
+        """Validate paired precomputed audio tensors and return whether they were supplied."""
+        has_precomputed_audio = precomputed_context_audio_embedding is not None
+        if has_precomputed_audio != (precomputed_context_audio_embedding_lens is not None):
+            raise ValueError(
+                "`precomputed_context_audio_embedding` and `precomputed_context_audio_embedding_lens` "
+                "must be provided together."
+            )
+        if not has_precomputed_audio:
+            return False
+        if precomputed_context_audio_embedding.ndim != 3:
+            raise ValueError("`precomputed_context_audio_embedding` must have shape (batch, time, embedding_dim).")
+        if precomputed_context_audio_embedding.shape[0] != batch_size:
+            raise ValueError("Precomputed context audio batch size must match context text batch size.")
+        if precomputed_context_audio_embedding.shape[2] != self.cfg.embedding_dim:
+            raise ValueError(
+                f"Precomputed context audio embedding dimension is "
+                f"{precomputed_context_audio_embedding.shape[2]}, but the model expects {self.cfg.embedding_dim}."
+            )
+        max_audio_len = precomputed_context_audio_embedding.shape[1]
+        if precomputed_context_audio_embedding_lens.shape != (batch_size,):
+            raise ValueError("`precomputed_context_audio_embedding_lens` must have shape (batch,).")
+        if torch.any(precomputed_context_audio_embedding_lens < 0) or torch.any(
+            precomputed_context_audio_embedding_lens > max_audio_len
+        ):
+            raise ValueError("Precomputed context audio lengths must be between 0 and the padded length.")
+        return True
