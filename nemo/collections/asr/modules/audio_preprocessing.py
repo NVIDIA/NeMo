@@ -1,4 +1,5 @@
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2020, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +21,7 @@ from typing import Any, Optional
 
 import torch
 
+from nemo.collections.asr.parts.packed_sequence import PackedEncoderActivations
 from nemo.collections.asr.parts.preprocessing.features import FilterbankFeatures
 from nemo.collections.asr.parts.submodules.spectr_augment import SpecAugment, SpecCutout
 from nemo.collections.audio.parts.utils.transforms import MFCC
@@ -91,10 +93,38 @@ class AudioPreprocessor(NeuralModule, ABC):
         processed_signal = processed_signal.to(self.dtype_sentinel_tensor.dtype)
         return processed_signal, processed_length
 
+    @torch.no_grad()
+    def forward_packed(self, input_signal, length, input_signal_cu_seqlens) -> PackedEncoderActivations:
+        """Preprocess concatenated waveforms into token-flat features.
+
+        The packed frontend uses one vectorized guarded STFT and returns exactly
+        the valid feature frames. The historical padded :meth:`forward` contract
+        and checkpoint state remain unchanged.
+
+        Args:
+            input_signal: Concatenated waveform samples with shape `(sum(length),)`.
+            length: Per-waveform sample counts with shape `(B,)`.
+            input_signal_cu_seqlens: Cumulative sample offsets with shape `(B + 1,)`.
+
+        Returns:
+            Packed time-major features and their sequence metadata.
+        """
+        if input_signal.dtype != torch.float32:
+            logging.warning(
+                f"AudioPreprocessor received an input signal of dtype {input_signal.dtype}, rather than "
+                "torch.float32. Packed preprocessing runs in float32 for numerical stability.",
+                mode=logging_mode.ONCE,
+            )
+        processed = self.get_features_packed(input_signal.to(torch.float32), length, input_signal_cu_seqlens)
+        return processed.with_data(processed.data.to(self.dtype_sentinel_tensor.dtype))
+
     @abstractmethod
     def get_features(self, input_signal, length):
         # Called by forward(). Subclasses should implement this.
         pass
+
+    def get_features_packed(self, input_signal, length, input_signal_cu_seqlens) -> PackedEncoderActivations:
+        raise NotImplementedError(f"{type(self).__name__} does not implement packed waveform preprocessing.")
 
 
 class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
@@ -282,6 +312,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
 
     def get_features(self, input_signal, length):
         return self.featurizer(input_signal, length)
+
+    def get_features_packed(self, input_signal, length, input_signal_cu_seqlens) -> PackedEncoderActivations:
+        return self.featurizer.forward_packed(input_signal, length, input_signal_cu_seqlens)
 
     @property
     def filter_banks(self):
@@ -501,6 +534,8 @@ class SpectrogramAugmentation(NeuralModule):
         else:
             self.spec_augment = lambda input_spec, length: input_spec
 
+        # Retain the requested backend even on hosts without Numba CUDA support.
+        self.use_numba_spec_augment = use_numba_spec_augment
         # Check if numba is supported, and use a Numba kernel if it is
         if use_numba_spec_augment and NUMBA_CUDA_AVAILABLE:
             logging.info('Numba CUDA SpecAugment kernel is being used')
@@ -515,6 +550,33 @@ class SpectrogramAugmentation(NeuralModule):
         else:
             self.spec_augment_numba = None
 
+    def configure_short_recording_time_mask_cap(
+        self,
+        *,
+        frame_duration_seconds: float,
+        max_duration_seconds: float = 1.0,
+        max_mask_fraction: float = 0.1,
+    ) -> None:
+        """Limit aggregate time masking on sub-threshold recordings.
+
+        The cap uses PyTorch SpecAugment, overriding a requested Numba backend.
+        The vectorized PyTorch implementation does not require Numba.
+        """
+        if isinstance(self.spec_augment, SpecAugment):
+            self.spec_augment.configure_short_recording_time_mask_cap(
+                frame_duration_seconds=frame_duration_seconds,
+                max_duration_seconds=max_duration_seconds,
+                max_mask_fraction=max_mask_fraction,
+            )
+            if self.use_numba_spec_augment:
+                logging.warning(
+                    "The short-recording time-mask cap uses PyTorch SpecAugment; "
+                    "overriding use_numba_spec_augment=True because the Numba backend "
+                    "does not support per-recording time-mask limits. "
+                    "This can change augmentation RNG, outputs and throughput, including for long recordings."
+                )
+            self.spec_augment_numba = None
+
     @typecheck()
     def forward(self, input_spec, length):
         augmented_spec = self.spec_cutout(input_spec=input_spec)
@@ -526,6 +588,15 @@ class SpectrogramAugmentation(NeuralModule):
         else:
             augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)
         return augmented_spec
+
+    @torch.no_grad()
+    def forward_packed(self, input_spec: PackedEncoderActivations) -> PackedEncoderActivations:
+        """Apply sequence-local augmentation without padding token-flat features."""
+        if isinstance(self.spec_cutout, SpecCutout):
+            input_spec = self.spec_cutout.forward_packed(input_spec)
+        if isinstance(self.spec_augment, SpecAugment):
+            input_spec = self.spec_augment.forward_packed(input_spec)
+        return input_spec
 
 
 class MaskedPatchAugmentation(NeuralModule):
