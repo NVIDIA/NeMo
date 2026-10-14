@@ -2829,7 +2829,12 @@ class EasyMagpieTTSInferenceModel(ModelPT):
         precomputed_context_audio_embedding_lens: Optional[torch.Tensor],
         batch_size: int,
     ) -> bool:
-        """Validate paired precomputed audio tensors and return whether they were supplied."""
+        """Validate paired precomputed audio tensors and return whether they were supplied.
+
+        Raises:
+            ValueError: If only one tensor is supplied, the tensor shapes do not match the expected
+                batch size or embedding dimension, or lengths are outside the padded sequence bounds.
+        """
         has_precomputed_audio = precomputed_context_audio_embedding is not None
         if has_precomputed_audio != (precomputed_context_audio_embedding_lens is not None):
             raise ValueError(
