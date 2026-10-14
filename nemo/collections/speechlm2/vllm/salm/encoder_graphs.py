@@ -24,6 +24,7 @@ frames with zeros, which the encoder masks by length like the padding of any sho
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import math
 
@@ -47,6 +48,9 @@ class EncoderGraphRunner:
         compile_layers: ``torch.compile`` every transformer block of the encoder first. This fuses the
             memory-bound LayerNorm, RoPE and residual operations that dominate the encoder's GPU time at these
             batch sizes, and changes numerics at bf16 rounding level.
+
+    Set ``ctc_timestamp_inputs`` before the first call to also capture the encoder's CTC timestamp inputs, so
+    that calls can return them.
     """
 
     def __init__(
@@ -68,6 +72,7 @@ class EncoderGraphRunner:
         self.graphs: dict[tuple[int, int], tuple] = {}
         self.pool = None
         self.enabled = True
+        self.ctc_timestamp_inputs = False
         # Audio longer than the graphed windows runs the eager online path, whose steady-state streaming
         # diarization steps still replay from CUDA graphs.
         perception.encoder.online_cuda_graphs = True
@@ -97,8 +102,10 @@ class EncoderGraphRunner:
         )
 
     def _forward(self, x: torch.Tensor, x_len: torch.Tensor):
+        kwargs = {"return_ctc_timestamp_inputs": True} if self.ctc_timestamp_inputs else {}
         with self.perception.encoder.online_inference():
-            return self.perception(processed_signal=x, processed_signal_length=x_len)
+            out = self.perception(processed_signal=x, processed_signal_length=x_len, **kwargs)
+        return out if self.ctc_timestamp_inputs else (*out, None)
 
     def _capture_all(self, n_feat: int, dtype: torch.dtype) -> None:
         """Capture every bucket at the first call, largest first so smaller graphs reuse the pool's blocks."""
@@ -113,15 +120,21 @@ class EncoderGraphRunner:
         x_len = torch.full((rows,), frames, device=device, dtype=torch.long)
         if self.pool is None:
             self.pool = torch.cuda.graph_pool_handle()
-        graph, (emb, emb_len) = capture_cuda_graph(lambda: self._forward(x, x_len), pool=self.pool)
-        self.graphs[rows, frames] = (graph, x, x_len, emb, emb_len)
+        graph, (emb, emb_len, states) = capture_cuda_graph(lambda: self._forward(x, x_len), pool=self.pool)
+        self.graphs[rows, frames] = (graph, x, x_len, emb, emb_len, states)
         logger.info("Captured encoder CUDA graph for %d rows x %d frames", rows, frames)
 
     @torch.no_grad()
-    def __call__(self, audio_signal: torch.Tensor, audio_lengths: torch.Tensor) -> list[torch.Tensor] | None:
-        """Encode a batch of waveforms; returns per-row embeddings, or None (encode eagerly) when the audio is too
-        long to graph or capture failed."""
-        if not self.enabled:
+    def __call__(
+        self, audio_signal: torch.Tensor, audio_lengths: torch.Tensor, return_ctc_timestamp_inputs: bool = False
+    ):
+        """Encode a batch of waveforms.
+
+        Returns per-row embeddings, and with ``return_ctc_timestamp_inputs`` also the batch's
+        ``CTCTimestampInputs``, like the perception forward. Returns None (encode eagerly) when the audio is too long
+        to graph, capture failed, or the inputs are requested from graphs captured without them.
+        """
+        if not self.enabled or (return_ctc_timestamp_inputs and not self.ctc_timestamp_inputs):
             return None
         processed, processed_len = self.perception.maybe_preprocess_audio(audio_signal, audio_lengths, None, None)
         n_feat, frames = processed.shape[1], processed.shape[2]
@@ -137,11 +150,11 @@ class EncoderGraphRunner:
                 self.enabled = False
                 return None
         bucket = self._frame_bucket(frames)
-        out, start = [], 0
+        out, pieces, start = [], [], 0
         for size in self._split(processed.shape[0], bucket):
             rows = processed[start : start + size]
             n = rows.shape[0]
-            graph, x, x_len, emb, emb_len = self.graphs[size, bucket]
+            graph, x, x_len, emb, emb_len, states = self.graphs[size, bucket]
             x[:n, :, :frames].copy_(rows)
             x[:n, :, frames:].zero_()
             x[n:].copy_(x[:1].expand_as(x[n:]))
@@ -151,4 +164,18 @@ class EncoderGraphRunner:
             graph.replay()
             # One host sync per piece for the lengths; the clones leave the static output buffer free for reuse.
             out.extend(emb[i, :length].clone() for i, length in enumerate(emb_len[:n].tolist()))
-        return out
+            if return_ctc_timestamp_inputs:
+                pieces.append(_rows(states, n))
+        if not return_ctc_timestamp_inputs:
+            return out
+        tensors = {name: torch.cat([getattr(p, name) for p in pieces]) for name in _tensor_fields(pieces[0])}
+        return out, dataclasses.replace(pieces[0], **tensors)
+
+
+def _tensor_fields(states) -> list[str]:
+    return [f.name for f in dataclasses.fields(states) if isinstance(getattr(states, f.name), torch.Tensor)]
+
+
+def _rows(states, n: int):
+    """Copies of the first ``n`` rows of every tensor in captured ``CTCTimestampInputs``."""
+    return dataclasses.replace(states, **{name: getattr(states, name)[:n].clone() for name in _tensor_fields(states)})

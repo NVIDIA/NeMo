@@ -100,5 +100,5 @@ The keys can also be set in the checkpoint's ``config.json``.
 - ``encoder_compile``: also compile each encoder transformer block with ``torch.compile``, fusing its
   memory-bound operations. This lowers encoder GPU time further and changes the outputs at bf16 rounding level.
 
-Both are off by default. If a capture fails, the encoder runs eagerly instead. While CTC timestamp capture is
-enabled, the whole-encoder graphs are bypassed, but the streaming diarization step graphs of long audio still run.
+Both are off by default. If a capture fails, the encoder runs eagerly instead. With CTC timestamps enabled, the
+graphs also produce the alignment inputs, so requests that ask for timestamps are served from the same graphs.

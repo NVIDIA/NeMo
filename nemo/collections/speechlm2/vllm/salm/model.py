@@ -203,6 +203,9 @@ class NeMoSpeechLMForConditionalGeneration(
         # enabled" error instead of an unknown method.
         install_worker_methods()
         self._maybe_enable_ctc_timestamps(ctc_timestamp_config(vllm_config.model_config), vllm_config)
+        if self._encoder_graphs is not None:
+            # Graphs are captured at the first encoder call, after this.
+            self._encoder_graphs.ctc_timestamp_inputs = active_aligner() is not None
 
         self.make_empty_intermediate_tensors = self.language_model.make_empty_intermediate_tensors
 
@@ -343,7 +346,8 @@ class NeMoSpeechLMForConditionalGeneration(
         # disables chunking and runs a single forward over the full batch.
         # A ParallelExpertEncoder instead runs its own context-preserving online
         # inference over the full audio, so it bypasses the chunking helper, and so
-        # does CTC timestamp capture, whose inputs cover one forward.
+        # does CTC timestamp capture, whose inputs cover one forward. Both replay the
+        # encoder from CUDA graphs when enabled.
         with torch.no_grad():
             if active_aligner() is not None:
                 audio_embeds = self._encode_with_ctc_capture(
@@ -388,23 +392,26 @@ class NeMoSpeechLMForConditionalGeneration(
         num_audio_items = audio_signal.shape[0]
         mm_hashes = take_step_hashes(num_audio_items)
         keep = [False] * num_audio_items if capture is None else capture.tolist()
-        online = self.perception.encoder.online_inference() if self._uses_pe_encoder else contextlib.nullcontext()
-        with online:
-            if not any(keep):
-                audio_embs, audio_emb_lens = self.perception(
-                    input_signal=audio_signal, input_signal_length=audio_lengths
-                )
-            else:
-                durations = audio_lengths.double() / _SAMPLING_RATE
-                audio_embs, audio_emb_lens, alignment_states = self.perception(
+        want_states = any(keep)
+        graphs = self._encoder_graphs
+        encoded = graphs(audio_signal, audio_lengths, return_ctc_timestamp_inputs=want_states) if graphs else None
+        if encoded is None:
+            online = self.perception.encoder.online_inference() if self._uses_pe_encoder else contextlib.nullcontext()
+            with online:
+                audio_embs, audio_emb_lens, *states = self.perception(
                     input_signal=audio_signal,
                     input_signal_length=audio_lengths,
-                    return_ctc_timestamp_inputs=True,
+                    return_ctc_timestamp_inputs=want_states,
                 )
-                if mm_hashes is not None:
-                    kept_hashes = [mm_hash if kept else None for mm_hash, kept in zip(mm_hashes, keep)]
-                    store_alignment_states(kept_hashes, alignment_states, durations)
-        return [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
+            audio_embeds = [emb[:emblen] for emb, emblen in zip(audio_embs, audio_emb_lens)]
+            encoded = (audio_embeds, *states) if want_states else audio_embeds
+        if not want_states:
+            return encoded
+        audio_embeds, alignment_states = encoded
+        if mm_hashes is not None:
+            kept_hashes = [mm_hash if kept else None for mm_hash, kept in zip(mm_hashes, keep)]
+            store_alignment_states(kept_hashes, alignment_states, audio_lengths.double() / _SAMPLING_RATE)
+        return audio_embeds
 
     def embed_multimodal(self, **kwargs) -> MultiModalEmbeddings:
         audio_input = self._parse_audio_input(**kwargs)

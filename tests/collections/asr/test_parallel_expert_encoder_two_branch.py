@@ -1398,3 +1398,73 @@ def test_save_to_nemo_guard_rails(tmp_path):
             str(tmp_path / "out.nemo"),
             template_bundle_path=str(tmp_path / "missing.nemo"),
         )
+
+
+class _FlatMelPerception(nn.Module):
+    """Perception stand-in around a real encoder: the 'audio' is a flattened mel spectrogram ``(B, T * F)``."""
+
+    def __init__(self, encoder):
+        super().__init__()
+        self.encoder = encoder
+
+    def maybe_preprocess_audio(self, input_signal, input_signal_length, processed_signal, processed_signal_length):
+        if processed_signal is not None:
+            return processed_signal, processed_signal_length
+        b, n = input_signal.shape
+        mels = input_signal.view(b, n // _MEL_FEATURES, _MEL_FEATURES).transpose(1, 2)
+        return mels, input_signal_length // _MEL_FEATURES
+
+    def forward(
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
+        return_ctc_timestamp_inputs=False,
+    ):
+        x, x_len = self.maybe_preprocess_audio(
+            input_signal, input_signal_length, processed_signal, processed_signal_length
+        )
+        out = self.encoder(audio_signal=x, length=x_len, return_ctc_timestamp_inputs=return_ctc_timestamp_inputs)
+        return (out[0].transpose(1, 2), *out[1:])
+
+
+@pytest.mark.unit
+def test_encoder_graphs_return_eager_ctc_timestamp_inputs():
+    """Graphs captured with CTC timestamp inputs replay the eager embeddings and alignment inputs of every row."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+    torch.manual_seed(0)
+    diarization_config = toy_diarization_model_cfg()
+    diarization_config.high_resolution = True
+    encoder = build_toy_pe_encoder(diarization_model_cfg=diarization_config, online_inference_length=40)
+    encoder._suppress_online_pbar = True
+    perception = _FlatMelPerception(encoder).cuda().eval()
+    runner = EncoderGraphRunner(perception, batch_sizes=(2, 4), frame_bucket=64, max_windows=2)
+    runner.ctc_timestamp_inputs = True
+    frames = torch.tensor([2 * encoder.chunk_feat_len - 30, 150, encoder.chunk_feat_len + 7], device="cuda")
+    audio = torch.randn(3, int(frames.max()) * _MEL_FEATURES, device="cuda")
+    lengths = frames * _MEL_FEATURES
+
+    embeds, states = runner(audio, lengths, return_ctc_timestamp_inputs=True)
+    assert runner.graphs
+    with torch.no_grad(), encoder.online_inference():
+        ref_embs, ref_lens, ref_states = perception(
+            input_signal=audio, input_signal_length=lengths, return_ctc_timestamp_inputs=True
+        )
+
+    for i, n in enumerate(ref_lens.tolist()):
+        torch.testing.assert_close(embeds[i], ref_embs[i, :n])
+    for name, time_axis, lengths_name in (
+        ("asr_encoded", 2, "asr_encoded_lengths"),
+        ("sortformer_sigmoids", 1, "sortformer_lengths"),
+        ("diarization_labels", 2, "diarization_lengths"),
+    ):
+        got_lengths, ref_lengths = getattr(states, lengths_name), getattr(ref_states, lengths_name)
+        assert torch.equal(got_lengths, ref_lengths), name
+        for i, n in enumerate(ref_lengths.tolist()):
+            got, ref = getattr(states, name)[i], getattr(ref_states, name)[i]
+            torch.testing.assert_close(got.narrow(time_axis - 1, 0, n), ref.narrow(time_axis - 1, 0, n), msg=name)
+    assert runner(audio, lengths) is not None  # the same graphs also serve calls without the inputs
