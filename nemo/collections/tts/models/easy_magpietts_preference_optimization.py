@@ -16,7 +16,6 @@
 import copy
 import os
 import random
-import tempfile
 import time
 from typing import Dict, List, Optional
 
@@ -38,6 +37,7 @@ from nemo.collections.tts.parts.utils.helpers import (
     process_text_for_cer,
     transcribe_with_whisper_from_filepaths,
 )
+from nemo.collections.tts.parts.utils.reward_audio import ram_audio_directory
 from nemo.utils import logging
 
 try:
@@ -771,13 +771,9 @@ class EasyMagpieTTSModelOnlinePO(EasyMagpieTTSModel):
         if self.cfg.get('save_reward_audios', True):
             return self._generate_and_reward(**kwargs)
 
-        # All waveform consumers finish before the reward call returns. Keep its
-        # generated and reference WAVs in a unique directory and remove them on
-        # both success and failure, without waiting for process exit.
-        scratch_root = '/dev/shm' if os.path.isdir('/dev/shm') and os.access('/dev/shm', os.W_OK) else None
-        with tempfile.TemporaryDirectory(
-            prefix=f'easy_magpie_rewards_rank{self.global_rank}_', dir=scratch_root
-        ) as path:
+        # Keep reward WAVs in host RAM until all scorers finish. The context
+        # also watches for owner death, which Python finally/atexit cannot handle.
+        with ram_audio_directory(rank=self.global_rank) as path:
             self._tmp_reward_audio_dir = path
             try:
                 return self._generate_and_reward(**kwargs)

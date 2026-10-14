@@ -288,9 +288,16 @@ can be configured independently of audio sampling.
 
 ``model.save_reward_audios`` defaults to ``True``. Set it to ``False`` to remove
 generated and reference WAVs when each ``generate_and_reward`` call returns or
-raises an exception. Each call uses a unique directory in writable ``/dev/shm``,
-or the system temporary directory when tmpfs is unavailable. Reward scoring
-finishes before cleanup; returned codes, rewards, and metrics remain available.
+raises an exception. Each call uses a private directory in ``/dev/shm`` (RAM-backed
+host storage, not GPU memory). Writable ``/dev/shm`` is required; there is no disk
+fallback. Reward scoring finishes before cleanup; returned codes, rewards, and
+metrics remain available.
+
+A lightweight cleanup process also removes the directory if the training process
+exits abruptly, including ``SIGTERM``, ``SIGKILL``, or ``os._exit``. It is reaped on
+normal completion. This protection requires the cleanup process to survive:
+killing the entire job/container can kill both processes, so the job/container
+runtime must clean up its shared-memory storage in that case.
 
 See Also
 ########

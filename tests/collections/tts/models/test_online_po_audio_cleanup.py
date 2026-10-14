@@ -8,8 +8,16 @@ from unittest.mock import MagicMock
 import pytest
 
 from nemo.collections.tts.models.easy_magpietts_preference_optimization import EasyMagpieTTSModelOnlinePO
+from nemo.collections.tts.parts.utils import reward_audio
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.fixture(autouse=True)
+def ram_audio_root(tmp_path, monkeypatch):
+    # Lifecycle tests can run without Linux; storage placement is covered by
+    # test_reward_audio.py, including the prohibition on a disk fallback.
+    monkeypatch.setattr(reward_audio, '_RAM_AUDIO_ROOT', str(tmp_path))
 
 
 def _make_model(tmp_path, save_reward_audios=False):
