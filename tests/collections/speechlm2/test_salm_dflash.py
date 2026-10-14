@@ -1343,6 +1343,79 @@ def test_aggregate_validation_accuracy_preserves_default_checkpoint_monitor(
     log.assert_any_call("val_acc", torch.tensor(0.5), on_epoch=True)
 
 
+@pytest.mark.parametrize("variant", ["dflash", "dflash2"])
+@pytest.mark.parametrize("populated", [False, True])
+def test_validation_checkpoint_with_skipped_datasets(tmp_path, monkeypatch, variant, populated):
+    from lightning.pytorch import Trainer
+    from torch.utils.data import DataLoader
+
+    from nemo.utils.callbacks.nemo_model_checkpoint import NeMoModelCheckpoint
+
+    class TinyDraftModule(salm_dflash.SALMDFlashModule):
+        def training_step(self, batch, batch_idx):
+            return self.draft_model(batch).square().mean()
+
+    module = TinyDraftModule(
+        nn.Linear(1, 1), {"dflash": {"variant": variant, "mask_token_id": 18, "selector_loss_weight": 0.5}}
+    )
+    module.draft_model = nn.Linear(1, 1)
+    metrics = SimpleNamespace(
+        loss=torch.tensor(2.0),
+        loss_weight=torch.tensor(4.0),
+        correct_tokens=torch.tensor(3),
+        valid_tokens=torch.tensor(6),
+        accept_len_sum=torch.tensor(5.0),
+        valid_blocks=torch.tensor(2),
+        base_loss=torch.tensor(2.0),
+        selector_loss=torch.tensor(2.0),
+        selector_loss_denominator=torch.tensor(3.0),
+        base_correct_tokens=torch.tensor(2),
+        base_accept_len_sum=torch.tensor(4.0),
+        candidate_recall=torch.tensor(5.0 / 6.0),
+    )
+
+    def run_batch(batch):
+        if not batch["input_ids"].any():
+            raise salm_dflash.NoValidAnchorsError("No supported validation block")
+        return metrics
+
+    monkeypatch.setattr(module, "_run_batch", run_batch)
+    checkpoint = NeMoModelCheckpoint(
+        dirpath=tmp_path,
+        monitor="val_acc",
+        mode="max",
+        save_top_k=1,
+        save_on_train_epoch_end=False,
+        save_nemo_on_train_end=False,
+    )
+    trainer = Trainer(
+        accelerator="cpu",
+        devices=1,
+        max_epochs=1,
+        num_sanity_val_steps=0,
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+        callbacks=[checkpoint],
+    )
+    batch = {
+        "observed": {"input_ids": torch.ones(1, 16, dtype=torch.long)} if populated else None,
+        "skipped": {"input_ids": torch.zeros(1, 16, dtype=torch.long)},
+        "exhausted": None,
+    }
+    trainer.fit(module, DataLoader(torch.ones(2, 1)), DataLoader([batch, batch], batch_size=None))
+
+    assert trainer.global_step == 2
+    assert trainer.callback_metrics["val_acc"].item() == (0.5 if populated else 0.0)
+    expected_loss = (3.0 if variant == "dflash2" else 2.0) if populated else 0.0
+    assert trainer.callback_metrics["val/dflash_loss"].item() == expected_loss
+    assert all(torch.isfinite(value) for value in trainer.callback_metrics.values())
+    assert not any(name.endswith(("/skipped", "/exhausted")) for name in trainer.callback_metrics)
+    assert ("val/dflash_loss/observed" in trainer.callback_metrics) is populated
+    assert Path(checkpoint.best_model_path).is_file()
+    assert not module._partial_val_metrics
+
+
 def test_dflash2_validation_uses_separate_loss_denominators_and_selector_metrics(
     monkeypatch,
 ):

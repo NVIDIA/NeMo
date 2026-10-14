@@ -679,6 +679,10 @@ class SALMDFlashModule(LightningModule):
             self._log_validation_metrics(metric_sums, suffix=f"/{dataset_name}")
         if all_sums:
             self._log_validation_metrics(torch.stack(all_sums).sum(dim=0))
+        else:
+            # Checkpoint callbacks still require val_acc when every batch was skipped.
+            metric_count = 11 if self.dflash_variant == "dflash2" else 6
+            self._log_validation_metrics(torch.zeros(metric_count, dtype=torch.float64, device=self.device))
         self._partial_val_metrics.clear()
 
     def _log_validation_metrics(self, metric_sums: torch.Tensor, suffix: str = "") -> None:
