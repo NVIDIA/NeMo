@@ -1,4 +1,5 @@
-# Copyright (c) 2026, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -108,13 +109,22 @@ def _require_nvlink_topology(*, world_size: int) -> None:
 def _require_compiled_dependencies() -> None:
     missing = [
         name
-        for name in ("causal_conv1d", "deep_ep", "grouped_gemm", "mamba_ssm", "nemo_automodel", "transformer_engine")
+        for name in (
+            "causal_conv1d",
+            "cut_cross_entropy",
+            "deep_ep",
+            "grouped_gemm",
+            "mamba_ssm",
+            "nemo_automodel",
+            "transformer_engine",
+        )
         if importlib.util.find_spec(name) is None
     ]
     if missing:
         pytest.skip(f"Missing compiled Automodel dependencies: {', '.join(missing)}")
 
     assert importlib.metadata.version("deep-ep") == EXPECTED_DEEP_EP_VERSION
+    assert importlib.metadata.version("cut-cross-entropy") == "25.3.2"
     assert importlib.metadata.version("pynvml")
     assert importlib.metadata.version("nvidia-ml-py")
 

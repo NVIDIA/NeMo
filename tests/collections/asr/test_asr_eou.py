@@ -1,4 +1,5 @@
-# Copyright (c) 2022, NVIDIA CORPORATION.  All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +21,7 @@ import pytest
 from nemo.collections.asr.parts.utils.eou_utils import (
     EOUResult,
     cal_eou_metrics_from_frame_labels,
+    evaluate_eou,
     get_SegLST_from_frame_labels,
 )
 
@@ -99,6 +101,51 @@ class TestEOUMetrics:
         assert eou_metrics.early_cutoff == []
 
     @pytest.mark.unit
+    def test_evaluate_eou_filters_on_eou_pred_when_no_threshold(self):
+        # scripts/asr_eou/eval_eou_metrics.py calls evaluate_eou() with threshold=None, so the per-segment
+        # `eou_pred` flag is the only signal available to reject a hypothesised end of utterance.
+        reference = [
+            {"start_time": 0.0, "end_time": 1.0},
+            {"start_time": 1.0, "end_time": 2.0},
+        ]
+        prediction = [
+            {"start_time": 0.0, "end_time": 0.4, "eou_prob": 0.10, "eou_pred": False},
+            {"start_time": 0.0, "end_time": 0.7, "eou_prob": 0.20, "eou_pred": False},
+            {"start_time": 0.0, "end_time": 1.0, "eou_prob": 0.95, "eou_pred": True},
+            {"start_time": 1.0, "end_time": 1.5, "eou_prob": 0.15, "eou_pred": False},
+            {"start_time": 1.0, "end_time": 2.0, "eou_prob": 0.98, "eou_pred": True},
+        ]
+
+        eou_metrics: EOUResult = evaluate_eou(
+            prediction=prediction, reference=reference, threshold=None, collar=0.0, do_sorting=True
+        )
+
+        # Only the two `eou_pred=True` segments count as predicted EOUs, and both match a reference exactly.
+        assert eou_metrics.true_positives == 2
+        assert eou_metrics.false_positives == 0
+        assert eou_metrics.false_negatives == 0
+        assert eou_metrics.missing == 0
+        assert eou_metrics.early_cutoff == []
+        assert np.allclose(eou_metrics.latency, [0.0, 0.0])
+        # `num_predictions` reports how many segments were submitted, not how many survived filtering.
+        assert eou_metrics.num_predictions == 5
+
+    @pytest.mark.unit
+    def test_evaluate_eou_keeps_segments_without_eou_pred(self):
+        # SegLST segments built from frame labels carry no `eou_pred` key, so no filtering may happen.
+        reference = [{"start_time": 0.0, "end_time": 1.0}]
+        prediction = [{"start_time": 0.0, "end_time": 1.0, "eou_prob": 1.0}]
+
+        eou_metrics: EOUResult = evaluate_eou(
+            prediction=prediction, reference=reference, threshold=0.0, collar=0.0, do_sorting=True
+        )
+
+        assert eou_metrics.num_predictions == 1
+        assert eou_metrics.true_positives == 1
+        assert eou_metrics.false_positives == 0
+        assert eou_metrics.false_negatives == 0
+
+    @pytest.mark.unit
     def test_get_seglst_from_frame_labels_multiple_eou(self):
         # Frames 4, 12 and 20 are labelled as EOU, i.e. utterances end at 0.32s, 0.96s and 1.6s.
         # Each segment spans from the end of the previous utterance to its own EOU frame.
@@ -138,3 +185,32 @@ class TestEOUMetrics:
         assert eou_metrics.missing == 0
         assert eou_metrics.early_cutoff == []
         assert np.allclose(eou_metrics.latency, [delay] * len(ref_eou_times))
+
+
+class TestEvaluateEOUCounts:
+    def test_counts_stay_non_negative_when_early_cutoff_is_skipped(self):
+        """An early cutoff that r_idx advances past is never counted, so it must not be subtracted."""
+        reference = [
+            {"start_time": 0.0, "end_time": 2.0},
+            {"start_time": 5.0, "end_time": 7.0},
+        ]
+        prediction = [
+            {"start_time": 0.0, "end_time": 1.0, "eou_prob": 0.9},
+            {"start_time": 5.5, "end_time": 7.0, "eou_prob": 0.9},
+        ]
+
+        result = evaluate_eou(prediction=prediction, reference=reference, threshold=None, collar=0.1)
+
+        assert result.false_negatives == 0
+        assert result.missing == 0
+
+    def test_trailing_early_cutoff_is_still_discounted(self):
+        """A trailing early cutoff is counted by the tail, so the discount must still apply."""
+        reference = [{"start_time": 0.0, "end_time": 2.0}]
+        prediction = [{"start_time": 0.0, "end_time": 1.0, "eou_prob": 0.9}]
+
+        result = evaluate_eou(prediction=prediction, reference=reference, threshold=None, collar=0.1)
+
+        assert result.false_negatives == 0
+        assert result.missing == 0
+        assert len(result.early_cutoff) == 1
