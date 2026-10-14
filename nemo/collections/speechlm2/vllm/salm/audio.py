@@ -605,7 +605,7 @@ class NeMoSpeechLMMultiModalProcessor(
 
             prompt = "".join(parts)
             prompt_ids = self._expand_template_ids(
-                tokenizer, template, prompt, [len(parts[i]) // len(_AUDIO_PLACEHOLDER) for i in ph_positions]
+                tokenizer, template, [len(parts[i]) // len(_AUDIO_PLACEHOLDER) for i in ph_positions]
             )
 
         if prompt_ids is None:
@@ -621,22 +621,24 @@ class NeMoSpeechLMMultiModalProcessor(
         return result
 
     def _expand_template_ids(
-        self, tokenizer: PreTrainedTokenizerBase, template: str, expanded: str, counts: list[int]
+        self, tokenizer: PreTrainedTokenizerBase, template: str, counts: list[int]
     ) -> list[int] | None:
-        """Token ids of ``expanded`` (``template`` with its i-th audio placeholder repeated ``counts[i]`` times).
+        """Token ids of ``template`` with its i-th audio placeholder repeated ``counts[i]`` times.
 
         The placeholder is a special token, which tokenizers split out before tokenizing the text between them,
         so the ids equal the template's ids with each placeholder id repeated. Tokenizing the long expanded
-        string costs ~0.5 ms per request; the template is tokenized once per distinct prompt and checked
-        against the direct tokenization then. Returns None (tokenize directly) when the check fails.
+        string costs ~0.5 ms per request; the template is tokenized once per distinct prompt and checked then
+        against the direct tokenization of a probe that repeats every placeholder, whatever the request's counts.
+        Returns None (tokenize directly) when the check fails.
         """
         cache = self.__dict__.setdefault("_template_ids_cache", {})
         if template not in cache:
             ph_id = tokenizer.get_vocab().get(_AUDIO_PLACEHOLDER)
             ids = tokenizer.encode(template, add_special_tokens=True)
             entry = (ids, ph_id) if ph_id is not None and ids.count(ph_id) == len(counts) else None
-            if entry is not None and _expand_ids(*entry, counts) != tokenizer.encode(
-                expanded, add_special_tokens=True
+            probe = template.replace(_AUDIO_PLACEHOLDER, _AUDIO_PLACEHOLDER * 2)
+            if entry is not None and _expand_ids(*entry, [2] * len(counts)) != tokenizer.encode(
+                probe, add_special_tokens=True
             ):
                 entry = None
             if entry is None:

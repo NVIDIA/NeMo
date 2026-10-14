@@ -1337,7 +1337,8 @@ class TestAudioProcessing:
         prompt = "Transcribe this: <|audio|> then <|audio|> please"
 
         reference = _SpecialTokenTokenizer(separable=separable)
-        for lengths in ([300, 500], [700, 200], [100, 900]):
+        # The first request repeats no placeholder, so its own expansion cannot tell a nonseparable tokenizer apart.
+        for lengths in ([100, 100], [300, 500], [700, 200], [100, 900]):
             result = processor._call_hf_processor(
                 prompt=prompt, mm_data={"audios": [[0.0] * n for n in lengths]}, mm_kwargs={}, tok_kwargs={}
             )
@@ -1345,9 +1346,9 @@ class TestAudioProcessing:
             expanded = f"Transcribe this: {first} then {second} please"
             assert result["input_ids"][0].tolist() == reference.encode(expanded)
 
-        # Separable: the template is tokenized once and checked once against the direct tokenization; later
-        # requests expand the cached ids. Otherwise every request is tokenized directly.
-        assert len(tokenizer.encoded) == (2 if separable else 2 + 3)
+        # Separable: the template and a probe expansion are tokenized once; every request expands the cached ids.
+        # Otherwise every request is tokenized directly.
+        assert len(tokenizer.encoded) == (2 if separable else 2 + 4)
         assert tokenizer.encoded[0] == prompt
 
     def test_encoder_graph_runner_splits_batches_into_buckets(self):
@@ -1379,6 +1380,54 @@ class TestAudioProcessing:
             bucket = runner._frame_bucket(frames)
             assert bucket >= frames
             assert {(rows, bucket) for rows in runner._split(17, bucket)} <= captured
+
+    def test_encoder_graph_runner_falls_back_to_eager_when_capture_fails(self):
+        """A failed capture, even after some buckets were captured, makes this and every later call return None."""
+        import torch
+
+        from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+        runner = object.__new__(EncoderGraphRunner)
+        runner.perception = SimpleNamespace(
+            maybe_preprocess_audio=lambda audio, lengths, *_: (audio[:, None], lengths)
+        )
+        runner.window, runner.frame_bucket, runner.max_frames = 400, 128, 800
+        runner.batch_sizes, runner.max_rows_x_frames = [8], 8 * 400
+        runner.graphs, runner.pool, runner.enabled = {}, object(), True
+        attempts = []
+
+        def capture(rows, frames, n_feat, dtype):
+            attempts.append((rows, frames))
+            if len(attempts) > 1:
+                raise RuntimeError("operation not permitted when stream is capturing")
+            runner.graphs[rows, frames] = None
+
+        runner._capture = capture
+        audio, lengths = torch.zeros(2, 300), torch.tensor([300, 200])
+        assert runner(audio, lengths) is None
+        assert runner(audio, lengths) is None
+        assert len(attempts) == 2 and runner.graphs == {} and runner.pool is None and not runner.enabled
+
+    def test_encoder_graph_runner_failed_capture_leaves_eager_inference_working(self, monkeypatch):
+        """A capture that syncs the host fails; the eager forward still runs on the same device afterwards."""
+        import torch
+
+        if not torch.cuda.is_available():
+            pytest.skip("CUDA required")
+        from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+        torch.manual_seed(0)
+        perception = _toy_perception().cuda().eval()
+        runner = EncoderGraphRunner(perception, batch_sizes=(4,), frame_bucket=128, max_windows=1)
+        forward = runner._forward
+        monkeypatch.setattr(runner, "_forward", lambda x, x_len: (x_len.max().item(), forward(x, x_len))[1])
+        audio = torch.randn(2, 1500, device="cuda")
+        lengths = torch.tensor([1500, 900], device="cuda")
+        assert runner(audio, lengths) is None
+        assert not runner.enabled and runner.graphs == {}
+        with torch.no_grad(), perception.encoder.online_inference():
+            emb, emb_len = perception(input_signal=audio, input_signal_length=lengths)
+        assert torch.isfinite(emb).all() and emb_len.tolist()[0] > 0
 
     def test_encoder_graph_runner_matches_eager_forward(self):
         """Graph replays over padded buckets return the eager forward's per-row embeddings."""

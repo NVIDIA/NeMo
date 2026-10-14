@@ -640,6 +640,7 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
         emb_seq: torch.Tensor,
         emb_seq_length: torch.Tensor,
         return_logits: bool = False,
+        mask_padding: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]]:
         """
         The main forward pass for diarization for offline diarization inference.
@@ -650,6 +651,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             emb_seq_length (torch.Tensor): Tensor containing lengths of FastConformer encoder states.
                 Shape: (batch_size,)
             return_logits (bool): Whether to return aligned raw speaker logits with the probabilities.
+            mask_padding (bool): Zero padded hidden states before high-resolution upsampling, whose convolution
+                would otherwise read them into the last valid frames, so outputs do not depend on padding.
 
         Returns:
             Sorted speaker probabilities with shape ``(batch_size, diar_frame_count, num_speakers)``. When
@@ -663,6 +666,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             if self.transformer_encoder is not None
             else emb_seq
         )
+        if mask_padding and self.high_resolution:
+            trans_emb_seq = trans_emb_seq.masked_fill(~encoder_mask.unsqueeze(-1), 0.0)
         trans_emb_seq = self.sortformer_modules.upsample_hidden(trans_emb_seq)
         if self.high_resolution:
             output_mask = encoder_mask.repeat_interleave(self.upsample_factor, dim=1)
@@ -1424,6 +1429,8 @@ class SortformerEncLabelModel(ModelPT, ExportableEncDecModel, SpkDiarizationMixi
             emb_seq=spkcache_fifo_chunk_fc_encoder_embs,
             emb_seq_length=spkcache_fifo_chunk_fc_encoder_lengths,
             return_logits=return_logits,
+            # Training keeps its established numerics; inference must not depend on how much padding a row has.
+            mask_padding=not self.training,
         )
         if return_logits:
             spkcache_fifo_chunk_preds, spkcache_fifo_chunk_logits, spkcache_fifo_chunk_activity_logits = outputs

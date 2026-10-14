@@ -2092,7 +2092,7 @@ class ParallelExpertEncoder(nn.Module):
         a state update) replay a CUDA graph; any other step runs eagerly.
 
         Args:
-            chunk (torch.Tensor): Window mel features shaped ``(B, D, T)``.
+            chunk (torch.Tensor): Window mel features, time-major, shaped ``(B, T, D)``.
             chunk_length (torch.Tensor): Valid window frame counts shaped ``(B,)``.
             streaming_state (Any): Sortformer streaming state from the previous step.
             empty_preds (torch.Tensor): Empty prediction buffer passed to the step.
@@ -2217,7 +2217,7 @@ class _StreamingStepGraphs:
         Args:
             step (Callable): Function mapping ``(state, chunk, chunk_length)`` to ``(state, predictions)``.
             state (Any): Sortformer streaming state.
-            chunk (torch.Tensor): Window mel features shaped ``(B, D, T)``.
+            chunk (torch.Tensor): Window mel features, time-major, shaped ``(B, T, D)``.
             chunk_length (torch.Tensor): Valid window frame counts shaped ``(B,)``.
             extra_key (tuple): Hashable step options that are part of the graph key.
 
@@ -2265,7 +2265,7 @@ class _StreamingStepGraphs:
             step (Callable): Function mapping ``(state, chunk, chunk_length)`` to ``(state, predictions)``.
             state (Any): Sortformer streaming state used as the template.
             tensors (dict[str, torch.Tensor]): State tensors to give static input buffers.
-            chunk (torch.Tensor): Window mel features shaped ``(B, D, T)``.
+            chunk (torch.Tensor): Window mel features, time-major, shaped ``(B, T, D)``.
             chunk_length (torch.Tensor): Valid window frame counts shaped ``(B,)``.
 
         Returns:

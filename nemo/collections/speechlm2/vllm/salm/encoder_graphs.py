@@ -67,6 +67,7 @@ class EncoderGraphRunner:
         self.max_rows_x_frames = self.batch_sizes[-1] * self.window
         self.graphs: dict[tuple[int, int], tuple] = {}
         self.pool = None
+        self.enabled = True
         # Audio longer than the graphed windows runs the eager online path, whose steady-state streaming
         # diarization steps still replay from CUDA graphs.
         perception.encoder.online_cuda_graphs = True
@@ -118,13 +119,23 @@ class EncoderGraphRunner:
 
     @torch.no_grad()
     def __call__(self, audio_signal: torch.Tensor, audio_lengths: torch.Tensor) -> list[torch.Tensor] | None:
-        """Encode a batch of waveforms; returns per-row embeddings, or None when the audio is too long to graph."""
+        """Encode a batch of waveforms; returns per-row embeddings, or None (encode eagerly) when the audio is too
+        long to graph or capture failed."""
+        if not self.enabled:
+            return None
         processed, processed_len = self.perception.maybe_preprocess_audio(audio_signal, audio_lengths, None, None)
         n_feat, frames = processed.shape[1], processed.shape[2]
         if frames > self.max_frames:
             return None
         if not self.graphs:
-            self._capture_all(n_feat, processed.dtype)
+            try:
+                self._capture_all(n_feat, processed.dtype)
+            except Exception as error:  # noqa: BLE001 - a failed capture must not break inference
+                logger.warning("Encoder CUDA graph capture failed; encoding eagerly from now on: %s", error)
+                self.graphs.clear()
+                self.pool = None
+                self.enabled = False
+                return None
         bucket = self._frame_bucket(frames)
         out, start = [], 0
         for size in self._split(processed.shape[0], bucket):

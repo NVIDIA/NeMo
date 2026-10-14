@@ -948,6 +948,36 @@ def test_online_inference_extra_padding_does_not_change_outputs(asr_encoder_type
 
 
 @pytest.mark.unit
+def test_online_inference_extra_padding_does_not_change_high_resolution_outputs():
+    """Padded hidden states must not reach valid frames through the high-resolution upsampler's convolution."""
+    torch.manual_seed(0)
+    diarization_config = toy_diarization_model_cfg()
+    diarization_config.high_resolution = True
+    encoder = build_toy_pe_encoder(
+        diarization_model_cfg=diarization_config,
+        online_inference_length=40,
+        speaker_feature_mode="continuous",
+        speaker_activity_threshold=None,
+    ).eval()
+    encoder._suppress_online_pbar = True
+    # A trained upsampler reads its right-hand neighbour; the default initialization does not.
+    upsample = encoder.diarization_model.sortformer_modules.subpixel_upsample
+    with torch.no_grad():
+        upsample.weight.normal_()
+    lengths = torch.tensor([200, 137])
+    mels = torch.randn(2, _MEL_FEATURES, 200)
+    padded = torch.cat([mels, torch.randn(2, _MEL_FEATURES, 56)], dim=-1)
+
+    with torch.no_grad(), encoder.online_inference():
+        expected, expected_lengths = encoder(mels, lengths)
+        out, out_lengths = encoder(padded, lengths)
+
+    assert torch.equal(out_lengths, expected_lengths)
+    for i, n in enumerate(expected_lengths.tolist()):
+        torch.testing.assert_close(out[i, :, :n], expected[i, :, :n])
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize(
     "asr_encoder_type,asr_encoder_cfg",
     [("fastconformer", toy_asr_encoder_cfg), ("transformer", toy_transformer_asr_encoder_cfg)],
