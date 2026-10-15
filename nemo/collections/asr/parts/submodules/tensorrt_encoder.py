@@ -48,7 +48,7 @@ class TensorRTEncoder:
             import tensorrt as trt
         except ImportError as exc:
             raise ImportError(
-                "TensorRTEncoder requires TensorRT 10.x. Install a CUDA-compatible tensorrt package."
+                "TensorRTEncoder requires TensorRT 10.x. Install NeMo with pip install 'nemo-toolkit[asr,trt]'."
             ) from exc
         if int(trt.__version__.split(".")[0]) < 10:
             raise ImportError("TensorRTEncoder requires TensorRT 10 or newer.")
