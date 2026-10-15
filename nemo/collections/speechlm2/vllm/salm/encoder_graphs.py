@@ -31,7 +31,7 @@ import math
 import torch
 from torch import nn
 
-from nemo.collections.common.parts.optional_cuda_graphs import capture_cuda_graph
+from nemo.collections.common.parts.optional_cuda_graphs import SharedGraphBuffers, capture_cuda_graph
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,9 @@ class EncoderGraphRunner:
         # single windows.
         self.max_rows_x_frames = self.batch_sizes[-1] * self.window
         self.graphs: dict[tuple[int, int], tuple] = {}
+        # Calls replay one graph at a time, so all graphs read their features from, and write their embeddings to,
+        # shared buffers; the pool then holds one graph's intermediates rather than every graph's outputs.
+        self.buffers = SharedGraphBuffers()
         self.pool = None
         self.enabled = True
         self.ctc_timestamp_inputs = False
@@ -142,13 +145,26 @@ class EncoderGraphRunner:
 
     def _capture(self, rows: int, frames: int, n_feat: int, dtype: torch.dtype) -> None:
         device = next(self.perception.parameters()).device
-        x = torch.zeros(rows, n_feat, frames, device=device, dtype=dtype)
+        x = self.buffers.view("features", (rows, n_feat, frames), dtype, device).zero_()
         x_len = torch.full((rows,), frames, device=device, dtype=torch.long)
         if self.pool is None:
             self.pool = torch.cuda.graph_pool_handle()
-        graph, (emb, emb_len, states) = capture_cuda_graph(lambda: self._forward(x, x_len), pool=self.pool)
+
+        def run():
+            emb, emb_len, states = self._forward(x, x_len)
+            emb = self._shared("embeddings", emb)
+            if states is not None:
+                fields = {name: self._shared(name, getattr(states, name)) for name in _tensor_fields(states)}
+                states = dataclasses.replace(states, **fields)
+            return emb, emb_len, states
+
+        graph, (emb, emb_len, states) = capture_cuda_graph(run, pool=self.pool)
         self.graphs[rows, frames] = (graph, x, x_len, emb, emb_len, states)
         logger.info("Captured encoder CUDA graph for %d rows x %d frames", rows, frames)
+
+    def _shared(self, slot: str, tensor: torch.Tensor) -> torch.Tensor:
+        """Copy a graph output into its shared buffer, so the pool memory it came from is free for later captures."""
+        return self.buffers.view(slot, tuple(tensor.shape), tensor.dtype, tensor.device).copy_(tensor)
 
     @torch.no_grad()
     def __call__(

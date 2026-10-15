@@ -1412,6 +1412,21 @@ class TestAudioProcessing:
         assert seen == [max(before, encoder_graphs._CAPTURE_RECOMPILE_LIMIT)]
         assert getattr(config, name) == before
 
+    def test_shared_graph_buffers_hand_out_views_of_one_buffer_per_slot(self):
+        import torch
+
+        from nemo.collections.common.parts.optional_cuda_graphs import SharedGraphBuffers
+
+        buffers = SharedGraphBuffers()
+        big = buffers.view("x", (4, 3, 5), torch.float32, "cpu")
+        small = buffers.view("x", (2, 3, 4), torch.float32, "cpu")
+        other = buffers.view("y", (2, 3, 4), torch.float32, "cpu")
+        assert small.is_contiguous() and small.data_ptr() == big.data_ptr()
+        assert other.data_ptr() != big.data_ptr()
+        # A larger request gets a new buffer; the earlier views keep the old one.
+        bigger = buffers.view("x", (8, 3, 5), torch.float32, "cpu")
+        assert bigger.data_ptr() != big.data_ptr() and big.numel() == 60
+
     def test_encoder_graph_options_come_from_the_model_config(self):
         from nemo.collections.speechlm2.vllm.salm.encoder_graphs import encoder_graph_options
 

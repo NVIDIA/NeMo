@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import abc
+import math
 from typing import Any, Callable, Optional
 
 import torch
@@ -113,3 +114,37 @@ def capture_cuda_graph(fn: Callable[[], Any], pool=None) -> tuple[torch.cuda.CUD
     with torch.cuda.graph(graph, pool=pool):
         outputs = fn()
     return graph, outputs
+
+
+class SharedGraphBuffers:
+    """
+    Static input and output buffers shared by CUDA graphs that are never replayed concurrently.
+
+    Every graph reads an input from, or writes an output to, a view of the first elements of one flat buffer per
+    ``(slot, dtype, device)``, so a set of graphs needs the memory of its largest tensor per slot instead of the sum.
+    A graph that copies its results into such views inside the capture also lets later captures reuse the pool memory
+    of its intermediate outputs. A replay's inputs must be copied in right before it, and its outputs read before the
+    next replay. A request larger than the buffer allocates a new one; graphs captured earlier keep the old one
+    alive, so capturing the largest graphs first allocates once.
+    """
+
+    def __init__(self):
+        self._buffers = {}
+
+    def view(self, slot: str, shape: tuple, dtype: torch.dtype, device: torch.device) -> torch.Tensor:
+        """
+        Return a contiguous ``shape`` view of the shared buffer for ``slot``, ``dtype`` and ``device``.
+
+        Args:
+            slot: Name of the tensor's role; tensors one graph uses at the same time need distinct slots.
+            shape: Shape of the tensor.
+            dtype: Data type of the tensor.
+            device: Device of the tensor.
+        """
+        numel = math.prod(shape)
+        key = (slot, dtype, torch.device(device))
+        buffer = self._buffers.get(key)
+        if buffer is None or buffer.numel() < numel:
+            buffer = torch.zeros(numel, dtype=dtype, device=device)
+            self._buffers[key] = buffer
+        return buffer[:numel].view(shape)
