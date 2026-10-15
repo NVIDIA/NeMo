@@ -27,8 +27,7 @@ Loading Checkpoints
 Exporting a Transformer Encoder to ONNX
 ---------------------------------------
 
-You can export an offline Transformer encoder to ONNX and run it with an ONNX-compatible runtime.
-Load your checkpoint, switch to evaluation mode, and export the encoder:
+Export an offline Transformer encoder with NeMo's existing API:
 
 .. code-block:: python
 
@@ -37,21 +36,18 @@ Load your checkpoint, switch to evaluation mode, and export the encoder:
     encoder.set_max_audio_length(5000)
     encoder.export("encoder.onnx", onnx_opset_version=17)
 
-Set the maximum audio length before export to cover the longest feature sequence you will process.
-The exported model includes the positional embeddings prepared by this call and cannot extend them later.
-Batch size and sequence length can vary within that limit, including lengths that are not divisible by the subsampling factor.
+Set the maximum length to cover the longest feature sequence you need; the exported positional cache cannot grow later.
+Batch size and sequence length may vary within that limit.
 
-The inputs are ``audio_signal`` with shape ``(batch, features, frames)`` and int64 ``length`` with shape ``(batch,)``.
-The outputs are ``outputs`` with shape ``(batch, channels, encoded_frames)`` and int64 ``encoded_lengths`` with shape ``(batch,)``.
+Inputs are ``audio_signal`` of shape ``(batch, features, frames)`` and int64 ``length`` of shape ``(batch,)``.
+Outputs are ``outputs`` of shape ``(batch, channels, encoded_frames)`` and int64 ``encoded_lengths``.
 
-Export uses PyTorch's scaled dot-product attention with the same weights, positional encodings and attention masks as the regular encoder.
-Training and ordinary PyTorch inference continue to use FlexAttention.
-Full, causal and block-causal-tail attention are supported.
-Streaming caches and ``bypass_pre_encode`` are not supported by this export interface.
+Export uses scaled dot-product attention with the encoder's weights, positional encodings and masks.
+Ordinary training and inference retain FlexAttention.
+Check outputs, lengths and transcripts with your intended runtime and precision, since rounding can affect recognition.
 
-The encoder accepts audio features; preprocessing and the transducer decoding loop remain separate.
-For RNNT/TDT models, ``model.export("model.onnx")`` exports both the encoder and the combined prediction/joint network as separate files.
-Check encoder outputs, lengths and transcripts with the runtime and precision you intend to use, since floating-point rounding can change recognition results.
+Preprocessing, decoding, streaming caches and ``bypass_pre_encode`` are outside this interface.
+For RNNT/TDT, ``model.export("model.onnx")`` exports the encoder and combined prediction/joint network separately.
 
 
 Basic Transcription
