@@ -169,11 +169,13 @@ def test_graph_reuse_and_batch_changes():
 @pytest.mark.unit
 @pytest.mark.run_only_on("GPU")
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required")
-def test_graph_replay_after_another_instance_captures():
-    if not hasattr(torch.cuda.CUDAGraph, "begin_capture_to_while_node"):
-        pytest.skip("PyTorch-managed conditional graph capture is required.")
+@pytest.mark.parametrize("force_partial", [False, True])
+def test_graph_replay_after_another_instance_captures(force_partial):
     first = make_decoder(device="cuda", graphs=True)
     second = make_decoder(token=1, device="cuda", graphs=True)
+    if force_partial:
+        for decoder in (first, second):
+            decoder.computer.force_cuda_graphs_mode(decoder.computer.CudaGraphsMode.NO_WHILE_LOOPS)
 
     def check(decoder, frames, token):
         lengths = torch.tensor([frames, frames // 2], device="cuda")
@@ -184,6 +186,8 @@ def test_graph_replay_after_another_instance_captures():
         return result
 
     check(first, 4, 0)
+    if force_partial or not hasattr(torch.cuda.CUDAGraph, "begin_capture_to_while_node"):
+        assert first.computer.cuda_graphs_mode is first.computer.CudaGraphsMode.NO_WHILE_LOOPS
     saved = check(first, 400, 0)
     snapshot = tuple(value.clone() for value in saved)
     check(second, 4, 1)
