@@ -188,10 +188,15 @@ class NeMoSpeechLMForConditionalGeneration(
             # Opt-in (``encoder_cuda_graphs`` in the checkpoint config or ``hf_overrides``): replay the
             # encoder from CUDA graphs at the small per-step batches vLLM encodes; see encoder_graphs.py.
             if self._uses_pe_encoder and getattr(config, "encoder_cuda_graphs", False):
-                from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+                from nemo.collections.speechlm2.vllm.salm.encoder_graphs import (
+                    EncoderGraphRunner,
+                    encoder_graph_options,
+                )
 
                 self._encoder_graphs = EncoderGraphRunner(
-                    self.perception, compile_layers=bool(getattr(config, "encoder_compile", False))
+                    self.perception,
+                    compile_layers=bool(getattr(config, "encoder_compile", False)),
+                    **encoder_graph_options(config),
                 )
 
         if isinstance(backend, HybridBackend):

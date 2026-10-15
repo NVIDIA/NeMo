@@ -93,12 +93,32 @@ batch size and audio length:
 
 The keys can also be set in the checkpoint's ``config.json``.
 
-- ``encoder_cuda_graphs``: capture graphs for batches of 8 to 128 clips and lengths up to two 40-second encoder
+- ``encoder_cuda_graphs``: capture graphs for batches of 1 to 128 clips and lengths up to two 40-second encoder
   windows, at the first encoder call. For longer audio, the streaming diarization steps after the speaker cache has
   filled replay from CUDA graphs, while the ASR windows run batched without graphs. Capture adds start-up time and
   GPU memory; the graphs reproduce the encoder's outputs.
 - ``encoder_compile``: also compile each encoder transformer block with ``torch.compile``, fusing its
   memory-bound operations. This lowers encoder GPU time further and changes the outputs at bf16 rounding level.
 
-Both are off by default. If a capture fails, the encoder runs eagerly instead. With CTC timestamps enabled, the
+The graph buckets can be changed with these keys:
+
+- ``encoder_cuda_graph_batch_sizes``: graph batch sizes, default ``[1, 2, 4, 8, 16, 32, 64, 128]``. A step's clips
+  are split over them, largest first; fewer than 8 remaining clips go into one padded graph. The small sizes cut
+  the encoder latency of a single request; dropping them roughly halves the capture time at start-up.
+- ``encoder_cuda_graph_max_windows``: longest graphed audio in encoder windows, default ``2``. Longer audio runs
+  eagerly as described above.
+- ``encoder_cuda_graph_frame_bucket``: graph length granularity in feature frames (10 ms each), default ``256``.
+
+For example, a low-concurrency deployment of short clips:
+
+.. code-block:: bash
+
+   vllm serve /path/to/vllm-ready-speechlm-checkpoint \
+     --trust-remote-code \
+     --dtype bfloat16 \
+     --max-num-seqs 8 \
+     --hf-overrides '{"encoder_cuda_graphs": true, "encoder_compile": true,
+                      "encoder_cuda_graph_batch_sizes": [1, 2, 4, 8], "encoder_cuda_graph_max_windows": 1}'
+
+Both ``encoder_cuda_graphs`` and ``encoder_compile`` are off by default. If a capture fails, the encoder runs eagerly instead. With CTC timestamps enabled, the
 graphs also produce the alignment inputs, so requests that ask for timestamps are served from the same graphs.

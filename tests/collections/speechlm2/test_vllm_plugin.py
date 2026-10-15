@@ -1366,6 +1366,74 @@ class TestAudioProcessing:
         assert runner._split(80, 8000) == [64, 16]
         assert runner._split(130, 8000) == [64, 64, 8]
 
+    def test_encoder_graph_runner_defaults_cover_low_concurrency(self):
+        """One request replays a one-row graph, not a padded batch."""
+        import inspect
+
+        from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+        runner = object.__new__(EncoderGraphRunner)
+        runner.batch_sizes = list(inspect.signature(EncoderGraphRunner).parameters["batch_sizes"].default)
+        runner.window = 4000
+        runner.max_rows_x_frames = runner.batch_sizes[-1] * runner.window
+        assert runner.batch_sizes[:3] == [1, 2, 4]
+        assert runner._split(1, 4000) == [1]
+        assert runner._split(3, 4000) == [4]
+        assert runner._split(4, 4000) == [4]
+        assert runner._split(5, 4000) == [8]
+        # Rows past the large graphs are padded into one small graph, not split over several.
+        assert runner._split(13, 4000) == [8, 8]
+        assert runner._split(12, 4000) == [8, 4]
+        assert runner._split(37, 4000) == [32, 8]
+
+    def test_encoder_graph_capture_raises_the_recompile_limit_only_while_capturing(self):
+        """Capturing every bucket compiles more attention variants than dynamo's default limit allows."""
+        import torch
+
+        from nemo.collections.speechlm2.vllm.salm import encoder_graphs
+        from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+        config = torch._dynamo.config
+        name = "recompile_limit" if hasattr(config, "recompile_limit") else "cache_size_limit"
+        before = getattr(config, name)
+        runner = object.__new__(EncoderGraphRunner)
+        runner.perception = SimpleNamespace(
+            maybe_preprocess_audio=lambda audio, lengths, *_: (audio[:, None], lengths)
+        )
+        runner.max_frames, runner.graphs, runner.enabled, runner.ctc_timestamp_inputs = 800, {}, True, False
+        seen = []
+
+        def capture_all(n_feat, dtype):
+            seen.append(getattr(config, name))
+            raise RuntimeError("stop after the limit is checked")
+
+        runner._capture_all = capture_all
+        assert runner(torch.zeros(1, 300), torch.tensor([300])) is None
+        assert seen == [max(before, encoder_graphs._CAPTURE_RECOMPILE_LIMIT)]
+        assert getattr(config, name) == before
+
+    def test_encoder_graph_options_come_from_the_model_config(self):
+        from nemo.collections.speechlm2.vllm.salm.encoder_graphs import encoder_graph_options
+
+        assert encoder_graph_options(SimpleNamespace(encoder_cuda_graphs=True)) == {}
+        config = SimpleNamespace(
+            encoder_cuda_graph_batch_sizes=[1, 4, 32],
+            encoder_cuda_graph_frame_bucket=128,
+            encoder_cuda_graph_max_windows=1,
+        )
+        assert encoder_graph_options(config) == {"batch_sizes": (1, 4, 32), "frame_bucket": 128, "max_windows": 1}
+
+    @pytest.mark.parametrize(
+        "kwargs", [{"batch_sizes": ()}, {"batch_sizes": (0, 8)}, {"frame_bucket": 0}, {"max_windows": 0}]
+    )
+    def test_encoder_graph_runner_rejects_invalid_buckets(self, kwargs):
+        import torch
+
+        from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+        with pytest.raises(ValueError):
+            EncoderGraphRunner(torch.nn.Module(), **kwargs)
+
     @pytest.mark.parametrize("window,frame_bucket,max_windows", [(4000, 256, 1), (4000, 256, 2), (1024, 128, 2)])
     def test_encoder_graph_runner_captures_every_reachable_bucket(self, window, frame_bucket, max_windows):
         from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner

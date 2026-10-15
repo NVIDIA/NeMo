@@ -35,6 +35,21 @@ from nemo.collections.common.parts.optional_cuda_graphs import capture_cuda_grap
 
 logger = logging.getLogger(__name__)
 
+# Config keys (checkpoint ``config.json`` or vLLM ``--hf-overrides``) that set the graph buckets, mapped to
+# EncoderGraphRunner arguments.
+ENCODER_GRAPH_CONFIG_KEYS = {
+    "encoder_cuda_graph_batch_sizes": "batch_sizes",
+    "encoder_cuda_graph_frame_bucket": "frame_bucket",
+    "encoder_cuda_graph_max_windows": "max_windows",
+}
+# Capture compiles the encoder's attention once per shape class it meets (batch size 1, sequence length, default
+# dtype of each branch). Every bucket is captured in one call, which can need more variants than dynamo's default
+# recompile limit; past the limit, compiled functions run uncompiled code that cannot be captured.
+_CAPTURE_RECOMPILE_LIMIT = 64
+# Up to this many rows, one graph replay costs about the same as one of a smaller batch, so splitting the rows over
+# several graphs only adds replays.
+_MIN_SPLIT_ROWS = 8
+
 
 class EncoderGraphRunner:
     """Replays the perception forward from CUDA graphs captured per (batch, frames) bucket.
@@ -56,16 +71,20 @@ class EncoderGraphRunner:
     def __init__(
         self,
         perception: nn.Module,
-        batch_sizes: tuple[int, ...] = (8, 16, 32, 64, 128),
+        batch_sizes: tuple[int, ...] = (1, 2, 4, 8, 16, 32, 64, 128),
         frame_bucket: int = 256,
         max_windows: int = 2,
         compile_layers: bool = False,
     ):
+        if not batch_sizes or any(int(b) < 1 for b in batch_sizes):
+            raise ValueError(f"batch_sizes must be positive integers, got {batch_sizes!r}")
+        if frame_bucket < 1 or max_windows < 1:
+            raise ValueError(f"frame_bucket and max_windows must be positive, got {frame_bucket}, {max_windows}")
         self.perception = perception
         self.window = int(perception.encoder.chunk_feat_len)
         self.max_frames = self.window * max_windows
         self.frame_bucket = frame_bucket
-        self.batch_sizes = sorted(batch_sizes)
+        self.batch_sizes = sorted({int(b) for b in batch_sizes})
         # Graphs over more frames hold fewer rows, so no graph needs more memory than the largest batch of
         # single windows.
         self.max_rows_x_frames = self.batch_sizes[-1] * self.window
@@ -86,12 +105,19 @@ class EncoderGraphRunner:
         return [b for b in self.batch_sizes if b * frames <= self.max_rows_x_frames] or self.batch_sizes[:1]
 
     def _split(self, rows: int, frames: int) -> list[int]:
-        """Cover ``rows`` with graph batch sizes: the largest that fits, padding only the last piece."""
+        """Cover ``rows`` with graph batch sizes: the largest that fits, padding only the last piece.
+
+        Fewer than ``_MIN_SPLIT_ROWS`` remaining rows go into one graph rather than several smaller ones, since a
+        replay costs about the same at any batch size up to that.
+        """
         sizes = self._sizes_for(frames)
         pieces = []
         while rows > 0:
             fit = [b for b in sizes if b <= rows]
-            pieces.append(fit[-1] if fit else sizes[0])
+            if fit and (rows >= _MIN_SPLIT_ROWS or fit[-1] == rows):
+                pieces.append(fit[-1])
+            else:
+                pieces.append(next((b for b in sizes if b >= rows), sizes[-1]))
             rows -= pieces[-1]
         return pieces
 
@@ -142,7 +168,8 @@ class EncoderGraphRunner:
             return None
         if not self.graphs:
             try:
-                self._capture_all(n_feat, processed.dtype)
+                with _compile_limit_for_capture():
+                    self._capture_all(n_feat, processed.dtype)
             except Exception as error:  # noqa: BLE001 - a failed capture must not break inference
                 logger.warning("Encoder CUDA graph capture failed; encoding eagerly from now on: %s", error)
                 self.graphs.clear()
@@ -179,3 +206,27 @@ def _tensor_fields(states) -> list[str]:
 def _rows(states, n: int):
     """Copies of the first ``n`` rows of every tensor in captured ``CTCTimestampInputs``."""
     return dataclasses.replace(states, **{name: getattr(states, name)[:n].clone() for name in _tensor_fields(states)})
+
+
+def encoder_graph_options(config) -> dict:
+    """Return the EncoderGraphRunner arguments set in a model config (see ``ENCODER_GRAPH_CONFIG_KEYS``).
+
+    Args:
+        config: HF model config, after ``--hf-overrides``.
+
+    Returns:
+        Keyword arguments for EncoderGraphRunner; unset keys are left out, so the runner's defaults apply.
+    """
+    options = {}
+    for key, argument in ENCODER_GRAPH_CONFIG_KEYS.items():
+        value = getattr(config, key, None)
+        if value is not None:
+            options[argument] = tuple(int(b) for b in value) if argument == "batch_sizes" else int(value)
+    return options
+
+
+def _compile_limit_for_capture():
+    """Raise dynamo's per-function recompile limit to ``_CAPTURE_RECOMPILE_LIMIT`` while the graphs are captured."""
+    config = torch._dynamo.config
+    name = "recompile_limit" if hasattr(config, "recompile_limit") else "cache_size_limit"
+    return config.patch(**{name: max(getattr(config, name), _CAPTURE_RECOMPILE_LIMIT)})
