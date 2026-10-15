@@ -376,3 +376,9 @@ The example reloads the engine and copies CPU/GPU buffers on each call; serving 
 
 This feature remains under validation: quiet audio can exceed the numerical tolerance after per-feature normalization.
 Check quiet audio, silence and recognition accuracy before deployment.
+
+Complete TensorRT TDT serving
+-----------------------------
+
+The `waveform serving example <../../../examples/asr/export/transducer/README_trt_asr.md>`__ packages preprocessing, the encoder and TDT networks for one Triton request.
+It retains NeMo's cached decoding loop and CUDA graphs; PyTorch remains a runtime dependency.
