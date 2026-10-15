@@ -122,7 +122,7 @@ def test_triton_batches_once_and_isolates_invalid_request(monkeypatch):
     utils = SimpleNamespace(
         Tensor=Tensor,
         get_input_tensor_by_name=lambda request, name: request[name],
-        InferenceResponse=lambda **kwargs: SimpleNamespace(**kwargs),
+        InferenceResponse=SimpleNamespace,
         TritonError=TritonError,
     )
     monkeypatch.setitem(__import__("sys").modules, "triton_python_backend_utils", utils)
