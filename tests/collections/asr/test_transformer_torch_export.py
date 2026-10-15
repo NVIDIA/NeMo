@@ -9,7 +9,9 @@ from nemo.collections.asr.modules.transformer_encoder import TransformerEncoder
 
 
 @pytest.mark.unit
-def test_dynamic_transformer_torch_export():
+@pytest.mark.parametrize("position", ["rel_pos", "rope", "abs_pos", "no_pos"])
+@pytest.mark.parametrize("subsampling", ["feature_stacking", "stacking", "stacking_norm", None])
+def test_dynamic_transformer_torch_export(position: str, subsampling: str | None) -> None:
     torch.manual_seed(42)
     model = TransformerEncoder(
         feat_in=8,
@@ -17,9 +19,9 @@ def test_dynamic_transformer_torch_export():
         n_heads=2,
         n_layers=2,
         feat_out=24,
-        subsampling='feature_stacking',
+        subsampling=subsampling,
         subsampling_factor=4,
-        self_attention_model='rope',
+        self_attention_model=position,
         rotary_fraction=0.5,
         qk_norm=True,
         qkv_bias=True,
@@ -29,7 +31,13 @@ def test_dynamic_transformer_torch_export():
     ).eval()
     program = capture_encoder(model, min_frames=8, opt_frames=16, max_frames=128, opt_batch=2, max_batch=4)
     restored = program.module()
-    for batch, time, lengths in [(2, 16, [16, 9]), (1, 9, [9]), (3, 23, [23, 13, 0]), (2, 80, [65, 0])]:
+    for batch, time, lengths in [
+        (2, 16, [16, 9]),
+        (1, 9, [9]),
+        (3, 23, [23, 13, 0]),
+        (2, 80, [65, 0]),
+        (4, 128, [128, 65, 1, 0]),
+    ]:
         features = torch.randn(batch, 8, time)
         lengths = torch.tensor(lengths)
         with torch.no_grad():
@@ -40,8 +48,50 @@ def test_dynamic_transformer_torch_export():
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize("frames", [1, 2, 3, 8])
+def test_relative_bias_export(frames: int) -> None:
+    model = TransformerEncoder(feat_in=8, d_model=32, n_heads=2, n_layers=1, drop_rate=0).double()
+    attention = model.layers[0].attn
+    query = torch.randn(2, 2, frames, 16, dtype=torch.float64, requires_grad=True)
+    positions = torch.randn(1, 2 * frames - 1, 32, dtype=torch.float64, requires_grad=True)
+    native, native_query = attention._build_rel_pos_score_mod(query, positions)
+    exported, exported_query = attention._build_rel_pos_score_mod(query, positions, for_export=True)
+    torch.testing.assert_close(native_query, exported_query, atol=0, rtol=0)
+    torch.testing.assert_close(native._relative_position_bias, exported._relative_position_bias, atol=0, rtol=0)
+    variables = (query, positions, attention.linear_pos.weight, attention.pos_bias_v)
+    native_gradients = torch.autograd.grad(native._relative_position_bias.sum(), variables)
+    exported_gradients = torch.autograd.grad(exported._relative_position_bias.sum(), variables)
+    for expected, actual in zip(native_gradients, exported_gradients):
+        torch.testing.assert_close(actual, expected, atol=0, rtol=0)
+
+
+@pytest.mark.unit
+def test_default_transformer_torch_export() -> None:
+    model = TransformerEncoder(feat_in=8, d_model=32, n_heads=2, n_layers=1, drop_rate=0).eval()
+    program = capture_encoder(model)
+    with torch.no_grad():
+        for batch, frames in ((1, 17), (3, 127)):
+            features = torch.randn(batch, 8, frames)
+            lengths = torch.tensor([frames] + [0] * (batch - 1))
+            expected = model(features, lengths)
+            actual = program.module()(features, lengths)
+            torch.testing.assert_close(actual[0], expected[0], atol=2e-5, rtol=2e-5)
+            torch.testing.assert_close(actual[1], expected[1], atol=0, rtol=0)
+
+
+@pytest.mark.unit
 @pytest.mark.run_only_on("GPU")
-def test_dynamic_transformer_tensorrt(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "position,subsampling",
+    [
+        ("rope", "feature_stacking"),
+        ("rel_pos", "feature_stacking"),
+        ("rel_pos", "stacking"),
+        ("rel_pos", "stacking_norm"),
+        ("rel_pos", None),
+    ],
+)
+def test_dynamic_transformer_tensorrt(tmp_path, monkeypatch, position: str, subsampling: str | None):
     if not torch.cuda.is_available():
         pytest.skip("TensorRT execution requires CUDA.")
     trt = pytest.importorskip("tensorrt")
@@ -58,9 +108,9 @@ def test_dynamic_transformer_tensorrt(tmp_path, monkeypatch):
             n_heads=2,
             n_layers=2,
             feat_out=24,
-            subsampling='feature_stacking',
+            subsampling=subsampling,
             subsampling_factor=4,
-            self_attention_model='rope',
+            self_attention_model=position,
             rotary_fraction=0.5,
             qk_norm=True,
             qkv_bias=True,

@@ -2,8 +2,9 @@
 
 [build_torch_trt_encoder.py](build_torch_trt_encoder.py) traces a NeMo Transformer encoder with `torch.export` and compiles it into a standalone TensorRT plan, without ONNX.
 
-Install compatible PyTorch, Torch-TensorRT and TensorRT versions.
-The tested combination is 2.14, 2.14 and 11.1 respectively, with CUDA 13.
+Use compatible PyTorch, Torch-TensorRT and TensorRT versions.
+Relative attention and encoders without subsampling need [dynamic gather](https://github.com/pytorch/TensorRT/pull/4704) and [dynamic clone](https://github.com/pytorch/TensorRT/pull/4705) support, absent in Torch-TensorRT 2.14.
+Validated with matching PyTorch/Torch-TensorRT 2.15.0.dev20261005+cu132 builds and TensorRT 11.3.0.99.
 
 ```bash
 python examples/asr/export/build_torch_trt_encoder.py \

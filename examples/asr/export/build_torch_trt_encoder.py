@@ -17,7 +17,9 @@ class EncoderExport(torch.nn.Module):
         self.encoder = encoder
 
     def forward(self, audio_signal: torch.Tensor, length: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        return self.encoder.forward_for_export(audio_signal, length)
+        encoded, encoded_length = self.encoder.forward_for_export(audio_signal, length)
+        # Without subsampling, lengths can alias the input; TensorRT needs a distinct output binding.
+        return encoded, encoded_length.clone()
 
 
 def capture_encoder(
