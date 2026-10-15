@@ -56,6 +56,7 @@ __all__ = [
 
 CTC_TIMESTAMP_ARTIFACT_FORMAT = "nemo_ctc_timestamp_artifact_v1"
 CTC_TIMESTAMP_BUNDLE_PREFIX = "ctc_timestamp."
+CTC_UPSAMPLING_MODES = ("conv_transpose", "repeat", "repeat_phase")
 
 
 class TransformerCTCDecoder(ConvASRDecoder):
@@ -69,6 +70,11 @@ class TransformerCTCDecoder(ConvASRDecoder):
 
     d_model is intentionally constrained to feat_in. This keeps the head strictly
     Transformer+Conv (or Conv-only), without a separate Linear projection layer.
+
+    An ``upsampling_factor`` above 1 first raises the frame rate: every encoder frame becomes
+    ``upsampling_factor`` frames, so the CTC output has ``upsampling_factor`` times as many frames
+    (see :meth:`output_lengths`). The default factor of 1 adds no layer and no parameters, so
+    checkpoints trained before this option load and behave exactly as before.
     """
 
     requires_encoded_lengths = False
@@ -101,9 +107,11 @@ class TransformerCTCDecoder(ConvASRDecoder):
         residual: bool = False,
         residual_scale: float = 1.0,
         learnable_residual_scale: bool = False,
+        upsampling_factor: int = 1,
+        upsampling_mode: str = "conv_transpose",
     ):
         """
-        Initialize the optional Transformer bridge and CTC projection.
+        Initialize the optional upsampling layer, Transformer bridge and CTC projection.
 
         Args:
             feat_in (int): Number of input encoder features.
@@ -132,9 +140,32 @@ class TransformerCTCDecoder(ConvASRDecoder):
             residual (bool): Whether to add the bridge input to its output.
             residual_scale (float): Initial residual branch scale.
             learnable_residual_scale (bool): Whether the residual scale is trainable.
+            upsampling_factor (int): Output frames per encoder frame, a positive integer. 1 (default)
+                adds no upsampling layer; above 1 an upsampling layer runs first.
+            upsampling_mode (str): Upsampling layer used when ``upsampling_factor > 1``:
+                ``"conv_transpose"`` (learned ConvTranspose1d with kernel and stride equal to the factor,
+                initialized to repeat each frame), ``"repeat"`` (parameter-free frame repetition) or
+                ``"repeat_phase"`` (repetition plus a learned, zero-initialized embedding per sub-frame
+                position). All three only read their own encoder frame, so padding never leaks into valid frames.
+                ``"repeat"`` and ``"repeat_phase"`` need the Transformer bridge to tell sub-frames apart, and
+                ``"repeat"`` also needs positional attention (not ``self_attention_model="no_pos"``).
         """
         if residual and not use_transformer:
             raise ValueError("TransformerCTCDecoder residual connections require use_transformer=True.")
+        if isinstance(upsampling_factor, bool) or not isinstance(upsampling_factor, int) or upsampling_factor < 1:
+            raise ValueError(f"upsampling_factor must be a positive integer, got {upsampling_factor!r}.")
+        if upsampling_mode not in CTC_UPSAMPLING_MODES:
+            raise ValueError(f"upsampling_mode must be one of {CTC_UPSAMPLING_MODES}, got {upsampling_mode!r}.")
+        if upsampling_factor > 1 and upsampling_mode != "conv_transpose" and not use_transformer:
+            raise ValueError(
+                f"upsampling_mode={upsampling_mode!r} gives every sub-frame the same states unless "
+                "use_transformer=True; use upsampling_mode='conv_transpose' for a Conv-only head."
+            )
+        if upsampling_factor > 1 and upsampling_mode == "repeat" and self_attention_model in (None, "no_pos"):
+            raise ValueError(
+                "upsampling_mode='repeat' needs positional attention to tell sub-frames apart; "
+                f"self_attention_model={self_attention_model!r} has none."
+            )
 
         super().__init__(
             feat_in=feat_in,
@@ -145,9 +176,28 @@ class TransformerCTCDecoder(ConvASRDecoder):
         )
 
         self.use_transformer = use_transformer
-        self.requires_encoded_lengths = use_transformer
+        # Callers must know the valid lengths of an upsampled output, so they have to pass them in.
+        self.requires_encoded_lengths = use_transformer or upsampling_factor > 1
         self.transformer = None
         self.residual = residual
+        self.upsampling_factor = upsampling_factor
+        self.upsampling_mode = upsampling_mode
+
+        # Factor 1 registers nothing, so the state dict of earlier checkpoints still matches exactly.
+        if upsampling_factor > 1:
+            # Recorded in the state dict for every mode, so a loader that ignores upsampling_factor
+            # fails its strict load instead of running the head at the wrong frame rate.
+            self.register_buffer("upsample_factor", torch.tensor(upsampling_factor), persistent=True)
+        if upsampling_factor > 1 and upsampling_mode == "conv_transpose":
+            self.upsample = nn.ConvTranspose1d(
+                feat_in, feat_in, kernel_size=upsampling_factor, stride=upsampling_factor
+            )
+            with torch.no_grad():
+                # Start as plain frame repetition: every sub-frame copies its encoder frame.
+                self.upsample.weight.copy_(torch.eye(feat_in).unsqueeze(-1).expand(-1, -1, upsampling_factor))
+                self.upsample.bias.zero_()
+        elif upsampling_factor > 1 and upsampling_mode == "repeat_phase":
+            self.upsample_phase = nn.Parameter(torch.zeros(feat_in, upsampling_factor))
 
         if self.use_transformer:
             transformer_d_model = feat_in if d_model is None else int(d_model)
@@ -191,20 +241,34 @@ class TransformerCTCDecoder(ConvASRDecoder):
                 else:
                     self.register_buffer("residual_scale", torch.tensor(float(residual_scale)), persistent=True)
 
+    def output_lengths(self, encoded_lengths: torch.Tensor) -> torch.Tensor:
+        """
+        Valid CTC output frame counts for ``encoded_lengths`` encoder frames.
+
+        Args:
+            encoded_lengths (torch.Tensor): Valid encoder frame counts shaped ``(B,)``.
+
+        Returns:
+            torch.Tensor: ``encoded_lengths * upsampling_factor`` (the input itself for factor 1).
+        """
+        return encoded_lengths if self.upsampling_factor == 1 else encoded_lengths * self.upsampling_factor
+
     def forward(self, encoder_output: torch.Tensor, encoded_lengths: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Return CTC log probabilities from channels-first encoder states.
-        With ``use_transformer``, the states first pass through the Transformer bridge, whose scaled
-        output is added to its input when ``residual`` is set; the inherited convolution and
-        log-softmax follow.
+        With ``upsampling_factor > 1``, every frame first becomes ``upsampling_factor`` frames. With
+        ``use_transformer``, the states then pass through the Transformer bridge, whose scaled output is
+        added to its input when ``residual`` is set; the inherited convolution and log-softmax follow.
 
         Args:
             encoder_output (torch.Tensor): Acoustic states shaped ``(B, D, T)``.
-            encoded_lengths (Optional[torch.Tensor]): Valid frame counts shaped ``(B,)``. Required when
-                ``use_transformer=True`` so padded frames cannot affect the Transformer bridge.
+            encoded_lengths (Optional[torch.Tensor]): Valid encoder frame counts shaped ``(B,)``. Required
+                when ``use_transformer=True`` so padded frames cannot affect the Transformer bridge, and
+                when ``upsampling_factor > 1``.
 
         Returns:
-            torch.Tensor: Log probabilities shaped ``(B, T, num_classes_with_blank)``.
+            torch.Tensor: Log probabilities shaped ``(B, T * upsampling_factor, num_classes_with_blank)``;
+                their valid lengths are :meth:`output_lengths` of ``encoded_lengths``.
         """
         if encoder_output.ndim != 3:
             raise ValueError(
@@ -218,6 +282,14 @@ class TransformerCTCDecoder(ConvASRDecoder):
             )
 
         encoded = encoder_output
+        if self.upsampling_factor > 1:
+            if encoded_lengths is None:
+                raise ValueError(
+                    "TransformerCTCDecoder requires encoded_lengths when upsampling_factor > 1, "
+                    "so callers can use output_lengths() for the upsampled frames."
+                )
+            encoded = self._upsample(encoded)
+            encoded_lengths = self.output_lengths(encoded_lengths)
         if self.use_transformer:
             if encoded_lengths is None:
                 raise ValueError("TransformerCTCDecoder requires encoded_lengths when use_transformer=True.")
@@ -233,6 +305,24 @@ class TransformerCTCDecoder(ConvASRDecoder):
                 encoded = residual_input + self.residual_scale.to(dtype=encoded.dtype) * encoded
 
         return super().forward(encoder_output=encoded)
+
+    def _upsample(self, encoded: torch.Tensor) -> torch.Tensor:
+        """
+        Turn every encoder frame into ``upsampling_factor`` consecutive frames.
+
+        Args:
+            encoded (torch.Tensor): Acoustic states shaped ``(B, D, T)``.
+
+        Returns:
+            torch.Tensor: States shaped ``(B, D, T * upsampling_factor)``.
+        """
+        if self.upsampling_mode == "conv_transpose":
+            return self.upsample(encoded)
+        repeated = encoded.repeat_interleave(self.upsampling_factor, dim=-1)
+        if self.upsampling_mode == "repeat_phase":
+            # Column t * factor + j gets the embedding of sub-frame position j.
+            repeated = repeated + self.upsample_phase.to(dtype=repeated.dtype).repeat(1, encoded.shape[-1])
+        return repeated
 
 
 class MultiSpeakerSOTWordTimestampAligner:
@@ -289,7 +379,8 @@ class MultiSpeakerSOTWordTimestampAligner:
             speaker_activity_threshold (float): Threshold for speaker activity metadata.
             speaker_logprob_weight (float): Weight of the Sortformer prior in CTC alignment; defaults to 1.0.
             maximum_token_len (float): Maximum emitted word duration in seconds.
-            max_word_frames (int): Banded CTC word duration and onset-snap cap in CTC frames.
+            max_word_frames (int): Banded CTC word duration and onset-snap cap in encoder frames; prepared
+                batches record it in CTC frames, i.e. times the CTC head's ``upsampling_factor``.
             timestamp_language (Optional[str]): Explicit alignment-unit policy: zh/ja characters,
                 th newmm words, or unchanged whitespace words for other languages. None selects
                 per-transcript script detection.
@@ -388,13 +479,13 @@ class MultiSpeakerSOTWordTimestampAligner:
             timestamp_inputs (Any): ``CTCTimestampInputs`` whose ``asr_encoded`` is shaped ``(B, D, T)``.
 
         Returns:
-            torch.Tensor: CTC log probabilities shaped ``(B, T, classes)``.
+            torch.Tensor: CTC log probabilities shaped ``(B, T * upsampling_factor, classes)``.
         """
         output = None
         for batch_start, start, chunk in self._iter_ctc_windows(timestamp_inputs):
             if output is None:
                 states = timestamp_inputs.asr_encoded
-                output = chunk.new_empty((states.shape[0], states.shape[-1], chunk.shape[-1]))
+                output = chunk.new_empty((states.shape[0], self._ctc_frames(states.shape[-1]), chunk.shape[-1]))
             output[batch_start : batch_start + chunk.shape[0], start : start + chunk.shape[1]] = chunk
             del chunk
         return output
@@ -423,15 +514,16 @@ class MultiSpeakerSOTWordTimestampAligner:
         """
         states = timestamp_inputs.asr_encoded
         num_frames = states.shape[-1]
+        num_ctc_frames = self._ctc_frames(num_frames)
         num_classes = int(self.ctc_decoder.num_classes_with_blank)
 
         return self._prepare(
-            (states.shape[0], num_frames, num_classes),
+            (states.shape[0], num_ctc_frames, num_classes),
             partial(_read_deferred_ctc_columns, self, timestamp_inputs, num_classes),
             timestamp_inputs.sortformer_sigmoids,
             sot_transcripts,
-            ctc_lengths=timestamp_inputs.asr_encoded_lengths.clamp(max=num_frames),
-            # Speaker frames past the CTC timeline are never aligned.
+            ctc_lengths=self._ctc_frames(timestamp_inputs.asr_encoded_lengths).clamp(max=num_ctc_frames),
+            # Speaker frames past the encoder timeline are never aligned.
             sortformer_lengths=timestamp_inputs.sortformer_lengths.clamp(max=num_frames),
             audio_durations=audio_durations,
             diarization_labels=timestamp_inputs.diarization_labels,
@@ -744,7 +836,7 @@ class MultiSpeakerSOTWordTimestampAligner:
                 "speaker_activity_threshold": self.speaker_activity_threshold,
                 "speaker_logprob_weight": speaker_logprob_weight,
                 "maximum_token_len": self.maximum_token_len,
-                "max_word_frames": self.max_word_frames,
+                "max_word_frames": self._ctc_frames(self.max_word_frames),
                 "timestamp_language": self.timestamp_language,
                 "epsilon": self.epsilon,
             },
@@ -883,14 +975,15 @@ class MultiSpeakerSOTWordTimestampAligner:
         Each core of ``online_inference_length`` frames is decoded with its left and right
         context, then trimmed back to the core. The records are split into sub-batches so a
         decoder call stays within ``_CTC_WINDOW_MAX_ELEMENTS``, unless one context window is
-        already larger than that.
+        already larger than that. Windows are laid out in encoder frames; an upsampling head
+        returns ``upsampling_factor`` CTC frames for each of them.
 
         Args:
             timestamp_inputs (Any): ``CTCTimestampInputs`` whose ``asr_encoded`` is shaped ``(B, D, T)``.
 
         Yields:
             Tuple[int, int, torch.Tensor]: First record index, first CTC frame index, and the
-                core's log probs shaped ``(B_window, T_core, classes)``.
+                core's log probs shaped ``(B_window, T_core * upsampling_factor, classes)``.
         """
         states = timestamp_inputs.asr_encoded
         lengths = timestamp_inputs.asr_encoded_lengths
@@ -904,7 +997,7 @@ class MultiSpeakerSOTWordTimestampAligner:
             context_start = max(start - self.chunk_left_context, 0)
             context_end = min(end + self.chunk_right_context, states.shape[-1])
             context_frames = context_end - context_start
-            batch_size = max(1, self._CTC_WINDOW_MAX_ELEMENTS // (context_frames * vocab_size))
+            batch_size = max(1, self._CTC_WINDOW_MAX_ELEMENTS // (self._ctc_frames(context_frames) * vocab_size))
             for batch_start in range(0, states.shape[0], batch_size):
                 batch_end = min(batch_start + batch_size, states.shape[0])
                 context_lengths = (lengths[batch_start:batch_end] - context_start).clamp(min=0, max=context_frames)
@@ -912,13 +1005,28 @@ class MultiSpeakerSOTWordTimestampAligner:
                     states[batch_start:batch_end, :, context_start:context_end].to(dtype=decoder_dtype),
                     encoded_lengths=context_lengths,
                 )
-                if context_logits.shape[1] != context_frames:
+                if context_logits.shape[1] != self._ctc_frames(context_frames):
                     raise ValueError(
-                        f"The CTC head returned {context_logits.shape[1]} frames for {context_frames} input frames."
+                        f"The CTC head returned {context_logits.shape[1]} frames for {context_frames} input frames "
+                        f"(expected {self._ctc_frames(context_frames)})."
                     )
-                left_drop = start - context_start
-                yield batch_start, start, context_logits[:, left_drop : left_drop + end - start]
+                left_drop = self._ctc_frames(start - context_start)
+                core_frames = self._ctc_frames(end - start)
+                yield batch_start, self._ctc_frames(start), context_logits[:, left_drop : left_drop + core_frames]
                 del context_logits
+
+    def _ctc_frames(self, encoder_frames: Union[int, torch.Tensor]) -> Union[int, torch.Tensor]:
+        """
+        Convert encoder frames to CTC output frames of the deferred CTC head.
+
+        Args:
+            encoder_frames (Union[int, torch.Tensor]): Encoder frame count(s).
+
+        Returns:
+            Union[int, torch.Tensor]: ``encoder_frames`` times the head's ``upsampling_factor`` (1 without a
+                head or for a head that does not upsample).
+        """
+        return encoder_frames * int(getattr(self.ctc_decoder, "upsampling_factor", 1))
 
     @staticmethod
     def _group_words_by_speaker(
@@ -2093,7 +2201,7 @@ def _align_banded_ctc(aligner, prepared):
         result['alignment_diagnostics']['failed_streams'] = failures
         result['alignment_diagnostics']['one_pass'] = True
         result['alignment_diagnostics']['banded'] = diagnostics
-        results.append(_refine_word_timestamps(result, aligner.max_word_frames))
+        results.append(_refine_word_timestamps(result, prepared['config']['max_word_frames']))
     return results
 
 
