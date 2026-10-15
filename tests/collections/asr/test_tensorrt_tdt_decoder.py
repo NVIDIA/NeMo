@@ -88,12 +88,14 @@ def test_complete_tensorrt_tdt(tmp_path):
     reference = TDTDecoder(model.decoder.cuda(), model.joint.cuda(), 2, [0, 1, 3], 2, False)
     eager = TensorRTTDTDecoder.load(output, use_cuda_graphs=False)
     graphed = TensorRTTDTDecoder.load(output, use_cuda_graphs=True)
+    partial = TensorRTTDTDecoder.load(output, use_cuda_graphs=True)
+    partial.computer.force_cuda_graphs_mode(partial.computer.CudaGraphsMode.NO_WHILE_LOOPS)
     for frames, lengths in ((4, [4, 2, 0]), (2, [1]), (400, [4, 3, 2, 0]), (5, [0, 0]), (6, [6, 3])):
         encoded = torch.randn(len(lengths), 4, frames, device="cuda")
         lengths = torch.tensor(lengths, device="cuda")
         expected = reference(encoded, lengths)
         saved = eager(encoded, lengths)
-        for result in (saved, graphed(encoded, lengths)):
+        for result in (saved, graphed(encoded, lengths), partial(encoded, lengths)):
             for actual, wanted in zip(result, expected):
                 torch.testing.assert_close(actual, wanted, atol=0, rtol=0)
         snapshots = tuple(t.clone() for t in saved)
@@ -103,8 +105,9 @@ def test_complete_tensorrt_tdt(tmp_path):
     other = TensorRTTDTDecoder.load(output, use_cuda_graphs=True)
     other(encoded, lengths)
     torch.cuda.empty_cache()
-    for actual, wanted in zip(graphed(encoded, lengths), reference(encoded, lengths)):
-        torch.testing.assert_close(actual, wanted, atol=0, rtol=0)
+    for decoder in (graphed, partial):
+        for actual, wanted in zip(decoder(encoded, lengths), reference(encoded, lengths)):
+            torch.testing.assert_close(actual, wanted, atol=0, rtol=0)
 
 
 @pytest.mark.unit
