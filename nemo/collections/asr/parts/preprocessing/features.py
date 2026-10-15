@@ -404,7 +404,7 @@ class FilterbankFeatures(nn.Module):
         logging.debug(f"using grads: {use_grads}")
         logging.debug(f"nb_augmentation_prob: {nb_augmentation_prob}")
 
-    def stft(self, x, *, center=None):
+    def stft(self, x, *, center=None, return_complex=True):
         if center is None:
             center = not self.exact_pad
         return torch.stft(
@@ -414,7 +414,7 @@ class FilterbankFeatures(nn.Module):
             win_length=self.win_length,
             center=center,
             window=self.window.to(dtype=torch.float, device=x.device),
-            return_complex=True,
+            return_complex=return_complex,
             pad_mode="constant",
         )
 
@@ -582,13 +582,16 @@ class FilterbankFeatures(nn.Module):
             x = x.masked_fill(~timemask, 0.0)
 
         # disable autocast to get full range of stft values
+        # ONNX STFT represents complex values as a final real/imaginary dimension.
+        exporting = torch.onnx.is_in_onnx_export()
         with torch.amp.autocast(x.device.type, enabled=False):
-            x = self.stft(x)
+            x = self.stft(x, return_complex=not exporting)
 
         # torch stft returns complex tensor (of shape [B,N,T]); so convert to magnitude
         # guard is needed for sqrt if grads are passed through
         guard = 0 if not self.use_grads else CONSTANT
-        x = torch.view_as_real(x)
+        if not exporting:
+            x = torch.view_as_real(x)
         x = torch.sqrt(x.pow(2).sum(-1) + guard)
 
         if self.training and self.nb_augmentation_prob > 0.0:
@@ -636,9 +639,14 @@ class FilterbankFeatures(nn.Module):
         if pad_to == "max":
             x = nn.functional.pad(x, (0, self.max_length - x.size(-1)), value=self.pad_value)
         elif pad_to > 0:
-            pad_amt = x.size(-1) % pad_to
-            if pad_amt != 0:
-                x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
+            if exporting:
+                # Keep padding dependent on the runtime time dimension, including zero padding.
+                pad_amt = (pad_to - x.size(-1) % pad_to) % pad_to
+                x = nn.functional.pad(x, (0, pad_amt), value=self.pad_value)
+            else:
+                pad_amt = x.size(-1) % pad_to
+                if pad_amt != 0:
+                    x = nn.functional.pad(x, (0, pad_to - pad_amt), value=self.pad_value)
         return x, seq_len
 
 
