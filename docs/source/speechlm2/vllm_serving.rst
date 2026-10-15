@@ -93,10 +93,10 @@ batch size and audio length:
 
 The keys can also be set in the checkpoint's ``config.json``.
 
-- ``encoder_cuda_graphs``: capture graphs for batches of 1 to 128 clips and lengths up to two 40-second encoder
-  windows, at the first encoder call. For longer audio, the streaming diarization steps after the speaker cache has
-  filled replay from CUDA graphs, while the ASR windows run batched without graphs. Capture adds start-up time and
-  GPU memory; the graphs reproduce the encoder's outputs.
+- ``encoder_cuda_graphs``: capture graphs at the first encoder call, so audio of any length replays them. Audio up
+  to two 40-second encoder windows replays one graph per batch of 1 to 128 clips. Longer audio runs the windowed
+  encoder with each piece replayed from graphs: the ASR encoder over batches of windows, and every streaming
+  diarization step. Capture adds start-up time and GPU memory; the graphs reproduce the encoder's outputs.
 - ``encoder_compile``: also compile each encoder transformer block with ``torch.compile``, fusing its
   memory-bound operations. This lowers encoder GPU time further and changes the outputs at bf16 rounding level.
 
@@ -105,9 +105,15 @@ The graph buckets can be changed with these keys:
 - ``encoder_cuda_graph_batch_sizes``: graph batch sizes, default ``[1, 2, 4, 8, 16, 32, 64, 128]``. A step's clips
   are split over them, largest first; fewer than 8 remaining clips go into one padded graph. The small sizes cut
   the encoder latency of a single request; dropping them roughly halves the capture time at start-up.
-- ``encoder_cuda_graph_max_windows``: longest graphed audio in encoder windows, default ``2``. Longer audio runs
-  eagerly as described above.
-- ``encoder_cuda_graph_frame_bucket``: graph length granularity in feature frames (10 ms each), default ``256``.
+- ``encoder_cuda_graph_max_windows``: longest audio replayed as one whole-encoder graph, in encoder windows,
+  default ``2``. Longer audio is graphed window by window.
+- ``encoder_cuda_graph_frame_bucket``: length granularity of the whole-encoder graphs in feature frames (10 ms
+  each), default ``256``.
+- ``encoder_cuda_graph_long_audio``: graph audio past ``encoder_cuda_graph_max_windows`` window by window, default
+  ``true``. Set it to ``false`` to save the start-up time and memory of those graphs when no request is longer; such
+  audio then runs eagerly.
+- ``encoder_cuda_graph_last_window_bucket``: for audio graphed window by window, the last window is padded to a
+  multiple of this many feature frames, default ``1000``. Smaller values pad less and capture more graphs.
 
 For example, a low-concurrency deployment of short clips:
 

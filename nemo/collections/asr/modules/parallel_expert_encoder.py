@@ -52,7 +52,7 @@ from nemo.collections.asr.parts.packed_sequence import (
     unpack_encoder_output,
 )
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch, normalize_packed_batch
-from nemo.collections.common.parts.optional_cuda_graphs import capture_cuda_graph
+from nemo.collections.common.parts.optional_cuda_graphs import SharedGraphBuffers, capture_cuda_graph
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, Serialization
 from nemo.core.classes.module import freeze, unfreeze
@@ -643,9 +643,22 @@ class ParallelExpertEncoder(nn.Module):
     supports_sequence_packed_output = True
     # Online inference encodes up to this many ASR windows (rows) per forward.
     _ASR_WINDOW_ROWS = 128
-    # Replay steady-state streaming Sortformer steps of online inference from CUDA graphs.
+    # Replay the ASR windows and streaming Sortformer steps of online inference from CUDA graphs.
     online_cuda_graphs = False
+    # Optional ``split(rows, frames) -> sizes``: covers a batch of ASR windows with graph batch sizes (the last piece
+    # padded). Without it, windows are graphed at their exact row count.
+    online_graph_split = None
+    # Optional ``bucket(rows) -> size``: the graph batch size a streaming Sortformer step's rows are padded to, or
+    # ``None`` to run it eagerly. Without it, steps are graphed at their exact row count.
+    online_graph_bucket = None
+    # CUDA graph memory pool handle and input/output buffers (SharedGraphBuffers) shared by the online graphs, and
+    # the most graphs each graph cache keeps.
+    online_graph_pool = None
+    online_graph_buffers = None
+    online_max_graphs = 16
     _diar_step_graphs = None
+    _asr_window_graphs = None
+    _capture_online_graphs_now = False
 
     def __init__(
         self,
@@ -2069,7 +2082,7 @@ class ParallelExpertEncoder(nn.Module):
                 rows = torch.cat([asr_signal[:, :, cs : cs + width] for cs in context_starts])
                 lengths = torch.cat([(asr_length - cs).clamp(min=0, max=width) for cs in context_starts])
                 with torch.set_grad_enabled(torch.is_grad_enabled() and not self.freeze_asr):
-                    encoded, _ = self.asr_encoder(audio_signal=rows, length=lengths)
+                    encoded = self._asr_window_forward(rows, lengths)
                 for k, i in enumerate(group):
                     start, end, context_start, _ = windows[i]
                     left_drop = (start - context_start) // self.subsampling_factor
@@ -2077,6 +2090,48 @@ class ParallelExpertEncoder(nn.Module):
                     core_len = max(0, min(core_len, encoded.shape[-1] - left_drop))
                     cores[i] = encoded[k * batch_size : (k + 1) * batch_size, :, left_drop : left_drop + core_len]
         return cores
+
+    def _asr_window_forward(self, rows: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+        """
+        Encode a batch of equal-width ASR windows; with ``online_cuda_graphs`` set, inference replays CUDA graphs.
+
+        Args:
+            rows (torch.Tensor): Window mel features shaped ``(N, D, T)``.
+            lengths (torch.Tensor): Valid window frame counts shaped ``(N,)``.
+
+        Returns:
+            torch.Tensor: Encoded windows shaped ``(N, D_out, T_out)``.
+        """
+        if not self._online_graphable(rows):
+            return self.asr_encoder(audio_signal=rows, length=lengths)[0]
+        if self._asr_window_graphs is None:
+            self._asr_window_graphs = _ASRWindowGraphs(
+                self.online_max_graphs, self.online_graph_pool, self.online_graph_buffers
+            )
+        return self._asr_window_graphs(
+            self.asr_encoder, rows, lengths, self.online_graph_split, capture_now=self._capture_online_graphs_now
+        )
+
+    def _online_graphable(self, tensor: torch.Tensor) -> bool:
+        """Whether online inference on ``tensor`` may replay CUDA graphs (graphs enabled, inference on CUDA)."""
+        return (
+            self.online_cuda_graphs
+            and tensor.is_cuda
+            and not torch.is_grad_enabled()
+            # A graph fixes kernel and dtype choices: autocast and an enclosing capture run eagerly.
+            and not torch.is_autocast_enabled("cuda")
+            and not torch.cuda.is_current_stream_capturing()
+        )
+
+    @contextlib.contextmanager
+    def capturing_online_graphs(self):
+        """Capture every new online graph key at its first sight (normally the second), e.g. during a warmup."""
+        previous = self._capture_online_graphs_now
+        self._capture_online_graphs_now = True
+        try:
+            yield
+        finally:
+            self._capture_online_graphs_now = previous
 
     def _streaming_diar_step(
         self,
@@ -2088,8 +2143,8 @@ class ParallelExpertEncoder(nn.Module):
     ) -> tuple[Any, torch.Tensor]:
         """
         Run one streaming Sortformer step and return the new state and this window's predictions.
-        With ``online_cuda_graphs`` set, steady-state steps of inference (no autograd, synchronous streaming,
-        a state update) replay a CUDA graph; any other step runs eagerly.
+        With ``online_cuda_graphs`` set, steps of inference with synchronous streaming replay CUDA graphs, keyed by
+        their input shapes; any other step runs eagerly.
 
         Args:
             chunk (torch.Tensor): Window mel features, time-major, shaped ``(B, T, D)``.
@@ -2107,26 +2162,31 @@ class ParallelExpertEncoder(nn.Module):
                 processed_signal=signal,
                 processed_signal_length=signal_length,
                 streaming_state=state,
-                total_preds=empty_preds,
+                # Sized from the window, whose rows a graph may have padded.
+                total_preds=empty_preds.new_empty((signal.shape[0], 0, empty_preds.shape[-1])),
                 **step_kwargs,
             )
 
         graphable = (
-            self.online_cuda_graphs
-            and chunk.is_cuda
-            and not torch.is_grad_enabled()
-            # A graph fixes kernel and dtype choices: autocast and an enclosing capture run eagerly.
-            and not torch.is_autocast_enabled("cuda")
-            and not torch.cuda.is_current_stream_capturing()
+            self._online_graphable(chunk)
             and not self.diarization_model.async_streaming
             and streaming_state.spk_perm is None
-            and step_kwargs.get("update_state", True)
         )
         if not graphable:
             return step(streaming_state, chunk, chunk_length)
         if self._diar_step_graphs is None:
-            self._diar_step_graphs = _StreamingStepGraphs()
-        return self._diar_step_graphs(step, streaming_state, chunk, chunk_length, tuple(sorted(step_kwargs.items())))
+            self._diar_step_graphs = _StreamingStepGraphs(
+                self.online_max_graphs, self.online_graph_pool, self.online_graph_buffers
+            )
+        return self._diar_step_graphs(
+            step,
+            streaming_state,
+            chunk,
+            chunk_length,
+            tuple(sorted(step_kwargs.items())),
+            bucket=self.online_graph_bucket,
+            capture_now=self._capture_online_graphs_now,
+        )
 
     def _init_streaming_diar(self, audio_signal: torch.Tensor, length: torch.Tensor, batch_size: int):
         """
@@ -2178,12 +2238,119 @@ class ParallelExpertEncoder(nn.Module):
         return state, stream_dtype, diar_signal, diar_length
 
 
-class _StreamingStepGraphs:
+class _GraphCache:
+    """CUDA graphs keyed by input shapes, captured lazily (inference only).
+
+    A key gets a graph the second time it is seen (or at once with ``capture_now``), so shapes that occur only once
+    stay eager. Past ``max_graphs`` graphs, new keys run eagerly. If a capture fails, everything runs eagerly from
+    then on.
+
+    Args:
+        max_graphs (int): Maximum number of captured graphs.
+        pool: CUDA graph memory pool handle to capture into, or ``None`` for a private pool.
+        buffers (Optional[SharedGraphBuffers]): Buffers for the graphs' static inputs and outputs shared with other
+            graphs that never replay concurrently, or ``None`` to give every graph its own.
+    """
+
+    def __init__(self, max_graphs: int = 16, pool=None, buffers: Optional[SharedGraphBuffers] = None):
+        self.max_graphs = max_graphs
+        self.enabled = True
+        self.seen = set()
+        self.graphs = {}
+        self.pool = pool
+        self.buffers = buffers if buffers is not None else _PrivateGraphBuffers()
+
+    def _lookup(self, key, capture, capture_now: bool = False):
+        """
+        Return the graph entry for ``key``, capturing it with ``capture()`` when due, or ``None`` to run eagerly.
+
+        Args:
+            key: Hashable input signature.
+            capture (Callable): Captures the graph and returns its entry.
+            capture_now (bool): Capture at the first sight of ``key``.
+
+        Returns:
+            The cached entry, or ``None``.
+        """
+        if key in self.graphs:
+            return self.graphs[key]
+        if not self.enabled or len(self.graphs) >= self.max_graphs or (key not in self.seen and not capture_now):
+            self.seen.add(key)
+            return None
+        if self.pool is None:
+            self.pool = torch.cuda.graph_pool_handle()
+        try:
+            self.graphs[key] = capture()
+        except Exception as error:  # noqa: BLE001 - a failed capture must not break inference
+            logging.warning(f"CUDA graph capture of {type(self).__name__} failed; running eagerly: {error}")
+            self.enabled = False
+            self.graphs.clear()
+            return None
+        return self.graphs[key]
+
+
+class _ASRWindowGraphs(_GraphCache):
+    """CUDA graphs of the ASR encoder over batches of equal-width windows.
+
+    ``split(rows, frames)`` covers a batch with graph batch sizes; each piece is padded to its size with copies of its
+    first row, so a few graphs serve any window count. Outputs are cloned, so callers own them.
+    """
+
+    def __call__(self, encoder, rows: torch.Tensor, lengths: torch.Tensor, split=None, capture_now: bool = False):
+        """
+        Encode ``rows`` with ``encoder``, replaying a graph per piece where one is available.
+
+        Args:
+            encoder (nn.Module): ASR encoder taking ``audio_signal`` and ``length``.
+            rows (torch.Tensor): Window mel features shaped ``(N, D, T)``.
+            lengths (torch.Tensor): Valid window frame counts shaped ``(N,)``.
+            split (Optional[Callable]): ``split(rows, frames) -> sizes``; ``None`` graphs the exact row count.
+            capture_now (bool): Capture new keys at their first sight.
+
+        Returns:
+            torch.Tensor: Encoded windows shaped ``(N, D_out, T_out)``.
+        """
+        sizes = split(rows.shape[0], rows.shape[-1]) if split is not None else [rows.shape[0]]
+        outputs, start = [], 0
+        for size in sizes:
+            piece, piece_lengths = rows[start : start + size], lengths[start : start + size]
+            n = piece.shape[0]
+            start += n
+            key = (size, tuple(piece.shape[1:]), piece.dtype, lengths.dtype)
+            entry = self._lookup(key, lambda: self._capture(encoder, size, piece, piece_lengths), capture_now)
+            if entry is None:
+                outputs.append(encoder(audio_signal=piece, length=piece_lengths)[0])
+                continue
+            graph, static_rows, static_lengths, encoded = entry
+            static_rows[:n].copy_(piece)
+            static_rows[n:].copy_(piece[:1].expand_as(static_rows[n:]))
+            static_lengths[:n].copy_(piece_lengths)
+            static_lengths[n:].copy_(piece_lengths[:1].expand_as(static_lengths[n:]))
+            graph.replay()
+            outputs.append(encoded[:n].clone())
+        return outputs[0] if len(outputs) == 1 else torch.cat(outputs)
+
+    def _capture(self, encoder, size: int, piece: torch.Tensor, piece_lengths: torch.Tensor):
+        """Capture ``encoder`` on static ``size``-row buffers shaped like ``piece``."""
+        static_rows = self.buffers.view("asr_windows", (size, *piece.shape[1:]), piece.dtype, piece.device)
+        static_rows.copy_(piece[:1].expand_as(static_rows))
+        static_lengths = piece_lengths[:1].expand(size).clone()
+
+        def run():
+            encoded, _ = encoder(audio_signal=static_rows, length=static_lengths)
+            return _to_shared(self.buffers, "asr_encoded", encoded)
+
+        graph, encoded = capture_cuda_graph(run, pool=self.pool)
+        return graph, static_rows, static_lengths, encoded
+
+
+class _StreamingStepGraphs(_GraphCache):
     """CUDA graphs of one synchronous streaming Sortformer step, keyed by every input shape (inference only).
 
-    A key gets a graph the second time it is seen, so only the steady state after the speaker cache has filled is
-    captured. A replay copies the state and the window into the graph's input buffers and clones its outputs, so
-    callers own every returned tensor. If a capture fails, the step runs eagerly from then on.
+    The state shapes change while the speaker cache fills, then stay fixed, so a few keys cover any number of steps.
+    With a ``bucket`` function, the rows are padded to a graph batch size with copies of the first row, so a few
+    batch sizes cover any number of rows. A replay copies the state and the window into the graph's input buffers and
+    clones its outputs, so callers own every returned tensor.
     """
 
     _STATE_FIELDS = (
@@ -2197,20 +2364,16 @@ class _StreamingStepGraphs:
         "n_sil_frames",
     )
 
-    def __init__(self, max_graphs: int = 16):
-        """
-        Create an empty graph cache.
-
-        Args:
-            max_graphs (int): Maximum number of captured graphs; further keys run eagerly.
-        """
-        self.max_graphs = max_graphs
-        self.enabled = True
-        self.seen = set()
-        self.graphs = {}
-        self.pool = None
-
-    def __call__(self, step, state, chunk: torch.Tensor, chunk_length: torch.Tensor, extra_key: tuple):
+    def __call__(
+        self,
+        step,
+        state,
+        chunk: torch.Tensor,
+        chunk_length: torch.Tensor,
+        extra_key: tuple,
+        bucket=None,
+        capture_now: bool = False,
+    ):
         """
         Run ``step`` eagerly or replay its graph for this input signature.
 
@@ -2220,11 +2383,21 @@ class _StreamingStepGraphs:
             chunk (torch.Tensor): Window mel features, time-major, shaped ``(B, T, D)``.
             chunk_length (torch.Tensor): Valid window frame counts shaped ``(B,)``.
             extra_key (tuple): Hashable step options that are part of the graph key.
+            bucket (Optional[Callable]): ``bucket(rows) -> size`` to pad the rows to, or ``None`` to run eagerly;
+                without it, the exact row count is graphed.
+            capture_now (bool): Capture a new key at its first sight.
 
         Returns:
             tuple[Any, torch.Tensor]: Updated streaming state and this window's speaker predictions.
         """
+        rows = chunk.shape[0]
+        size = bucket(rows) if bucket is not None else rows
+        if size is None:
+            return step(state, chunk, chunk_length)
         tensors = {name: getattr(state, name) for name in self._STATE_FIELDS if getattr(state, name, None) is not None}
+        if size != rows:
+            tensors = {name: _pad_rows(t, size) for name, t in tensors.items()}
+            chunk, chunk_length = _pad_rows(chunk, size), _pad_rows(chunk_length, size)
         key = (
             extra_key,
             bool(state.spkcache_compressed),
@@ -2233,19 +2406,10 @@ class _StreamingStepGraphs:
             chunk.dtype,
             tuple(chunk_length.shape),
         )
-        if key not in self.graphs:
-            if not self.enabled or key not in self.seen or len(self.graphs) >= self.max_graphs:
-                self.seen.add(key)
-                return step(state, chunk, chunk_length)
-            try:
-                self.graphs[key] = self._capture(step, state, tensors, chunk, chunk_length)
-            except Exception as error:  # noqa: BLE001 - a failed capture must not break inference
-                logging.warning(
-                    f"CUDA graph capture of the streaming Sortformer step failed; running eagerly: {error}"
-                )
-                self.enabled = False
-                return step(state, chunk, chunk_length)
-        graph, static_tensors, static_chunk, static_length, out_state, out_preds = self.graphs[key]
+        entry = self._lookup(key, lambda: self._capture(step, state, tensors, chunk, chunk_length), capture_now)
+        if entry is None:
+            return step(state, chunk[:rows], chunk_length[:rows])
+        graph, static_tensors, static_chunk, static_length, out_state, out_preds = entry
         for name, t in tensors.items():
             static_tensors[name].copy_(t)
         static_chunk.copy_(chunk)
@@ -2254,8 +2418,8 @@ class _StreamingStepGraphs:
         new_state = copy.copy(out_state)
         for name, value in vars(out_state).items():
             if isinstance(value, torch.Tensor):
-                setattr(new_state, name, value.clone())
-        return new_state, out_preds.clone()
+                setattr(new_state, name, (value[:rows] if value.dim() and value.shape[0] == size else value).clone())
+        return new_state, out_preds[:rows].clone()
 
     def _capture(self, step, state, tensors, chunk, chunk_length):
         """
@@ -2272,16 +2436,38 @@ class _StreamingStepGraphs:
             tuple: The graph, its static state tensors, chunk and length buffers, and its output state and predictions.
         """
         static_tensors = {name: t.clone() for name, t in tensors.items()}
-        static_chunk, static_length = chunk.clone(), chunk_length.clone()
+        static_chunk = self.buffers.view("diar_chunk", tuple(chunk.shape), chunk.dtype, chunk.device).copy_(chunk)
+        static_length = chunk_length.clone()
 
         def run():
             # The step reassigns state attributes, so each run gets its own shallow copy of the state.
             fresh = copy.copy(state)
             for name, t in static_tensors.items():
                 setattr(fresh, name, t)
-            return step(fresh, static_chunk, static_length)
+            out_state, preds = step(fresh, static_chunk, static_length)
+            # Unchanged state tensors are the static inputs; the rest move to shared buffers.
+            static = {id(t) for t in static_tensors.values()}
+            for name, value in list(vars(out_state).items()):
+                if isinstance(value, torch.Tensor) and id(value) not in static:
+                    setattr(out_state, name, _to_shared(self.buffers, f"diar_state.{name}", value))
+            return out_state, _to_shared(self.buffers, "diar_preds", preds)
 
-        if self.pool is None:
-            self.pool = torch.cuda.graph_pool_handle()
         graph, (out_state, out_preds) = capture_cuda_graph(run, pool=self.pool)
         return graph, static_tensors, static_chunk, static_length, out_state, out_preds
+
+
+def _pad_rows(tensor: torch.Tensor, size: int) -> torch.Tensor:
+    """Pad ``tensor`` to ``size`` rows with copies of its first row."""
+    return torch.cat([tensor, tensor[:1].expand(size - tensor.shape[0], *tensor.shape[1:])])
+
+
+def _to_shared(buffers, slot: str, tensor: torch.Tensor) -> torch.Tensor:
+    """Copy a graph output into ``buffers``, so the pool memory it came from is free for later captures."""
+    return buffers.view(slot, tuple(tensor.shape), tensor.dtype, tensor.device).copy_(tensor)
+
+
+class _PrivateGraphBuffers:
+    """Stand-in for SharedGraphBuffers that gives every graph its own buffers."""
+
+    def view(self, slot: str, shape: tuple, dtype: torch.dtype, device: torch.device) -> torch.Tensor:
+        return torch.empty(shape, dtype=dtype, device=device)

@@ -2765,3 +2765,181 @@ def test_encoder_graphs_return_eager_ctc_timestamp_inputs():
             got, ref = getattr(states, name)[i], getattr(ref_states, name)[i]
             torch.testing.assert_close(got.narrow(time_axis - 1, 0, n), ref.narrow(time_axis - 1, 0, n), msg=name)
     assert runner(audio, lengths) is not None  # the same graphs also serve calls without the inputs
+
+
+def _long_audio_runner(ctc_timestamp_inputs=False):
+    from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+    torch.manual_seed(0)
+    diarization_config = toy_diarization_model_cfg()
+    diarization_config.high_resolution = True
+    encoder = build_toy_pe_encoder(
+        diarization_model_cfg=diarization_config,
+        online_inference_length=10,
+        chunk_left_context=2,
+        chunk_right_context=2,
+        diar_fifo_len=10,
+        diar_spkcache_update_period=20,
+        diar_spkcache_len=20,
+    )
+    encoder._suppress_online_pbar = True
+    perception = _FlatMelPerception(encoder).cuda().eval()
+    runner = EncoderGraphRunner(
+        perception, batch_sizes=(1, 2, 4), frame_bucket=16, max_windows=1, last_window_bucket=32
+    )
+    runner.ctc_timestamp_inputs = ctc_timestamp_inputs
+    return runner, perception, encoder
+
+
+def _eager(perception, encoder, audio, lengths, **kwargs):
+    encoder.online_cuda_graphs = False
+    try:
+        with torch.no_grad(), encoder.online_inference():
+            return perception(input_signal=audio, input_signal_length=lengths, **kwargs)
+    finally:
+        encoder.online_cuda_graphs = True
+
+
+def _eager_window_pieces(encoder):
+    caches = (encoder._asr_window_graphs, encoder._diar_step_graphs)
+    return sum(len(cache.seen) for cache in caches if cache is not None)
+
+
+@pytest.mark.unit
+def test_encoder_graphs_serve_audio_of_any_length_window_by_window():
+    """Audio past the whole-forward graphs replays window graphs captured at start-up and matches eager inference."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    runner, perception, encoder = _long_audio_runner()
+    window = encoder.chunk_feat_len
+    runner(torch.randn(1, 50 * _MEL_FEATURES, device="cuda"), torch.tensor([50 * _MEL_FEATURES], device="cuda"))
+    assert runner.long_graph_count() > 0
+    eager_pieces = _eager_window_pieces(encoder)
+
+    for frames in ([3 * window - 5], [window + 1, 5 * window + 37, 2 * window], [12 * window + 3] * 3 + [40] * 3):
+        frames = torch.tensor(frames, device="cuda")
+        audio = torch.randn(len(frames), int(frames.max()) * _MEL_FEATURES, device="cuda")
+        lengths = frames * _MEL_FEATURES
+        got = runner(audio, lengths)
+        ref_embs, ref_lens = _eager(perception, encoder, audio, lengths)
+        assert len(got) == len(frames)
+        for i, n in enumerate(ref_lens.tolist()):
+            torch.testing.assert_close(got[i], ref_embs[i, :n], rtol=1e-5, atol=2e-5)
+    # Every window of every length replayed a graph captured at start-up.
+    assert _eager_window_pieces(encoder) == eager_pieces
+
+
+@pytest.mark.unit
+def test_encoder_graphs_return_ctc_timestamp_inputs_for_long_audio():
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    runner, perception, encoder = _long_audio_runner(ctc_timestamp_inputs=True)
+    window = encoder.chunk_feat_len
+    frames = torch.tensor([4 * window + 9, 2 * window - 3], device="cuda")
+    audio = torch.randn(2, int(frames.max()) * _MEL_FEATURES, device="cuda")
+    lengths = frames * _MEL_FEATURES
+
+    embeds, states = runner(audio, lengths, return_ctc_timestamp_inputs=True)
+    ref_embs, ref_lens, ref_states = _eager(perception, encoder, audio, lengths, return_ctc_timestamp_inputs=True)
+    for i, n in enumerate(ref_lens.tolist()):
+        torch.testing.assert_close(embeds[i], ref_embs[i, :n], rtol=1e-5, atol=2e-5)
+    for name, time_axis, lengths_name in (
+        ("asr_encoded", 2, "asr_encoded_lengths"),
+        ("sortformer_sigmoids", 1, "sortformer_lengths"),
+        ("diarization_labels", 2, "diarization_lengths"),
+    ):
+        got_lengths, ref_lengths = getattr(states, lengths_name), getattr(ref_states, lengths_name)
+        assert torch.equal(got_lengths, ref_lengths), name
+        for i, n in enumerate(ref_lengths.tolist()):
+            got, ref = getattr(states, name)[i], getattr(ref_states, name)[i]
+            torch.testing.assert_close(
+                got.narrow(time_axis - 1, 0, n), ref.narrow(time_axis - 1, 0, n), rtol=1e-5, atol=2e-5, msg=name
+            )
+
+
+@pytest.mark.unit
+def test_asr_window_graphs_pad_rows_to_graph_sizes_and_match_eager():
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    from nemo.collections.asr.modules import parallel_expert_encoder as pee
+
+    torch.manual_seed(0)
+    asr = ConformerEncoder(**{k: v for k, v in toy_asr_encoder_cfg().items() if k != "_target_"}).cuda().eval()
+    graphs = pee._ASRWindowGraphs(max_graphs=8)
+
+    def split(rows, frames):
+        return [4] * (rows // 4) + ([2] if rows % 4 else [])
+
+    rows = torch.randn(6, _MEL_FEATURES, 96, device="cuda")
+    lengths = torch.tensor([96, 90, 96, 40, 96, 77], device="cuda")
+    with torch.no_grad():
+        expected, _ = asr(audio_signal=rows, length=lengths)
+        graphs(asr, rows, lengths, split, capture_now=True)
+        got = graphs(asr, rows, lengths, split)
+    assert set(graphs.graphs) == {
+        (4, (_MEL_FEATURES, 96), rows.dtype, lengths.dtype),
+        (2, (_MEL_FEATURES, 96), rows.dtype, lengths.dtype),
+    }
+    out_lengths = (lengths + _SUBSAMPLING_FACTOR - 1) // _SUBSAMPLING_FACTOR
+    for i, n in enumerate(out_lengths.tolist()):
+        torch.testing.assert_close(got[i, :, :n], expected[i, :, :n], rtol=1e-5, atol=2e-5)
+
+
+@pytest.mark.unit
+def test_streaming_step_graphs_pad_rows_to_the_bucket_and_match_eager():
+    """Diarization steps of 3 rows replay graphs captured for 4 rows and return the eager outputs of the 3."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    torch.manual_seed(0)
+    encoder = (
+        build_toy_pe_encoder(
+            online_inference_length=10,
+            chunk_left_context=2,
+            chunk_right_context=2,
+            diar_fifo_len=10,
+            diar_spkcache_update_period=20,
+            diar_spkcache_len=20,
+        )
+        .cuda()
+        .eval()
+    )
+    encoder._suppress_online_pbar = True
+    lengths = torch.tensor(
+        [7 * encoder.chunk_feat_len, 5 * encoder.chunk_feat_len + 3, 6 * encoder.chunk_feat_len], device="cuda"
+    )
+    mels = torch.randn(3, _MEL_FEATURES, int(lengths.max()), device="cuda")
+
+    with torch.no_grad(), encoder.online_inference():
+        expected, expected_lengths = encoder(mels, lengths)
+        encoder.online_cuda_graphs = True
+        encoder.online_graph_bucket = lambda rows: 4
+        with encoder.capturing_online_graphs():
+            encoder(mels, lengths)
+        seen = len(encoder._diar_step_graphs.seen)
+        out, out_lengths = encoder(mels, lengths)
+
+    assert encoder._diar_step_graphs.graphs and all(
+        key[2][0][1][0] == 4 for key in encoder._diar_step_graphs.graphs
+    ), "steps were not graphed at the bucket size"
+    assert len(encoder._diar_step_graphs.seen) == seen
+    assert torch.equal(out_lengths, expected_lengths)
+    for i, n in enumerate(expected_lengths.tolist()):
+        torch.testing.assert_close(out[i, :, :n], expected[i, :, :n], rtol=1e-5, atol=2e-5)
+
+
+@pytest.mark.unit
+def test_failed_long_audio_capture_keeps_the_whole_forward_graphs(monkeypatch):
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    runner, perception, encoder = _long_audio_runner()
+
+    def fail(n_feat, dtype):
+        raise torch.OutOfMemoryError("synthetic")
+
+    monkeypatch.setattr(runner, "_capture_long", fail)
+    short = torch.randn(1, 50 * _MEL_FEATURES, device="cuda")
+    assert runner(short, torch.tensor([short.shape[1]], device="cuda")) is not None
+    assert runner.graphs and runner.enabled and not runner.long_audio
+    frames = 4 * encoder.chunk_feat_len
+    long = torch.randn(1, frames * _MEL_FEATURES, device="cuda")
+    assert runner(long, torch.tensor([long.shape[1]], device="cuda")) is None  # left to the eager path

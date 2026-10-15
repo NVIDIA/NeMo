@@ -1355,6 +1355,7 @@ class TestAudioProcessing:
         from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
 
         runner = object.__new__(EncoderGraphRunner)
+        runner.long_audio = False
         runner.batch_sizes, runner.window = [8, 16, 32, 64, 128], 4000
         runner.max_rows_x_frames = 128 * runner.window
         assert runner._split(1, 4000) == [8]
@@ -1373,6 +1374,7 @@ class TestAudioProcessing:
         from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
 
         runner = object.__new__(EncoderGraphRunner)
+        runner.long_audio = False
         runner.batch_sizes = list(inspect.signature(EncoderGraphRunner).parameters["batch_sizes"].default)
         runner.window = 4000
         runner.max_rows_x_frames = runner.batch_sizes[-1] * runner.window
@@ -1397,6 +1399,7 @@ class TestAudioProcessing:
         name = "recompile_limit" if hasattr(config, "recompile_limit") else "cache_size_limit"
         before = getattr(config, name)
         runner = object.__new__(EncoderGraphRunner)
+        runner.long_audio = False
         runner.perception = SimpleNamespace(
             maybe_preprocess_audio=lambda audio, lengths, *_: (audio[:, None], lengths)
         )
@@ -1427,6 +1430,27 @@ class TestAudioProcessing:
         bigger = buffers.view("x", (8, 3, 5), torch.float32, "cpu")
         assert bigger.data_ptr() != big.data_ptr() and big.numel() == 60
 
+    @pytest.mark.parametrize(
+        "frames,expected", [(8001, 8400), (8400, 8400), (8401, 8800), (11999, 12000), (12000, 12000)]
+    )
+    def test_long_audio_pads_only_the_last_window_to_its_bucket(self, frames, expected):
+        from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+        runner = object.__new__(EncoderGraphRunner)
+        runner.long_audio = False
+        runner.window, runner.last_window_bucket = 4000, 400
+        assert runner._long_frames(frames) == expected
+
+    def test_long_audio_steps_pad_rows_by_at_most_half(self):
+        from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
+
+        runner = object.__new__(EncoderGraphRunner)
+        runner.step_batch_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 24, 32, 48, 64, 96, 128]
+        for rows in range(1, 129):
+            size = runner._bucket(rows)
+            assert rows <= size <= max(16, 1.5 * rows)
+        assert runner._bucket(129) is None
+
     def test_encoder_graph_options_come_from_the_model_config(self):
         from nemo.collections.speechlm2.vllm.salm.encoder_graphs import encoder_graph_options
 
@@ -1435,8 +1459,16 @@ class TestAudioProcessing:
             encoder_cuda_graph_batch_sizes=[1, 4, 32],
             encoder_cuda_graph_frame_bucket=128,
             encoder_cuda_graph_max_windows=1,
+            encoder_cuda_graph_long_audio=False,
+            encoder_cuda_graph_last_window_bucket=500,
         )
-        assert encoder_graph_options(config) == {"batch_sizes": (1, 4, 32), "frame_bucket": 128, "max_windows": 1}
+        assert encoder_graph_options(config) == {
+            "batch_sizes": (1, 4, 32),
+            "frame_bucket": 128,
+            "max_windows": 1,
+            "long_audio": False,
+            "last_window_bucket": 500,
+        }
 
     @pytest.mark.parametrize(
         "kwargs", [{"batch_sizes": ()}, {"batch_sizes": (0, 8)}, {"frame_bucket": 0}, {"max_windows": 0}]
@@ -1454,6 +1486,7 @@ class TestAudioProcessing:
         from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
 
         runner = object.__new__(EncoderGraphRunner)
+        runner.long_audio = False
         runner.window, runner.frame_bucket, runner.max_frames = window, frame_bucket, window * max_windows
         runner.batch_sizes, runner.max_rows_x_frames = [8, 16], 16 * window
         captured = set()
@@ -1471,6 +1504,7 @@ class TestAudioProcessing:
         from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
 
         runner = object.__new__(EncoderGraphRunner)
+        runner.long_audio = False
         runner.perception = SimpleNamespace(
             maybe_preprocess_audio=lambda audio, lengths, *_: (audio[:, None], lengths)
         )
