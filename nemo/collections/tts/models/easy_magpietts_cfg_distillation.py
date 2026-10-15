@@ -83,8 +83,6 @@ class _DefaultParams:
     rollout_temperature: float = 0.7
     # Top-k sampling limit for token selection.
     rollout_topk: int = 80
-    # Whether to use key-value cache during rollout inference.
-    use_kv_cache_during_rollout: bool = True
     # Classifier-free guidance (CFG) scale used during distillation.
     distillation_cfg_scale: float = 2.5
     # Temperature used for softening logits during distillation (1.0 means no change).
@@ -4269,3 +4267,6 @@ class EasyMagpieCFGDistillation(EasyMagpieTTSModel):
 
         for val_outputs in self.validation_step_outputs:
             val_outputs.clear()
+
+        if torch.distributed.is_initialized():
+            self.trainer.strategy.model.require_backward_grad_sync = True
