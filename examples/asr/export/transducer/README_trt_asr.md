@@ -3,6 +3,7 @@
 This example runs log-mel preprocessing, the encoder, prediction network and joint in TensorRT.
 NeMo's cached TDT loop handles decoding with CUDA graphs; SentencePiece converts tokens to text.
 PyTorch remains a runtime dependency for tensors and decoding control.
+Use PyTorch 2.14 or newer for full CUDA graphs; partial graphs are a compatibility fallback for older versions.
 
 Build the [preprocessing and encoder plans](../../../../docs/source/asr/inference.rst) from the same checkpoint, then:
 

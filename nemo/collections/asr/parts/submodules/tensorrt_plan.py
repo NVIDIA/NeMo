@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""TensorRT execution for the cached TDT network components."""
+"""Shared TensorRT execution for ASR network components."""
 
 from pathlib import Path
 
@@ -24,13 +24,21 @@ class TensorRTPlan:
     """Execute linear device tensors on the current CUDA stream.
 
     Calls must be serialized and callers must establish cross-stream dependencies.
+    Optimization profile zero is used; output sizes must depend only on input shapes.
     Outputs own their storage.
     Keep this instance alive until queued work completes.
     For CUDA capture, enable context caching and warm each input shape outside capture; keep this object alive through all replays.
     """
 
     def __init__(self, path: str | Path, device: str | torch.device = "cuda", cache_contexts: bool = False) -> None:
-        import tensorrt as trt
+        try:
+            import tensorrt as trt
+        except ImportError as exc:
+            raise ImportError(
+                "TensorRT execution requires TensorRT 10.x. Install NeMo with pip install 'nemo-toolkit[asr,trt]'."
+            ) from exc
+        if int(trt.__version__.split(".")[0]) < 10:
+            raise ImportError("TensorRT execution requires TensorRT 10 or newer.")
 
         self.device = torch.device(device)
         if self.device.type != "cuda":
