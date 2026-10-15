@@ -315,7 +315,18 @@ Offline TensorRT encoder
 ------------------------
 
 Run an offline ASR encoder in TensorRT while NeMo handles preprocessing and RNNT/TDT decoding in PyTorch.
-Install a compatible TensorRT 10.x package and Polygraphy alongside NeMo ASR.
+Install the optional build/runtime dependencies with pip or uv:
+
+.. code-block:: bash
+
+    pip install 'nemo-toolkit[asr,trt]'
+    # Or:
+    uv pip install 'nemo-toolkit[asr,trt]'
+
+The ``trt`` extra targets Linux with TensorRT 10.13.3 or later in the 10.x series, using its CUDA 13 package, plus Polygraphy.
+ONNX is already a base NeMo dependency.
+Use a CUDA 13-compatible NVIDIA driver and PyTorch installation; see the `TensorRT installation guide <https://docs.nvidia.com/deeplearning/tensorrt/latest/installing-tensorrt/install-pip.html>`_.
+Torch-TensorRT and Triton Inference Server are separate optional tools.
 
 Export the encoder to ONNX, then build an engine:
 
