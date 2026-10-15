@@ -101,6 +101,14 @@ class HFHubMixin(
         # this setting skips loading the original pretrained ASR and LLM weights, and loads the
         # final trained model weights directly.
         model_kwargs['cfg']['pretrained_weights'] = False
+        # Timestamp tensors are a frozen, registered artifact, not unexpected
+        # language-model weights. Read their construction metadata before init.
+        from nemo.collections.speechlm2.parts.ctc_timestamp_checkpoint import read_ctc_timestamp_config
+
+        weight_file = weights_path or cached_file(model_id, SAFETENSORS_SINGLE_FILE, **_cached_file_kwargs)
+        ctc_config = read_ctc_timestamp_config(weight_file) if weight_file is not None else None
+        if ctc_config is not None:
+            model_kwargs['cfg']['ctc_timestamp_artifact'] = ctc_config
 
         if device_mesh is None:
             # Non-distributed: for Automodel checkpoints we must build the modules
@@ -128,6 +136,9 @@ class HFHubMixin(
                 model = _load_from_local_weights(cls, model_kwargs, weights_path, map_location, strict)
             if weights_path is not None:
                 _attach_bundled_ctc_timestamp(model, weights_path)
+            ctc_timestamp = getattr(model, "ctc_timestamp", None)
+            if ctc_timestamp is not None:
+                ctc_timestamp.validate_tokenizer()
             return model
 
         # --- Distributed flow ---
@@ -145,6 +156,15 @@ class HFHubMixin(
             cached_file_kwargs=_cached_file_kwargs,
             strict=strict,
         )
+
+    def _save_pretrained(self, save_directory: Path) -> None:
+        ctc_timestamp = self._modules.get("ctc_timestamp")
+        if ctc_timestamp is None:
+            return super()._save_pretrained(save_directory)
+        from safetensors.torch import save_model
+
+        ctc_timestamp.validate_tokenizer()
+        save_model(self, str(save_directory / SAFETENSORS_SINGLE_FILE), metadata=ctc_timestamp.artifact_metadata)
 
     def save_pretrained(
         self,
@@ -282,6 +302,9 @@ def _load_state_dict_with_dtensors(model, weight_dir, *, strict=False):
     dcp.load(state_dict, storage_reader=reader)
     if strict:
         apply_checkpoint_extra_state(model, state_dict)
+    ctc_timestamp = getattr(model, "ctc_timestamp", None)
+    if ctc_timestamp is not None:
+        ctc_timestamp.validate_tokenizer()
 
 
 def _inject_local_artifact_paths(cfg: dict, model_id: str, cached_file_kwargs: dict) -> None:

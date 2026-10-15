@@ -301,12 +301,18 @@ def save_hf_checkpoint(model: torch.nn.Module, state_dict: dict, cfg: HfExportCo
     if callable(getattr(state_dict_adapter, "forced_hf_dtype_mapping", None)):
         forced_dtypes = state_dict_adapter.forced_hf_dtype_mapping(state_dict)
     state_dict = {
-        key: value.to(torch.float32 if forced_dtypes.get(key) == "F32" else target_dtype)
+        key: (
+            value
+            if key.startswith("ctc_timestamp.")
+            else value.to(torch.float32 if forced_dtypes.get(key) == "F32" else target_dtype)
+        )
         for key, value in state_dict.items()
     }
 
     config = _hf_export_config(model, cfg.dtype)
-    save_file(state_dict, output_dir / "model.safetensors")
+    ctc_timestamp = getattr(model, "ctc_timestamp", None)
+    metadata = ctc_timestamp.artifact_metadata if ctc_timestamp is not None else None
+    save_file(state_dict, output_dir / "model.safetensors", metadata=metadata)
     with open(output_dir / "config.json", "w") as f:
         json.dump(config, f, indent=2)
     save_llm_backbone_config(model, output_dir)

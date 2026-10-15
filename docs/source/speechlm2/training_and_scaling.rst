@@ -509,3 +509,22 @@ native checkpoint at that refit. In a synchronous loop refitting before each
 update, the first resumed refit before update 21 corresponds to saved step 20,
 not step 22. Require at least one probe that differs from the seed after BF16
 rounding to distinguish an updated source from stale seed weights.
+
+GSPO post-training
+------------------
+
+The `NeMo RL SpeechLM GSPO guide <https://docs.nvidia.com/nemo/rl/nightly/guides/gspo-speechlm.html>`_
+describes the full-scale, 400-update recipe, its Parquet data contract, selected
+parameter surface, training/resume commands, and canonical HF export. It supports
+compatible full SpeechLM checkpoints with or without a bundled CTC timestamp head.
+
+For CTC-bearing checkpoints, Speech registers the head as frozen state and retains
+its floating-point storage, serialized tokenizer bytes, and metadata through native
+checkpoints and HF export. Core and CTC tensor coverage remain strict. Updating the
+shared speech encoder can still affect timestamp quality even though the head is
+frozen; timestamp accuracy requires a separate evaluation.
+
+Use ``examples/speechlm2/prepare_rl_export_config.py --seed <full-hf-seed> --output <config.json>``
+to reconstruct the model and CTC configuration for ``examples/speechlm2/to_hf.py``.
+The resulting file is the converter's ``ckpt_config`` input, not an HF model config.
+Keep the original seed available for its tokenizer and backbone configuration.
