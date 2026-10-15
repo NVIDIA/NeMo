@@ -104,11 +104,15 @@ def main() -> None:
     parser.add_argument("--input", type=Path, required=True, help="NPZ with input_signal and length arrays.")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if args.output.exists():
-        raise FileExistsError(args.output)
+    output = args.output
+    if not output.name.endswith(".npz"):
+        output = output.with_name(output.name + ".npz")
+    if output.exists():
+        raise FileExistsError(output)
     with np.load(args.input, allow_pickle=False) as inputs:
         signal, lengths = preprocess(args.engine, inputs["input_signal"], inputs["length"])
-    np.savez(args.output, processed_signal=signal, processed_length=lengths)
+    with output.open("xb") as output_file:
+        np.savez(output_file, processed_signal=signal, processed_length=lengths)
 
 
 if __name__ == "__main__":
