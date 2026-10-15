@@ -109,3 +109,6 @@ def load_nemo_rl_checkpoint(model: torch.nn.Module, checkpoint_path: str) -> Non
     state = checkpoint_load_state(model, {key: tuple(value.size) for key, value in metadata.items()})
     dcp.load(state, storage_reader=reader)
     apply_checkpoint_extra_state(model, state)
+    ctc_timestamp = model._modules.get("ctc_timestamp")
+    if ctc_timestamp is not None:
+        ctc_timestamp.validate_tokenizer()

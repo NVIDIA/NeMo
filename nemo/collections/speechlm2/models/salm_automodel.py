@@ -84,6 +84,11 @@ class SALMAutomodel(LightningModule, HFHubMixin):
         self.lss_loss = maybe_init_lss_loss(self.cfg.get("lss_loss", None), self.speaker_token_ids)
         self.llm = None  # populated by configure_model
         self.perception = None  # populated by configure_model
+        self.ctc_timestamp = None
+        if self.cfg.get('ctc_timestamp_artifact') is not None:
+            from nemo.collections.speechlm2.parts.ctc_timestamp_checkpoint import CTCTimestampCheckpoint
+
+            self.ctc_timestamp = CTCTimestampCheckpoint(self.cfg.ctc_timestamp_artifact)
 
         self._use_fsdp = False
         self._use_tp = False

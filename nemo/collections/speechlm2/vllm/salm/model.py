@@ -105,6 +105,27 @@ class NeMoSpeechLMForConditionalGeneration(
         config = vllm_config.model_config.hf_config
         self.config = config
         self._perception_weights_initialized = False
+        # Retain the frozen bundle separately from the serving language model.
+        # The old image has no timestamp execution API, but must validate every
+        # artifact tensor instead of routing these weights into the LLM loader.
+        from transformers.utils import cached_file
+        from nemo.collections.speechlm2.parts.ctc_timestamp_checkpoint import (
+            CTCTimestampCheckpoint,
+            read_ctc_timestamp_config,
+        )
+
+        weight_file = cached_file(
+            vllm_config.model_config.model,
+            "model.safetensors",
+            revision=vllm_config.model_config.revision,
+            cache_dir=vllm_config.load_config.download_dir,
+            _raise_exceptions_for_missing_entries=False,
+        )
+        ctc_config = read_ctc_timestamp_config(weight_file) if weight_file is not None else None
+        self.ctc_timestamp = None
+        if ctc_config is not None:
+            with torch.device("cpu"):
+                self.ctc_timestamp = CTCTimestampCheckpoint(ctc_config)
         self.encoder_chunk_size_seconds = getattr(config, "encoder_chunk_size_seconds", None)
 
         backend = make_backend(config)
@@ -328,7 +349,23 @@ class NeMoSpeechLMForConditionalGeneration(
         return perception, llm
 
     def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]) -> set[str]:
-        perception_weights, llm_raw = self._split_perception_llm(weights)
+        ctc_weights = {}
+
+        def core_weights():
+            for name, tensor in weights:
+                if name.startswith("ctc_timestamp."):
+                    ctc_weights[name.removeprefix("ctc_timestamp.")] = tensor
+                else:
+                    yield name, tensor
+
+        perception_weights, llm_raw = self._split_perception_llm(core_weights())
+        if ctc_weights:
+            if self.ctc_timestamp is None:
+                raise ValueError("CTC tensors require recognized timestamp bundle metadata")
+            self.ctc_timestamp.load_state_dict(ctc_weights, strict=True)
+            self.ctc_timestamp.validate_tokenizer()
+        elif self.ctc_timestamp is not None and not self._perception_weights_initialized:
+            raise ValueError("Checkpoint is missing its configured CTC timestamp tensors")
         verification = None
         verification_config = getattr(self.config, "speechlm_refit_verification", None)
         # The first complete checkpoint load remains strict. Diagnostics apply
@@ -376,7 +413,7 @@ class NeMoSpeechLMForConditionalGeneration(
             receipt["scope"] = "destination samples versus received BF16 refit; not full policy correspondence"
             append_refit_receipt(verification_config["output_dir"], receipt)
 
-        return loaded_llm | loaded_perception
+        return loaded_llm | loaded_perception | {"ctc_timestamp." + name for name in ctc_weights}
 
     # ── vLLM IsHybrid mamba state classmethods ──
     #
