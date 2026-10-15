@@ -355,3 +355,21 @@ This is an accuracy example: it retains the native encoder, uses FP32 preprocess
 
 For integration into your own loop, see `TensorRTEncoder <https://github.com/NVIDIA-NeMo/Speech/blob/main/nemo/collections/asr/parts/submodules/tensorrt_encoder.py>`_ for tensor and stream requirements.
 Streaming encoder caches, training and CUDA graph capture are not supported.
+
+
+Prediction network and joint engine
+-----------------------------------
+
+Build a TensorRT engine for one RNNT/TDT decoding step from NeMo's combined prediction/joint ONNX export:
+
+.. code-block:: bash
+
+    python examples/asr/export/build_trt_decoder_joint.py \
+        --onnx decoder_joint-model.onnx --engine decoder_joint.plan
+
+The engine takes an encoder frame, the previous label and recurrent states, then returns joint scores, prediction lengths and updated states.
+Defaults are batches 1–16 and FP32 with TF32 disabled; see ``--help`` for options.
+Check successive decoding steps before enabling FP16.
+
+The caller must handle blanks, state updates, TDT durations and termination while preserving cached predictions and projections.
+The encoder transcription example still uses NeMo's PyTorch decoder.
