@@ -314,39 +314,23 @@ When writing custom inference scripts, follow the execution flow diagram at the
 Offline TensorRT encoder
 ------------------------
 
-You can use TensorRT to run an ASR encoder on an NVIDIA GPU.
-TensorRT compiles the exported encoder into an engine file, which NeMo loads for inference.
-NeMo still uses PyTorch to prepare the audio features and decode the encoder output into text.
-This example supports offline RNNT and TDT models.
+Run an offline ASR encoder in TensorRT while NeMo handles preprocessing and RNNT/TDT decoding in PyTorch.
+Install a compatible TensorRT 10.x package and Polygraphy alongside NeMo ASR.
 
-Start with a CUDA-capable NeMo ASR installation, then install a compatible TensorRT 10.x package and Polygraphy.
-Polygraphy is used to build engines; running an existing engine only requires TensorRT in addition to NeMo.
-
-Build an encoder engine
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Export the encoder to ONNX using your model's export interface, then build the engine:
+Export the encoder to ONNX, then build an engine:
 
 .. code-block:: bash
 
     python examples/asr/export/build_trt_encoder.py \
         --onnx encoder.onnx --engine encoder.plan --features 128
 
-Set ``--features`` to your model's input feature count.
-By default, the engine accepts batches of 1–16 utterances with 8–4000 padded feature frames per utterance.
-Use ``--max-batch`` and ``--max-frames`` to change these limits; ``--help`` lists all build options.
-The ONNX export must support these shapes too, including enough positional embeddings for the maximum length.
+Set ``--features`` to the model's feature count.
+Defaults cover batches 1–16 and 8–4000 padded feature frames; the ONNX export must support those shapes and positional-cache limits.
+Use ``--help`` for build options.
+FP32 with TF32 disabled is the default; check recognition accuracy when enabling ``--fp16``.
+Build for the GPU and TensorRT/CUDA versions you will deploy.
 
-The builder uses FP32 with TF32 disabled by default.
-Add ``--fp16`` to allow FP16 computation, then check recognition accuracy before using that engine.
-Build the engine for the GPU and TensorRT/CUDA versions on which you will run it.
-To speed up later builds on the same setup, use ``--timing-cache`` to save and reuse TensorRT's kernel timing results.
-
-Transcribe audio
-~~~~~~~~~~~~~~~~
-
-Use the checkpoint from which you exported the encoder.
-Audio files must be mono and match the checkpoint's sample rate.
+Transcribe mono audio at the checkpoint's sample rate, using the same checkpoint as the export:
 
 .. code-block:: bash
 
@@ -355,29 +339,8 @@ Audio files must be mono and match the checkpoint's sample rate.
         --audio a.wav b.wav --output predictions.jsonl \
         --batch-size 2 --compare-native
 
-The script writes one JSON record per audio file.
-With ``--compare-native``, each record also includes the transcript from the original PyTorch encoder.
-Use this to compare recognition results.
-For speed and memory measurements, use a separate benchmark: the example keeps the original encoder in memory, uses FP32 preprocessing and decoding, and disables CUDA graph decoding.
+``--compare-native`` adds the PyTorch encoder's transcript to each output record.
+This is an accuracy example: it retains the native encoder, uses FP32 preprocessing/decoding and disables decoder CUDA graphs.
 
-Use an engine in your own code
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Pass CUDA feature tensors and their lengths to ``TensorRTEncoder``, then decode its outputs:
-
-.. code-block:: python
-
-    from nemo.collections.asr.parts.submodules.tensorrt_encoder import TensorRTEncoder
-
-    encoder = TensorRTEncoder("encoder.plan", device="cuda:0")
-    encoded, encoded_lengths = encoder(features, feature_lengths)
-    hypotheses = model.decoding.rnnt_decoder_predictions_tensor(
-        encoded.float(), encoded_lengths, return_hypotheses=True
-    )
-
-Both inputs must be on the selected GPU, with shapes inside the engine's first optimization profile.
-The runtime converts their dtypes to those expected by the engine.
-Use one encoder instance per CUDA stream and keep it alive until its queued work finishes.
-If you prepare inputs or consume outputs on another stream, synchronize the streams as you would for other PyTorch operations.
-See the ``TensorRTEncoder`` class docstring for the full input and execution requirements.
-Streaming encoder caches, training and CUDA graph capture are not supported by this interface.
+For integration into your own loop, see `TensorRTEncoder <https://github.com/NVIDIA-NeMo/Speech/blob/main/nemo/collections/asr/parts/submodules/tensorrt_encoder.py>`_ for tensor and stream requirements.
+Streaming encoder caches, training and CUDA graph capture are not supported.
