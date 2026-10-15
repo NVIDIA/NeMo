@@ -652,8 +652,10 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 aligned to the autoregressive target timeline and may be used both
                 for loss masking and for replacing user regions with dedicated
                 user-speech tokens.
-            dropout_audio_conditioning: Whether dropout should be applied to input audio embeddings.
-                Should only be done during training when text is not masked for CFG.
+            dropout_audio_conditioning: Whether to pass the audio channel embeddings through
+                ``self.feature_masking``. ``process_batch`` sets it whenever the module is configured and the
+                batch is not a CFG-unconditional one (``dropout_conditional_input``); the module itself masks only
+                in training mode and is the identity in eval mode.
 
         Returns:
             A tuple containing:
@@ -836,7 +838,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         )
 
         if dropout_audio_conditioning:
-            audio_channel_embedding = self.feature_masking.apply_dropout(
+            audio_channel_embedding = self.feature_masking(
                 inputs=audio_channel_embedding, input_len=audio_channel_lens
             )
 
