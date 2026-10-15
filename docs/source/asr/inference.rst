@@ -374,5 +374,5 @@ Run preprocessing with NumPy, TensorRT and cuda-python, without PyTorch:
 The outputs, ``processed_signal`` and ``processed_length``, contain features and lengths in feature frames for the encoder.
 The example reloads the engine and copies CPU/GPU buffers on each call; serving should retain them and pass GPU outputs directly to the encoder.
 
-This feature remains under validation: quiet audio can exceed the numerical tolerance after per-feature normalization.
-Check quiet audio, silence and recognition accuracy before deployment.
+Near-silent audio can amplify FP32 rounding during normalization, including between native CPU and CUDA execution.
+Validate recognition accuracy; identical features or transcripts are not guaranteed.
