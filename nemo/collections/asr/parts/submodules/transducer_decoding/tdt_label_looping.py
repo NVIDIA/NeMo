@@ -1066,8 +1066,38 @@ class GreedyBatchedTDTLabelLoopingComputer(GreedyBatchedLabelLoopingComputerBase
         ):
             self._after_inner_loop_step()
 
-    @cuda_python_required
     def _full_graph_compile(self):
+        """Capture loop bodies with PyTorch so their temporary allocations stay graph-owned."""
+        if not hasattr(torch.cuda.CUDAGraph, "begin_capture_to_while_node"):
+            return self._full_graph_compile_legacy()
+
+        stream = torch.cuda.Stream(self.state.device)
+        stream.wait_stream(torch.cuda.current_stream(self.state.device))
+        self.full_graph = graph = torch.cuda.CUDAGraph()
+        with (
+            torch.cuda.stream(stream),
+            torch.inference_mode(),
+            torch.cuda.graph(graph, stream=stream, capture_error_mode="thread_local"),
+        ):
+            self._before_outer_loop()
+            # Raw child-stream capture bypasses PyTorch's graph allocation pool.
+            # A later graph capture can then reclaim intermediates still needed for replay.
+            graph.begin_capture_to_while_node(self.state.active_mask_any)
+            try:
+                self._before_inner_loop_get_joint_output()
+                graph.begin_capture_to_while_node(self.state.advance_mask_any)
+                try:
+                    self._inner_loop_step_find_next_non_blank()
+                    graph.set_conditional_handle_for_current_node(self.state.advance_mask_any)
+                finally:
+                    graph.end_capture_to_conditional_node()
+                self._after_inner_loop_step()
+                graph.set_conditional_handle_for_current_node(self.state.active_mask_any)
+            finally:
+                graph.end_capture_to_conditional_node()
+
+    @cuda_python_required
+    def _full_graph_compile_legacy(self):
         """Compile full graph for decoding"""
         # Always create a new stream, because the per-thread default stream disallows stream capture to a graph.
         stream_for_graph = torch.cuda.Stream(self.state.device)
