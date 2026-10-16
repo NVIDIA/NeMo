@@ -92,7 +92,7 @@ def test_canonical_native_export_preserves_exact_fp32_values(tmp_path):
     loaded = load_file(tmp_path / "model.safetensors")
     for name in list(state)[:2]:
         assert loaded[name].dtype == torch.float32
-        torch.testing.assert_close(loaded[name], state[name], rtol=0, atol=0)
+        torch.testing.assert_close(loaded[name], state[name].cpu(), rtol=0, atol=0)
     assert loaded["perception.proj.weight"].dtype == torch.bfloat16
     metadata = json.loads((tmp_path / "config.json").read_text())
     assert metadata["mtp"] == {

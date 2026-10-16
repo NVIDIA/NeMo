@@ -79,7 +79,7 @@ def test_bundle_native_resume_preserves_all_tensors_and_metadata(bundle, tmp_pat
     for name, tensor in load_file(exported).items():
         if name.startswith('ctc_timestamp.'):
             assert tensor.dtype == state[name].dtype
-            assert torch.equal(tensor, state[name])
+            assert torch.equal(tensor, state[name].cpu())
 
 
 @pytest.mark.parametrize('defect', ['core_missing', 'ctc_missing', 'ctc_unknown', 'shape'])

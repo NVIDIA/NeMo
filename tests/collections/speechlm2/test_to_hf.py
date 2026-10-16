@@ -982,5 +982,5 @@ def test_save_hf_checkpoint_preserves_frozen_ctc_storage_and_metadata(tmp_path):
         assert handle.metadata() == metadata
     for name in ('ctc_timestamp.decoder.weight', 'ctc_timestamp.tokenizer.model_proto'):
         assert exported[name].dtype == state[name].dtype
-        assert torch.equal(exported[name], state[name])
+        assert torch.equal(exported[name], state[name].cpu())
     assert exported['ordinary_weight'].dtype == torch.bfloat16
