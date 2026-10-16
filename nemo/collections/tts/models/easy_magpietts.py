@@ -1894,6 +1894,8 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             self._generate_codec_silence_buffer()
 
     def on_validation_epoch_start(self) -> None:
+        # Workaround for a PyTorch/Lightning DDP issue when resuming training after autoregressive validation.
+        # Restored in on_validation_epoch_end(); test multi-GPU train -> validation -> train before removing.
         if torch.distributed.is_initialized():
             self.trainer.strategy.model.require_backward_grad_sync = False
 
