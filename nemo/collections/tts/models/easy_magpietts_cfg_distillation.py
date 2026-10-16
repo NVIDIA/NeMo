@@ -4267,6 +4267,7 @@ class EasyMagpieCFGDistillation(EasyMagpieTTSModel):
 
         for val_outputs in self.validation_step_outputs:
             val_outputs.clear()
-
+        # Needed due change in #15764 that added require_backward_grad_sync = False to base 
+        # class (EasyMagpieTTSModel)'s on_validation_epoch_start()
         if torch.distributed.is_initialized():
             self.trainer.strategy.model.require_backward_grad_sync = True
