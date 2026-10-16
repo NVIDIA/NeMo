@@ -293,7 +293,7 @@ For distributed inference, launch with ``torchrun``:
       ep_size=2
 
 Native NeMo-RL checkpoints
-"""""""""""""""""""""""""
+""""""""""""""""""""""""""
 
 The canonical ``examples/speechlm2/to_hf.py`` exporter accepts
 ``checkpoint_format=nemo_rl`` for flat DCP checkpoints saved by NeMo-RL.
@@ -465,8 +465,9 @@ When customizing the training scripts, keep these points in mind:
 1. **Path Overrides**: Override paths in the YAML configuration files with your own, as needed
 2. **W&B Keys**: Update Weights & Biases API keys in configuration files
 3. **Batch Size Tuning**: Adjust batch size based on your GPU memory and model size
+
 Refit destination diagnostics
-----------------------------
+-----------------------------
 
 The vLLM SpeechLM loader optionally checks bounded destination samples after
 normal BF16 refits. Set ``speechlm_refit_verification`` in the model's Hugging
