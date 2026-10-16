@@ -67,6 +67,28 @@ supervised positions are projected, in chunks bounded by
 logits are not retained. Draft features still use pre-final-normalization layer
 outputs. Validation uses the same configured label source.
 
+Offline model-generated labels are also supported through the dataset-label path.
+Put the generated transcripts in the dataset's supervised assistant responses and
+set ``dflash.label_source=ground_truth``. Here ``ground_truth`` means the supplied
+dataset tokens; they may be human references or model predictions. For ordinary
+``lhotse_as_conversation`` ASR data, the response comes from
+``cut.supervisions[0].text`` (NeMo ASR manifest ``text`` before conversion).
+Preserve audio alignment and prompt context, and write a separate manifest so the
+original references remain available for evaluation. For example, with the data
+configuration pointing to the generated-label manifest:
+
+.. code-block:: yaml
+
+   dflash:
+     variant: dflash2
+     label_source: ground_truth
+
+The target still computes hidden features online, now under the generated response
+context. This uses the same training path as reference labels. Selecting
+``target_argmax`` instead recomputes labels under that context and overrides the
+supplied response tokens as supervision. See
+``.claude/skills/train-dflash/SKILL.md`` for the generated-label preparation workflow.
+
 For projection-only adaptation of a pretrained DFlash2 draft, set
 ``dflash.projection_only=true`` with ``dflash.init_from_pretrained``. Only the
 input feature projection ``fc.weight`` is trainable; the target, draft decoder,

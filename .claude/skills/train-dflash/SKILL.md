@@ -1,6 +1,6 @@
 ---
 name: train-dflash
-description: Train or adapt a DFlash or DFlash2 speculative draft against a frozen SALM speech-LLM target with NeMo speechlm2. Use for argmax-label training, pretrained draft adaptation, projection-only ablations, checkpoint resume/export, and acceptance evaluation. For fine-tuning the speech encoder or target LLM itself, use finetune-speech-llm instead.
+description: Train or adapt a DFlash or DFlash2 speculative draft against a frozen SALM speech-LLM target with NeMo speechlm2. Use for online argmax or offline model-generated labels, pretrained draft adaptation, projection-only ablations, checkpoint resume/export, and acceptance evaluation. For fine-tuning the speech encoder or target LLM itself, use finetune-speech-llm instead.
 ---
 
 # Train a DFlash speech draft
@@ -63,7 +63,8 @@ Packed decoder inputs are supported; packed encoder execution is not enabled by 
 Preserve explicit user choices. Otherwise start with the shipped `dflash.label_source=target_argmax`:
 these are the frozen target's greedy next-token labels under the original teacher-forced text/audio context.
 They are not generated rollouts or soft-logit distillation. Reference tokens and audio-conditioned features remain
-the draft's input context. Validation uses the same label source. Use `ground_truth` for a reference-label ablation.
+the draft's input context. Validation uses the same label source. Use `ground_truth` to train on the supplied dataset
+tokens, whether they are human references or model-generated labels (see the workflow below).
 
 Current recipe defaults are block size **8**, `loss_decay_gamma=4.0`, `num_anchors=512`, and constant AdamW LR **6e-4**.
 Block16 or gamma7 are experiment overrides, not repository defaults. Supply `dflash.optimizer` and
@@ -90,6 +91,42 @@ Dataset draw weights are not anchor fractions: long examples supply more eligibl
 If targeting a long-audio anchor fraction, define the duration threshold and estimate exposure with the actual
 sampler, token budget, block size, and anchor cap. Include short-only batches in the denominator and keep evaluation
 data separate. Record estimated exposure as an estimate, not a measured full-run fraction.
+
+### Train DFlash2 from offline model-generated labels
+
+Use this workflow when the user supplies generated transcripts or wants to generate training labels in advance.
+It uses the existing dataset-label path; `ground_truth` names that code path and does not require human annotation.
+
+1. Generate transcripts from the training audio, preferably with the same frozen target and prompt used for serving.
+   Record the teacher checkpoint, prompt, and decoding settings. Retain sample IDs and exclude failed or truncated
+   generations from the training-label artifact until they are repaired. Keep the original references separately.
+2. Write a new training manifest with generated text as the supervised assistant response, preserving audio paths,
+   offsets, durations, and prompt context. For ordinary `lhotse_as_conversation` ASR input this is the cut's
+   `supervisions[0].text` (or NeMo ASR manifest `text` before conversion). For a conversation dataset, replace the
+   intended assistant text turns while preserving user/audio turns. Inspect the formatted examples and loss mask;
+   custom preference/task adapters can select a different response field.
+3. Point the existing data loader at that artifact and select dataset labels. For example, merge this into the
+   verified run config; the cuts must retain the prompt context used for generation:
+
+   ```yaml
+   dflash:
+     variant: dflash2
+     label_source: ground_truth
+   data:
+     train_ds:
+       input_cfg:
+         - type: lhotse_as_conversation
+           cuts_path: /path/to/generated-train-cuts.jsonl.gz
+           audio_locator_tag: ${model.audio_locator_tag}
+   ```
+
+4. Run the same smoke/resume/export checks as for reference-label training. For draft validation against this teacher,
+   prepare a separate held-out generated-label set. Keep human evaluation references for WER and never train on them.
+
+The target still computes audio-conditioned hidden features during training. Generated response tokens provide both
+the teacher-forced context and supervision. This differs from `target_argmax`, which recomputes next-token labels
+under whatever response context is in the dataset; it would override the supplied labels. No new label-source mode,
+separate label-file argument, or cached hidden-state loader is required for offline text labels.
 
 ## 4. Smoke, then train
 
