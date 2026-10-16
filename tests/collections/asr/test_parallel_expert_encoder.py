@@ -26,8 +26,8 @@ import torch.distributed as dist
 from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
-import nemo.collections.asr.modules.parallel_expert_encoder as pee_module
 from nemo.collections.asr.models import SortformerEncLabelModel
+from nemo.collections.asr.modules import parallel_expert_encoder as pee_module
 from nemo.collections.asr.modules.conformer_encoder import ConformerEncoder
 from nemo.collections.asr.modules.parallel_expert_encoder import (
     CTCTimestampInputs,
@@ -2394,20 +2394,18 @@ def test_streaming_step_graphs_fall_back_to_eager_when_capture_fails(monkeypatch
     """A failed capture leaves the step eager for good instead of breaking inference."""
     from types import SimpleNamespace
 
-    from nemo.collections.asr.modules import parallel_expert_encoder as pee
-
     def failing_capture(fn, pool=None):
         raise RuntimeError("synthetic capture failure")
 
-    monkeypatch.setattr(pee, "capture_cuda_graph", failing_capture)
-    monkeypatch.setattr(pee.torch.cuda, "graph_pool_handle", lambda: None)
+    monkeypatch.setattr(pee_module, "capture_cuda_graph", failing_capture)
+    monkeypatch.setattr(pee_module.torch.cuda, "graph_pool_handle", lambda: None)
     calls = []
 
     def step(state, chunk, chunk_length):
         calls.append(chunk_length.tolist())
         return state, chunk * 2
 
-    graphs = pee._StreamingStepGraphs()
+    graphs = pee_module._StreamingStepGraphs()
     state = SimpleNamespace(spkcache=torch.zeros(1, 4, 2), spkcache_compressed=True)
     chunk, chunk_length = torch.ones(1, 3, 2), torch.tensor([3])
     for _ in range(3):
@@ -2767,7 +2765,7 @@ def test_encoder_graphs_return_eager_ctc_timestamp_inputs():
     assert runner(audio, lengths) is not None  # the same graphs also serve calls without the inputs
 
 
-def _long_audio_runner(ctc_timestamp_inputs=False):
+def _long_audio_runner(ctc_timestamp_inputs=False, long_audio=True):
     from nemo.collections.speechlm2.vllm.salm.encoder_graphs import EncoderGraphRunner
 
     torch.manual_seed(0)
@@ -2785,7 +2783,7 @@ def _long_audio_runner(ctc_timestamp_inputs=False):
     encoder._suppress_online_pbar = True
     perception = _FlatMelPerception(encoder).cuda().eval()
     runner = EncoderGraphRunner(
-        perception, batch_sizes=(1, 2, 4), frame_bucket=16, max_windows=1, last_window_bucket=32
+        perception, batch_sizes=(1, 2, 4), frame_bucket=16, max_windows=1, last_window_bucket=32, long_audio=long_audio
     )
     runner.ctc_timestamp_inputs = ctc_timestamp_inputs
     return runner, perception, encoder
@@ -2861,11 +2859,9 @@ def test_encoder_graphs_return_ctc_timestamp_inputs_for_long_audio():
 def test_asr_window_graphs_pad_rows_to_graph_sizes_and_match_eager():
     if not torch.cuda.is_available():
         pytest.skip("CUDA required")
-    from nemo.collections.asr.modules import parallel_expert_encoder as pee
-
     torch.manual_seed(0)
     asr = ConformerEncoder(**{k: v for k, v in toy_asr_encoder_cfg().items() if k != "_target_"}).cuda().eval()
-    graphs = pee._ASRWindowGraphs(max_graphs=8)
+    graphs = pee_module._ASRWindowGraphs(max_graphs=8)
 
     def split(rows, frames):
         return [4] * (rows // 4) + ([2] if rows % 4 else [])
@@ -2943,3 +2939,28 @@ def test_failed_long_audio_capture_keeps_the_whole_forward_graphs(monkeypatch):
     frames = 4 * encoder.chunk_feat_len
     long = torch.randn(1, frames * _MEL_FEATURES, device="cuda")
     assert runner(long, torch.tensor([long.shape[1]], device="cuda")) is None  # left to the eager path
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("cause", ["long_audio_off", "capture_failed"])
+def test_eager_long_audio_never_captures_window_graphs(monkeypatch, cause):
+    """Without long-audio graphs, the eager fallback must not capture window graphs lazily while serving."""
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA required")
+    runner, perception, encoder = _long_audio_runner(long_audio=cause != "long_audio_off")
+    if cause == "capture_failed":
+
+        def fail(n_feat, dtype):
+            raise torch.OutOfMemoryError("synthetic")
+
+        monkeypatch.setattr(runner, "_capture_all", fail)
+    short = torch.randn(1, 50 * _MEL_FEATURES, device="cuda")
+    runner(short, torch.tensor([short.shape[1]], device="cuda"))
+    assert not encoder.online_cuda_graphs
+    long = torch.randn(2, 4 * encoder.chunk_feat_len * _MEL_FEATURES, device="cuda")
+    lengths = torch.tensor([long.shape[1]] * 2, device="cuda")
+    for _ in range(3):
+        assert runner(long, lengths) is None
+        with torch.no_grad(), encoder.online_inference():
+            perception(input_signal=long, input_signal_length=lengths)
+    assert encoder.online_graph_count() == 0 and runner.long_graph_count() == 0

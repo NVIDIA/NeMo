@@ -52,7 +52,7 @@ from nemo.collections.asr.parts.packed_sequence import (
     unpack_encoder_output,
 )
 from nemo.collections.asr.parts.preprocessing.features import normalize_batch, normalize_packed_batch
-from nemo.collections.common.parts.optional_cuda_graphs import SharedGraphBuffers, capture_cuda_graph
+from nemo.collections.common.parts.optional_cuda_graphs import SharedGraphBuffers, capture_cuda_graph, copy_padded_rows
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, Serialization
 from nemo.core.classes.module import freeze, unfreeze
@@ -2133,6 +2133,26 @@ class ParallelExpertEncoder(nn.Module):
         finally:
             self._capture_online_graphs_now = previous
 
+    def complete_online_asr_graphs(self, batch_sizes) -> None:
+        """
+        Capture the ASR window graphs at every batch size for every window shape captured so far.
+
+        Args:
+            batch_sizes (Callable): ``batch_sizes(frames) -> sizes`` for windows of ``frames`` input frames.
+        """
+        if self._asr_window_graphs is not None:
+            self._asr_window_graphs.capture_batch_sizes(self.asr_encoder, batch_sizes)
+
+    def online_graph_count(self) -> int:
+        """Number of captured online-inference CUDA graphs (ASR windows and streaming Sortformer steps)."""
+        caches = (self._asr_window_graphs, self._diar_step_graphs)
+        return sum(len(cache.graphs) for cache in caches if cache is not None)
+
+    def reset_online_graphs(self) -> None:
+        """Turn ``online_cuda_graphs`` off and drop every captured online graph."""
+        self.online_cuda_graphs = False
+        self._asr_window_graphs = self._diar_step_graphs = None
+
     def _streaming_diar_step(
         self,
         chunk: torch.Tensor,
@@ -2322,13 +2342,26 @@ class _ASRWindowGraphs(_GraphCache):
                 outputs.append(encoder(audio_signal=piece, length=piece_lengths)[0])
                 continue
             graph, static_rows, static_lengths, encoded = entry
-            static_rows[:n].copy_(piece)
-            static_rows[n:].copy_(piece[:1].expand_as(static_rows[n:]))
-            static_lengths[:n].copy_(piece_lengths)
-            static_lengths[n:].copy_(piece_lengths[:1].expand_as(static_lengths[n:]))
+            copy_padded_rows(static_rows, piece)
+            copy_padded_rows(static_lengths, piece_lengths)
             graph.replay()
             outputs.append(encoded[:n].clone())
         return outputs[0] if len(outputs) == 1 else torch.cat(outputs)
+
+    def capture_batch_sizes(self, encoder, batch_sizes) -> None:
+        """
+        Capture every window shape seen so far at every graph batch size.
+
+        Args:
+            encoder (nn.Module): ASR encoder taking ``audio_signal`` and ``length``.
+            batch_sizes (Callable): ``batch_sizes(frames) -> sizes`` for windows of ``frames`` input frames.
+        """
+        for (_, shape, rows_dtype, lengths_dtype), entry in list(self.graphs.items()):
+            device = entry[1].device
+            for size in batch_sizes(shape[-1]):
+                rows = torch.zeros(size, *shape, device=device, dtype=rows_dtype)
+                lengths = torch.full((size,), shape[-1], device=device, dtype=lengths_dtype)
+                self(encoder, rows, lengths, capture_now=True)
 
     def _capture(self, encoder, size: int, piece: torch.Tensor, piece_lengths: torch.Tensor):
         """Capture ``encoder`` on static ``size``-row buffers shaped like ``piece``."""
@@ -2338,7 +2371,7 @@ class _ASRWindowGraphs(_GraphCache):
 
         def run():
             encoded, _ = encoder(audio_signal=static_rows, length=static_lengths)
-            return _to_shared(self.buffers, "asr_encoded", encoded)
+            return self.buffers.store("asr_encoded", encoded)
 
         graph, encoded = capture_cuda_graph(run, pool=self.pool)
         return graph, static_rows, static_lengths, encoded
@@ -2449,8 +2482,8 @@ class _StreamingStepGraphs(_GraphCache):
             static = {id(t) for t in static_tensors.values()}
             for name, value in list(vars(out_state).items()):
                 if isinstance(value, torch.Tensor) and id(value) not in static:
-                    setattr(out_state, name, _to_shared(self.buffers, f"diar_state.{name}", value))
-            return out_state, _to_shared(self.buffers, "diar_preds", preds)
+                    setattr(out_state, name, self.buffers.store(f"diar_state.{name}", value))
+            return out_state, self.buffers.store("diar_preds", preds)
 
         graph, (out_state, out_preds) = capture_cuda_graph(run, pool=self.pool)
         return graph, static_tensors, static_chunk, static_length, out_state, out_preds
@@ -2461,13 +2494,8 @@ def _pad_rows(tensor: torch.Tensor, size: int) -> torch.Tensor:
     return torch.cat([tensor, tensor[:1].expand(size - tensor.shape[0], *tensor.shape[1:])])
 
 
-def _to_shared(buffers, slot: str, tensor: torch.Tensor) -> torch.Tensor:
-    """Copy a graph output into ``buffers``, so the pool memory it came from is free for later captures."""
-    return buffers.view(slot, tuple(tensor.shape), tensor.dtype, tensor.device).copy_(tensor)
-
-
-class _PrivateGraphBuffers:
-    """Stand-in for SharedGraphBuffers that gives every graph its own buffers."""
+class _PrivateGraphBuffers(SharedGraphBuffers):
+    """SharedGraphBuffers that give every graph its own buffers."""
 
     def view(self, slot: str, shape: tuple, dtype: torch.dtype, device: torch.device) -> torch.Tensor:
         return torch.empty(shape, dtype=dtype, device=device)

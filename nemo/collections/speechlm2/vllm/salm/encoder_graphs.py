@@ -36,7 +36,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from nemo.collections.common.parts.optional_cuda_graphs import SharedGraphBuffers, capture_cuda_graph
+from nemo.collections.common.parts.optional_cuda_graphs import SharedGraphBuffers, capture_cuda_graph, copy_padded_rows
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +124,8 @@ class EncoderGraphRunner:
         self.enabled = True
         self.ctc_timestamp_inputs = False
         # Audio longer than the whole-forward graphs runs the online path, whose ASR windows and streaming
-        # diarization steps replay their own graphs, from the same pool.
-        encoder.online_cuda_graphs = True
+        # diarization steps replay their own graphs, from the same pool. Without long_audio it stays eager.
+        encoder.online_cuda_graphs = self.long_audio
         encoder.online_graph_split = self._split
         encoder.online_graph_bucket = self._bucket
         encoder.online_graph_buffers = self.buffers
@@ -190,11 +190,7 @@ class EncoderGraphRunner:
                 self._capture_long(n_feat, dtype)
             except Exception as error:  # noqa: BLE001 - keep the whole-forward graphs
                 logger.warning("Long-audio encoder CUDA graph capture failed; long audio runs eagerly: %s", error)
-                self.long_audio = False
-                encoder = self.perception.encoder
-                encoder.online_cuda_graphs = False
-                encoder._asr_window_graphs = encoder._diar_step_graphs = None
-                torch.cuda.empty_cache()
+                self._disable_long_audio()
 
     def _capture_long(self, n_feat: int, dtype: torch.dtype) -> None:
         """Capture the long-audio graphs by encoding silence at every step batch size, window count and last width.
@@ -220,13 +216,13 @@ class EncoderGraphRunner:
                     for frames in sorted({self._long_frames((windows - 1) * self.window + t) for t in lasts}):
                         x = torch.zeros(rows, n_feat, frames, device=device, dtype=dtype)
                         self._forward(x, torch.full((rows,), frames, device=device, dtype=torch.long))
-            cache = encoder._asr_window_graphs
-            for _, shape, rows_dtype, lengths_dtype in list(cache.graphs) if cache is not None else []:
-                for rows in self._sizes_for(shape[-1]):
-                    x = torch.zeros(rows, *shape, device=device, dtype=rows_dtype)
-                    lengths = torch.full((rows,), shape[-1], device=device, dtype=lengths_dtype)
-                    cache(encoder.asr_encoder, x, lengths, capture_now=True)
+            encoder.complete_online_asr_graphs(self._sizes_for)
         logger.info("Captured %d long-audio encoder CUDA graphs", self.long_graph_count())
+
+    def _disable_long_audio(self) -> None:
+        if self.long_audio:
+            self.long_audio = False
+            self.perception.encoder.reset_online_graphs()
 
     @contextlib.contextmanager
     def _without_window_graphs(self):
@@ -243,9 +239,7 @@ class EncoderGraphRunner:
 
     def long_graph_count(self) -> int:
         """Number of captured graphs that serve long audio window by window."""
-        encoder = self.perception.encoder
-        caches = (encoder._asr_window_graphs, encoder._diar_step_graphs)
-        return sum(len(cache.graphs) for cache in caches if cache is not None)
+        return self.perception.encoder.online_graph_count() if self.long_audio else 0
 
     def _capture(self, rows: int, frames: int, n_feat: int, dtype: torch.dtype) -> None:
         device = next(self.perception.parameters()).device
@@ -256,19 +250,15 @@ class EncoderGraphRunner:
 
         def run():
             emb, emb_len, states = self._forward(x, x_len)
-            emb = self._shared("embeddings", emb)
+            emb = self.buffers.store("embeddings", emb)
             if states is not None:
-                fields = {name: self._shared(name, getattr(states, name)) for name in _tensor_fields(states)}
+                fields = {name: self.buffers.store(name, getattr(states, name)) for name in _tensor_fields(states)}
                 states = dataclasses.replace(states, **fields)
             return emb, emb_len, states
 
         graph, (emb, emb_len, states) = capture_cuda_graph(run, pool=self.pool)
         self.graphs[rows, frames] = (graph, x, x_len, emb, emb_len, states)
         logger.info("Captured encoder CUDA graph for %d rows x %d frames", rows, frames)
-
-    def _shared(self, slot: str, tensor: torch.Tensor) -> torch.Tensor:
-        """Copy a graph output into its shared buffer, so the pool memory it came from is free for later captures."""
-        return self.buffers.view(slot, tuple(tensor.shape), tensor.dtype, tensor.device).copy_(tensor)
 
     @torch.no_grad()
     def __call__(
@@ -298,6 +288,8 @@ class EncoderGraphRunner:
                 self.graphs.clear()
                 self.pool = None
                 self.enabled = False
+                self._disable_long_audio()
+                torch.cuda.empty_cache()
                 return None
         if frames > self.max_frames:
             return self._call_long(processed, processed_len, return_ctc_timestamp_inputs)
@@ -307,21 +299,16 @@ class EncoderGraphRunner:
             rows = processed[start : start + size]
             n = rows.shape[0]
             graph, x, x_len, emb, emb_len, states = self.graphs[size, bucket]
-            x[:n, :, :frames].copy_(rows)
-            x[:n, :, frames:].zero_()
-            x[n:].copy_(x[:1].expand_as(x[n:]))
-            x_len[:n].copy_(processed_len[start : start + n])
-            x_len[n:].copy_(x_len[:1].expand_as(x_len[n:]))
+            x[:, :, frames:].zero_()
+            copy_padded_rows(x[:, :, :frames], rows)
+            copy_padded_rows(x_len, processed_len[start : start + n])
             start += n
             graph.replay()
             # One host sync per piece for the lengths; the clones leave the static output buffer free for reuse.
             out.extend(emb[i, :length].clone() for i, length in enumerate(emb_len[:n].tolist()))
             if return_ctc_timestamp_inputs:
                 pieces.append(_rows(states, n))
-        if not return_ctc_timestamp_inputs:
-            return out
-        tensors = {name: torch.cat([getattr(p, name) for p in pieces]) for name in _tensor_fields(pieces[0])}
-        return out, dataclasses.replace(pieces[0], **tensors)
+        return (out, _cat_states(pieces)) if return_ctc_timestamp_inputs else out
 
     def _call_long(self, processed: torch.Tensor, processed_len: torch.Tensor, return_ctc_timestamp_inputs: bool):
         """Encode audio longer than the whole-forward graphs through the online path and its window graphs.
@@ -336,15 +323,20 @@ class EncoderGraphRunner:
             emb, emb_len, states = self._forward(x, processed_len[start : start + self.batch_sizes[-1]])
             out.extend(emb[i, :length] for i, length in enumerate(emb_len.tolist()))
             if return_ctc_timestamp_inputs:
-                pieces.append(_rows(states, x.shape[0]))
-        if not return_ctc_timestamp_inputs:
-            return out
-        tensors = {name: torch.cat([getattr(p, name) for p in pieces]) for name in _tensor_fields(pieces[0])}
-        return out, dataclasses.replace(pieces[0], **tensors)
+                pieces.append(states)
+        return (out, _cat_states(pieces)) if return_ctc_timestamp_inputs else out
 
 
 def _tensor_fields(states) -> list[str]:
     return [f.name for f in dataclasses.fields(states) if isinstance(getattr(states, f.name), torch.Tensor)]
+
+
+def _cat_states(pieces: list):
+    """Concatenate the rows of several ``CTCTimestampInputs``."""
+    if len(pieces) == 1:
+        return pieces[0]
+    tensors = {name: torch.cat([getattr(p, name) for p in pieces]) for name in _tensor_fields(pieces[0])}
+    return dataclasses.replace(pieces[0], **tensors)
 
 
 def _rows(states, n: int):

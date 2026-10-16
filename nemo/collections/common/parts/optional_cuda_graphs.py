@@ -148,3 +148,24 @@ class SharedGraphBuffers:
             buffer = torch.zeros(numel, dtype=dtype, device=device)
             self._buffers[key] = buffer
         return buffer[:numel].view(shape)
+
+    def store(self, slot: str, tensor: torch.Tensor) -> torch.Tensor:
+        """
+        Copy ``tensor`` into the shared buffer for ``slot`` and return the copy.
+
+        Inside a capture, this moves a graph output out of the graph's memory pool, so later captures can reuse the
+        pool memory it came from.
+        """
+        return self.view(slot, tuple(tensor.shape), tensor.dtype, tensor.device).copy_(tensor)
+
+
+def copy_padded_rows(static: torch.Tensor, rows: torch.Tensor) -> None:
+    """
+    Copy ``rows`` into the first rows of a graph's static input and fill the remaining rows with copies of the first.
+
+    Padding with a real row keeps every row of the graph on its usual numerical path; callers drop the padded rows'
+    outputs.
+    """
+    n = rows.shape[0]
+    static[:n].copy_(rows)
+    static[n:].copy_(rows[:1].expand_as(static[n:]))

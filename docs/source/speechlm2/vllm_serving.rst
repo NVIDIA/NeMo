@@ -126,5 +126,6 @@ For example, a low-concurrency deployment of short clips:
      --hf-overrides '{"encoder_cuda_graphs": true, "encoder_compile": true,
                       "encoder_cuda_graph_batch_sizes": [1, 2, 4, 8], "encoder_cuda_graph_max_windows": 1}'
 
-Both ``encoder_cuda_graphs`` and ``encoder_compile`` are off by default. If a capture fails, the encoder runs eagerly instead. With CTC timestamps enabled, the
-graphs also produce the alignment inputs, so requests that ask for timestamps are served from the same graphs.
+Both ``encoder_cuda_graphs`` and ``encoder_compile`` are off by default. If a capture fails, the encoder runs eagerly
+instead. With CTC timestamps enabled, the graphs also produce the alignment inputs, so requests that ask for
+timestamps are served from the same graphs.
