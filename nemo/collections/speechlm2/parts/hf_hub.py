@@ -160,7 +160,8 @@ class HFHubMixin(
     def _save_pretrained(self, save_directory: Path) -> None:
         ctc_timestamp = self._modules.get("ctc_timestamp")
         if ctc_timestamp is None:
-            return super()._save_pretrained(save_directory)
+            super()._save_pretrained(save_directory)
+            return
         from safetensors.torch import save_model
 
         ctc_timestamp.validate_tokenizer()
