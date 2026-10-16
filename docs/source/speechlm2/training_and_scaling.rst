@@ -514,7 +514,7 @@ rounding to distinguish an updated source from stale seed weights.
 GSPO post-training
 ------------------
 
-The `NeMo RL SpeechLM GSPO guide <https://docs.nvidia.com/nemo/rl/nightly/guides/gspo-speechlm.html>`_
+The NeMo RL SpeechLM GSPO guide (``docs/guides/gspo-speechlm.md`` in the NeMo RL repository)
 describes the full-scale, 400-update recipe, its Parquet data contract, selected
 parameter surface, training/resume commands, and canonical HF export. It supports
 compatible full SpeechLM checkpoints with or without a bundled CTC timestamp head.
