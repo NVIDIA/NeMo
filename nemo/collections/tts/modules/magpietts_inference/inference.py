@@ -912,6 +912,7 @@ class EasyMagpieInferenceRunner(BaseInferenceRunner):
         if embedding_key is None:
             self._current_precomputed_audio_embedding = None
         elif embedding_key == "__zero__":
+            # Explicit text-only conditioning; a missing key instead uses the manifest's audio context.
             self._current_precomputed_audio_embedding = torch.empty(0, self.model.cfg.embedding_dim)
         else:
             if self._precomputed_audio_embeddings is None:
