@@ -34,7 +34,6 @@ from nemo.collections.common.tokenizers.text_to_speech.ipa_lexicon import (
     get_ipa_punctuation_list,
     validate_locale,
 )
-
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
     any_locale_text_preprocessing,
     chinese_text_preprocessing,
@@ -1575,3 +1574,15 @@ class AggregatedTTSTokenizer:
         """Tokernizer decoder from tokens to text"""
         tokenizer = self.tokenizers[tokenizer_name]
         return tokenizer.decode([token - self.tokenizer_offsets[tokenizer_name] for token in tokens])
+
+    def encode_with_offsets(self, text: str, tokenizer_name: str):
+        """Encode a full string with the same special-token policy as encode()."""
+        tokenizer = self.tokenizers[tokenizer_name]
+        if isinstance(tokenizer, PreTrainedTokenizerBase) and tokenizer.is_fast:
+            encoded = tokenizer(text, return_offsets_mapping=True)
+            ids, offsets = encoded['input_ids'], encoded['offset_mapping']
+        elif hasattr(tokenizer, 'encode_with_offsets'):
+            ids, offsets = tokenizer.encode_with_offsets(text)
+        else:
+            raise ValueError('Dynamic phoneme delay requires a tokenizer with character offsets')
+        return [self.tokenizer_offsets[tokenizer_name] + token for token in ids], offsets

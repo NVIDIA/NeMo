@@ -25,10 +25,12 @@ MagpieInferenceRunner handles the encoder-decoder MagpieTTSModel
 EasyMagpieInferenceRunner handles the decoder-only EasyMagpieTTSInferenceModel
 (infer_batch, returns audio directly).
 """
+
 from __future__ import annotations
 
 import abc
 import glob
+import hashlib
 import json
 import os
 import shutil
@@ -703,9 +705,16 @@ class EasyMagpieMultiturnUserAudioInferenceConfig(EasyMagpieInferenceConfig):
 
     max_eval_turns: int = 6
     save_debug_multiturn_audio: bool = True
+    phoneme_frontend_nemo_file: Optional[str] = None
+    phoneme_frontend_expected_delay: int = 8
+    phoneme_frontend_max_steps: int = 4096
 
     def build_identifier(self) -> str:
-        return super().build_identifier() + f"_MTUserAudio_MaxTurns{self.max_eval_turns}"
+        identifier = super().build_identifier() + f"_MTUserAudio_MaxTurns{self.max_eval_turns}"
+        if self.phoneme_frontend_nemo_file:
+            frontend_id = hashlib.sha256(os.path.abspath(self.phoneme_frontend_nemo_file).encode()).hexdigest()[:10]
+            identifier += f"_FrontendD{self.phoneme_frontend_expected_delay}_{frontend_id}"
+        return identifier
 
 
 class EasyMagpieMultiturnUserAudioDataset(torch.utils.data.Dataset):
@@ -1091,6 +1100,20 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
         # Used by examples/tts/magpietts_inference.py for torchrun sharding.
         self.distributed_rank: int = int(os.environ.get("RANK", "0"))
         self.distributed_world_size: int = int(os.environ.get("WORLD_SIZE", "1"))
+        self.phoneme_frontend = None
+        if config.phoneme_frontend_nemo_file:
+            if config.phoneme_input_type != 'gt':
+                raise ValueError("The phoneme frontend requires --phoneme_input_type gt")
+            from nemo.collections.tts.modules.magpietts_inference.phoneme_frontend import TextOnlyPhonemeFrontend
+
+            self.phoneme_frontend = TextOnlyPhonemeFrontend(
+                config.phoneme_frontend_nemo_file,
+                device=model.device,
+                codecmodel_path=model.cfg.get('codecmodel_path'),
+                expected_delay=config.phoneme_frontend_expected_delay,
+                max_steps=config.phoneme_frontend_max_steps,
+            )
+            logging.info(f"Text-only phoneme frontend: {self.phoneme_frontend.metadata}")
 
     def create_dataset(
         self,
@@ -1298,7 +1321,7 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
                 use_local_transformer=self.config.use_local_transformer,
                 temperature=params.temperature,
                 topk=params.topk,
-                phoneme_input_type="pred",
+                phoneme_input_type="gt" if self.phoneme_frontend is not None else "pred",
                 phoneme_sampling_method=self.config.phoneme_sampling_method,
                 use_inference_mode=True,
             )
@@ -1331,6 +1354,13 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
                     if hasattr(state, attr):
                         getattr(state, attr).zero_()
                 state.last_phoneme_tokens = None
+
+                frontend_output = None
+                forced_phoneme_ids = None
+                if self.phoneme_frontend is not None:
+                    # Pass raw text only. Reference IPA/normalized text are deliberately not arguments.
+                    frontend_output = self.phoneme_frontend.generate(batch['raw_turn_texts'][0][turn_id], languages[0])
+                    forced_phoneme_ids = self._set_turn_phoneme_inputs(state, frontend_output.ipa)
 
                 delay_tokens = int(state.config.training_mode.streaming_speech_delay)
                 samples_per_streaming_step = int(model.codec_model_samples_per_frame * model.frame_stacking_factor)
@@ -1495,6 +1525,16 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
                         "predicted_phoneme_token_labels": predicted_phoneme_token_labels,
                     }
                 )
+                if frontend_output is not None:
+                    turn_phoneme_outputs[-1].update(
+                        phoneme_source='text_frontend',
+                        frontend_phoneme_text=frontend_output.ipa,
+                        frontend_phoneme_token_ids=list(frontend_output.token_ids),
+                        frontend_decoder_steps=frontend_output.decoder_steps,
+                        forced_phoneme_tokens=forced_phoneme_ids,
+                        forced_phoneme_steps_consumed=int(state.phoneme_steps[0].item()),
+                        forced_phoneme_steps_total=int(state.gt_phoneme_lens[0].item()),
+                    )
 
             codec_sil_codes = self._ensure_codec_silence_codes()
             bos_id = getattr(model, "audio_bos_id", -1)
@@ -1518,6 +1558,35 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
             finalize_output = model.streaming_finalize(state, use_inference_mode=True)
 
         return finalize_output, turn_frame_ranges, turn_phoneme_outputs, decode_start_frame, generated_codes
+
+    def _set_turn_phoneme_inputs(self, state, ipa: str) -> List[int]:
+        """Install this turn's externally supplied IPA in the TTS model's own token vocabulary.
+
+        Called before warmup: warmup can already consume phonemes when the
+        TTS phoneme delay is shorter than its speech delay. The frontend's delay
+        and tokenizer do not change either TTS delay or the TTS vocabulary.
+        """
+        tokenizer = self.model.phoneme_tokenizer
+        if tokenizer is None or not ipa.strip():
+            raise ValueError("Forced phoneme inference requires a phoneme tokenizer and nonempty IPA")
+        ids = [tokenizer.bos_token_id] + tokenizer.encode(ipa) + [tokenizer.eos_token_id]
+        if len(ids) <= 2:
+            raise ValueError("Frontend IPA did not encode to any TTS phoneme tokens")
+        tokens = torch.tensor([ids], dtype=torch.long, device=self.model.device)
+        lengths = torch.tensor([len(ids)], dtype=torch.long, device=self.model.device)
+        stacked, stacked_lens = self.model.stack_codes(
+            tokens.unsqueeze(1),
+            lengths,
+            tokenizer.bos_token_id,
+            tokenizer.eos_token_id,
+            self.model.phoneme_stacking_factor,
+            1,
+        )
+        state.gt_phoneme_embeddings = self.model.embed_phoneme_tokens(stacked)
+        state.gt_phoneme_lens = stacked_lens
+        if self.model.cfg.get('use_multiturn_dataset', False):
+            state.gt_phoneme_embeddings *= (stacked[:, 0] != tokenizer.pad).unsqueeze(2)
+        return ids
 
     @staticmethod
     def _gpt2_byte_decoder() -> Dict[str, int]:
@@ -2048,6 +2117,29 @@ class EasyMagpieMultiturnUserAudioInferenceRunner(BaseInferenceRunner):
                         "turn_id": int(turn_id),
                     }
                 )
+                if self.phoneme_frontend is not None:
+                    record = turn_manifest_records[-1]
+                    record['phoneme_frontend'] = self.phoneme_frontend.metadata
+                    for key in (
+                        'phoneme_source',
+                        'frontend_phoneme_text',
+                        'frontend_phoneme_token_ids',
+                        'frontend_decoder_steps',
+                        'forced_phoneme_tokens',
+                        'forced_phoneme_steps_consumed',
+                        'forced_phoneme_steps_total',
+                    ):
+                        record[key] = phoneme_output[key]
+                    # Keep evaluation references separate from frontend/model inputs.
+                    for source_key, destination_key in (
+                        ('normalized_text', 'normalized_text'),
+                        ('ipa', 'reference_phoneme_text'),
+                    ):
+                        values = raw_record.get(source_key)
+                        if isinstance(values, list) and source_turn_idx < len(values):
+                            record[destination_key] = values[source_turn_idx]
+                        elif isinstance(values, str):
+                            record[destination_key] = values
                 logging.info(
                     f"[MT_USER_AUDIO_TURN] rank={rank}/{world_size} "
                     f"global_sample_idx={sample_idx} turn_id={int(turn_id)} "

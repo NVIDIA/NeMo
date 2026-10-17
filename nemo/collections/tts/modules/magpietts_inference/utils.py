@@ -20,6 +20,7 @@ This module provides helpers for:
 - Updating legacy configurations for backward compatibility
 - Checkpoint state dict transformations
 """
+
 from __future__ import annotations
 
 import argparse
@@ -1381,6 +1382,14 @@ def _add_easy_magpie_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument('--max_eval_turns', type=int, default=6)
     group.add_argument('--no_save_debug_multiturn_audio', action='store_true')
     group.add_argument(
+        '--phoneme_frontend_nemo_file',
+        type=str,
+        default=None,
+        help='Optional text-only .nemo frontend for multiturn_user_audio with --phoneme_input_type gt',
+    )
+    group.add_argument('--phoneme_frontend_expected_delay', type=int, default=8)
+    group.add_argument('--phoneme_frontend_max_steps', type=int, default=4096)
+    group.add_argument(
         '--phoneme_input_type',
         type=str,
         default='gt',
@@ -1443,6 +1452,9 @@ def _build_magpie_config(args) -> MagpieInferenceConfig:
 
 
 def _build_easy_magpie_config(args) -> EasyMagpieInferenceConfig:
+    frontend = getattr(args, 'phoneme_frontend_nemo_file', None)
+    if frontend and (args.easy_magpie_inference_mode != 'multiturn_user_audio' or args.phoneme_input_type != 'gt'):
+        raise ValueError('The phoneme frontend requires multiturn_user_audio and --phoneme_input_type gt')
     cfg_cls = (
         EasyMagpieMultiturnUserAudioInferenceConfig
         if args.easy_magpie_inference_mode == 'multiturn_user_audio'
@@ -1463,12 +1475,17 @@ def _build_easy_magpie_config(args) -> EasyMagpieInferenceConfig:
         kwargs.update(
             max_eval_turns=args.max_eval_turns,
             save_debug_multiturn_audio=not args.no_save_debug_multiturn_audio,
+            phoneme_frontend_nemo_file=frontend,
+            phoneme_frontend_expected_delay=getattr(args, 'phoneme_frontend_expected_delay', 8),
+            phoneme_frontend_max_steps=getattr(args, 'phoneme_frontend_max_steps', 4096),
         )
     return cfg_cls(**kwargs)
 
 
 def _select_runner_cls(args):
     if args.model_type == 'magpie':
+        if getattr(args, 'phoneme_frontend_nemo_file', None):
+            raise ValueError('--phoneme_frontend_nemo_file requires --model_type easy_magpie')
         if args.easy_magpie_inference_mode != 'single_turn':
             raise ValueError('--easy_magpie_inference_mode is only supported with --model_type easy_magpie')
         return MagpieInferenceRunner

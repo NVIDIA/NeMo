@@ -86,6 +86,10 @@ model:
   # Scale 1.0 disables matching and preserves the existing loss; validation stays unweighted.
   phoneme_loss_lexicon_path: null
   phoneme_lexicon_loss_scale: 1.0
+  # Text-only alignment-derived supervised PAD/wait targets, with no fixed phoneme delay.
+  # False preserves fixed delay. Requires streaming modes, stacking factor 1, and
+  # both duration tokenizer paths on txt_norm_jsonl inputs. Audio batches are unchanged.
+  dynamic_phoneme_delay: false
   local_transformer_n_layers: 3
   local_transformer_n_heads: 12
   local_transformer_hidden_dim: 1536

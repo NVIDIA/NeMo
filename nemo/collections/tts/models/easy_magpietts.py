@@ -25,7 +25,7 @@ import torch
 import wandb
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf, open_dict
 from torch import nn
 from torch.utils.data.distributed import DistributedSampler
 
@@ -961,7 +961,11 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
             text_pad_id=self.pad_id,
             **cas_kwargs,
         )
-        phoneme_delay = context_lens + selected_mode.streaming_phonemes_delay
+        # Dynamic text-only targets already contain every required wait.
+        fixed_phoneme_delay = (
+            0 if self.cfg.get('dynamic_phoneme_delay', False) else selected_mode.streaming_phonemes_delay
+        )
+        phoneme_delay = context_lens + fixed_phoneme_delay
         # Fill partial final stacks with EOS rather than batch padding targets.
         phoneme_tokens = phoneme_tokens.masked_fill(
             ~get_mask_from_lengths(phoneme_tokens_lens), self.phoneme_tokenizer.eos_token_id
@@ -1523,6 +1527,8 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         )
 
     def training_step(self, batch, batch_idx):
+        if self.cfg.get('dynamic_phoneme_delay', False):
+            self._log_dynamic_phoneme_delay(batch)
         if self._is_text_only_batch(batch.get("task")):
             output = self._process_text_only_batch(
                 batch["text"],
@@ -2238,6 +2244,31 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         if torch.distributed.is_initialized():
             self.trainer.strategy.model.require_backward_grad_sync = True
 
+    def _log_dynamic_phoneme_delay(self, batch):
+        # All ranks enter this collective, including ranks receiving audio
+        # batches from a mixed sampler. Never reduce only on text-only ranks.
+        counts = torch.zeros(4, device=self.device)
+        if 'dynamic_phoneme_wait_count' in batch:
+            counts = torch.stack(
+                [
+                    batch['dynamic_phoneme_wait_count'].sum(),
+                    batch['phoneme_tokens_lens'].sum(),
+                    batch['dynamic_phoneme_fallback_count'].sum(),
+                    batch['dynamic_phoneme_turn_count'].sum(),
+                ]
+            ).to(device=self.device, dtype=torch.float32)
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            torch.distributed.all_reduce(counts)
+        self.log_dict(
+            {
+                'train/dynamic_phoneme_wait_tokens': counts[0],
+                'train/dynamic_phoneme_wait_percent': 100 * counts[0] / counts[1].clamp_min(1),
+                'train/dynamic_phoneme_fallback_percent': 100 * counts[2] / counts[3].clamp_min(1),
+            },
+            on_step=True,
+            sync_dist=False,
+        )
+
     def _initialize_phoneme_loss_lexicon(self):
         # ModelPT may call dataset setup from its own constructor, before this
         # subclass constructor resumes. Initialize once from either entry point.
@@ -2262,6 +2293,8 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 raise ValueError("Phoneme lexicon loss weighting requires an IPA BPE tokenizer with offsets")
 
     def get_dataset(self, dataset_cfg, dataset_type):
+        if self.cfg.get('dynamic_phoneme_delay', False):
+            raise ValueError('dynamic_phoneme_delay requires the Lhotse multiturn dataloader')
         self._initialize_phoneme_loss_lexicon()
         dataset = safe_instantiate(
             dataset_cfg.dataset,
@@ -2305,6 +2338,14 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
         #   cfg is a classifier-free guidance.
         self._initialize_phoneme_loss_lexicon()
         load_normalized_text_percent = dataset_cfg.get("load_normalized_text_percent", 1.0)
+        dynamic_delay = self.cfg.get('dynamic_phoneme_delay', False)
+        if dynamic_delay:
+            if not self.cfg.get('use_multiturn_dataset', False) or self.phoneme_stacking_factor != 1:
+                raise ValueError(
+                    'dynamic_phoneme_delay requires use_multiturn_dataset=true and phoneme_stacking_factor=1'
+                )
+            if any(m.text_input_mode != 'streaming' for m in self.training_modes):
+                raise ValueError('dynamic_phoneme_delay requires streaming text modes')
         if self.phoneme_lexicon_loss_scale > 1.0 and not self.cfg.get("use_multiturn_dataset", False):
             raise ValueError("Phoneme lexicon loss weighting requires use_multiturn_dataset=true")
         if self.cfg.get("use_multiturn_dataset", False):
@@ -2352,6 +2393,7 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 phoneme_loss_lexicon_path=self.phoneme_loss_lexicon_path,
                 phoneme_lexicon_loss_scale=self.phoneme_lexicon_loss_scale,
                 phoneme_loss_lexicon=self.phoneme_loss_lexicon,
+                dynamic_phoneme_delay=dynamic_delay,
             )
             dataset = FallbackDataset(dataset)
         else:
@@ -2383,8 +2425,13 @@ class EasyMagpieTTSModel(EasyMagpieTTSInferenceModel):
                 add_language_to_context_text=self.add_language_to_context_text,
             )
 
+        data_config = dataset_cfg.dataset
+        if dynamic_delay:
+            data_config = OmegaConf.create(OmegaConf.to_container(data_config, resolve=True))
+            with open_dict(data_config):
+                data_config.dynamic_phoneme_delay = True
         data_loader = get_lhotse_dataloader_from_config(
-            config=dataset_cfg.dataset,
+            config=data_config,
             global_rank=self.global_rank,
             world_size=self.world_size,
             dataset=dataset,

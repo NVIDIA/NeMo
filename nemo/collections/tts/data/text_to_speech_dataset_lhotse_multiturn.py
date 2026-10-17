@@ -31,6 +31,7 @@ from omegaconf import DictConfig
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import IPABPETokenizer
 from nemo.collections.speechlm2.parts.precision import fp32_precision
 from nemo.collections.tts.data.text_to_speech_dataset_lhotse import setup_tokenizers
+from nemo.collections.tts.parts.utils.dynamic_phoneme_delay import insert_phoneme_waits, phoneme_source_dependencies
 from nemo.collections.tts.parts.utils.phoneme_loss_lexicon import PhonemeLossLexicon
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
     _sample_probability_range,
@@ -189,6 +190,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
         phoneme_loss_lexicon_path: str = None,
         phoneme_lexicon_loss_scale: float = 1.0,
         phoneme_loss_lexicon: PhonemeLossLexicon = None,
+        dynamic_phoneme_delay: bool = False,
     ):
         super().__init__()
         self.sample_rate = sample_rate
@@ -220,6 +222,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
         self.phoneme_loss_lexicon_path = phoneme_loss_lexicon_path
         self.phoneme_lexicon_loss_scale = phoneme_lexicon_loss_scale
         self._phoneme_loss_lexicon = phoneme_loss_lexicon
+        self.dynamic_phoneme_delay = dynamic_phoneme_delay
         self.ignore_phoneme_languages = ignore_phoneme_languages or []
         self.enable_phoneme_text_input = enable_phoneme_text_input
         self.text_phoneme_token_offset = text_phoneme_token_offset
@@ -438,6 +441,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
         }
 
     def _collate_text_channels(self, cuts: CutSet, batch_tokenizer_names: list[str]) -> Dict[str, torch.Tensor]:
+        selected_texts = [] if self.dynamic_phoneme_delay else None
         target_text_tokens, target_token_lens = collate_token_channel(
             cuts,
             self.text_tokenizer,
@@ -460,6 +464,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             ignore_phoneme_languages=self.ignore_phoneme_languages,
             apply_partial_phoneme_text=self.dataset_type == 'train',
             load_normalized_text_percent=self.load_normalized_text_percent,
+            selected_texts=selected_texts,
         )
         source_tokens, source_token_lens = collate_token_channel(
             cuts,
@@ -475,12 +480,15 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             load_normalized_text_percent=self.load_normalized_text_percent,
         )
 
-        return {
+        result = {
             "target_text_tokens": target_text_tokens,
             "target_token_lens": target_token_lens,
             "source_tokens": source_tokens,
             "source_token_lens": source_token_lens,
         }
+        if selected_texts is not None:
+            result['selected_texts'] = selected_texts
+        return result
 
     def _collate_phoneme_tokens(self, cuts: CutSet) -> Dict[str, Union[torch.Tensor, None]]:
         if self.phoneme_tokenizer is not None:
@@ -980,6 +988,8 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             raise ValueError("text_only training requires a phoneme tokenizer")
         text_data = self._collate_text_channels(cuts, batch_tokenizer_names)
         phoneme_data = self._collate_phoneme_tokens(cuts)
+        if self.dynamic_phoneme_delay:
+            self._apply_dynamic_phoneme_delay(cuts, batch_tokenizer_names, text_data, phoneme_data)
         languages = [self._get_language(cut) for cut in cuts]
         contexts = []
         for cut, language in zip(cuts, languages):
@@ -1009,6 +1019,10 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
         }
         if "phoneme_loss_mask" in phoneme_data:
             batch_dict["phoneme_loss_mask"] = phoneme_data["phoneme_loss_mask"]
+        if self.dynamic_phoneme_delay:
+            batch_dict['dynamic_phoneme_wait_count'] = phoneme_data['dynamic_phoneme_wait_count']
+            batch_dict['dynamic_phoneme_fallback_count'] = phoneme_data['dynamic_phoneme_fallback_count']
+            batch_dict['dynamic_phoneme_turn_count'] = phoneme_data['dynamic_phoneme_turn_count']
         return batch_dict
 
     def __getitem__(self, cuts: CutSet) -> Dict[str, Union[torch.Tensor, List]]:
@@ -1029,6 +1043,70 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
         self._maybe_shuffle_context_audio(features)
 
         return self._build_batch_dict(cuts, audio_data, text_data, phoneme_data, features)
+
+    def _apply_dynamic_phoneme_delay(self, cuts, tokenizer_names, text_data, phoneme_data):
+        """Schedule text-only waits in CPU workers; audio channels are never shifted."""
+        pad = self.phoneme_tokenizer.pad
+        if pad is None or pad < 0:
+            raise ValueError('dynamic_phoneme_delay requires a valid phoneme PAD token')
+        tokens, masks, wait_counts, fallback_counts, turn_counts = [], [], [], [], []
+        has_mask = 'phoneme_loss_mask' in phoneme_data
+        for i, (cut, name, selections) in enumerate(zip(cuts, tokenizer_names, text_data['selected_texts'])):
+            dependencies, text_cursor, phoneme_cursor, fallbacks = {}, 0, 0, 0
+            target_supervisions = [s for s in cut.supervisions if s.speaker in self.output_roles]
+            for sup, selected in zip(target_supervisions, selections):
+                selected_ids, text_offsets = self.text_tokenizer.encode_with_offsets(selected, tokenizer_name=name)
+                ipa = _get_supervision_ipa_text(sup)
+                ipa_ids, ipa_offsets = self.phoneme_tokenizer.encode_with_offsets(ipa)
+                # Existing collators remain authoritative, including transcript
+                # selection, special tokens and lexicon masks. Never resample.
+                text_begin = text_cursor + int(self.add_text_bos)
+                expected = text_data['target_text_tokens'][i, text_begin : text_begin + len(selected_ids)].tolist()
+                if expected != selected_ids:
+                    raise ValueError(f'{cut.id}: text offset encoding differs from model input')
+                expected = phoneme_data['target_phoneme_tokens'][
+                    i, phoneme_cursor + 1 : phoneme_cursor + 1 + len(ipa_ids)
+                ].tolist()
+                if expected != ipa_ids:
+                    raise ValueError(f'{cut.id}: IPA offset encoding differs from phoneme targets')
+                custom = sup.custom or {}
+                local, fallback = phoneme_source_dependencies(
+                    custom.get('word_alignment'),
+                    custom.get('text', sup.text),
+                    custom.get('text_normalized', custom.get('normalized_text', sup.text)),
+                    ipa,
+                    selected,
+                    text_offsets,
+                    ipa_offsets,
+                )
+                for index, ready in local.items():
+                    dependencies[phoneme_cursor + 1 + index] = text_begin + ready
+                fallbacks += int(fallback)
+                text_cursor += len(selected_ids) + 1 + int(self.add_text_bos)
+                phoneme_cursor += len(ipa_ids) + 2
+            length = int(phoneme_data['target_phoneme_lens'][i])
+            if phoneme_cursor != length or text_cursor != int(text_data['target_token_lens'][i]):
+                raise ValueError(f'{cut.id}: dynamic-delay turn boundaries do not match collated channels')
+            mask = phoneme_data['phoneme_loss_mask'][i, :length].tolist() if has_mask else None
+            ids, mask, count = insert_phoneme_waits(
+                phoneme_data['target_phoneme_tokens'][i, :length].tolist(),
+                dependencies,
+                pad,
+                mask,
+            )
+            tokens.append(torch.tensor(ids, dtype=torch.long))
+            if has_mask:
+                masks.append(torch.tensor(mask, dtype=torch.bool))
+            wait_counts.append(count)
+            fallback_counts.append(fallbacks)
+            turn_counts.append(len(target_supervisions))
+        phoneme_data['target_phoneme_tokens'] = collate_vectors(tokens, padding_value=pad)
+        phoneme_data['target_phoneme_lens'] = torch.tensor([len(t) for t in tokens])
+        if has_mask:
+            phoneme_data['phoneme_loss_mask'] = collate_vectors(masks, padding_value=False)
+        phoneme_data['dynamic_phoneme_wait_count'] = torch.tensor(wait_counts)
+        phoneme_data['dynamic_phoneme_fallback_count'] = torch.tensor(fallback_counts)
+        phoneme_data['dynamic_phoneme_turn_count'] = torch.tensor(turn_counts)
 
 
 def collate_token_channel(
@@ -1053,11 +1131,13 @@ def collate_token_channel(
     ignore_phoneme_languages: list[str] = None,
     apply_partial_phoneme_text: bool = False,
     load_normalized_text_percent: float = 1.0,
+    selected_texts: list = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Build and collate token channels aligned to the audio frame grid."""
     tokens = []
 
     for i, c in enumerate(cuts):
+        selected = [] if selected_texts is not None else None
         tok_name = tokenizer_names[i] if tokenizer_names else "english_phoneme"
         tokens.append(
             build_token_channel(
@@ -1082,8 +1162,11 @@ def collate_token_channel(
                 ignore_phoneme_languages,
                 apply_partial_phoneme_text,
                 load_normalized_text_percent=load_normalized_text_percent,
+                selected_texts=selected,
             )
         )
+        if selected_texts is not None:
+            selected_texts.append(selected)
     token_lens = torch.tensor([len(tt) for tt in tokens])
     return collate_vectors(tokens, padding_value=pad_id), token_lens
 
@@ -1138,6 +1221,7 @@ def build_token_channel(
     ignore_phoneme_languages: list[str] = None,
     apply_partial_phoneme_text: bool = False,
     load_normalized_text_percent: float = 1.0,
+    selected_texts: list = None,
 ) -> torch.Tensor:
 
     if getattr(cut, "task", "tts") == "text_only":
@@ -1152,6 +1236,8 @@ def build_token_channel(
                     load_normalized_text_percent=load_normalized_text_percent,
                 )
                 raw_ids = tokenizer.encode(text, tokenizer_name=tokenizer_name)
+                if selected_texts is not None:
+                    selected_texts.append(text)
                 ids.extend(([bos_id] if add_text_bos else []) + raw_ids + [eos_id])
         return torch.tensor(ids, dtype=torch.long)
 

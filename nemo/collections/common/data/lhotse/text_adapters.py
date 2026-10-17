@@ -18,6 +18,7 @@ import logging
 import math
 import os
 import random
+import re
 import tarfile
 from collections import deque
 from copy import deepcopy
@@ -277,6 +278,7 @@ class LhotseTextNormJsonlAdapter:
     duration_phoneme_tokenizer_path: str | None = None
     duration_padding_tokens: int = 0
     duration_text_tokenizer_path: str | None = None
+    dynamic_phoneme_delay: bool = False
 
     def __post_init__(self):
         self.paths = list(expand_sharded_filepaths(self.paths))
@@ -292,6 +294,13 @@ class LhotseTextNormJsonlAdapter:
             from tokenizers import Tokenizer
 
             self._duration_text_tokenizer = Tokenizer.from_file(str(self.duration_text_tokenizer_path))
+        if self.dynamic_phoneme_delay and (
+            self._duration_text_tokenizer is None or self._duration_phoneme_tokenizer is None
+        ):
+            raise ValueError(
+                'dynamic_phoneme_delay requires duration_text_tokenizer_path and duration_phoneme_tokenizer_path '
+                'on txt_norm_jsonl inputs to account for added waits in duration batching'
+            )
         if not math.isfinite(self.token_equivalent_duration) or self.token_equivalent_duration <= 0:
             raise ValueError("token_equivalent_duration must be finite and positive")
         if self.sampling_rate <= 0:
@@ -329,6 +338,22 @@ class LhotseTextNormJsonlAdapter:
                         len(
                             self._duration_text_tokenizer.encode(row["text_normalized"], add_special_tokens=False).ids
                         ),
+                    )
+                if self.dynamic_phoneme_delay:
+                    # Added waits never exceed the source-channel length. Use
+                    # source + IPA, rather than max(source, IPA), as a safe bound
+                    # without performing alignment in the sampler as well.
+                    raw = re.sub(r'\s+', ' ', re.sub(r'<\|\d+\|>', '', row['text'])).strip()
+                    source_bound = max(
+                        num_tokens,
+                        *(
+                            len(self._duration_text_tokenizer.encode(t).ids)
+                            for t in (row['text'], raw, row['text_normalized'])
+                        ),
+                    )
+                    duration_num_tokens = max(
+                        duration_num_tokens,
+                        source_bound + len(self._duration_phoneme_tokenizer.encode(row['ipa']).ids) + 4,
                     )
                 duration_num_tokens += self.duration_padding_tokens
                 duration = duration_num_tokens * self.token_equivalent_duration

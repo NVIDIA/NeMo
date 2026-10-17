@@ -289,6 +289,7 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "max_open_streams": config.get("max_open_streams", None),
         "audio_locator_tag": config.get("audio_locator_tag", None),
         "token_equivalent_duration": config.get("token_equivalent_duration", None),
+        "dynamic_phoneme_delay": config.get("dynamic_phoneme_delay", False),
         "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
         "fault_tolerant_audio_loading": config.get("fault_tolerant_audio_loading", True),
         "input_sampling_rate": config.get("input_sampling_rate", None),
@@ -447,6 +448,7 @@ def read_txt_norm_jsonl(config: DictConfig) -> tuple[CutSet, bool]:
             duration_phoneme_tokenizer_path=config.get("duration_phoneme_tokenizer_path"),
             duration_padding_tokens=config.get("duration_padding_tokens", 0),
             duration_text_tokenizer_path=config.get("duration_text_tokenizer_path"),
+            dynamic_phoneme_delay=config.get("dynamic_phoneme_delay", False),
         )
     )
 
