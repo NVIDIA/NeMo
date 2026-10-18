@@ -1083,7 +1083,13 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
                     text_offsets,
                     ipa_offsets,
                     selected_ipa=ipa,
+                    resolved_alignment=custom.get('_dynamic_phoneme_alignment'),
                 )
+                if fallback:
+                    raise ValueError(
+                        f'{cut.id}: unusable dynamic phoneme alignment; filter txt_norm_jsonl inputs with '
+                        'dynamic_phoneme_delay=true before batching'
+                    )
                 for index, ready in local.items():
                     dependencies[phoneme_cursor + 1 + index] = text_begin + ready
                 fallbacks += int(fallback)

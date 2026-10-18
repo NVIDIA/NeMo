@@ -8,165 +8,71 @@ from bisect import bisect_left, bisect_right
 
 
 def phoneme_source_dependencies(
-    alignment, text, normalized_text, ipa, selected_text, text_offsets, ipa_offsets, *, selected_ipa=None
+    alignment,
+    text,
+    normalized_text,
+    ipa,
+    selected_text,
+    text_offsets,
+    ipa_offsets,
+    *,
+    selected_ipa=None,
+    resolved_alignment=None,
 ):
-    """Map IPA-token indices to the last required visible text-token index.
+    """Map every spoken word/phrase to its required visible source BPE.
 
-    Offsets refer to each complete string, before manually added BOS/EOS. A text
-    index equal to len(text_offsets) means the manually appended text EOS.
-    selected_ipa optionally supplies whitespace-compacted targets; alignment
-    hashes and character coordinates still refer to the original strings.
-    Missing, stale or unresolvable metadata conservatively waits for text EOS
-    before the first IPA token. Returns (dependencies, full_text_fallback).
+    Offsets and metadata hashes refer to complete original strings. Returns
+    (dependencies, unusable); unusable records must be excluded before batching,
+    never converted into whole-text-EOS waiting targets. Dependencies use no
+    fixed delay, and insert_phoneme_waits counts all earlier emitted targets.
     """
-    fallback = ({0: len(text_offsets)}, True)
-    if not isinstance(alignment, dict) or not ipa_offsets:
-        return fallback
-    if alignment.get('offset_unit') != 'unicode_code_points':
-        return fallback
-    if alignment.get('ranges') != 'zero_based_end_exclusive':
-        return fallback
-    strings = {'text': text, 'text_normalized': normalized_text, 'ipa': ipa}
-    hashes = alignment.get('string_sha256', {})
-    if not isinstance(hashes, dict) or not all(isinstance(v, str) for v in strings.values()):
-        return fallback
-    if any(hashes.get(k) != hashlib.sha256(v.encode('utf-8')).hexdigest() for k, v in strings.items()):
-        return fallback
+    from nemo.collections.common.data.lhotse.text_alignment import resolve_word_alignment
 
-    if selected_text == text:
-        source_key, original = 'source_chars', text
-    elif selected_text == normalized_text:
-        source_key, original = 'normalized_chars', normalized_text
-    elif selected_text == _strip_with_origins(text)[0]:
-        source_key, original = 'source_chars', text
-    elif selected_text == _strip_with_origins(normalized_text, strip_timestamps=False)[0]:
-        source_key, original = 'normalized_chars', normalized_text
+    unusable = ({}, True)
+    strings = {'text': text, 'text_normalized': normalized_text, 'ipa': ipa}
+    if not isinstance(alignment, dict) or not all(isinstance(v, str) for v in strings.values()):
+        return unusable
+    hashes = alignment.get('string_sha256', {})
+    if not isinstance(hashes, dict) or any(
+        hashes.get(key) != hashlib.sha256(value.encode('utf-8')).hexdigest() for key, value in strings.items()
+    ):
+        return unusable
+    if resolved_alignment is None:
+        resolved_alignment = resolve_word_alignment(alignment, text, normalized_text, ipa)
+    if resolved_alignment is None or not ipa_offsets:
+        return unusable
+    if selected_text in (text, _strip_with_origins(text)[0]):
+        source_key, original = 'source', text
+    elif selected_text in (normalized_text, _strip_with_origins(normalized_text, strip_timestamps=False)[0]):
+        source_key, original = 'normalized', normalized_text
     else:
-        return fallback
+        return unusable
     origins = (
         None
         if selected_text == original
-        else _strip_with_origins(original, strip_timestamps=source_key == 'source_chars')[1]
+        else _strip_with_origins(original, strip_timestamps=source_key == 'source')[1]
     )
     ipa_origins = None
     if selected_ipa is not None and selected_ipa != ipa:
         compact_ipa, ipa_origins = _strip_with_origins(ipa, strip_timestamps=False)
         if selected_ipa != compact_ipa:
-            return fallback
-
+            return unusable
     try:
-        groups = alignment['groups']
-        source_words, normalized_words = alignment['source_words'], alignment['normalized_words']
-        candidates = []
-        covered_regions = []
-        # Recover a coarse but exact many-to-many span, e.g. "5 years full-time".
-        for region in alignment.get('unresolved_regions', []):
-            sr, nr = region['source_words'], region['normalized_words']
-            _check_range(sr, len(source_words))
-            _check_range(nr, len(normalized_words))
-            pieces = []
-            for i in range(*nr):
-                span = alignment['normalized_to_ipa'][i]
-                if span is None:
-                    shared = next(
-                        (
-                            g
-                            for g in alignment.get('normalized_ipa_shared_groups', [])
-                            if g['normalized_words'][0] <= i < g['normalized_words'][1]
-                        ),
-                        None,
-                    )
-                    if (
-                        shared is None
-                        or not nr[0] <= shared['normalized_words'][0] <= shared['normalized_words'][1] <= nr[1]
-                    ):
-                        return fallback
-                    span = shared['ipa_chars']
-                _check_range(span, len(ipa))
-                pieces.append(span)
-            if not pieces:
-                return fallback
-            candidates.append(
-                {
-                    'source_chars': [source_words[sr[0]][0], source_words[sr[1] - 1][1]],
-                    'normalized_chars': [normalized_words[nr[0]][0], normalized_words[nr[1] - 1][1]],
-                    'ipa_chars': [min(p[0] for p in pieces), max(p[1] for p in pieces)],
-                }
-            )
-            covered_regions.append(sr)
-
-        for group in groups:
-            if group.get('status') != 'ok':
-                sr = group['source_words']
-                if not any(r[0] <= sr[0] <= sr[1] <= r[1] for r in covered_regions):
-                    return fallback
-                continue
-            if not (group.get('changed') or group.get('entity_type')):
-                continue
-            ir = group.get('ipa_chars')
-            if ir is None:
-                return fallback
-            _check_range(ir, len(ipa))
-            if ipa[ir[0] : ir[1]].strip():
-                candidates.append(group)
-
-        if source_key == 'normalized_chars':
-            # Normalized input is already expanded: each spoken word only
-            # depends on that word, rather than the entire original number.
-            word_candidates = []
-            for group in candidates:
-                for i, word in enumerate(normalized_words):
-                    if word[0] >= group['normalized_chars'][1] or word[1] <= group['normalized_chars'][0]:
-                        continue
-                    ir = alignment['normalized_to_ipa'][i]
-                    if ir is None:
-                        shared = next(
-                            (
-                                g
-                                for g in alignment.get('normalized_ipa_shared_groups', [])
-                                if g['normalized_words'][0] <= i < g['normalized_words'][1]
-                            ),
-                            None,
-                        )
-                        if shared is None:
-                            return fallback
-                        ir = shared['ipa_chars']
-                        word = [word[0], normalized_words[shared['normalized_words'][1] - 1][1]]
-                    if ir[0] < ir[1]:
-                        word_candidates.append({'normalized_chars': word, 'ipa_chars': ir})
-            candidates = word_candidates
-
         dependencies = {}
         ipa_ends = [end for _, end in ipa_offsets]
         text_ends = [end for _, end in text_offsets]
         if ipa_ends != sorted(ipa_ends) or text_ends != sorted(text_ends):
-            return fallback
-        for group in candidates:
-            span = list(group['ipa_chars'])
-            if not ipa[span[0] : span[1]].strip():
+            return unusable
+        for source_end, ipa_start, ipa_end in resolved_alignment[source_key]:
+            _check_range([ipa_start, ipa_end], len(ipa))
+            while ipa_start < ipa_end and ipa[ipa_start].isspace():
+                ipa_start += 1
+            while ipa_start < ipa_end and ipa[ipa_end - 1].isspace():
+                ipa_end -= 1
+            if ipa_start == ipa_end:
                 continue
-            source_end = group[source_key][1]
-            # A shared engine boundary can cross the requested expression. Wait
-            # for the entire shared group before emitting its first IPA token.
-            for shared in alignment.get('source_ipa_shared_groups', []):
-                ir = shared['ipa_chars']
-                if ir[0] < span[1] and span[0] < ir[1]:
-                    span = [min(span[0], ir[0]), max(span[1], ir[1])]
-                    key, words = (
-                        ('source_words', source_words)
-                        if source_key == 'source_chars'
-                        else ('normalized_words', normalized_words)
-                    )
-                    source_end = max(source_end, words[shared[key][1] - 1][1])
-            # Alignment placeholders are not spoken words. Keep their original
-            # coordinates for validation, but never gate a whitespace-only
-            # target or the separator immediately before an expression.
-            while span[0] < span[1] and ipa[span[0]].isspace():
-                span[0] += 1
-            while span[0] < span[1] and ipa[span[1] - 1].isspace():
-                span[1] -= 1
             if ipa_origins is not None:
-                span = [bisect_right(ipa_origins, position) for position in span]
+                ipa_start, ipa_end = (bisect_right(ipa_origins, pos) for pos in (ipa_start, ipa_end))
             _check_range([0, source_end], len(original))
             while source_end and original[source_end - 1].isspace():
                 source_end -= 1
@@ -174,19 +80,19 @@ def phoneme_source_dependencies(
             if end == len(selected_text):
                 ready = len(text_offsets)  # EOS proves the final word is complete.
             else:
-                # Include the next character so the word/expression boundary is
-                # actually visible, including a space carried by the next BPE.
+                # A separator may be carried by the following BPE. Consume all
+                # byte-fallback pieces ending at that character boundary.
                 ready = bisect_left(text_ends, end + 1)
                 if ready < len(text_ends):
                     ready = bisect_right(text_ends, text_ends[ready]) - 1
-            first = bisect_right(ipa_ends, span[0])
-            if first >= len(ipa_offsets) or ipa_offsets[first][0] >= span[1]:
-                return fallback
-            # If a BPE crosses the expression boundary, gate that entire BPE.
+            first = bisect_right(ipa_ends, ipa_start)
+            if first >= len(ipa_offsets) or ipa_offsets[first][0] >= ipa_end:
+                return unusable
+            # An IPA BPE crossing word boundaries depends on every word it spans.
             dependencies[first] = max(ready, dependencies.get(first, -1))
         return dependencies, False
     except (KeyError, TypeError, IndexError, ValueError):
-        return fallback
+        return unusable
 
 
 def insert_phoneme_waits(token_ids, dependencies, pad_id, loss_mask=None):

@@ -32,8 +32,8 @@ Requirements:
 
 The CPU loader reuses text and phoneme collation, including its raw/normalized
 transcript choice. It maps the complete strings with tokenizer offsets, projects
-source offsets through timestamp removal/whitespace collapse, and gates each
-changed/entity IPA span until the whole source expression and its closing
+source offsets through timestamp removal/whitespace collapse, and checks every ordinary word and shared phrase as well as normalization
+expressions. It gates each IPA span until the whole source expression and its closing
 boundary (or text EOS) are visible. An IPA BPE crossing a span boundary is gated
 as a whole. When normalized text is selected, its individual normalized words
 provide the dependencies. All earlier waits count toward visibility; no fixed
@@ -53,19 +53,36 @@ loss weight even when lexicon amplification is enabled. Right/batch padding
 remains outside the loss. Lexicon masks move with their original phonemes.
 The existing validation phoneme-token accuracy excludes PAD/wait targets.
 
-Valid expression groups in `partial` samples remain usable. A bounded unresolved
-region can be recovered as a complete many-to-many group when its normalized IPA
-boundaries are known. Missing, stale, malformed, or otherwise unusable metadata
-falls back conservatively to waiting for the selected turn's full text EOS
-before producing that turn's first IPA token; it never guesses missing offsets.
+Shared engine IPA spans are usable without invented internal word boundaries.
+The reader resolves connected source/normalized/shared-IPA groups, including
+shared phrases crossing normalization-group boundaries. Ordinary words in a
+long unchanged group keep individual dependencies. Normalized input uses its
+own word/shared-phrase dependencies rather than a complete raw-number expansion.
+Checking a word does not automatically insert waits: all earlier waits and IPA
+tokens already advance the text clock, and only a remaining readiness gap adds PADs.
+
+Only `txt_norm_jsonl` readers with dynamic mode enabled filter unusable records,
+before bucketing and distributed batching. Missing/stale hashes, incomplete
+spoken-IPA coverage, genuinely missing boundaries, invalid ranges, or an explicit
+`dynamic_delay_usable: false` cause exclusion. Shared `partial` records remain
+usable when their complete dependencies resolve. Existing records need not carry
+a usability flag; a true flag never bypasses validation. Raw and normalized
+mappings must both resolve so transcript selection cannot change eligibility.
+Readers log excluded/seen counts per manifest and fail clearly if an entire pass
+has no usable records. Validation uses the same eligibility rules: report these
+exclusion counts alongside metrics. Original manifests and phoneme strings are
+never rewritten, and disabled readers keep their existing record selection.
+
+No whole-text-EOS fallback is supervised. A custom cut bypassing the filtering
+reader with unusable metadata raises a descriptive error before model execution.
 
 Training logs aggregate across all ranks, including mixed speech/text batches:
 
 - `train/dynamic_phoneme_wait_tokens`: inserted waits per global microbatch.
 - `train/dynamic_phoneme_wait_percent`: waits / valid phoneme-channel tokens,
   including BOS/EOS in the denominator.
-- `train/dynamic_phoneme_fallback_percent`: turns using full-text fallback / text
-  turns. A high rate means the intended aligned streaming supervision is absent.
+- `train/dynamic_phoneme_fallback_percent`: retained for log compatibility; zero
+  for accepted turns. Excluded records are reported by the reader, not this metric.
 
 `TextOnlyPhonemeFrontend` reads the checkpoint's saved flag. PAD predictions
 advance the text/decoder clock with zero phoneme input and are omitted from the

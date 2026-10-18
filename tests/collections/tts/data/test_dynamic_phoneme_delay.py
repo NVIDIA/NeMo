@@ -4,6 +4,7 @@
 
 import hashlib
 import json
+import re
 
 import pytest
 import torch
@@ -35,9 +36,10 @@ def row(text='$12345 next', normalized='one next', ipa='wʌn nɛkst'):
         'version': '1.2.0',
         'offset_unit': 'unicode_code_points',
         'ranges': 'zero_based_end_exclusive',
-        'source_words': [[0, len(first)], [len(first) + 1, len(text)]],
-        'normalized_words': [[0, len(nfirst)], [len(nfirst) + 1, len(normalized)]],
-        'normalized_to_ipa': [[0, len(ifirst)], [len(ifirst) + 1, len(ipa)]],
+        'source_words': [[m.start(), m.end()] for m in re.finditer(r'\S+', text)],
+        'normalized_words': [[m.start(), m.end()] for m in re.finditer(r'\S+', normalized)],
+        'source_to_normalized': [[i, i + 1] for i, _ in enumerate(text.split())],
+        'normalized_to_ipa': [[m.start(), m.end()] for m in re.finditer(r'\S+', ipa)],
         'source_ipa_shared_groups': [],
         'normalized_ipa_shared_groups': [],
         'unresolved_regions': [],
@@ -112,7 +114,7 @@ def cuts(tmp_path, records):
 
 def test_word_closure_and_eos_are_visible_before_first_phoneme():
     deps, fallback = dependencies(row())
-    assert deps == {0: 6} and not fallback  # includes the following space
+    assert deps == {0: 6, 4: 11} and not fallback  # includes the following space
     r = row(text='$12345', normalized='one', ipa='wʌn')
     assert dependencies(r) == ({0: 6}, False)  # text EOS, not merely the last digit
 
@@ -128,14 +130,14 @@ def test_waits_use_prediction_clock_and_accumulate_without_double_counting():
 
 def test_raw_whitespace_timestamp_projection_and_normalized_input():
     r = row(text='$12345\n\nnext')
-    assert dependencies(r, selected='$12345 next') == ({0: 6}, False)
-    assert dependencies(r, selected=r['text_normalized']) == ({0: 3}, False)
+    assert dependencies(r, selected='$12345 next') == ({0: 6, 4: 11}, False)
+    assert dependencies(r, selected=r['text_normalized']) == ({0: 3, 4: 8}, False)
     r = row(text='$12345<|24|> next')
-    assert dependencies(r, selected='$12345 next') == ({0: 6}, False)
+    assert dependencies(r, selected='$12345 next') == ({0: 6, 4: 11}, False)
 
 
 @pytest.mark.parametrize('kind', ['missing', 'stale', 'range', 'transformed'])
-def test_unusable_alignment_waits_for_full_text_without_guessing(kind):
+def test_unusable_alignment_is_rejected_without_guessing(kind):
     r = row()
     selected = None
     if kind == 'missing':
@@ -147,17 +149,17 @@ def test_unusable_alignment_waits_for_full_text_without_guessing(kind):
     else:
         selected = 'unexpected replacement'
     value, fallback = dependencies(r, selected)
-    assert fallback and value == {0: len(selected or r['text'])}
+    assert fallback and value == {}
 
 
 def test_partial_sample_spelling_group_and_cross_boundary_bpe_remain_usable():
     r = row()
     r['word_alignment']['status'] = 'partial'
     r['word_alignment']['groups'][0]['entity_type'] = None
-    assert dependencies(r) == ({0: 6}, False)
+    assert dependencies(r) == ({0: 6, 4: 11}, False)
     r['word_alignment']['groups'][0]['ipa_chars'] = [1, 3]
     # First token covers both the preceding IPA and the start of the expression.
-    assert dependencies(r, ipa_offsets=[(0, 2), (2, 4), (4, 9)]) == ({0: 6}, False)
+    assert dependencies(r, ipa_offsets=[(0, 2), (2, 4), (4, 9)]) == ({0: 6, 2: 11}, False)
 
 
 def test_bounded_unresolved_region_recovers_a_coarse_mapping():
@@ -165,7 +167,7 @@ def test_bounded_unresolved_region_recovers_a_coarse_mapping():
     a = r['word_alignment']
     a['unresolved_regions'] = [{'source_words': [0, 1], 'normalized_words': [0, 1]}]
     a['groups'][0].update(status='partial', normalized_chars=None, ipa_chars=None)
-    assert dependencies(r) == ({0: 6}, False)
+    assert dependencies(r) == ({0: 6, 4: 11}, False)
 
 
 def test_loader_default_and_enabled_paths_preserve_text_and_shift_only_targets(tmp_path, monkeypatch):
@@ -181,17 +183,17 @@ def test_loader_default_and_enabled_paths_preserve_text_and_shift_only_targets(t
     active = dataset(True)[cuts(tmp_path, [original])]
     assert torch.equal(active['text'], baseline['text'])
     assert torch.equal(active['source_tokens'], baseline['source_tokens'])
-    assert active['dynamic_phoneme_wait_count'].tolist() == [6]
+    assert active['dynamic_phoneme_wait_count'].tolist() == [7]
     assert active['dynamic_phoneme_fallback_count'].tolist() == [0]
     assert active['phoneme_tokens'][0, :8].tolist() == [10000] + [0] * 6 + [ord('w') + 1]
-    assert active['phoneme_tokens_lens'].item() == baseline['phoneme_tokens_lens'].item() + 6
+    assert active['phoneme_tokens_lens'].item() == baseline['phoneme_tokens_lens'].item() + 7
 
 
 def test_loader_uses_the_selected_normalized_transcript_and_text_bos(tmp_path):
     ds = dataset(True, normalized=1.0)
     ds.add_text_bos = True
     value = ds[cuts(tmp_path, [row()])]
-    assert value['dynamic_phoneme_wait_count'].tolist() == [4]
+    assert value['dynamic_phoneme_wait_count'].tolist() == [5]
     assert value['text'][0, :4].tolist() == [ds.bos_id] + CharacterTokenizer().encode('one')
 
 
@@ -204,7 +206,8 @@ def test_loader_remaps_lexicon_mask_and_batch_lengths(tmp_path):
     old_mask = torch.ones_like(phonemes['target_phoneme_tokens'], dtype=torch.bool)
     phonemes['phoneme_loss_mask'] = old_mask
     ds._apply_dynamic_phoneme_delay(sample, ['text'], text, phonemes)
-    assert phonemes['phoneme_loss_mask'][0].tolist() == [True] + [False] * 6 + [True] * (old_mask.size(1) - 1)
+    assert torch.equal(phonemes['phoneme_loss_mask'][0][phonemes['target_phoneme_tokens'][0] != 0], old_mask[0])
+    assert not phonemes['phoneme_loss_mask'][phonemes['target_phoneme_tokens'] == 0].any()
 
 
 @pytest.mark.parametrize('enabled,configured_delay', [(True, 0), (True, 8), (True, 15), (False, 8)])
@@ -288,27 +291,30 @@ def test_dynamic_duration_reserves_source_plus_ipa_without_affecting_default(tmp
     assert active.sampling_num_tokens == 11 + 2 + 4
 
 
-def test_whitespace_only_alignment_group_never_creates_a_dependency():
+def test_whitespace_only_alignment_group_does_not_gate_the_separator():
     r = row()
     r['word_alignment']['groups'][0].update(ipa_chars=[3, 4], entity_type=None)
-    assert dependencies(r) == ({}, False)
+    assert dependencies(r) == ({0: 6, 4: 11}, False)
 
 
 def test_alignment_padding_after_a_source_word_does_not_require_the_next_word():
     r = row()
     r['word_alignment']['groups'][0]['source_chars'] = [0, 7]
-    assert dependencies(r) == ({0: 6}, False)
+    assert dependencies(r) == ({0: 6, 4: 11}, False)
 
 
 @pytest.mark.parametrize('normalized', [False, True])
 def test_compacted_offsets_remain_aligned_to_original_strings(normalized):
     r = _padded_row()
     selected = 'one next' if normalized else r['text']
-    assert dependencies(r, selected=selected, selected_ipa='wʌn nɛkst') == ({0: 3 if normalized else 6}, False)
+    assert dependencies(r, selected=selected, selected_ipa='wʌn nɛkst') == (
+        {0: 3 if normalized else 6, 4: 8 if normalized else 11},
+        False,
+    )
 
 
 def test_ipa_whitespace_cleanup_never_accepts_changed_phonemes():
-    assert dependencies(_padded_row(), selected_ipa='wʌn changed') == ({0: 11}, True)
+    assert dependencies(_padded_row(), selected_ipa='wʌn changed') == ({}, True)
 
 
 @pytest.mark.parametrize('normalized', [0.0, 1.0])
@@ -322,7 +328,7 @@ def test_loader_compacts_only_dynamic_text_only_channels(tmp_path, normalized):
     actual = active['phoneme_tokens'][0].tolist()
     assert [token for token in actual if token] == [10000] + CharacterTokenizer().encode('wʌn nɛkst') + [10001]
     assert active['dynamic_phoneme_fallback_count'].tolist() == [0]
-    assert active['dynamic_phoneme_wait_count'].tolist() == [3 if normalized else 6]
+    assert active['dynamic_phoneme_wait_count'].tolist() == [4 if normalized else 7]
     assert json.dumps(next(iter(sample)).supervisions[0].custom, sort_keys=True) == original_custom
     legacy = dataset(False, normalized=normalized)[cuts(tmp_path, [r])]
     assert legacy['phoneme_tokens'][0].tolist() == [10000] + CharacterTokenizer().encode(r['ipa']) + [10001]

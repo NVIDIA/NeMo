@@ -311,8 +311,11 @@ class LhotseTextNormJsonlAdapter:
         if self.shuffle_shards:
             random.Random(resolve_seed(self.shard_seed)).shuffle(paths)
 
+        yielded_any = False
         for path in paths:
+            seen, skipped = 0, 0
             for index, row in enumerate(load_jsonl(path)):
+                seen += 1
                 if not isinstance(row, dict):
                     raise ValueError(f"{path}: record {index}: expected an object")
                 for key in ("text", "text_normalized", "ipa"):
@@ -325,6 +328,16 @@ class LhotseTextNormJsonlAdapter:
                 num_tokens = row.get("num_tokens")
                 if type(num_tokens) is not int or num_tokens <= 0:
                     raise ValueError(f"{path}: record {index}: num_tokens must be a positive integer")
+                resolved_alignment = None
+                if self.dynamic_phoneme_delay:
+                    from nemo.collections.common.data.lhotse.text_alignment import resolve_word_alignment
+
+                    resolved_alignment = resolve_word_alignment(
+                        row.get('word_alignment'), row['text'], row['text_normalized'], row['ipa']
+                    )
+                    if row.get('dynamic_delay_usable') is False or resolved_alignment is None:
+                        skipped += 1
+                        continue
                 # Source and IPA channels overlap in time. Measure the longer
                 # channel so bucketing and duration limits account for target expansion.
                 duration_num_tokens = num_tokens
@@ -383,6 +396,10 @@ class LhotseTextNormJsonlAdapter:
                 )
                 supervision_custom = deepcopy(row)
                 supervision_custom["normalized_text"] = row["text_normalized"]
+                if resolved_alignment is not None:
+                    # Reuse exact canonical groups in workers; no second graph
+                    # construction or retokenization is needed for scheduling.
+                    supervision_custom['_dynamic_phoneme_alignment'] = resolved_alignment
                 supervision = SupervisionSegment(
                     id=f"{cut_id}-sup",
                     recording_id=cut_id,
@@ -404,6 +421,7 @@ class LhotseTextNormJsonlAdapter:
                     or self.duration_padding_tokens
                 ):
                     cut_custom["sampling_num_tokens"] = duration_num_tokens
+                yielded_any = True
                 yield MonoCut(
                     id=cut_id,
                     start=0.0,
@@ -413,6 +431,13 @@ class LhotseTextNormJsonlAdapter:
                     supervisions=[supervision],
                     custom=cut_custom,
                 )
+
+            if skipped:
+                logging.getLogger(__name__).warning(
+                    'Dynamic phoneme alignment: excluded %d/%d unusable records from %s', skipped, seen, path
+                )
+        if self.dynamic_phoneme_delay and not yielded_any:
+            raise ValueError('No usable word alignments remain for dynamic_phoneme_delay in txt_norm_jsonl inputs')
 
 
 @registered_prompt_format_fn(TextExample)
