@@ -69,7 +69,7 @@ def row(text='$12345 next', normalized='one next', ipa='wʌn nɛkst'):
     }
 
 
-def dependencies(record, selected=None, text_offsets=None, ipa_offsets=None):
+def dependencies(record, selected=None, text_offsets=None, ipa_offsets=None, selected_ipa=None):
     tok = CharacterTokenizer()
     selected = record['text'] if selected is None else selected
     return phoneme_source_dependencies(
@@ -79,7 +79,12 @@ def dependencies(record, selected=None, text_offsets=None, ipa_offsets=None):
         record['ipa'],
         selected,
         tok.encode_with_offsets(selected)[1] if text_offsets is None else text_offsets,
-        tok.encode_with_offsets(record['ipa'])[1] if ipa_offsets is None else ipa_offsets,
+        (
+            tok.encode_with_offsets(record['ipa'] if selected_ipa is None else selected_ipa)[1]
+            if ipa_offsets is None
+            else ipa_offsets
+        ),
+        selected_ipa=selected_ipa,
     )
 
 
@@ -281,3 +286,89 @@ def test_dynamic_duration_reserves_source_plus_ipa_without_affecting_default(tmp
     active = next(iter(LhotseTextNormJsonlAdapter(**kwargs, dynamic_phoneme_delay=True)))
     assert baseline.sampling_num_tokens == 11
     assert active.sampling_num_tokens == 11 + 2 + 4
+
+
+def test_whitespace_only_alignment_group_never_creates_a_dependency():
+    r = row()
+    r['word_alignment']['groups'][0].update(ipa_chars=[3, 4], entity_type=None)
+    assert dependencies(r) == ({}, False)
+
+
+def test_alignment_padding_after_a_source_word_does_not_require_the_next_word():
+    r = row()
+    r['word_alignment']['groups'][0]['source_chars'] = [0, 7]
+    assert dependencies(r) == ({0: 6}, False)
+
+
+@pytest.mark.parametrize('normalized', [False, True])
+def test_compacted_offsets_remain_aligned_to_original_strings(normalized):
+    r = _padded_row()
+    selected = 'one next' if normalized else r['text']
+    assert dependencies(r, selected=selected, selected_ipa='wʌn nɛkst') == ({0: 3 if normalized else 6}, False)
+
+
+def test_ipa_whitespace_cleanup_never_accepts_changed_phonemes():
+    assert dependencies(_padded_row(), selected_ipa='wʌn changed') == ({0: 11}, True)
+
+
+@pytest.mark.parametrize('normalized', [0.0, 1.0])
+def test_loader_compacts_only_dynamic_text_only_channels(tmp_path, normalized):
+    r = _padded_row()
+    sample = cuts(tmp_path, [r])
+    original_custom = json.dumps(next(iter(sample)).supervisions[0].custom, sort_keys=True)
+    active = dataset(True, normalized=normalized)[sample]
+    selected = 'one next' if normalized else r['text']
+    assert active['text'][0].tolist() == CharacterTokenizer().encode(selected) + [20001]
+    actual = active['phoneme_tokens'][0].tolist()
+    assert [token for token in actual if token] == [10000] + CharacterTokenizer().encode('wʌn nɛkst') + [10001]
+    assert active['dynamic_phoneme_fallback_count'].tolist() == [0]
+    assert active['dynamic_phoneme_wait_count'].tolist() == [3 if normalized else 6]
+    assert json.dumps(next(iter(sample)).supervisions[0].custom, sort_keys=True) == original_custom
+    legacy = dataset(False, normalized=normalized)[cuts(tmp_path, [r])]
+    assert legacy['phoneme_tokens'][0].tolist() == [10000] + CharacterTokenizer().encode(r['ipa']) + [10001]
+
+
+def test_cleanup_lexicon_mask_and_waits_use_compacted_token_positions(tmp_path):
+    class Lexicon:
+        def bind_tokenizer(self, tokenizer):
+            pass
+
+        def supports_language(self, language):
+            return True
+
+        def encode_with_mask(self, ipa, tokenizer):
+            assert ipa == 'wʌn nɛkst'
+            return tokenizer.encode(ipa), [index < 3 for index in range(len(ipa))]
+
+    ds = dataset(True)
+    ds.phoneme_lexicon_loss_scale = 10
+    ds._phoneme_loss_lexicon = Lexicon()
+    value = ds[cuts(tmp_path, [_padded_row()])]
+    assert value['phoneme_loss_mask'].sum().item() == 3
+    assert not value['phoneme_loss_mask'][value['phoneme_tokens'] == 0].any()
+
+
+def test_whitespace_compaction_flag_does_not_change_speech_collation(tmp_path):
+    sample = cuts(tmp_path, [_padded_row()])
+    for cut in sample:
+        cut.task = 'tts'
+    active, legacy = dataset(True), dataset(False)
+    atext, btext = active._collate_text_channels(sample, ['text']), legacy._collate_text_channels(sample, ['text'])
+    for key in ('target_text_tokens', 'target_token_lens', 'source_tokens', 'source_token_lens'):
+        assert torch.equal(atext[key], btext[key])
+    aph, bph = active._collate_phoneme_tokens(sample), legacy._collate_phoneme_tokens(sample)
+    for key in ('target_phoneme_tokens', 'target_phoneme_lens', 'phoneme_turn_dropout'):
+        assert torch.equal(aph[key], bph[key])
+
+
+def _padded_row():
+    r = row()
+    r.update(text_normalized=' \t one   next \n', ipa=' \t wʌn   nɛkst \n')
+    a = r['word_alignment']
+    a['normalized_words'] = [[3, 6], [9, 13]]
+    a['normalized_to_ipa'] = [[3, 6], [9, 14]]
+    a['groups'][0].update(normalized_chars=[3, 6], ipa_chars=[3, 6])
+    a['string_sha256'] = {
+        key: hashlib.sha256(r[key].encode()).hexdigest() for key in ('text', 'text_normalized', 'ipa')
+    }
+    return r

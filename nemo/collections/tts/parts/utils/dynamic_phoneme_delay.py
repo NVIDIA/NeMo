@@ -7,11 +7,15 @@ import re
 from bisect import bisect_left, bisect_right
 
 
-def phoneme_source_dependencies(alignment, text, normalized_text, ipa, selected_text, text_offsets, ipa_offsets):
+def phoneme_source_dependencies(
+    alignment, text, normalized_text, ipa, selected_text, text_offsets, ipa_offsets, *, selected_ipa=None
+):
     """Map IPA-token indices to the last required visible text-token index.
 
     Offsets refer to each complete string, before manually added BOS/EOS. A text
     index equal to len(text_offsets) means the manually appended text EOS.
+    selected_ipa optionally supplies whitespace-compacted targets; alignment
+    hashes and character coordinates still refer to the original strings.
     Missing, stale or unresolvable metadata conservatively waits for text EOS
     before the first IPA token. Returns (dependencies, full_text_fallback).
     """
@@ -35,9 +39,20 @@ def phoneme_source_dependencies(alignment, text, normalized_text, ipa, selected_
         source_key, original = 'normalized_chars', normalized_text
     elif selected_text == _strip_with_origins(text)[0]:
         source_key, original = 'source_chars', text
+    elif selected_text == _strip_with_origins(normalized_text, strip_timestamps=False)[0]:
+        source_key, original = 'normalized_chars', normalized_text
     else:
         return fallback
-    origins = None if selected_text == original else _strip_with_origins(original)[1]
+    origins = (
+        None
+        if selected_text == original
+        else _strip_with_origins(original, strip_timestamps=source_key == 'source_chars')[1]
+    )
+    ipa_origins = None
+    if selected_ipa is not None and selected_ipa != ipa:
+        compact_ipa, ipa_origins = _strip_with_origins(ipa, strip_timestamps=False)
+        if selected_ipa != compact_ipa:
+            return fallback
 
     try:
         groups = alignment['groups']
@@ -92,7 +107,7 @@ def phoneme_source_dependencies(alignment, text, normalized_text, ipa, selected_
             if ir is None:
                 return fallback
             _check_range(ir, len(ipa))
-            if ir[0] < ir[1]:
+            if ipa[ir[0] : ir[1]].strip():
                 candidates.append(group)
 
         if source_key == 'normalized_chars':
@@ -128,6 +143,8 @@ def phoneme_source_dependencies(alignment, text, normalized_text, ipa, selected_
             return fallback
         for group in candidates:
             span = list(group['ipa_chars'])
+            if not ipa[span[0] : span[1]].strip():
+                continue
             source_end = group[source_key][1]
             # A shared engine boundary can cross the requested expression. Wait
             # for the entire shared group before emitting its first IPA token.
@@ -141,7 +158,18 @@ def phoneme_source_dependencies(alignment, text, normalized_text, ipa, selected_
                         else ('normalized_words', normalized_words)
                     )
                     source_end = max(source_end, words[shared[key][1] - 1][1])
+            # Alignment placeholders are not spoken words. Keep their original
+            # coordinates for validation, but never gate a whitespace-only
+            # target or the separator immediately before an expression.
+            while span[0] < span[1] and ipa[span[0]].isspace():
+                span[0] += 1
+            while span[0] < span[1] and ipa[span[1] - 1].isspace():
+                span[1] -= 1
+            if ipa_origins is not None:
+                span = [bisect_right(ipa_origins, position) for position in span]
             _check_range([0, source_end], len(original))
+            while source_end and original[source_end - 1].isspace():
+                source_end -= 1
             end = source_end if origins is None else bisect_right(origins, source_end)
             if end == len(selected_text):
                 ready = len(text_offsets)  # EOS proves the final word is complete.
@@ -186,10 +214,10 @@ def insert_phoneme_waits(token_ids, dependencies, pad_id, loss_mask=None):
     return output, mask, waits
 
 
-def _strip_with_origins(text):
+def _strip_with_origins(text, strip_timestamps=True):
     """Match the dataset's timestamp removal/whitespace collapse with end offsets."""
     chars, origins, cursor = [], [], 0
-    for match in re.finditer(r'<\|\d+\|>', text):
+    for match in re.finditer(r'<\|\d+\|>', text) if strip_timestamps else ():
         for i in range(cursor, match.start()):
             chars.append(text[i])
             origins.append(i + 1)

@@ -348,12 +348,21 @@ class LhotseTextNormJsonlAdapter:
                         num_tokens,
                         *(
                             len(self._duration_text_tokenizer.encode(t).ids)
-                            for t in (row['text'], raw, row['text_normalized'])
+                            for t in (
+                                row['text'],
+                                raw,
+                                row['text_normalized'],
+                                ' '.join(row['text_normalized'].split()),
+                            )
                         ),
+                    )
+                    ipa_bound = max(
+                        len(self._duration_phoneme_tokenizer.encode(t).ids)
+                        for t in (row['ipa'], ' '.join(row['ipa'].split()))
                     )
                     duration_num_tokens = max(
                         duration_num_tokens,
-                        source_bound + len(self._duration_phoneme_tokenizer.encode(row['ipa']).ids) + 4,
+                        source_bound + ipa_bound + 4,
                     )
                 duration_num_tokens += self.duration_padding_tokens
                 duration = duration_num_tokens * self.token_equivalent_duration

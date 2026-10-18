@@ -465,6 +465,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             apply_partial_phoneme_text=self.dataset_type == 'train',
             load_normalized_text_percent=self.load_normalized_text_percent,
             selected_texts=selected_texts,
+            compact_text_only_whitespace=self.dynamic_phoneme_delay,
         )
         source_tokens, source_token_lens = collate_token_channel(
             cuts,
@@ -478,6 +479,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             bos_id=self.bos_id,
             interruption_token_id=self.interruption_token_id,
             load_normalized_text_percent=self.load_normalized_text_percent,
+            compact_text_only_whitespace=self.dynamic_phoneme_delay,
         )
 
         result = {
@@ -513,6 +515,7 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
                 phoneme_turn_max_words_to_drop=self.phoneme_turn_max_words_to_drop,
                 apply_turn_dropout=self.dataset_type == 'train',
                 phoneme_loss_lexicon=lexicon,
+                compact_text_only_whitespace=self.dynamic_phoneme_delay,
             )
             target_phoneme_tokens, target_phoneme_lens, phoneme_turn_dropout = phoneme_result[:3]
         else:
@@ -1056,7 +1059,8 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
             target_supervisions = [s for s in cut.supervisions if s.speaker in self.output_roles]
             for sup, selected in zip(target_supervisions, selections):
                 selected_ids, text_offsets = self.text_tokenizer.encode_with_offsets(selected, tokenizer_name=name)
-                ipa = _get_supervision_ipa_text(sup)
+                original_ipa = _get_supervision_ipa_text(sup)
+                ipa = ' '.join(original_ipa.split())
                 ipa_ids, ipa_offsets = self.phoneme_tokenizer.encode_with_offsets(ipa)
                 # Existing collators remain authoritative, including transcript
                 # selection, special tokens and lexicon masks. Never resample.
@@ -1074,10 +1078,11 @@ class MagpieTTSLhotseMultiturnDataset(torch.utils.data.Dataset):
                     custom.get('word_alignment'),
                     custom.get('text', sup.text),
                     custom.get('text_normalized', custom.get('normalized_text', sup.text)),
-                    ipa,
+                    original_ipa,
                     selected,
                     text_offsets,
                     ipa_offsets,
+                    selected_ipa=ipa,
                 )
                 for index, ready in local.items():
                     dependencies[phoneme_cursor + 1 + index] = text_begin + ready
@@ -1132,6 +1137,7 @@ def collate_token_channel(
     apply_partial_phoneme_text: bool = False,
     load_normalized_text_percent: float = 1.0,
     selected_texts: list = None,
+    compact_text_only_whitespace: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Build and collate token channels aligned to the audio frame grid."""
     tokens = []
@@ -1163,6 +1169,7 @@ def collate_token_channel(
                 apply_partial_phoneme_text,
                 load_normalized_text_percent=load_normalized_text_percent,
                 selected_texts=selected,
+                compact_text_only_whitespace=compact_text_only_whitespace,
             )
         )
         if selected_texts is not None:
@@ -1222,6 +1229,7 @@ def build_token_channel(
     apply_partial_phoneme_text: bool = False,
     load_normalized_text_percent: float = 1.0,
     selected_texts: list = None,
+    compact_text_only_whitespace: bool = False,
 ) -> torch.Tensor:
 
     if getattr(cut, "task", "tts") == "text_only":
@@ -1235,6 +1243,8 @@ def build_token_channel(
                     normalized_text=supervision.normalized_text if supervision.has_custom("normalized_text") else None,
                     load_normalized_text_percent=load_normalized_text_percent,
                 )
+                if compact_text_only_whitespace:
+                    text = ' '.join(text.split())
                 raw_ids = tokenizer.encode(text, tokenizer_name=tokenizer_name)
                 if selected_texts is not None:
                     selected_texts.append(text)
@@ -1386,6 +1396,7 @@ def collate_phoneme_channel(
     phoneme_turn_max_words_to_drop: int = 2,
     apply_turn_dropout: bool = False,
     phoneme_loss_lexicon: PhonemeLossLexicon = None,
+    compact_text_only_whitespace: bool = False,
 ):
     """Collate phonemes; optionally append a Boolean lexicon loss mask."""
     tokens = []
@@ -1406,6 +1417,7 @@ def collate_phoneme_channel(
             phoneme_turn_max_words_to_drop=phoneme_turn_max_words_to_drop,
             apply_turn_dropout=apply_turn_dropout,
             phoneme_loss_lexicon=phoneme_loss_lexicon,
+            compact_text_only_whitespace=compact_text_only_whitespace,
         )
         token, dropout_applied = result[:2]
         if phoneme_loss_lexicon is not None:
@@ -1433,6 +1445,7 @@ def build_phoneme_channel(
     phoneme_turn_max_words_to_drop: int = 2,
     apply_turn_dropout: bool = False,
     phoneme_loss_lexicon: PhonemeLossLexicon = None,
+    compact_text_only_whitespace: bool = False,
 ):
     """Build target IDs, dropout status, and an optional matching-position mask."""
     language = (
@@ -1457,6 +1470,8 @@ def build_phoneme_channel(
         for supervision in cut.supervisions:
             if supervision.speaker in roles:
                 ipa = _get_supervision_ipa_text(supervision)
+                if compact_text_only_whitespace:
+                    ipa = ' '.join(ipa.split())
                 if not ipa.strip():
                     raise ValueError(f"text_only cut {cut.id} requires a nonempty IPA target")
                 if match_lexicon is None:

@@ -39,6 +39,14 @@ as a whole. When normalized text is selected, its individual normalized words
 provide the dependencies. All earlier waits count toward visibility; no fixed
 phoneme delay is added.
 
+Dynamic text-only batches compact whitespace runs in the selected text and IPA
+to one word separator and remove leading/trailing whitespace before tokenizing.
+Empty or whitespace-only IPA alignment groups do not create wait dependencies.
+All non-whitespace characters are retained. Alignment hashes and character spans
+are checked against the original strings, with offsets projected through the
+cleanup; manifests and their alignment metadata are not rewritten. Disabled
+runs and speech batches keep their existing whitespace handling.
+
 Waits reuse the existing phoneme PAD ID **inside the true target length**. They
 are supervised by cross-entropy, have a zero input embedding, and receive unit
 loss weight even when lexicon amplification is enabled. Right/batch padding
